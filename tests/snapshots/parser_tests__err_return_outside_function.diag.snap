@@ -2,4 +2,4 @@
 source: tests/parser_tests.rs
 expression: error_msg
 ---
-Parse error at line 1, column 1: Expected identifier
+Parse error at line 2, column 8: Expected identifier

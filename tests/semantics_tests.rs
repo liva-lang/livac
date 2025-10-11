@@ -6,9 +6,9 @@ use std::fs;
 fn test_semantics_ok(test_name: &str) {
     let source = fs::read_to_string(format!("tests/semantics/ok_{}.liva", test_name))
         .unwrap_or_else(|_| panic!("Failed to read test file: ok_{}.liva", test_name));
-    
+
     let tokens = tokenize(&source).unwrap();
-    let ast = parse(tokens).unwrap();
+    let ast = parse(tokens, &source).unwrap();
     let analyzed = analyze(ast).unwrap();
     
     // Convertir AST analizado a JSON para snapshot
@@ -20,9 +20,9 @@ fn test_semantics_ok(test_name: &str) {
 fn test_semantics_err(test_name: &str) {
     let source = fs::read_to_string(format!("tests/semantics/err_{}.liva", test_name))
         .unwrap_or_else(|_| panic!("Failed to read test file: err_{}.liva", test_name));
-    
+
     let tokens = tokenize(&source).unwrap();
-    let ast = parse(tokens).unwrap();
+    let ast = parse(tokens, &source).unwrap();
     let result = analyze(ast);
     assert!(result.is_err(), "Expected semantic error for test: {}", test_name);
     
@@ -73,4 +73,9 @@ fn test_undefined_type() {
 #[test]
 fn test_async_without_await() {
     test_semantics_err("async_without_await");
+}
+
+#[test]
+fn test_undefined_variable() {
+    test_semantics_err("undefined_variable");
 }

@@ -66,6 +66,36 @@ fn test_classes_integration() {
 }
 
 #[test]
+fn test_basic_integration() {
+    test_integration_project("proj_basic");
+}
+
+#[test]
+fn test_control_flow_integration() {
+    test_integration_project("proj_control_flow");
+}
+
+#[test]
+fn test_generics_integration() {
+    test_integration_project("proj_generics");
+}
+
+#[test]
+fn test_use_integration() {
+    test_integration_project("proj_use");
+}
+
+#[test]
+fn test_examples_integration() {
+    test_integration_project("proj_examples");
+}
+
+#[test]
+fn test_comprehensive_integration() {
+    test_integration_project("proj_comprehensive");
+}
+
+#[test]
 fn test_compile_check_only() {
     let project_path = PathBuf::from("tests/integration/proj_hello");
     let main_liva = project_path.join("main.liva");

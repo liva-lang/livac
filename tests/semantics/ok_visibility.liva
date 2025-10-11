@@ -15,7 +15,7 @@ Persona {
     }
 }
 
-Empleado extends Persona {
+Empleado : Persona {
     salario: number
     
     getSalario(): number = this.salario

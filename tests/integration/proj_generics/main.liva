@@ -1,0 +1,5 @@
+max<T>(a: T, b: T): T = (a > b) ? a : b
+
+main() {
+  print(max(5, 10))
+}

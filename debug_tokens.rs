@@ -2,7 +2,7 @@ use std::fs;
 use livac::lexer::tokenize;
 
 fn main() {
-    let content = fs::read_to_string("examples.liva").unwrap();
+    let content = fs::read_to_string("tests/integration/proj_comprehensive/main.liva").unwrap();
     let tokens = tokenize(&content).unwrap();
 
     println!("Tokens found: {}", tokens.len());

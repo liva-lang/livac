@@ -1,4 +1,4 @@
-myTest() {
+main() {
   if n > 0 {
     print("ok")
   }

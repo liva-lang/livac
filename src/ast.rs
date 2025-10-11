@@ -59,6 +59,7 @@ pub struct FieldDecl {
 pub struct MethodDecl {
     pub name: String,
     pub visibility: Visibility,
+    pub type_params: Vec<String>,
     pub params: Vec<Param>,
     pub return_type: Option<TypeRef>,
     pub body: Option<BlockStmt>,
@@ -69,6 +70,7 @@ pub struct MethodDecl {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct FunctionDecl {
     pub name: String,
+    pub type_params: Vec<String>,
     pub params: Vec<Param>,
     pub return_type: Option<TypeRef>,
     pub body: Option<BlockStmt>,

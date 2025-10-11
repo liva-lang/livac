@@ -31,6 +31,7 @@ expression: json
     {
       "Function": {
         "name": "main",
+        "type_params": [],
         "params": [],
         "return_type": null,
         "body": {

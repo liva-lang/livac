@@ -174,7 +174,7 @@ mod tests {
             }
         "#;
         let tokens = tokenize(source).unwrap();
-        let program = parse(tokens).unwrap();
+        let program = parse(tokens, source).unwrap();
         let analyzed = analyze(program).unwrap();
         let ctx = desugar(analyzed).unwrap();
 
@@ -189,7 +189,7 @@ mod tests {
             }
         "#;
         let tokens = tokenize(source).unwrap();
-        let program = parse(tokens).unwrap();
+        let program = parse(tokens, source).unwrap();
         let analyzed = analyze(program).unwrap();
         let ctx = desugar(analyzed).unwrap();
 

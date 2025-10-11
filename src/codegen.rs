@@ -199,6 +199,16 @@ impl CodeGenerator {
 
         let async_kw = if method.is_async_inferred { "async " } else { "" };
 
+        let type_params = if !method.type_params.is_empty() {
+            // Add basic trait bounds for generic types
+            let bounded_params: Vec<String> = method.type_params.iter()
+                .map(|param| format!("{}: std::cmp::PartialOrd", param))
+                .collect();
+            format!("<{}>", bounded_params.join(", "))
+        } else {
+            String::new()
+        };
+
         let params_str = self.generate_params(&method.params, true)?;
 
         let return_type = if let Some(ret) = &method.return_type {
@@ -210,8 +220,8 @@ impl CodeGenerator {
         self.write_indent();
         write!(
             self.output,
-            "{}{}fn {}({}){}",
-            vis, async_kw, self.sanitize_name(&method.name), params_str, return_type
+            "{}{}fn {}{}({}){}",
+            vis, async_kw, self.sanitize_name(&method.name), type_params, params_str, return_type
         ).unwrap();
 
         if let Some(expr) = &method.expr_body {
@@ -231,6 +241,15 @@ impl CodeGenerator {
 
     fn generate_function(&mut self, func: &FunctionDecl) -> Result<()> {
         let async_kw = if func.is_async_inferred { "async " } else { "" };
+        let type_params = if !func.type_params.is_empty() {
+            // Add basic trait bounds for generic types
+            let bounded_params: Vec<String> = func.type_params.iter()
+                .map(|param| format!("{}: std::cmp::PartialOrd", param))
+                .collect();
+            format!("<{}>", bounded_params.join(", "))
+        } else {
+            String::new()
+        };
         let params_str = self.generate_params(&func.params, false)?;
         let return_type = if let Some(ret) = &func.return_type {
             format!(" -> {}", ret.to_rust_type())
@@ -241,8 +260,8 @@ impl CodeGenerator {
         self.write_indent();
         write!(
             self.output,
-            "{}fn {}({}){}",
-            async_kw, func.name, params_str, return_type
+            "{}fn {}{}({}){}",
+            async_kw, func.name, type_params, params_str, return_type
         ).unwrap();
 
         if let Some(expr) = &func.expr_body {
@@ -499,14 +518,22 @@ impl CodeGenerator {
                 // Special handling for print function
                 if let Expr::Identifier(name) = callee.as_ref() {
                     if name == "print" {
-                        self.output.push_str("println!(");
-                        for (i, arg) in args.iter().enumerate() {
-                            if i > 0 {
-                                self.output.push_str(", ");
+                        if args.is_empty() {
+                            self.output.push_str("println!()");
+                        } else {
+                            self.output.push_str("println!(\"");
+                            for _arg in args.iter() {
+                                self.output.push_str("{}");
                             }
-                            self.generate_expr(arg)?;
+                            self.output.push_str("\", ");
+                            for (i, arg) in args.iter().enumerate() {
+                                if i > 0 {
+                                    self.output.push_str(", ");
+                                }
+                                self.generate_expr(arg)?;
+                            }
+                            self.output.push(')');
                         }
-                        self.output.push(')');
                         return Ok(());
                     }
                 }

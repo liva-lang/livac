@@ -1,5 +1,6 @@
 ---
-source: tests/parser_tests.rs
+source: tests/semantics_tests.rs
+assertion_line: 16
 expression: json
 ---
 {
@@ -37,50 +38,6 @@ expression: json
                 "Simple": "string"
               },
               "init": null
-            }
-          },
-          {
-            "Method": {
-              "name": "constructor",
-              "visibility": "Public",
-              "type_params": [],
-              "params": [
-                {
-                  "name": "nombre",
-                  "type_ref": {
-                    "Simple": "string"
-                  },
-                  "default": null
-                },
-                {
-                  "name": "edad",
-                  "type_ref": {
-                    "Simple": "number"
-                  },
-                  "default": null
-                }
-              ],
-              "return_type": null,
-              "body": {
-                "stmts": [
-                  {
-                    "Expr": {
-                      "expr": {
-                        "Identifier": "nombre"
-                      }
-                    }
-                  },
-                  {
-                    "Expr": {
-                      "expr": {
-                        "Identifier": "edad"
-                      }
-                    }
-                  }
-                ]
-              },
-              "expr_body": null,
-              "is_async_inferred": false
             }
           },
           {
@@ -182,59 +139,98 @@ expression: json
     },
     {
       "Class": {
-        "name": "Animal",
-        "base": null,
+        "name": "Empleado",
+        "base": "Persona",
         "members": [
           {
             "Field": {
-              "name": "especie",
+              "name": "salario",
               "visibility": "Public",
               "type_ref": {
-                "Simple": "string"
-              },
-              "init": null
-            }
-          },
-          {
-            "Field": {
-              "name": "_habitat",
-              "visibility": "Protected",
-              "type_ref": {
-                "Simple": "string"
+                "Simple": "number"
               },
               "init": null
             }
           },
           {
             "Method": {
-              "name": "makeSound",
+              "name": "getSalario",
               "visibility": "Public",
               "type_params": [],
               "params": [],
-              "return_type": null,
+              "return_type": {
+                "Simple": "number"
+              },
               "body": {
                 "stmts": [
                   {
-                    "Expr": {
+                    "Return": {
                       "expr": {
-                        "Call": {
-                          "callee": {
-                            "Identifier": "print"
+                        "Member": {
+                          "object": {
+                            "Identifier": "this"
                           },
-                          "args": [
-                            {
-                              "Literal": {
-                                "String": "Some sound"
-                              }
-                            }
-                          ]
+                          "property": "salario"
                         }
                       }
                     }
                   }
                 ]
               },
-              "expr_body": null,
+              "expr_body": {
+                "Member": {
+                  "object": {
+                    "Identifier": "this"
+                  },
+                  "property": "salario"
+                }
+              },
+              "is_async_inferred": false
+            }
+          },
+          {
+            "Method": {
+              "name": "getEdadEmpleado",
+              "visibility": "Public",
+              "type_params": [],
+              "params": [],
+              "return_type": {
+                "Simple": "number"
+              },
+              "body": {
+                "stmts": [
+                  {
+                    "Return": {
+                      "expr": {
+                        "Call": {
+                          "callee": {
+                            "Member": {
+                              "object": {
+                                "Identifier": "this"
+                              },
+                              "property": "_getEdad"
+                            }
+                          },
+                          "args": []
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "expr_body": {
+                "Call": {
+                  "callee": {
+                    "Member": {
+                      "object": {
+                        "Identifier": "this"
+                      },
+                      "property": "_getEdad"
+                    }
+                  },
+                  "args": []
+                }
+              },
               "is_async_inferred": false
             }
           }

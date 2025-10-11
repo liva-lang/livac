@@ -134,9 +134,25 @@ impl Parser {
         }
 
         if self.match_token(&Token::Test) {
-            let name = self.parse_identifier()?;
-            self.expect(Token::LParen)?;
-            self.expect(Token::RParen)?;
+            let is_string_name = if let Some(Token::StringLiteral(_)) = self.peek() {
+                true
+            } else {
+                false
+            };
+
+            let name = if is_string_name {
+                self.parse_string_literal()?
+            } else {
+                self.parse_identifier()?
+            };
+
+            // Tests with string names don't have parentheses: test "name" { ... }
+            // Tests with identifier names have parentheses: test name() { ... }
+            if !is_string_name {
+                self.expect(Token::LParen)?;
+                self.expect(Token::RParen)?;
+            }
+
             self.expect(Token::LBrace)?;
             let body = self.parse_block_stmt()?;
             self.expect(Token::RBrace)?;
@@ -166,6 +182,14 @@ impl Parser {
         }
 
         // Otherwise it's a function
+        let type_params = if self.check(&Token::Lt) {
+            // Parse type parameters first
+            self.advance(); // consume '<'
+            self.parse_type_params()?
+        } else {
+            vec![]
+        };
+
         self.expect(Token::LParen)?;
         let params = self.parse_params()?;
         self.expect(Token::RParen)?;
@@ -181,6 +205,7 @@ impl Parser {
             let body = self.parse_expression()?;
             return Ok(TopLevel::Function(FunctionDecl {
                 name,
+                type_params,
                 params,
                 return_type,
                 body: Some(BlockStmt { stmts: vec![Stmt::Return(ReturnStmt { expr: Some(body.clone()) })] }),
@@ -196,12 +221,29 @@ impl Parser {
 
         Ok(TopLevel::Function(FunctionDecl {
             name,
+            type_params,
             params,
             return_type,
             body: Some(body),
             expr_body: None,
             is_async_inferred: false,
         }))
+    }
+
+    fn parse_type_params(&mut self) -> Result<Vec<String>> {
+        let mut type_params = Vec::new();
+
+        while !self.is_at_end() && !self.check(&Token::Gt) {
+            let param_name = self.parse_identifier()?;
+            type_params.push(param_name);
+
+            if !self.match_token(&Token::Comma) {
+                break;
+            }
+        }
+        self.expect(Token::Gt)?;
+
+        Ok(type_params)
     }
 
     fn parse_members(&mut self) -> Result<Vec<Member>> {
@@ -211,9 +253,17 @@ impl Parser {
             let name = self.parse_identifier()?;
             let visibility = Visibility::from_name(&name);
 
-            // Check if it's a method (has parentheses)
-            if self.peek() == Some(&Token::LParen) {
-                self.advance();
+            // Check if it's a method (has parentheses or type parameters)
+            if self.peek() == Some(&Token::Lt) || self.peek() == Some(&Token::LParen) {
+                let type_params = if self.check(&Token::Lt) {
+                    // Parse type parameters first
+                    self.advance(); // consume '<'
+                    self.parse_type_params()?
+                } else {
+                    vec![]
+                };
+
+                self.expect(Token::LParen)?;
                 let params = self.parse_params()?;
                 self.expect(Token::RParen)?;
 
@@ -229,6 +279,7 @@ impl Parser {
                     members.push(Member::Method(MethodDecl {
                         name,
                         visibility,
+                        type_params,
                         params,
                         return_type,
                         body: Some(BlockStmt { stmts: vec![Stmt::Return(ReturnStmt { expr: Some(body.clone()) })] }),
@@ -243,6 +294,7 @@ impl Parser {
                     members.push(Member::Method(MethodDecl {
                         name,
                         visibility,
+                        type_params,
                         params,
                         return_type,
                         body: Some(body),
@@ -319,7 +371,23 @@ impl Parser {
             _ => return Err(self.error("Expected type".into())),
         };
 
-        Ok(TypeRef::Simple(base))
+        // Check for generic type parameters
+        if self.check(&Token::Lt) {
+            self.advance(); // consume '<'
+            let mut args = Vec::new();
+
+            loop {
+                args.push(self.parse_type()?);
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+            }
+
+            self.expect(Token::Gt)?;
+            Ok(TypeRef::Generic { base, args })
+        } else {
+            Ok(TypeRef::Simple(base))
+        }
     }
 
     fn parse_block_stmt(&mut self) -> Result<BlockStmt> {

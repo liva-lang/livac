@@ -7,6 +7,7 @@ expression: json
     {
       "Function": {
         "name": "sum",
+        "type_params": [],
         "params": [
           {
             "name": "a",
@@ -62,6 +63,7 @@ expression: json
     {
       "Function": {
         "name": "isAdult",
+        "type_params": [],
         "params": [
           {
             "name": "age",
@@ -110,6 +112,7 @@ expression: json
     {
       "Function": {
         "name": "greet",
+        "type_params": [],
         "params": [
           {
             "name": "name",

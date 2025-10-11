@@ -287,16 +287,18 @@ impl SemanticAnalyzer {
     }
 
     fn validate_function(&self, func: &FunctionDecl) -> Result<()> {
+        let type_params: std::collections::HashSet<String> = func.type_params.iter().cloned().collect();
+
         // Check parameter types
         for param in &func.params {
             if let Some(type_ref) = &param.type_ref {
-                self.validate_type_ref(type_ref)?;
+                self.validate_type_ref(type_ref, &type_params)?;
             }
         }
 
         // Check return type
         if let Some(return_type) = &func.return_type {
-            self.validate_type_ref(return_type)?;
+            self.validate_type_ref(return_type, &type_params)?;
         }
 
         Ok(())
@@ -307,17 +309,18 @@ impl SemanticAnalyzer {
             match member {
                 Member::Field(field) => {
                     if let Some(type_ref) = &field.type_ref {
-                        self.validate_type_ref(type_ref)?;
+                        self.validate_type_ref(type_ref, &std::collections::HashSet::new())?;
                     }
                 }
                 Member::Method(method) => {
+                    let type_params: std::collections::HashSet<String> = method.type_params.iter().cloned().collect();
                     for param in &method.params {
                         if let Some(type_ref) = &param.type_ref {
-                            self.validate_type_ref(type_ref)?;
+                            self.validate_type_ref(type_ref, &type_params)?;
                         }
                     }
                     if let Some(return_type) = &method.return_type {
-                        self.validate_type_ref(return_type)?;
+                        self.validate_type_ref(return_type, &type_params)?;
                     }
                 }
             }
@@ -336,11 +339,11 @@ impl SemanticAnalyzer {
         Ok(())
     }
 
-    fn validate_type_ref(&self, type_ref: &TypeRef) -> Result<()> {
+    fn validate_type_ref(&self, type_ref: &TypeRef, available_type_params: &std::collections::HashSet<String>) -> Result<()> {
         match type_ref {
             TypeRef::Simple(name) => {
-                // Check if it's a built-in type or a defined type
-                if !is_builtin_type(name) && !self.types.contains_key(name) {
+                // Check if it's a built-in type, a defined type, or a type parameter
+                if !is_builtin_type(name) && !self.types.contains_key(name) && !available_type_params.contains(name) {
                     return Err(CompilerError::TypeError(format!(
                         "Type '{}' not found",
                         name
@@ -348,13 +351,13 @@ impl SemanticAnalyzer {
                 }
             }
             TypeRef::Generic { base, args } => {
-                self.validate_type_ref(&TypeRef::Simple(base.clone()))?;
+                self.validate_type_ref(&TypeRef::Simple(base.clone()), available_type_params)?;
                 for arg in args {
-                    self.validate_type_ref(arg)?;
+                    self.validate_type_ref(arg, available_type_params)?;
                 }
             }
-            TypeRef::Array(inner) => self.validate_type_ref(inner)?,
-            TypeRef::Optional(inner) => self.validate_type_ref(inner)?,
+            TypeRef::Array(inner) => self.validate_type_ref(inner, available_type_params)?,
+            TypeRef::Optional(inner) => self.validate_type_ref(inner, available_type_params)?,
         }
         Ok(())
     }
@@ -409,7 +412,7 @@ mod tests {
             }
         "#;
         let tokens = tokenize(source).unwrap();
-        let program = parse(tokens).unwrap();
+        let program = parse(tokens, source).unwrap();
         let analyzed = analyze(program).unwrap();
 
         match &analyzed.items[0] {

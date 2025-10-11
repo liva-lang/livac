@@ -8,7 +8,7 @@ fn test_parser_ok(test_name: &str) {
         .unwrap_or_else(|_| panic!("Failed to read test file: ok_{}.liva", test_name));
     
     let tokens = tokenize(&source).unwrap();
-    let ast = parse(tokens).unwrap();
+    let ast = parse(tokens, &source).unwrap();
     
     // Convertir AST a JSON para snapshot
     let json = serde_json::to_string_pretty(&ast).unwrap();
@@ -21,7 +21,7 @@ fn test_parser_err(test_name: &str) {
         .unwrap_or_else(|_| panic!("Failed to read test file: err_{}.liva", test_name));
     
     let tokens = tokenize(&source).unwrap();
-    let result = parse(tokens);
+    let result = parse(tokens, &source);
     assert!(result.is_err(), "Expected parser error for test: {}", test_name);
     
     let error_msg = result.unwrap_err().to_string();

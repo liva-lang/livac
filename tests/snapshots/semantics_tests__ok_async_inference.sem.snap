@@ -1,0 +1,161 @@
+---
+source: tests/semantics_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "fetchUser",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "name": "response",
+                "type_ref": null,
+                "init": {
+                  "AsyncCall": {
+                    "callee": {
+                      "Member": {
+                        "object": {
+                          "Identifier": "http"
+                        },
+                        "property": "get"
+                      }
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "String": "https://api.example.com/user"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "Return": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Member": {
+                        "object": {
+                          "Identifier": "response"
+                        },
+                        "property": "json"
+                      }
+                    },
+                    "args": []
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": true
+      }
+    },
+    {
+      "Function": {
+        "name": "processData",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "name": "user",
+                "type_ref": null,
+                "init": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "fetchUser"
+                    },
+                    "args": []
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "processed",
+                "type_ref": null,
+                "init": {
+                  "AsyncCall": {
+                    "callee": {
+                      "Identifier": "processUser"
+                    },
+                    "args": [
+                      {
+                        "Identifier": "user"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "Return": {
+                "expr": {
+                  "Identifier": "processed"
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": true
+      }
+    },
+    {
+      "Function": {
+        "name": "main",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "name": "result",
+                "type_ref": null,
+                "init": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "processData"
+                    },
+                    "args": []
+                  }
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "print"
+                    },
+                    "args": [
+                      {
+                        "Identifier": "result"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": true
+      }
+    }
+  ]
+}
