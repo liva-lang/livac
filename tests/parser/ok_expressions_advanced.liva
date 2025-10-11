@@ -1,0 +1,37 @@
+// Expresiones avanzadas y complejas
+main() {
+    // Objetos complejos
+    let person = {
+        name: "John",
+        age: 30,
+        address: {
+            street: "Main St",
+            city: "Springfield"
+        }
+    }
+
+    // Arrays con diferentes tipos
+    let mixed_array = [1, "hello", true, 3.14]
+
+    // Acceso a miembros complejos
+    let street = person.address.street
+    let name = person.name
+    let age = person.age
+
+    // Operaciones con arrays
+    let numbers = [1, 2, 3, 4, 5]
+    let first = numbers[0]
+    let last = numbers[len(numbers) - 1]
+
+    // Expresiones con paréntesis complejos
+    let complex = ((1 + 2) * 3 - 4) / (5 + 6)
+    let logical = (true and false) or (!(1 > 2))
+
+    // Strings con expresiones complejas
+    let message = $"Hello {person.name}! You live at {person.address.street}, {person.address.city}. Age: {person.age}"
+
+    print($"Complex expression result: {complex}")
+    print($"Logical expression result: {logical}")
+    print($"Message: {message}")
+    print($"Array operations: first={first}, last={last}")
+}

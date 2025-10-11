@@ -1,0 +1,137 @@
+---
+source: tests/parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "main",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "name": "optional",
+                "type_ref": {
+                  "Generic": {
+                    "base": "Option",
+                    "args": [
+                      {
+                        "Simple": "string"
+                      }
+                    ]
+                  }
+                },
+                "init": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "Some"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "String": "hello"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "result",
+                "type_ref": {
+                  "Generic": {
+                    "base": "Result",
+                    "args": [
+                      {
+                        "Simple": "number"
+                      },
+                      {
+                        "Simple": "string"
+                      }
+                    ]
+                  }
+                },
+                "init": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "Ok"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "Int": 42
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "print"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "String": "Optional: {optional}"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "print"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "String": "Result: {result}"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "print"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "String": "Basic generics parsed successfully"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    }
+  ]
+}

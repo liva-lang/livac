@@ -1,0 +1,74 @@
+// Características avanzadas de concurrencia
+use rust "tokio"
+use rust "std::thread"
+
+// Función que será auto-async debido a llamada async interna
+fetchMultipleUsers() {
+    let user1 = async fetchUser(1)
+    let user2 = async fetchUser(2)
+    let user3 = async fetchUser(3)
+
+    return [user1, user2, user3]
+}
+
+// Función que combina async y parallel
+processData() {
+    // Async I/O
+    let data = async fetchData()
+
+    // Parallel CPU work
+    let processed = parallel processIntensive(data)
+
+    // Fire and forget logging
+    fire async logProcessStart()
+
+    // Task con control explícito
+    let task_handle = task parallel backgroundWork()
+
+    // Combinar resultados
+    let final = await task_handle
+
+    return [data, processed, final]
+}
+
+// Función que usa diferentes modos de concurrencia
+mixedConcurrencyDemo() {
+    // Múltiples async en paralelo
+    let a1 = async task1()
+    let a2 = async task2()
+    let a3 = async task3()
+
+    // Múltiples parallel para CPU intensivo
+    let p1 = parallel cpuTask(1)
+    let p2 = parallel cpuTask(2)
+
+    // Combinar resultados
+    let result1 = a1 + a2 + a3
+    let result2 = p1 + p2
+
+    // Fire and forget sin esperar resultado
+    fire async logResults(result1, result2)
+    fire parallel cleanup()
+
+    return result1 * result2
+}
+
+// Función que demuestra lazy evaluation
+lazyConcurrencyDemo() {
+    // Estas llamadas no ejecutan inmediatamente
+    let future1 = async expensiveAsyncOperation(1)
+    let future2 = parallel expensiveParallelOperation(2)
+
+    // Hacen otro trabajo primero
+    let intermediate = doSomeWork()
+
+    // Ahora usan los resultados (lazy await/join)
+    let result1 = future1
+    let result2 = future2
+
+    return result1 + result2 + intermediate
+}
+
+main() {
+    print("Advanced concurrency features parsed successfully")
+}

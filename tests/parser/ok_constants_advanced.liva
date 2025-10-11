@@ -1,0 +1,11 @@
+// Función principal con constantes básicas
+main() {
+    let PI = 3.14159
+    let GREETING = "Hello, World!"
+    let MAX_SIZE = 1024
+
+    print($"PI: {PI}")
+    print($"GREETING: {GREETING}")
+    print($"MAX_SIZE: {MAX_SIZE}")
+    print("Constants parsed successfully")
+}

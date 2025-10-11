@@ -1,0 +1,535 @@
+---
+source: tests/parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "UseRust": {
+        "crate_name": "tokio",
+        "alias": null
+      }
+    },
+    {
+      "UseRust": {
+        "crate_name": "std::thread",
+        "alias": null
+      }
+    },
+    {
+      "Function": {
+        "name": "fetchMultipleUsers",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "name": "user1",
+                "type_ref": null,
+                "init": {
+                  "AsyncCall": {
+                    "callee": {
+                      "Identifier": "fetchUser"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "Int": 1
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "user2",
+                "type_ref": null,
+                "init": {
+                  "AsyncCall": {
+                    "callee": {
+                      "Identifier": "fetchUser"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "Int": 2
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "user3",
+                "type_ref": null,
+                "init": {
+                  "AsyncCall": {
+                    "callee": {
+                      "Identifier": "fetchUser"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "Int": 3
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "Return": {
+                "expr": {
+                  "ArrayLiteral": [
+                    {
+                      "Identifier": "user1"
+                    },
+                    {
+                      "Identifier": "user2"
+                    },
+                    {
+                      "Identifier": "user3"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    },
+    {
+      "Function": {
+        "name": "processData",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "name": "data",
+                "type_ref": null,
+                "init": {
+                  "AsyncCall": {
+                    "callee": {
+                      "Identifier": "fetchData"
+                    },
+                    "args": []
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "processed",
+                "type_ref": null,
+                "init": {
+                  "ParallelCall": {
+                    "callee": {
+                      "Identifier": "processIntensive"
+                    },
+                    "args": [
+                      {
+                        "Identifier": "data"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "FireCall": {
+                    "mode": "Async",
+                    "callee": "logProcessStart",
+                    "args": []
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "task_handle",
+                "type_ref": null,
+                "init": {
+                  "TaskCall": {
+                    "mode": "Parallel",
+                    "callee": "backgroundWork",
+                    "args": []
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "final",
+                "type_ref": null,
+                "init": {
+                  "Unary": {
+                    "op": "Await",
+                    "operand": {
+                      "Identifier": "task_handle"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "Return": {
+                "expr": {
+                  "ArrayLiteral": [
+                    {
+                      "Identifier": "data"
+                    },
+                    {
+                      "Identifier": "processed"
+                    },
+                    {
+                      "Identifier": "final"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    },
+    {
+      "Function": {
+        "name": "mixedConcurrencyDemo",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "name": "a1",
+                "type_ref": null,
+                "init": {
+                  "AsyncCall": {
+                    "callee": {
+                      "Identifier": "task1"
+                    },
+                    "args": []
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "a2",
+                "type_ref": null,
+                "init": {
+                  "AsyncCall": {
+                    "callee": {
+                      "Identifier": "task2"
+                    },
+                    "args": []
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "a3",
+                "type_ref": null,
+                "init": {
+                  "AsyncCall": {
+                    "callee": {
+                      "Identifier": "task3"
+                    },
+                    "args": []
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "p1",
+                "type_ref": null,
+                "init": {
+                  "ParallelCall": {
+                    "callee": {
+                      "Identifier": "cpuTask"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "Int": 1
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "p2",
+                "type_ref": null,
+                "init": {
+                  "ParallelCall": {
+                    "callee": {
+                      "Identifier": "cpuTask"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "Int": 2
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "result1",
+                "type_ref": null,
+                "init": {
+                  "Binary": {
+                    "op": "Add",
+                    "left": {
+                      "Binary": {
+                        "op": "Add",
+                        "left": {
+                          "Identifier": "a1"
+                        },
+                        "right": {
+                          "Identifier": "a2"
+                        }
+                      }
+                    },
+                    "right": {
+                      "Identifier": "a3"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "result2",
+                "type_ref": null,
+                "init": {
+                  "Binary": {
+                    "op": "Add",
+                    "left": {
+                      "Identifier": "p1"
+                    },
+                    "right": {
+                      "Identifier": "p2"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "FireCall": {
+                    "mode": "Async",
+                    "callee": "logResults",
+                    "args": [
+                      {
+                        "Identifier": "result1"
+                      },
+                      {
+                        "Identifier": "result2"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "FireCall": {
+                    "mode": "Parallel",
+                    "callee": "cleanup",
+                    "args": []
+                  }
+                }
+              }
+            },
+            {
+              "Return": {
+                "expr": {
+                  "Binary": {
+                    "op": "Mul",
+                    "left": {
+                      "Identifier": "result1"
+                    },
+                    "right": {
+                      "Identifier": "result2"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    },
+    {
+      "Function": {
+        "name": "lazyConcurrencyDemo",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "name": "future1",
+                "type_ref": null,
+                "init": {
+                  "AsyncCall": {
+                    "callee": {
+                      "Identifier": "expensiveAsyncOperation"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "Int": 1
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "future2",
+                "type_ref": null,
+                "init": {
+                  "ParallelCall": {
+                    "callee": {
+                      "Identifier": "expensiveParallelOperation"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "Int": 2
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "intermediate",
+                "type_ref": null,
+                "init": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "doSomeWork"
+                    },
+                    "args": []
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "result1",
+                "type_ref": null,
+                "init": {
+                  "Identifier": "future1"
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "result2",
+                "type_ref": null,
+                "init": {
+                  "Identifier": "future2"
+                }
+              }
+            },
+            {
+              "Return": {
+                "expr": {
+                  "Binary": {
+                    "op": "Add",
+                    "left": {
+                      "Binary": {
+                        "op": "Add",
+                        "left": {
+                          "Identifier": "result1"
+                        },
+                        "right": {
+                          "Identifier": "result2"
+                        }
+                      }
+                    },
+                    "right": {
+                      "Identifier": "intermediate"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    },
+    {
+      "Function": {
+        "name": "main",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "Expr": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "print"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "String": "Advanced concurrency features parsed successfully"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    }
+  ]
+}

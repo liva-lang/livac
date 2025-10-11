@@ -1,0 +1,74 @@
+// Manejo avanzado de errores
+
+// Función que puede fallar
+readFile(filename: string): string {
+    try {
+        // Simulamos una operación que puede fallar
+        if filename == "nonexistent.txt" {
+            throw "File not found"
+        }
+        return "file content"
+    } catch (e) {
+        throw $"Failed to read file: {e}"
+    }
+}
+
+// Función que usa Result en lugar de excepciones
+safeDivide(a: number, b: number): Result<number, string> {
+    if b == 0 {
+        return Err("Division by zero")
+    }
+    return Ok(a / b)
+}
+
+// Función que combina try/catch con Result
+processDivision(a: number, b: number): string {
+    try {
+        let result = safeDivide(a, b)
+        if result.isOk() {
+            return $"Success: {result.unwrap()}"
+        } else {
+            return $"Error: {result.unwrapErr()}"
+        }
+    } catch (e) {
+        return $"Unexpected error: {e}"
+    }
+}
+
+// Función con manejo de errores anidados
+complexErrorHandling() {
+    try {
+        let data = readFile("nonexistent.txt")
+        try {
+            let result = safeDivide(10, 0)
+            print($"Result: {result}")
+        } catch (e) {
+            print($"Division error: {e}")
+        }
+    } catch (e) {
+        print($"File error: {e}")
+        // Re-throw si necesitamos propagar
+        throw $"Critical error in complexErrorHandling: {e}"
+    }
+}
+
+// Función que demuestra múltiples catch blocks
+handleMultipleErrors() {
+    try {
+        // Código que puede generar diferentes tipos de errores
+        let result = parseAndDivide("10", "0")
+        print($"Result: {result}")
+    } catch (e) {
+        if e.contains("parse") {
+            print($"Parse error: {e}")
+        } else if e.contains("division") {
+            print($"Division error: {e}")
+        } else {
+            print($"Other error: {e}")
+        }
+    }
+}
+
+main() {
+    print("Advanced error handling parsed successfully")
+}

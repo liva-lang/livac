@@ -59,6 +59,46 @@ fn test_imports() {
 }
 
 #[test]
+fn test_types_advanced() {
+    test_parser_ok("types_advanced");
+}
+
+#[test]
+fn test_expressions_advanced() {
+    test_parser_ok("expressions_advanced");
+}
+
+#[test]
+fn test_concurrency_advanced() {
+    test_parser_ok("concurrency_advanced");
+}
+
+#[test]
+fn test_error_handling_advanced() {
+    test_parser_ok("error_handling_advanced");
+}
+
+#[test]
+fn test_generics_advanced() {
+    test_parser_ok("generics_advanced");
+}
+
+#[test]
+fn test_constants_advanced() {
+    test_parser_ok("constants_advanced");
+}
+
+#[test]
+fn test_complex_expressions() {
+    test_parser_err("complex_expressions");
+}
+
+#[test]
+fn test_type_errors() {
+    test_parser_err("type_errors");
+}
+
+#[test]
 fn test_unclosed_paren() {
     test_parser_err("unclosed_paren");
 }

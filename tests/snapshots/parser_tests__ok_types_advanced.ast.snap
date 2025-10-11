@@ -1,0 +1,524 @@
+---
+source: tests/parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "main",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "name": "i8_val",
+                "type_ref": {
+                  "Simple": "i8"
+                },
+                "init": {
+                  "Literal": {
+                    "Int": 127
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "i16_val",
+                "type_ref": {
+                  "Simple": "i16"
+                },
+                "init": {
+                  "Literal": {
+                    "Int": 32767
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "i32_val",
+                "type_ref": {
+                  "Simple": "i32"
+                },
+                "init": {
+                  "Literal": {
+                    "Int": 2147483647
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "i64_val",
+                "type_ref": {
+                  "Simple": "i64"
+                },
+                "init": {
+                  "Literal": {
+                    "Int": 9223372036854775807
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "i128_val",
+                "type_ref": {
+                  "Simple": "i128"
+                },
+                "init": {
+                  "Literal": {
+                    "Int": 1000000000000000000
+                  }
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "Identifier": "i128"
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "u8_val",
+                "type_ref": {
+                  "Simple": "u8"
+                },
+                "init": {
+                  "Literal": {
+                    "Int": 255
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "u16_val",
+                "type_ref": {
+                  "Simple": "u16"
+                },
+                "init": {
+                  "Literal": {
+                    "Int": 65535
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "u32_val",
+                "type_ref": {
+                  "Simple": "u32"
+                },
+                "init": {
+                  "Literal": {
+                    "Int": 4294967295
+                  }
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "Identifier": "u32"
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "u64_val",
+                "type_ref": {
+                  "Simple": "u64"
+                },
+                "init": {
+                  "Literal": {
+                    "Int": 1000000000000
+                  }
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "Identifier": "u64"
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "u128_val",
+                "type_ref": {
+                  "Simple": "u128"
+                },
+                "init": {
+                  "Literal": {
+                    "Int": 1000000000000000000
+                  }
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "Identifier": "u128"
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "isize_val",
+                "type_ref": {
+                  "Simple": "isize"
+                },
+                "init": {
+                  "Literal": {
+                    "Int": 1000000000000
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "usize_val",
+                "type_ref": {
+                  "Simple": "usize"
+                },
+                "init": {
+                  "Literal": {
+                    "Int": 1000000000000
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "f32_val",
+                "type_ref": {
+                  "Simple": "f32"
+                },
+                "init": {
+                  "Literal": {
+                    "Float": 3.14
+                  }
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "Identifier": "f32"
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "f64_val",
+                "type_ref": {
+                  "Simple": "f64"
+                },
+                "init": {
+                  "Literal": {
+                    "Float": 2.718281828
+                  }
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "Identifier": "f64"
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "char_a",
+                "type_ref": {
+                  "Simple": "char"
+                },
+                "init": {
+                  "Literal": {
+                    "Char": "A"
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "char_b",
+                "type_ref": {
+                  "Simple": "char"
+                },
+                "init": {
+                  "Literal": {
+                    "Char": "B"
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "char_z",
+                "type_ref": {
+                  "Simple": "char"
+                },
+                "init": {
+                  "Literal": {
+                    "Char": "Z"
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "char_space",
+                "type_ref": {
+                  "Simple": "char"
+                },
+                "init": {
+                  "Literal": {
+                    "Char": " "
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "bytes_val",
+                "type_ref": {
+                  "Simple": "bytes"
+                },
+                "init": {
+                  "ArrayLiteral": [
+                    {
+                      "Literal": {
+                        "Int": 72
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "Int": 101
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "Int": 108
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "Int": 108
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "Int": 111
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "optional",
+                "type_ref": {
+                  "Generic": {
+                    "base": "Option",
+                    "args": [
+                      {
+                        "Simple": "string"
+                      }
+                    ]
+                  }
+                },
+                "init": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "Some"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "String": "hello"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "optional_none",
+                "type_ref": {
+                  "Generic": {
+                    "base": "Option",
+                    "args": [
+                      {
+                        "Simple": "number"
+                      }
+                    ]
+                  }
+                },
+                "init": {
+                  "Identifier": "None"
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "result_ok",
+                "type_ref": {
+                  "Generic": {
+                    "base": "Result",
+                    "args": [
+                      {
+                        "Simple": "number"
+                      },
+                      {
+                        "Simple": "string"
+                      }
+                    ]
+                  }
+                },
+                "init": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "Ok"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "Int": 42
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "result_err",
+                "type_ref": {
+                  "Generic": {
+                    "base": "Result",
+                    "args": [
+                      {
+                        "Simple": "string"
+                      },
+                      {
+                        "Simple": "string"
+                      }
+                    ]
+                  }
+                },
+                "init": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "Err"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "String": "error"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "int_array",
+                "type_ref": null,
+                "init": {
+                  "ArrayLiteral": [
+                    {
+                      "Literal": {
+                        "Int": 1
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "Int": 2
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "Int": 3
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "Int": 4
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "Int": 5
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "str_array",
+                "type_ref": null,
+                "init": {
+                  "ArrayLiteral": [
+                    {
+                      "Literal": {
+                        "String": "a"
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "String": "b"
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "String": "c"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "print"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "String": "All advanced types parsed successfully"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    }
+  ]
+}

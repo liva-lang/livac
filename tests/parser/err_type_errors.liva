@@ -1,0 +1,23 @@
+// Errores de sintaxis reales
+main() {
+    // Error: declaración de variable incompleta
+    let x: i32 =
+
+    // Error: asignación sin variable
+    = 42
+
+    // Error: función sin nombre
+    () => 42
+
+    // Error: array literal incompleto
+    let arr = [1, 2
+
+    // Error: objeto literal incompleto
+    let obj = { name: "John"
+
+    // Error: declaración de constante incompleta
+    const PI =
+
+    // Error: llamada de función incompleta
+    print("hello"
+}

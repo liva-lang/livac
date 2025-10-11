@@ -1,0 +1,434 @@
+---
+source: tests/parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "main",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "name": "person",
+                "type_ref": null,
+                "init": {
+                  "ObjectLiteral": [
+                    [
+                      "name",
+                      {
+                        "Literal": {
+                          "String": "John"
+                        }
+                      }
+                    ],
+                    [
+                      "age",
+                      {
+                        "Literal": {
+                          "Int": 30
+                        }
+                      }
+                    ],
+                    [
+                      "address",
+                      {
+                        "ObjectLiteral": [
+                          [
+                            "street",
+                            {
+                              "Literal": {
+                                "String": "Main St"
+                              }
+                            }
+                          ],
+                          [
+                            "city",
+                            {
+                              "Literal": {
+                                "String": "Springfield"
+                              }
+                            }
+                          ]
+                        ]
+                      }
+                    ]
+                  ]
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "mixed_array",
+                "type_ref": null,
+                "init": {
+                  "ArrayLiteral": [
+                    {
+                      "Literal": {
+                        "Int": 1
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "String": "hello"
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "Bool": true
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "Float": 3.14
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "street",
+                "type_ref": null,
+                "init": {
+                  "Member": {
+                    "object": {
+                      "Member": {
+                        "object": {
+                          "Identifier": "person"
+                        },
+                        "property": "address"
+                      }
+                    },
+                    "property": "street"
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "name",
+                "type_ref": null,
+                "init": {
+                  "Member": {
+                    "object": {
+                      "Identifier": "person"
+                    },
+                    "property": "name"
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "age",
+                "type_ref": null,
+                "init": {
+                  "Member": {
+                    "object": {
+                      "Identifier": "person"
+                    },
+                    "property": "age"
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "numbers",
+                "type_ref": null,
+                "init": {
+                  "ArrayLiteral": [
+                    {
+                      "Literal": {
+                        "Int": 1
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "Int": 2
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "Int": 3
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "Int": 4
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "Int": 5
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "first",
+                "type_ref": null,
+                "init": {
+                  "Identifier": "numbers"
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "ArrayLiteral": [
+                    {
+                      "Literal": {
+                        "Int": 0
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "last",
+                "type_ref": null,
+                "init": {
+                  "Identifier": "numbers"
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "ArrayLiteral": [
+                    {
+                      "Binary": {
+                        "op": "Sub",
+                        "left": {
+                          "Call": {
+                            "callee": {
+                              "Identifier": "len"
+                            },
+                            "args": [
+                              {
+                                "Identifier": "numbers"
+                              }
+                            ]
+                          }
+                        },
+                        "right": {
+                          "Literal": {
+                            "Int": 1
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "complex",
+                "type_ref": null,
+                "init": {
+                  "Binary": {
+                    "op": "Div",
+                    "left": {
+                      "Binary": {
+                        "op": "Sub",
+                        "left": {
+                          "Binary": {
+                            "op": "Mul",
+                            "left": {
+                              "Binary": {
+                                "op": "Add",
+                                "left": {
+                                  "Literal": {
+                                    "Int": 1
+                                  }
+                                },
+                                "right": {
+                                  "Literal": {
+                                    "Int": 2
+                                  }
+                                }
+                              }
+                            },
+                            "right": {
+                              "Literal": {
+                                "Int": 3
+                              }
+                            }
+                          }
+                        },
+                        "right": {
+                          "Literal": {
+                            "Int": 4
+                          }
+                        }
+                      }
+                    },
+                    "right": {
+                      "Binary": {
+                        "op": "Add",
+                        "left": {
+                          "Literal": {
+                            "Int": 5
+                          }
+                        },
+                        "right": {
+                          "Literal": {
+                            "Int": 6
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "logical",
+                "type_ref": null,
+                "init": {
+                  "Binary": {
+                    "op": "Or",
+                    "left": {
+                      "Binary": {
+                        "op": "And",
+                        "left": {
+                          "Literal": {
+                            "Bool": true
+                          }
+                        },
+                        "right": {
+                          "Literal": {
+                            "Bool": false
+                          }
+                        }
+                      }
+                    },
+                    "right": {
+                      "Unary": {
+                        "op": "Not",
+                        "operand": {
+                          "Binary": {
+                            "op": "Gt",
+                            "left": {
+                              "Literal": {
+                                "Int": 1
+                              }
+                            },
+                            "right": {
+                              "Literal": {
+                                "Int": 2
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "message",
+                "type_ref": null,
+                "init": {
+                  "Literal": {
+                    "String": "Hello {person.name}! You live at {person.address.street}, {person.address.city}. Age: {person.age}"
+                  }
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "print"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "String": "Complex expression result: {complex}"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "print"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "String": "Logical expression result: {logical}"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "print"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "String": "Message: {message}"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "print"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "String": "Array operations: first={first}, last={last}"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,682 @@
+---
+source: tests/parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "readFile",
+        "type_params": [],
+        "params": [
+          {
+            "name": "filename",
+            "type_ref": {
+              "Simple": "string"
+            },
+            "default": null
+          }
+        ],
+        "return_type": {
+          "Simple": "string"
+        },
+        "body": {
+          "stmts": [
+            {
+              "TryCatch": {
+                "try_block": {
+                  "stmts": [
+                    {
+                      "If": {
+                        "condition": {
+                          "Binary": {
+                            "op": "Eq",
+                            "left": {
+                              "Identifier": "filename"
+                            },
+                            "right": {
+                              "Literal": {
+                                "String": "nonexistent.txt"
+                              }
+                            }
+                          }
+                        },
+                        "then_branch": {
+                          "stmts": [
+                            {
+                              "Throw": {
+                                "expr": {
+                                  "Literal": {
+                                    "String": "File not found"
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        "else_branch": null
+                      }
+                    },
+                    {
+                      "Return": {
+                        "expr": {
+                          "Literal": {
+                            "String": "file content"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "catch_var": "e",
+                "catch_block": {
+                  "stmts": [
+                    {
+                      "Throw": {
+                        "expr": {
+                          "Literal": {
+                            "String": "Failed to read file: {e}"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    },
+    {
+      "Function": {
+        "name": "safeDivide",
+        "type_params": [],
+        "params": [
+          {
+            "name": "a",
+            "type_ref": {
+              "Simple": "number"
+            },
+            "default": null
+          },
+          {
+            "name": "b",
+            "type_ref": {
+              "Simple": "number"
+            },
+            "default": null
+          }
+        ],
+        "return_type": {
+          "Generic": {
+            "base": "Result",
+            "args": [
+              {
+                "Simple": "number"
+              },
+              {
+                "Simple": "string"
+              }
+            ]
+          }
+        },
+        "body": {
+          "stmts": [
+            {
+              "If": {
+                "condition": {
+                  "Binary": {
+                    "op": "Eq",
+                    "left": {
+                      "Identifier": "b"
+                    },
+                    "right": {
+                      "Literal": {
+                        "Int": 0
+                      }
+                    }
+                  }
+                },
+                "then_branch": {
+                  "stmts": [
+                    {
+                      "Return": {
+                        "expr": {
+                          "Call": {
+                            "callee": {
+                              "Identifier": "Err"
+                            },
+                            "args": [
+                              {
+                                "Literal": {
+                                  "String": "Division by zero"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "else_branch": null
+              }
+            },
+            {
+              "Return": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "Ok"
+                    },
+                    "args": [
+                      {
+                        "Binary": {
+                          "op": "Div",
+                          "left": {
+                            "Identifier": "a"
+                          },
+                          "right": {
+                            "Identifier": "b"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    },
+    {
+      "Function": {
+        "name": "processDivision",
+        "type_params": [],
+        "params": [
+          {
+            "name": "a",
+            "type_ref": {
+              "Simple": "number"
+            },
+            "default": null
+          },
+          {
+            "name": "b",
+            "type_ref": {
+              "Simple": "number"
+            },
+            "default": null
+          }
+        ],
+        "return_type": {
+          "Simple": "string"
+        },
+        "body": {
+          "stmts": [
+            {
+              "TryCatch": {
+                "try_block": {
+                  "stmts": [
+                    {
+                      "VarDecl": {
+                        "name": "result",
+                        "type_ref": null,
+                        "init": {
+                          "Call": {
+                            "callee": {
+                              "Identifier": "safeDivide"
+                            },
+                            "args": [
+                              {
+                                "Identifier": "a"
+                              },
+                              {
+                                "Identifier": "b"
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "If": {
+                        "condition": {
+                          "Call": {
+                            "callee": {
+                              "Member": {
+                                "object": {
+                                  "Identifier": "result"
+                                },
+                                "property": "isOk"
+                              }
+                            },
+                            "args": []
+                          }
+                        },
+                        "then_branch": {
+                          "stmts": [
+                            {
+                              "Return": {
+                                "expr": {
+                                  "Literal": {
+                                    "String": "Success: {result.unwrap()}"
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        "else_branch": {
+                          "stmts": [
+                            {
+                              "Return": {
+                                "expr": {
+                                  "Literal": {
+                                    "String": "Error: {result.unwrapErr()}"
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                },
+                "catch_var": "e",
+                "catch_block": {
+                  "stmts": [
+                    {
+                      "Return": {
+                        "expr": {
+                          "Literal": {
+                            "String": "Unexpected error: {e}"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    },
+    {
+      "Function": {
+        "name": "complexErrorHandling",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "TryCatch": {
+                "try_block": {
+                  "stmts": [
+                    {
+                      "VarDecl": {
+                        "name": "data",
+                        "type_ref": null,
+                        "init": {
+                          "Call": {
+                            "callee": {
+                              "Identifier": "readFile"
+                            },
+                            "args": [
+                              {
+                                "Literal": {
+                                  "String": "nonexistent.txt"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "TryCatch": {
+                        "try_block": {
+                          "stmts": [
+                            {
+                              "VarDecl": {
+                                "name": "result",
+                                "type_ref": null,
+                                "init": {
+                                  "Call": {
+                                    "callee": {
+                                      "Identifier": "safeDivide"
+                                    },
+                                    "args": [
+                                      {
+                                        "Literal": {
+                                          "Int": 10
+                                        }
+                                      },
+                                      {
+                                        "Literal": {
+                                          "Int": 0
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            },
+                            {
+                              "Expr": {
+                                "expr": {
+                                  "Call": {
+                                    "callee": {
+                                      "Identifier": "print"
+                                    },
+                                    "args": [
+                                      {
+                                        "Literal": {
+                                          "String": "Result: {result}"
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        "catch_var": "e",
+                        "catch_block": {
+                          "stmts": [
+                            {
+                              "Expr": {
+                                "expr": {
+                                  "Call": {
+                                    "callee": {
+                                      "Identifier": "print"
+                                    },
+                                    "args": [
+                                      {
+                                        "Literal": {
+                                          "String": "Division error: {e}"
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                },
+                "catch_var": "e",
+                "catch_block": {
+                  "stmts": [
+                    {
+                      "Expr": {
+                        "expr": {
+                          "Call": {
+                            "callee": {
+                              "Identifier": "print"
+                            },
+                            "args": [
+                              {
+                                "Literal": {
+                                  "String": "File error: {e}"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "Throw": {
+                        "expr": {
+                          "Literal": {
+                            "String": "Critical error in complexErrorHandling: {e}"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    },
+    {
+      "Function": {
+        "name": "handleMultipleErrors",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "TryCatch": {
+                "try_block": {
+                  "stmts": [
+                    {
+                      "VarDecl": {
+                        "name": "result",
+                        "type_ref": null,
+                        "init": {
+                          "Call": {
+                            "callee": {
+                              "Identifier": "parseAndDivide"
+                            },
+                            "args": [
+                              {
+                                "Literal": {
+                                  "String": "10"
+                                }
+                              },
+                              {
+                                "Literal": {
+                                  "String": "0"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "Expr": {
+                        "expr": {
+                          "Call": {
+                            "callee": {
+                              "Identifier": "print"
+                            },
+                            "args": [
+                              {
+                                "Literal": {
+                                  "String": "Result: {result}"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "catch_var": "e",
+                "catch_block": {
+                  "stmts": [
+                    {
+                      "If": {
+                        "condition": {
+                          "Call": {
+                            "callee": {
+                              "Member": {
+                                "object": {
+                                  "Identifier": "e"
+                                },
+                                "property": "contains"
+                              }
+                            },
+                            "args": [
+                              {
+                                "Literal": {
+                                  "String": "parse"
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        "then_branch": {
+                          "stmts": [
+                            {
+                              "Expr": {
+                                "expr": {
+                                  "Call": {
+                                    "callee": {
+                                      "Identifier": "print"
+                                    },
+                                    "args": [
+                                      {
+                                        "Literal": {
+                                          "String": "Parse error: {e}"
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        "else_branch": {
+                          "stmts": [
+                            {
+                              "If": {
+                                "condition": {
+                                  "Call": {
+                                    "callee": {
+                                      "Member": {
+                                        "object": {
+                                          "Identifier": "e"
+                                        },
+                                        "property": "contains"
+                                      }
+                                    },
+                                    "args": [
+                                      {
+                                        "Literal": {
+                                          "String": "division"
+                                        }
+                                      }
+                                    ]
+                                  }
+                                },
+                                "then_branch": {
+                                  "stmts": [
+                                    {
+                                      "Expr": {
+                                        "expr": {
+                                          "Call": {
+                                            "callee": {
+                                              "Identifier": "print"
+                                            },
+                                            "args": [
+                                              {
+                                                "Literal": {
+                                                  "String": "Division error: {e}"
+                                                }
+                                              }
+                                            ]
+                                          }
+                                        }
+                                      }
+                                    }
+                                  ]
+                                },
+                                "else_branch": {
+                                  "stmts": [
+                                    {
+                                      "Expr": {
+                                        "expr": {
+                                          "Call": {
+                                            "callee": {
+                                              "Identifier": "print"
+                                            },
+                                            "args": [
+                                              {
+                                                "Literal": {
+                                                  "String": "Other error: {e}"
+                                                }
+                                              }
+                                            ]
+                                          }
+                                        }
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    },
+    {
+      "Function": {
+        "name": "main",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "Expr": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "print"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "String": "Advanced error handling parsed successfully"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    }
+  ]
+}

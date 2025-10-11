@@ -1,0 +1,12 @@
+// Características avanzadas de tipos genéricos
+
+// Función principal
+main() {
+    // Uso básico de tipos genéricos
+    let optional: Option<string> = Some("hello")
+    let result: Result<number, string> = Ok(42)
+
+    print($"Optional: {optional}")
+    print($"Result: {result}")
+    print("Basic generics parsed successfully")
+}

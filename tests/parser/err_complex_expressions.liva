@@ -1,0 +1,23 @@
+// Expresiones complejas que deberían generar errores de sintaxis
+main() {
+    // Error: acceso a miembro sin objeto
+    let x = .name
+
+    // Error: llamada a función sin función
+    let y = (1, 2, 3)
+
+    // Error: acceso a índice sin array
+    let z = [0]
+
+    // Error: operador inválido
+    let result = "hello" +* 42
+
+    // Error: expresión incompleta
+    let a = undefined_var
+
+    // Error: declaración de función inválida
+    let b = function()
+
+    // Error: constante sin valor
+    const PI
+}

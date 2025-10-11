@@ -1,0 +1,127 @@
+---
+source: tests/parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "main",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "name": "PI",
+                "type_ref": null,
+                "init": {
+                  "Literal": {
+                    "Float": 3.14159
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "GREETING",
+                "type_ref": null,
+                "init": {
+                  "Literal": {
+                    "String": "Hello, World!"
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "MAX_SIZE",
+                "type_ref": null,
+                "init": {
+                  "Literal": {
+                    "Int": 1024
+                  }
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "print"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "String": "PI: {PI}"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "print"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "String": "GREETING: {GREETING}"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "print"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "String": "MAX_SIZE: {MAX_SIZE}"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "print"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "String": "Constants parsed successfully"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    }
+  ]
+}
