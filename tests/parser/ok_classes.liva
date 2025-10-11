@@ -18,6 +18,8 @@ Persona {
     __getDni(): string {
         return this.__dni
     }
+
+    getEdadDNI():string = $"{this._getEdad()} {this.__getDni()}"
 }
 
 Animal {

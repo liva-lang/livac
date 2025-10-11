@@ -176,6 +176,36 @@ expression: json
               "expr_body": null,
               "is_async_inferred": false
             }
+          },
+          {
+            "Method": {
+              "name": "getEdadDNI",
+              "visibility": "Public",
+              "type_params": [],
+              "params": [],
+              "return_type": {
+                "Simple": "string"
+              },
+              "body": {
+                "stmts": [
+                  {
+                    "Return": {
+                      "expr": {
+                        "Literal": {
+                          "String": "{this._getEdad()} {this.__getDni()}"
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "expr_body": {
+                "Literal": {
+                  "String": "{this._getEdad()} {this.__getDni()}"
+                }
+              },
+              "is_async_inferred": false
+            }
           }
         ]
       }
