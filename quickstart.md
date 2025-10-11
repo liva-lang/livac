@@ -13,14 +13,14 @@ Get up and running with Liva in 5 minutes!
 ### Option 1: Quick Install (Linux/macOS)
 
 ```bash
-curl -sSf https://raw.githubusercontent.com/your-repo/livac/main/install.sh | sh
+curl -sSf https://raw.githubusercontent.com/liva-lang/livac/main/install.sh | sh
 ```
 
 ### Option 2: Build from Source
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-repo/livac.git
+git clone https://github.com/liva-lang/livac.git
 cd livac
 
 # Build and install
@@ -269,7 +269,7 @@ livac main.liva --run
 
 ```bash
 # Download examples
-git clone https://github.com/your-repo/livac.git
+git clone https://github.com/liva-lang/livac.git
 cd livac/examples
 
 # Try them out
@@ -345,7 +345,7 @@ main() {
 
 **Need help?**
 - Check [Troubleshooting Guide](docs/troubleshooting.md)
-- Ask in [GitHub Discussions](https://github.com/your-repo/livac/discussions)
+- Ask in [GitHub Discussions](https://github.com/liva-lang/livac/discussions)
 
 ## Cheat Sheet
 
