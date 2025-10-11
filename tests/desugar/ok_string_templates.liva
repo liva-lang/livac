@@ -1,0 +1,8 @@
+// Templates de string
+main() {
+    let name = "World"
+    let greeting = $"Hello {name}!"
+    let message = $"User {name} has {count} items"
+    print(greeting)
+    print(message)
+}

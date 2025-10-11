@@ -1,0 +1,21 @@
+// Expresiones complejas
+main() {
+    // Aritméticas
+    let a = 10 + 5
+    let b = 10 * 2
+    
+    // Lógicas
+    let d = true and false
+    let e = true or false
+    
+    // Comparaciones
+    let g = a == b
+    let h = a != b
+    let i = a < b
+    let j = a <= b
+    let k = a > b
+    let l = a >= b
+    
+    // Llamadas a funciones
+    let result = max(a, b)
+}

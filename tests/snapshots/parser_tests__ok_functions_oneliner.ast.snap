@@ -1,0 +1,145 @@
+---
+source: tests/parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "sum",
+        "params": [
+          {
+            "name": "a",
+            "type_ref": {
+              "Simple": "number"
+            },
+            "default": null
+          },
+          {
+            "name": "b",
+            "type_ref": {
+              "Simple": "number"
+            },
+            "default": null
+          }
+        ],
+        "return_type": {
+          "Simple": "number"
+        },
+        "body": {
+          "stmts": [
+            {
+              "Return": {
+                "expr": {
+                  "Binary": {
+                    "op": "Add",
+                    "left": {
+                      "Identifier": "a"
+                    },
+                    "right": {
+                      "Identifier": "b"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": {
+          "Binary": {
+            "op": "Add",
+            "left": {
+              "Identifier": "a"
+            },
+            "right": {
+              "Identifier": "b"
+            }
+          }
+        },
+        "is_async_inferred": false
+      }
+    },
+    {
+      "Function": {
+        "name": "isAdult",
+        "params": [
+          {
+            "name": "age",
+            "type_ref": null,
+            "default": null
+          }
+        ],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "Return": {
+                "expr": {
+                  "Binary": {
+                    "op": "Ge",
+                    "left": {
+                      "Identifier": "age"
+                    },
+                    "right": {
+                      "Literal": {
+                        "Int": 18
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": {
+          "Binary": {
+            "op": "Ge",
+            "left": {
+              "Identifier": "age"
+            },
+            "right": {
+              "Literal": {
+                "Int": 18
+              }
+            }
+          }
+        },
+        "is_async_inferred": false
+      }
+    },
+    {
+      "Function": {
+        "name": "greet",
+        "params": [
+          {
+            "name": "name",
+            "type_ref": {
+              "Simple": "string"
+            },
+            "default": null
+          }
+        ],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "Return": {
+                "expr": {
+                  "Literal": {
+                    "String": "Hello"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": {
+          "Literal": {
+            "String": "Hello"
+          }
+        },
+        "is_async_inferred": false
+      }
+    }
+  ]
+}

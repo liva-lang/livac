@@ -1,0 +1,4 @@
+// Case sin switch
+main() {
+    case 1: print("one")
+}

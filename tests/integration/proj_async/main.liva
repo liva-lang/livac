@@ -1,0 +1,12 @@
+// Proyecto con async
+use rust "tokio"
+
+fetchData(url: string): string {
+    let response = async getData(url)
+    return response
+}
+
+main() {
+    let data = fetchData("https://api.example.com/data")
+    print(data)
+}

@@ -1,0 +1,8 @@
+// Identificadores básicos
+let x = 10
+let _protected = 20
+let __private = 30
+let camelCase = 40
+let snake_case = 50
+let UPPER_CASE = 60
+let with123numbers = 70

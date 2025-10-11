@@ -1,0 +1,184 @@
+---
+source: tests/parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "main",
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "Expr": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "print"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "String": "Hello, World!"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "Return": {
+                "expr": {
+                  "Literal": {
+                    "Int": 0
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    },
+    {
+      "Function": {
+        "name": "factorial",
+        "params": [
+          {
+            "name": "n",
+            "type_ref": {
+              "Simple": "number"
+            },
+            "default": null
+          }
+        ],
+        "return_type": {
+          "Simple": "number"
+        },
+        "body": {
+          "stmts": [
+            {
+              "If": {
+                "condition": {
+                  "Binary": {
+                    "op": "Le",
+                    "left": {
+                      "Identifier": "n"
+                    },
+                    "right": {
+                      "Literal": {
+                        "Int": 1
+                      }
+                    }
+                  }
+                },
+                "then_branch": {
+                  "stmts": [
+                    {
+                      "Return": {
+                        "expr": {
+                          "Literal": {
+                            "Int": 1
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "else_branch": null
+              }
+            },
+            {
+              "Return": {
+                "expr": {
+                  "Binary": {
+                    "op": "Mul",
+                    "left": {
+                      "Identifier": "n"
+                    },
+                    "right": {
+                      "Call": {
+                        "callee": {
+                          "Identifier": "factorial"
+                        },
+                        "args": [
+                          {
+                            "Binary": {
+                              "op": "Sub",
+                              "left": {
+                                "Identifier": "n"
+                              },
+                              "right": {
+                                "Literal": {
+                                  "Int": 1
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    },
+    {
+      "Function": {
+        "name": "fetchData",
+        "params": [
+          {
+            "name": "url",
+            "type_ref": {
+              "Simple": "string"
+            },
+            "default": null
+          }
+        ],
+        "return_type": {
+          "Simple": "string"
+        },
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "name": "response",
+                "type_ref": null,
+                "init": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "getData"
+                    },
+                    "args": [
+                      {
+                        "Identifier": "url"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "Return": {
+                "expr": {
+                  "Identifier": "response"
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    }
+  ]
+}

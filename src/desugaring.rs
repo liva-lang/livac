@@ -1,0 +1,198 @@
+use crate::ast::*;
+use crate::error::Result;
+
+pub struct DesugarContext {
+    pub rust_crates: Vec<(String, Option<String>)>,
+    pub has_async: bool,
+    pub has_parallel: bool,
+}
+
+impl DesugarContext {
+    fn new() -> Self {
+        Self {
+            rust_crates: Vec::new(),
+            has_async: false,
+            has_parallel: false,
+        }
+    }
+}
+
+pub fn desugar(program: Program) -> Result<DesugarContext> {
+    let mut ctx = DesugarContext::new();
+
+    // Collect use rust declarations
+    for item in &program.items {
+        if let TopLevel::UseRust(use_rust) = item {
+            ctx.rust_crates.push((
+                use_rust.crate_name.clone(),
+                use_rust.alias.clone(),
+            ));
+        }
+
+        // Check for async/parallel usage
+        check_concurrency(&item, &mut ctx);
+    }
+
+    // Add tokio if async is used
+    if ctx.has_async {
+        ctx.rust_crates.push(("tokio".to_string(), None));
+    }
+
+    Ok(ctx)
+}
+
+fn check_concurrency(item: &TopLevel, ctx: &mut DesugarContext) {
+    match item {
+        TopLevel::Function(func) => {
+            if func.is_async_inferred {
+                ctx.has_async = true;
+            }
+            if let Some(body) = &func.body {
+                check_block_concurrency(body, ctx);
+            }
+            if let Some(expr) = &func.expr_body {
+                check_expr_concurrency(expr, ctx);
+            }
+        }
+        TopLevel::Class(class) => {
+            for member in &class.members {
+                if let Member::Method(method) = member {
+                    if method.is_async_inferred {
+                        ctx.has_async = true;
+                    }
+                    if let Some(body) = &method.body {
+                        check_block_concurrency(body, ctx);
+                    }
+                    if let Some(expr) = &method.expr_body {
+                        check_expr_concurrency(expr, ctx);
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn check_block_concurrency(block: &BlockStmt, ctx: &mut DesugarContext) {
+    for stmt in &block.stmts {
+        check_stmt_concurrency(stmt, ctx);
+    }
+}
+
+fn check_stmt_concurrency(stmt: &Stmt, ctx: &mut DesugarContext) {
+    match stmt {
+        Stmt::VarDecl(var) => {
+            if let Some(init) = &var.init {
+                check_expr_concurrency(init, ctx);
+            }
+        }
+        Stmt::ConstDecl(const_decl) => check_expr_concurrency(&const_decl.init, ctx),
+        Stmt::Assign(assign) => {
+            check_expr_concurrency(&assign.target, ctx);
+            check_expr_concurrency(&assign.value, ctx);
+        }
+        Stmt::If(if_stmt) => {
+            check_expr_concurrency(&if_stmt.condition, ctx);
+            check_block_concurrency(&if_stmt.then_branch, ctx);
+            if let Some(else_branch) = &if_stmt.else_branch {
+                check_block_concurrency(else_branch, ctx);
+            }
+        }
+        Stmt::While(while_stmt) => {
+            check_expr_concurrency(&while_stmt.condition, ctx);
+            check_block_concurrency(&while_stmt.body, ctx);
+        }
+        Stmt::For(for_stmt) => {
+            check_expr_concurrency(&for_stmt.iterable, ctx);
+            check_block_concurrency(&for_stmt.body, ctx);
+        }
+        Stmt::Return(ret) => {
+            if let Some(expr) = &ret.expr {
+                check_expr_concurrency(expr, ctx);
+            }
+        }
+        Stmt::Expr(expr_stmt) => check_expr_concurrency(&expr_stmt.expr, ctx),
+        Stmt::Block(block) => check_block_concurrency(block, ctx),
+        _ => {}
+    }
+}
+
+fn check_expr_concurrency(expr: &Expr, ctx: &mut DesugarContext) {
+    match expr {
+        Expr::AsyncCall { .. } | Expr::TaskCall { mode: ConcurrencyMode::Async, .. } | Expr::FireCall { mode: ConcurrencyMode::Async, .. } => {
+            ctx.has_async = true;
+        }
+        Expr::ParallelCall { .. } | Expr::TaskCall { mode: ConcurrencyMode::Parallel, .. } | Expr::FireCall { mode: ConcurrencyMode::Parallel, .. } => {
+            ctx.has_parallel = true;
+        }
+        Expr::Binary { left, right, .. } => {
+            check_expr_concurrency(left, ctx);
+            check_expr_concurrency(right, ctx);
+        }
+        Expr::Unary { operand, .. } => check_expr_concurrency(operand, ctx),
+        Expr::Ternary { condition, then_expr, else_expr } => {
+            check_expr_concurrency(condition, ctx);
+            check_expr_concurrency(then_expr, ctx);
+            check_expr_concurrency(else_expr, ctx);
+        }
+        Expr::Call { args, .. } => {
+            for arg in args {
+                check_expr_concurrency(arg, ctx);
+            }
+        }
+        Expr::Member { object, .. } => check_expr_concurrency(object, ctx),
+        Expr::Index { object, index } => {
+            check_expr_concurrency(object, ctx);
+            check_expr_concurrency(index, ctx);
+        }
+        Expr::ArrayLiteral(elements) => {
+            for elem in elements {
+                check_expr_concurrency(elem, ctx);
+            }
+        }
+        Expr::ObjectLiteral(fields) => {
+            for (_, value) in fields {
+                check_expr_concurrency(value, ctx);
+            }
+        }
+        _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::tokenize;
+    use crate::parser::parse;
+    use crate::semantic::analyze;
+
+    #[test]
+    fn test_detect_async() {
+        let source = r#"
+            main() {
+                let x = async fetchUser()
+            }
+        "#;
+        let tokens = tokenize(source).unwrap();
+        let program = parse(tokens).unwrap();
+        let analyzed = analyze(program).unwrap();
+        let ctx = desugar(analyzed).unwrap();
+
+        assert!(ctx.has_async);
+    }
+
+    #[test]
+    fn test_detect_parallel() {
+        let source = r#"
+            main() {
+                let x = parallel compute()
+            }
+        "#;
+        let tokens = tokenize(source).unwrap();
+        let program = parse(tokens).unwrap();
+        let analyzed = analyze(program).unwrap();
+        let ctx = desugar(analyzed).unwrap();
+
+        assert!(ctx.has_parallel);
+    }
+}

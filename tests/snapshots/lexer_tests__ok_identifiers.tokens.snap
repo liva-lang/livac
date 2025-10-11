@@ -1,0 +1,34 @@
+---
+source: tests/lexer_tests.rs
+expression: output
+---
+Tokens: [
+    "Let",
+    "Ident(\"x\")",
+    "Assign",
+    "IntLiteral(10)",
+    "Let",
+    "ProtectedIdent(\"_protected\")",
+    "Assign",
+    "IntLiteral(20)",
+    "Let",
+    "PrivateIdent(\"__private\")",
+    "Assign",
+    "IntLiteral(30)",
+    "Let",
+    "Ident(\"camelCase\")",
+    "Assign",
+    "IntLiteral(40)",
+    "Let",
+    "Ident(\"snake_case\")",
+    "Assign",
+    "IntLiteral(50)",
+    "Let",
+    "Ident(\"UPPER_CASE\")",
+    "Assign",
+    "IntLiteral(60)",
+    "Let",
+    "Ident(\"with123numbers\")",
+    "Assign",
+    "IntLiteral(70)",
+]

@@ -1,0 +1,6 @@
+// Mezcla de tipos number y float
+main() {
+    let a: number = 1
+    let b: float = 2.0
+    let c = a + b
+}

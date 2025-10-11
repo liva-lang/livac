@@ -1,0 +1,16 @@
+// Comentario de línea simple
+let x = 10 // Comentario al final de línea
+
+/*
+ * Comentario de bloque
+ * Multi-línea
+ */
+
+let y = 20
+
+/*
+Comentario de bloque simple
+*/
+
+// Comentario con caracteres especiales: @#$%^&*()
+let z = 30

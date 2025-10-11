@@ -1,0 +1,12 @@
+// Proyecto simple: Hello World
+main() {
+    print("Hello, Liva!")
+    print("This is a simple integration test")
+    
+    let x = 42
+    let y = 3.14
+    let name = "World"
+    
+    print($"Hello {name}!")
+    print($"x = {x}, y = {y}")
+}

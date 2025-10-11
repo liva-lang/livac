@@ -1,0 +1,16 @@
+// Inferencia de async
+fetchUser() {
+    let response = async http.get("https://api.example.com/user")
+    return response.json()
+}
+
+processData() {
+    let user = fetchUser()
+    let processed = async processUser(user)
+    return processed
+}
+
+main() {
+    let result = processData()
+    print(result)
+}

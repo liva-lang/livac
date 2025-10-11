@@ -1,0 +1,17 @@
+// Funciones con bloque
+main() {
+    print("Hello, World!")
+    return 0
+}
+
+factorial(n: number): number {
+    if n <= 1 {
+        return 1
+    }
+    return n * factorial(n - 1)
+}
+
+fetchData(url: string): string {
+    let response = getData(url)
+    return response
+}

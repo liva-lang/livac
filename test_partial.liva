@@ -1,0 +1,96 @@
+// ============================================
+// Example 1: Hello World
+// ============================================
+
+main() {
+  print("Hello from Liva!")
+}
+
+// ============================================
+// Example 2: Functions and Types
+// ============================================
+
+// One-liner function
+square(x: number): number = x * x
+
+// Block function with explicit return
+factorial(n: number): number {
+  if n <= 1 {
+    return 1
+  }
+  return n * factorial(n - 1)
+}
+
+// Function with type inference
+isEven(n) = n % 2 == 0
+
+testFunctions() {
+  print($"Square of 5: {square(5)}")
+  print($"Factorial of 5: {factorial(5)}")
+  print($"Is 4 even? {isEven(4)}")
+}
+
+// ============================================
+// Example 3: Classes with Visibility
+// ============================================
+
+Persona {
+  nombre: string
+  _edad: number        // Protected
+  __dni: string        // Private
+
+  // Constructor-like method
+  init(n: string, e: number, d: string) {
+    this.nombre = n
+    this._edad = e
+    this.__dni = d
+  }
+
+  // Public method
+  saludar() {
+    print($"Hola, soy {this.nombre}")
+  }
+
+  // Protected method
+  _getEdad(): number {
+    return this._edad
+  }
+
+  // Private method
+  __validarDni(): bool {
+    return len(this.__dni) > 0
+  }
+
+  // One-liner method
+  esMayorDeEdad(): bool = this._edad >= 18
+}
+
+// ============================================
+// Example 4: Async/Await
+// ============================================
+
+use rust "reqwest" as http
+
+// Auto-async: contains async call
+fetchUser(id: number) {
+  let url = $"https://api.example.com/users/{id}"
+  let res = async http.get(url)
+  return res.json()
+}
+
+// Auto-async: calls async function
+processUser(id: number) {
+  let user = fetchUser(id)
+  print($"Processing user: {user.name}")
+  return user
+}
+
+testAsync() {
+  // Lazy await - spawns task, awaits on first use
+  let user1 = async fetchUser(1)
+  let user2 = async fetchUser(2)
+
+  // Both fetch in parallel
+  print($"User 1: {user1.name}")
+  print($"User 2: {user2.name}")
+}

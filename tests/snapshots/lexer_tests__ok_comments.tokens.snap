@@ -1,0 +1,18 @@
+---
+source: tests/lexer_tests.rs
+expression: output
+---
+Tokens: [
+    "Let",
+    "Ident(\"x\")",
+    "Assign",
+    "IntLiteral(10)",
+    "Let",
+    "Ident(\"y\")",
+    "Assign",
+    "IntLiteral(20)",
+    "Let",
+    "Ident(\"z\")",
+    "Assign",
+    "IntLiteral(30)",
+]

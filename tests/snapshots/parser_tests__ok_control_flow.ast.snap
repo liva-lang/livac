@@ -1,0 +1,93 @@
+---
+source: tests/parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "main",
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "name": "x",
+                "type_ref": null,
+                "init": {
+                  "Literal": {
+                    "Int": 10
+                  }
+                }
+              }
+            },
+            {
+              "If": {
+                "condition": {
+                  "Binary": {
+                    "op": "Gt",
+                    "left": {
+                      "Identifier": "x"
+                    },
+                    "right": {
+                      "Literal": {
+                        "Int": 5
+                      }
+                    }
+                  }
+                },
+                "then_branch": {
+                  "stmts": [
+                    {
+                      "Expr": {
+                        "expr": {
+                          "Call": {
+                            "callee": {
+                              "Identifier": "print"
+                            },
+                            "args": [
+                              {
+                                "Literal": {
+                                  "String": "x is greater than 5"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "else_branch": {
+                  "stmts": [
+                    {
+                      "Expr": {
+                        "expr": {
+                          "Call": {
+                            "callee": {
+                              "Identifier": "print"
+                            },
+                            "args": [
+                              {
+                                "Literal": {
+                                  "String": "x is not greater than 5"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    }
+  ]
+}

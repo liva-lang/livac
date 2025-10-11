@@ -1,0 +1,22 @@
+// Proyecto con clases
+Persona {
+    nombre: string
+    _edad: number
+    __dni: string
+    
+    getNombre(): string = "Juan"
+    
+    _getEdad(): number {
+        return 30
+    }
+    
+    __getDni(): string {
+        return "12345678"
+    }
+}
+
+main() {
+    print("Empleado: Juan")
+    print("Edad: 30")
+    print("Salario: 50000")
+}

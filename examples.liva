@@ -1,0 +1,409 @@
+// ============================================
+// Example 1: Hello World
+// ============================================
+
+main() {
+  print("Hello from Liva!")
+}
+
+// ============================================
+// Example 2: Functions and Types
+// ============================================
+
+// One-liner function
+square(x: number): number = x * x
+
+// Block function with explicit return
+factorial(n: number): number {
+  if n <= 1 {
+    return 1
+  }
+  return n * factorial(n - 1)
+}
+
+// Function with type inference
+isEven(n) = n % 2 == 0
+
+testFunctions() {
+  print($"Square of 5: {square(5)}")
+  print($"Factorial of 5: {factorial(5)}")
+  print($"Is 4 even? {isEven(4)}")
+}
+
+// ============================================
+// Example 3: Classes with Visibility
+// ============================================
+
+Persona {
+  nombre: string
+  _edad: number        // Protected
+  __dni: string        // Private
+
+  // Constructor-like method
+  init(n: string, e: number, d: string) {
+    this.nombre = n
+    this._edad = e
+    this.__dni = d
+  }
+
+  // Public method
+  saludar() {
+    print($"Hola, soy {this.nombre}")
+  }
+
+  // Protected method
+  _getEdad(): number {
+    return this._edad
+  }
+
+  // Private method
+  __validarDni(): bool {
+    return len(this.__dni) > 0
+  }
+
+  // One-liner method
+  esMayorDeEdad(): bool = this._edad >= 18
+}
+
+// Inheritance
+Empleado : Persona {
+  empresa: string
+  _salario: number
+
+  trabajar() {
+    print($"{this.nombre} trabaja en {this.empresa}")
+    // Can access protected members from base class
+    print($"Tiene {this._edad} años")
+  }
+}
+
+testClasses() {
+  let p = Persona("Ana", 25, "12345678A")
+  p.saludar()
+  print($"Es mayor de edad? {p.esMayorDeEdad()}")
+
+  let e = Empleado("Carlos", 30, "87654321B", "TechCorp", 50000)
+  e.trabajar()
+}
+
+// ============================================
+// Example 4: Async/Await
+// ============================================
+
+use rust "reqwest" as http
+
+// Auto-async: contains async call
+fetchUser(id: number) {
+  let url = $"https://api.example.com/users/{id}"
+  let res = async http.get(url)
+  return res.json()
+}
+
+// Auto-async: calls async function
+processUser(id: number) {
+  let user = fetchUser(id)
+  print($"Processing user: {user.name}")
+  return user
+}
+
+testAsync() {
+  // Lazy await - spawns task, awaits on first use
+  let user1 = async fetchUser(1)
+  let user2 = async fetchUser(2)
+  
+  // Both fetch in parallel
+  print($"User 1: {user1.name}")
+  print($"User 2: {user2.name}")
+}
+
+// ============================================
+// Example 5: Parallel Computing
+// ============================================
+
+// CPU-intensive calculation
+fibonacci(n: number): number {
+  if n <= 1 {
+    return n
+  }
+  return fibonacci(n - 1) + fibonacci(n - 2)
+}
+
+testParallel() {
+  // Run on separate OS threads
+  let f1 = parallel fibonacci(35)
+  let f2 = parallel fibonacci(36)
+  let f3 = parallel fibonacci(37)
+  
+  // Lazy join - all compute in parallel
+  print($"Results: {f1}, {f2}, {f3}")
+}
+
+// ============================================
+// Example 6: Task (Explicit Control)
+// ============================================
+
+testTasks() {
+  // Returns handle, doesn't await automatically
+  let t1 = task async fetchUser(1)
+  let t2 = task parallel fibonacci(30)
+  
+  // Do other work...
+  print("Doing other work...")
+  
+  // Explicit await/join when needed
+  let user = await t1
+  let fib = await t2
+  
+  print($"User: {user.name}, Fib: {fib}")
+}
+
+// ============================================
+// Example 7: Fire and Forget
+// ============================================
+
+logEvent(msg: string) {
+  print($"[LOG] {msg}")
+  // Save to database...
+}
+
+sendMetrics(data) {
+  // Send to monitoring service...
+  print("Metrics sent")
+}
+
+testFireAndForget() {
+  // Fire and forget - no handle, no warnings
+  fire async logEvent("Application started")
+  fire parallel sendMetrics({ cpu: 45, memory: 60 })
+  
+  print("Main continues immediately")
+}
+
+// ============================================
+// Example 8: Control Flow
+// ============================================
+
+checkNumber(n: number) {
+  // if/else with logical operators
+  if n > 0 and n < 10 {
+    print("Single digit positive")
+  } else if n >= 10 or n < 0 {
+    print("Multi-digit or negative")
+  } else {
+    print("Zero")
+  }
+}
+
+categorizeAge(age: number): string {
+  // Ternary operator
+  return (age >= 18) ? "adult" : "minor"
+}
+
+testControlFlow() {
+  // For loop with range
+  for i in 0..5 {
+    print($"Count: {i}")
+  }
+  
+  // While loop
+  let count = 0
+  while count < 3 {
+    print($"While: {count}")
+    count = count + 1
+  }
+  
+  // Switch/match
+  let color = "red"
+  switch color {
+    case "red": print("Rojo")
+    case "blue": print("Azul")
+    case "green": print("Verde")
+    default: print("Otro color")
+  }
+}
+
+// ============================================
+// Example 9: Error Handling
+// ============================================
+
+divide(a: number, b: number): number {
+  if b == 0 {
+    throw "Division by zero"
+  }
+  return a / b
+}
+
+parseNumber(s: string): number {
+  // Simulate parsing
+  if s == "invalid" {
+    throw "Invalid number format"
+  }
+  return 42
+}
+
+testErrorHandling() {
+  try {
+    let result = divide(10, 2)
+    print($"Result: {result}")
+    
+    let bad = divide(10, 0)
+    print("This won't execute")
+  } catch (e) {
+    print($"Error caught: {e}")
+  }
+  
+  // Nested try-catch
+  try {
+    let num = parseNumber("invalid")
+  } catch (e) {
+    print($"Parse error: {e}")
+  }
+}
+
+// ============================================
+// Example 10: String Templates
+// ============================================
+
+testStringTemplates() {
+  let name = "Fran"
+  let age = 41
+  let city = "Altea"
+  
+  // Simple interpolation
+  print($"Hello, {name}!")
+  
+  // Multiple values
+  print($"Name: {name}, Age: {age}, City: {city}")
+  
+  // With expressions
+  print($"Next year you'll be {age + 1}")
+  
+  // Nested
+  let greeting = $"Hi {name}"
+  print($"Greeting: {greeting}")
+}
+
+// ============================================
+// Example 11: Arrays and Objects
+// ============================================
+
+testCollections() {
+  // Array literal
+  let numbers = [1, 2, 3, 4, 5]
+  print($"First: {numbers[0]}")
+  
+  // Object literal
+  let person = {
+    name: "Ana",
+    age: 25,
+    city: "Valencia"
+  }
+  
+  print($"Person: {person.name}, {person.age}")
+  
+  // Array of objects
+  let people = [
+    { name: "Juan", age: 30 },
+    { name: "Maria", age: 28 }
+  ]
+  
+  for p in people {
+    print($"{p.name} is {p.age} years old")
+  }
+}
+
+// ============================================
+// Example 12: Mixed Concurrency Patterns
+// ============================================
+
+use rust "tokio"
+
+processData() {
+  // Async I/O
+  let data1 = async fetchUser(1)
+  
+  // Parallel CPU work
+  let result = parallel fibonacci(30)
+  
+  // Fire and forget logging
+  fire async logEvent("Processing started")
+  
+  // Task with explicit control
+  let t = task async fetchUser(2)
+  
+  // Do other work
+  let computed = result * 2
+  
+  // Await task when ready
+  let data2 = await t
+  
+  return [data1, data2, computed]
+}
+
+// ============================================
+// Example 13: Generic Function (Concept)
+// ============================================
+
+max<T>(a: T, b: T): T = (a > b) ? a : b
+
+testGenerics() {
+  let maxInt = max(5, 10)
+  let maxFloat = max(3.14, 2.71)
+  
+  print($"Max int: {maxInt}")
+  print($"Max float: {maxFloat}")
+}
+
+// ============================================
+// Example 14: Testing
+// ============================================
+
+test "sum function works correctly" {
+  let result = square(5)
+  if result != 25 {
+    throw "Test failed: expected 25"
+  }
+  print("✓ Test passed")
+}
+
+test "factorial calculation" {
+  let result = factorial(5)
+  if result != 120 {
+    throw $"Test failed: expected 120, got {result}"
+  }
+  print("✓ Factorial test passed")
+}
+
+// ============================================
+// Main Entry Point
+// ============================================
+
+main() {
+  print("=== Liva Examples ===\n")
+  
+  print("1. Functions:")
+  testFunctions()
+  
+  print("\n2. Classes:")
+  testClasses()
+  
+  print("\n3. Async:")
+  testAsync()
+  
+  print("\n4. Parallel:")
+  testParallel()
+  
+  print("\n5. Control Flow:")
+  testControlFlow()
+  
+  print("\n6. Error Handling:")
+  testErrorHandling()
+  
+  print("\n7. String Templates:")
+  testStringTemplates()
+  
+  print("\n8. Collections:")
+  testCollections()
+  
+  print("\nAll examples completed!")
+}

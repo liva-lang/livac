@@ -1,0 +1,9 @@
+// Imports y uso de crates
+import std
+import math
+use rust "serde"
+use rust "tokio"
+
+main() {
+    print("Using imports")
+}

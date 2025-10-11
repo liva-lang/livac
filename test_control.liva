@@ -1,0 +1,22 @@
+testControlFlow() {
+  // For loop with range
+  for i in 0..5 {
+    print($"Count: {i}")
+  };
+
+  // While loop
+  let count = 0;
+  while count < 3 {
+    print($"While: {count}")
+    count = count + 1
+  };
+
+  // Switch/match
+  let color = "red";
+  switch color {
+    case "red": print("Rojo")
+    case "blue": print("Azul")
+    case "green": print("Verde")
+    default: print("Otro color")
+  }
+}

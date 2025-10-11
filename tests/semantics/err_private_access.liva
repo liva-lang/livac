@@ -1,0 +1,11 @@
+// Acceso a miembro privado
+Persona {
+    __dni: string
+    
+    getDni(): string = this.__dni
+}
+
+main() {
+    let p = Persona { __dni: "12345678" }
+    let dni = p.__dni  // Error: acceso a privado
+}

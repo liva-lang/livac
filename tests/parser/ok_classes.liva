@@ -1,0 +1,30 @@
+// Clases básicas
+Persona {
+    nombre: string
+    _edad: number
+    __dni: string
+    
+    constructor(nombre: string, edad: number) {
+        this.nombre = nombre
+        this._edad = edad
+    }
+    
+    getNombre(): string = this.nombre
+    
+    _getEdad(): number {
+        return this._edad
+    }
+    
+    __getDni(): string {
+        return this.__dni
+    }
+}
+
+Animal {
+    especie: string
+    _habitat: string
+    
+    makeSound() {
+        print("Some sound")
+    }
+}

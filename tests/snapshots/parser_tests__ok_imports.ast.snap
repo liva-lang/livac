@@ -1,0 +1,63 @@
+---
+source: tests/parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Import": {
+        "name": "std",
+        "alias": null
+      }
+    },
+    {
+      "Import": {
+        "name": "math",
+        "alias": null
+      }
+    },
+    {
+      "UseRust": {
+        "crate_name": "serde",
+        "alias": null
+      }
+    },
+    {
+      "UseRust": {
+        "crate_name": "tokio",
+        "alias": null
+      }
+    },
+    {
+      "Function": {
+        "name": "main",
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "Expr": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "print"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "String": "Using imports"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    }
+  ]
+}

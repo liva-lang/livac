@@ -1,0 +1,10 @@
+checkNumber(n: number) {
+  // if/else with logical operators
+  if n > 0 and n < 10 {
+    print("Single digit positive")
+  } else if n >= 10 or n < 0 {
+    print("Multi-digit or negative")
+  } else {
+    print("Zero")
+  }
+}

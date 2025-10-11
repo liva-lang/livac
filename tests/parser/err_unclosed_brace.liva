@@ -1,0 +1,5 @@
+// Llave no cerrada
+main() {
+    print("Hello")
+    if true {
+        print("World")

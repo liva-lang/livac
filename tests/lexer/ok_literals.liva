@@ -1,0 +1,13 @@
+// Literales básicos
+let int = 42
+let float = 3.14
+let negative_int = -100
+let negative_float = -2.5
+let string = "Hello, World!"
+let char = 'A'
+let bool_true = true
+let bool_false = false
+let string_template = $"Hello {name}!"
+let multiline_string = "Line 1
+Line 2
+Line 3"

@@ -1,0 +1,51 @@
+// Palabras clave básicas
+let x = 10
+const PI = 3.14
+import std.io
+use rust "serde"
+
+// Control de flujo
+if condition {
+    print("true")
+} else {
+    print("false")
+}
+
+while condition {
+    break
+}
+
+for item in items {
+    continue
+}
+
+switch value {
+    case 1: print("one")
+    case 2: print("two")
+    default: print("other")
+}
+
+// Manejo de errores
+try {
+    risky_operation()
+} catch error {
+    handle_error(error)
+}
+
+throw new Error("Something went wrong")
+
+// Funciones y retorno
+return result
+
+// Concurrencia
+async function fetch_data() {
+    return await http.get("url")
+}
+
+parallel function heavy_computation() {
+    return compute()
+}
+
+task function background_task() {
+    fire log_event("task started")
+}

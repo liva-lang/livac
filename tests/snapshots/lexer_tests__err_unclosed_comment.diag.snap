@@ -1,0 +1,7 @@
+---
+source: tests/lexer_tests.rs
+expression: error_msg
+---
+Lexer error: Invalid token at line 1, column 34: '/*
+ * Este comentario no se cierra
+'

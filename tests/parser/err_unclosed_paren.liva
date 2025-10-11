@@ -1,0 +1,4 @@
+// Paréntesis no cerrado
+main() {
+    print("Hello"
+}

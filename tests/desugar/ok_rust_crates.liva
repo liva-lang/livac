@@ -1,0 +1,8 @@
+// Uso de crates Rust
+use rust "serde"
+use rust "tokio"
+use rust "reqwest"
+
+main() {
+    print("Using Rust crates")
+}

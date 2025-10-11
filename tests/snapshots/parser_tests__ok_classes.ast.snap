@@ -1,0 +1,240 @@
+---
+source: tests/parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Class": {
+        "name": "Persona",
+        "base": null,
+        "members": [
+          {
+            "Field": {
+              "name": "nombre",
+              "visibility": "Public",
+              "type_ref": {
+                "Simple": "string"
+              },
+              "init": null
+            }
+          },
+          {
+            "Field": {
+              "name": "_edad",
+              "visibility": "Protected",
+              "type_ref": {
+                "Simple": "number"
+              },
+              "init": null
+            }
+          },
+          {
+            "Field": {
+              "name": "__dni",
+              "visibility": "Private",
+              "type_ref": {
+                "Simple": "string"
+              },
+              "init": null
+            }
+          },
+          {
+            "Method": {
+              "name": "constructor",
+              "visibility": "Public",
+              "params": [
+                {
+                  "name": "nombre",
+                  "type_ref": {
+                    "Simple": "string"
+                  },
+                  "default": null
+                },
+                {
+                  "name": "edad",
+                  "type_ref": {
+                    "Simple": "number"
+                  },
+                  "default": null
+                }
+              ],
+              "return_type": null,
+              "body": {
+                "stmts": [
+                  {
+                    "Expr": {
+                      "expr": {
+                        "Identifier": "nombre"
+                      }
+                    }
+                  },
+                  {
+                    "Expr": {
+                      "expr": {
+                        "Identifier": "edad"
+                      }
+                    }
+                  }
+                ]
+              },
+              "expr_body": null,
+              "is_async_inferred": false
+            }
+          },
+          {
+            "Method": {
+              "name": "getNombre",
+              "visibility": "Public",
+              "params": [],
+              "return_type": {
+                "Simple": "string"
+              },
+              "body": {
+                "stmts": [
+                  {
+                    "Return": {
+                      "expr": {
+                        "Member": {
+                          "object": {
+                            "Identifier": "this"
+                          },
+                          "property": "nombre"
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "expr_body": {
+                "Member": {
+                  "object": {
+                    "Identifier": "this"
+                  },
+                  "property": "nombre"
+                }
+              },
+              "is_async_inferred": false
+            }
+          },
+          {
+            "Method": {
+              "name": "_getEdad",
+              "visibility": "Protected",
+              "params": [],
+              "return_type": {
+                "Simple": "number"
+              },
+              "body": {
+                "stmts": [
+                  {
+                    "Return": {
+                      "expr": {
+                        "Member": {
+                          "object": {
+                            "Identifier": "this"
+                          },
+                          "property": "_edad"
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "expr_body": null,
+              "is_async_inferred": false
+            }
+          },
+          {
+            "Method": {
+              "name": "__getDni",
+              "visibility": "Private",
+              "params": [],
+              "return_type": {
+                "Simple": "string"
+              },
+              "body": {
+                "stmts": [
+                  {
+                    "Return": {
+                      "expr": {
+                        "Member": {
+                          "object": {
+                            "Identifier": "this"
+                          },
+                          "property": "__dni"
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "expr_body": null,
+              "is_async_inferred": false
+            }
+          }
+        ]
+      }
+    },
+    {
+      "Class": {
+        "name": "Animal",
+        "base": null,
+        "members": [
+          {
+            "Field": {
+              "name": "especie",
+              "visibility": "Public",
+              "type_ref": {
+                "Simple": "string"
+              },
+              "init": null
+            }
+          },
+          {
+            "Field": {
+              "name": "_habitat",
+              "visibility": "Protected",
+              "type_ref": {
+                "Simple": "string"
+              },
+              "init": null
+            }
+          },
+          {
+            "Method": {
+              "name": "makeSound",
+              "visibility": "Public",
+              "params": [],
+              "return_type": null,
+              "body": {
+                "stmts": [
+                  {
+                    "Expr": {
+                      "expr": {
+                        "Call": {
+                          "callee": {
+                            "Identifier": "print"
+                          },
+                          "args": [
+                            {
+                              "Literal": {
+                                "String": "Some sound"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "expr_body": null,
+              "is_async_inferred": false
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

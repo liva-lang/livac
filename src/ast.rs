@@ -1,0 +1,370 @@
+/// Abstract Syntax Tree for Liva language v0.6
+use std::fmt;
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Program {
+    pub items: Vec<TopLevel>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum TopLevel {
+    Import(ImportDecl),
+    UseRust(UseRustDecl),
+    Type(TypeDecl),
+    Class(ClassDecl),
+    Function(FunctionDecl),
+    Test(TestDecl),
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ImportDecl {
+    pub name: String,
+    pub alias: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct UseRustDecl {
+    pub crate_name: String,
+    pub alias: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct TypeDecl {
+    pub name: String,
+    pub members: Vec<Member>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ClassDecl {
+    pub name: String,
+    pub base: Option<String>,
+    pub members: Vec<Member>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum Member {
+    Field(FieldDecl),
+    Method(MethodDecl),
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct FieldDecl {
+    pub name: String,
+    pub visibility: Visibility,
+    pub type_ref: Option<TypeRef>,
+    pub init: Option<Expr>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct MethodDecl {
+    pub name: String,
+    pub visibility: Visibility,
+    pub params: Vec<Param>,
+    pub return_type: Option<TypeRef>,
+    pub body: Option<BlockStmt>,
+    pub expr_body: Option<Expr>,
+    pub is_async_inferred: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct FunctionDecl {
+    pub name: String,
+    pub params: Vec<Param>,
+    pub return_type: Option<TypeRef>,
+    pub body: Option<BlockStmt>,
+    pub expr_body: Option<Expr>,
+    pub is_async_inferred: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Param {
+    pub name: String,
+    pub type_ref: Option<TypeRef>,
+    pub default: Option<Expr>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct TestDecl {
+    pub name: String,
+    pub body: BlockStmt,
+}
+
+#[derive(Debug, Clone, PartialEq, Copy, serde::Serialize, serde::Deserialize)]
+pub enum Visibility {
+    Public,
+    Protected,
+    Private,
+}
+
+impl Visibility {
+    pub fn from_name(name: &str) -> Self {
+        if name.starts_with("__") {
+            Visibility::Private
+        } else if name.starts_with('_') {
+            Visibility::Protected
+        } else {
+            Visibility::Public
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum TypeRef {
+    Simple(String),
+    Generic { base: String, args: Vec<TypeRef> },
+    Array(Box<TypeRef>),
+    Optional(Box<TypeRef>),
+}
+
+impl TypeRef {
+    pub fn to_rust_type(&self) -> String {
+        match self {
+            TypeRef::Simple(name) => match name.as_str() {
+                "number" => "i32".to_string(),
+                "float" => "f64".to_string(),
+                "string" => "String".to_string(),
+                "bytes" => "Vec<u8>".to_string(),
+                "bool" => "bool".to_string(),
+                "char" => "char".to_string(),
+                _ => name.clone(),
+            },
+            TypeRef::Generic { base, args } => {
+                let args_str = args
+                    .iter()
+                    .map(|a| a.to_rust_type())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("{}<{}>", base, args_str)
+            }
+            TypeRef::Array(inner) => format!("Vec<{}>", inner.to_rust_type()),
+            TypeRef::Optional(inner) => format!("Option<{}>", inner.to_rust_type()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum Stmt {
+    VarDecl(VarDecl),
+    ConstDecl(ConstDecl),
+    Assign(AssignStmt),
+    If(IfStmt),
+    While(WhileStmt),
+    For(ForStmt),
+    Switch(SwitchStmt),
+    TryCatch(TryCatchStmt),
+    Throw(ThrowStmt),
+    Return(ReturnStmt),
+    Expr(ExprStmt),
+    Block(BlockStmt),
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BlockStmt {
+    pub stmts: Vec<Stmt>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct VarDecl {
+    pub name: String,
+    pub type_ref: Option<TypeRef>,
+    pub init: Option<Expr>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ConstDecl {
+    pub name: String,
+    pub init: Expr,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AssignStmt {
+    pub target: Expr,
+    pub value: Expr,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct IfStmt {
+    pub condition: Expr,
+    pub then_branch: BlockStmt,
+    pub else_branch: Option<BlockStmt>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct WhileStmt {
+    pub condition: Expr,
+    pub body: BlockStmt,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ForStmt {
+    pub var: String,
+    pub iterable: Expr,
+    pub body: BlockStmt,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct SwitchStmt {
+    pub discriminant: Expr,
+    pub cases: Vec<CaseClause>,
+    pub default: Option<Vec<Stmt>>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CaseClause {
+    pub value: Expr,
+    pub body: Vec<Stmt>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct TryCatchStmt {
+    pub try_block: BlockStmt,
+    pub catch_var: String,
+    pub catch_block: BlockStmt,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ThrowStmt {
+    pub expr: Expr,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ReturnStmt {
+    pub expr: Option<Expr>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ExprStmt {
+    pub expr: Expr,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum Expr {
+    Literal(Literal),
+    Identifier(String),
+    Binary {
+        op: BinOp,
+        left: Box<Expr>,
+        right: Box<Expr>,
+    },
+    Unary {
+        op: UnOp,
+        operand: Box<Expr>,
+    },
+    Ternary {
+        condition: Box<Expr>,
+        then_expr: Box<Expr>,
+        else_expr: Box<Expr>,
+    },
+    Call {
+        callee: Box<Expr>,
+        args: Vec<Expr>,
+    },
+    Member {
+        object: Box<Expr>,
+        property: String,
+    },
+    Index {
+        object: Box<Expr>,
+        index: Box<Expr>,
+    },
+    ObjectLiteral(Vec<(String, Expr)>),
+    ArrayLiteral(Vec<Expr>),
+    AsyncCall {
+        callee: Box<Expr>,
+        args: Vec<Expr>,
+    },
+    ParallelCall {
+        callee: Box<Expr>,
+        args: Vec<Expr>,
+    },
+    TaskCall {
+        mode: ConcurrencyMode,
+        callee: String,
+        args: Vec<Expr>,
+    },
+    FireCall {
+        mode: ConcurrencyMode,
+        callee: String,
+        args: Vec<Expr>,
+    },
+    StringTemplate {
+        parts: Vec<StringTemplatePart>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum StringTemplatePart {
+    Text(String),
+    Expr(Box<Expr>),
+}
+
+#[derive(Debug, Clone, PartialEq, Copy, serde::Serialize, serde::Deserialize)]
+pub enum ConcurrencyMode {
+    Async,
+    Parallel,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum Literal {
+    Int(i64),
+    Float(f64),
+    String(String),
+    Char(char),
+    Bool(bool),
+}
+
+#[derive(Debug, Clone, PartialEq, Copy, serde::Serialize, serde::Deserialize)]
+pub enum BinOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    Eq,
+    Ne,
+    And,
+    Or,
+    Range,
+}
+
+impl fmt::Display for BinOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BinOp::Add => write!(f, "+"),
+            BinOp::Sub => write!(f, "-"),
+            BinOp::Mul => write!(f, "*"),
+            BinOp::Div => write!(f, "/"),
+            BinOp::Mod => write!(f, "%"),
+            BinOp::Lt => write!(f, "<"),
+            BinOp::Le => write!(f, "<="),
+            BinOp::Gt => write!(f, ">"),
+            BinOp::Ge => write!(f, ">="),
+            BinOp::Eq => write!(f, "=="),
+            BinOp::Ne => write!(f, "!="),
+            BinOp::And => write!(f, "&&"),
+            BinOp::Or => write!(f, "||"),
+            BinOp::Range => write!(f, ".."),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Copy, serde::Serialize, serde::Deserialize)]
+pub enum UnOp {
+    Neg,
+    Not,
+    Await,
+}
+
+impl fmt::Display for UnOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            UnOp::Neg => write!(f, "-"),
+            UnOp::Not => write!(f, "!"),
+            UnOp::Await => write!(f, "await"),
+        }
+    }
+}

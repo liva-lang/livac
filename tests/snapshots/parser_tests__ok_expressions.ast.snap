@@ -1,0 +1,228 @@
+---
+source: tests/parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "main",
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "name": "a",
+                "type_ref": null,
+                "init": {
+                  "Binary": {
+                    "op": "Add",
+                    "left": {
+                      "Literal": {
+                        "Int": 10
+                      }
+                    },
+                    "right": {
+                      "Literal": {
+                        "Int": 5
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "b",
+                "type_ref": null,
+                "init": {
+                  "Binary": {
+                    "op": "Mul",
+                    "left": {
+                      "Literal": {
+                        "Int": 10
+                      }
+                    },
+                    "right": {
+                      "Literal": {
+                        "Int": 2
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "d",
+                "type_ref": null,
+                "init": {
+                  "Binary": {
+                    "op": "And",
+                    "left": {
+                      "Literal": {
+                        "Bool": true
+                      }
+                    },
+                    "right": {
+                      "Literal": {
+                        "Bool": false
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "e",
+                "type_ref": null,
+                "init": {
+                  "Binary": {
+                    "op": "Or",
+                    "left": {
+                      "Literal": {
+                        "Bool": true
+                      }
+                    },
+                    "right": {
+                      "Literal": {
+                        "Bool": false
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "g",
+                "type_ref": null,
+                "init": {
+                  "Binary": {
+                    "op": "Eq",
+                    "left": {
+                      "Identifier": "a"
+                    },
+                    "right": {
+                      "Identifier": "b"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "h",
+                "type_ref": null,
+                "init": {
+                  "Binary": {
+                    "op": "Ne",
+                    "left": {
+                      "Identifier": "a"
+                    },
+                    "right": {
+                      "Identifier": "b"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "i",
+                "type_ref": null,
+                "init": {
+                  "Binary": {
+                    "op": "Lt",
+                    "left": {
+                      "Identifier": "a"
+                    },
+                    "right": {
+                      "Identifier": "b"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "j",
+                "type_ref": null,
+                "init": {
+                  "Binary": {
+                    "op": "Le",
+                    "left": {
+                      "Identifier": "a"
+                    },
+                    "right": {
+                      "Identifier": "b"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "k",
+                "type_ref": null,
+                "init": {
+                  "Binary": {
+                    "op": "Gt",
+                    "left": {
+                      "Identifier": "a"
+                    },
+                    "right": {
+                      "Identifier": "b"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "l",
+                "type_ref": null,
+                "init": {
+                  "Binary": {
+                    "op": "Ge",
+                    "left": {
+                      "Identifier": "a"
+                    },
+                    "right": {
+                      "Identifier": "b"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "result",
+                "type_ref": null,
+                "init": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "max"
+                    },
+                    "args": [
+                      {
+                        "Identifier": "a"
+                      },
+                      {
+                        "Identifier": "b"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    }
+  ]
+}

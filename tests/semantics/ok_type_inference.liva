@@ -1,0 +1,15 @@
+// Inferencia de tipos
+main() {
+    let x = 42          // number
+    let y = 3.14        // float
+    let z = "hello"     // string
+    let w = true        // bool
+    let c = 'A'         // char
+    
+    // Arrays
+    let numbers = [1, 2, 3, 4, 5]
+    let names = ["Alice", "Bob", "Charlie"]
+    
+    // Objetos
+    let person = { name: "John", age: 30 }
+}

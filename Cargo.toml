@@ -1,0 +1,56 @@
+[package]
+name = "livac"
+version = "0.6.0"
+edition = "2021"
+authors = ["Fran Nadal"]
+description = "Liva to Rust compiler - combining TypeScript simplicity, Python expressiveness, and Rust safety"
+
+[lib]
+name = "livac"
+path = "src/lib.rs"
+
+[[bin]]
+name = "livac"
+path = "src/main.rs"
+
+[dependencies]
+# Parser and lexer
+logos = "0.13"
+chumsky = "0.9"
+
+# AST and code generation
+quote = "1.0"
+proc-macro2 = "1.0"
+
+# Error handling and diagnostics
+thiserror = "1.0"
+ariadne = "0.4"
+
+# CLI
+clap = { version = "4.5", features = ["derive"] }
+colored = "2.1"
+
+# File handling
+walkdir = "2.5"
+toml = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Code formatting
+prettyplease = "0.2"
+syn = { version = "2.0", features = ["full", "parsing"] }
+
+# Version info
+rustc_version = "0.4"
+
+[dev-dependencies]
+pretty_assertions = "1.4"
+insta = "1.40"
+proptest = "1.4"
+tempfile = "3.10"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
