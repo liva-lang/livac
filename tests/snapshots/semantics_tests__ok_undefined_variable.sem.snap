@@ -1,0 +1,62 @@
+---
+source: tests/semantics_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "main",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "If": {
+                "condition": {
+                  "Binary": {
+                    "op": "Gt",
+                    "left": {
+                      "Identifier": "n"
+                    },
+                    "right": {
+                      "Literal": {
+                        "Int": 0
+                      }
+                    }
+                  }
+                },
+                "then_branch": {
+                  "stmts": [
+                    {
+                      "Expr": {
+                        "expr": {
+                          "Call": {
+                            "callee": {
+                              "Identifier": "print"
+                            },
+                            "args": [
+                              {
+                                "Literal": {
+                                  "String": "ok"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "else_branch": null
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    }
+  ]
+}

@@ -286,6 +286,9 @@ impl Parser {
                         expr_body: Some(body),
                         is_async_inferred: false,
                     }));
+
+                    // Consume optional semicolon for one-liner methods
+                    self.match_token(&Token::Semicolon);
                 } else {
                     // Block method
                     self.expect(Token::LBrace)?;
@@ -301,6 +304,9 @@ impl Parser {
                         expr_body: None,
                         is_async_inferred: false,
                     }));
+
+                    // Consume optional semicolon for block methods
+                    self.match_token(&Token::Semicolon);
                 }
             } else {
                 // It's a field
@@ -322,6 +328,9 @@ impl Parser {
                     type_ref,
                     init,
                 }));
+
+                // Consume optional semicolon
+                self.match_token(&Token::Semicolon);
             }
         }
 

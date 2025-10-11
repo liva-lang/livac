@@ -1,0 +1,115 @@
+---
+source: tests/semantics_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Class": {
+        "name": "Persona",
+        "base": null,
+        "members": [
+          {
+            "Field": {
+              "name": "__dni",
+              "visibility": "Private",
+              "type_ref": {
+                "Simple": "string"
+              },
+              "init": null
+            }
+          },
+          {
+            "Method": {
+              "name": "getDni",
+              "visibility": "Public",
+              "type_params": [],
+              "params": [],
+              "return_type": {
+                "Simple": "string"
+              },
+              "body": {
+                "stmts": [
+                  {
+                    "Return": {
+                      "expr": {
+                        "Member": {
+                          "object": {
+                            "Identifier": "this"
+                          },
+                          "property": "__dni"
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "expr_body": {
+                "Member": {
+                  "object": {
+                    "Identifier": "this"
+                  },
+                  "property": "__dni"
+                }
+              },
+              "is_async_inferred": false
+            }
+          }
+        ]
+      }
+    },
+    {
+      "Function": {
+        "name": "main",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "name": "p",
+                "type_ref": null,
+                "init": {
+                  "Identifier": "Persona"
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "ObjectLiteral": [
+                    [
+                      "__dni",
+                      {
+                        "Literal": {
+                          "String": "12345678"
+                        }
+                      }
+                    ]
+                  ]
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "dni",
+                "type_ref": null,
+                "init": {
+                  "Member": {
+                    "object": {
+                      "Identifier": "p"
+                    },
+                    "property": "__dni"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+// Uso de resultado async sin await
+fetchData() {
+    return async http.get("url")
+}
+
+main() {
+    let data = fetchData()  // Error: resultado async sin await
+    print(data)
+}

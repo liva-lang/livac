@@ -1,0 +1,65 @@
+---
+source: tests/semantics_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "main",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "name": "a",
+                "type_ref": {
+                  "Simple": "number"
+                },
+                "init": {
+                  "Literal": {
+                    "Int": 1
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "b",
+                "type_ref": {
+                  "Simple": "float"
+                },
+                "init": {
+                  "Literal": {
+                    "Float": 2.0
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "c",
+                "type_ref": null,
+                "init": {
+                  "Binary": {
+                    "op": "Add",
+                    "left": {
+                      "Identifier": "a"
+                    },
+                    "right": {
+                      "Identifier": "b"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    }
+  ]
+}

@@ -1,6 +1,5 @@
 ---
 source: tests/semantics_tests.rs
-assertion_line: 16
 expression: json
 ---
 {

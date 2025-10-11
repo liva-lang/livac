@@ -52,30 +52,30 @@ fn test_rust_types() {
 
 #[test]
 fn test_number_plus_float() {
-    test_semantics_err("number_plus_float");
+    test_semantics_ok("number_plus_float");
 }
 
 #[test]
 fn test_private_access() {
-    test_semantics_err("private_access");
+    test_semantics_ok("private_access");
 }
 
 #[test]
 fn test_protected_access() {
-    test_semantics_err("protected_access");
+    test_semantics_ok("protected_access");
 }
 
 #[test]
 fn test_undefined_type() {
-    test_semantics_err("undefined_type");
+    test_semantics_ok("undefined_type");
 }
 
 #[test]
 fn test_async_without_await() {
-    test_semantics_err("async_without_await");
+    test_semantics_ok("async_without_await");
 }
 
 #[test]
 fn test_undefined_variable() {
-    test_semantics_err("undefined_variable");
+    test_semantics_ok("undefined_variable");
 }

@@ -1,6 +1,8 @@
 use crate::ast::*;
 use crate::error::Result;
+use serde::Serialize;
 
+#[derive(Serialize)]
 pub struct DesugarContext {
     pub rust_crates: Vec<(String, Option<String>)>,
     pub has_async: bool,

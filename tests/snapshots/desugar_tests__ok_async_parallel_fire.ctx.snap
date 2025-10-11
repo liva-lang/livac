@@ -1,0 +1,14 @@
+---
+source: tests/desugar_tests.rs
+expression: json
+---
+{
+  "rust_crates": [
+    [
+      "tokio",
+      null
+    ]
+  ],
+  "has_async": true,
+  "has_parallel": false
+}

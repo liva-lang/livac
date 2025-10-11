@@ -30,7 +30,7 @@ proptest! {
         // Test que el parser puede manejar código válido sin panics
         let tokens = tokenize(&input);
         if let Ok(tokens) = tokens {
-            let ast = parse(tokens);
+            let ast = parse(tokens, &input);
             // No importa si falla, solo que no haga panic
             let _ = ast;
         }
@@ -47,7 +47,7 @@ proptest! {
         // Test que el análisis semántico puede procesar código válido sin panics
         let tokens = tokenize(&input);
         if let Ok(tokens) = tokens {
-            let ast = parse(tokens);
+            let ast = parse(tokens, &input);
             if let Ok(ast) = ast {
                 let _ = analyze(ast);
             }
@@ -67,7 +67,7 @@ fn test_parse_pretty_parse_idempotent() {
     for source in test_cases {
         // Parse original
         let tokens1 = tokenize(source).unwrap();
-        let ast1 = parse(tokens1).unwrap();
+        let ast1 = parse(tokens1, source).unwrap();
         
         // Convertir a string (pretty print simulado)
         let pretty = format!("{:?}", ast1);
@@ -75,7 +75,7 @@ fn test_parse_pretty_parse_idempotent() {
         // Parse de nuevo (esto es una aproximación, ya que no tenemos un pretty printer real)
         // Por ahora, verificamos que el AST original es consistente
         let tokens2 = tokenize(source).unwrap();
-        let ast2 = parse(tokens2).unwrap();
+        let ast2 = parse(tokens2, source).unwrap();
         
         // Los ASTs deberían ser iguales
         assert_eq!(ast1.items.len(), ast2.items.len());
@@ -95,7 +95,7 @@ proptest! {
         // Test que el parser no hace panic con entradas semi-válidas
         let tokens = tokenize(&input);
         if let Ok(tokens) = tokens {
-            let _ = parse(tokens);
+            let _ = parse(tokens, &input);
         }
     }
 }

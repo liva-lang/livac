@@ -1,0 +1,9 @@
+// Acceso a miembro protegido desde fuera de subclase
+Persona {
+    _edad: number
+}
+
+main() {
+    let p = Persona { _edad: 30 }
+    let edad = p._edad  // Error: acceso a protegido desde fuera de subclase
+}

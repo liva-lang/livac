@@ -1,0 +1,35 @@
+---
+source: tests/semantics_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "main",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "name": "x",
+                "type_ref": {
+                  "Simple": "UndefinedType"
+                },
+                "init": {
+                  "Literal": {
+                    "Int": 42
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    }
+  ]
+}

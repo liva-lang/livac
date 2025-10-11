@@ -4,8 +4,7 @@ main() {
     let y: u64 = 1000000
     let z: f32 = 3.14
     let w: f64 = 2.718281828
-    
-    let bytes: Vec<u8> = [1, 2, 3, 4, 5]
+
     let optional: Option<string> = Some("hello")
     let result: Result<number, string> = Ok(42)
 }

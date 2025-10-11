@@ -8,7 +8,7 @@ fn test_desugar_ok(test_name: &str) {
         .unwrap_or_else(|_| panic!("Failed to read test file: ok_{}.liva", test_name));
     
     let tokens = tokenize(&source).unwrap();
-    let ast = parse(tokens).unwrap();
+    let ast = parse(tokens, &source).unwrap();
     let analyzed = analyze(ast).unwrap();
     let ctx = desugar(analyzed).unwrap();
     

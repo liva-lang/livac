@@ -1,0 +1,79 @@
+---
+source: tests/semantics_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Class": {
+        "name": "Persona",
+        "base": null,
+        "members": [
+          {
+            "Field": {
+              "name": "_edad",
+              "visibility": "Protected",
+              "type_ref": {
+                "Simple": "number"
+              },
+              "init": null
+            }
+          }
+        ]
+      }
+    },
+    {
+      "Function": {
+        "name": "main",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "name": "p",
+                "type_ref": null,
+                "init": {
+                  "Identifier": "Persona"
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "ObjectLiteral": [
+                    [
+                      "_edad",
+                      {
+                        "Literal": {
+                          "Int": 30
+                        }
+                      }
+                    ]
+                  ]
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "name": "edad",
+                "type_ref": null,
+                "init": {
+                  "Member": {
+                    "object": {
+                      "Identifier": "p"
+                    },
+                    "property": "_edad"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false
+      }
+    }
+  ]
+}

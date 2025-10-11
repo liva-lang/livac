@@ -1,0 +1,89 @@
+---
+source: tests/semantics_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "fetchData",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "Return": {
+                "expr": {
+                  "AsyncCall": {
+                    "callee": {
+                      "Member": {
+                        "object": {
+                          "Identifier": "http"
+                        },
+                        "property": "get"
+                      }
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "String": "url"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": true
+      }
+    },
+    {
+      "Function": {
+        "name": "main",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "name": "data",
+                "type_ref": null,
+                "init": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "fetchData"
+                    },
+                    "args": []
+                  }
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "print"
+                    },
+                    "args": [
+                      {
+                        "Identifier": "data"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": true
+      }
+    }
+  ]
+}
