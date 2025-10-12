@@ -63,6 +63,7 @@ livac hello.liva --run
   → Parsing...
   → Semantic analysis...
   → Desugaring to Rust...
+  → Lowering to IR...
   → Generating Rust code...
   → Running cargo build...
 ✓ Compilation successful!
@@ -71,6 +72,12 @@ Running program:
 ============================================================
 Hello, Liva! 🧩
 ```
+
+### What just happened?
+
+- The compiler analysed your program, lowered it to the intermediate representation, and generated Rust directly from it.
+- Because the snippet does not use async/parallel helpers, no `liva_rt` runtime module was emitted. Try the concurrency samples below to see it appear in the generated Rust source.
+- The full Rust project lives in `./target/liva_build` so you can inspect, rebuild, or run it manually with Cargo.
 
 ## 5-Minute Tutorial
 
@@ -329,6 +336,22 @@ main() {
   // Mix them freely!
 }
 ```
+
+## ✅ Verify Your Toolchain
+
+Run the complete compiler test suite (unit, integration, property, and snapshot tests):
+
+```bash
+cargo test
+```
+
+To focus on the new IR → Rust pipeline (including the injected runtime helpers), run:
+
+```bash
+cargo test --test codegen_ir_tests -- --nocapture
+```
+
+The corresponding snapshots live under `tests/snapshots/codegen_ir_tests__*.snap`.
 
 ## Common Issues
 

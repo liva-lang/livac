@@ -19,6 +19,7 @@
 - Logical operators: `and/or/not` ≡ `&&/||/!` (same precedence, short-circuit).
 - Lazy-await/join: first usage of a spawned value injects `.await`/`.join()`.
 - Fire & forget: `fire async|parallel f()` spawns w/o handle and no warning.
+- Concurrency helpers: IR-based codegen injects a `liva_rt` module that wraps `tokio::spawn` / `std::thread::spawn`; future work will move this into a dedicated crate.
 
 ---
 
@@ -429,4 +430,3 @@ let h = unsafe { blake3_hash(b"hola") };
 - ✅ Concurrency (6.1–6.5)  
 - ✅ Errors (7)  
 - ✅ Interop (8.1–8.2)
-

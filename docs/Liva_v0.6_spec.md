@@ -15,6 +15,8 @@
 4. **Encapsulación real** (`_` y `__`), pero sin ruido visual.  
 5. **Compatibilidad total con Rust y sus crates.**
 
+> **Estado del compilador (abril 2025):** la canalización real incluye un paso de **IR interno** y un módulo auxiliar `liva_rt` generado automáticamente cuando se usan primitivas `async`, `parallel`, `task` o `fire`. La validación semántica profunda está en curso y se endurecerá conforme avance el plan descrito en `docs/refactor_plan.md`.
+
 ---
 
 ## 🔤 2. Sintaxis básica

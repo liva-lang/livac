@@ -28,15 +28,15 @@ actionable diagnostics.
 
 ## 3. Intermediate Representation (IR)
 
-- [ ] Design a minimal, typed IR close to Rust constructs (functions, structs, impl blocks).
-- [ ] Encode ownership of async/parallel constructs explicitly to guide desugaring.
-- [ ] Provide lowering passes from AST → IR (pure Rust data structures, no strings).
+- [x] Design a minimal, typed IR for functions/tests with concurrency metadata (structs/impls pending follow-up).
+- [x] Encode ownership of async/parallel constructs explicitly to guide desugaring/runtime helpers.
+- [x] Provide lowering passes from AST → IR (statements, expressions, concurrency ops); extend to types/classes next.
 
 ## 4. Code Generation
 
 - [ ] Replace string concatenation with emission through `quote!`/`syn` builders.
-- [ ] Generate `Cargo.toml` based on IR capabilities (async/parallel crates, user `use rust` statements).
-- [ ] Embed or depend on a light runtime for dynamic operations (e.g. string concatenation helpers).
+- [x] Generate `Cargo.toml` based on IR capabilities (async crates, user `use rust` statements).
+- [x] Embed an inline `liva_rt` helper module for async/parallel dispatch (extract to crate + expand helpers next).
 - [ ] Guarantee `cargo check` succeeds for the integration suites.
 
 ## 5. Tooling & Diagnostics
@@ -49,7 +49,7 @@ actionable diagnostics.
 
 - [ ] Augment unit tests with negative suites (parser, semantics).
 - [ ] Run the generated projects through `cargo fmt` + `cargo check` inside integration tests.
-- [ ] Add property tests for parser/semantic invariants.
+- [x] Add IR-focused codegen snapshots (`tests/codegen_ir_tests.rs`).
 - [ ] Configure CI (GitHub Actions) to enforce formatting, linting, tests, and integration checks.
 
 ## 7. Deliverables & Milestones
@@ -67,10 +67,10 @@ release candidates (`v0.7.0-alphaX`).
 
 ### Immediate Action Items (Q1 Sprint)
 
-- [ ] Finalise IR design (function/module/unit, strongly typed expressions, effect flags).
-- [ ] Implement lowering: AST → IR (statements, expressions, concurrency ops).
+- [x] Finalise initial IR design (functions/tests covered; structs/impls tracked separately).
+- [x] Implement lowering: AST → IR (statements, expressions, concurrency ops).
 - [ ] Replace `codegen::generate_with_ast` with IR-driven emitter using `quote!`.
-- [ ] Add `runtime/` crate with helpers for printing, string concat, async utilities.
+- [ ] Add `runtime/` crate with helpers for printing, string concat, async utilities (currently using inline module).
 - [ ] Re-enable strict semantic checks once runtime + IR cover external functions.
 - [ ] Extend integration tests to run `cargo check` once Rust output is stable.
 

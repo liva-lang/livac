@@ -4,6 +4,19 @@
 
 A compiler that transforms Liva code into safe, efficient Rust code with full async/parallel support.
 
+## 🏗️ Architecture Snapshot (v0.6)
+
+The current compiler pipeline runs in the following stages:
+
+1. **Lexer** → produces `TokenWithSpan`s using `logos`.
+2. **Parser** → builds the high-level AST.
+3. **Semantic pass** → performs lightweight checks (async inference, visibility) while deeper type validation remains on the roadmap.
+4. **IR lowering** → converts the analysed AST into a typed, compiler-internal IR.
+5. **Code generation** → emits Rust directly from the IR when all items are supported; otherwise the legacy AST generator is used as a fallback for that module.
+6. **Runtime helpers** → when async/parallel features are detected, the generator injects a `liva_rt` helper module wrapping `tokio::spawn` and `std::thread::spawn`.
+
+> **Heads-up**: semantic validation is intentionally permissive today (unknown identifiers/types may slip through). Follow the roadmap in `docs/refactor_plan.md` for the hardening timeline.
+
 ## 🚀 Installation
 
 ```bash
@@ -23,9 +36,10 @@ livac input.liva
 ```
 
 This will:
-1. Parse and analyze your Liva code
-2. Generate Rust code in `./target/liva_build/`
-3. Compile it with Cargo
+1. Tokenise, parse, and analyse your Liva code
+2. Lower the program to the IR and attempt IR-driven code generation (with a legacy fallback when necessary)
+3. Generate Rust code in `./target/liva_build/`
+4. Compile it with Cargo (unless `LIVAC_SKIP_CARGO` is set)
 
 ### Options
 
@@ -56,6 +70,24 @@ livac my_program.liva --run
 ```bash
 livac my_program.liva --verbose
 ```
+
+## 🧪 Testing
+
+Run the full compiler and test suite with:
+
+```bash
+cargo test
+```
+
+IR-specific code generation scenarios (async/parallel helpers, runtime injection) are covered in `tests/codegen_ir_tests.rs`:
+
+```bash
+cargo test --test codegen_ir_tests -- --nocapture
+```
+
+Snapshots for these tests live under `tests/snapshots/codegen_ir_tests__*.snap` and capture the emitted `liva_rt` helper module when concurrency features are present.
+
+For the current migration status and outstanding work (strict semantics, runtime crate extraction, additional IR coverage), see `docs/refactor_plan.md`.
 
 ## 📝 Example Liva Programs
 
