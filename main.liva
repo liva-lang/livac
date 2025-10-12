@@ -12,9 +12,32 @@ multiply(x, y) => x * y
 isAdult(age) => age >= 18
 
 // Block function
-calculateTotal(items: array): float {
+calculateTotal(items) {
   let total = 0.0
-  return total + 1024.48  // Simplified calculation
+  for item in items {
+    total = total + item.price
+  }
+  return total
+}
+
+// Async helpers for concurrency demos
+fetchUser(id: number): string {
+  print($"📡 Fetching user {id}...")
+  return $"User {id}"
+}
+
+heavyComputation(value: number): number {
+  let result = value * value
+  print($"🧠 Heavy computation for {value} finished with {result}")
+  return result
+}
+
+logEvent(msg: string) {
+  print($"[LOG] {msg}")
+}
+
+backgroundCleanup() {
+  print("🧹 Background cleanup running")
 }
 
 // ============================================================================
@@ -166,6 +189,28 @@ main() {
 
   let totalPrice = calculateTotal(products)  // Note: compiler should handle reference
   print($"Total price: ${totalPrice}")
+
+  // ============================================================================
+  // 9. CONCURRENCY FEATURES ✅
+  // ============================================================================
+  print("\n⚙️ Testing Concurrency Features:")
+
+  let asyncUser = async fetchUser(1)
+  let parallelResult = parallel heavyComputation(12)
+
+  let taskUser = task async fetchUser(2)
+  let taskCompute = task parallel heavyComputation(8)
+
+  fire async logEvent($"Fire-and-forget async event triggered")
+  fire parallel backgroundCleanup()
+
+  print($"Async user value: {asyncUser}")
+  print($"Parallel result (lazy join): {parallelResult}")
+
+  let _taskUserResult = await taskUser
+  let _taskComputeResult = await taskCompute
+
+  print("Task handles awaited successfully ✅")
 
   print("\n🎉 Liva Comprehensive Syntax Test Completed Successfully!")
   print("✅ All major language features tested and working!")

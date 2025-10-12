@@ -1591,7 +1591,8 @@ impl<'a> IrCodeGenerator<'a> {
                 Ok(())
             }
             ir::Expr::ParallelCall { callee, args } => {
-                self.output.push_str("std::thread::spawn(move || ");
+                self.output
+                    .push_str("tokio::task::spawn_blocking(move || { ");
                 self.generate_expr(callee)?;
                 self.output.push('(');
                 for (idx, arg) in args.iter().enumerate() {
@@ -1600,45 +1601,91 @@ impl<'a> IrCodeGenerator<'a> {
                     }
                     self.generate_expr(arg)?;
                 }
-                self.output.push_str(").join().unwrap()");
+                self.output.push(')');
+                self.output.push_str(" })");
+                self.output.push_str(".await.unwrap()");
                 Ok(())
             }
             ir::Expr::TaskCall { mode, callee, args } => {
                 match mode {
-                    ir::ConcurrencyMode::Async => self.output.push_str("tokio::spawn("),
-                    ir::ConcurrencyMode::Parallel => self.output.push_str("std::thread::spawn(|| "),
-                }
-                write!(self.output, "{}(", self.sanitize_name(callee)).unwrap();
-                for (idx, arg) in args.iter().enumerate() {
-                    if idx > 0 {
-                        self.output.push_str(", ");
+                    ir::ConcurrencyMode::Async => {
+                        self.output
+                            .push_str("tokio::spawn(async move { ");
+                        write!(
+                            self.output,
+                            "{}(",
+                            self.sanitize_name(callee)
+                        )
+                        .unwrap();
+                        for (idx, arg) in args.iter().enumerate() {
+                            if idx > 0 {
+                                self.output.push_str(", ");
+                            }
+                            self.generate_expr(arg)?;
+                        }
+                        self.output.push(')');
+                        self.output.push_str(" })");
                     }
-                    self.generate_expr(arg)?;
+                    ir::ConcurrencyMode::Parallel => {
+                        self.output
+                            .push_str("tokio::task::spawn_blocking(move || { ");
+                        write!(
+                            self.output,
+                            "{}(",
+                            self.sanitize_name(callee)
+                        )
+                        .unwrap();
+                        for (idx, arg) in args.iter().enumerate() {
+                            if idx > 0 {
+                                self.output.push_str(", ");
+                            }
+                            self.generate_expr(arg)?;
+                        }
+                        self.output.push(')');
+                        self.output.push_str(" })");
+                    }
                 }
-                self.output.push(')');
-                if matches!(mode, ir::ConcurrencyMode::Parallel) {
-                    self.output.push(')');
-                }
-                self.output.push(')');
                 Ok(())
             }
             ir::Expr::FireCall { mode, callee, args } => {
                 match mode {
-                    ir::ConcurrencyMode::Async => self.output.push_str("tokio::spawn("),
-                    ir::ConcurrencyMode::Parallel => self.output.push_str("std::thread::spawn(|| "),
-                }
-                write!(self.output, "{}(", self.sanitize_name(callee)).unwrap();
-                for (idx, arg) in args.iter().enumerate() {
-                    if idx > 0 {
-                        self.output.push_str(", ");
+                    ir::ConcurrencyMode::Async => {
+                        self.output
+                            .push_str("tokio::spawn(async move { ");
+                        write!(
+                            self.output,
+                            "{}(",
+                            self.sanitize_name(callee)
+                        )
+                        .unwrap();
+                        for (idx, arg) in args.iter().enumerate() {
+                            if idx > 0 {
+                                self.output.push_str(", ");
+                            }
+                            self.generate_expr(arg)?;
+                        }
+                        self.output.push(')');
+                        self.output.push_str(" })");
                     }
-                    self.generate_expr(arg)?;
+                    ir::ConcurrencyMode::Parallel => {
+                        self.output
+                            .push_str("tokio::task::spawn_blocking(move || { ");
+                        write!(
+                            self.output,
+                            "{}(",
+                            self.sanitize_name(callee)
+                        )
+                        .unwrap();
+                        for (idx, arg) in args.iter().enumerate() {
+                            if idx > 0 {
+                                self.output.push_str(", ");
+                            }
+                            self.generate_expr(arg)?;
+                        }
+                        self.output.push(')');
+                        self.output.push_str(" })");
+                    }
                 }
-                self.output.push(')');
-                if matches!(mode, ir::ConcurrencyMode::Parallel) {
-                    self.output.push(')');
-                }
-                self.output.push(')');
                 Ok(())
             }
             ir::Expr::Binary { op, left, right } => {
