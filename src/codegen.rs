@@ -1,6 +1,6 @@
 use crate::ast::*;
 use crate::desugaring::DesugarContext;
-use crate::error::Result;
+use crate::error::{CompilerError, Result};
 use crate::ir;
 use std::fmt::Write;
 
@@ -803,9 +803,688 @@ impl CodeGenerator {
     }
 }
 
+struct IrCodeGenerator<'a> {
+    output: String,
+    indent_level: usize,
+    ctx: &'a DesugarContext,
+}
+
+impl<'a> IrCodeGenerator<'a> {
+    fn new(ctx: &'a DesugarContext) -> Self {
+        Self {
+            output: String::new(),
+            indent_level: 0,
+            ctx,
+        }
+    }
+
+    fn generate(mut self, module: &ir::Module) -> Result<String> {
+        self.emit_use_statements(module);
+
+        for item in &module.items {
+            match item {
+                ir::Item::Function(func) => {
+                    self.generate_function(func)?;
+                    self.output.push('\n');
+                }
+                ir::Item::Test(test) => {
+                    self.generate_test(test)?;
+                    self.output.push('\n');
+                }
+                ir::Item::Unsupported(_) => {
+                    return Err(CompilerError::CodegenError(
+                        "Unsupported item in IR module".into(),
+                    ))
+                }
+            }
+        }
+
+        Ok(self.output)
+    }
+
+    fn emit_use_statements(&mut self, module: &ir::Module) {
+        use std::collections::BTreeSet;
+
+        let mut emitted = BTreeSet::new();
+        for (crate_name, alias) in &self.ctx.rust_crates {
+            emitted.insert((crate_name.clone(), alias.clone()));
+        }
+        for ext in &module.extern_crates {
+            emitted.insert((ext.crate_name.clone(), ext.alias.clone()));
+        }
+
+        for (crate_name, alias) in emitted {
+            if let Some(alias_name) = alias {
+                writeln!(self.output, "use {} as {};", crate_name, alias_name).unwrap();
+            } else {
+                writeln!(self.output, "use {};", crate_name).unwrap();
+            }
+        }
+
+        if !self.output.trim().is_empty() {
+            self.output.push('\n');
+        }
+    }
+
+    fn indent(&mut self) {
+        self.indent_level += 1;
+    }
+
+    fn dedent(&mut self) {
+        self.indent_level = self.indent_level.saturating_sub(1);
+    }
+
+    fn write_indent(&mut self) {
+        for _ in 0..self.indent_level {
+            self.output.push_str("    ");
+        }
+    }
+
+    fn writeln(&mut self, line: &str) {
+        self.write_indent();
+        self.output.push_str(line);
+        self.output.push('\n');
+    }
+
+    fn generate_function(&mut self, func: &ir::Function) -> Result<()> {
+        if matches!(func.async_kind, ir::AsyncKind::Async) && func.name == "main" {
+            self.writeln("#[tokio::main]");
+        }
+
+        self.write_indent();
+
+        if matches!(func.async_kind, ir::AsyncKind::Async) {
+            self.output.push_str("async ");
+        }
+
+        write!(self.output, "fn {}(", self.sanitize_name(&func.name)).unwrap();
+
+        for (idx, param) in func.params.iter().enumerate() {
+            if idx > 0 {
+                self.output.push_str(", ");
+            }
+            write!(
+                self.output,
+                "{}: {}",
+                self.sanitize_name(&param.name),
+                self.type_to_rust(&param.ty)
+            )
+            .unwrap();
+        }
+
+        self.output.push(')');
+
+        if !matches!(func.ret_type, ir::Type::Inferred) {
+            write!(self.output, " -> {}", self.type_to_rust(&func.ret_type)).unwrap();
+        }
+
+        self.output.push_str(" {\n");
+        self.indent();
+        self.generate_block(&func.body)?;
+        self.dedent();
+        self.writeln("}");
+
+        Ok(())
+    }
+
+    fn generate_test(&mut self, test: &ir::Test) -> Result<()> {
+        self.writeln("#[test]");
+        self.writeln(&format!(
+            "fn test_{}() {{",
+            self.sanitize_test_name(&test.name)
+        ));
+        self.indent();
+        self.generate_block(&test.body)?;
+        self.dedent();
+        self.writeln("}");
+        Ok(())
+    }
+
+    fn generate_block(&mut self, block: &ir::Block) -> Result<()> {
+        for stmt in &block.statements {
+            self.generate_stmt(stmt)?;
+        }
+        Ok(())
+    }
+
+    fn generate_stmt(&mut self, stmt: &ir::Stmt) -> Result<()> {
+        match stmt {
+            ir::Stmt::Let { name, ty, value } => {
+                self.write_indent();
+                write!(self.output, "let {}", self.sanitize_name(name)).unwrap();
+                if let Some(ty) = ty {
+                    write!(self.output, ": {}", self.type_to_rust(ty)).unwrap();
+                }
+                self.output.push_str(" = ");
+                self.generate_expr(value)?;
+                self.output.push_str(";\n");
+            }
+            ir::Stmt::Const { name, ty, value } => {
+                self.write_indent();
+                let const_name = name.to_uppercase();
+                let ty = ty
+                    .as_ref()
+                    .map(|ty| self.type_to_rust(ty))
+                    .unwrap_or_else(|| "i32".into());
+                write!(self.output, "const {}: {} = ", const_name, ty).unwrap();
+                self.generate_expr(value)?;
+                self.output.push_str(";\n");
+            }
+            ir::Stmt::Assign { target, value } => {
+                self.write_indent();
+                self.generate_expr(target)?;
+                self.output.push_str(" = ");
+                self.generate_expr(value)?;
+                self.output.push_str(";\n");
+            }
+            ir::Stmt::Return(expr) => {
+                self.write_indent();
+                self.output.push_str("return");
+                if let Some(expr) = expr {
+                    self.output.push(' ');
+                    self.generate_expr(expr)?;
+                }
+                self.output.push_str(";\n");
+            }
+            ir::Stmt::Throw(expr) => {
+                self.write_indent();
+                self.output.push_str("return Err(");
+                self.generate_expr(expr)?;
+                self.output.push_str(".into());\n");
+            }
+            ir::Stmt::Expr(expr) => {
+                self.write_indent();
+                self.generate_expr(expr)?;
+                self.output.push_str(";\n");
+            }
+            ir::Stmt::If {
+                condition,
+                then_block,
+                else_block,
+            } => {
+                self.write_indent();
+                self.output.push_str("if ");
+                self.generate_expr(condition)?;
+                self.output.push_str(" {\n");
+                self.indent();
+                self.generate_block(then_block)?;
+                self.dedent();
+                self.write_indent();
+                self.output.push('}');
+                if let Some(else_block) = else_block {
+                    self.output.push_str(" else {\n");
+                    self.indent();
+                    self.generate_block(else_block)?;
+                    self.dedent();
+                    self.write_indent();
+                    self.output.push('}');
+                }
+                self.output.push('\n');
+            }
+            ir::Stmt::While { condition, body } => {
+                self.write_indent();
+                self.output.push_str("while ");
+                self.generate_expr(condition)?;
+                self.output.push_str(" {\n");
+                self.indent();
+                self.generate_block(body)?;
+                self.dedent();
+                self.write_indent();
+                self.output.push_str("}\n");
+            }
+            ir::Stmt::For {
+                var,
+                iterable,
+                body,
+            } => {
+                self.write_indent();
+                write!(self.output, "for {} in ", self.sanitize_name(var)).unwrap();
+                self.generate_expr(iterable)?;
+                self.output.push_str(" {\n");
+                self.indent();
+                self.generate_block(body)?;
+                self.dedent();
+                self.write_indent();
+                self.output.push_str("}\n");
+            }
+            ir::Stmt::Block(block) => {
+                self.write_indent();
+                self.output.push_str("{\n");
+                self.indent();
+                self.generate_block(block)?;
+                self.dedent();
+                self.write_indent();
+                self.output.push_str("}\n");
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(
+                    "Unsupported statement in IR generator".into(),
+                ))
+            }
+        }
+        Ok(())
+    }
+
+    fn generate_expr(&mut self, expr: &ir::Expr) -> Result<()> {
+        match expr {
+            ir::Expr::Literal(lit) => self.generate_literal(lit),
+            ir::Expr::Identifier(name) => {
+                write!(self.output, "{}", self.sanitize_name(name)).unwrap();
+                Ok(())
+            }
+            ir::Expr::Call { callee, args } => {
+                if matches!(callee.as_ref(), ir::Expr::Identifier(id) if id == "print") {
+                    if args.is_empty() {
+                        self.output.push_str("println!()")
+                    } else {
+                        self.output.push_str("println!(\"");
+                        for _ in args {
+                            self.output.push_str("{}");
+                        }
+                        self.output.push_str("\"");
+                        let mut first = true;
+                        for arg in args {
+                            if first {
+                                self.output.push_str(", ");
+                                first = false;
+                            } else {
+                                self.output.push_str(", ");
+                            }
+                            self.generate_expr(arg)?;
+                        }
+                        self.output.push(')');
+                    }
+                    return Ok(());
+                }
+                self.generate_expr(callee)?;
+                self.output.push('(');
+                for (idx, arg) in args.iter().enumerate() {
+                    if idx > 0 {
+                        self.output.push_str(", ");
+                    }
+                    self.generate_expr(arg)?;
+                }
+                self.output.push(')');
+                Ok(())
+            }
+            ir::Expr::Await(expr) => {
+                self.generate_expr(expr)?;
+                self.output.push_str(".await");
+                Ok(())
+            }
+            ir::Expr::AsyncCall { callee, args } => {
+                self.output.push_str("tokio::spawn(async move {");
+                self.generate_expr(callee)?;
+                self.output.push('(');
+                for (idx, arg) in args.iter().enumerate() {
+                    if idx > 0 {
+                        self.output.push_str(", ");
+                    }
+                    self.generate_expr(arg)?;
+                }
+                self.output.push_str(") }).await.unwrap()");
+                Ok(())
+            }
+            ir::Expr::ParallelCall { callee, args } => {
+                self.output.push_str("std::thread::spawn(move || ");
+                self.generate_expr(callee)?;
+                self.output.push('(');
+                for (idx, arg) in args.iter().enumerate() {
+                    if idx > 0 {
+                        self.output.push_str(", ");
+                    }
+                    self.generate_expr(arg)?;
+                }
+                self.output.push_str(").join().unwrap()");
+                Ok(())
+            }
+            ir::Expr::TaskCall { mode, callee, args } => {
+                match mode {
+                    ir::ConcurrencyMode::Async => self.output.push_str("tokio::spawn("),
+                    ir::ConcurrencyMode::Parallel => self.output.push_str("std::thread::spawn(|| "),
+                }
+                write!(self.output, "{}(", self.sanitize_name(callee)).unwrap();
+                for (idx, arg) in args.iter().enumerate() {
+                    if idx > 0 {
+                        self.output.push_str(", ");
+                    }
+                    self.generate_expr(arg)?;
+                }
+                self.output.push(')');
+                if matches!(mode, ir::ConcurrencyMode::Parallel) {
+                    self.output.push(')');
+                }
+                self.output.push(')');
+                Ok(())
+            }
+            ir::Expr::FireCall { mode, callee, args } => {
+                match mode {
+                    ir::ConcurrencyMode::Async => self.output.push_str("tokio::spawn("),
+                    ir::ConcurrencyMode::Parallel => self.output.push_str("std::thread::spawn(|| "),
+                }
+                write!(self.output, "{}(", self.sanitize_name(callee)).unwrap();
+                for (idx, arg) in args.iter().enumerate() {
+                    if idx > 0 {
+                        self.output.push_str(", ");
+                    }
+                    self.generate_expr(arg)?;
+                }
+                self.output.push(')');
+                if matches!(mode, ir::ConcurrencyMode::Parallel) {
+                    self.output.push(')');
+                }
+                self.output.push(')');
+                Ok(())
+            }
+            ir::Expr::Binary { op, left, right } => {
+                if matches!(op, ir::BinaryOp::Add)
+                    && (self.expr_is_stringy(left) || self.expr_is_stringy(right))
+                {
+                    self.output.push_str("format!(\"{}{}\", ");
+                    self.generate_expr(left)?;
+                    self.output.push_str(", ");
+                    self.generate_expr(right)?;
+                    self.output.push(')');
+                } else {
+                    let needs_paren = !matches!(
+                        left.as_ref(),
+                        ir::Expr::Literal(_) | ir::Expr::Identifier(_)
+                    ) || !matches!(
+                        right.as_ref(),
+                        ir::Expr::Literal(_) | ir::Expr::Identifier(_)
+                    );
+                    if needs_paren {
+                        self.output.push('(');
+                    }
+                    self.generate_expr(left)?;
+                    write!(self.output, " {} ", binary_op_str(op)).unwrap();
+                    self.generate_expr(right)?;
+                    if needs_paren {
+                        self.output.push(')');
+                    }
+                }
+                Ok(())
+            }
+            ir::Expr::Unary { op, operand } => {
+                match op {
+                    ir::UnaryOp::Neg => self.output.push('-'),
+                    ir::UnaryOp::Not => self.output.push('!'),
+                }
+                self.generate_expr(operand)
+            }
+            ir::Expr::Ternary {
+                condition,
+                then_expr,
+                else_expr,
+            } => {
+                self.output.push_str("if ");
+                self.generate_expr(condition)?;
+                self.output.push_str(" { ");
+                self.generate_expr(then_expr)?;
+                self.output.push_str(" } else { ");
+                self.generate_expr(else_expr)?;
+                self.output.push_str(" }");
+                Ok(())
+            }
+            ir::Expr::StringTemplate(parts) => {
+                self.output.push_str("format!(\"");
+                let mut args = Vec::new();
+                for part in parts {
+                    match part {
+                        ir::TemplatePart::Text(text) => {
+                            for ch in text.chars() {
+                                match ch {
+                                    '"' => self.output.push_str("\\\""),
+                                    '\\' => self.output.push_str("\\\\"),
+                                    _ => self.output.push(ch),
+                                }
+                            }
+                        }
+                        ir::TemplatePart::Expr(expr) => {
+                            self.output.push_str("{}");
+                            args.push(expr);
+                        }
+                    }
+                }
+                self.output.push('"');
+                for arg in args {
+                    self.output.push_str(", ");
+                    self.generate_expr(arg)?;
+                }
+                self.output.push(')');
+                Ok(())
+            }
+            ir::Expr::Member { object, property } => {
+                self.generate_expr(object)?;
+                write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
+                Ok(())
+            }
+            ir::Expr::Index { object, index } => {
+                self.generate_expr(object)?;
+                self.output.push('[');
+                self.generate_expr(index)?;
+                self.output.push(']');
+                Ok(())
+            }
+            ir::Expr::ObjectLiteral(fields) => {
+                self.output.push_str("serde_json::json!({\n");
+                self.indent();
+                for (idx, (key, value)) in fields.iter().enumerate() {
+                    if idx > 0 {
+                        self.output.push_str(",\n");
+                    }
+                    self.write_indent();
+                    write!(self.output, "\"{}\": ", key).unwrap();
+                    self.generate_expr(value)?;
+                }
+                self.output.push('\n');
+                self.dedent();
+                self.write_indent();
+                self.output.push_str("})");
+                Ok(())
+            }
+            ir::Expr::ArrayLiteral(elements) => {
+                self.output.push_str("vec![");
+                for (idx, elem) in elements.iter().enumerate() {
+                    if idx > 0 {
+                        self.output.push_str(", ");
+                    }
+                    self.generate_expr(elem)?;
+                }
+                self.output.push(']');
+                Ok(())
+            }
+            ir::Expr::Unsupported(_) => Err(CompilerError::CodegenError(
+                "Unsupported expression in IR generator".into(),
+            )),
+        }
+    }
+
+    fn generate_literal(&mut self, lit: &ir::Literal) -> Result<()> {
+        match lit {
+            ir::Literal::Int(v) => write!(self.output, "{}", v).unwrap(),
+            ir::Literal::Float(v) => write!(self.output, "{}", v).unwrap(),
+            ir::Literal::Bool(v) => write!(self.output, "{}", v).unwrap(),
+            ir::Literal::String(s) => write!(self.output, "\"{}\"", s.escape_default()).unwrap(),
+            ir::Literal::Char(c) => write!(self.output, "'{}'", c.escape_default()).unwrap(),
+            ir::Literal::Null => self.output.push_str("()"),
+        }
+        Ok(())
+    }
+
+    fn expr_is_stringy(&self, expr: &ir::Expr) -> bool {
+        match expr {
+            ir::Expr::Literal(ir::Literal::String(_)) => true,
+            ir::Expr::StringTemplate(_) => true,
+            ir::Expr::Binary {
+                op: ir::BinaryOp::Add,
+                left,
+                right,
+            } => self.expr_is_stringy(left) || self.expr_is_stringy(right),
+            _ => false,
+        }
+    }
+
+    fn type_to_rust(&self, ty: &ir::Type) -> String {
+        match ty {
+            ir::Type::Number => "i32".into(),
+            ir::Type::Float => "f64".into(),
+            ir::Type::Bool => "bool".into(),
+            ir::Type::String => "String".into(),
+            ir::Type::Bytes => "Vec<u8>".into(),
+            ir::Type::Char => "char".into(),
+            ir::Type::Array(inner) => format!("Vec<{}>", self.type_to_rust(inner)),
+            ir::Type::Optional(inner) => format!("Option<{}>", self.type_to_rust(inner)),
+            ir::Type::Custom(name) => name.clone(),
+            ir::Type::Unit => "()".into(),
+            ir::Type::Inferred => "i32".into(),
+        }
+    }
+
+    fn sanitize_name(&self, name: &str) -> String {
+        let name = name.trim_start_matches('_');
+        to_snake_case(name)
+    }
+
+    fn sanitize_test_name(&self, name: &str) -> String {
+        name.replace(' ', "_").replace('-', "_").to_lowercase()
+    }
+}
+
+fn to_snake_case(s: &str) -> String {
+    let mut result = String::new();
+    let mut prev_lowercase = false;
+
+    for (i, ch) in s.chars().enumerate() {
+        if ch.is_uppercase() {
+            if i > 0 && prev_lowercase {
+                result.push('_');
+            }
+            result.push(ch.to_lowercase().next().unwrap());
+            prev_lowercase = false;
+        } else {
+            result.push(ch);
+            prev_lowercase = ch.is_lowercase();
+        }
+    }
+
+    if result.is_empty() {
+        "_".into()
+    } else {
+        result
+    }
+}
+
+fn binary_op_str(op: &ir::BinaryOp) -> &'static str {
+    match op {
+        ir::BinaryOp::Add => "+",
+        ir::BinaryOp::Sub => "-",
+        ir::BinaryOp::Mul => "*",
+        ir::BinaryOp::Div => "/",
+        ir::BinaryOp::Mod => "%",
+        ir::BinaryOp::Eq => "==",
+        ir::BinaryOp::Ne => "!=",
+        ir::BinaryOp::Lt => "<",
+        ir::BinaryOp::Le => "<=",
+        ir::BinaryOp::Gt => ">",
+        ir::BinaryOp::Ge => ">=",
+        ir::BinaryOp::And => "&&",
+        ir::BinaryOp::Or => "||",
+    }
+}
+
+fn module_has_unsupported(module: &ir::Module) -> bool {
+    module.items.iter().any(|item| match item {
+        ir::Item::Unsupported(_) => true,
+        ir::Item::Function(func) => function_has_unsupported(func),
+        ir::Item::Test(test) => block_has_unsupported(&test.body),
+    })
+}
+
+fn function_has_unsupported(func: &ir::Function) -> bool {
+    block_has_unsupported(&func.body)
+}
+
+fn block_has_unsupported(block: &ir::Block) -> bool {
+    block.statements.iter().any(stmt_has_unsupported)
+}
+
+fn stmt_has_unsupported(stmt: &ir::Stmt) -> bool {
+    match stmt {
+        ir::Stmt::Unsupported(_) => true,
+        ir::Stmt::If {
+            condition,
+            then_block,
+            else_block,
+        } => {
+            expr_has_unsupported(condition)
+                || block_has_unsupported(then_block)
+                || else_block
+                    .as_ref()
+                    .map(block_has_unsupported)
+                    .unwrap_or(false)
+        }
+        ir::Stmt::While { condition, body } => {
+            expr_has_unsupported(condition) || block_has_unsupported(body)
+        }
+        ir::Stmt::For { iterable, body, .. } => {
+            expr_has_unsupported(iterable) || block_has_unsupported(body)
+        }
+        ir::Stmt::Block(block) => block_has_unsupported(block),
+        ir::Stmt::Let { value, .. } => expr_has_unsupported(value),
+        ir::Stmt::Const { value, .. } => expr_has_unsupported(value),
+        ir::Stmt::Assign { target, value } => {
+            expr_has_unsupported(target) || expr_has_unsupported(value)
+        }
+        ir::Stmt::Return(expr) => expr.as_ref().map(expr_has_unsupported).unwrap_or(false),
+        ir::Stmt::Throw(expr) => expr_has_unsupported(expr),
+        ir::Stmt::Expr(expr) => expr_has_unsupported(expr),
+        ir::Stmt::TryCatch { .. } | ir::Stmt::Switch { .. } => true,
+    }
+}
+
+fn expr_has_unsupported(expr: &ir::Expr) -> bool {
+    match expr {
+        ir::Expr::Unsupported(_) => true,
+        ir::Expr::Literal(_) | ir::Expr::Identifier(_) => false,
+        ir::Expr::Call { callee, args }
+        | ir::Expr::AsyncCall { callee, args }
+        | ir::Expr::ParallelCall { callee, args } => {
+            expr_has_unsupported(callee) || args.iter().any(expr_has_unsupported)
+        }
+        ir::Expr::TaskCall { args, .. } | ir::Expr::FireCall { args, .. } => {
+            args.iter().any(expr_has_unsupported)
+        }
+        ir::Expr::Await(expr) => expr_has_unsupported(expr),
+        ir::Expr::Unary { operand, .. } => expr_has_unsupported(operand),
+        ir::Expr::Binary { left, right, .. } => {
+            expr_has_unsupported(left) || expr_has_unsupported(right)
+        }
+        ir::Expr::Ternary {
+            condition,
+            then_expr,
+            else_expr,
+        } => {
+            expr_has_unsupported(condition)
+                || expr_has_unsupported(then_expr)
+                || expr_has_unsupported(else_expr)
+        }
+        ir::Expr::StringTemplate(parts) => parts.iter().any(|part| match part {
+            ir::TemplatePart::Text(_) => false,
+            ir::TemplatePart::Expr(expr) => expr_has_unsupported(expr),
+        }),
+        ir::Expr::Member { object, .. } => expr_has_unsupported(object),
+        ir::Expr::Index { object, index } => {
+            expr_has_unsupported(object) || expr_has_unsupported(index)
+        }
+        ir::Expr::ObjectLiteral(fields) => {
+            fields.iter().any(|(_, value)| expr_has_unsupported(value))
+        }
+        ir::Expr::ArrayLiteral(elements) => elements.iter().any(expr_has_unsupported),
+    }
+}
+
 pub fn generate(ctx: DesugarContext) -> Result<(String, String)> {
-    // This function should receive both the desugaring context and the AST
-    // For now, return placeholder content
     let main_rs =
         "// Generated by livac v0.6\n\nfn main() {\n    println!(\"Hello from Liva!\");\n}\n"
             .to_string();
@@ -820,8 +1499,14 @@ pub fn generate_from_ir(
     program: &Program,
     ctx: DesugarContext,
 ) -> Result<(String, String)> {
-    let _ = module;
-    generate_with_ast(program, ctx)
+    if module_has_unsupported(module) {
+        return generate_with_ast(program, ctx);
+    }
+
+    let ir_gen = IrCodeGenerator::new(&ctx);
+    let rust_code = ir_gen.generate(module)?;
+    let cargo_toml = generate_cargo_toml(&ctx)?;
+    Ok((rust_code, cargo_toml))
 }
 
 pub fn generate_with_ast(program: &Program, ctx: DesugarContext) -> Result<(String, String)> {

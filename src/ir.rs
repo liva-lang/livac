@@ -31,8 +31,6 @@ pub struct ExternCrate {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Item {
     Function(Function),
-    Struct(Struct),
-    Impl(ImplBlock),
     Test(Test),
     Unsupported(ast::TopLevel),
 }
@@ -45,32 +43,14 @@ pub struct Function {
     pub body: Block,
     pub async_kind: AsyncKind,
     pub visibility: Visibility,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Struct {
-    pub name: String,
-    pub fields: Vec<Field>,
-    pub visibility: Visibility,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Field {
-    pub name: String,
-    pub ty: Type,
-    pub visibility: Visibility,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ImplBlock {
-    pub struct_name: String,
-    pub functions: Vec<Function>,
+    pub source: ast::FunctionDecl,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Test {
     pub name: String,
     pub body: Block,
+    pub source: ast::TestDecl,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -92,13 +72,50 @@ pub enum Stmt {
         ty: Option<Type>,
         value: Expr,
     },
+    Const {
+        name: String,
+        ty: Option<Type>,
+        value: Expr,
+    },
     Assign {
         target: Expr,
         value: Expr,
     },
     Return(Option<Expr>),
+    Throw(Expr),
     Expr(Expr),
+    If {
+        condition: Expr,
+        then_block: Block,
+        else_block: Option<Block>,
+    },
+    While {
+        condition: Expr,
+        body: Block,
+    },
+    For {
+        var: String,
+        iterable: Expr,
+        body: Block,
+    },
+    Block(Block),
+    TryCatch {
+        try_block: Block,
+        error_var: String,
+        catch_block: Block,
+    },
+    Switch {
+        discriminant: Expr,
+        cases: Vec<SwitchCase>,
+        default: Option<Vec<Stmt>>,
+    },
     Unsupported(ast::Stmt),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SwitchCase {
+    pub value: Expr,
+    pub body: Vec<Stmt>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -118,6 +135,16 @@ pub enum Expr {
         callee: Box<Expr>,
         args: Vec<Expr>,
     },
+    TaskCall {
+        mode: ConcurrencyMode,
+        callee: String,
+        args: Vec<Expr>,
+    },
+    FireCall {
+        mode: ConcurrencyMode,
+        callee: String,
+        args: Vec<Expr>,
+    },
     Binary {
         op: BinaryOp,
         left: Box<Expr>,
@@ -127,10 +154,19 @@ pub enum Expr {
         op: UnaryOp,
         operand: Box<Expr>,
     },
+    Ternary {
+        condition: Box<Expr>,
+        then_expr: Box<Expr>,
+        else_expr: Box<Expr>,
+    },
     StringTemplate(Vec<TemplatePart>),
     Member {
         object: Box<Expr>,
         property: String,
+    },
+    Index {
+        object: Box<Expr>,
+        index: Box<Expr>,
     },
     ObjectLiteral(Vec<(String, Expr)>),
     ArrayLiteral(Vec<Expr>),
@@ -219,6 +255,12 @@ impl Type {
 pub enum AsyncKind {
     NotAsync,
     Async,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ConcurrencyMode {
+    Async,
+    Parallel,
 }
 
 #[derive(Debug, Clone, PartialEq)]

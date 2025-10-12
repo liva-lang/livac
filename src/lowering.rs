@@ -17,12 +17,10 @@ pub fn lower_program(program: &ast::Program) -> ir::Module {
             ast::TopLevel::Function(func) => {
                 module.items.push(ir::Item::Function(lower_function(func)));
             }
-            ast::TopLevel::Class(_)
-            | ast::TopLevel::Type(_)
-            | ast::TopLevel::Import(_)
-            | ast::TopLevel::Test(_) => {
-                module.items.push(ir::Item::Unsupported(item.clone()));
+            ast::TopLevel::Test(test) => {
+                module.items.push(ir::Item::Test(lower_test(test)));
             }
+            _ => module.items.push(ir::Item::Unsupported(item.clone())),
         }
     }
 
@@ -36,7 +34,7 @@ fn lower_function(func: &ast::FunctionDecl) -> ir::Function {
         .map(|param| ir::Param {
             name: param.name.clone(),
             ty: ir::Type::from_ast(&param.type_ref),
-            default: param.default.as_ref().map(|expr| lower_expr(expr)),
+            default: param.default.as_ref().map(lower_expr),
         })
         .collect();
 
@@ -61,6 +59,15 @@ fn lower_function(func: &ast::FunctionDecl) -> ir::Function {
             ir::AsyncKind::NotAsync
         },
         visibility: ir::Visibility::Public,
+        source: func.clone(),
+    }
+}
+
+fn lower_test(test: &ast::TestDecl) -> ir::Test {
+    ir::Test {
+        name: test.name.clone(),
+        body: lower_block(&test.body),
+        source: test.clone(),
     }
 }
 
@@ -73,26 +80,70 @@ fn lower_block(block: &ast::BlockStmt) -> ir::Block {
 fn lower_stmt(stmt: &ast::Stmt) -> ir::Stmt {
     match stmt {
         ast::Stmt::VarDecl(var) => {
-            if let Some(init) = &var.init {
-                ir::Stmt::Let {
-                    name: var.name.clone(),
-                    ty: var
-                        .type_ref
-                        .as_ref()
-                        .map(|ty| ir::Type::from_ast(&Some(ty.clone()))),
-                    value: lower_expr(init),
-                }
-            } else {
-                ir::Stmt::Unsupported(stmt.clone())
+            let value = var
+                .init
+                .as_ref()
+                .map(lower_expr)
+                .unwrap_or(ir::Expr::Literal(ir::Literal::Null));
+            ir::Stmt::Let {
+                name: var.name.clone(),
+                ty: var
+                    .type_ref
+                    .as_ref()
+                    .map(|ty| ir::Type::from_ast(&Some(ty.clone()))),
+                value,
             }
         }
+        ast::Stmt::ConstDecl(const_decl) => ir::Stmt::Const {
+            name: const_decl.name.clone(),
+            ty: const_decl
+                .type_ref
+                .as_ref()
+                .map(|ty| ir::Type::from_ast(&Some(ty.clone()))),
+            value: lower_expr(&const_decl.init),
+        },
         ast::Stmt::Assign(assign) => ir::Stmt::Assign {
             target: lower_expr(&assign.target),
             value: lower_expr(&assign.value),
         },
-        ast::Stmt::Return(ret) => ir::Stmt::Return(ret.expr.as_ref().map(|expr| lower_expr(expr))),
-        ast::Stmt::Expr(expr) => ir::Stmt::Expr(lower_expr(&expr.expr)),
-        _ => ir::Stmt::Unsupported(stmt.clone()),
+        ast::Stmt::Return(ret) => ir::Stmt::Return(ret.expr.as_ref().map(lower_expr)),
+        ast::Stmt::Throw(throw_stmt) => ir::Stmt::Throw(lower_expr(&throw_stmt.expr)),
+        ast::Stmt::Expr(expr_stmt) => ir::Stmt::Expr(lower_expr(&expr_stmt.expr)),
+        ast::Stmt::If(if_stmt) => ir::Stmt::If {
+            condition: lower_expr(&if_stmt.condition),
+            then_block: lower_block(&if_stmt.then_branch),
+            else_block: if_stmt.else_branch.as_ref().map(|block| lower_block(block)),
+        },
+        ast::Stmt::While(while_stmt) => ir::Stmt::While {
+            condition: lower_expr(&while_stmt.condition),
+            body: lower_block(&while_stmt.body),
+        },
+        ast::Stmt::For(for_stmt) => ir::Stmt::For {
+            var: for_stmt.var.clone(),
+            iterable: lower_expr(&for_stmt.iterable),
+            body: lower_block(&for_stmt.body),
+        },
+        ast::Stmt::Block(block) => ir::Stmt::Block(lower_block(block)),
+        ast::Stmt::TryCatch(try_catch) => ir::Stmt::TryCatch {
+            try_block: lower_block(&try_catch.try_block),
+            error_var: try_catch.catch_var.clone(),
+            catch_block: lower_block(&try_catch.catch_block),
+        },
+        ast::Stmt::Switch(switch_stmt) => ir::Stmt::Switch {
+            discriminant: lower_expr(&switch_stmt.discriminant),
+            cases: switch_stmt
+                .cases
+                .iter()
+                .map(|case| ir::SwitchCase {
+                    value: lower_expr(&case.value),
+                    body: case.body.iter().map(lower_stmt).collect(),
+                })
+                .collect(),
+            default: switch_stmt
+                .default
+                .as_ref()
+                .map(|body| body.iter().map(lower_stmt).collect()),
+        },
     }
 }
 
@@ -110,6 +161,22 @@ fn lower_expr(expr: &ast::Expr) -> ir::Expr {
         },
         ast::Expr::ParallelCall { callee, args } => ir::Expr::ParallelCall {
             callee: Box::new(lower_expr(callee)),
+            args: args.iter().map(lower_expr).collect(),
+        },
+        ast::Expr::TaskCall { mode, callee, args } => ir::Expr::TaskCall {
+            mode: match mode {
+                ast::ConcurrencyMode::Async => ir::ConcurrencyMode::Async,
+                ast::ConcurrencyMode::Parallel => ir::ConcurrencyMode::Parallel,
+            },
+            callee: callee.clone(),
+            args: args.iter().map(lower_expr).collect(),
+        },
+        ast::Expr::FireCall { mode, callee, args } => ir::Expr::FireCall {
+            mode: match mode {
+                ast::ConcurrencyMode::Async => ir::ConcurrencyMode::Async,
+                ast::ConcurrencyMode::Parallel => ir::ConcurrencyMode::Parallel,
+            },
+            callee: callee.clone(),
             args: args.iter().map(lower_expr).collect(),
         },
         ast::Expr::Unary { op, operand } => match op {
@@ -138,7 +205,7 @@ fn lower_expr(expr: &ast::Expr) -> ir::Expr {
                 ast::BinOp::Ge => ir::BinaryOp::Ge,
                 ast::BinOp::And => ir::BinaryOp::And,
                 ast::BinOp::Or => ir::BinaryOp::Or,
-                _ => return ir::Expr::Unsupported(expr.clone()),
+                ast::BinOp::Range => return ir::Expr::Unsupported(expr.clone()),
             };
             ir::Expr::Binary {
                 op,
@@ -146,6 +213,15 @@ fn lower_expr(expr: &ast::Expr) -> ir::Expr {
                 right: Box::new(lower_expr(right)),
             }
         }
+        ast::Expr::Ternary {
+            condition,
+            then_expr,
+            else_expr,
+        } => ir::Expr::Ternary {
+            condition: Box::new(lower_expr(condition)),
+            then_expr: Box::new(lower_expr(then_expr)),
+            else_expr: Box::new(lower_expr(else_expr)),
+        },
         ast::Expr::StringTemplate { parts } => ir::Expr::StringTemplate(
             parts
                 .iter()
@@ -159,6 +235,10 @@ fn lower_expr(expr: &ast::Expr) -> ir::Expr {
             object: Box::new(lower_expr(object)),
             property: property.clone(),
         },
+        ast::Expr::Index { object, index } => ir::Expr::Index {
+            object: Box::new(lower_expr(object)),
+            index: Box::new(lower_expr(index)),
+        },
         ast::Expr::ArrayLiteral(items) => {
             ir::Expr::ArrayLiteral(items.iter().map(lower_expr).collect())
         }
@@ -168,7 +248,6 @@ fn lower_expr(expr: &ast::Expr) -> ir::Expr {
                 .map(|(name, value)| (name.clone(), lower_expr(value)))
                 .collect(),
         ),
-        _ => ir::Expr::Unsupported(expr.clone()),
     }
 }
 
