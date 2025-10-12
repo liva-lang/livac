@@ -1,5 +1,5 @@
-use logos::Logos;
 use crate::error::{CompilerError, Result};
+use logos::Logos;
 
 #[derive(Logos, Debug, Clone, PartialEq)]
 #[logos(skip r"[ \t\r\n\f]+")]
@@ -210,12 +210,10 @@ pub fn tokenize(source: &str) -> Result<Vec<TokenWithSpan>> {
                     .last()
                     .map(|l| l.len())
                     .unwrap_or(0);
-                
+
                 return Err(CompilerError::LexerError(format!(
                     "Invalid token at line {}, column {}: '{}'",
-                    line,
-                    col,
-                    &source[span]
+                    line, col, &source[span]
                 )));
             }
         }
@@ -232,7 +230,7 @@ mod tests {
     fn test_basic_tokens() {
         let source = "let x = 10";
         let tokens = tokenize(source).unwrap();
-        
+
         assert_eq!(tokens[0].token, Token::Let);
         assert_eq!(tokens[1].token, Token::Ident("x".to_string()));
         assert_eq!(tokens[2].token, Token::Assign);
@@ -243,17 +241,23 @@ mod tests {
     fn test_visibility() {
         let source = "public _protected __private";
         let tokens = tokenize(source).unwrap();
-        
+
         assert_eq!(tokens[0].token, Token::Ident("public".to_string()));
-        assert_eq!(tokens[1].token, Token::ProtectedIdent("_protected".to_string()));
-        assert_eq!(tokens[2].token, Token::PrivateIdent("__private".to_string()));
+        assert_eq!(
+            tokens[1].token,
+            Token::ProtectedIdent("_protected".to_string())
+        );
+        assert_eq!(
+            tokens[2].token,
+            Token::PrivateIdent("__private".to_string())
+        );
     }
 
     #[test]
     fn test_logical_operators() {
         let source = "and or not && || !";
         let tokens = tokenize(source).unwrap();
-        
+
         assert_eq!(tokens[0].token, Token::And);
         assert_eq!(tokens[1].token, Token::Or);
         assert_eq!(tokens[2].token, Token::Not);
@@ -266,7 +270,7 @@ mod tests {
     fn test_string_template() {
         let source = r#"$"Hello {name}""#;
         let tokens = tokenize(source).unwrap();
-        
+
         assert!(matches!(tokens[0].token, Token::StringTemplate(_)));
     }
 }

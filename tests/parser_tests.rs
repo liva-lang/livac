@@ -6,10 +6,10 @@ use std::fs;
 fn test_parser_ok(test_name: &str) {
     let source = fs::read_to_string(format!("tests/parser/ok_{}.liva", test_name))
         .unwrap_or_else(|_| panic!("Failed to read test file: ok_{}.liva", test_name));
-    
+
     let tokens = tokenize(&source).unwrap();
     let ast = parse(tokens, &source).unwrap();
-    
+
     // Convertir AST a JSON para snapshot
     let json = serde_json::to_string_pretty(&ast).unwrap();
     assert_snapshot!(format!("ok_{}.ast", test_name), json);
@@ -19,11 +19,15 @@ fn test_parser_ok(test_name: &str) {
 fn test_parser_err(test_name: &str) {
     let source = fs::read_to_string(format!("tests/parser/err_{}.liva", test_name))
         .unwrap_or_else(|_| panic!("Failed to read test file: err_{}.liva", test_name));
-    
+
     let tokens = tokenize(&source).unwrap();
     let result = parse(tokens, &source);
-    assert!(result.is_err(), "Expected parser error for test: {}", test_name);
-    
+    assert!(
+        result.is_err(),
+        "Expected parser error for test: {}",
+        test_name
+    );
+
     let error_msg = result.unwrap_err().to_string();
     assert_snapshot!(format!("err_{}.diag", test_name), error_msg);
 }

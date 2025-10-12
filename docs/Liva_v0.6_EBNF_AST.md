@@ -153,7 +153,7 @@ Statement
   ;
 
 VarDecl      = "let" , Identifier , [ Colon , Type ] , [ OpAssign , Expression ] ;
-ConstDecl    = "const" , Identifier , OpAssign , Expression ;
+ConstDecl    = "const" , Identifier , [ ":" , TypeRef ] , OpAssign , Expression ;
 
 AssignStmt   = LValue , OpAssign , Expression ;
 LValue       = Primary , { (Dot , Identifier) | (LBracket , Expression , RBracket) } ;
@@ -354,7 +354,7 @@ type Stmt =
 
 interface BlockStmt { kind: "BlockStmt"; stmts: Stmt[]; }
 interface VarDecl   { kind: "VarDecl"; name: Identifier; type?: TypeRef; init?: Expr; isConst: false; }
-interface ConstDecl { kind: "ConstDecl"; name: Identifier; init: Expr; isConst: true; }
+interface ConstDecl { kind: "ConstDecl"; name: Identifier; type?: TypeRef | null; init: Expr; isConst: true; }
 interface AssignStmt{ kind: "AssignStmt"; target: LValue; value: Expr; }
 
 interface IfStmt    { kind: "IfStmt"; test: Expr; consequent: BlockStmt; alternate?: BlockStmt; }

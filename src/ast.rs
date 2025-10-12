@@ -175,6 +175,7 @@ pub struct VarDecl {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ConstDecl {
     pub name: String,
+    pub type_ref: Option<TypeRef>,
     pub init: Expr,
 }
 

@@ -58,10 +58,8 @@ impl CodeGenerator {
             self.output.push('\n');
         }
 
-
         Ok(())
     }
-
 
     fn generate_top_level(&mut self, item: &TopLevel) -> Result<()> {
         match item {
@@ -97,8 +95,11 @@ impl CodeGenerator {
         self.output.push('\n');
 
         // Generate impl block for methods
-        let has_methods = type_decl.members.iter().any(|m| matches!(m, Member::Method(_)));
-        
+        let has_methods = type_decl
+            .members
+            .iter()
+            .any(|m| matches!(m, Member::Method(_)));
+
         if has_methods {
             self.writeln(&format!("impl {} {{", type_decl.name));
             self.indent();
@@ -141,7 +142,7 @@ impl CodeGenerator {
 
         // Generate impl block
         let has_methods = class.members.iter().any(|m| matches!(m, Member::Method(_)));
-        
+
         if has_methods {
             self.writeln(&format!("impl {} {{", class.name));
             self.indent();
@@ -173,7 +174,12 @@ impl CodeGenerator {
             "()".to_string()
         };
 
-        self.writeln(&format!("{}{}: {},", vis, self.sanitize_name(&field.name), type_str));
+        self.writeln(&format!(
+            "{}{}: {},",
+            vis,
+            self.sanitize_name(&field.name),
+            type_str
+        ));
         Ok(())
     }
 
@@ -184,14 +190,19 @@ impl CodeGenerator {
             Visibility::Private => "",
         };
 
-        let async_kw = if method.is_async_inferred { "async " } else { "" };
+        let async_kw = if method.is_async_inferred {
+            "async "
+        } else {
+            ""
+        };
 
         let type_params = if !method.type_params.is_empty() {
-            // Add basic trait bounds for generic types
-            let bounded_params: Vec<String> = method.type_params.iter()
+            let bounded: Vec<String> = method
+                .type_params
+                .iter()
                 .map(|param| format!("{}: std::cmp::PartialOrd", param))
                 .collect();
-            format!("<{}>", bounded_params.join(", "))
+            format!("<{}>", bounded.join(", "))
         } else {
             String::new()
         };
@@ -208,8 +219,14 @@ impl CodeGenerator {
         write!(
             self.output,
             "{}{}fn {}{}({}){}",
-            vis, async_kw, self.sanitize_name(&method.name), type_params, params_str, return_type
-        ).unwrap();
+            vis,
+            async_kw,
+            self.sanitize_name(&method.name),
+            type_params,
+            params_str,
+            return_type
+        )
+        .unwrap();
 
         if let Some(expr) = &method.expr_body {
             self.output.push_str(" { ");
@@ -236,12 +253,13 @@ impl CodeGenerator {
             ("", "")
         };
 
-        let _type_params = if !func.type_params.is_empty() {
-            // Add basic trait bounds for generic types
-            let bounded_params: Vec<String> = func.type_params.iter()
+        let type_params = if !func.type_params.is_empty() {
+            let bounded: Vec<String> = func
+                .type_params
+                .iter()
                 .map(|param| format!("{}: std::cmp::PartialOrd", param))
                 .collect();
-            format!("<{}>", bounded_params.join(", "))
+            format!("<{}>", bounded.join(", "))
         } else {
             String::new()
         };
@@ -257,10 +275,15 @@ impl CodeGenerator {
 
         write!(
             self.output,
-            "{}{}fn {}({})",
-            tokio_attr, async_kw, self.sanitize_name(&func.name), params_str
-        ).unwrap();
-        
+            "{}{}fn {}{}({})",
+            tokio_attr,
+            async_kw,
+            self.sanitize_name(&func.name),
+            type_params,
+            params_str
+        )
+        .unwrap();
+
         if !return_type.is_empty() {
             write!(self.output, "{}", return_type).unwrap();
         }
@@ -286,7 +309,10 @@ impl CodeGenerator {
 
     fn generate_test(&mut self, test: &TestDecl) -> Result<()> {
         self.writeln("#[test]");
-        self.writeln(&format!("fn test_{}() {{", self.sanitize_test_name(&test.name)));
+        self.writeln(&format!(
+            "fn test_{}() {{",
+            self.sanitize_test_name(&test.name)
+        ));
         self.indent();
         self.generate_block_inner(&test.body)?;
         self.dedent();
@@ -296,7 +322,7 @@ impl CodeGenerator {
 
     fn generate_params(&mut self, params: &[Param], is_method: bool) -> Result<String> {
         let mut result = String::new();
-        
+
         if is_method {
             result.push_str("&self");
             if !params.is_empty() {
@@ -334,23 +360,26 @@ impl CodeGenerator {
             Stmt::VarDecl(var) => {
                 self.write_indent();
                 write!(self.output, "let {}", self.sanitize_name(&var.name)).unwrap();
-                
+
                 if let Some(type_ref) = &var.type_ref {
                     write!(self.output, ": {}", type_ref.to_rust_type()).unwrap();
                 }
-                
+
                 if let Some(init) = &var.init {
                     self.output.push_str(" = ");
                     self.generate_expr(init)?;
                 }
-                
+
                 self.output.push_str(";\n");
             }
             Stmt::ConstDecl(const_decl) => {
                 self.write_indent();
                 write!(self.output, "const {}: ", const_decl.name.to_uppercase()).unwrap();
-                // Try to infer type from literal
-                let type_str = self.infer_const_type(&const_decl.init);
+                let type_str = if let Some(type_ref) = &const_decl.type_ref {
+                    type_ref.to_rust_type()
+                } else {
+                    self.infer_const_type(&const_decl.init)
+                };
                 self.output.push_str(&type_str);
                 self.output.push_str(" = ");
                 self.generate_expr(&const_decl.init)?;
@@ -373,7 +402,7 @@ impl CodeGenerator {
                 self.dedent();
                 self.write_indent();
                 self.output.push('}');
-                
+
                 if let Some(else_branch) = &if_stmt.else_branch {
                     self.output.push_str(" else {\n");
                     self.indent();
@@ -446,7 +475,12 @@ impl CodeGenerator {
                 self.indent();
                 self.writeln("Ok(_) => {},");
                 self.write_indent();
-                write!(self.output, "Err({}) => {{\n", self.sanitize_name(&try_catch.catch_var)).unwrap();
+                write!(
+                    self.output,
+                    "Err({}) => {{\n",
+                    self.sanitize_name(&try_catch.catch_var)
+                )
+                .unwrap();
                 self.indent();
                 self.generate_block_inner(&try_catch.catch_block)?;
                 self.dedent();
@@ -492,33 +526,33 @@ impl CodeGenerator {
                 write!(self.output, "{}", self.sanitize_name(name)).unwrap();
             }
             Expr::Binary { op, left, right } => {
-                // Only add parentheses for complex expressions
-                let needs_parens = !matches!(left.as_ref(), Expr::Literal(_) | Expr::Identifier(_)) ||
-                                  !matches!(right.as_ref(), Expr::Literal(_) | Expr::Identifier(_));
-                
-                if needs_parens {
-                    self.output.push('(');
-                }
-                self.generate_expr(left)?;
-                write!(self.output, " {} ", op).unwrap();
-                self.generate_expr(right)?;
-                if needs_parens {
+                if matches!(op, BinOp::Add)
+                    && (self.expr_is_stringy(left) || self.expr_is_stringy(right))
+                {
+                    self.output.push_str("format!(\"{}{}\", ");
+                    self.generate_expr(left)?;
+                    self.output.push_str(", ");
+                    self.generate_expr(right)?;
                     self.output.push(')');
+                } else {
+                    self.generate_binary_operation(op, left, right)?;
                 }
             }
-            Expr::Unary { op, operand } => {
-                match op {
-                    crate::ast::UnOp::Await => {
-                        self.generate_expr(operand)?;
-                        self.output.push_str(".await");
-                    }
-                    _ => {
-                        write!(self.output, "{}", op).unwrap();
-                        self.generate_expr(operand)?;
-                    }
+            Expr::Unary { op, operand } => match op {
+                crate::ast::UnOp::Await => {
+                    self.generate_expr(operand)?;
+                    self.output.push_str(".await");
                 }
-            }
-            Expr::Ternary { condition, then_expr, else_expr } => {
+                _ => {
+                    write!(self.output, "{}", op).unwrap();
+                    self.generate_expr(operand)?;
+                }
+            },
+            Expr::Ternary {
+                condition,
+                then_expr,
+                else_expr,
+            } => {
                 self.output.push_str("if ");
                 self.generate_expr(condition)?;
                 self.output.push_str(" { ");
@@ -550,7 +584,7 @@ impl CodeGenerator {
                         return Ok(());
                     }
                 }
-                
+
                 // Regular function call
                 self.generate_expr(callee)?;
                 self.output.push('(');
@@ -662,7 +696,7 @@ impl CodeGenerator {
             Expr::StringTemplate { parts } => {
                 self.output.push_str("format!(\"");
                 let mut format_args = Vec::new();
-                
+
                 for part in parts {
                     match part {
                         StringTemplatePart::Text(text) => {
@@ -674,7 +708,7 @@ impl CodeGenerator {
                         }
                     }
                 }
-                
+
                 self.output.push('"');
                 for arg in format_args {
                     self.output.push_str(", ");
@@ -684,6 +718,35 @@ impl CodeGenerator {
             }
         }
         Ok(())
+    }
+
+    fn generate_binary_operation(&mut self, op: &BinOp, left: &Expr, right: &Expr) -> Result<()> {
+        let needs_parens = !matches!(left, Expr::Literal(_) | Expr::Identifier(_))
+            || !matches!(right, Expr::Literal(_) | Expr::Identifier(_));
+
+        if needs_parens {
+            self.output.push('(');
+        }
+        self.generate_expr(left)?;
+        write!(self.output, " {} ", op).unwrap();
+        self.generate_expr(right)?;
+        if needs_parens {
+            self.output.push(')');
+        }
+        Ok(())
+    }
+
+    fn expr_is_stringy(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Literal(Literal::String(_)) => true,
+            Expr::StringTemplate { .. } => true,
+            Expr::Binary {
+                op: BinOp::Add,
+                left,
+                right,
+            } => self.expr_is_stringy(left) || self.expr_is_stringy(right),
+            _ => false,
+        }
     }
 
     fn generate_literal(&mut self, lit: &Literal) -> Result<()> {
@@ -715,9 +778,7 @@ impl CodeGenerator {
     }
 
     fn sanitize_test_name(&self, name: &str) -> String {
-        name.replace(' ', "_")
-            .replace('-', "_")
-            .to_lowercase()
+        name.replace(' ', "_").replace('-', "_").to_lowercase()
     }
 
     fn to_snake_case(&self, s: &str) -> String {
@@ -744,19 +805,21 @@ impl CodeGenerator {
 pub fn generate(ctx: DesugarContext) -> Result<(String, String)> {
     // This function should receive both the desugaring context and the AST
     // For now, return placeholder content
-    let main_rs = "// Generated by livac v0.6\n\nfn main() {\n    println!(\"Hello from Liva!\");\n}\n".to_string();
-    
+    let main_rs =
+        "// Generated by livac v0.6\n\nfn main() {\n    println!(\"Hello from Liva!\");\n}\n"
+            .to_string();
+
     let cargo_toml = generate_cargo_toml(&ctx)?;
-    
+
     Ok((main_rs, cargo_toml))
 }
 
 pub fn generate_with_ast(program: &Program, ctx: DesugarContext) -> Result<(String, String)> {
     let mut generator = CodeGenerator::new(ctx);
     generator.generate_program(program)?;
-    
+
     let cargo_toml = generate_cargo_toml(&generator.ctx)?;
-    
+
     Ok((generator.output, cargo_toml))
 }
 
@@ -766,7 +829,7 @@ fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
          name = \"liva_project\"\n\
          version = \"0.1.0\"\n\
          edition = \"2021\"\n\n\
-         [dependencies]\n"
+         [dependencies]\n",
     );
 
     // Add tokio if async is used

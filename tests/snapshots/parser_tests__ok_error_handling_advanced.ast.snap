@@ -1,5 +1,6 @@
 ---
 source: tests/parser_tests.rs
+assertion_line: 15
 expression: json
 ---
 {
@@ -74,8 +75,17 @@ expression: json
                     {
                       "Throw": {
                         "expr": {
-                          "Literal": {
-                            "String": "Failed to read file: {e}"
+                          "StringTemplate": {
+                            "parts": [
+                              {
+                                "Text": "Failed to read file: "
+                              },
+                              {
+                                "Expr": {
+                                  "Identifier": "e"
+                                }
+                              }
+                            ]
                           }
                         }
                       }
@@ -265,8 +275,27 @@ expression: json
                             {
                               "Return": {
                                 "expr": {
-                                  "Literal": {
-                                    "String": "Success: {result.unwrap()}"
+                                  "StringTemplate": {
+                                    "parts": [
+                                      {
+                                        "Text": "Success: "
+                                      },
+                                      {
+                                        "Expr": {
+                                          "Call": {
+                                            "callee": {
+                                              "Member": {
+                                                "object": {
+                                                  "Identifier": "result"
+                                                },
+                                                "property": "unwrap"
+                                              }
+                                            },
+                                            "args": []
+                                          }
+                                        }
+                                      }
+                                    ]
                                   }
                                 }
                               }
@@ -278,8 +307,27 @@ expression: json
                             {
                               "Return": {
                                 "expr": {
-                                  "Literal": {
-                                    "String": "Error: {result.unwrapErr()}"
+                                  "StringTemplate": {
+                                    "parts": [
+                                      {
+                                        "Text": "Error: "
+                                      },
+                                      {
+                                        "Expr": {
+                                          "Call": {
+                                            "callee": {
+                                              "Member": {
+                                                "object": {
+                                                  "Identifier": "result"
+                                                },
+                                                "property": "unwrapErr"
+                                              }
+                                            },
+                                            "args": []
+                                          }
+                                        }
+                                      }
+                                    ]
                                   }
                                 }
                               }
@@ -296,8 +344,17 @@ expression: json
                     {
                       "Return": {
                         "expr": {
-                          "Literal": {
-                            "String": "Unexpected error: {e}"
+                          "StringTemplate": {
+                            "parts": [
+                              {
+                                "Text": "Unexpected error: "
+                              },
+                              {
+                                "Expr": {
+                                  "Identifier": "e"
+                                }
+                              }
+                            ]
                           }
                         }
                       }
@@ -382,8 +439,17 @@ expression: json
                                     },
                                     "args": [
                                       {
-                                        "Literal": {
-                                          "String": "Result: {result}"
+                                        "StringTemplate": {
+                                          "parts": [
+                                            {
+                                              "Text": "Result: "
+                                            },
+                                            {
+                                              "Expr": {
+                                                "Identifier": "result"
+                                              }
+                                            }
+                                          ]
                                         }
                                       }
                                     ]
@@ -405,8 +471,17 @@ expression: json
                                     },
                                     "args": [
                                       {
-                                        "Literal": {
-                                          "String": "Division error: {e}"
+                                        "StringTemplate": {
+                                          "parts": [
+                                            {
+                                              "Text": "Division error: "
+                                            },
+                                            {
+                                              "Expr": {
+                                                "Identifier": "e"
+                                              }
+                                            }
+                                          ]
                                         }
                                       }
                                     ]
@@ -432,8 +507,17 @@ expression: json
                             },
                             "args": [
                               {
-                                "Literal": {
-                                  "String": "File error: {e}"
+                                "StringTemplate": {
+                                  "parts": [
+                                    {
+                                      "Text": "File error: "
+                                    },
+                                    {
+                                      "Expr": {
+                                        "Identifier": "e"
+                                      }
+                                    }
+                                  ]
                                 }
                               }
                             ]
@@ -444,8 +528,17 @@ expression: json
                     {
                       "Throw": {
                         "expr": {
-                          "Literal": {
-                            "String": "Critical error in complexErrorHandling: {e}"
+                          "StringTemplate": {
+                            "parts": [
+                              {
+                                "Text": "Critical error in complexErrorHandling: "
+                              },
+                              {
+                                "Expr": {
+                                  "Identifier": "e"
+                                }
+                              }
+                            ]
                           }
                         }
                       }
@@ -506,8 +599,17 @@ expression: json
                             },
                             "args": [
                               {
-                                "Literal": {
-                                  "String": "Result: {result}"
+                                "StringTemplate": {
+                                  "parts": [
+                                    {
+                                      "Text": "Result: "
+                                    },
+                                    {
+                                      "Expr": {
+                                        "Identifier": "result"
+                                      }
+                                    }
+                                  ]
                                 }
                               }
                             ]
@@ -552,8 +654,17 @@ expression: json
                                     },
                                     "args": [
                                       {
-                                        "Literal": {
-                                          "String": "Parse error: {e}"
+                                        "StringTemplate": {
+                                          "parts": [
+                                            {
+                                              "Text": "Parse error: "
+                                            },
+                                            {
+                                              "Expr": {
+                                                "Identifier": "e"
+                                              }
+                                            }
+                                          ]
                                         }
                                       }
                                     ]
@@ -597,8 +708,17 @@ expression: json
                                             },
                                             "args": [
                                               {
-                                                "Literal": {
-                                                  "String": "Division error: {e}"
+                                                "StringTemplate": {
+                                                  "parts": [
+                                                    {
+                                                      "Text": "Division error: "
+                                                    },
+                                                    {
+                                                      "Expr": {
+                                                        "Identifier": "e"
+                                                      }
+                                                    }
+                                                  ]
                                                 }
                                               }
                                             ]
@@ -619,8 +739,17 @@ expression: json
                                             },
                                             "args": [
                                               {
-                                                "Literal": {
-                                                  "String": "Other error: {e}"
+                                                "StringTemplate": {
+                                                  "parts": [
+                                                    {
+                                                      "Text": "Other error: "
+                                                    },
+                                                    {
+                                                      "Expr": {
+                                                        "Identifier": "e"
+                                                      }
+                                                    }
+                                                  ]
                                                 }
                                               }
                                             ]

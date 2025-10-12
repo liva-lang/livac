@@ -6,15 +6,12 @@ use std::fs;
 fn test_lexer_ok(test_name: &str) {
     let source = fs::read_to_string(format!("tests/lexer/ok_{}.liva", test_name))
         .unwrap_or_else(|_| panic!("Failed to read test file: ok_{}.liva", test_name));
-    
+
     let tokens = tokenize(&source).unwrap();
-    
+
     // Convertir tokens a formato legible para snapshot
-    let token_strings: Vec<String> = tokens
-        .iter()
-        .map(|t| format!("{:?}", t.token))
-        .collect();
-    
+    let token_strings: Vec<String> = tokens.iter().map(|t| format!("{:?}", t.token)).collect();
+
     let output = format!("Tokens: {:#?}", token_strings);
     assert_snapshot!(format!("ok_{}.tokens", test_name), output);
 }
@@ -23,10 +20,14 @@ fn test_lexer_ok(test_name: &str) {
 fn test_lexer_err(test_name: &str) {
     let source = fs::read_to_string(format!("tests/lexer/err_{}.liva", test_name))
         .unwrap_or_else(|_| panic!("Failed to read test file: err_{}.liva", test_name));
-    
+
     let result = tokenize(&source);
-    assert!(result.is_err(), "Expected lexer error for test: {}", test_name);
-    
+    assert!(
+        result.is_err(),
+        "Expected lexer error for test: {}",
+        test_name
+    );
+
     let error_msg = result.unwrap_err().to_string();
     assert_snapshot!(format!("err_{}.diag", test_name), error_msg);
 }

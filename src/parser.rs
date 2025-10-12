@@ -1,6 +1,6 @@
 use crate::ast::*;
 use crate::error::{CompilerError, Result};
-use crate::lexer::{Token, TokenWithSpan};
+use crate::lexer::{tokenize, Token, TokenWithSpan};
 
 pub struct Parser {
     tokens: Vec<TokenWithSpan>,
@@ -10,7 +10,11 @@ pub struct Parser {
 
 impl Parser {
     fn new(tokens: Vec<TokenWithSpan>, source: String) -> Self {
-        Self { tokens, current: 0, source }
+        Self {
+            tokens,
+            current: 0,
+            source,
+        }
     }
 
     fn peek(&self) -> Option<&Token> {
@@ -74,7 +78,11 @@ impl Parser {
         } else {
             (1, 1)
         };
-        CompilerError::ParseError { line, col, msg: message }
+        CompilerError::ParseError {
+            line,
+            col,
+            msg: message,
+        }
     }
 
     fn calculate_line_col(&self, token_index: usize) -> (usize, usize) {
@@ -178,7 +186,11 @@ impl Parser {
             // It's a class
             let members = self.parse_members()?;
             self.expect(Token::RBrace)?;
-            return Ok(TopLevel::Class(ClassDecl { name, base, members }));
+            return Ok(TopLevel::Class(ClassDecl {
+                name,
+                base,
+                members,
+            }));
         }
 
         // Otherwise it's a function
@@ -208,7 +220,11 @@ impl Parser {
                 type_params,
                 params,
                 return_type,
-                body: Some(BlockStmt { stmts: vec![Stmt::Return(ReturnStmt { expr: Some(body.clone()) })] }),
+                body: Some(BlockStmt {
+                    stmts: vec![Stmt::Return(ReturnStmt {
+                        expr: Some(body.clone()),
+                    })],
+                }),
                 expr_body: Some(body),
                 is_async_inferred: false,
             }));
@@ -282,7 +298,11 @@ impl Parser {
                         type_params,
                         params,
                         return_type,
-                        body: Some(BlockStmt { stmts: vec![Stmt::Return(ReturnStmt { expr: Some(body.clone()) })] }),
+                        body: Some(BlockStmt {
+                            stmts: vec![Stmt::Return(ReturnStmt {
+                                expr: Some(body.clone()),
+                            })],
+                        }),
                         expr_body: Some(body),
                         is_async_inferred: false,
                     }));
@@ -358,7 +378,11 @@ impl Parser {
                 None
             };
 
-            params.push(Param { name, type_ref, default });
+            params.push(Param {
+                name,
+                type_ref,
+                default,
+            });
 
             if !self.match_token(&Token::Comma) {
                 break;
@@ -420,7 +444,28 @@ impl Parser {
             self.expect(Token::Assign)?;
             let value = self.parse_expression()?;
             self.match_token(&Token::Semicolon); // Optional semicolon
-            return Ok(Stmt::VarDecl(VarDecl { name, type_ref, init: Some(value) }));
+            return Ok(Stmt::VarDecl(VarDecl {
+                name,
+                type_ref,
+                init: Some(value),
+            }));
+        }
+
+        if self.match_token(&Token::Const) {
+            let name = self.parse_identifier()?;
+            let type_ref = if self.match_token(&Token::Colon) {
+                Some(self.parse_type()?)
+            } else {
+                None
+            };
+            self.expect(Token::Assign)?;
+            let value = self.parse_expression()?;
+            self.match_token(&Token::Semicolon);
+            return Ok(Stmt::ConstDecl(ConstDecl {
+                name,
+                type_ref,
+                init: value,
+            }));
         }
 
         if self.match_token(&Token::Return) {
@@ -448,7 +493,11 @@ impl Parser {
             self.expect(Token::LBrace)?;
             let catch_block = self.parse_block_stmt()?;
             self.expect(Token::RBrace)?;
-            return Ok(Stmt::TryCatch(TryCatchStmt { try_block, catch_var, catch_block }));
+            return Ok(Stmt::TryCatch(TryCatchStmt {
+                try_block,
+                catch_var,
+                catch_block,
+            }));
         }
 
         if self.match_token(&Token::If) {
@@ -468,7 +517,9 @@ impl Parser {
                 if self.check(&Token::If) {
                     // This is an else-if, parse it recursively as a nested if statement
                     let else_if_stmt = self.parse_statement()?;
-                    Some(BlockStmt { stmts: vec![else_if_stmt] })
+                    Some(BlockStmt {
+                        stmts: vec![else_if_stmt],
+                    })
                 } else {
                     // This is a regular else block
                     self.expect(Token::LBrace)?;
@@ -509,10 +560,11 @@ impl Parser {
                     let mut body = Vec::new();
 
                     // Parse statements until next case, default, or end
-                    while !self.is_at_end() &&
-                          !self.check(&Token::Case) &&
-                          !self.check(&Token::Default) &&
-                          !self.check(&Token::RBrace) {
+                    while !self.is_at_end()
+                        && !self.check(&Token::Case)
+                        && !self.check(&Token::Default)
+                        && !self.check(&Token::RBrace)
+                    {
                         body.push(self.parse_statement()?);
                     }
 
@@ -527,13 +579,19 @@ impl Parser {
 
                     default = Some(body);
                 } else {
-                    return Err(self.error("Expected 'case' or 'default' in switch statement".into()));
+                    return Err(
+                        self.error("Expected 'case' or 'default' in switch statement".into())
+                    );
                 }
             }
 
             self.expect(Token::RBrace)?;
             self.match_token(&Token::Semicolon); // Optional semicolon
-            return Ok(Stmt::Switch(SwitchStmt { discriminant, cases, default }));
+            return Ok(Stmt::Switch(SwitchStmt {
+                discriminant,
+                cases,
+                default,
+            }));
         }
 
         if self.match_token(&Token::For) {
@@ -544,11 +602,27 @@ impl Parser {
             let body = self.parse_block_stmt()?;
             self.expect(Token::RBrace)?;
             self.match_token(&Token::Semicolon); // Optional semicolon
-            return Ok(Stmt::For(ForStmt { var, iterable, body }));
+            return Ok(Stmt::For(ForStmt {
+                var,
+                iterable,
+                body,
+            }));
         }
 
         // Expression statement
         let expr = self.parse_expression()?;
+        if self.match_token(&Token::Assign) {
+            if !is_valid_assignment_target(&expr) {
+                return Err(self.error("Invalid assignment target".into()));
+            }
+            let value = self.parse_expression()?;
+            self.match_token(&Token::Semicolon);
+            return Ok(Stmt::Assign(AssignStmt {
+                target: expr,
+                value,
+            }));
+        }
+
         self.match_token(&Token::Semicolon); // Optional semicolon
         Ok(Stmt::Expr(ExprStmt { expr }))
     }
@@ -579,12 +653,6 @@ impl Parser {
                 then_expr: Box::new(then_expr),
                 else_expr: Box::new(else_expr),
             });
-        }
-
-        if self.match_token(&Token::Assign) {
-            let value = self.parse_assignment()?;
-            // For now, just return the value since Assign is not in the AST
-            return Ok(value);
         }
 
         Ok(expr)
@@ -643,10 +711,11 @@ impl Parser {
     fn parse_comparison(&mut self) -> Result<Expr> {
         let mut expr = self.parse_term()?;
 
-        while self.match_token(&Token::Gt) || 
-              self.match_token(&Token::Ge) ||
-              self.match_token(&Token::Lt) ||
-              self.match_token(&Token::Le) {
+        while self.match_token(&Token::Gt)
+            || self.match_token(&Token::Ge)
+            || self.match_token(&Token::Lt)
+            || self.match_token(&Token::Le)
+        {
             let op = match self.previous() {
                 Some(&Token::Gt) => BinOp::Gt,
                 Some(&Token::Ge) => BinOp::Ge,
@@ -688,7 +757,10 @@ impl Parser {
     fn parse_factor(&mut self) -> Result<Expr> {
         let mut expr = self.parse_unary()?;
 
-        while self.match_token(&Token::Star) || self.match_token(&Token::Slash) || self.match_token(&Token::Percent) {
+        while self.match_token(&Token::Star)
+            || self.match_token(&Token::Slash)
+            || self.match_token(&Token::Percent)
+        {
             let op = match self.previous() {
                 Some(&Token::Star) => BinOp::Mul,
                 Some(&Token::Slash) => BinOp::Div,
@@ -775,15 +847,23 @@ impl Parser {
                     // This is a temporary solution - TaskCall should be updated to use Box<Expr> like AsyncCall/ParallelCall
                     match *callee {
                         Expr::Identifier(name) => {
-                            return Ok(Expr::TaskCall { mode, callee: name, args });
+                            return Ok(Expr::TaskCall {
+                                mode,
+                                callee: name,
+                                args,
+                            });
                         }
                         _ => {
-                            return Err(self.error("Task calls currently only support simple function names".into()));
+                            return Err(self.error(
+                                "Task calls currently only support simple function names".into(),
+                            ));
                         }
                     }
                 }
                 _ => {
-                    return Err(self.error("Expected function call after 'task async/parallel'".into()));
+                    return Err(
+                        self.error("Expected function call after 'task async/parallel'".into())
+                    );
                 }
             }
         }
@@ -806,15 +886,23 @@ impl Parser {
                     // This is a temporary solution - FireCall should be updated to use Box<Expr> like AsyncCall/ParallelCall
                     match *callee {
                         Expr::Identifier(name) => {
-                            return Ok(Expr::FireCall { mode, callee: name, args });
+                            return Ok(Expr::FireCall {
+                                mode,
+                                callee: name,
+                                args,
+                            });
                         }
                         _ => {
-                            return Err(self.error("Fire calls currently only support simple function names".into()));
+                            return Err(self.error(
+                                "Fire calls currently only support simple function names".into(),
+                            ));
                         }
                     }
                 }
                 _ => {
-                    return Err(self.error("Expected function call after 'fire async/parallel'".into()));
+                    return Err(
+                        self.error("Expected function call after 'fire async/parallel'".into())
+                    );
                 }
             }
         }
@@ -897,11 +985,10 @@ impl Parser {
                     return Ok(Expr::Literal(Literal::Char(value)));
                 }
                 Token::StringTemplate(s) => {
-                    let value = s.clone();
+                    let template = s.clone();
                     self.advance();
-                    // For now, treat string templates as regular strings
-                    // TODO: Implement proper string template parsing
-                    return Ok(Expr::Literal(Literal::String(value)));
+                    let parts = parse_string_template_parts(&template)?;
+                    return Ok(Expr::StringTemplate { parts });
                 }
                 Token::Ident(name) => {
                     let value = name.clone();
@@ -927,6 +1014,14 @@ impl Parser {
         }
 
         Err(self.error("Expected expression".into()))
+    }
+
+    fn parse_expression_root(&mut self) -> Result<Expr> {
+        let expr = self.parse_expression()?;
+        if !self.is_at_end() {
+            return Err(self.error("Unexpected tokens after expression".into()));
+        }
+        Ok(expr)
     }
 
     fn parse_array_literal(&mut self) -> Result<Expr> {
@@ -983,6 +1078,110 @@ impl Parser {
 pub fn parse(tokens: Vec<TokenWithSpan>, source: &str) -> Result<Program> {
     let mut parser = Parser::new(tokens, source.to_string());
     parser.parse_program()
+}
+
+fn is_valid_assignment_target(expr: &Expr) -> bool {
+    matches!(
+        expr,
+        Expr::Identifier(_) | Expr::Member { .. } | Expr::Index { .. }
+    )
+}
+
+fn parse_string_template_parts(raw: &str) -> Result<Vec<StringTemplatePart>> {
+    let mut parts = Vec::new();
+    let mut buffer = String::new();
+    let mut chars = raw.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        match ch {
+            '\\' => {
+                if let Some(escaped) = chars.next() {
+                    buffer.push(escaped);
+                } else {
+                    buffer.push('\\');
+                }
+            }
+            '{' => {
+                if let Some('{') = chars.peek() {
+                    chars.next();
+                    buffer.push('{');
+                    continue;
+                }
+                if !buffer.is_empty() {
+                    parts.push(StringTemplatePart::Text(buffer.clone()));
+                    buffer.clear();
+                }
+                let mut depth = 1usize;
+                let mut expr_src = String::new();
+                while let Some(next) = chars.next() {
+                    match next {
+                        '{' => {
+                            depth += 1;
+                            expr_src.push(next);
+                        }
+                        '}' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                break;
+                            } else {
+                                expr_src.push('}');
+                            }
+                        }
+                        _ => expr_src.push(next),
+                    }
+                }
+                if depth != 0 {
+                    return Err(CompilerError::ParseError {
+                        line: 1,
+                        col: 1,
+                        msg: "Unclosed interpolation in string template".into(),
+                    });
+                }
+                let expr_src_trimmed = expr_src.trim();
+                if expr_src_trimmed.is_empty() {
+                    return Err(CompilerError::ParseError {
+                        line: 1,
+                        col: 1,
+                        msg: "Empty interpolation in string template".into(),
+                    });
+                }
+                match parse_template_expression(expr_src_trimmed) {
+                    Ok(expr) => parts.push(StringTemplatePart::Expr(Box::new(expr))),
+                    Err(_) => {
+                        parts.push(StringTemplatePart::Text(format!(
+                            "{{{}}}",
+                            expr_src_trimmed
+                        )));
+                    }
+                }
+            }
+            '}' => {
+                if let Some('}') = chars.peek() {
+                    chars.next();
+                    buffer.push('}');
+                } else {
+                    return Err(CompilerError::ParseError {
+                        line: 1,
+                        col: 1,
+                        msg: "Unmatched '}' in string template".into(),
+                    });
+                }
+            }
+            _ => buffer.push(ch),
+        }
+    }
+
+    if !buffer.is_empty() {
+        parts.push(StringTemplatePart::Text(buffer));
+    }
+
+    Ok(parts)
+}
+
+fn parse_template_expression(fragment: &str) -> Result<Expr> {
+    let tokens = tokenize(fragment)?;
+    let mut parser = Parser::new(tokens, fragment.to_string());
+    parser.parse_expression_root()
 }
 
 #[cfg(test)]

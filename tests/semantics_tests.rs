@@ -10,7 +10,7 @@ fn test_semantics_ok(test_name: &str) {
     let tokens = tokenize(&source).unwrap();
     let ast = parse(tokens, &source).unwrap();
     let analyzed = analyze(ast).unwrap();
-    
+
     // Convertir AST analizado a JSON para snapshot
     let json = serde_json::to_string_pretty(&analyzed).unwrap();
     assert_snapshot!(format!("ok_{}.sem", test_name), json);
@@ -24,8 +24,12 @@ fn test_semantics_err(test_name: &str) {
     let tokens = tokenize(&source).unwrap();
     let ast = parse(tokens, &source).unwrap();
     let result = analyze(ast);
-    assert!(result.is_err(), "Expected semantic error for test: {}", test_name);
-    
+    assert!(
+        result.is_err(),
+        "Expected semantic error for test: {}",
+        test_name
+    );
+
     let error_msg = result.unwrap_err().to_string();
     assert_snapshot!(format!("err_{}.diag", test_name), error_msg);
 }

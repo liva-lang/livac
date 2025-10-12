@@ -1,5 +1,6 @@
 ---
 source: tests/parser_tests.rs
+assertion_line: 15
 expression: json
 ---
 {
@@ -82,8 +83,17 @@ expression: json
                     },
                     "args": [
                       {
-                        "Literal": {
-                          "String": "Optional: {optional}"
+                        "StringTemplate": {
+                          "parts": [
+                            {
+                              "Text": "Optional: "
+                            },
+                            {
+                              "Expr": {
+                                "Identifier": "optional"
+                              }
+                            }
+                          ]
                         }
                       }
                     ]
@@ -100,8 +110,17 @@ expression: json
                     },
                     "args": [
                       {
-                        "Literal": {
-                          "String": "Result: {result}"
+                        "StringTemplate": {
+                          "parts": [
+                            {
+                              "Text": "Result: "
+                            },
+                            {
+                              "Expr": {
+                                "Identifier": "result"
+                              }
+                            }
+                          ]
                         }
                       }
                     ]

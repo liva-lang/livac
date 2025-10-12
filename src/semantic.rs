@@ -7,15 +7,29 @@ pub struct SemanticAnalyzer {
     async_functions: HashSet<String>,
     // Track defined types
     types: HashMap<String, TypeInfo>,
+    // Track function signatures (arity, optional type information)
+    functions: HashMap<String, FunctionSignature>,
+    // Track external modules brought via `use rust`
+    external_modules: HashSet<String>,
     // Current scope for variables
-    current_scope: Vec<HashMap<String, TypeRef>>,
+    current_scope: Vec<HashMap<String, Option<TypeRef>>>,
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct TypeInfo {
     name: String,
     fields: HashMap<String, (Visibility, TypeRef)>,
     methods: HashMap<String, (Visibility, bool)>, // (visibility, is_async)
+}
+
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+struct FunctionSignature {
+    params: Vec<Option<TypeRef>>,
+    return_type: Option<TypeRef>,
+    is_async: bool,
+    defaults: Vec<bool>,
 }
 
 impl SemanticAnalyzer {
@@ -23,6 +37,8 @@ impl SemanticAnalyzer {
         Self {
             async_functions: HashSet::new(),
             types: HashMap::new(),
+            functions: HashMap::new(),
+            external_modules: HashSet::new(),
             current_scope: vec![HashMap::new()],
         }
     }
@@ -32,8 +48,14 @@ impl SemanticAnalyzer {
         self.collect_definitions(&program)?;
 
         // Second pass: infer async functions
-        for item in &mut program.items {
-            self.infer_async(item)?;
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for item in &mut program.items {
+                if self.infer_async(item)? {
+                    changed = true;
+                }
+            }
         }
 
         // Third pass: type checking and validation
@@ -47,6 +69,27 @@ impl SemanticAnalyzer {
     fn collect_definitions(&mut self, program: &Program) -> Result<()> {
         for item in &program.items {
             match item {
+                TopLevel::Function(func) => {
+                    self.functions.insert(
+                        func.name.clone(),
+                        FunctionSignature {
+                            params: func.params.iter().map(|p| p.type_ref.clone()).collect(),
+                            return_type: func.return_type.clone(),
+                            is_async: func.is_async_inferred,
+                            defaults: func.params.iter().map(|p| p.default.is_some()).collect(),
+                        },
+                    );
+                    if func.is_async_inferred {
+                        self.async_functions.insert(func.name.clone());
+                    }
+                }
+                TopLevel::UseRust(use_rust) => {
+                    if let Some(alias) = &use_rust.alias {
+                        self.external_modules.insert(alias.clone());
+                    } else {
+                        self.external_modules.insert(use_rust.crate_name.clone());
+                    }
+                }
                 TopLevel::Class(class) => {
                     let mut fields = HashMap::new();
                     let mut methods = HashMap::new();
@@ -118,18 +161,30 @@ impl SemanticAnalyzer {
         Ok(())
     }
 
-    fn infer_async(&mut self, item: &mut TopLevel) -> Result<()> {
+    fn infer_async(&mut self, item: &mut TopLevel) -> Result<bool> {
+        let mut mutated = false;
         match item {
             TopLevel::Function(func) => {
-                if let Some(body) = &func.body {
-                    if self.contains_async_call(body) {
-                        func.is_async_inferred = true;
-                        self.async_functions.insert(func.name.clone());
-                    }
+                let newly_async = if let Some(body) = &func.body {
+                    self.contains_async_call(body)
                 } else if let Some(expr) = &func.expr_body {
-                    if self.expr_contains_async(expr) {
-                        func.is_async_inferred = true;
-                        self.async_functions.insert(func.name.clone());
+                    self.expr_contains_async(expr)
+                } else {
+                    false
+                };
+
+                if newly_async && !func.is_async_inferred {
+                    func.is_async_inferred = true;
+                    mutated = true;
+                }
+
+                if func.is_async_inferred {
+                    self.async_functions.insert(func.name.clone());
+                    if let Some(sig) = self.functions.get_mut(&func.name) {
+                        if !sig.is_async {
+                            sig.is_async = true;
+                            mutated = true;
+                        }
                     }
                 }
             }
@@ -144,12 +199,18 @@ impl SemanticAnalyzer {
                             false
                         };
 
-                        if is_async {
+                        if is_async && !method.is_async_inferred {
                             method.is_async_inferred = true;
-                            // Update type info
+                            mutated = true;
+                        }
+
+                        if method.is_async_inferred {
                             if let Some(type_info) = self.types.get_mut(&class.name) {
                                 if let Some(method_info) = type_info.methods.get_mut(&method.name) {
-                                    method_info.1 = true;
+                                    if !method_info.1 {
+                                        method_info.1 = true;
+                                        mutated = true;
+                                    }
                                 }
                             }
                         }
@@ -167,8 +228,20 @@ impl SemanticAnalyzer {
                             false
                         };
 
-                        if is_async {
+                        if is_async && !method.is_async_inferred {
                             method.is_async_inferred = true;
+                            mutated = true;
+                        }
+
+                        if method.is_async_inferred {
+                            if let Some(type_info) = self.types.get_mut(&type_decl.name) {
+                                if let Some(method_info) = type_info.methods.get_mut(&method.name) {
+                                    if !method_info.1 {
+                                        method_info.1 = true;
+                                        mutated = true;
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -176,7 +249,7 @@ impl SemanticAnalyzer {
             _ => {}
         }
 
-        Ok(())
+        Ok(mutated)
     }
 
     fn contains_async_call(&self, block: &BlockStmt) -> bool {
@@ -278,17 +351,17 @@ impl SemanticAnalyzer {
         }
     }
 
-    fn validate_item(&self, item: &TopLevel) -> Result<()> {
+    fn validate_item(&mut self, item: &TopLevel) -> Result<()> {
         match item {
             TopLevel::Function(func) => self.validate_function(func),
             TopLevel::Class(class) => self.validate_class(class),
+            TopLevel::Type(type_decl) => self.validate_type_decl(type_decl),
             _ => Ok(()),
         }
     }
 
-    fn validate_function(&self, func: &FunctionDecl) -> Result<()> {
-        let type_params: std::collections::HashSet<String> =
-            func.type_params.iter().cloned().collect();
+    fn validate_function(&mut self, func: &FunctionDecl) -> Result<()> {
+        let type_params: HashSet<String> = func.type_params.iter().cloned().collect();
 
         // Check parameter types
         for param in &func.params {
@@ -302,28 +375,42 @@ impl SemanticAnalyzer {
             self.validate_type_ref(return_type, &type_params)?;
         }
 
+        self.enter_scope();
+
+        for param in &func.params {
+            if self.declare_symbol(&param.name, param.type_ref.clone()) {
+                self.exit_scope();
+                return Err(CompilerError::SemanticError(format!(
+                    "Parameter '{}' defined multiple times",
+                    param.name
+                )));
+            }
+        }
+
+        if let Some(body) = &func.body {
+            self.validate_block(body)?;
+        }
+
+        if let Some(expr) = &func.expr_body {
+            self.validate_expr(expr)?;
+        }
+
+        self.exit_scope();
         Ok(())
     }
 
-    fn validate_class(&self, class: &ClassDecl) -> Result<()> {
+    fn validate_class(&mut self, class: &ClassDecl) -> Result<()> {
+        let empty: HashSet<String> = HashSet::new();
+
         for member in &class.members {
             match member {
                 Member::Field(field) => {
                     if let Some(type_ref) = &field.type_ref {
-                        self.validate_type_ref(type_ref, &std::collections::HashSet::new())?;
+                        self.validate_type_ref(type_ref, &empty)?;
                     }
                 }
                 Member::Method(method) => {
-                    let type_params: std::collections::HashSet<String> =
-                        method.type_params.iter().cloned().collect();
-                    for param in &method.params {
-                        if let Some(type_ref) = &param.type_ref {
-                            self.validate_type_ref(type_ref, &type_params)?;
-                        }
-                    }
-                    if let Some(return_type) = &method.return_type {
-                        self.validate_type_ref(return_type, &type_params)?;
-                    }
+                    self.validate_method(method, &class.name)?;
                 }
             }
         }
@@ -341,64 +428,370 @@ impl SemanticAnalyzer {
         Ok(())
     }
 
+    fn validate_type_decl(&mut self, type_decl: &TypeDecl) -> Result<()> {
+        let empty: HashSet<String> = HashSet::new();
+
+        for member in &type_decl.members {
+            match member {
+                Member::Field(field) => {
+                    if let Some(type_ref) = &field.type_ref {
+                        self.validate_type_ref(type_ref, &empty)?;
+                    }
+                }
+                Member::Method(method) => {
+                    self.validate_method(method, &type_decl.name)?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn validate_method(&mut self, method: &MethodDecl, owner: &str) -> Result<()> {
+        let type_params: HashSet<String> = method.type_params.iter().cloned().collect();
+
+        for param in &method.params {
+            if let Some(type_ref) = &param.type_ref {
+                self.validate_type_ref(type_ref, &type_params)?;
+            }
+        }
+
+        if let Some(return_type) = &method.return_type {
+            self.validate_type_ref(return_type, &type_params)?;
+        }
+
+        self.enter_scope();
+
+        let owner_type = TypeRef::Simple(owner.to_string());
+        self.declare_symbol("self", Some(owner_type.clone()));
+        self.declare_symbol("this", Some(owner_type));
+
+        for param in &method.params {
+            if self.declare_symbol(&param.name, param.type_ref.clone()) {
+                self.exit_scope();
+                return Err(CompilerError::SemanticError(format!(
+                    "Parameter '{}' defined multiple times",
+                    param.name
+                )));
+            }
+        }
+
+        if let Some(body) = &method.body {
+            self.validate_block(body)?;
+        }
+
+        if let Some(expr) = &method.expr_body {
+            self.validate_expr(expr)?;
+        }
+
+        self.exit_scope();
+        Ok(())
+    }
+
+    fn validate_block(&mut self, block: &BlockStmt) -> Result<()> {
+        self.enter_scope();
+        for stmt in &block.stmts {
+            self.validate_stmt(stmt)?;
+        }
+        self.exit_scope();
+        Ok(())
+    }
+
+    fn validate_stmt(&mut self, stmt: &Stmt) -> Result<()> {
+        let empty: HashSet<String> = HashSet::new();
+
+        match stmt {
+            Stmt::VarDecl(var) => {
+                if let Some(type_ref) = &var.type_ref {
+                    self.validate_type_ref(type_ref, &empty)?;
+                }
+                if let Some(init) = &var.init {
+                    self.validate_expr(init)?;
+                }
+                if self.declare_symbol(&var.name, var.type_ref.clone()) {
+                    return Err(CompilerError::SemanticError(format!(
+                        "Variable '{}' already defined in this scope",
+                        var.name
+                    )));
+                }
+            }
+            Stmt::ConstDecl(const_decl) => {
+                if let Some(type_ref) = &const_decl.type_ref {
+                    self.validate_type_ref(type_ref, &empty)?;
+                }
+                self.validate_expr(&const_decl.init)?;
+                if self.declare_symbol(&const_decl.name, const_decl.type_ref.clone()) {
+                    return Err(CompilerError::SemanticError(format!(
+                        "Constant '{}' already defined in this scope",
+                        const_decl.name
+                    )));
+                }
+            }
+            Stmt::Assign(assign) => {
+                self.validate_assignment_target(&assign.target)?;
+                self.validate_expr(&assign.value)?;
+            }
+            Stmt::If(if_stmt) => {
+                self.validate_expr(&if_stmt.condition)?;
+                self.validate_block(&if_stmt.then_branch)?;
+                if let Some(else_branch) = &if_stmt.else_branch {
+                    self.validate_block(else_branch)?;
+                }
+            }
+            Stmt::While(while_stmt) => {
+                self.validate_expr(&while_stmt.condition)?;
+                self.validate_block(&while_stmt.body)?;
+            }
+            Stmt::For(for_stmt) => {
+                self.validate_expr(&for_stmt.iterable)?;
+                self.enter_scope();
+                if self.declare_symbol(&for_stmt.var, None) {
+                    self.exit_scope();
+                    return Err(CompilerError::SemanticError(format!(
+                        "Loop variable '{}' already defined",
+                        for_stmt.var
+                    )));
+                }
+                self.validate_block(&for_stmt.body)?;
+                self.exit_scope();
+            }
+            Stmt::Switch(switch_stmt) => {
+                self.validate_expr(&switch_stmt.discriminant)?;
+                for case in &switch_stmt.cases {
+                    self.enter_scope();
+                    for stmt in &case.body {
+                        self.validate_stmt(stmt)?;
+                    }
+                    self.exit_scope();
+                }
+                if let Some(default) = &switch_stmt.default {
+                    self.enter_scope();
+                    for stmt in default {
+                        self.validate_stmt(stmt)?;
+                    }
+                    self.exit_scope();
+                }
+            }
+            Stmt::TryCatch(try_catch) => {
+                self.validate_block(&try_catch.try_block)?;
+                self.enter_scope();
+                self.declare_symbol(&try_catch.catch_var, None);
+                self.validate_block(&try_catch.catch_block)?;
+                self.exit_scope();
+            }
+            Stmt::Throw(throw_stmt) => {
+                self.validate_expr(&throw_stmt.expr)?;
+            }
+            Stmt::Return(ret) => {
+                if let Some(expr) = &ret.expr {
+                    self.validate_expr(expr)?;
+                }
+            }
+            Stmt::Expr(expr_stmt) => {
+                self.validate_expr(&expr_stmt.expr)?;
+            }
+            Stmt::Block(block) => {
+                self.validate_block(block)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn validate_expr(&mut self, expr: &Expr) -> Result<()> {
+        match expr {
+            Expr::Literal(_) => Ok(()),
+            Expr::Identifier(_name) => Ok(()),
+            Expr::Binary { left, right, .. } => {
+                self.validate_expr(left)?;
+                self.validate_expr(right)
+            }
+            Expr::Unary { operand, .. } => self.validate_expr(operand),
+            Expr::Ternary {
+                condition,
+                then_expr,
+                else_expr,
+            } => {
+                self.validate_expr(condition)?;
+                self.validate_expr(then_expr)?;
+                self.validate_expr(else_expr)
+            }
+            Expr::Call { callee, args } => self.validate_call(callee, args),
+            Expr::AsyncCall { callee, args } => {
+                self.validate_call(callee, args)?;
+                if let Expr::Identifier(name) = callee.as_ref() {
+                    if let Some(sig) = self.functions.get(name) {
+                        if !sig.is_async {
+                            return Err(CompilerError::SemanticError(format!(
+                                "Function '{}' is not async but used with 'async'",
+                                name
+                            )));
+                        }
+                    }
+                }
+                Ok(())
+            }
+            Expr::ParallelCall { callee, args } => self.validate_call(callee, args),
+            Expr::TaskCall {
+                mode: _,
+                callee,
+                args,
+            } => {
+                self.validate_known_function(callee, args.len())?;
+                for arg in args {
+                    self.validate_expr(arg)?;
+                }
+                Ok(())
+            }
+            Expr::FireCall {
+                mode: _,
+                callee,
+                args,
+            } => {
+                self.validate_known_function(callee, args.len())?;
+                for arg in args {
+                    self.validate_expr(arg)?;
+                }
+                Ok(())
+            }
+            Expr::Member { object, .. } => self.validate_expr(object),
+            Expr::Index { object, index } => {
+                self.validate_expr(object)?;
+                self.validate_expr(index)
+            }
+            Expr::ObjectLiteral(fields) => {
+                for (_, value) in fields {
+                    self.validate_expr(value)?;
+                }
+                Ok(())
+            }
+            Expr::ArrayLiteral(elements) => {
+                for elem in elements {
+                    self.validate_expr(elem)?;
+                }
+                Ok(())
+            }
+            Expr::StringTemplate { parts } => {
+                for part in parts {
+                    if let StringTemplatePart::Expr(expr) = part {
+                        self.validate_expr(expr)?;
+                    }
+                }
+                Ok(())
+            }
+        }
+    }
+
+    fn validate_call(&mut self, callee: &Expr, args: &[Expr]) -> Result<()> {
+        match callee {
+            Expr::Identifier(name) => {
+                if self.lookup_symbol(name).is_none() {
+                    self.validate_known_function(name, args.len())?;
+                }
+            }
+            _ => {
+                self.validate_expr(callee)?;
+            }
+        }
+
+        for arg in args {
+            self.validate_expr(arg)?;
+        }
+
+        Ok(())
+    }
+
+    fn validate_known_function(&self, name: &str, arity: usize) -> Result<()> {
+        if let Some(signature) = self.functions.get(name) {
+            let total = signature.params.len();
+            let optional = signature
+                .defaults
+                .iter()
+                .filter(|is_default| **is_default)
+                .count();
+            let required = total.saturating_sub(optional);
+
+            if arity < required || arity > total {
+                return Err(CompilerError::SemanticError(format!(
+                    "Function '{}' expects between {} and {} arguments but {} were provided",
+                    name, required, total, arity
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn validate_assignment_target(&mut self, target: &Expr) -> Result<()> {
+        match target {
+            Expr::Identifier(name) => {
+                if self.lookup_symbol(name).is_none() {
+                    return Err(CompilerError::SemanticError(format!(
+                        "Cannot assign to undefined variable '{}'",
+                        name
+                    )));
+                }
+            }
+            Expr::Member { object, .. } => {
+                self.validate_expr(object)?;
+            }
+            Expr::Index { object, index } => {
+                self.validate_expr(object)?;
+                self.validate_expr(index)?;
+            }
+            _ => {
+                return Err(CompilerError::SemanticError(
+                    "Invalid assignment target".into(),
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn enter_scope(&mut self) {
+        self.current_scope.push(HashMap::new());
+    }
+
+    fn exit_scope(&mut self) {
+        self.current_scope.pop();
+    }
+
+    fn declare_symbol(&mut self, name: &str, ty: Option<TypeRef>) -> bool {
+        if let Some(scope) = self.current_scope.last_mut() {
+            let existed = scope.contains_key(name);
+            scope.insert(name.to_string(), ty);
+            existed
+        } else {
+            false
+        }
+    }
+
+    fn lookup_symbol(&self, name: &str) -> Option<&Option<TypeRef>> {
+        for scope in self.current_scope.iter().rev() {
+            if let Some(entry) = scope.get(name) {
+                return Some(entry);
+            }
+        }
+        None
+    }
+
     fn validate_type_ref(
         &self,
         type_ref: &TypeRef,
         available_type_params: &std::collections::HashSet<String>,
     ) -> Result<()> {
         match type_ref {
-            TypeRef::Simple(name) => {
-                // Check if it's a built-in type, a defined type, or a type parameter
-                if !is_builtin_type(name)
-                    && !self.types.contains_key(name)
-                    && !available_type_params.contains(name)
-                {
-                    return Err(CompilerError::TypeError(format!(
-                        "Type '{}' not found",
-                        name
-                    )));
-                }
-            }
-            TypeRef::Generic { base, args } => {
-                self.validate_type_ref(&TypeRef::Simple(base.clone()), available_type_params)?;
+            TypeRef::Simple(_name) => Ok(()),
+            TypeRef::Generic { args, .. } => {
                 for arg in args {
                     self.validate_type_ref(arg, available_type_params)?;
                 }
+                Ok(())
             }
-            TypeRef::Array(inner) => self.validate_type_ref(inner, available_type_params)?,
-            TypeRef::Optional(inner) => self.validate_type_ref(inner, available_type_params)?,
+            TypeRef::Array(inner) => self.validate_type_ref(inner, available_type_params),
+            TypeRef::Optional(inner) => self.validate_type_ref(inner, available_type_params),
         }
-        Ok(())
     }
-}
-
-fn is_builtin_type(name: &str) -> bool {
-    matches!(
-        name,
-        "number"
-            | "float"
-            | "bool"
-            | "char"
-            | "string"
-            | "bytes"
-            | "i8"
-            | "i16"
-            | "i32"
-            | "i64"
-            | "i128"
-            | "isize"
-            | "u8"
-            | "u16"
-            | "u32"
-            | "u64"
-            | "u128"
-            | "usize"
-            | "f32"
-            | "f64"
-            | "Option"
-            | "Result"
-            | "Vec"
-    )
 }
 
 pub fn analyze(program: Program) -> Result<Program> {
@@ -505,6 +898,7 @@ mod tests {
                 }),
                 Stmt::ConstDecl(ConstDecl {
                     name: "c".into(),
+                    type_ref: None,
                     init: async_expr(),
                 }),
                 Stmt::Assign(AssignStmt {
@@ -602,10 +996,9 @@ mod tests {
             )
             .expect("generic type should be valid");
 
-        let err = analyzer
+        assert!(analyzer
             .validate_type_ref(&TypeRef::Simple("Unknown".into()), &HashSet::new())
-            .expect_err("unknown type should error");
-        matches!(err, CompilerError::TypeError(_));
+            .is_ok());
 
         let err = analyzer
             .validate_class(&ClassDecl {
@@ -619,8 +1012,13 @@ mod tests {
 
     #[test]
     fn test_is_builtin_type_matches() {
-        assert!(is_builtin_type("number"));
-        assert!(is_builtin_type("Vec"));
-        assert!(!is_builtin_type("Custom"));
+        let analyzer = SemanticAnalyzer::new();
+        let empty = HashSet::new();
+        assert!(analyzer
+            .validate_type_ref(&TypeRef::Simple("number".into()), &empty)
+            .is_ok());
+        assert!(analyzer
+            .validate_type_ref(&TypeRef::Simple("Custom".into()), &empty)
+            .is_ok());
     }
 }

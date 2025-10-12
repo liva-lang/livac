@@ -1,5 +1,6 @@
 ---
 source: tests/parser_tests.rs
+assertion_line: 15
 expression: json
 ---
 {
@@ -64,15 +65,31 @@ expression: json
               "body": {
                 "stmts": [
                   {
-                    "Expr": {
-                      "expr": {
+                    "Assign": {
+                      "target": {
+                        "Member": {
+                          "object": {
+                            "Identifier": "this"
+                          },
+                          "property": "nombre"
+                        }
+                      },
+                      "value": {
                         "Identifier": "nombre"
                       }
                     }
                   },
                   {
-                    "Expr": {
-                      "expr": {
+                    "Assign": {
+                      "target": {
+                        "Member": {
+                          "object": {
+                            "Identifier": "this"
+                          },
+                          "property": "_edad"
+                        }
+                      },
+                      "value": {
                         "Identifier": "edad"
                       }
                     }
@@ -191,8 +208,42 @@ expression: json
                   {
                     "Return": {
                       "expr": {
-                        "Literal": {
-                          "String": "{this._getEdad()} {this.__getDni()}"
+                        "StringTemplate": {
+                          "parts": [
+                            {
+                              "Expr": {
+                                "Call": {
+                                  "callee": {
+                                    "Member": {
+                                      "object": {
+                                        "Identifier": "this"
+                                      },
+                                      "property": "_getEdad"
+                                    }
+                                  },
+                                  "args": []
+                                }
+                              }
+                            },
+                            {
+                              "Text": " "
+                            },
+                            {
+                              "Expr": {
+                                "Call": {
+                                  "callee": {
+                                    "Member": {
+                                      "object": {
+                                        "Identifier": "this"
+                                      },
+                                      "property": "__getDni"
+                                    }
+                                  },
+                                  "args": []
+                                }
+                              }
+                            }
+                          ]
                         }
                       }
                     }
@@ -200,8 +251,42 @@ expression: json
                 ]
               },
               "expr_body": {
-                "Literal": {
-                  "String": "{this._getEdad()} {this.__getDni()}"
+                "StringTemplate": {
+                  "parts": [
+                    {
+                      "Expr": {
+                        "Call": {
+                          "callee": {
+                            "Member": {
+                              "object": {
+                                "Identifier": "this"
+                              },
+                              "property": "_getEdad"
+                            }
+                          },
+                          "args": []
+                        }
+                      }
+                    },
+                    {
+                      "Text": " "
+                    },
+                    {
+                      "Expr": {
+                        "Call": {
+                          "callee": {
+                            "Member": {
+                              "object": {
+                                "Identifier": "this"
+                              },
+                              "property": "__getDni"
+                            }
+                          },
+                          "args": []
+                        }
+                      }
+                    }
+                  ]
                 }
               },
               "is_async_inferred": false

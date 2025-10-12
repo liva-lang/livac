@@ -1,5 +1,6 @@
 ---
 source: tests/parser_tests.rs
+assertion_line: 15
 expression: json
 ---
 {
@@ -346,23 +347,68 @@ expression: json
                 "name": "message",
                 "type_ref": null,
                 "init": {
-                  "Literal": {
-                    "String": "Hello {person.name}! You live at {person.address.street}, {person.address.city}. Age: {person.age}"
-                  }
-                }
-              }
-            },
-            {
-              "Expr": {
-                "expr": {
-                  "Call": {
-                    "callee": {
-                      "Identifier": "print"
-                    },
-                    "args": [
+                  "StringTemplate": {
+                    "parts": [
                       {
-                        "Literal": {
-                          "String": "Complex expression result: {complex}"
+                        "Text": "Hello "
+                      },
+                      {
+                        "Expr": {
+                          "Member": {
+                            "object": {
+                              "Identifier": "person"
+                            },
+                            "property": "name"
+                          }
+                        }
+                      },
+                      {
+                        "Text": "! You live at "
+                      },
+                      {
+                        "Expr": {
+                          "Member": {
+                            "object": {
+                              "Member": {
+                                "object": {
+                                  "Identifier": "person"
+                                },
+                                "property": "address"
+                              }
+                            },
+                            "property": "street"
+                          }
+                        }
+                      },
+                      {
+                        "Text": ", "
+                      },
+                      {
+                        "Expr": {
+                          "Member": {
+                            "object": {
+                              "Member": {
+                                "object": {
+                                  "Identifier": "person"
+                                },
+                                "property": "address"
+                              }
+                            },
+                            "property": "city"
+                          }
+                        }
+                      },
+                      {
+                        "Text": ". Age: "
+                      },
+                      {
+                        "Expr": {
+                          "Member": {
+                            "object": {
+                              "Identifier": "person"
+                            },
+                            "property": "age"
+                          }
                         }
                       }
                     ]
@@ -379,8 +425,17 @@ expression: json
                     },
                     "args": [
                       {
-                        "Literal": {
-                          "String": "Logical expression result: {logical}"
+                        "StringTemplate": {
+                          "parts": [
+                            {
+                              "Text": "Complex expression result: "
+                            },
+                            {
+                              "Expr": {
+                                "Identifier": "complex"
+                              }
+                            }
+                          ]
                         }
                       }
                     ]
@@ -397,8 +452,17 @@ expression: json
                     },
                     "args": [
                       {
-                        "Literal": {
-                          "String": "Message: {message}"
+                        "StringTemplate": {
+                          "parts": [
+                            {
+                              "Text": "Logical expression result: "
+                            },
+                            {
+                              "Expr": {
+                                "Identifier": "logical"
+                              }
+                            }
+                          ]
                         }
                       }
                     ]
@@ -415,8 +479,52 @@ expression: json
                     },
                     "args": [
                       {
-                        "Literal": {
-                          "String": "Array operations: first={first}, last={last}"
+                        "StringTemplate": {
+                          "parts": [
+                            {
+                              "Text": "Message: "
+                            },
+                            {
+                              "Expr": {
+                                "Identifier": "message"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "print"
+                    },
+                    "args": [
+                      {
+                        "StringTemplate": {
+                          "parts": [
+                            {
+                              "Text": "Array operations: first="
+                            },
+                            {
+                              "Expr": {
+                                "Identifier": "first"
+                              }
+                            },
+                            {
+                              "Text": ", last="
+                            },
+                            {
+                              "Expr": {
+                                "Identifier": "last"
+                              }
+                            }
+                          ]
                         }
                       }
                     ]

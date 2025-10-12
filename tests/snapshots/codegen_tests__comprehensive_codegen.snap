@@ -1,22 +1,23 @@
 ---
 source: tests/codegen_tests.rs
+assertion_line: 149
 expression: rust_code
 ---
 fn add(a: i32, b: i32) -> i32 {
-    (a + b)
+    a + b
 }
 
 fn multiply(x: i32, y: i32) -> i32 {
-    (x * y)
+    x * y
 }
 
 fn power(base: i32, exp: i32) -> i32 {
-    (base * exp)
+    base * exp
 }
 
 fn complex_calculation(n: i32) {
-    let doubled = (n * 2);
-    let squared = (doubled * doubled);
+    let doubled = n * 2;
+    let squared = doubled * doubled;
     return squared;
 }
 
@@ -25,8 +26,8 @@ fn main() {
     let product = multiply(3, 4);
     let powered = power(2, 3);
     let complex = complex_calculation(5);
-    println!("{}", ("Sum: " + sum));;
-    println!("{}", ("Product: " + product));;
-    println!("{}", ("Power: " + powered));;
-    println!("{}", ("Complex: " + complex));;
+    println!("{}", format!("{}{}", "Sum: ", sum));
+    println!("{}", format!("{}{}", "Product: ", product));
+    println!("{}", format!("{}{}", "Power: ", powered));
+    println!("{}", format!("{}{}", "Complex: ", complex));
 }

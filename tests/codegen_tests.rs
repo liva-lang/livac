@@ -20,7 +20,7 @@ main() {
   print("Hello from async main!")
 }
 "#;
-    
+
     let rust_code = compile_and_generate(source);
     assert_snapshot!("async_main", rust_code);
 }
@@ -42,7 +42,7 @@ main() {
   print(message)
 }
 "#;
-    
+
     let rust_code = compile_and_generate(source);
     assert_snapshot!("function_names", rust_code);
 }
@@ -64,7 +64,7 @@ main() {
   print(prod)
 }
 "#;
-    
+
     let rust_code = compile_and_generate(source);
     assert_snapshot!("return_type_inference", rust_code);
 }
@@ -87,7 +87,7 @@ main() {
   print(complex)
 }
 "#;
-    
+
     let rust_code = compile_and_generate(source);
     assert_snapshot!("mixed_functions", rust_code);
 }
@@ -109,7 +109,7 @@ main() {
   print(even)
 }
 "#;
-    
+
     let rust_code = compile_and_generate(source);
     assert_snapshot!("explicit_return_types", rust_code);
 }
@@ -144,7 +144,7 @@ main() {
   print("Complex: " + complex)
 }
 "#;
-    
+
     let rust_code = compile_and_generate(source);
     assert_snapshot!("comprehensive_codegen", rust_code);
 }

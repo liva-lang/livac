@@ -1,5 +1,6 @@
 ---
 source: tests/parser_tests.rs
+assertion_line: 15
 expression: json
 ---
 {
@@ -54,8 +55,17 @@ expression: json
                     },
                     "args": [
                       {
-                        "Literal": {
-                          "String": "PI: {PI}"
+                        "StringTemplate": {
+                          "parts": [
+                            {
+                              "Text": "PI: "
+                            },
+                            {
+                              "Expr": {
+                                "Identifier": "PI"
+                              }
+                            }
+                          ]
                         }
                       }
                     ]
@@ -72,8 +82,17 @@ expression: json
                     },
                     "args": [
                       {
-                        "Literal": {
-                          "String": "GREETING: {GREETING}"
+                        "StringTemplate": {
+                          "parts": [
+                            {
+                              "Text": "GREETING: "
+                            },
+                            {
+                              "Expr": {
+                                "Identifier": "GREETING"
+                              }
+                            }
+                          ]
                         }
                       }
                     ]
@@ -90,8 +109,17 @@ expression: json
                     },
                     "args": [
                       {
-                        "Literal": {
-                          "String": "MAX_SIZE: {MAX_SIZE}"
+                        "StringTemplate": {
+                          "parts": [
+                            {
+                              "Text": "MAX_SIZE: "
+                            },
+                            {
+                              "Expr": {
+                                "Identifier": "MAX_SIZE"
+                              }
+                            }
+                          ]
                         }
                       }
                     ]
