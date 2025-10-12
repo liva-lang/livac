@@ -268,7 +268,7 @@ impl CodeGenerator {
         let return_type = if let Some(ret) = &func.return_type {
             format!(" -> {}", ret.to_rust_type())
         } else if func.expr_body.is_some() {
-            // For expression-bodied functions without explicit return type, infer i32
+            // For expression-bodied functions without explicit return type, infer the return type
             " -> i32".to_string()
         } else {
             String::new()
@@ -599,7 +599,18 @@ impl CodeGenerator {
             }
             Expr::Member { object, property } => {
                 self.generate_expr(object)?;
-                write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
+
+                // For serde_json::Value objects, use bracket notation instead of dot notation
+                match object.as_ref() {
+                    Expr::Identifier(_) => {
+                        // Check if this is likely a serde_json::Value (from object literals in arrays)
+                        // For now, use bracket notation for any identifier access
+                        write!(self.output, "[\"{}\"]", property).unwrap();
+                    }
+                    _ => {
+                        write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
+                    }
+                }
             }
             Expr::Index { object, index } => {
                 self.generate_expr(object)?;
@@ -1043,12 +1054,10 @@ impl<'a> IrCodeGenerator<'a> {
             }
             ir::Stmt::Return(expr) => {
                 self.write_indent();
-                self.output.push_str("return");
                 if let Some(expr) = expr {
-                    self.output.push(' ');
                     self.generate_expr(expr)?;
                 }
-                self.output.push_str(";\n");
+                self.output.push_str("\n");
             }
             ir::Stmt::Throw(expr) => {
                 self.write_indent();
@@ -1391,7 +1400,18 @@ impl<'a> IrCodeGenerator<'a> {
             }
             ir::Expr::Member { object, property } => {
                 self.generate_expr(object)?;
-                write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
+
+                // For serde_json::Value objects, use bracket notation instead of dot notation
+                // This handles cases where we're accessing properties of object literals in arrays
+                match object.as_ref() {
+                    ir::Expr::Identifier(_) => {
+                        // For identifiers that might be serde_json::Value, use bracket notation
+                        write!(self.output, "[\"{}\"]", property).unwrap();
+                    }
+                    _ => {
+                        write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
+                    }
+                }
                 Ok(())
             }
             ir::Expr::Index { object, index } => {

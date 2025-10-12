@@ -1,10 +1,17 @@
-//main() => print("Hello, World!")
-
 sum(a, b) = a + b
 
 main() {
 
   let sum = async sum(2,2)
+
+  let people = [{
+    name: "Fran",
+    age: 40
+  }]
+
+  for p in people {
+    print($"{p.name}")
+  }
 
   print(sum)
 

@@ -48,10 +48,19 @@ fn lower_function(func: &ast::FunctionDecl) -> ir::Function {
         ir::Block { statements: vec![] }
     };
 
+    let ret_type = if let Some(ret) = &func.return_type {
+        ir::Type::from_ast(&Some(ret.clone()))
+    } else if func.expr_body.is_some() {
+        // For expression-bodied functions without explicit return type, infer i32
+        ir::Type::Number
+    } else {
+        ir::Type::Inferred
+    };
+
     ir::Function {
         name: func.name.clone(),
         params,
-        ret_type: ir::Type::from_ast(&func.return_type),
+        ret_type,
         body,
         async_kind: if func.is_async_inferred {
             ir::AsyncKind::Async

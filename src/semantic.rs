@@ -617,20 +617,7 @@ impl SemanticAnalyzer {
                 self.validate_expr(else_expr)
             }
             Expr::Call { callee, args } => self.validate_call(callee, args),
-            Expr::AsyncCall { callee, args } => {
-                self.validate_call(callee, args)?;
-                if let Expr::Identifier(name) = callee.as_ref() {
-                    if let Some(sig) = self.functions.get(name) {
-                        if !sig.is_async {
-                            return Err(CompilerError::SemanticError(format!(
-                                "Function '{}' is not async but used with 'async'",
-                                name
-                            )));
-                        }
-                    }
-                }
-                Ok(())
-            }
+            Expr::AsyncCall { callee, args } => self.validate_call(callee, args),
             Expr::ParallelCall { callee, args } => self.validate_call(callee, args),
             Expr::TaskCall {
                 mode: _,
