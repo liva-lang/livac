@@ -7,3 +7,4 @@ main() {
   let result = async asyncTask()
   print("Result: " + result)
 }
+

@@ -9,3 +9,4 @@ main() {
   let result = calculate(1, 2)
   print(result)
 }
+

@@ -1,4 +1,6 @@
-sum(a, b) = a + b
+//main() => print("Hello, World!")
+
+/*sum(a, b) = a + b
 
 main() {
 
@@ -7,3 +9,4 @@ main() {
   print(sum)
 
 }
+*/
