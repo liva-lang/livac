@@ -170,6 +170,10 @@ pub enum Expr {
     },
     ObjectLiteral(Vec<(String, Expr)>),
     ArrayLiteral(Vec<Expr>),
+    Range {
+        start: Box<Expr>,
+        end: Box<Expr>,
+    },
     Unsupported(ast::Expr),
 }
 
@@ -237,6 +241,7 @@ impl Type {
                 "string" => Type::String,
                 "bytes" => Type::Bytes,
                 "char" => Type::Char,
+                "array" => Type::Array(Box::new(Type::Custom("serde_json::Value".into()))),
                 other => Type::Custom(other.to_string()),
             },
             Some(ast::TypeRef::Array(inner)) => {

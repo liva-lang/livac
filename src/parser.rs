@@ -922,6 +922,13 @@ impl Parser {
                     object: Box::new(expr),
                     property: name,
                 };
+            } else if self.match_token(&Token::LBracket) {
+                let index = self.parse_expression()?;
+                self.expect(Token::RBracket)?;
+                expr = Expr::Index {
+                    object: Box::new(expr),
+                    index: Box::new(index),
+                };
             } else {
                 break;
             }
@@ -1096,7 +1103,16 @@ fn parse_string_template_parts(raw: &str) -> Result<Vec<StringTemplatePart>> {
         match ch {
             '\\' => {
                 if let Some(escaped) = chars.next() {
-                    buffer.push(escaped);
+                    match escaped {
+                        'n' => buffer.push('\n'),
+                        'r' => buffer.push('\r'),
+                        't' => buffer.push('\t'),
+                        '\\' => buffer.push('\\'),
+                        '"' => buffer.push('"'),
+                        '{' => buffer.push('{'),
+                        '}' => buffer.push('}'),
+                        other => buffer.push(other),
+                    }
                 } else {
                     buffer.push('\\');
                 }
@@ -1148,6 +1164,13 @@ fn parse_string_template_parts(raw: &str) -> Result<Vec<StringTemplatePart>> {
                 match parse_template_expression(expr_src_trimmed) {
                     Ok(expr) => parts.push(StringTemplatePart::Expr(Box::new(expr))),
                     Err(_) => {
+                        let normalized = expr_src_trimmed.replace('\'', "\"");
+                        if normalized != expr_src_trimmed {
+                            if let Ok(expr) = parse_template_expression(&normalized) {
+                                parts.push(StringTemplatePart::Expr(Box::new(expr)));
+                                continue;
+                            }
+                        }
                         parts.push(StringTemplatePart::Text(format!(
                             "{{{}}}",
                             expr_src_trimmed
@@ -1231,5 +1254,20 @@ mod tests {
         let program = parse(tokens, source).unwrap();
 
         assert_eq!(program.items.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_string_template_with_complex_expression() {
+        let parts =
+            super::parse_string_template_parts("First user: {users[0].name}\\n").unwrap();
+        assert_eq!(parts.len(), 3);
+        match &parts[1] {
+            StringTemplatePart::Expr(_) => {}
+            other => panic!("expected expression part, got {:?}", other),
+        }
+        match &parts[2] {
+            StringTemplatePart::Text(text) => assert_eq!(text, "\n"),
+            other => panic!("expected trailing newline text, got {:?}", other),
+        }
     }
 }

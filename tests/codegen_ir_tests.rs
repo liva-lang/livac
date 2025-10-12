@@ -96,3 +96,88 @@ fn ir_codegen_try_catch_and_switch() {
     let (rust_code, _cargo) = compile_ir(source);
     assert_snapshot!("ir_try_catch_switch", rust_code);
 }
+
+#[test]
+fn ir_codegen_string_templates() {
+    let source = r#"
+        main() {
+            let name = "Liva User"
+            let numbers = [1, 2, 3]
+            let users = [
+                { name: "Alice" },
+                { name: "Bob" }
+            ]
+
+            print($"Name: {name}")
+            print($"Numbers: {numbers}")
+            print($"First user: {users[0].name}\n")
+        }
+    "#;
+
+    let (rust_code, _cargo) = compile_ir(source);
+
+    assert!(
+        rust_code.contains(r#"format!("Name: {}", name)"#),
+        "expected simple template to use Display placeholder:\n{}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains(r#"format!("Numbers: {:?}", numbers)"#),
+        "expected array template to use Debug placeholder:\n{}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains(r#"format!("First user: {}\n", users[0]["name"])"#),
+        "expected nested access to use bracket notation with newline escape:\n{}",
+        rust_code
+    );
+}
+
+#[test]
+fn ir_codegen_array_param_inference_and_numeric_coercion() {
+    let source = r#"
+        isAdult(age) => age >= 18
+
+        calculateTotal(items) {
+            let total = 0.0
+            for item in items {
+                total = total + item.price
+            }
+            return total
+        }
+
+        main() {
+            let products = [
+                { price: 19.99 },
+                { price: 5.50 }
+            ]
+
+            let total = calculateTotal(products)
+            print(isAdult(21))
+            print(total)
+        }
+    "#;
+
+    let (rust_code, _cargo) = compile_ir(source);
+
+    assert!(
+        rust_code.contains("fn is_adult(age: i32) -> bool"),
+        "expected isAdult to infer a bool return type:\n{}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("fn calculate_total(items: Vec<serde_json::Value>)"),
+        "expected calculateTotal to infer Vec<serde_json::Value> parameter:\n{}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains(".as_f64().unwrap_or(0.0)"),
+        "expected numeric coercion when summing JSON values:\n{}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("let mut total = 0.0;"),
+        "expected float literal to remain 0.0 and variable to be mutable:\n{}",
+        rust_code
+    );
+}

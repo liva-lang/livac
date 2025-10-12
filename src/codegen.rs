@@ -2,6 +2,7 @@ use crate::ast::*;
 use crate::desugaring::DesugarContext;
 use crate::error::{CompilerError, Result};
 use crate::ir;
+use std::collections::HashMap;
 use std::fmt::Write;
 
 pub struct CodeGenerator {
@@ -264,32 +265,12 @@ impl CodeGenerator {
         } else {
             String::new()
         };
-        let params_str = if func.name != "main" && (func.params.is_empty() || func.params.iter().any(|p| p.type_ref.is_none())) {
-            // Try to infer parameter types from function body usage (but not for main)
-            self.infer_params_from_body(&func)?
-        } else {
-            self.generate_params(&func.params, false)?
-        };
+        let params_str = self.generate_params(&func.params, false)?;
         let return_type = if let Some(ret) = &func.return_type {
             format!(" -> {}", ret.to_rust_type())
         } else if func.expr_body.is_some() {
-            // For expression-bodied functions without explicit return type, infer from expression
-            if let Some(expr) = &func.expr_body {
-                match expr {
-                    Expr::Binary { op: BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge | BinOp::Eq | BinOp::Ne, .. } => {
-                        " -> bool".to_string()
-                    }
-                    Expr::Binary { op: BinOp::And | BinOp::Or, .. } => {
-                        " -> bool".to_string()
-                    }
-                    Expr::Unary { op: UnOp::Not, .. } => {
-                        " -> bool".to_string()
-                    }
-                    _ => " -> f64".to_string(), // Default to f64 for calculations
-                }
-            } else {
-                " -> f64".to_string()
-            }
+            // For expression-bodied functions without explicit return type, default to i32 for arithmetic
+            " -> i32".to_string()
         } else if func.body.is_some() {
             // For block-bodied functions, check if there's a return statement
             if let Some(body) = &func.body {
@@ -369,11 +350,7 @@ impl CodeGenerator {
 
             let param_name = self.sanitize_name(&param.name);
             let type_str = if let Some(type_ref) = &param.type_ref {
-                match type_ref {
-                    TypeRef::Array(_) => format!("&{}", type_ref.to_rust_type()),
-                    TypeRef::Simple(name) if name == "array" => "Vec<serde_json::Value>".to_string(),
-                    _ => type_ref.to_rust_type()
-                }
+                type_ref.to_rust_type()
             } else {
                 "i32".to_string() // Default to i32
             };
@@ -395,7 +372,7 @@ impl CodeGenerator {
         match stmt {
             Stmt::VarDecl(var) => {
                 self.write_indent();
-                write!(self.output, "let {}", self.sanitize_name(&var.name)).unwrap();
+                write!(self.output, "let mut {}", self.sanitize_name(&var.name)).unwrap();
 
                 if let Some(type_ref) = &var.type_ref {
                     write!(self.output, ": {}", type_ref.to_rust_type()).unwrap();
@@ -460,25 +437,14 @@ impl CodeGenerator {
                 self.writeln("}");
             }
             Stmt::For(for_stmt) => {
-                // Check if the iterable is a simple integer (not iterable)
-                match &for_stmt.iterable {
-                    Expr::Literal(Literal::Int(_)) => {
-                        // Generate a compile-time error for non-iterable integers
-                        self.write_indent();
-                        writeln!(self.output, "// ERROR: Cannot iterate over integer value").unwrap();
-                        writeln!(self.output, "// Hint: Use a range like '0..10' instead of a single integer").unwrap();
-                    }
-                    _ => {
-                        self.write_indent();
-                        write!(self.output, "for {} in ", self.sanitize_name(&for_stmt.var)).unwrap();
-                        self.generate_expr(&for_stmt.iterable)?;
-                        self.output.push_str(" {\n");
-                        self.indent();
-                        self.generate_block_inner(&for_stmt.body)?;
-                        self.dedent();
-                        self.writeln("}");
-                    }
-                }
+                self.write_indent();
+                write!(self.output, "for {} in ", self.sanitize_name(&for_stmt.var)).unwrap();
+                self.generate_expr(&for_stmt.iterable)?;
+                self.output.push_str(" {\n");
+                self.indent();
+                self.generate_block_inner(&for_stmt.body)?;
+                self.dedent();
+                self.writeln("}");
             }
             Stmt::Switch(switch_stmt) => {
                 self.write_indent();
@@ -622,16 +588,10 @@ impl CodeGenerator {
                         } else {
                             self.output.push_str("println!(\"");
                             for arg in args.iter() {
-                                // Use {:?} for arrays, objects, and known array variables, {} for simple types
+                                // Use {:?} for arrays and objects, {} for simple types
                                 match arg {
                                     Expr::ArrayLiteral(_) | Expr::ObjectLiteral(_) => {
                                         self.output.push_str("{:?}");
-                                    }
-                                    Expr::Identifier(name) if name == "calculations" || name == "numbers" || name == "users" => {
-                                        self.output.push_str("{:?}");
-                                    }
-                                    Expr::Call { callee, .. } if matches!(callee.as_ref(), Expr::Identifier(name) if name == "len") => {
-                                        self.output.push_str("{}");
                                     }
                                     _ => {
                                         self.output.push_str("{}");
@@ -680,10 +640,6 @@ impl CodeGenerator {
                         // Check if this is likely a serde_json::Value (from object literals in arrays)
                         // For now, use bracket notation for any identifier access
                         write!(self.output, "[\"{}\"]", property).unwrap();
-                        // For numeric properties, add conversion to f64
-                        if property == "price" {
-                            self.output.push_str(".as_f64().unwrap()");
-                        }
                     }
                     _ => {
                         write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
@@ -787,44 +743,17 @@ impl CodeGenerator {
                 self.output.push(')');
             }
             Expr::StringTemplate { parts } => {
-                // Check if we have complex expressions that need special handling
-                let has_complex_expr = parts.iter().any(|part| match part {
-                    StringTemplatePart::Expr(expr) => {
-                        !matches!(expr.as_ref(), Expr::Identifier(_) | Expr::Literal(_))
-                    }
+                // Check if any expression part is complex (not just identifiers or literals)
+                let _has_complex_expr = parts.iter().any(|part| match part {
+                    StringTemplatePart::Expr(_) => true,
                     _ => false,
                 });
 
-                if has_complex_expr {
-                    // For complex templates, generate separate statements
-                    let mut temp_var_counter = 0;
-                    let mut temp_vars = Vec::new();
-
-                    // First pass: collect all complex expressions and assign temp vars
-                    for part in parts {
-                        if let StringTemplatePart::Expr(expr) = part {
-                            if !matches!(expr.as_ref(), Expr::Identifier(_) | Expr::Literal(_)) {
-                                let temp_var = format!("temp_{}", temp_var_counter);
-                                temp_vars.push((temp_var, expr));
-                                temp_var_counter += 1;
-                            }
-                        }
-                    }
-
-                    // Generate let bindings for temporary variables
-                    for (temp_var, expr) in &temp_vars {
-                        self.output.push_str(&format!("let {} = ", temp_var));
-                        self.generate_expr(expr)?;
-                        self.output.push_str(";\n");
-                        self.write_indent();
-                    }
-
-                    // Now generate the format! call with all expressions
+                // Always use the simple approach for now
+                    // Use string concatenation for complex expressions
                     self.output.push_str("format!(\"");
-                    let mut format_args = Vec::new();
-                    let mut temp_index = 0;
 
-                    for part in parts {
+                    for (_i, part) in parts.iter().enumerate() {
                         match part {
                             StringTemplatePart::Text(text) => {
                                 // Escape quotes and backslashes in text parts
@@ -840,22 +769,15 @@ impl CodeGenerator {
                                 }
                             }
                             StringTemplatePart::Expr(expr) => {
+                                // For expressions in string templates, use {:?} for complex expressions
+                                // and {} for simple ones to avoid format string errors
                                 match expr.as_ref() {
                                     Expr::Identifier(_) | Expr::Literal(_) => {
                                         self.output.push_str("{}");
-                                        format_args.push(expr.clone());
-                                    }
-                                    Expr::ArrayLiteral(_) => {
-                                        // For arrays, use Debug formatting
-                                        self.output.push_str("{:?}");
-                                        format_args.push(expr.clone());
                                     }
                                     _ => {
-                                        // Use temporary variable
+                                        // For complex expressions, use Debug formatting
                                         self.output.push_str("{:?}");
-                                        let temp_var = format!("temp_{}", temp_index);
-                                        format_args.push(Box::new(Expr::Identifier(temp_var)));
-                                        temp_index += 1;
                                     }
                                 }
                             }
@@ -863,52 +785,20 @@ impl CodeGenerator {
                     }
 
                     self.output.push('"');
-                    for arg in format_args {
-                        self.output.push_str(", ");
-                        self.generate_expr(&arg)?;
-                    }
-                    self.output.push(')');
-                } else {
-                    // Simple case: only identifiers and literals
-                    self.output.push_str("format!(\"");
-                    let mut format_args = Vec::new();
 
+                    // Generate arguments for complex expressions
+                    let mut first = true;
                     for part in parts {
-                        match part {
-                            StringTemplatePart::Text(text) => {
-                                // Escape quotes and backslashes in text parts
-                                for ch in text.chars() {
-                                    match ch {
-                                        '"' => self.output.push_str("\\\""),
-                                        '\\' => self.output.push_str("\\\\"),
-                                        '\n' => self.output.push_str("\\n"),
-                                        '\r' => self.output.push_str("\\r"),
-                                        '\t' => self.output.push_str("\\t"),
-                                        _ => self.output.push(ch),
-                                    }
-                                }
+                        if let StringTemplatePart::Expr(expr) = part {
+                            if !first {
+                                self.output.push_str(", ");
                             }
-                            StringTemplatePart::Expr(expr) => {
-                                match expr.as_ref() {
-                                    Expr::ArrayLiteral(_) => {
-                                        self.output.push_str("{:?}");
-                                    }
-                                    _ => {
-                                        self.output.push_str("{}");
-                                    }
-                                }
-                                format_args.push(expr);
-                            }
+                            first = false;
+                            self.generate_expr(expr)?;
                         }
                     }
 
-                    self.output.push('"');
-                    for arg in format_args {
-                        self.output.push_str(", ");
-                        self.generate_expr(arg)?;
-                    }
                     self.output.push(')');
-                }
             }
         }
         Ok(())
@@ -963,89 +853,9 @@ impl CodeGenerator {
         }
     }
 
-    fn needs_type_conversion(&self, left: &Expr, right: &Expr, op: &BinOp) -> bool {
-        // For arithmetic operations, check if we need to convert i32 to f64
-        matches!(op, BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div)
-            && (self.expr_is_number(left) || self.expr_is_number(right))
-    }
-
-    fn expr_is_number(&self, expr: &Expr) -> bool {
-        match expr {
-            Expr::Literal(Literal::Int(_)) => true,
-            _ => false,
-        }
-    }
-
-    fn generate_binary_operation_with_type_conversion(&mut self, op: &BinOp, left: &Expr, right: &Expr) -> Result<()> {
-        // Generate operation with explicit type conversion for mixed i32/f64 operations
-        // For comparison operations and range operations, don't convert types
-        if matches!(op, BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge | BinOp::Eq | BinOp::Ne | BinOp::Range) {
-            self.generate_binary_operation(op, left, right)?;
-        } else {
-            // For arithmetic operations, check if we need type conversion
-            match (left, right) {
-                (Expr::Literal(Literal::Int(_)), Expr::Literal(Literal::Int(_))) => {
-                    // Both are integers, convert to f64 for arithmetic
-                    self.output.push('(');
-                    self.generate_expr(left)?;
-                    self.output.push_str(" as f64 ");
-                    write!(self.output, "{} ", op).unwrap();
-                    self.generate_expr(right)?;
-                    self.output.push_str(" as f64)");
-                }
-                (Expr::Literal(Literal::Int(_)), _) => {
-                    // Left is integer, convert to f64 for arithmetic
-                    self.output.push('(');
-                    self.generate_expr(left)?;
-                    self.output.push_str(" as f64 ");
-                    write!(self.output, "{} ", op).unwrap();
-                    self.generate_expr(right)?;
-                    self.output.push(')');
-                }
-                (_, Expr::Literal(Literal::Int(_))) => {
-                    // Right is integer, convert to f64 for arithmetic
-                    self.output.push('(');
-                    self.generate_expr(left)?;
-                    write!(self.output, " {} ", op).unwrap();
-                    self.generate_expr(right)?;
-                    self.output.push_str(" as f64)");
-                }
-                _ => {
-                    // Neither is integer, use normal operation
-                    self.generate_binary_operation(op, left, right)?;
-                }
-            }
-        }
-        Ok(())
-    }
-
     fn block_has_return(&self, block: &BlockStmt) -> bool {
         block.stmts.iter().any(|stmt| matches!(stmt, Stmt::Return(_)))
     }
-
-    fn infer_params_from_body(&self, func: &FunctionDecl) -> Result<String> {
-        // Generate parameter list with inferred types
-        let mut param_strings = Vec::new();
-
-        for param in &func.params {
-            let param_name = self.sanitize_name(&param.name);
-            let param_type = if param.type_ref.is_none() {
-                // Infer type based on function name and usage
-                if func.name.contains("calc") || func.name.contains("total") {
-                    "Vec<serde_json::Value>".to_string()
-                } else {
-                    "i32".to_string()
-                }
-            } else {
-                // Use explicit type
-                param.type_ref.as_ref().unwrap().to_rust_type()
-            };
-            param_strings.push(format!("{}: {}", param_name, param_type));
-        }
-
-        Ok(param_strings.join(", "))
-    }
-
 
     fn expr_is_stringy(&self, expr: &Expr) -> bool {
         match expr {
@@ -1063,7 +873,7 @@ impl CodeGenerator {
     fn generate_literal(&mut self, lit: &Literal) -> Result<()> {
         match lit {
             Literal::Int(n) => write!(self.output, "{}", n).unwrap(),
-            Literal::Float(f) => write!(self.output, "{}", f).unwrap(),
+            Literal::Float(f) => write!(self.output, "{:?}", f).unwrap(),
             Literal::String(s) => write!(self.output, "\"{}\"", s.escape_default()).unwrap(),
             Literal::Char(c) => write!(self.output, "'{}'", c.escape_default()).unwrap(),
             Literal::Bool(b) => write!(self.output, "{}", b).unwrap(),
@@ -1117,6 +927,22 @@ struct IrCodeGenerator<'a> {
     output: String,
     indent_level: usize,
     ctx: &'a DesugarContext,
+    scope_formats: Vec<HashMap<String, FormatKind>>,
+}
+
+#[derive(Copy, Clone, PartialEq)]
+enum FormatKind {
+    Display,
+    Debug,
+}
+
+impl FormatKind {
+    fn placeholder(self) -> &'static str {
+        match self {
+            FormatKind::Display => "{}",
+            FormatKind::Debug => "{:?}",
+        }
+    }
 }
 
 impl<'a> IrCodeGenerator<'a> {
@@ -1125,6 +951,142 @@ impl<'a> IrCodeGenerator<'a> {
             output: String::new(),
             indent_level: 0,
             ctx,
+            scope_formats: vec![HashMap::new()],
+        }
+    }
+
+    fn push_scope(&mut self) {
+        self.scope_formats.push(HashMap::new());
+    }
+
+    fn pop_scope(&mut self) {
+        self.scope_formats.pop();
+    }
+
+    fn set_var_format(&mut self, name: &str, format: FormatKind) {
+        let sanitized = self.sanitize_name(name);
+        if let Some(scope) = self.scope_formats.last_mut() {
+            scope.insert(sanitized, format);
+        }
+    }
+
+    fn record_from_type(&mut self, name: &str, ty: &ir::Type) {
+        let format = self.format_from_type(ty);
+        self.set_var_format(name, format);
+    }
+
+    fn record_from_expr(&mut self, name: &str, expr: &ir::Expr) {
+        let format = self.format_from_expr(expr);
+        self.set_var_format(name, format);
+    }
+
+    fn lookup_var_format(&self, name: &str) -> Option<FormatKind> {
+        let sanitized = self.sanitize_name(name);
+        for scope in self.scope_formats.iter().rev() {
+            if let Some(format) = scope.get(&sanitized) {
+                return Some(*format);
+            }
+        }
+        None
+    }
+
+    fn format_from_type(&self, ty: &ir::Type) -> FormatKind {
+        match ty {
+            ir::Type::Array(_) => FormatKind::Debug,
+            ir::Type::Custom(name) if name == "serde_json::Value" => FormatKind::Display,
+            _ => FormatKind::Display,
+        }
+    }
+
+    fn format_from_expr(&self, expr: &ir::Expr) -> FormatKind {
+        match expr {
+            ir::Expr::ArrayLiteral(_) => FormatKind::Debug,
+            ir::Expr::ObjectLiteral(_) => FormatKind::Debug,
+            _ => FormatKind::Display,
+        }
+    }
+
+    fn template_placeholder_for_expr(&self, expr: &ir::Expr) -> &'static str {
+        match expr {
+            ir::Expr::Member { object, .. } => {
+                if matches!(object.as_ref(), ir::Expr::Identifier(name) if name == "self")
+                    && self.expr_needs_debug(object)
+                {
+                    FormatKind::Debug.placeholder()
+                } else {
+                    FormatKind::Display.placeholder()
+                }
+            }
+            ir::Expr::Index { object, .. } => {
+                if self.expr_needs_debug(object) {
+                    FormatKind::Debug.placeholder()
+                } else {
+                    FormatKind::Display.placeholder()
+                }
+            }
+            _ => {
+                if self.expr_needs_debug(expr) {
+                    FormatKind::Debug.placeholder()
+                } else {
+                    FormatKind::Display.placeholder()
+                }
+            }
+        }
+    }
+
+    fn expr_needs_debug(&self, expr: &ir::Expr) -> bool {
+        match expr {
+            ir::Expr::ArrayLiteral(_) => true,
+            ir::Expr::ObjectLiteral(_) => true,
+            ir::Expr::Identifier(name) => {
+                matches!(self.lookup_var_format(name), Some(FormatKind::Debug))
+            }
+            ir::Expr::Binary { left, right, .. } => {
+                self.expr_needs_debug(left) || self.expr_needs_debug(right)
+            }
+            ir::Expr::Member { object, .. } => self.expr_needs_debug(object),
+            ir::Expr::Index { object, .. } => self.expr_needs_debug(object),
+            _ => false,
+        }
+    }
+
+    fn is_self_reference(&self, expr: &ir::Expr) -> bool {
+        match expr {
+            ir::Expr::Identifier(name) => name == "self",
+            ir::Expr::Member { object, .. } | ir::Expr::Index { object, .. } => {
+                self.is_self_reference(object)
+            }
+            _ => false,
+        }
+    }
+
+    fn expr_is_json_access(&self, expr: &ir::Expr) -> bool {
+        match expr {
+            ir::Expr::Member { object, .. } | ir::Expr::Index { object, .. } => {
+                !self.is_self_reference(object)
+            }
+            _ => false,
+        }
+    }
+
+    fn generate_numeric_operand(&mut self, expr: &ir::Expr) -> Result<()> {
+        if self.expr_is_json_access(expr) {
+            self.output.push('(');
+            self.generate_expr(expr)?;
+            self.output.push_str(").as_f64().unwrap_or(0.0)");
+            Ok(())
+        } else {
+            self.generate_expr(expr)
+        }
+    }
+
+    fn infer_const_type_name(&self, expr: &ir::Expr) -> String {
+        match expr {
+            ir::Expr::Literal(ir::Literal::String(_)) => "&str".into(),
+            ir::Expr::Literal(ir::Literal::Float(_)) => "f64".into(),
+            ir::Expr::Literal(ir::Literal::Bool(_)) => "bool".into(),
+            ir::Expr::Literal(ir::Literal::Char(_)) => "char".into(),
+            _ => "i32".into(),
         }
     }
 
@@ -1289,11 +1251,24 @@ impl<'a> IrCodeGenerator<'a> {
             write!(self.output, " -> {}", self.type_to_rust(&func.ret_type)).unwrap();
         }
 
+        if let Some(scope) = self.scope_formats.last_mut() {
+            scope.clear();
+        }
+        for param in &func.params {
+            self.record_from_type(&param.name, &param.ty);
+        }
+
         self.output.push_str(" {\n");
         self.indent();
+        self.push_scope();
         self.generate_block(&func.body)?;
+        self.pop_scope();
         self.dedent();
         self.writeln("}");
+
+        if let Some(scope) = self.scope_formats.last_mut() {
+            scope.clear();
+        }
 
         Ok(())
     }
@@ -1322,35 +1297,37 @@ impl<'a> IrCodeGenerator<'a> {
         match stmt {
             ir::Stmt::Let { name, ty, value } => {
                 self.write_indent();
-                // Make variables mutable if they are likely to be reassigned
-                let is_mutable = name == "total" || name == "counter";
-                write!(self.output, "let {} {}", if is_mutable { "mut" } else { "" }, self.sanitize_name(name)).unwrap();
+                write!(
+                    self.output,
+                    "let mut {}",
+                    self.sanitize_name(name)
+                )
+                .unwrap();
                 if let Some(ty) = ty {
                     write!(self.output, ": {}", self.type_to_rust(ty)).unwrap();
-                } else if name == "total" {
-                    // Special case for total variable - should be f64 for calculations
-                    println!("DEBUG: Setting total to f64");
-                    write!(self.output, ": f64").unwrap();
+                    self.record_from_type(name, ty);
+                } else {
+                    self.record_from_expr(name, value);
                 }
                 self.output.push_str(" = ");
-                if name == "total" {
-                    // Special case: total should always be 0.0 for f64
-                    self.output.push_str("0.0");
-                } else {
-                    self.generate_expr(value)?;
-                }
+                self.generate_expr(value)?;
                 self.output.push_str(";\n");
             }
             ir::Stmt::Const { name, ty, value } => {
                 self.write_indent();
                 let const_name = name.to_uppercase();
-                let ty = ty
+                let ty_str = ty
                     .as_ref()
                     .map(|ty| self.type_to_rust(ty))
-                    .unwrap_or_else(|| "i32".into());
-                write!(self.output, "const {}: {} = ", const_name, ty).unwrap();
+                    .unwrap_or_else(|| self.infer_const_type_name(value));
+                write!(self.output, "const {}: {} = ", const_name, ty_str).unwrap();
                 self.generate_expr(value)?;
                 self.output.push_str(";\n");
+                if let Some(actual_ty) = ty.as_ref() {
+                    self.record_from_type(name, actual_ty);
+                } else {
+                    self.record_from_expr(name, value);
+                }
             }
             ir::Stmt::Assign { target, value } => {
                 self.write_indent();
@@ -1358,13 +1335,19 @@ impl<'a> IrCodeGenerator<'a> {
                 self.output.push_str(" = ");
                 self.generate_expr(value)?;
                 self.output.push_str(";\n");
+                if let ir::Expr::Identifier(ident) = target {
+                    self.record_from_expr(ident, value);
+                }
             }
             ir::Stmt::Return(expr) => {
                 self.write_indent();
                 if let Some(expr) = expr {
+                    self.output.push_str("return ");
                     self.generate_expr(expr)?;
+                    self.output.push_str(";\n");
+                } else {
+                    self.output.push_str("return;\n");
                 }
-                self.output.push_str("\n");
             }
             ir::Stmt::Throw(expr) => {
                 self.write_indent();
@@ -1387,14 +1370,18 @@ impl<'a> IrCodeGenerator<'a> {
                 self.generate_expr(condition)?;
                 self.output.push_str(" {\n");
                 self.indent();
+                self.push_scope();
                 self.generate_block(then_block)?;
+                self.pop_scope();
                 self.dedent();
                 self.write_indent();
                 self.output.push('}');
                 if let Some(else_block) = else_block {
                     self.output.push_str(" else {\n");
                     self.indent();
+                    self.push_scope();
                     self.generate_block(else_block)?;
+                    self.pop_scope();
                     self.dedent();
                     self.write_indent();
                     self.output.push('}');
@@ -1407,7 +1394,9 @@ impl<'a> IrCodeGenerator<'a> {
                 self.generate_expr(condition)?;
                 self.output.push_str(" {\n");
                 self.indent();
+                self.push_scope();
                 self.generate_block(body)?;
+                self.pop_scope();
                 self.dedent();
                 self.write_indent();
                 self.output.push_str("}\n");
@@ -1422,7 +1411,10 @@ impl<'a> IrCodeGenerator<'a> {
                 self.generate_expr(iterable)?;
                 self.output.push_str(" {\n");
                 self.indent();
+                self.push_scope();
+                self.set_var_format(var, FormatKind::Display);
                 self.generate_block(body)?;
+                self.pop_scope();
                 self.dedent();
                 self.write_indent();
                 self.output.push_str("}\n");
@@ -1431,7 +1423,9 @@ impl<'a> IrCodeGenerator<'a> {
                 self.write_indent();
                 self.output.push_str("{\n");
                 self.indent();
+                self.push_scope();
                 self.generate_block(block)?;
+                self.pop_scope();
                 self.dedent();
                 self.write_indent();
                 self.output.push_str("}\n");
@@ -1445,7 +1439,9 @@ impl<'a> IrCodeGenerator<'a> {
                 self.output
                     .push_str("match (|| -> Result<(), Box<dyn std::error::Error>> {\n");
                 self.indent();
+                self.push_scope();
                 self.generate_block(try_block)?;
+                self.pop_scope();
                 self.write_indent();
                 self.output.push_str("Ok(())\n");
                 self.dedent();
@@ -1462,7 +1458,10 @@ impl<'a> IrCodeGenerator<'a> {
                 )
                 .unwrap();
                 self.indent();
+                self.push_scope();
+                self.set_var_format(error_var, FormatKind::Display);
                 self.generate_block(catch_block)?;
+                self.pop_scope();
                 self.dedent();
                 self.write_indent();
                 self.output.push_str("}\n");
@@ -1485,9 +1484,11 @@ impl<'a> IrCodeGenerator<'a> {
                     self.generate_expr(&case.value)?;
                     self.output.push_str(" => {\n");
                     self.indent();
+                    self.push_scope();
                     for stmt in &case.body {
                         self.generate_stmt(stmt)?;
                     }
+                    self.pop_scope();
                     self.dedent();
                     self.write_indent();
                     self.output.push_str("},\n");
@@ -1496,9 +1497,11 @@ impl<'a> IrCodeGenerator<'a> {
                     self.write_indent();
                     self.output.push_str("_ => {\n");
                     self.indent();
+                    self.push_scope();
                     for stmt in default_body {
                         self.generate_stmt(stmt)?;
                     }
+                    self.pop_scope();
                     self.dedent();
                     self.write_indent();
                     self.output.push_str("},\n");
@@ -1520,7 +1523,11 @@ impl<'a> IrCodeGenerator<'a> {
         match expr {
             ir::Expr::Literal(lit) => self.generate_literal(lit),
             ir::Expr::Identifier(name) => {
-                write!(self.output, "{}", self.sanitize_name(name)).unwrap();
+                if name.chars().all(|c| c.is_uppercase() || c == '_') {
+                    write!(self.output, "{}", name).unwrap();
+                } else {
+                    write!(self.output, "{}", self.sanitize_name(name)).unwrap();
+                }
                 Ok(())
             }
             ir::Expr::Call { callee, args } => {
@@ -1546,6 +1553,13 @@ impl<'a> IrCodeGenerator<'a> {
                         self.output.push(')');
                     }
                     return Ok(());
+                }
+                if let ir::Expr::Identifier(name) = callee.as_ref() {
+                    if name == "len" && args.len() == 1 {
+                        self.generate_expr(&args[0])?;
+                        self.output.push_str(".len()");
+                        return Ok(());
+                    }
                 }
                 self.generate_expr(callee)?;
                 self.output.push('(');
@@ -1647,9 +1661,22 @@ impl<'a> IrCodeGenerator<'a> {
                     if needs_paren {
                         self.output.push('(');
                     }
-                    self.generate_expr(left)?;
-                    write!(self.output, " {} ", binary_op_str(op)).unwrap();
-                    self.generate_expr(right)?;
+                    if matches!(
+                        op,
+                        ir::BinaryOp::Add
+                            | ir::BinaryOp::Sub
+                            | ir::BinaryOp::Mul
+                            | ir::BinaryOp::Div
+                            | ir::BinaryOp::Mod
+                    ) {
+                        self.generate_numeric_operand(left)?;
+                        write!(self.output, " {} ", binary_op_str(op)).unwrap();
+                        self.generate_numeric_operand(right)?;
+                    } else {
+                        self.generate_expr(left)?;
+                        write!(self.output, " {} ", binary_op_str(op)).unwrap();
+                        self.generate_expr(right)?;
+                    }
                     if needs_paren {
                         self.output.push(')');
                     }
@@ -1687,22 +1714,36 @@ impl<'a> IrCodeGenerator<'a> {
                                 match ch {
                                     '"' => self.output.push_str("\\\""),
                                     '\\' => self.output.push_str("\\\\"),
+                                    '\n' => self.output.push_str("\\n"),
+                                    '\r' => self.output.push_str("\\r"),
+                                    '\t' => self.output.push_str("\\t"),
+                                    '{' => self.output.push_str("{{"),
+                                    '}' => self.output.push_str("}}"),
                                     _ => self.output.push(ch),
                                 }
                             }
                         }
                         ir::TemplatePart::Expr(expr) => {
-                            self.output.push_str("{}");
+                            self.output
+                                .push_str(self.template_placeholder_for_expr(expr));
                             args.push(expr);
                         }
                     }
                 }
                 self.output.push('"');
-                for arg in args {
-                    self.output.push_str(", ");
-                    self.generate_expr(arg)?;
+                if !args.is_empty() {
+                    for arg in args {
+                        self.output.push_str(", ");
+                        self.generate_expr(arg)?;
+                    }
                 }
                 self.output.push(')');
+                Ok(())
+            }
+            ir::Expr::Range { start, end } => {
+                self.generate_expr(start)?;
+                self.output.push_str(" .. ");
+                self.generate_expr(end)?;
                 Ok(())
             }
             ir::Expr::Member { object, property } => {
@@ -1711,12 +1752,17 @@ impl<'a> IrCodeGenerator<'a> {
                 // For serde_json::Value objects, use bracket notation instead of dot notation
                 // This handles cases where we're accessing properties of object literals in arrays
                 match object.as_ref() {
-                    ir::Expr::Identifier(_) => {
-                        // For identifiers that might be serde_json::Value, use bracket notation
+                    ir::Expr::Identifier(name) if name == "self" => {
+                        write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
+                    }
+                    ir::Expr::Identifier(_)
+                    | ir::Expr::Member { .. }
+                    | ir::Expr::Index { .. }
+                    | ir::Expr::Call { .. } => {
                         write!(self.output, "[\"{}\"]", property).unwrap();
                     }
                     _ => {
-                        write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
+                        write!(self.output, "[\"{}\"]", property).unwrap();
                     }
                 }
                 Ok(())
@@ -1765,7 +1811,7 @@ impl<'a> IrCodeGenerator<'a> {
     fn generate_literal(&mut self, lit: &ir::Literal) -> Result<()> {
         match lit {
             ir::Literal::Int(v) => write!(self.output, "{}", v).unwrap(),
-            ir::Literal::Float(v) => write!(self.output, "{}", v).unwrap(),
+            ir::Literal::Float(v) => write!(self.output, "{:?}", v).unwrap(),
             ir::Literal::Bool(v) => write!(self.output, "{}", v).unwrap(),
             ir::Literal::String(s) => write!(self.output, "\"{}\"", s.escape_default()).unwrap(),
             ir::Literal::Char(c) => write!(self.output, "'{}'", c.escape_default()).unwrap(),
@@ -1956,6 +2002,9 @@ fn expr_has_unsupported(expr: &ir::Expr) -> bool {
         ir::Expr::Member { object, .. } => expr_has_unsupported(object),
         ir::Expr::Index { object, index } => {
             expr_has_unsupported(object) || expr_has_unsupported(index)
+        }
+        ir::Expr::Range { start, end } => {
+            expr_has_unsupported(start) || expr_has_unsupported(end)
         }
         ir::Expr::ObjectLiteral(fields) => {
             fields.iter().any(|(_, value)| expr_has_unsupported(value))
@@ -2158,6 +2207,13 @@ fn expr_has_async_concurrency(expr: &ir::Expr) -> bool {
             expr_has_async_concurrency(object.as_ref())
                 || expr_has_async_concurrency(index.as_ref())
         }
+        &ir::Expr::Range {
+            ref start,
+            ref end,
+        } => {
+            expr_has_async_concurrency(start.as_ref())
+                || expr_has_async_concurrency(end.as_ref())
+        }
         &ir::Expr::ObjectLiteral(ref fields) => fields
             .iter()
             .any(|(_, value)| expr_has_async_concurrency(value)),
@@ -2220,6 +2276,13 @@ fn expr_has_parallel_concurrency(expr: &ir::Expr) -> bool {
         } => {
             expr_has_parallel_concurrency(object.as_ref())
                 || expr_has_parallel_concurrency(index.as_ref())
+        }
+        &ir::Expr::Range {
+            ref start,
+            ref end,
+        } => {
+            expr_has_parallel_concurrency(start.as_ref())
+                || expr_has_parallel_concurrency(end.as_ref())
         }
         &ir::Expr::ObjectLiteral(ref fields) => fields
             .iter()
