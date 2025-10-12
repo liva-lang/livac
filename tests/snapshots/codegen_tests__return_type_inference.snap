@@ -1,0 +1,24 @@
+---
+source: tests/codegen_tests.rs
+expression: rust_code
+---
+fn add(a: i32, b: i32) -> i32 {
+    (a + b)
+}
+
+fn subtract(x: i32, y: i32) -> i32 {
+    (x - y)
+}
+
+fn multiply(n: i32, m: i32) -> i32 {
+    (n * m)
+}
+
+fn main() {
+    let sum = add(10, 5);
+    let diff = subtract(10, 3);
+    let prod = multiply(4, 6);
+    println!("{}", sum);;
+    println!("{}", diff);;
+    println!("{}", prod);;
+}

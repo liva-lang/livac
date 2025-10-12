@@ -1,0 +1,19 @@
+---
+source: tests/codegen_tests.rs
+expression: rust_code
+---
+fn simple_add(a: i32, b: i32) -> i32 {
+    (a + b)
+}
+
+fn complex_add(x: i32, y: i32) {
+    let result = (x + y);
+    return result;
+}
+
+fn main() {
+    let simple = simple_add(1, 2);
+    let complex = complex_add(3, 4);
+    println!("{}", simple);;
+    println!("{}", complex);;
+}

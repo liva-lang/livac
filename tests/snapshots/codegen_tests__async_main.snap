@@ -1,0 +1,7 @@
+---
+source: tests/codegen_tests.rs
+expression: rust_code
+---
+fn main() {
+    println!("{}", "Hello from async main!");;
+}
