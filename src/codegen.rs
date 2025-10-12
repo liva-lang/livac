@@ -492,11 +492,19 @@ impl CodeGenerator {
                 write!(self.output, "{}", self.sanitize_name(name)).unwrap();
             }
             Expr::Binary { op, left, right } => {
-                self.output.push('(');
+                // Only add parentheses for complex expressions
+                let needs_parens = !matches!(left.as_ref(), Expr::Literal(_) | Expr::Identifier(_)) ||
+                                  !matches!(right.as_ref(), Expr::Literal(_) | Expr::Identifier(_));
+                
+                if needs_parens {
+                    self.output.push('(');
+                }
                 self.generate_expr(left)?;
                 write!(self.output, " {} ", op).unwrap();
                 self.generate_expr(right)?;
-                self.output.push(')');
+                if needs_parens {
+                    self.output.push(')');
+                }
             }
             Expr::Unary { op, operand } => {
                 match op {
@@ -537,7 +545,7 @@ impl CodeGenerator {
                                 }
                                 self.generate_expr(arg)?;
                             }
-                            self.output.push_str(");");
+                            self.output.push_str(")");
                         }
                         return Ok(());
                     }
