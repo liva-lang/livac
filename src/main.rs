@@ -7,7 +7,9 @@ mod ast;
 mod codegen;
 mod desugaring;
 mod error;
+mod ir;
 mod lexer;
+mod lowering;
 mod parser;
 mod semantic;
 
@@ -78,8 +80,11 @@ fn compile(cli: &Cli) -> Result<(), CompilerError> {
     let desugar_ctx = desugaring::desugar(analyzed_ast.clone())?;
 
     // 6. Code generation
+    println!("  {} Lowering to IR...", "→".blue());
+    let ir_module = lowering::lower_program(&analyzed_ast);
+
     println!("  {} Generating Rust code...", "→".blue());
-    let (main_rs, cargo_toml) = codegen::generate_with_ast(&analyzed_ast, desugar_ctx)?;
+    let (main_rs, cargo_toml) = codegen::generate_from_ir(&ir_module, &analyzed_ast, desugar_ctx)?;
 
     // 7. Write output
     let output_dir = cli

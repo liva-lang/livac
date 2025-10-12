@@ -1,6 +1,7 @@
 use crate::ast::*;
 use crate::desugaring::DesugarContext;
 use crate::error::Result;
+use crate::ir;
 use std::fmt::Write;
 
 pub struct CodeGenerator {
@@ -812,6 +813,15 @@ pub fn generate(ctx: DesugarContext) -> Result<(String, String)> {
     let cargo_toml = generate_cargo_toml(&ctx)?;
 
     Ok((main_rs, cargo_toml))
+}
+
+pub fn generate_from_ir(
+    module: &ir::Module,
+    program: &Program,
+    ctx: DesugarContext,
+) -> Result<(String, String)> {
+    let _ = module;
+    generate_with_ast(program, ctx)
 }
 
 pub fn generate_with_ast(program: &Program, ctx: DesugarContext) -> Result<(String, String)> {

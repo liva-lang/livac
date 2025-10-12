@@ -35,7 +35,9 @@ pub mod ast;
 pub mod codegen;
 pub mod desugaring;
 pub mod error;
+pub mod ir;
 pub mod lexer;
+pub mod lowering;
 pub mod parser;
 pub mod semantic;
 
@@ -139,7 +141,10 @@ pub fn compile_source(source: &str, options: &CompilerOptions) -> Result<Compila
     let desugar_ctx = desugaring::desugar(analyzed_ast.clone())?;
 
     // 5. Code generation
-    let (rust_code, cargo_toml) = codegen::generate_with_ast(&analyzed_ast, desugar_ctx)?;
+    let ir_module = lowering::lower_program(&analyzed_ast);
+
+    let (rust_code, cargo_toml) =
+        codegen::generate_from_ir(&ir_module, &analyzed_ast, desugar_ctx)?;
 
     // 6. Write output files if output directory specified
     let output_dir = if let Some(out_dir) = &options.output {

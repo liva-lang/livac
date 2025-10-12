@@ -58,11 +58,21 @@ actionable diagnostics.
    - Parser + semantic passes updated, tests stabilised.
 2. **Milestone B – Rust-Ready Codegen**
    - IR in place, codegen produces compilable Rust, integration tests compile.
+   - Runtime helpers emitted alongside generated projects (string concat, logging, task dispatch).
 3. **Milestone C – Developer Tooling**
    - CLI diagnostics, VS Code extension integration, CI pipeline.
 
 Each milestone will come with CHANGELOG entries, documentation updates, and
 release candidates (`v0.7.0-alphaX`).
+
+### Immediate Action Items (Q1 Sprint)
+
+- [ ] Finalise IR design (function/module/unit, strongly typed expressions, effect flags).
+- [ ] Implement lowering: AST → IR (statements, expressions, concurrency ops).
+- [ ] Replace `codegen::generate_with_ast` with IR-driven emitter using `quote!`.
+- [ ] Add `runtime/` crate with helpers for printing, string concat, async utilities.
+- [ ] Re-enable strict semantic checks once runtime + IR cover external functions.
+- [ ] Extend integration tests to run `cargo check` once Rust output is stable.
 
 ---
 

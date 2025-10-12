@@ -1,0 +1,239 @@
+//! Intermediate representation for Liva → Rust lowering.
+//!
+//! The goal of this IR is to decouple high-level AST constructs from
+//! Rust-specific code generation concerns.  It carries enough typing
+//! and effect information to decide how to expand concurrency features,
+//! intrinsic helpers, and formatting utilities before hitting `quote!`.
+
+use crate::ast;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Module {
+    pub items: Vec<Item>,
+    pub extern_crates: Vec<ExternCrate>,
+}
+
+impl Module {
+    pub fn new() -> Self {
+        Self {
+            items: Vec::new(),
+            extern_crates: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExternCrate {
+    pub crate_name: String,
+    pub alias: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Item {
+    Function(Function),
+    Struct(Struct),
+    Impl(ImplBlock),
+    Test(Test),
+    Unsupported(ast::TopLevel),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Function {
+    pub name: String,
+    pub params: Vec<Param>,
+    pub ret_type: Type,
+    pub body: Block,
+    pub async_kind: AsyncKind,
+    pub visibility: Visibility,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Struct {
+    pub name: String,
+    pub fields: Vec<Field>,
+    pub visibility: Visibility,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Field {
+    pub name: String,
+    pub ty: Type,
+    pub visibility: Visibility,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ImplBlock {
+    pub struct_name: String,
+    pub functions: Vec<Function>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Test {
+    pub name: String,
+    pub body: Block,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Param {
+    pub name: String,
+    pub ty: Type,
+    pub default: Option<Expr>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Block {
+    pub statements: Vec<Stmt>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Stmt {
+    Let {
+        name: String,
+        ty: Option<Type>,
+        value: Expr,
+    },
+    Assign {
+        target: Expr,
+        value: Expr,
+    },
+    Return(Option<Expr>),
+    Expr(Expr),
+    Unsupported(ast::Stmt),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Expr {
+    Literal(Literal),
+    Identifier(String),
+    Call {
+        callee: Box<Expr>,
+        args: Vec<Expr>,
+    },
+    Await(Box<Expr>),
+    AsyncCall {
+        callee: Box<Expr>,
+        args: Vec<Expr>,
+    },
+    ParallelCall {
+        callee: Box<Expr>,
+        args: Vec<Expr>,
+    },
+    Binary {
+        op: BinaryOp,
+        left: Box<Expr>,
+        right: Box<Expr>,
+    },
+    Unary {
+        op: UnaryOp,
+        operand: Box<Expr>,
+    },
+    StringTemplate(Vec<TemplatePart>),
+    Member {
+        object: Box<Expr>,
+        property: String,
+    },
+    ObjectLiteral(Vec<(String, Expr)>),
+    ArrayLiteral(Vec<Expr>),
+    Unsupported(ast::Expr),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Literal {
+    Int(i64),
+    Float(f64),
+    Bool(bool),
+    String(String),
+    Char(char),
+    Null,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TemplatePart {
+    Text(String),
+    Expr(Expr),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum BinaryOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+    Eq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    And,
+    Or,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum UnaryOp {
+    Neg,
+    Not,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Type {
+    Unit,
+    Number,
+    Float,
+    Bool,
+    String,
+    Bytes,
+    Char,
+    Array(Box<Type>),
+    Optional(Box<Type>),
+    Custom(String),
+    Inferred,
+}
+
+impl Type {
+    pub fn from_ast(node: &Option<ast::TypeRef>) -> Self {
+        match node {
+            Some(ast::TypeRef::Simple(name)) => match name.as_str() {
+                "number" => Type::Number,
+                "float" => Type::Float,
+                "bool" => Type::Bool,
+                "string" => Type::String,
+                "bytes" => Type::Bytes,
+                "char" => Type::Char,
+                other => Type::Custom(other.to_string()),
+            },
+            Some(ast::TypeRef::Array(inner)) => {
+                Type::Array(Box::new(Type::from_ast(&Some((**inner).clone()))))
+            }
+            Some(ast::TypeRef::Optional(inner)) => {
+                Type::Optional(Box::new(Type::from_ast(&Some((**inner).clone()))))
+            }
+            Some(ast::TypeRef::Generic { base, .. }) => Type::Custom(base.clone()),
+            None => Type::Inferred,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum AsyncKind {
+    NotAsync,
+    Async,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Visibility {
+    Public,
+    Protected,
+    Private,
+}
+
+impl From<ast::Visibility> for Visibility {
+    fn from(value: ast::Visibility) -> Self {
+        match value {
+            ast::Visibility::Public => Visibility::Public,
+            ast::Visibility::Protected => Visibility::Protected,
+            ast::Visibility::Private => Visibility::Private,
+        }
+    }
+}
