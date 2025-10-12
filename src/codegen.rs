@@ -635,7 +635,7 @@ impl CodeGenerator {
                 self.output.push(']');
             }
             Expr::AsyncCall { callee, args } => {
-                self.output.push_str("tokio::spawn(async move { ");
+                self.output.push_str("liva_rt::spawn_async(async move { ");
                 self.generate_expr(callee)?;
                 self.output.push('(');
                 for (i, arg) in args.iter().enumerate() {
@@ -647,7 +647,7 @@ impl CodeGenerator {
                 self.output.push_str(") }).await.unwrap()");
             }
             Expr::ParallelCall { callee, args } => {
-                self.output.push_str("std::thread::spawn(move || ");
+                self.output.push_str("liva_rt::spawn_parallel(move || ");
                 self.generate_expr(callee)?;
                 self.output.push('(');
                 for (i, arg) in args.iter().enumerate() {
@@ -656,12 +656,15 @@ impl CodeGenerator {
                     }
                     self.generate_expr(arg)?;
                 }
+                self.output.push(')');
                 self.output.push_str(").join().unwrap()");
             }
             Expr::TaskCall { mode, callee, args } => {
                 match mode {
-                    ConcurrencyMode::Async => self.output.push_str("tokio::spawn("),
-                    ConcurrencyMode::Parallel => self.output.push_str("std::thread::spawn(|| "),
+                    ConcurrencyMode::Async => self.output.push_str("liva_rt::spawn_async("),
+                    ConcurrencyMode::Parallel => {
+                        self.output.push_str("liva_rt::spawn_parallel(|| ")
+                    }
                 }
                 write!(self.output, "{}(", callee).unwrap();
                 for (i, arg) in args.iter().enumerate() {
@@ -678,8 +681,8 @@ impl CodeGenerator {
             }
             Expr::FireCall { mode, callee, args } => {
                 match mode {
-                    ConcurrencyMode::Async => self.output.push_str("tokio::spawn("),
-                    ConcurrencyMode::Parallel => self.output.push_str("std::thread::spawn(|| "),
+                    ConcurrencyMode::Async => self.output.push_str("liva_rt::fire_async("),
+                    ConcurrencyMode::Parallel => self.output.push_str("liva_rt::fire_parallel(|| "),
                 }
                 write!(self.output, "{}(", callee).unwrap();
                 for (i, arg) in args.iter().enumerate() {
@@ -821,6 +824,13 @@ impl<'a> IrCodeGenerator<'a> {
     fn generate(mut self, module: &ir::Module) -> Result<String> {
         self.emit_use_statements(module);
 
+        let uses_async_helpers = self.ctx.has_async || module_has_async_concurrency(module);
+        let uses_parallel_helpers = module_has_parallel_concurrency(module);
+
+        if uses_async_helpers || uses_parallel_helpers {
+            self.emit_runtime_module(uses_async_helpers, uses_parallel_helpers);
+        }
+
         for item in &module.items {
             match item {
                 ir::Item::Function(func) => {
@@ -864,6 +874,60 @@ impl<'a> IrCodeGenerator<'a> {
         if !self.output.trim().is_empty() {
             self.output.push('\n');
         }
+    }
+
+    fn emit_runtime_module(&mut self, use_async: bool, use_parallel: bool) {
+        self.writeln("mod liva_rt {");
+        self.indent();
+
+        if use_async {
+            self.writeln("use std::future::Future;");
+            self.writeln(
+                "pub fn spawn_async<Fut>(future: Fut) -> tokio::task::JoinHandle<Fut::Output>",
+            );
+            self.writeln("where Fut: Future + Send + 'static, Fut::Output: Send + 'static,");
+            self.writeln("{");
+            self.indent();
+            self.writeln("tokio::spawn(future)");
+            self.dedent();
+            self.writeln("}");
+            self.output.push('\n');
+
+            self.writeln("pub fn fire_async<Fut>(future: Fut)");
+            self.writeln("where Fut: Future<Output = ()> + Send + 'static,");
+            self.writeln("{");
+            self.indent();
+            self.writeln("let _ = tokio::spawn(future);");
+            self.dedent();
+            self.writeln("}");
+
+            if use_parallel {
+                self.output.push('\n');
+            }
+        }
+
+        if use_parallel {
+            self.writeln("pub fn spawn_parallel<F, T>(job: F) -> std::thread::JoinHandle<T>");
+            self.writeln("where F: FnOnce() -> T + Send + 'static, T: Send + 'static,");
+            self.writeln("{");
+            self.indent();
+            self.writeln("std::thread::spawn(job)");
+            self.dedent();
+            self.writeln("}");
+            self.output.push('\n');
+
+            self.writeln("pub fn fire_parallel<F, T>(job: F)");
+            self.writeln("where F: FnOnce() -> T + Send + 'static, T: Send + 'static,");
+            self.writeln("{");
+            self.indent();
+            self.writeln("let _ = std::thread::spawn(job);");
+            self.dedent();
+            self.writeln("}");
+        }
+
+        self.dedent();
+        self.writeln("}");
+        self.output.push('\n');
     }
 
     fn indent(&mut self) {
@@ -1481,6 +1545,272 @@ fn expr_has_unsupported(expr: &ir::Expr) -> bool {
             fields.iter().any(|(_, value)| expr_has_unsupported(value))
         }
         ir::Expr::ArrayLiteral(elements) => elements.iter().any(expr_has_unsupported),
+    }
+}
+
+fn module_has_async_concurrency(module: &ir::Module) -> bool {
+    module.items.iter().any(|item| match item {
+        ir::Item::Function(func) => {
+            matches!(func.async_kind, ir::AsyncKind::Async)
+                || block_has_async_concurrency(&func.body)
+        }
+        ir::Item::Test(test) => block_has_async_concurrency(&test.body),
+        ir::Item::Unsupported(_) => false,
+    })
+}
+
+fn module_has_parallel_concurrency(module: &ir::Module) -> bool {
+    module.items.iter().any(|item| match item {
+        ir::Item::Function(func) => block_has_parallel_concurrency(&func.body),
+        ir::Item::Test(test) => block_has_parallel_concurrency(&test.body),
+        ir::Item::Unsupported(_) => false,
+    })
+}
+
+fn block_has_async_concurrency(block: &ir::Block) -> bool {
+    block.statements.iter().any(stmt_has_async_concurrency)
+}
+
+fn block_has_parallel_concurrency(block: &ir::Block) -> bool {
+    block.statements.iter().any(stmt_has_parallel_concurrency)
+}
+
+fn stmt_has_async_concurrency(stmt: &ir::Stmt) -> bool {
+    match stmt {
+        ir::Stmt::Let { value, .. } | ir::Stmt::Const { value, .. } => {
+            expr_has_async_concurrency(value)
+        }
+        ir::Stmt::Assign { target, value } => {
+            expr_has_async_concurrency(target) || expr_has_async_concurrency(value)
+        }
+        ir::Stmt::Return(expr) => expr
+            .as_ref()
+            .map(expr_has_async_concurrency)
+            .unwrap_or(false),
+        ir::Stmt::Throw(expr) | ir::Stmt::Expr(expr) => expr_has_async_concurrency(expr),
+        ir::Stmt::If {
+            condition,
+            then_block,
+            else_block,
+        } => {
+            expr_has_async_concurrency(condition)
+                || block_has_async_concurrency(then_block)
+                || else_block
+                    .as_ref()
+                    .map(block_has_async_concurrency)
+                    .unwrap_or(false)
+        }
+        ir::Stmt::While { condition, body } => {
+            expr_has_async_concurrency(condition) || block_has_async_concurrency(body)
+        }
+        ir::Stmt::For { iterable, body, .. } => {
+            expr_has_async_concurrency(iterable) || block_has_async_concurrency(body)
+        }
+        ir::Stmt::Block(block) => block_has_async_concurrency(block),
+        ir::Stmt::TryCatch {
+            try_block,
+            catch_block,
+            ..
+        } => block_has_async_concurrency(try_block) || block_has_async_concurrency(catch_block),
+        ir::Stmt::Switch {
+            discriminant,
+            cases,
+            default,
+        } => {
+            expr_has_async_concurrency(discriminant)
+                || cases
+                    .iter()
+                    .any(|case| case.body.iter().any(stmt_has_async_concurrency))
+                || default
+                    .as_ref()
+                    .map(|body| body.iter().any(stmt_has_async_concurrency))
+                    .unwrap_or(false)
+        }
+        ir::Stmt::Unsupported(_) => false,
+    }
+}
+
+fn stmt_has_parallel_concurrency(stmt: &ir::Stmt) -> bool {
+    match stmt {
+        ir::Stmt::Let { value, .. } | ir::Stmt::Const { value, .. } => {
+            expr_has_parallel_concurrency(value)
+        }
+        ir::Stmt::Assign { target, value } => {
+            expr_has_parallel_concurrency(target) || expr_has_parallel_concurrency(value)
+        }
+        ir::Stmt::Return(expr) => expr
+            .as_ref()
+            .map(expr_has_parallel_concurrency)
+            .unwrap_or(false),
+        ir::Stmt::Throw(expr) | ir::Stmt::Expr(expr) => expr_has_parallel_concurrency(expr),
+        ir::Stmt::If {
+            condition,
+            then_block,
+            else_block,
+        } => {
+            expr_has_parallel_concurrency(condition)
+                || block_has_parallel_concurrency(then_block)
+                || else_block
+                    .as_ref()
+                    .map(block_has_parallel_concurrency)
+                    .unwrap_or(false)
+        }
+        ir::Stmt::While { condition, body } => {
+            expr_has_parallel_concurrency(condition) || block_has_parallel_concurrency(body)
+        }
+        ir::Stmt::For { iterable, body, .. } => {
+            expr_has_parallel_concurrency(iterable) || block_has_parallel_concurrency(body)
+        }
+        ir::Stmt::Block(block) => block_has_parallel_concurrency(block),
+        ir::Stmt::TryCatch {
+            try_block,
+            catch_block,
+            ..
+        } => {
+            block_has_parallel_concurrency(try_block) || block_has_parallel_concurrency(catch_block)
+        }
+        ir::Stmt::Switch {
+            discriminant,
+            cases,
+            default,
+        } => {
+            expr_has_parallel_concurrency(discriminant)
+                || cases
+                    .iter()
+                    .any(|case| case.body.iter().any(stmt_has_parallel_concurrency))
+                || default
+                    .as_ref()
+                    .map(|body| body.iter().any(stmt_has_parallel_concurrency))
+                    .unwrap_or(false)
+        }
+        ir::Stmt::Unsupported(_) => false,
+    }
+}
+
+fn expr_has_async_concurrency(expr: &ir::Expr) -> bool {
+    match expr {
+        &ir::Expr::AsyncCall { .. }
+        | &ir::Expr::Await(_)
+        | &ir::Expr::TaskCall {
+            mode: ir::ConcurrencyMode::Async,
+            ..
+        }
+        | &ir::Expr::FireCall {
+            mode: ir::ConcurrencyMode::Async,
+            ..
+        } => true,
+        &ir::Expr::Call {
+            ref callee,
+            ref args,
+        }
+        | &ir::Expr::ParallelCall {
+            ref callee,
+            ref args,
+        } => {
+            expr_has_async_concurrency(callee.as_ref())
+                || args.iter().any(expr_has_async_concurrency)
+        }
+        &ir::Expr::TaskCall { ref args, .. } | &ir::Expr::FireCall { ref args, .. } => {
+            args.iter().any(expr_has_async_concurrency)
+        }
+        &ir::Expr::Unary { ref operand, .. } => expr_has_async_concurrency(operand.as_ref()),
+        &ir::Expr::Binary {
+            ref left,
+            ref right,
+            ..
+        } => {
+            expr_has_async_concurrency(left.as_ref()) || expr_has_async_concurrency(right.as_ref())
+        }
+        &ir::Expr::Ternary {
+            ref condition,
+            ref then_expr,
+            ref else_expr,
+        } => {
+            expr_has_async_concurrency(condition.as_ref())
+                || expr_has_async_concurrency(then_expr.as_ref())
+                || expr_has_async_concurrency(else_expr.as_ref())
+        }
+        &ir::Expr::StringTemplate(ref parts) => parts.iter().any(|part| match part {
+            ir::TemplatePart::Text(_) => false,
+            ir::TemplatePart::Expr(expr) => expr_has_async_concurrency(expr),
+        }),
+        &ir::Expr::Member { ref object, .. } => expr_has_async_concurrency(object.as_ref()),
+        &ir::Expr::Index {
+            ref object,
+            ref index,
+        } => {
+            expr_has_async_concurrency(object.as_ref())
+                || expr_has_async_concurrency(index.as_ref())
+        }
+        &ir::Expr::ObjectLiteral(ref fields) => fields
+            .iter()
+            .any(|(_, value)| expr_has_async_concurrency(value)),
+        &ir::Expr::ArrayLiteral(ref elements) => elements.iter().any(expr_has_async_concurrency),
+        &ir::Expr::Literal(_) | &ir::Expr::Identifier(_) | &ir::Expr::Unsupported(_) => false,
+    }
+}
+
+fn expr_has_parallel_concurrency(expr: &ir::Expr) -> bool {
+    match expr {
+        &ir::Expr::ParallelCall { .. }
+        | &ir::Expr::TaskCall {
+            mode: ir::ConcurrencyMode::Parallel,
+            ..
+        }
+        | &ir::Expr::FireCall {
+            mode: ir::ConcurrencyMode::Parallel,
+            ..
+        } => true,
+        &ir::Expr::Call {
+            ref callee,
+            ref args,
+        }
+        | &ir::Expr::AsyncCall {
+            ref callee,
+            ref args,
+        } => {
+            expr_has_parallel_concurrency(callee.as_ref())
+                || args.iter().any(expr_has_parallel_concurrency)
+        }
+        &ir::Expr::TaskCall { ref args, .. } | &ir::Expr::FireCall { ref args, .. } => {
+            args.iter().any(expr_has_parallel_concurrency)
+        }
+        &ir::Expr::Unary { ref operand, .. } => expr_has_parallel_concurrency(operand.as_ref()),
+        &ir::Expr::Binary {
+            ref left,
+            ref right,
+            ..
+        } => {
+            expr_has_parallel_concurrency(left.as_ref())
+                || expr_has_parallel_concurrency(right.as_ref())
+        }
+        &ir::Expr::Ternary {
+            ref condition,
+            ref then_expr,
+            ref else_expr,
+        } => {
+            expr_has_parallel_concurrency(condition.as_ref())
+                || expr_has_parallel_concurrency(then_expr.as_ref())
+                || expr_has_parallel_concurrency(else_expr.as_ref())
+        }
+        &ir::Expr::StringTemplate(ref parts) => parts.iter().any(|part| match part {
+            ir::TemplatePart::Text(_) => false,
+            ir::TemplatePart::Expr(expr) => expr_has_parallel_concurrency(expr),
+        }),
+        &ir::Expr::Member { ref object, .. } => expr_has_parallel_concurrency(object.as_ref()),
+        &ir::Expr::Index {
+            ref object,
+            ref index,
+        } => {
+            expr_has_parallel_concurrency(object.as_ref())
+                || expr_has_parallel_concurrency(index.as_ref())
+        }
+        &ir::Expr::ObjectLiteral(ref fields) => fields
+            .iter()
+            .any(|(_, value)| expr_has_parallel_concurrency(value)),
+        &ir::Expr::ArrayLiteral(ref elements) => elements.iter().any(expr_has_parallel_concurrency),
+        &ir::Expr::Await(_) => false,
+        &ir::Expr::Literal(_) | &ir::Expr::Identifier(_) | &ir::Expr::Unsupported(_) => false,
     }
 }
 
