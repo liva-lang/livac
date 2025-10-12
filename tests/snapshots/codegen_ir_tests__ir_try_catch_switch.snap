@@ -1,0 +1,31 @@
+---
+source: tests/codegen_ir_tests.rs
+assertion_line: 97
+expression: rust_code
+---
+fn main() {
+    match (|| -> Result<(), Box<dyn std::error::Error>> {
+        let flag = false;
+        if flag == false {
+            return Err("error".into());
+        }
+        println!("{}", "done");
+        Ok(())
+    })() {
+        Ok(_) => {},
+        Err(err) => {
+            println!("{}", err);
+        }
+    }
+    match 200 {
+        200 => {
+            println!("{}", "success");
+        },
+        500 => {
+            println!("{}", "server");
+        },
+        _ => {
+            println!("{}", "other");
+        },
+    }
+}

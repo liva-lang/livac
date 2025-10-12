@@ -67,3 +67,32 @@ fn ir_codegen_parallel_helpers() {
     let (rust_code, _cargo) = compile_ir(source);
     assert_snapshot!("ir_parallel_helpers", rust_code);
 }
+
+#[test]
+fn ir_codegen_try_catch_and_switch() {
+    let source = r#"
+        main() {
+            try {
+                let flag = false
+                if flag == false {
+                    throw "error"
+                }
+                print("done")
+            } catch (err) {
+                print(err)
+            }
+
+            switch 200 {
+                case 200:
+                    print("success")
+                case 500:
+                    print("server")
+                default:
+                    print("other")
+            }
+        }
+    "#;
+
+    let (rust_code, _cargo) = compile_ir(source);
+    assert_snapshot!("ir_try_catch_switch", rust_code);
+}
