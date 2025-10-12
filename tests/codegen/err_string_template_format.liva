@@ -1,0 +1,8 @@
+// Test for string template formatting errors
+// This should demonstrate the issue with complex expressions in string templates
+
+main() {
+  let isActive = true
+  let status = $"User is {if isActive { 'active' } else { 'inactive' }}"
+  print(status)
+}

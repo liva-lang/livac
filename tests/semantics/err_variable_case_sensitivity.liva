@@ -1,0 +1,9 @@
+// Test for case sensitivity issues with variables
+// This should demonstrate the issue with MAX_USERS vs max_users
+
+main() {
+  const MAX_USERS = 100
+  const API_VERSION = "v1.0"
+
+  print($"Max users: {max_users}, API version: {api_version}")
+}

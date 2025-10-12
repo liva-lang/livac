@@ -1,0 +1,9 @@
+// Test for return type mismatch in function declaration
+// This should demonstrate the issue with isAdult returning bool but declared as i32
+
+isAdult(age): number => age >= 18
+
+main() {
+  let result = isAdult(25)
+  print(result)
+}

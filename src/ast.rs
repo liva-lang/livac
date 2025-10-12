@@ -128,6 +128,7 @@ impl TypeRef {
                 "bytes" => "Vec<u8>".to_string(),
                 "bool" => "bool".to_string(),
                 "char" => "char".to_string(),
+                "array" => "Vec<serde_json::Value>".to_string(),
                 _ => name.clone(),
             },
             TypeRef::Generic { base, args } => {

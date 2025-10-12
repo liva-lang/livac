@@ -1,0 +1,7 @@
+// Test for trying to format Vec as Display instead of Debug
+// This should demonstrate the issue with formatting Vec<{integer}>
+
+main() {
+  let calculations = [1, 2, 3, 4, 5]
+  print($"Calculations: {calculations}")  // Vec<i32> doesn't implement Display
+}

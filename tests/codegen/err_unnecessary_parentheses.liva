@@ -1,0 +1,14 @@
+// Test for unnecessary parentheses in assignments and conditions
+// This should demonstrate warnings about redundant parentheses
+
+main() {
+  let age = 25
+  let isActive = true
+
+  let canVote = (age >= 18 && isActive)
+  let shouldShow = (age > 21 || isActive)
+
+  if (age >= 18 && isActive) {
+    print("Can vote")
+  }
+}

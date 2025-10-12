@@ -1,0 +1,16 @@
+// Test for function without declared return type
+// This should demonstrate the issue with calculateTotal not having return type
+
+calculateTotal(items) {
+  let total = 0.0
+  for item in items {
+    total = total + item.price
+  }
+  return total  // Returns float but no return type declared
+}
+
+main() {
+  let products = [{ name: "Test", price: 10.0 }]
+  let total = calculateTotal(products)
+  print(total)
+}

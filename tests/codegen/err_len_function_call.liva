@@ -1,0 +1,11 @@
+// Test for calling len() as a function instead of a method
+// This should demonstrate the issue with len(users) instead of users.len()
+
+main() {
+  let users = [
+    { name: "Alice", age: 25 },
+    { name: "Bob", age: 30 }
+  ]
+
+  print($"Users count: {len(users)}")  // Should be users.len()
+}

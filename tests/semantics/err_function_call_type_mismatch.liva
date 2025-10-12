@@ -1,0 +1,20 @@
+// Test for type mismatch in function call arguments
+// This should demonstrate the issue with calculateTotal expecting i32 but receiving Vec
+
+calculateTotal(items: number) {  // Expects i32
+  let total = 0.0
+  for item in items {
+    total = total + item.price
+  }
+  return total
+}
+
+main() {
+  let products = [  // This is Vec<Value>, not i32
+    { name: "Laptop", price: 999.99 },
+    { name: "Book", price: 19.99 }
+  ]
+
+  let totalPrice = calculateTotal(products)  // Type mismatch
+  print($"Total: ${totalPrice}")
+}

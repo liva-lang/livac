@@ -264,12 +264,7 @@ impl CodeGenerator {
         } else {
             String::new()
         };
-        let params_str = if func.name != "main" && (func.params.is_empty() || func.params.iter().any(|p| p.type_ref.is_none())) {
-            // Try to infer parameter types from function body usage (but not for main)
-            self.infer_params_from_body(&func)?
-        } else {
-            self.generate_params(&func.params, false)?
-        };
+        let params_str = self.generate_params(&func.params, false)?;
         let return_type = if let Some(ret) = &func.return_type {
             format!(" -> {}", ret.to_rust_type())
         } else if func.expr_body.is_some() {
@@ -369,11 +364,7 @@ impl CodeGenerator {
 
             let param_name = self.sanitize_name(&param.name);
             let type_str = if let Some(type_ref) = &param.type_ref {
-                match type_ref {
-                    TypeRef::Array(_) => format!("&{}", type_ref.to_rust_type()),
-                    TypeRef::Simple(name) if name == "array" => "Vec<serde_json::Value>".to_string(),
-                    _ => type_ref.to_rust_type()
-                }
+                type_ref.to_rust_type()
             } else {
                 "i32".to_string() // Default to i32
             };
@@ -460,25 +451,14 @@ impl CodeGenerator {
                 self.writeln("}");
             }
             Stmt::For(for_stmt) => {
-                // Check if the iterable is a simple integer (not iterable)
-                match &for_stmt.iterable {
-                    Expr::Literal(Literal::Int(_)) => {
-                        // Generate a compile-time error for non-iterable integers
-                        self.write_indent();
-                        writeln!(self.output, "// ERROR: Cannot iterate over integer value").unwrap();
-                        writeln!(self.output, "// Hint: Use a range like '0..10' instead of a single integer").unwrap();
-                    }
-                    _ => {
-                        self.write_indent();
-                        write!(self.output, "for {} in ", self.sanitize_name(&for_stmt.var)).unwrap();
-                        self.generate_expr(&for_stmt.iterable)?;
-                        self.output.push_str(" {\n");
-                        self.indent();
-                        self.generate_block_inner(&for_stmt.body)?;
-                        self.dedent();
-                        self.writeln("}");
-                    }
-                }
+                self.write_indent();
+                write!(self.output, "for {} in ", self.sanitize_name(&for_stmt.var)).unwrap();
+                self.generate_expr(&for_stmt.iterable)?;
+                self.output.push_str(" {\n");
+                self.indent();
+                self.generate_block_inner(&for_stmt.body)?;
+                self.dedent();
+                self.writeln("}");
             }
             Stmt::Switch(switch_stmt) => {
                 self.write_indent();
@@ -622,16 +602,10 @@ impl CodeGenerator {
                         } else {
                             self.output.push_str("println!(\"");
                             for arg in args.iter() {
-                                // Use {:?} for arrays, objects, and known array variables, {} for simple types
+                                // Use {:?} for arrays and objects, {} for simple types
                                 match arg {
                                     Expr::ArrayLiteral(_) | Expr::ObjectLiteral(_) => {
                                         self.output.push_str("{:?}");
-                                    }
-                                    Expr::Identifier(name) if name == "calculations" || name == "numbers" || name == "users" => {
-                                        self.output.push_str("{:?}");
-                                    }
-                                    Expr::Call { callee, .. } if matches!(callee.as_ref(), Expr::Identifier(name) if name == "len") => {
-                                        self.output.push_str("{}");
                                     }
                                     _ => {
                                         self.output.push_str("{}");
@@ -680,10 +654,6 @@ impl CodeGenerator {
                         // Check if this is likely a serde_json::Value (from object literals in arrays)
                         // For now, use bracket notation for any identifier access
                         write!(self.output, "[\"{}\"]", property).unwrap();
-                        // For numeric properties, add conversion to f64
-                        if property == "price" {
-                            self.output.push_str(".as_f64().unwrap()");
-                        }
                     }
                     _ => {
                         write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
@@ -787,44 +757,17 @@ impl CodeGenerator {
                 self.output.push(')');
             }
             Expr::StringTemplate { parts } => {
-                // Check if we have complex expressions that need special handling
+                // Check if any expression part is complex (not just identifiers or literals)
                 let has_complex_expr = parts.iter().any(|part| match part {
-                    StringTemplatePart::Expr(expr) => {
-                        !matches!(expr.as_ref(), Expr::Identifier(_) | Expr::Literal(_))
-                    }
+                    StringTemplatePart::Expr(_) => true,
                     _ => false,
                 });
 
-                if has_complex_expr {
-                    // For complex templates, generate separate statements
-                    let mut temp_var_counter = 0;
-                    let mut temp_vars = Vec::new();
-
-                    // First pass: collect all complex expressions and assign temp vars
-                    for part in parts {
-                        if let StringTemplatePart::Expr(expr) = part {
-                            if !matches!(expr.as_ref(), Expr::Identifier(_) | Expr::Literal(_)) {
-                                let temp_var = format!("temp_{}", temp_var_counter);
-                                temp_vars.push((temp_var, expr));
-                                temp_var_counter += 1;
-                            }
-                        }
-                    }
-
-                    // Generate let bindings for temporary variables
-                    for (temp_var, expr) in &temp_vars {
-                        self.output.push_str(&format!("let {} = ", temp_var));
-                        self.generate_expr(expr)?;
-                        self.output.push_str(";\n");
-                        self.write_indent();
-                    }
-
-                    // Now generate the format! call with all expressions
+                // Always use the simple approach for now
+                    // Use string concatenation for complex expressions
                     self.output.push_str("format!(\"");
-                    let mut format_args = Vec::new();
-                    let mut temp_index = 0;
 
-                    for part in parts {
+                    for (_i, part) in parts.iter().enumerate() {
                         match part {
                             StringTemplatePart::Text(text) => {
                                 // Escape quotes and backslashes in text parts
@@ -840,22 +783,15 @@ impl CodeGenerator {
                                 }
                             }
                             StringTemplatePart::Expr(expr) => {
+                                // For expressions in string templates, use {:?} for complex expressions
+                                // and {} for simple ones to avoid format string errors
                                 match expr.as_ref() {
                                     Expr::Identifier(_) | Expr::Literal(_) => {
                                         self.output.push_str("{}");
-                                        format_args.push(expr.clone());
-                                    }
-                                    Expr::ArrayLiteral(_) => {
-                                        // For arrays, use Debug formatting
-                                        self.output.push_str("{:?}");
-                                        format_args.push(expr.clone());
                                     }
                                     _ => {
-                                        // Use temporary variable
+                                        // For complex expressions, use Debug formatting
                                         self.output.push_str("{:?}");
-                                        let temp_var = format!("temp_{}", temp_index);
-                                        format_args.push(Box::new(Expr::Identifier(temp_var)));
-                                        temp_index += 1;
                                     }
                                 }
                             }
@@ -863,52 +799,20 @@ impl CodeGenerator {
                     }
 
                     self.output.push('"');
-                    for arg in format_args {
-                        self.output.push_str(", ");
-                        self.generate_expr(&arg)?;
-                    }
-                    self.output.push(')');
-                } else {
-                    // Simple case: only identifiers and literals
-                    self.output.push_str("format!(\"");
-                    let mut format_args = Vec::new();
 
+                    // Generate arguments for complex expressions
+                    let mut first = true;
                     for part in parts {
-                        match part {
-                            StringTemplatePart::Text(text) => {
-                                // Escape quotes and backslashes in text parts
-                                for ch in text.chars() {
-                                    match ch {
-                                        '"' => self.output.push_str("\\\""),
-                                        '\\' => self.output.push_str("\\\\"),
-                                        '\n' => self.output.push_str("\\n"),
-                                        '\r' => self.output.push_str("\\r"),
-                                        '\t' => self.output.push_str("\\t"),
-                                        _ => self.output.push(ch),
-                                    }
-                                }
+                        if let StringTemplatePart::Expr(expr) = part {
+                            if !first {
+                                self.output.push_str(", ");
                             }
-                            StringTemplatePart::Expr(expr) => {
-                                match expr.as_ref() {
-                                    Expr::ArrayLiteral(_) => {
-                                        self.output.push_str("{:?}");
-                                    }
-                                    _ => {
-                                        self.output.push_str("{}");
-                                    }
-                                }
-                                format_args.push(expr);
-                            }
+                            first = false;
+                            self.generate_expr(expr)?;
                         }
                     }
 
-                    self.output.push('"');
-                    for arg in format_args {
-                        self.output.push_str(", ");
-                        self.generate_expr(arg)?;
-                    }
                     self.output.push(')');
-                }
             }
         }
         Ok(())
@@ -963,89 +867,9 @@ impl CodeGenerator {
         }
     }
 
-    fn needs_type_conversion(&self, left: &Expr, right: &Expr, op: &BinOp) -> bool {
-        // For arithmetic operations, check if we need to convert i32 to f64
-        matches!(op, BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div)
-            && (self.expr_is_number(left) || self.expr_is_number(right))
-    }
-
-    fn expr_is_number(&self, expr: &Expr) -> bool {
-        match expr {
-            Expr::Literal(Literal::Int(_)) => true,
-            _ => false,
-        }
-    }
-
-    fn generate_binary_operation_with_type_conversion(&mut self, op: &BinOp, left: &Expr, right: &Expr) -> Result<()> {
-        // Generate operation with explicit type conversion for mixed i32/f64 operations
-        // For comparison operations and range operations, don't convert types
-        if matches!(op, BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge | BinOp::Eq | BinOp::Ne | BinOp::Range) {
-            self.generate_binary_operation(op, left, right)?;
-        } else {
-            // For arithmetic operations, check if we need type conversion
-            match (left, right) {
-                (Expr::Literal(Literal::Int(_)), Expr::Literal(Literal::Int(_))) => {
-                    // Both are integers, convert to f64 for arithmetic
-                    self.output.push('(');
-                    self.generate_expr(left)?;
-                    self.output.push_str(" as f64 ");
-                    write!(self.output, "{} ", op).unwrap();
-                    self.generate_expr(right)?;
-                    self.output.push_str(" as f64)");
-                }
-                (Expr::Literal(Literal::Int(_)), _) => {
-                    // Left is integer, convert to f64 for arithmetic
-                    self.output.push('(');
-                    self.generate_expr(left)?;
-                    self.output.push_str(" as f64 ");
-                    write!(self.output, "{} ", op).unwrap();
-                    self.generate_expr(right)?;
-                    self.output.push(')');
-                }
-                (_, Expr::Literal(Literal::Int(_))) => {
-                    // Right is integer, convert to f64 for arithmetic
-                    self.output.push('(');
-                    self.generate_expr(left)?;
-                    write!(self.output, " {} ", op).unwrap();
-                    self.generate_expr(right)?;
-                    self.output.push_str(" as f64)");
-                }
-                _ => {
-                    // Neither is integer, use normal operation
-                    self.generate_binary_operation(op, left, right)?;
-                }
-            }
-        }
-        Ok(())
-    }
-
     fn block_has_return(&self, block: &BlockStmt) -> bool {
         block.stmts.iter().any(|stmt| matches!(stmt, Stmt::Return(_)))
     }
-
-    fn infer_params_from_body(&self, func: &FunctionDecl) -> Result<String> {
-        // Generate parameter list with inferred types
-        let mut param_strings = Vec::new();
-
-        for param in &func.params {
-            let param_name = self.sanitize_name(&param.name);
-            let param_type = if param.type_ref.is_none() {
-                // Infer type based on function name and usage
-                if func.name.contains("calc") || func.name.contains("total") {
-                    "Vec<serde_json::Value>".to_string()
-                } else {
-                    "i32".to_string()
-                }
-            } else {
-                // Use explicit type
-                param.type_ref.as_ref().unwrap().to_rust_type()
-            };
-            param_strings.push(format!("{}: {}", param_name, param_type));
-        }
-
-        Ok(param_strings.join(", "))
-    }
-
 
     fn expr_is_stringy(&self, expr: &Expr) -> bool {
         match expr {
@@ -1322,23 +1146,12 @@ impl<'a> IrCodeGenerator<'a> {
         match stmt {
             ir::Stmt::Let { name, ty, value } => {
                 self.write_indent();
-                // Make variables mutable if they are likely to be reassigned
-                let is_mutable = name == "total" || name == "counter";
-                write!(self.output, "let {} {}", if is_mutable { "mut" } else { "" }, self.sanitize_name(name)).unwrap();
+                write!(self.output, "let {}", self.sanitize_name(name)).unwrap();
                 if let Some(ty) = ty {
                     write!(self.output, ": {}", self.type_to_rust(ty)).unwrap();
-                } else if name == "total" {
-                    // Special case for total variable - should be f64 for calculations
-                    println!("DEBUG: Setting total to f64");
-                    write!(self.output, ": f64").unwrap();
                 }
                 self.output.push_str(" = ");
-                if name == "total" {
-                    // Special case: total should always be 0.0 for f64
-                    self.output.push_str("0.0");
-                } else {
-                    self.generate_expr(value)?;
-                }
+                self.generate_expr(value)?;
                 self.output.push_str(";\n");
             }
             ir::Stmt::Const { name, ty, value } => {

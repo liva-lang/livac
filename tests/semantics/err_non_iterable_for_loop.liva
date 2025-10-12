@@ -1,0 +1,16 @@
+// Test for trying to iterate over a non-iterable type
+// This should demonstrate the issue with for item in items where items is i32
+
+calculateTotal(items) {
+  let total = 0.0
+  for item in items {
+    total = total + item.price
+  }
+  return total
+}
+
+main() {
+  let items = 5  // This is i32, not iterable
+  let total = calculateTotal(items)
+  print(total)
+}
