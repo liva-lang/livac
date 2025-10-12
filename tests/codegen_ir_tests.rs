@@ -1,10 +1,10 @@
 use insta::assert_snapshot;
 use livac::codegen::generate_from_ir;
 use livac::desugaring::desugar;
+use livac::lexer::tokenize;
 use livac::lowering::lower_program;
 use livac::parser::parse;
 use livac::semantic::analyze;
-use livac::lexer::tokenize;
 
 fn compile_ir(source: &str) -> (String, String) {
     let tokens = tokenize(source).expect("tokenize");

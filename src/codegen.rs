@@ -1120,6 +1120,77 @@ impl<'a> IrCodeGenerator<'a> {
                 self.write_indent();
                 self.output.push_str("}\n");
             }
+            ir::Stmt::TryCatch {
+                try_block,
+                error_var,
+                catch_block,
+            } => {
+                self.write_indent();
+                self.output
+                    .push_str("match (|| -> Result<(), Box<dyn std::error::Error>> {\n");
+                self.indent();
+                self.generate_block(try_block)?;
+                self.write_indent();
+                self.output.push_str("Ok(())\n");
+                self.dedent();
+                self.write_indent();
+                self.output.push_str("})() {\n");
+                self.indent();
+                self.write_indent();
+                self.output.push_str("Ok(_) => {},\n");
+                self.write_indent();
+                write!(
+                    self.output,
+                    "Err({}) => {{\n",
+                    self.sanitize_name(error_var)
+                )
+                .unwrap();
+                self.indent();
+                self.generate_block(catch_block)?;
+                self.dedent();
+                self.write_indent();
+                self.output.push_str("}\n");
+                self.dedent();
+                self.write_indent();
+                self.output.push_str("}\n");
+            }
+            ir::Stmt::Switch {
+                discriminant,
+                cases,
+                default,
+            } => {
+                self.write_indent();
+                self.output.push_str("match ");
+                self.generate_expr(discriminant)?;
+                self.output.push_str(" {\n");
+                self.indent();
+                for case in cases {
+                    self.write_indent();
+                    self.generate_expr(&case.value)?;
+                    self.output.push_str(" => {\n");
+                    self.indent();
+                    for stmt in &case.body {
+                        self.generate_stmt(stmt)?;
+                    }
+                    self.dedent();
+                    self.write_indent();
+                    self.output.push_str("},\n");
+                }
+                if let Some(default_body) = default {
+                    self.write_indent();
+                    self.output.push_str("_ => {\n");
+                    self.indent();
+                    for stmt in default_body {
+                        self.generate_stmt(stmt)?;
+                    }
+                    self.dedent();
+                    self.write_indent();
+                    self.output.push_str("},\n");
+                }
+                self.dedent();
+                self.write_indent();
+                self.output.push_str("}\n");
+            }
             _ => {
                 return Err(CompilerError::CodegenError(
                     "Unsupported statement in IR generator".into(),
@@ -1503,7 +1574,25 @@ fn stmt_has_unsupported(stmt: &ir::Stmt) -> bool {
         ir::Stmt::Return(expr) => expr.as_ref().map(expr_has_unsupported).unwrap_or(false),
         ir::Stmt::Throw(expr) => expr_has_unsupported(expr),
         ir::Stmt::Expr(expr) => expr_has_unsupported(expr),
-        ir::Stmt::TryCatch { .. } | ir::Stmt::Switch { .. } => true,
+        ir::Stmt::TryCatch {
+            try_block,
+            catch_block,
+            ..
+        } => block_has_unsupported(try_block) || block_has_unsupported(catch_block),
+        ir::Stmt::Switch {
+            discriminant,
+            cases,
+            default,
+        } => {
+            expr_has_unsupported(discriminant)
+                || cases
+                    .iter()
+                    .any(|case| case.body.iter().any(stmt_has_unsupported))
+                || default
+                    .as_ref()
+                    .map(|body| body.iter().any(stmt_has_unsupported))
+                    .unwrap_or(false)
+        }
     }
 }
 
