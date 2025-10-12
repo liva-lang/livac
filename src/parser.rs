@@ -86,7 +86,7 @@ impl Parser {
         let mut line = 1;
         let mut col = 1;
 
-        for (i, ch) in self.source[..span.start].chars().enumerate() {
+        for (_i, ch) in self.source[..span.start].chars().enumerate() {
             if ch == '\n' {
                 line += 1;
                 col = 1;

@@ -1,0 +1,14 @@
+// Test for explicit return types
+add(a: number, b: number): number = a + b
+greet(name: string): string = "Hello " + name
+isEven(n: number): bool = n % 2 == 0
+
+main() {
+  let sum = add(5, 3)
+  let message = greet("Liva")
+  let even = isEven(4)
+  
+  print(sum)
+  print(message)
+  print(even)
+}

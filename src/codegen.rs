@@ -1,6 +1,6 @@
 use crate::ast::*;
 use crate::desugaring::DesugarContext;
-use crate::error::{CompilerError, Result};
+use crate::error::Result;
 use std::fmt::Write;
 
 pub struct CodeGenerator {
@@ -58,23 +58,10 @@ impl CodeGenerator {
             self.output.push('\n');
         }
 
-        // Find main function and add tokio attribute if async
-        if self.ctx.has_async {
-            self.add_tokio_main_attribute();
-        }
 
         Ok(())
     }
 
-    fn add_tokio_main_attribute(&mut self) {
-        // Find main function and prepend #[tokio::main]
-        if self.output.contains("fn main()") {
-            self.output = self.output.replace(
-                "fn main()",
-                "#[tokio::main]\nasync fn main()"
-            );
-        }
-    }
 
     fn generate_top_level(&mut self, item: &TopLevel) -> Result<()> {
         match item {
@@ -240,8 +227,16 @@ impl CodeGenerator {
     }
 
     fn generate_function(&mut self, func: &FunctionDecl) -> Result<()> {
-        let async_kw = if func.is_async_inferred { "async " } else { "" };
-        let type_params = if !func.type_params.is_empty() {
+        let (async_kw, tokio_attr) = if func.name == "main" && func.is_async_inferred {
+            // For main function with async, use tokio::main attribute with async keyword
+            ("async ", "#[tokio::main]\n")
+        } else if func.is_async_inferred {
+            ("async ", "")
+        } else {
+            ("", "")
+        };
+
+        let _type_params = if !func.type_params.is_empty() {
             // Add basic trait bounds for generic types
             let bounded_params: Vec<String> = func.type_params.iter()
                 .map(|param| format!("{}: std::cmp::PartialOrd", param))
@@ -253,21 +248,31 @@ impl CodeGenerator {
         let params_str = self.generate_params(&func.params, false)?;
         let return_type = if let Some(ret) = &func.return_type {
             format!(" -> {}", ret.to_rust_type())
+        } else if func.expr_body.is_some() {
+            // For expression-bodied functions without explicit return type, infer i32
+            " -> i32".to_string()
         } else {
             String::new()
         };
 
-        self.write_indent();
         write!(
             self.output,
-            "{}fn {}{}({}){}",
-            async_kw, func.name, type_params, params_str, return_type
+            "{}{}fn {}({})",
+            tokio_attr, async_kw, self.sanitize_name(&func.name), params_str
         ).unwrap();
+        
+        if !return_type.is_empty() {
+            write!(self.output, "{}", return_type).unwrap();
+        }
 
         if let Some(expr) = &func.expr_body {
-            self.output.push_str(" { ");
+            self.output.push_str(" {\n");
+            self.indent();
+            self.write_indent();
             self.generate_expr(expr)?;
-            self.output.push_str(" }\n");
+            self.output.push('\n');
+            self.dedent();
+            self.writeln("}");
         } else if let Some(body) = &func.body {
             self.output.push_str(" {\n");
             self.indent();
@@ -532,7 +537,7 @@ impl CodeGenerator {
                                 }
                                 self.generate_expr(arg)?;
                             }
-                            self.output.push(')');
+                            self.output.push_str(");");
                         }
                         return Ok(());
                     }

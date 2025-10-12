@@ -1,0 +1,44 @@
+// Test for return type handling
+// Tests both inferred and explicit return types
+
+// Inferred return types (should be i32)
+add(a, b) = a + b
+subtract(x, y) = x - y
+multiply(n, m) = n * m
+
+// Explicit return types
+divide(p: number, q: number): number = p / q
+concatenate(s1: string, s2: string): string = s1 + s2
+isPositive(n: number): bool = n > 0
+
+// Block functions with explicit return
+calculate(x: number): number {
+  let doubled = x * 2
+  let squared = doubled * doubled
+  return squared
+}
+
+// Block function with inferred return (should be i32)
+process(n) {
+  return n + 10
+}
+
+main() {
+  let sum = add(5, 3)
+  let diff = subtract(10, 4)
+  let prod = multiply(6, 7)
+  let quot = divide(20, 4)
+  let concat = concatenate("Hello", "World")
+  let positive = isPositive(5)
+  let calculated = calculate(3)
+  let processed = process(15)
+  
+  print(sum)
+  print(diff)
+  print(prod)
+  print(quot)
+  print(concat)
+  print(positive)
+  print(calculated)
+  print(processed)
+}

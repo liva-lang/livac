@@ -1,0 +1,4 @@
+// Test for async main function with tokio::main attribute
+main() {
+  print("Hello from async main!")
+}

@@ -1,0 +1,41 @@
+// Test for various function generation patterns
+// This tests the fixes for function name generation
+
+// Single character function names
+a(x) = x + 1
+b(y) = y * 2
+
+// Multi-word function names (should be converted to snake_case)
+calculateSum(n1, n2) = n1 + n2
+getUserName(id) = "user" + id
+processData(input) = input * 2
+
+// Functions with underscores
+my_function(x) = x + 10
+another_function(y) = y - 5
+
+// Mixed case functions
+camelCase(x) = x + 1
+PascalCase(y) = y + 2
+
+main() {
+  let result1 = a(5)
+  let result2 = b(3)
+  let sum = calculateSum(10, 20)
+  let user = getUserName("123")
+  let data = processData(15)
+  let func1 = my_function(8)
+  let func2 = another_function(12)
+  let camel = camelCase(7)
+  let pascal = PascalCase(9)
+  
+  print(result1)
+  print(result2)
+  print(sum)
+  print(user)
+  print(data)
+  print(func1)
+  print(func2)
+  print(camel)
+  print(pascal)
+}

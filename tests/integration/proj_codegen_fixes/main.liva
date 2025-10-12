@@ -1,0 +1,32 @@
+// Integration test for codegen fixes
+// Tests: function name generation, async main, return type inference
+
+// Simple expression-bodied functions
+add(a, b) = a + b
+multiply(x, y) = x * y
+greet(name) = "Hello " + name
+
+// Function with explicit return type
+power(base: number, exp: number): number = base * exp
+
+// Block function
+complexCalculation(n: number) {
+  let doubled = n * 2
+  let squared = doubled * doubled
+  return squared
+}
+
+// Async main function
+main() {
+  let sum = add(10, 5)
+  let product = multiply(3, 4)
+  let message = greet("Liva")
+  let powered = power(2, 3)
+  let complex = complexCalculation(5)
+  
+  print("Sum: " + sum)
+  print("Product: " + product)
+  print("Message: " + message)
+  print("Power: " + powered)
+  print("Complex: " + complex)
+}

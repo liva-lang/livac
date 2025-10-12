@@ -1,0 +1,22 @@
+// Test for mixed function types (expression and block)
+simpleAdd(a, b) = a + b
+
+complexAdd(x, y) {
+  let result = x + y
+  return result
+}
+
+asyncTask() {
+  let data = "processing"
+  return data
+}
+
+main() {
+  let simple = simpleAdd(1, 2)
+  let complex = complexAdd(3, 4)
+  let async = async asyncTask()
+  
+  print(simple)
+  print(complex)
+  print(async)
+}

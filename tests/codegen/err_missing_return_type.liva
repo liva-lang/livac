@@ -1,0 +1,11 @@
+// Test for functions that should have return types but don't
+// This should generate a warning or error during compilation
+
+calculate(a, b) {
+  return a + b
+}
+
+main() {
+  let result = calculate(1, 2)
+  print(result)
+}

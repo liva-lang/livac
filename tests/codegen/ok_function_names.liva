@@ -1,0 +1,14 @@
+// Test for correct function name generation
+sum(a, b) = a + b
+multiply(x, y) = x * y
+greet(name) = "Hello " + name
+
+main() {
+  let result1 = sum(2, 3)
+  let result2 = multiply(4, 5)
+  let message = greet("World")
+  
+  print(result1)
+  print(result2)
+  print(message)
+}

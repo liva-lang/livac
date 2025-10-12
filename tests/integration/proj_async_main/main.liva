@@ -1,0 +1,9 @@
+// Test specifically for async main function
+asyncTask() {
+  return "Async task completed"
+}
+
+main() {
+  let result = async asyncTask()
+  print("Result: " + result)
+}
