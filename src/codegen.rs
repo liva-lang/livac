@@ -333,7 +333,7 @@ impl CodeGenerator {
         match stmt {
             Stmt::VarDecl(var) => {
                 self.write_indent();
-                write!(self.output, "let mut {}", self.sanitize_name(&var.name)).unwrap();
+                write!(self.output, "let {}", self.sanitize_name(&var.name)).unwrap();
                 
                 if let Some(type_ref) = &var.type_ref {
                     write!(self.output, ": {}", type_ref.to_rust_type()).unwrap();
