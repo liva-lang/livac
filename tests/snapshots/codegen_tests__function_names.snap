@@ -1,0 +1,24 @@
+---
+source: tests/codegen_tests.rs
+expression: rust_code
+---
+fn sum(a: i32, b: i32) -> i32 {
+    (a + b)
+}
+
+fn multiply(x: i32, y: i32) -> i32 {
+    (x * y)
+}
+
+fn greet(name: i32) -> i32 {
+    ("Hello " + name)
+}
+
+fn main() {
+    let result1 = sum(2, 3);
+    let result2 = multiply(4, 5);
+    let message = greet("World");
+    println!("{}", result1);;
+    println!("{}", result2);;
+    println!("{}", message);;
+}
