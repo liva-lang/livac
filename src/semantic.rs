@@ -287,7 +287,8 @@ impl SemanticAnalyzer {
     }
 
     fn validate_function(&self, func: &FunctionDecl) -> Result<()> {
-        let type_params: std::collections::HashSet<String> = func.type_params.iter().cloned().collect();
+        let type_params: std::collections::HashSet<String> =
+            func.type_params.iter().cloned().collect();
 
         // Check parameter types
         for param in &func.params {
@@ -313,7 +314,8 @@ impl SemanticAnalyzer {
                     }
                 }
                 Member::Method(method) => {
-                    let type_params: std::collections::HashSet<String> = method.type_params.iter().cloned().collect();
+                    let type_params: std::collections::HashSet<String> =
+                        method.type_params.iter().cloned().collect();
                     for param in &method.params {
                         if let Some(type_ref) = &param.type_ref {
                             self.validate_type_ref(type_ref, &type_params)?;
@@ -339,11 +341,18 @@ impl SemanticAnalyzer {
         Ok(())
     }
 
-    fn validate_type_ref(&self, type_ref: &TypeRef, available_type_params: &std::collections::HashSet<String>) -> Result<()> {
+    fn validate_type_ref(
+        &self,
+        type_ref: &TypeRef,
+        available_type_params: &std::collections::HashSet<String>,
+    ) -> Result<()> {
         match type_ref {
             TypeRef::Simple(name) => {
                 // Check if it's a built-in type, a defined type, or a type parameter
-                if !is_builtin_type(name) && !self.types.contains_key(name) && !available_type_params.contains(name) {
+                if !is_builtin_type(name)
+                    && !self.types.contains_key(name)
+                    && !available_type_params.contains(name)
+                {
                     return Err(CompilerError::TypeError(format!(
                         "Type '{}' not found",
                         name
@@ -402,6 +411,7 @@ mod tests {
     use super::*;
     use crate::lexer::tokenize;
     use crate::parser::parse;
+    use std::collections::{HashMap, HashSet};
 
     #[test]
     fn test_async_inference() {
@@ -421,5 +431,196 @@ mod tests {
             }
             _ => panic!("Expected function"),
         }
+    }
+
+    fn async_expr() -> Expr {
+        Expr::AsyncCall {
+            callee: Box::new(Expr::Identifier("fetch".into())),
+            args: vec![],
+        }
+    }
+
+    #[test]
+    fn test_expr_contains_async_variants() {
+        let mut analyzer = SemanticAnalyzer::new();
+        analyzer.async_functions.insert("do_async".into());
+
+        assert!(analyzer.expr_contains_async(&Expr::TaskCall {
+            mode: ConcurrencyMode::Async,
+            callee: "worker".into(),
+            args: vec![],
+        }));
+        assert!(analyzer.expr_contains_async(&Expr::FireCall {
+            mode: ConcurrencyMode::Parallel,
+            callee: "fire".into(),
+            args: vec![],
+        }));
+        assert!(analyzer.expr_contains_async(&Expr::Binary {
+            op: BinOp::Add,
+            left: Box::new(async_expr()),
+            right: Box::new(Expr::Identifier("x".into())),
+        }));
+        assert!(analyzer.expr_contains_async(&Expr::Unary {
+            op: UnOp::Await,
+            operand: Box::new(async_expr()),
+        }));
+        assert!(analyzer.expr_contains_async(&Expr::Ternary {
+            condition: Box::new(async_expr()),
+            then_expr: Box::new(Expr::Identifier("a".into())),
+            else_expr: Box::new(Expr::Identifier("b".into())),
+        }));
+        assert!(analyzer.expr_contains_async(&Expr::Member {
+            object: Box::new(async_expr()),
+            property: "field".into(),
+        }));
+        assert!(analyzer.expr_contains_async(&Expr::Index {
+            object: Box::new(async_expr()),
+            index: Box::new(Expr::Literal(Literal::Int(0))),
+        }));
+        assert!(analyzer
+            .expr_contains_async(&Expr::ObjectLiteral(vec![("value".into(), async_expr()),])));
+        assert!(analyzer.expr_contains_async(&Expr::ArrayLiteral(vec![async_expr()])));
+        assert!(analyzer.expr_contains_async(&Expr::StringTemplate {
+            parts: vec![StringTemplatePart::Expr(Box::new(async_expr()))],
+        }));
+        assert!(analyzer.expr_contains_async(&Expr::Call {
+            callee: Box::new(Expr::Identifier("do_async".into())),
+            args: vec![],
+        }));
+        assert!(!analyzer.expr_contains_async(&Expr::Call {
+            callee: Box::new(Expr::Identifier("sync".into())),
+            args: vec![],
+        }));
+    }
+
+    #[test]
+    fn test_contains_async_across_statements() {
+        let analyzer = SemanticAnalyzer::new();
+        let block = BlockStmt {
+            stmts: vec![
+                Stmt::VarDecl(VarDecl {
+                    name: "v".into(),
+                    type_ref: None,
+                    init: Some(async_expr()),
+                }),
+                Stmt::ConstDecl(ConstDecl {
+                    name: "c".into(),
+                    init: async_expr(),
+                }),
+                Stmt::Assign(AssignStmt {
+                    target: async_expr(),
+                    value: async_expr(),
+                }),
+                Stmt::If(IfStmt {
+                    condition: async_expr(),
+                    then_branch: BlockStmt {
+                        stmts: vec![Stmt::Expr(ExprStmt { expr: async_expr() })],
+                    },
+                    else_branch: Some(BlockStmt {
+                        stmts: vec![Stmt::Expr(ExprStmt { expr: async_expr() })],
+                    }),
+                }),
+                Stmt::While(WhileStmt {
+                    condition: async_expr(),
+                    body: BlockStmt {
+                        stmts: vec![Stmt::Expr(ExprStmt { expr: async_expr() })],
+                    },
+                }),
+                Stmt::For(ForStmt {
+                    var: "item".into(),
+                    iterable: async_expr(),
+                    body: BlockStmt {
+                        stmts: vec![Stmt::Expr(ExprStmt { expr: async_expr() })],
+                    },
+                }),
+                Stmt::Switch(SwitchStmt {
+                    discriminant: async_expr(),
+                    cases: vec![CaseClause {
+                        value: Expr::Literal(Literal::Int(1)),
+                        body: vec![Stmt::Expr(ExprStmt { expr: async_expr() })],
+                    }],
+                    default: Some(vec![Stmt::Expr(ExprStmt { expr: async_expr() })]),
+                }),
+                Stmt::TryCatch(TryCatchStmt {
+                    try_block: BlockStmt {
+                        stmts: vec![Stmt::Expr(ExprStmt { expr: async_expr() })],
+                    },
+                    catch_var: "err".into(),
+                    catch_block: BlockStmt {
+                        stmts: vec![Stmt::Expr(ExprStmt { expr: async_expr() })],
+                    },
+                }),
+                Stmt::Throw(ThrowStmt { expr: async_expr() }),
+                Stmt::Return(ReturnStmt {
+                    expr: Some(async_expr()),
+                }),
+                Stmt::Expr(ExprStmt { expr: async_expr() }),
+                Stmt::Block(BlockStmt {
+                    stmts: vec![Stmt::Expr(ExprStmt { expr: async_expr() })],
+                }),
+            ],
+        };
+
+        assert!(analyzer.contains_async_call(&block));
+    }
+
+    #[test]
+    fn test_validate_type_refs_and_class_bases() {
+        let mut analyzer = SemanticAnalyzer::new();
+        analyzer.types.insert(
+            "Base".into(),
+            TypeInfo {
+                name: "Base".into(),
+                fields: HashMap::new(),
+                methods: HashMap::new(),
+            },
+        );
+
+        let class = ClassDecl {
+            name: "Derived".into(),
+            base: Some("Base".into()),
+            members: vec![Member::Field(FieldDecl {
+                name: "values".into(),
+                visibility: Visibility::Public,
+                type_ref: Some(TypeRef::Array(Box::new(TypeRef::Simple("number".into())))),
+                init: None,
+            })],
+        };
+        analyzer
+            .validate_class(&class)
+            .expect("class should be valid");
+
+        let mut type_params = HashSet::new();
+        type_params.insert("T".into());
+        analyzer
+            .validate_type_ref(
+                &TypeRef::Generic {
+                    base: "Option".into(),
+                    args: vec![TypeRef::Simple("T".into())],
+                },
+                &type_params,
+            )
+            .expect("generic type should be valid");
+
+        let err = analyzer
+            .validate_type_ref(&TypeRef::Simple("Unknown".into()), &HashSet::new())
+            .expect_err("unknown type should error");
+        matches!(err, CompilerError::TypeError(_));
+
+        let err = analyzer
+            .validate_class(&ClassDecl {
+                name: "Broken".into(),
+                base: Some("Missing".into()),
+                members: vec![],
+            })
+            .expect_err("missing base class should error");
+        matches!(err, CompilerError::SemanticError(_));
+    }
+
+    #[test]
+    fn test_is_builtin_type_matches() {
+        assert!(is_builtin_type("number"));
+        assert!(is_builtin_type("Vec"));
+        assert!(!is_builtin_type("Custom"));
     }
 }

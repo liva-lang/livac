@@ -1,0 +1,24 @@
+---
+source: tests/codegen_tests.rs
+expression: rust_code
+---
+fn add(a: i32, b: i32) -> i32 {
+    (a + b)
+}
+
+fn greet(name: String) -> String {
+    ("Hello " + name)
+}
+
+fn is_even(n: i32) -> bool {
+    ((n % 2) == 0)
+}
+
+fn main() {
+    let sum = add(5, 3);
+    let message = greet("Liva");
+    let even = is_even(4);
+    println!("{}", sum);;
+    println!("{}", message);;
+    println!("{}", even);;
+}

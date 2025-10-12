@@ -25,10 +25,8 @@ pub fn desugar(program: Program) -> Result<DesugarContext> {
     // Collect use rust declarations
     for item in &program.items {
         if let TopLevel::UseRust(use_rust) = item {
-            ctx.rust_crates.push((
-                use_rust.crate_name.clone(),
-                use_rust.alias.clone(),
-            ));
+            ctx.rust_crates
+                .push((use_rust.crate_name.clone(), use_rust.alias.clone()));
         }
 
         // Check for async/parallel usage
@@ -121,10 +119,26 @@ fn check_stmt_concurrency(stmt: &Stmt, ctx: &mut DesugarContext) {
 
 fn check_expr_concurrency(expr: &Expr, ctx: &mut DesugarContext) {
     match expr {
-        Expr::AsyncCall { .. } | Expr::TaskCall { mode: ConcurrencyMode::Async, .. } | Expr::FireCall { mode: ConcurrencyMode::Async, .. } => {
+        Expr::AsyncCall { .. }
+        | Expr::TaskCall {
+            mode: ConcurrencyMode::Async,
+            ..
+        }
+        | Expr::FireCall {
+            mode: ConcurrencyMode::Async,
+            ..
+        } => {
             ctx.has_async = true;
         }
-        Expr::ParallelCall { .. } | Expr::TaskCall { mode: ConcurrencyMode::Parallel, .. } | Expr::FireCall { mode: ConcurrencyMode::Parallel, .. } => {
+        Expr::ParallelCall { .. }
+        | Expr::TaskCall {
+            mode: ConcurrencyMode::Parallel,
+            ..
+        }
+        | Expr::FireCall {
+            mode: ConcurrencyMode::Parallel,
+            ..
+        } => {
             ctx.has_parallel = true;
         }
         Expr::Binary { left, right, .. } => {
@@ -132,7 +146,11 @@ fn check_expr_concurrency(expr: &Expr, ctx: &mut DesugarContext) {
             check_expr_concurrency(right, ctx);
         }
         Expr::Unary { operand, .. } => check_expr_concurrency(operand, ctx),
-        Expr::Ternary { condition, then_expr, else_expr } => {
+        Expr::Ternary {
+            condition,
+            then_expr,
+            else_expr,
+        } => {
             check_expr_concurrency(condition, ctx);
             check_expr_concurrency(then_expr, ctx);
             check_expr_concurrency(else_expr, ctx);
@@ -196,5 +214,36 @@ mod tests {
         let ctx = desugar(analyzed).unwrap();
 
         assert!(ctx.has_parallel);
+    }
+
+    #[test]
+    fn test_detect_task_and_fire_calls() {
+        let source = r#"
+            use rust "serde" as sd
+
+            compute() = 1
+
+            main() {
+                let handle = task async compute()
+                fire parallel compute()
+                let values = [parallel compute(), task parallel compute()]
+                return handle
+            }
+        "#;
+        let tokens = tokenize(source).unwrap();
+        let program = parse(tokens, source).unwrap();
+        let analyzed = analyze(program).unwrap();
+        let ctx = desugar(analyzed).unwrap();
+
+        assert!(ctx.has_async);
+        assert!(ctx.has_parallel);
+        assert!(ctx
+            .rust_crates
+            .iter()
+            .any(|(name, alias)| name == "serde" && alias.as_deref() == Some("sd")));
+        assert!(ctx
+            .rust_crates
+            .iter()
+            .any(|(name, alias)| name == "tokio" && alias.is_none()));
     }
 }

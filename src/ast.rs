@@ -370,3 +370,36 @@ impl fmt::Display for UnOp {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_visibility_from_name_variants() {
+        assert_eq!(Visibility::from_name("public_name"), Visibility::Public);
+        assert_eq!(Visibility::from_name("_protected"), Visibility::Protected);
+        assert_eq!(Visibility::from_name("__private"), Visibility::Private);
+    }
+
+    #[test]
+    fn test_type_ref_to_rust_type_variants() {
+        let simple = TypeRef::Simple("number".into());
+        assert_eq!(simple.to_rust_type(), "i32");
+
+        let generic = TypeRef::Generic {
+            base: "Result".into(),
+            args: vec![
+                TypeRef::Simple("string".into()),
+                TypeRef::Simple("Error".into()),
+            ],
+        };
+        assert_eq!(generic.to_rust_type(), "Result<String, Error>");
+
+        let array = TypeRef::Array(Box::new(TypeRef::Simple("bool".into())));
+        assert_eq!(array.to_rust_type(), "Vec<bool>");
+
+        let optional = TypeRef::Optional(Box::new(TypeRef::Simple("float".into())));
+        assert_eq!(optional.to_rust_type(), "Option<f64>");
+    }
+}
