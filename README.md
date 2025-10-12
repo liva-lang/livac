@@ -102,7 +102,7 @@ main() {
 ### 2. Simple Function
 
 ```liva
-sum(a: number, b: number): number = a + b
+sum(a: number, b: number): number => a + b
 
 main() {
   let result = sum(5, 3)

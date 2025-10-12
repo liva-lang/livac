@@ -74,8 +74,8 @@ fn sum(a: i32, b: i32) -> i32 { a + b }
 ### 2.2 One-liner (implicit return)
 **(A)**
 ```ls
-inc(n: number): number = n + 1
-isAdult(age) = age >= 18
+inc(n: number): number => n + 1
+isAdult(age) => age >= 18
 ```
 **(B)**
 ```rust
@@ -86,7 +86,7 @@ fn is_adult(age: i32) -> bool { age >= 18 }
 ### 2.3 Generics
 **(A)**
 ```ls
-max<T>(a: T, b: T): T = (a > b) ? a : b
+max<T>(a: T, b: T): T => (a > b) ? a : b
 ```
 **(B)**
 ```rust
@@ -408,7 +408,7 @@ let h = unsafe { blake3_hash(b"hola") };
 2. **Strings**: `$"a {x}"` → `format!("a {}", x)`.
 3. **Visibility**: `__x` private; `_x` protected→`pub(super)`; else `pub`.
 4. **Classes**: `Type { fields+methods }` → `pub struct Type {..} + impl Type {..}`.
-5. **One-liner def**: `f(p):T = e` → `fn f(p) -> T { e }`.
+5. **One-liner def**: `f(p):T => e` → `fn f(p) -> T { e }`.
 6. **Auto-async def**: body contains async → `async fn`.
 7. **Calls**:
    - `async f()` → `let h = tokio::spawn(f());` + lazy `.await` at first use.

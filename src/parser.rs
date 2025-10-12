@@ -212,7 +212,7 @@ impl Parser {
             None
         };
 
-        if self.match_token(&Token::Assign) {
+        if self.match_token(&Token::Arrow) {
             // One-liner function
             let body = self.parse_expression()?;
             return Ok(TopLevel::Function(FunctionDecl {
@@ -289,7 +289,7 @@ impl Parser {
                     None
                 };
 
-                if self.match_token(&Token::Assign) {
+                if self.match_token(&Token::Arrow) {
                     // One-liner method
                     let body = self.parse_expression()?;
                     members.push(Member::Method(MethodDecl {
@@ -1191,7 +1191,7 @@ mod tests {
 
     #[test]
     fn test_parse_function() {
-        let source = "sum(a: number, b: number): number = a + b";
+        let source = "sum(a: number, b: number): number => a + b";
         let tokens = tokenize(source).unwrap();
         let program = parse(tokens, source).unwrap();
 

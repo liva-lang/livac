@@ -221,7 +221,7 @@ mod tests {
         let source = r#"
             use rust "serde" as sd
 
-            compute() = 1
+            compute() => 1
 
             main() {
                 let handle = task async compute()

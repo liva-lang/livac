@@ -1,8 +1,8 @@
 // Test for return type inference in expression-bodied functions
-add(a, b) = a + b
-subtract(x, y) = x - y
-multiply(n, m) = n * m
-divide(p, q) = p / q
+add(a, b) => a + b
+subtract(x, y) => x - y
+multiply(n, m) => n * m
+divide(p, q) => p / q
 
 main() {
   let sum = add(10, 5)

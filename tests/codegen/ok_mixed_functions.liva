@@ -1,5 +1,5 @@
 // Test for mixed function types (expression and block)
-simpleAdd(a, b) = a + b
+simpleAdd(a, b) => a + b
 
 complexAdd(x, y) {
   let result = x + y

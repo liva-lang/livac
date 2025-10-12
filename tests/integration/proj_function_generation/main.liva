@@ -2,21 +2,21 @@
 // This tests the fixes for function name generation
 
 // Single character function names
-a(x) = x + 1
-b(y) = y * 2
+a(x) => x + 1
+b(y) => y * 2
 
 // Multi-word function names (should be converted to snake_case)
-calculateSum(n1, n2) = n1 + n2
-getUserName(id) = "user" + id
-processData(input) = input * 2
+calculateSum(n1, n2) => n1 + n2
+getUserName(id) => "user" + id
+processData(input) => input * 2
 
 // Functions with underscores
-my_function(x) = x + 10
-another_function(y) = y - 5
+my_function(x) => x + 10
+another_function(y) => y - 5
 
 // Mixed case functions
-camelCase(x) = x + 1
-PascalCase(y) = y + 2
+camelCase(x) => x + 1
+PascalCase(y) => y + 2
 
 main() {
   let result1 = a(5)

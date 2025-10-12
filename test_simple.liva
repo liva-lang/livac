@@ -1,0 +1,6 @@
+sum(a, b) => a + b
+
+main() {
+  let result = sum(2, 3)
+  print(result)
+}

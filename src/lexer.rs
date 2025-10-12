@@ -141,7 +141,7 @@ pub enum Token {
     DotDot,
     #[token("?")]
     Question,
-    #[token("->")]
+    #[token("=>")]
     Arrow,
 
     // Literals

@@ -216,7 +216,7 @@ fn write_output_files(rust_code: &str, cargo_toml: &str, output_dir: &Path) -> R
 /// use livac::check_syntax;
 ///
 /// let source = r#"
-///     sum(a: number, b: number): number = a + b
+///     sum(a: number, b: number): number => a + b
 /// "#;
 ///
 /// match check_syntax(source) {
@@ -254,7 +254,7 @@ mod tests {
 
     #[test]
     fn test_compile_simple_function() {
-        let source = "sum(a: number, b: number): number = a + b";
+        let source = "sum(a: number, b: number): number => a + b";
 
         let options = CompilerOptions {
             input: PathBuf::from("test.liva"),
@@ -329,7 +329,7 @@ mod tests {
 
         let result = compile_source(
             r#"
-            helper() = 1
+            helper() => 1
 
             main() {
                 print(helper())

@@ -28,9 +28,9 @@ main() {
 #[test]
 fn test_function_name_generation() {
     let source = r#"
-sum(a, b) = a + b
-multiply(x, y) = x * y
-greet(name) = "Hello " + name
+sum(a, b) => a + b
+multiply(x, y) => x * y
+greet(name) => "Hello " + name
 
 main() {
   let result1 = sum(2, 3)
@@ -50,7 +50,7 @@ main() {
 #[test]
 fn test_return_type_inference() {
     let source = r#"
-add(a, b) = a + b
+add(a, b) => a + b
 subtract(x, y) = x - y
 multiply(n, m) = n * m
 
@@ -95,9 +95,9 @@ main() {
 #[test]
 fn test_explicit_return_types() {
     let source = r#"
-add(a: number, b: number): number = a + b
-greet(name: string): string = "Hello " + name
-isEven(n: number): bool = n % 2 == 0
+add(a: number, b: number): number => a + b
+greet(name: string): string => "Hello " + name
+isEven(n: number): bool => n % 2 == 0
 
 main() {
   let sum = add(5, 3)
@@ -118,7 +118,7 @@ main() {
 fn test_comprehensive_codegen() {
     let source = r#"
 // Simple expression-bodied functions
-add(a, b) = a + b
+add(a, b) => a + b
 multiply(x, y) = x * y
 
 // Function with explicit return type

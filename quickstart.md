@@ -115,7 +115,7 @@ greet(name: string) {
 }
 
 // With inference
-add(a, b) = a + b
+add(a, b) => a + b
 
 main() {
   print(square(5))      // 25
@@ -376,7 +376,7 @@ The corresponding snapshots live under `tests/snapshots/codegen_ir_tests__*.snap
 |---------|-------------|
 | Variable | `let x = 10` |
 | Constant | `const PI = 3.14` |
-| Function | `add(a, b) = a + b` |
+| Function | `add(a, b) => a + b` |
 | Class | `Person { name: string }` |
 | Protected | `_field: type` |
 | Private | `__field: type` |

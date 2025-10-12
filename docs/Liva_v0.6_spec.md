@@ -180,14 +180,14 @@ sum(a, b): number {
 
 ### Retorno implícito (una línea)
 ```js
-sum(a, b): number = a + b
-doble(x) = x * 2
-isAdult(age) = age >= 18
+sum(a, b): number => a + b
+doble(x) => x * 2
+isAdult(age) => age >= 18
 ```
 
 ### Con genéricos
 ```js
-max<T>(a: T, b: T): T = (a > b) ? a : b
+max<T>(a: T, b: T): T => (a > b) ? a : b
 ```
 
 ### Asincrónicas (auto-detectadas)
@@ -402,7 +402,7 @@ Persona {
     print($"Hola, soy {this.nombre}")
   }
 
-  _hash() = blake3.hash(this.__dni)
+  _hash() => blake3.hash(this.__dni)
 }
 
 main() {
@@ -477,7 +477,7 @@ async fn main() {
 | Categoría | Liva | Rust |
 |------------|--------------|-------|
 | Variable | `let x = 1` | `let mut x = 1;` |
-| Función | `f(a,b):T = expr` | `fn f(a: T, b: T) -> T { expr }` |
+| Función | `f(a,b):T => expr` | `fn f(a: T, b: T) -> T { expr }` |
 | Async interno | `f(){ let x = async g() }` | `async fn f()` |
 | Concurrente | `async f()` | `tokio::spawn(f())` |
 | Paralelo | `parallel f()` | `thread::spawn(|| f())` |

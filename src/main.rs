@@ -219,7 +219,7 @@ mod tests {
     fn test_compile_generates_output() {
         let (_dir, input) = create_source(
             r#"
-            helper() = 42
+            helper() => 42
 
             main() {
                 print(helper())

@@ -59,7 +59,7 @@ RBrace        = "}" ;
 LBracket      = "[" ;
 RBracket      = "]" ;
 Range         = ".." ;
-Arrow         = "->" ;
+Arrow         = "=>" ;
 ```
 
 **Palabras reservadas**:  
@@ -471,7 +471,7 @@ if call is async/parallel and returns non-void and handle is unused
 
 ## 10) Casos de prueba recomendados (parser)
 
-- `sum(a,b): number = a+b`
+- `sum(a,b): number => a+b`
 - `if not a and b or c {}`
 - `Persona { nombre:string, _edad:number, __dni:string }`
 - `fetch(){ let r = async http.get(url); return r.text() }` (auto-async)
