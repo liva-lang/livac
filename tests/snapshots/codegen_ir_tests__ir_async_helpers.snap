@@ -1,0 +1,33 @@
+---
+source: tests/codegen_ir_tests.rs
+assertion_line: 50
+expression: rust_code
+---
+use tokio;
+
+mod liva_rt {
+    use std::future::Future;
+    pub fn spawn_async<Fut>(future: Fut) -> tokio::task::JoinHandle<Fut::Output>
+    where Fut: Future + Send + 'static, Fut::Output: Send + 'static,
+    {
+        tokio::spawn(future)
+    }
+
+    pub fn fire_async<Fut>(future: Fut)
+    where Fut: Future<Output = ()> + Send + 'static,
+    {
+        let _ = tokio::spawn(future);
+    }
+}
+
+async fn fetch() {
+    let response = tokio::spawn(async move {get_data() }).await.unwrap();
+    return response;
+}
+
+#[tokio::main]
+async fn main() {
+    let value = tokio::spawn(async move {fetch() }).await.unwrap();
+    tokio::spawn(fetch());
+    println!("{}", value);
+}

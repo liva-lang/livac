@@ -1,0 +1,44 @@
+---
+source: tests/codegen_ir_tests.rs
+assertion_line: 68
+expression: rust_code
+---
+use tokio;
+
+mod liva_rt {
+    use std::future::Future;
+    pub fn spawn_async<Fut>(future: Fut) -> tokio::task::JoinHandle<Fut::Output>
+    where Fut: Future + Send + 'static, Fut::Output: Send + 'static,
+    {
+        tokio::spawn(future)
+    }
+
+    pub fn fire_async<Fut>(future: Fut)
+    where Fut: Future<Output = ()> + Send + 'static,
+    {
+        let _ = tokio::spawn(future);
+    }
+
+    pub fn spawn_parallel<F, T>(job: F) -> std::thread::JoinHandle<T>
+    where F: FnOnce() -> T + Send + 'static, T: Send + 'static,
+    {
+        std::thread::spawn(job)
+    }
+
+    pub fn fire_parallel<F, T>(job: F)
+    where F: FnOnce() -> T + Send + 'static, T: Send + 'static,
+    {
+        let _ = std::thread::spawn(job);
+    }
+}
+
+fn heavy() {
+    return std::thread::spawn(move || compute().join().unwrap();
+}
+
+#[tokio::main]
+async fn main() {
+    let value = std::thread::spawn(move || heavy().join().unwrap();
+    std::thread::spawn(|| heavy()));
+    println!("{}", value);
+}
