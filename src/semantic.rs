@@ -605,7 +605,9 @@ impl SemanticAnalyzer {
                     )));
                 }
                 self.validate_block(&for_stmt.body)?;
+                let validation = self.validate_for_loop(for_stmt);
                 self.exit_scope()?;
+                validation?;
             }
             Stmt::Switch(switch_stmt) => {
                 self.validate_expr(&switch_stmt.discriminant)?;
@@ -856,6 +858,178 @@ impl SemanticAnalyzer {
 
         self.exit_scope()?;
         result
+    }
+
+    fn validate_for_loop(&self, for_stmt: &ForStmt) -> Result<()> {
+        self.validate_for_loop_options(for_stmt.policy.clone(), &for_stmt.options)?;
+
+        if matches!(
+            for_stmt.policy,
+            DataParallelPolicy::Par | DataParallelPolicy::Boost
+        ) && Self::block_contains_await(&for_stmt.body)
+        {
+            return Err(CompilerError::SemanticError(
+                "E0605: `await` is not allowed inside `for par` or `for boost` loops.".into(),
+            ));
+        }
+
+        Ok(())
+    }
+
+    fn validate_for_loop_options(
+        &self,
+        policy: DataParallelPolicy,
+        options: &ForPolicyOptions,
+    ) -> Result<()> {
+        if let Some(chunk) = options.chunk {
+            if chunk <= 0 {
+                return Err(CompilerError::SemanticError(
+                    "E0702: `chunk` option must be a positive integer.".into(),
+                ));
+            }
+        }
+
+        if let Some(prefetch) = options.prefetch {
+            if prefetch <= 0 {
+                return Err(CompilerError::SemanticError(
+                    "E0703: `prefetch` option must be a positive integer.".into(),
+                ));
+            }
+        }
+
+        if let Some(thread_option) = &options.threads {
+            if let ThreadOption::Count(count) = thread_option {
+                if *count <= 0 {
+                    return Err(CompilerError::SemanticError(
+                        "E0704: `threads` option must be a positive integer when specified.".into(),
+                    ));
+                }
+            }
+        }
+
+        if let Some(simd) = &options.simd_width {
+            if !matches!(policy, DataParallelPolicy::Vec | DataParallelPolicy::Boost) {
+                return Err(CompilerError::SemanticError(
+                    "E0705: `simdWidth` option requires `for vec` or `for boost` policy.".into(),
+                ));
+            }
+
+            if let SimdWidthOption::Width(width) = simd {
+                if *width <= 0 {
+                    return Err(CompilerError::SemanticError(
+                        "E0706: `simdWidth` value must be a positive integer.".into(),
+                    ));
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn block_contains_await(block: &BlockStmt) -> bool {
+        block
+            .stmts
+            .iter()
+            .any(|stmt| Self::stmt_contains_await(stmt))
+    }
+
+    fn stmt_contains_await(stmt: &Stmt) -> bool {
+        match stmt {
+            Stmt::VarDecl(var) => var
+                .init
+                .as_ref()
+                .map_or(false, |expr| Self::expr_contains_await(expr)),
+            Stmt::ConstDecl(const_decl) => Self::expr_contains_await(&const_decl.init),
+            Stmt::Assign(assign) => {
+                Self::expr_contains_await(&assign.target)
+                    || Self::expr_contains_await(&assign.value)
+            }
+            Stmt::If(if_stmt) => {
+                Self::expr_contains_await(&if_stmt.condition)
+                    || Self::block_contains_await(&if_stmt.then_branch)
+                    || if_stmt
+                        .else_branch
+                        .as_ref()
+                        .map_or(false, |block| Self::block_contains_await(block))
+            }
+            Stmt::While(while_stmt) => {
+                Self::expr_contains_await(&while_stmt.condition)
+                    || Self::block_contains_await(&while_stmt.body)
+            }
+            Stmt::For(for_stmt) => {
+                Self::expr_contains_await(&for_stmt.iterable)
+                    || Self::block_contains_await(&for_stmt.body)
+            }
+            Stmt::Switch(switch_stmt) => {
+                if Self::expr_contains_await(&switch_stmt.discriminant) {
+                    return true;
+                }
+                for case in &switch_stmt.cases {
+                    if case.body.iter().any(Self::stmt_contains_await) {
+                        return true;
+                    }
+                }
+                if let Some(default) = &switch_stmt.default {
+                    if default.iter().any(Self::stmt_contains_await) {
+                        return true;
+                    }
+                }
+                false
+            }
+            Stmt::TryCatch(try_catch) => {
+                Self::block_contains_await(&try_catch.try_block)
+                    || Self::block_contains_await(&try_catch.catch_block)
+            }
+            Stmt::Throw(throw_stmt) => Self::expr_contains_await(&throw_stmt.expr),
+            Stmt::Return(ret) => ret
+                .expr
+                .as_ref()
+                .map_or(false, |expr| Self::expr_contains_await(expr)),
+            Stmt::Expr(expr_stmt) => Self::expr_contains_await(&expr_stmt.expr),
+            Stmt::Block(block) => Self::block_contains_await(block),
+        }
+    }
+
+    fn expr_contains_await(expr: &Expr) -> bool {
+        match expr {
+            Expr::Unary { op: UnOp::Await, .. } => true,
+            Expr::Unary { operand, .. } => Self::expr_contains_await(operand),
+            Expr::Binary { left, right, .. } => {
+                Self::expr_contains_await(left) || Self::expr_contains_await(right)
+            }
+            Expr::Ternary {
+                condition,
+                then_expr,
+                else_expr,
+            } => {
+                Self::expr_contains_await(condition)
+                    || Self::expr_contains_await(then_expr)
+                    || Self::expr_contains_await(else_expr)
+            }
+            Expr::Call(call) => {
+                Self::expr_contains_await(&call.callee)
+                    || call.args.iter().any(Self::expr_contains_await)
+            }
+            Expr::Member { object, .. } => Self::expr_contains_await(object),
+            Expr::Index { object, index } => {
+                Self::expr_contains_await(object) || Self::expr_contains_await(index)
+            }
+            Expr::ObjectLiteral(fields) => fields
+                .iter()
+                .any(|(_, value)| Self::expr_contains_await(value)),
+            Expr::ArrayLiteral(elements) => {
+                elements.iter().any(|value| Self::expr_contains_await(value))
+            }
+            Expr::Lambda(lambda) => match &lambda.body {
+                LambdaBody::Expr(body) => Self::expr_contains_await(body),
+                LambdaBody::Block(block) => Self::block_contains_await(block),
+            },
+            Expr::StringTemplate { parts } => parts.iter().any(|part| match part {
+                StringTemplatePart::Expr(expr) => Self::expr_contains_await(expr),
+                _ => false,
+            }),
+            Expr::Literal(_) | Expr::Identifier(_) => false,
+        }
     }
 
     fn validate_known_function(&self, name: &str, arity: usize) -> Result<()> {

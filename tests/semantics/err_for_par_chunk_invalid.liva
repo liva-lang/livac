@@ -1,0 +1,6 @@
+main() {
+    let values = [1, 2, 3]
+    for par value in values with chunk 0 {
+        print(value)
+    }
+}

@@ -108,3 +108,18 @@ fn test_task_double_await() {
 fn test_invalid_await_call() {
     test_semantics_err("invalid_await_call");
 }
+
+#[test]
+fn test_for_par_await() {
+    test_semantics_err("for_par_await");
+}
+
+#[test]
+fn test_for_seq_simd_invalid() {
+    test_semantics_err("for_seq_simd");
+}
+
+#[test]
+fn test_for_par_chunk_invalid() {
+    test_semantics_err("for_par_chunk_invalid");
+}

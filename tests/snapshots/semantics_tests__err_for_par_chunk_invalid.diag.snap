@@ -1,0 +1,5 @@
+---
+source: tests/semantics_tests.rs
+expression: error_msg
+---
+Semantic error: E0702: `chunk` option must be a positive integer.

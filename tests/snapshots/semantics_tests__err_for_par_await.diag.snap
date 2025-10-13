@@ -1,0 +1,5 @@
+---
+source: tests/semantics_tests.rs
+expression: error_msg
+---
+Semantic error: E0605: `await` is not allowed inside `for par` or `for boost` loops.

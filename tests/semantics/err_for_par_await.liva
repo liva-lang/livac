@@ -1,0 +1,12 @@
+compute() => 1
+
+fetch() {
+    return async compute()
+}
+
+main() {
+    for par item in [1, 2, 3] {
+        let result = await fetch()
+        print(result)
+    }
+}

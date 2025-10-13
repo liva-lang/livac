@@ -212,6 +212,23 @@ main() {
 
   print("Task handles awaited successfully ✅")
 
+  // ============================================================================
+  // 10. DATA-PARALLEL FOR POLICIES DEMO ✅
+  // ============================================================================
+  print("\n🧵 Testing Data-Parallel For Policies:")
+
+  let parallelWorkloads = [1, 2, 3, 4]
+
+  for par workload in parallelWorkloads with chunk 2 threads 4 {
+    print($"Processing workload {workload} on a parallel worker")
+  }
+
+  let vectorWorkloads = [1, 2, 3, 4]
+
+  for vec lane in vectorWorkloads with simdWidth 4 ordered {
+    print($"Vector lane value: {lane}")
+  }
+
   print("\n🎉 Liva Comprehensive Syntax Test Completed Successfully!")
   print("✅ All major language features tested and working!")
 }

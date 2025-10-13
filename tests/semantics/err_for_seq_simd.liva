@@ -1,0 +1,6 @@
+main() {
+    let values = [1, 2, 3]
+    for seq value in values with simdWidth 4 {
+        print(value)
+    }
+}
