@@ -13,6 +13,7 @@ pub struct SemanticAnalyzer {
     external_modules: HashSet<String>,
     // Current scope for variables
     current_scope: Vec<HashMap<String, Option<TypeRef>>>,
+    pending_tasks: HashSet<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -40,6 +41,7 @@ impl SemanticAnalyzer {
             functions: HashMap::new(),
             external_modules: HashSet::new(),
             current_scope: vec![HashMap::new()],
+            pending_tasks: HashSet::new(),
         }
     }
 
@@ -681,7 +683,46 @@ impl SemanticAnalyzer {
     }
 
     fn validate_call_expr(&mut self, call: &CallExpr) -> Result<()> {
-        self.validate_call(&call.callee, &call.args)
+        if let Some((first, second)) = Self::extract_modifier_chain(&call.callee) {
+            return Err(CompilerError::SemanticError(format!(
+                "E0602: duplicate execution modifiers '{}' and '{}' on the same call",
+                first, second
+            )));
+        }
+
+        self.validate_call(&call.callee, &call.args)?;
+        match call.exec_policy {
+            ExecPolicy::TaskAsync | ExecPolicy::TaskPar => {
+                if let Expr::Identifier(name) = call.callee.as_ref() {
+                    self.pending_tasks.insert(name.clone());
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn extract_modifier_chain(expr: &Expr) -> Option<(&'static str, &'static str)> {
+        if let Expr::Call(inner) = expr {
+            if let Expr::Call(outer) = inner.callee.as_ref() {
+                let first = Self::policy_name(outer.exec_policy.clone())?;
+                let second = Self::policy_name(inner.exec_policy.clone())?;
+                return Some((first, second));
+            }
+        }
+        None
+    }
+
+    fn policy_name(policy: ExecPolicy) -> Option<&'static str> {
+        match policy {
+            ExecPolicy::Async => Some("async"),
+            ExecPolicy::Par => Some("par"),
+            ExecPolicy::TaskAsync => Some("task async"),
+            ExecPolicy::TaskPar => Some("task par"),
+            ExecPolicy::FireAsync => Some("fire async"),
+            ExecPolicy::FirePar => Some("fire par"),
+            ExecPolicy::Normal => None,
+        }
     }
 
     fn validate_call(&mut self, callee: &Expr, args: &[Expr]) -> Result<()> {
