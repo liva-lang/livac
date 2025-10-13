@@ -7,3 +7,4 @@ main() {
   let result = isAdult(25)
   print(result)
 }
+

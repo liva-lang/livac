@@ -96,3 +96,4 @@ async fn main() {
 - ✅ Correcciones funcionan end-to-end
 - ✅ Compatibilidad con tests existentes mantenida
 
+

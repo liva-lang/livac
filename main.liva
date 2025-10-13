@@ -174,7 +174,7 @@ main() {
 
   print($"Numbers: {numbers}")
   print($"Users count: {len(users)}")
-  print("First user: Alice\n")
+  print($"First user: {users[0].name} and his age is {users[0].age}")
 
   // ============================================================================
   // 8. BLOCK FUNCTIONS DEMO ✅

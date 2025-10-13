@@ -18,3 +18,4 @@ main() {
   let totalPrice = calculateTotal(products)  // Type mismatch
   print($"Total: ${totalPrice}")
 }
+

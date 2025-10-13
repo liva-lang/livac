@@ -9,3 +9,4 @@ main() {
 
   print($"Users count: {len(users)}")  // Should be users.len()
 }
+

@@ -7,3 +7,4 @@ main() {
 
   print($"Max users: {max_users}, API version: {api_version}")
 }
+

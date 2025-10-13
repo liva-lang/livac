@@ -6,3 +6,4 @@ main() {
   let status = $"User is {if isActive { 'active' } else { 'inactive' }}"
   print(status)
 }
+
