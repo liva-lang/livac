@@ -231,6 +231,14 @@ impl Parser {
         }
 
         // Try to parse as class or function
+        if let Some(token) = self.peek() {
+            if Self::is_exec_modifier(token) {
+                return Err(self.error(format!(
+                    "Modifier '{}' cannot be applied to declarations",
+                    Self::modifier_name(token)
+                )));
+            }
+        }
         let name = self.parse_identifier()?;
 
         // Check for inheritance
@@ -325,6 +333,14 @@ impl Parser {
         let mut members = Vec::new();
 
         while !self.is_at_end() && !self.check(&Token::RBrace) {
+            if let Some(token) = self.peek() {
+                if Self::is_exec_modifier(token) {
+                    return Err(self.error(format!(
+                        "Modifier '{}' cannot be applied to class members",
+                        Self::modifier_name(token)
+                    )));
+                }
+            }
             let name = self.parse_identifier()?;
             let visibility = Visibility::from_name(&name);
 
@@ -1276,6 +1292,22 @@ impl Parser {
         match self.advance() {
             Some(Token::StringLiteral(s)) => Ok(s.clone()),
             _ => Err(self.error("Expected string literal".into())),
+        }
+    }
+}
+
+impl Parser {
+    fn is_exec_modifier(token: &Token) -> bool {
+        matches!(token, Token::Async | Token::Par | Token::Task | Token::Fire)
+    }
+
+    fn modifier_name(token: &Token) -> &'static str {
+        match token {
+            Token::Async => "async",
+            Token::Par => "par",
+            Token::Task => "task",
+            Token::Fire => "fire",
+            _ => "unknown",
         }
     }
 }

@@ -15,7 +15,7 @@ This document captures the task breakdown needed to implement the new language r
   - Member expressions: allow `.length` property access; emit diagnostics for `len(x)` at parse or semantic stage.
   - [x] Lambda literals support `[move] (param list) => expr|block`, single-identifier heads, and optional return annotations.
   - [x] Call expressions now carry execution policy metadata (`normal`, `async`, `par`, `task async`, `task par`, `fire async`, `fire par`).
-  - [ ] Disallow modifiers on declarations (diagnostic if `async foo() {}` uses keyword wrongly).
+  - [x] Disallow modifiers on declarations (diagnostic if `async foo() {}` uses keyword wrongly).
   - [x] `for` statement accepts policy keywords (`seq`/`par`/`vec`/`boost`) and parses `with` clause options.
   - [x] Await expressions remain unary and interoperate with policy-decorated calls.
 

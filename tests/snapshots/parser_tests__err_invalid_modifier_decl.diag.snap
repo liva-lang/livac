@@ -1,0 +1,5 @@
+---
+source: tests/parser_tests.rs
+expression: error_msg
+---
+Parse error at line 1, column 1: Modifier 'async' cannot be applied to declarations

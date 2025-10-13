@@ -1,0 +1,3 @@
+async handler() {
+    return 42
+}

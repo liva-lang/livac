@@ -126,3 +126,13 @@ fn test_return_outside_function() {
 fn test_duplicate_default() {
     test_parser_err("duplicate_default");
 }
+
+#[test]
+fn test_modifier_on_function_decl() {
+    test_parser_err("invalid_modifier_decl");
+}
+
+#[test]
+fn test_modifier_on_class_member() {
+    test_parser_err("invalid_modifier_member");
+}
