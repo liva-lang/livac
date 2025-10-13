@@ -25,6 +25,12 @@ impl Parser {
         }
     }
 
+    fn peek_token(&self, offset: usize) -> Option<&Token> {
+        self.tokens
+            .get(self.current + offset)
+            .map(|token| &token.token)
+    }
+
     fn advance(&mut self) -> Option<&Token> {
         if !self.is_at_end() {
             self.current += 1;
@@ -59,6 +65,67 @@ impl Parser {
         } else {
             false
         }
+    }
+
+    fn is_lambda_start_from(&self, offset: usize) -> bool {
+        match self.peek_token(offset) {
+            Some(Token::LParen) => {
+                let mut depth = 0usize;
+                let mut idx = offset;
+                while let Some(tok) = self.peek_token(idx) {
+                    match tok {
+                        Token::LParen => depth += 1,
+                        Token::RParen => {
+                            if depth == 0 {
+                                return false;
+                            }
+                            depth -= 1;
+                            if depth == 0 {
+                                idx += 1;
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                    idx += 1;
+                }
+
+                if depth != 0 {
+                    return false;
+                }
+
+                let mut idx_after = idx;
+                if matches!(self.peek_token(idx_after), Some(Token::Colon)) {
+                    idx_after += 1;
+                    loop {
+                        match self.peek_token(idx_after) {
+                            Some(Token::Arrow) => return true,
+                            Some(Token::Comma)
+                            | Some(Token::RParen)
+                            | Some(Token::Assign)
+                            | Some(Token::Semicolon)
+                            | Some(Token::LBrace)
+                            | Some(Token::RBrace)
+                            | None => break,
+                            _ => idx_after += 1,
+                        }
+                    }
+                    matches!(self.peek_token(idx_after), Some(Token::Arrow))
+                } else {
+                    matches!(self.peek_token(idx_after), Some(Token::Arrow))
+                }
+            }
+            Some(Token::Ident(_))
+            | Some(Token::ProtectedIdent(_))
+            | Some(Token::PrivateIdent(_)) => {
+                matches!(self.peek_token(offset + 1), Some(Token::Arrow))
+            }
+            _ => false,
+        }
+    }
+
+    fn is_lambda_start(&self) -> bool {
+        self.is_lambda_start_from(0)
     }
 
     fn expect(&mut self, token: Token) -> Result<()> {
@@ -602,14 +669,37 @@ impl Parser {
         }
 
         if self.match_token(&Token::For) {
+            let mut policy = DataParallelPolicy::Seq;
+            if self.match_token(&Token::Seq) {
+                policy = DataParallelPolicy::Seq;
+            } else if self.match_token(&Token::Par) {
+                policy = DataParallelPolicy::Par;
+            } else if self.match_token(&Token::Vec) {
+                policy = DataParallelPolicy::Vec;
+            } else if self.match_token(&Token::Boost) {
+                policy = DataParallelPolicy::Boost;
+            }
+
             let var = self.parse_identifier()?;
             self.expect(Token::In)?;
             let iterable = self.parse_expression()?;
+
+            let options = if self.match_token(&Token::With) {
+                self.parse_for_options()?
+            } else {
+                ForPolicyOptions::default()
+            };
+
             self.expect(Token::LBrace)?;
             let body = self.parse_block_stmt()?;
             self.expect(Token::RBrace)?;
             self.match_token(&Token::Semicolon); // Optional semicolon
-            return Ok(Stmt::For(ForStmt::new(var, iterable, body)));
+
+            let mut stmt = ForStmt::new(var, iterable, body);
+            stmt.policy = policy;
+            stmt.options = options;
+
+            return Ok(Stmt::For(stmt));
         }
 
         // Expression statement
@@ -631,7 +721,89 @@ impl Parser {
     }
 
     fn parse_expression(&mut self) -> Result<Expr> {
+        self.parse_lambda_expression()
+    }
+
+    fn parse_lambda_expression(&mut self) -> Result<Expr> {
+        if self.match_token(&Token::Move) {
+            if !self.is_lambda_start() {
+                return Err(self.error("Expected lambda parameters after 'move'".into()));
+            }
+            return self.parse_lambda(true);
+        }
+
+        if self.is_lambda_start() {
+            return self.parse_lambda(false);
+        }
+
         self.parse_assignment()
+    }
+
+    fn parse_lambda(&mut self, is_move: bool) -> Result<Expr> {
+        let params = if self.match_token(&Token::LParen) {
+            let params = self.parse_lambda_param_list()?;
+            self.expect(Token::RParen)?;
+            params
+        } else {
+            let name = self.parse_identifier()?;
+            vec![LambdaParam {
+                name,
+                type_ref: None,
+            }]
+        };
+
+        let return_type = if self.match_token(&Token::Colon) {
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
+
+        self.expect(Token::Arrow)?;
+        let body = self.parse_lambda_body()?;
+
+        Ok(Expr::Lambda(LambdaExpr {
+            is_move,
+            params,
+            return_type,
+            body,
+            captures: Vec::new(),
+        }))
+    }
+
+    fn parse_lambda_param_list(&mut self) -> Result<Vec<LambdaParam>> {
+        let mut params = Vec::new();
+
+        if self.check(&Token::RParen) {
+            return Ok(params);
+        }
+
+        loop {
+            let name = self.parse_identifier()?;
+            let type_ref = if self.match_token(&Token::Colon) {
+                Some(self.parse_type()?)
+            } else {
+                None
+            };
+
+            params.push(LambdaParam { name, type_ref });
+
+            if !self.match_token(&Token::Comma) {
+                break;
+            }
+        }
+
+        Ok(params)
+    }
+
+    fn parse_lambda_body(&mut self) -> Result<LambdaBody> {
+        if self.match_token(&Token::LBrace) {
+            let block = self.parse_block_stmt()?;
+            self.expect(Token::RBrace)?;
+            Ok(LambdaBody::Block(block))
+        } else {
+            let expr = self.parse_expression()?;
+            Ok(LambdaBody::Expr(Box::new(expr)))
+        }
     }
 
     fn parse_assignment(&mut self) -> Result<Expr> {
@@ -807,110 +979,145 @@ impl Parser {
         }
 
         if self.match_token(&Token::Async) {
-            // Parse the expression that should be made async
-            let expr = self.parse_call()?;
-            match expr {
-                Expr::Call { callee, args } => {
-                    return Ok(Expr::AsyncCall { callee, args });
-                }
-                _ => {
-                    return Err(self.error("Expected function call after 'async'".into()));
-                }
-            }
+            return self.parse_exec_call(ExecPolicy::Async, "async");
         }
 
-        if self.match_token(&Token::Parallel) {
-            // Parse the expression that should be made parallel
-            let expr = self.parse_call()?;
-            match expr {
-                Expr::Call { callee, args } => {
-                    return Ok(Expr::ParallelCall { callee, args });
-                }
-                _ => {
-                    return Err(self.error("Expected function call after 'parallel'".into()));
-                }
-            }
+        if self.match_token(&Token::Par) {
+            return self.parse_exec_call(ExecPolicy::Par, "par");
         }
 
         if self.match_token(&Token::Task) {
-            // Parse task mode (async or parallel)
-            let mode = if self.match_token(&Token::Async) {
-                crate::ast::ConcurrencyMode::Async
-            } else if self.match_token(&Token::Parallel) {
-                crate::ast::ConcurrencyMode::Parallel
+            let policy = if self.match_token(&Token::Async) {
+                ExecPolicy::TaskAsync
+            } else if self.match_token(&Token::Par) {
+                ExecPolicy::TaskPar
             } else {
-                return Err(self.error("Expected 'async' or 'parallel' after 'task'".into()));
+                return Err(self.error("Expected 'async' or 'par' after 'task'".into()));
             };
-
-            // Parse the expression
-            let expr = self.parse_call()?;
-            match expr {
-                Expr::Call { callee, args } => {
-                    // For now, we need to extract the function name from the callee expression
-                    // This is a temporary solution - TaskCall should be updated to use Box<Expr> like AsyncCall/ParallelCall
-                    match *callee {
-                        Expr::Identifier(name) => {
-                            return Ok(Expr::TaskCall {
-                                mode,
-                                callee: name,
-                                args,
-                            });
-                        }
-                        _ => {
-                            return Err(self.error(
-                                "Task calls currently only support simple function names".into(),
-                            ));
-                        }
-                    }
-                }
-                _ => {
-                    return Err(
-                        self.error("Expected function call after 'task async/parallel'".into())
-                    );
-                }
-            }
+            return self.parse_exec_call(policy, "task");
         }
 
         if self.match_token(&Token::Fire) {
-            // Parse fire mode (async or parallel)
-            let mode = if self.match_token(&Token::Async) {
-                crate::ast::ConcurrencyMode::Async
-            } else if self.match_token(&Token::Parallel) {
-                crate::ast::ConcurrencyMode::Parallel
+            let policy = if self.match_token(&Token::Async) {
+                ExecPolicy::FireAsync
+            } else if self.match_token(&Token::Par) {
+                ExecPolicy::FirePar
             } else {
-                return Err(self.error("Expected 'async' or 'parallel' after 'fire'".into()));
+                return Err(self.error("Expected 'async' or 'par' after 'fire'".into()));
             };
-
-            // Parse the expression
-            let expr = self.parse_call()?;
-            match expr {
-                Expr::Call { callee, args } => {
-                    // For now, we need to extract the function name from the callee expression
-                    // This is a temporary solution - FireCall should be updated to use Box<Expr> like AsyncCall/ParallelCall
-                    match *callee {
-                        Expr::Identifier(name) => {
-                            return Ok(Expr::FireCall {
-                                mode,
-                                callee: name,
-                                args,
-                            });
-                        }
-                        _ => {
-                            return Err(self.error(
-                                "Fire calls currently only support simple function names".into(),
-                            ));
-                        }
-                    }
-                }
-                _ => {
-                    return Err(
-                        self.error("Expected function call after 'fire async/parallel'".into())
-                    );
-                }
-            }
+            return self.parse_exec_call(policy, "fire");
         }
 
         self.parse_call()
+    }
+
+    fn parse_exec_call(&mut self, policy: ExecPolicy, modifier: &str) -> Result<Expr> {
+        let expr = self.parse_call()?;
+        match expr {
+            Expr::Call(mut call) => {
+                if !matches!(call.exec_policy, ExecPolicy::Normal) {
+                    return Err(self.error("Execution policy already applied to call".into()));
+                }
+                call.exec_policy = policy;
+                Ok(Expr::Call(call))
+            }
+            _ => Err(self.error(format!("Expected function call after '{}'", modifier))),
+        }
+    }
+
+    fn parse_for_options(&mut self) -> Result<ForPolicyOptions> {
+        let mut options = ForPolicyOptions::default();
+
+        loop {
+            if self.check(&Token::LBrace) {
+                break;
+            }
+
+            if self.match_token(&Token::Ordered) {
+                options.ordered = true;
+                continue;
+            }
+
+            if self.match_token(&Token::Chunk) {
+                let value = self.parse_option_int("chunk")?;
+                options.chunk = Some(value);
+                continue;
+            }
+
+            if self.match_token(&Token::Threads) {
+                if self.match_token(&Token::Auto) {
+                    options.threads = Some(ThreadOption::Auto);
+                } else {
+                    let value = self.parse_option_int("threads")?;
+                    options.threads = Some(ThreadOption::Count(value));
+                }
+                continue;
+            }
+
+            if self.match_token(&Token::SimdWidth) {
+                if self.match_token(&Token::Auto) {
+                    options.simd_width = Some(SimdWidthOption::Auto);
+                } else {
+                    let value = self.parse_option_int("simdWidth")?;
+                    options.simd_width = Some(SimdWidthOption::Width(value));
+                }
+                continue;
+            }
+
+            if self.match_token(&Token::Prefetch) {
+                let value = self.parse_option_int("prefetch")?;
+                options.prefetch = Some(value);
+                continue;
+            }
+
+            if self.match_token(&Token::Reduction) {
+                if self.match_token(&Token::Safe) {
+                    options.reduction = Some(ReductionOption::Safe);
+                } else if self.match_token(&Token::Fast) {
+                    options.reduction = Some(ReductionOption::Fast);
+                } else {
+                    return Err(self.error("Expected 'safe' or 'fast' after 'reduction'".into()));
+                }
+                continue;
+            }
+
+            if self.match_token(&Token::Schedule) {
+                if self.match_token(&Token::Static) {
+                    options.schedule = Some(ScheduleOption::Static);
+                } else if self.match_token(&Token::Dynamic) {
+                    options.schedule = Some(ScheduleOption::Dynamic);
+                } else {
+                    return Err(
+                        self.error("Expected 'static' or 'dynamic' after 'schedule'".into())
+                    );
+                }
+                continue;
+            }
+
+            if self.match_token(&Token::Detect) {
+                if self.match_token(&Token::Auto) {
+                    options.detect = Some(DetectOption::Auto);
+                } else {
+                    return Err(self.error("Expected 'auto' after 'detect'".into()));
+                }
+                continue;
+            }
+
+            return Err(self.error("Unknown for-option in 'with' clause".into()));
+        }
+
+        Ok(options)
+    }
+
+    fn parse_option_int(&mut self, option_name: &str) -> Result<i64> {
+        match self.peek() {
+            Some(Token::IntLiteral(value)) => {
+                let result = *value;
+                self.advance();
+                Ok(result)
+            }
+            _ => Err(self.error(format!("Expected integer literal after '{}'", option_name))),
+        }
     }
 
     fn parse_call(&mut self) -> Result<Expr> {
@@ -958,10 +1165,7 @@ impl Parser {
     fn finish_call(&mut self, callee: Expr) -> Result<Expr> {
         let args = self.parse_args()?;
         self.expect(Token::RParen)?;
-        Ok(Expr::Call {
-            callee: Box::new(callee),
-            args,
-        })
+        Ok(Expr::Call(CallExpr::new(callee, args)))
     }
 
     fn parse_primary(&mut self) -> Result<Expr> {
@@ -1261,8 +1465,7 @@ mod tests {
 
     #[test]
     fn test_parse_string_template_with_complex_expression() {
-        let parts =
-            super::parse_string_template_parts("First user: {users[0].name}\\n").unwrap();
+        let parts = super::parse_string_template_parts("First user: {users[0].name}\\n").unwrap();
         assert_eq!(parts.len(), 3);
         match &parts[1] {
             StringTemplatePart::Expr(_) => {}

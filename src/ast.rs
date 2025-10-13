@@ -346,10 +346,7 @@ pub enum Expr {
         then_expr: Box<Expr>,
         else_expr: Box<Expr>,
     },
-    Call {
-        callee: Box<Expr>,
-        args: Vec<Expr>,
-    },
+    Call(CallExpr),
     Member {
         object: Box<Expr>,
         property: String,
@@ -360,24 +357,6 @@ pub enum Expr {
     },
     ObjectLiteral(Vec<(String, Expr)>),
     ArrayLiteral(Vec<Expr>),
-    AsyncCall {
-        callee: Box<Expr>,
-        args: Vec<Expr>,
-    },
-    ParallelCall {
-        callee: Box<Expr>,
-        args: Vec<Expr>,
-    },
-    TaskCall {
-        mode: ConcurrencyMode,
-        callee: String,
-        args: Vec<Expr>,
-    },
-    FireCall {
-        mode: ConcurrencyMode,
-        callee: String,
-        args: Vec<Expr>,
-    },
     Lambda(LambdaExpr),
     StringTemplate {
         parts: Vec<StringTemplatePart>,
@@ -390,7 +369,6 @@ pub enum StringTemplatePart {
     Expr(Box<Expr>),
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CallExpr {
     pub callee: Box<Expr>,
@@ -400,7 +378,6 @@ pub struct CallExpr {
 }
 
 impl CallExpr {
-    #[allow(dead_code)]
     pub fn new(callee: Expr, args: Vec<Expr>) -> Self {
         Self {
             callee: Box::new(callee),
@@ -410,7 +387,6 @@ impl CallExpr {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ExecPolicy {

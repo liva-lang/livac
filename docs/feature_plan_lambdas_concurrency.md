@@ -13,19 +13,14 @@ This document captures the task breakdown needed to implement the new language r
 
 - **Parser**
   - Member expressions: allow `.length` property access; emit diagnostics for `len(x)` at parse or semantic stage.
-  - Lambda literals:
-    - Support `[move] (param list) => expr|block` and single-identifier heads (e.g. `x => x + 1`).
-    - Capture optional return type annotations `(a: number): string => ...`.
-  - Call expressions:
-    - Attach execution policy metadata (`normal`, `async`, `par`, `task async`, `task par`, `fire async`, `fire par`) to call nodes instead of expanding into specialised AST variants.
-    - Disallow modifiers on declarations (diagnostic if `async foo() {}` uses keyword wrongly).
-  - `for` statement:
-    - Accept optional leading policy keyword (`for par i in ...`) defaulting to `seq`.
-    - Parse optional `with` clause containing the supported key/value flag combinations.
-  - Await expressions remain unary; ensure interaction with new call AST is handled.
+  - [x] Lambda literals support `[move] (param list) => expr|block`, single-identifier heads, and optional return annotations.
+  - [x] Call expressions now carry execution policy metadata (`normal`, `async`, `par`, `task async`, `task par`, `fire async`, `fire par`).
+  - [ ] Disallow modifiers on declarations (diagnostic if `async foo() {}` uses keyword wrongly).
+  - [x] `for` statement accepts policy keywords (`seq`/`par`/`vec`/`boost`) and parses `with` clause options.
+  - [x] Await expressions remain unary and interoperate with policy-decorated calls.
 
 - **AST Updates**
-  - [ ] Introduce `CallExpr` structure with `exec_policy` field; remove `AsyncCall`, `ParallelCall`, `TaskCall`, `FireCall`. *(Struct scaffolding landed, integration and removal still pending.)*
+  - [x] Introduce `CallExpr` structure with `exec_policy` field; remove `AsyncCall`, `ParallelCall`, `TaskCall`, `FireCall` in favour of unified calls.
   - [x] Add `LambdaExpr` node with `is_move`, `params`, `return_type`, `body`, `captures`.
   - [x] Extend `ForStmt` with `policy: DataParallelPolicy` and `options: ForPolicyOptions`.
   - [x] Add enums/structs for policy options (`ThreadOption`, `SimdWidthOption`, etc.).

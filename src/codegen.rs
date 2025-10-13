@@ -579,57 +579,8 @@ impl CodeGenerator {
                 self.generate_expr(else_expr)?;
                 self.output.push_str(" }");
             }
-            Expr::Call { callee, args } => {
-                // Special handling for print function
-                if let Expr::Identifier(name) = callee.as_ref() {
-                    if name == "print" {
-                        if args.is_empty() {
-                            self.output.push_str("println!()");
-                        } else {
-                            self.output.push_str("println!(\"");
-                            for arg in args.iter() {
-                                // Use {:?} for arrays and objects, {} for simple types
-                                match arg {
-                                    Expr::ArrayLiteral(_) | Expr::ObjectLiteral(_) => {
-                                        self.output.push_str("{:?}");
-                                    }
-                                    _ => {
-                                        self.output.push_str("{}");
-                                    }
-                                }
-                            }
-                            self.output.push_str("\", ");
-                            for (i, arg) in args.iter().enumerate() {
-                                if i > 0 {
-                                    self.output.push_str(", ");
-                                }
-                                self.generate_expr(arg)?;
-                            }
-                            self.output.push_str(")");
-                        }
-                        return Ok(());
-                    }
-                }
-
-                // Regular function call
-                if let Expr::Identifier(name) = callee.as_ref() {
-                    if name == "len" && args.len() == 1 {
-                        // Convert len(array) to array.len()
-                        self.generate_expr(&args[0])?;
-                        self.output.push_str(".len()");
-                        return Ok(());
-                    }
-                }
-
-                self.generate_expr(callee)?;
-                self.output.push('(');
-                for (i, arg) in args.iter().enumerate() {
-                    if i > 0 {
-                        self.output.push_str(", ");
-                    }
-                    self.generate_expr(arg)?;
-                }
-                self.output.push(')');
+            Expr::Call(call) => {
+                self.generate_call_expr(call)?;
             }
             Expr::Member { object, property } => {
                 self.generate_expr(object)?;
@@ -679,69 +630,6 @@ impl CodeGenerator {
                 }
                 self.output.push(']');
             }
-            Expr::AsyncCall { callee, args } => {
-                self.output.push_str("liva_rt::spawn_async(async move { ");
-                self.generate_expr(callee)?;
-                self.output.push('(');
-                for (i, arg) in args.iter().enumerate() {
-                    if i > 0 {
-                        self.output.push_str(", ");
-                    }
-                    self.generate_expr(arg)?;
-                }
-                self.output.push_str(") }).await.unwrap()");
-            }
-            Expr::ParallelCall { callee, args } => {
-                self.output.push_str("liva_rt::spawn_parallel(move || ");
-                self.generate_expr(callee)?;
-                self.output.push('(');
-                for (i, arg) in args.iter().enumerate() {
-                    if i > 0 {
-                        self.output.push_str(", ");
-                    }
-                    self.generate_expr(arg)?;
-                }
-                self.output.push(')');
-                self.output.push_str(").join().unwrap()");
-            }
-            Expr::TaskCall { mode, callee, args } => {
-                match mode {
-                    ConcurrencyMode::Async => self.output.push_str("liva_rt::spawn_async("),
-                    ConcurrencyMode::Parallel => {
-                        self.output.push_str("liva_rt::spawn_parallel(|| ")
-                    }
-                }
-                write!(self.output, "{}(", callee).unwrap();
-                for (i, arg) in args.iter().enumerate() {
-                    if i > 0 {
-                        self.output.push_str(", ");
-                    }
-                    self.generate_expr(arg)?;
-                }
-                self.output.push(')');
-                if matches!(mode, ConcurrencyMode::Parallel) {
-                    self.output.push(')');
-                }
-                self.output.push(')');
-            }
-            Expr::FireCall { mode, callee, args } => {
-                match mode {
-                    ConcurrencyMode::Async => self.output.push_str("liva_rt::fire_async("),
-                    ConcurrencyMode::Parallel => self.output.push_str("liva_rt::fire_parallel(|| "),
-                }
-                write!(self.output, "{}(", callee).unwrap();
-                for (i, arg) in args.iter().enumerate() {
-                    if i > 0 {
-                        self.output.push_str(", ");
-                    }
-                    self.generate_expr(arg)?;
-                }
-                self.output.push(')');
-                if matches!(mode, ConcurrencyMode::Parallel) {
-                    self.output.push(')');
-                }
-                self.output.push(')');
-            }
             Expr::StringTemplate { parts } => {
                 // Check if any expression part is complex (not just identifiers or literals)
                 let _has_complex_expr = parts.iter().any(|part| match part {
@@ -750,55 +638,55 @@ impl CodeGenerator {
                 });
 
                 // Always use the simple approach for now
-                    // Use string concatenation for complex expressions
-                    self.output.push_str("format!(\"");
+                // Use string concatenation for complex expressions
+                self.output.push_str("format!(\"");
 
-                    for (_i, part) in parts.iter().enumerate() {
-                        match part {
-                            StringTemplatePart::Text(text) => {
-                                // Escape quotes and backslashes in text parts
-                                for ch in text.chars() {
-                                    match ch {
-                                        '"' => self.output.push_str("\\\""),
-                                        '\\' => self.output.push_str("\\\\"),
-                                        '\n' => self.output.push_str("\\n"),
-                                        '\r' => self.output.push_str("\\r"),
-                                        '\t' => self.output.push_str("\\t"),
-                                        _ => self.output.push(ch),
-                                    }
+                for (_i, part) in parts.iter().enumerate() {
+                    match part {
+                        StringTemplatePart::Text(text) => {
+                            // Escape quotes and backslashes in text parts
+                            for ch in text.chars() {
+                                match ch {
+                                    '"' => self.output.push_str("\\\""),
+                                    '\\' => self.output.push_str("\\\\"),
+                                    '\n' => self.output.push_str("\\n"),
+                                    '\r' => self.output.push_str("\\r"),
+                                    '\t' => self.output.push_str("\\t"),
+                                    _ => self.output.push(ch),
                                 }
                             }
-                            StringTemplatePart::Expr(expr) => {
-                                // For expressions in string templates, use {:?} for complex expressions
-                                // and {} for simple ones to avoid format string errors
-                                match expr.as_ref() {
-                                    Expr::Identifier(_) | Expr::Literal(_) => {
-                                        self.output.push_str("{}");
-                                    }
-                                    _ => {
-                                        // For complex expressions, use Debug formatting
-                                        self.output.push_str("{:?}");
-                                    }
+                        }
+                        StringTemplatePart::Expr(expr) => {
+                            // For expressions in string templates, use {:?} for complex expressions
+                            // and {} for simple ones to avoid format string errors
+                            match expr.as_ref() {
+                                Expr::Identifier(_) | Expr::Literal(_) => {
+                                    self.output.push_str("{}");
+                                }
+                                _ => {
+                                    // For complex expressions, use Debug formatting
+                                    self.output.push_str("{:?}");
                                 }
                             }
                         }
                     }
+                }
 
-                    self.output.push('"');
+                self.output.push('"');
 
-                    // Generate arguments for complex expressions
-                    let mut first = true;
-                    for part in parts {
-                        if let StringTemplatePart::Expr(expr) = part {
-                            if !first {
-                                self.output.push_str(", ");
-                            }
-                            first = false;
-                            self.generate_expr(expr)?;
+                // Generate arguments for complex expressions
+                let mut first = true;
+                for part in parts {
+                    if let StringTemplatePart::Expr(expr) = part {
+                        if !first {
+                            self.output.push_str(", ");
                         }
+                        first = false;
+                        self.generate_expr(expr)?;
                     }
+                }
 
-                    self.output.push(')');
+                self.output.push(')');
             }
             Expr::Lambda(_) => {
                 return Err(CompilerError::CodegenError(
@@ -806,6 +694,155 @@ impl CodeGenerator {
                 ));
             }
         }
+        Ok(())
+    }
+
+    fn generate_call_expr(&mut self, call: &CallExpr) -> Result<()> {
+        match call.exec_policy {
+            ExecPolicy::Normal => self.generate_normal_call(call),
+            ExecPolicy::Async => self.generate_async_call(call),
+            ExecPolicy::Par => self.generate_parallel_call(call),
+            ExecPolicy::TaskAsync => self.generate_task_call(call, ConcurrencyMode::Async),
+            ExecPolicy::TaskPar => self.generate_task_call(call, ConcurrencyMode::Parallel),
+            ExecPolicy::FireAsync => self.generate_fire_call(call, ConcurrencyMode::Async),
+            ExecPolicy::FirePar => self.generate_fire_call(call, ConcurrencyMode::Parallel),
+        }
+    }
+
+    fn generate_normal_call(&mut self, call: &CallExpr) -> Result<()> {
+        if let Expr::Identifier(name) = call.callee.as_ref() {
+            if name == "print" {
+                if call.args.is_empty() {
+                    self.output.push_str("println!()");
+                } else {
+                    self.output.push_str("println!(\"");
+                    for arg in call.args.iter() {
+                        match arg {
+                            Expr::ArrayLiteral(_) | Expr::ObjectLiteral(_) => {
+                                self.output.push_str("{:?}");
+                            }
+                            _ => {
+                                self.output.push_str("{}");
+                            }
+                        }
+                    }
+                    self.output.push_str("\", ");
+                    for (i, arg) in call.args.iter().enumerate() {
+                        if i > 0 {
+                            self.output.push_str(", ");
+                        }
+                        self.generate_expr(arg)?;
+                    }
+                    self.output.push(')');
+                }
+                return Ok(());
+            }
+        }
+
+        if let Expr::Identifier(name) = call.callee.as_ref() {
+            if name == "len" && call.args.len() == 1 {
+                self.generate_expr(&call.args[0])?;
+                self.output.push_str(".len()");
+                return Ok(());
+            }
+        }
+
+        self.generate_expr(&call.callee)?;
+        self.output.push('(');
+        for (i, arg) in call.args.iter().enumerate() {
+            if i > 0 {
+                self.output.push_str(", ");
+            }
+            self.generate_expr(arg)?;
+        }
+        self.output.push(')');
+        Ok(())
+    }
+
+    fn generate_async_call(&mut self, call: &CallExpr) -> Result<()> {
+        self.output.push_str("liva_rt::spawn_async(async move { ");
+        self.generate_expr(&call.callee)?;
+        self.output.push('(');
+        for (i, arg) in call.args.iter().enumerate() {
+            if i > 0 {
+                self.output.push_str(", ");
+            }
+            self.generate_expr(arg)?;
+        }
+        self.output.push_str(") }).await.unwrap()");
+        Ok(())
+    }
+
+    fn generate_parallel_call(&mut self, call: &CallExpr) -> Result<()> {
+        self.output.push_str("liva_rt::spawn_parallel(move || ");
+        self.generate_expr(&call.callee)?;
+        self.output.push('(');
+        for (i, arg) in call.args.iter().enumerate() {
+            if i > 0 {
+                self.output.push_str(", ");
+            }
+            self.generate_expr(arg)?;
+        }
+        self.output.push(')');
+        self.output.push_str(").join().unwrap()");
+        Ok(())
+    }
+
+    fn generate_task_call(&mut self, call: &CallExpr, mode: ConcurrencyMode) -> Result<()> {
+        let callee_name = match call.callee.as_ref() {
+            Expr::Identifier(name) => name.clone(),
+            _ => {
+                return Err(CompilerError::CodegenError(
+                    "Task calls currently only support simple function names".into(),
+                ));
+            }
+        };
+
+        match mode {
+            ConcurrencyMode::Async => self.output.push_str("liva_rt::spawn_async("),
+            ConcurrencyMode::Parallel => self.output.push_str("liva_rt::spawn_parallel(|| "),
+        }
+        write!(self.output, "{}(", callee_name).unwrap();
+        for (i, arg) in call.args.iter().enumerate() {
+            if i > 0 {
+                self.output.push_str(", ");
+            }
+            self.generate_expr(arg)?;
+        }
+        self.output.push(')');
+        if matches!(mode, ConcurrencyMode::Parallel) {
+            self.output.push(')');
+        }
+        self.output.push(')');
+        Ok(())
+    }
+
+    fn generate_fire_call(&mut self, call: &CallExpr, mode: ConcurrencyMode) -> Result<()> {
+        let callee_name = match call.callee.as_ref() {
+            Expr::Identifier(name) => name.clone(),
+            _ => {
+                return Err(CompilerError::CodegenError(
+                    "Fire calls currently only support simple function names".into(),
+                ));
+            }
+        };
+
+        match mode {
+            ConcurrencyMode::Async => self.output.push_str("liva_rt::fire_async("),
+            ConcurrencyMode::Parallel => self.output.push_str("liva_rt::fire_parallel(|| "),
+        }
+        write!(self.output, "{}(", callee_name).unwrap();
+        for (i, arg) in call.args.iter().enumerate() {
+            if i > 0 {
+                self.output.push_str(", ");
+            }
+            self.generate_expr(arg)?;
+        }
+        self.output.push(')');
+        if matches!(mode, ConcurrencyMode::Parallel) {
+            self.output.push(')');
+        }
+        self.output.push(')');
         Ok(())
     }
 
@@ -859,7 +896,10 @@ impl CodeGenerator {
     }
 
     fn block_has_return(&self, block: &BlockStmt) -> bool {
-        block.stmts.iter().any(|stmt| matches!(stmt, Stmt::Return(_)))
+        block
+            .stmts
+            .iter()
+            .any(|stmt| matches!(stmt, Stmt::Return(_)))
     }
 
     fn expr_is_stringy(&self, expr: &Expr) -> bool {
@@ -1302,12 +1342,7 @@ impl<'a> IrCodeGenerator<'a> {
         match stmt {
             ir::Stmt::Let { name, ty, value } => {
                 self.write_indent();
-                write!(
-                    self.output,
-                    "let mut {}",
-                    self.sanitize_name(name)
-                )
-                .unwrap();
+                write!(self.output, "let mut {}", self.sanitize_name(name)).unwrap();
                 if let Some(ty) = ty {
                     write!(self.output, ": {}", self.type_to_rust(ty)).unwrap();
                     self.record_from_type(name, ty);
@@ -1614,14 +1649,8 @@ impl<'a> IrCodeGenerator<'a> {
             ir::Expr::TaskCall { mode, callee, args } => {
                 match mode {
                     ir::ConcurrencyMode::Async => {
-                        self.output
-                            .push_str("tokio::spawn(async move { ");
-                        write!(
-                            self.output,
-                            "{}(",
-                            self.sanitize_name(callee)
-                        )
-                        .unwrap();
+                        self.output.push_str("tokio::spawn(async move { ");
+                        write!(self.output, "{}(", self.sanitize_name(callee)).unwrap();
                         for (idx, arg) in args.iter().enumerate() {
                             if idx > 0 {
                                 self.output.push_str(", ");
@@ -1634,12 +1663,7 @@ impl<'a> IrCodeGenerator<'a> {
                     ir::ConcurrencyMode::Parallel => {
                         self.output
                             .push_str("tokio::task::spawn_blocking(move || { ");
-                        write!(
-                            self.output,
-                            "{}(",
-                            self.sanitize_name(callee)
-                        )
-                        .unwrap();
+                        write!(self.output, "{}(", self.sanitize_name(callee)).unwrap();
                         for (idx, arg) in args.iter().enumerate() {
                             if idx > 0 {
                                 self.output.push_str(", ");
@@ -1655,14 +1679,8 @@ impl<'a> IrCodeGenerator<'a> {
             ir::Expr::FireCall { mode, callee, args } => {
                 match mode {
                     ir::ConcurrencyMode::Async => {
-                        self.output
-                            .push_str("tokio::spawn(async move { ");
-                        write!(
-                            self.output,
-                            "{}(",
-                            self.sanitize_name(callee)
-                        )
-                        .unwrap();
+                        self.output.push_str("tokio::spawn(async move { ");
+                        write!(self.output, "{}(", self.sanitize_name(callee)).unwrap();
                         for (idx, arg) in args.iter().enumerate() {
                             if idx > 0 {
                                 self.output.push_str(", ");
@@ -1675,12 +1693,7 @@ impl<'a> IrCodeGenerator<'a> {
                     ir::ConcurrencyMode::Parallel => {
                         self.output
                             .push_str("tokio::task::spawn_blocking(move || { ");
-                        write!(
-                            self.output,
-                            "{}(",
-                            self.sanitize_name(callee)
-                        )
-                        .unwrap();
+                        write!(self.output, "{}(", self.sanitize_name(callee)).unwrap();
                         for (idx, arg) in args.iter().enumerate() {
                             if idx > 0 {
                                 self.output.push_str(", ");
@@ -2055,9 +2068,7 @@ fn expr_has_unsupported(expr: &ir::Expr) -> bool {
         ir::Expr::Index { object, index } => {
             expr_has_unsupported(object) || expr_has_unsupported(index)
         }
-        ir::Expr::Range { start, end } => {
-            expr_has_unsupported(start) || expr_has_unsupported(end)
-        }
+        ir::Expr::Range { start, end } => expr_has_unsupported(start) || expr_has_unsupported(end),
         ir::Expr::ObjectLiteral(fields) => {
             fields.iter().any(|(_, value)| expr_has_unsupported(value))
         }
@@ -2259,12 +2270,8 @@ fn expr_has_async_concurrency(expr: &ir::Expr) -> bool {
             expr_has_async_concurrency(object.as_ref())
                 || expr_has_async_concurrency(index.as_ref())
         }
-        &ir::Expr::Range {
-            ref start,
-            ref end,
-        } => {
-            expr_has_async_concurrency(start.as_ref())
-                || expr_has_async_concurrency(end.as_ref())
+        &ir::Expr::Range { ref start, ref end } => {
+            expr_has_async_concurrency(start.as_ref()) || expr_has_async_concurrency(end.as_ref())
         }
         &ir::Expr::ObjectLiteral(ref fields) => fields
             .iter()
@@ -2329,10 +2336,7 @@ fn expr_has_parallel_concurrency(expr: &ir::Expr) -> bool {
             expr_has_parallel_concurrency(object.as_ref())
                 || expr_has_parallel_concurrency(index.as_ref())
         }
-        &ir::Expr::Range {
-            ref start,
-            ref end,
-        } => {
+        &ir::Expr::Range { ref start, ref end } => {
             expr_has_parallel_concurrency(start.as_ref())
                 || expr_has_parallel_concurrency(end.as_ref())
         }

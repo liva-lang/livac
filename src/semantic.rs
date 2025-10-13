@@ -315,14 +315,27 @@ impl SemanticAnalyzer {
 
     fn expr_contains_async(&self, expr: &Expr) -> bool {
         match expr {
-            Expr::AsyncCall { .. } | Expr::TaskCall { .. } | Expr::FireCall { .. } => true,
-            Expr::Call { callee, .. } => {
-                // Check if calling a known async function
-                if let Expr::Identifier(name) = &**callee {
-                    self.async_functions.contains(name)
-                } else {
-                    false
+            Expr::Call(call) => {
+                match call.exec_policy {
+                    ExecPolicy::Async
+                    | ExecPolicy::TaskAsync
+                    | ExecPolicy::TaskPar
+                    | ExecPolicy::FireAsync
+                    | ExecPolicy::FirePar => return true,
+                    ExecPolicy::Par | ExecPolicy::Normal => {}
                 }
+
+                if let Expr::Identifier(name) = call.callee.as_ref() {
+                    if self.async_functions.contains(name) {
+                        return true;
+                    }
+                }
+
+                if self.expr_contains_async(&call.callee) {
+                    return true;
+                }
+
+                call.args.iter().any(|arg| self.expr_contains_async(arg))
             }
             Expr::Lambda(lambda) => match &lambda.body {
                 LambdaBody::Expr(expr) => self.expr_contains_async(expr),
@@ -620,31 +633,7 @@ impl SemanticAnalyzer {
                 self.validate_expr(then_expr)?;
                 self.validate_expr(else_expr)
             }
-            Expr::Call { callee, args } => self.validate_call(callee, args),
-            Expr::AsyncCall { callee, args } => self.validate_call(callee, args),
-            Expr::ParallelCall { callee, args } => self.validate_call(callee, args),
-            Expr::TaskCall {
-                mode: _,
-                callee,
-                args,
-            } => {
-                self.validate_known_function(callee, args.len())?;
-                for arg in args {
-                    self.validate_expr(arg)?;
-                }
-                Ok(())
-            }
-            Expr::FireCall {
-                mode: _,
-                callee,
-                args,
-            } => {
-                self.validate_known_function(callee, args.len())?;
-                for arg in args {
-                    self.validate_expr(arg)?;
-                }
-                Ok(())
-            }
+            Expr::Call(call) => self.validate_call_expr(call),
             Expr::Member { object, .. } => self.validate_expr(object),
             Expr::Index { object, index } => {
                 self.validate_expr(object)?;
@@ -672,6 +661,10 @@ impl SemanticAnalyzer {
             }
             Expr::Lambda(lambda) => self.validate_lambda(lambda),
         }
+    }
+
+    fn validate_call_expr(&mut self, call: &CallExpr) -> Result<()> {
+        self.validate_call(&call.callee, &call.args)
     }
 
     fn validate_call(&mut self, callee: &Expr, args: &[Expr]) -> Result<()> {
@@ -854,10 +847,9 @@ mod tests {
     }
 
     fn async_expr() -> Expr {
-        Expr::AsyncCall {
-            callee: Box::new(Expr::Identifier("fetch".into())),
-            args: vec![],
-        }
+        let mut call = CallExpr::new(Expr::Identifier("fetch".into()), vec![]);
+        call.exec_policy = ExecPolicy::Async;
+        Expr::Call(call)
     }
 
     #[test]
@@ -865,16 +857,14 @@ mod tests {
         let mut analyzer = SemanticAnalyzer::new();
         analyzer.async_functions.insert("do_async".into());
 
-        assert!(analyzer.expr_contains_async(&Expr::TaskCall {
-            mode: ConcurrencyMode::Async,
-            callee: "worker".into(),
-            args: vec![],
-        }));
-        assert!(analyzer.expr_contains_async(&Expr::FireCall {
-            mode: ConcurrencyMode::Parallel,
-            callee: "fire".into(),
-            args: vec![],
-        }));
+        let mut task_async = CallExpr::new(Expr::Identifier("worker".into()), vec![]);
+        task_async.exec_policy = ExecPolicy::TaskAsync;
+        assert!(analyzer.expr_contains_async(&Expr::Call(task_async)));
+
+        let mut fire_par = CallExpr::new(Expr::Identifier("fire".into()), vec![]);
+        fire_par.exec_policy = ExecPolicy::FirePar;
+        assert!(analyzer.expr_contains_async(&Expr::Call(fire_par)));
+
         assert!(analyzer.expr_contains_async(&Expr::Binary {
             op: BinOp::Add,
             left: Box::new(async_expr()),
@@ -903,14 +893,12 @@ mod tests {
         assert!(analyzer.expr_contains_async(&Expr::StringTemplate {
             parts: vec![StringTemplatePart::Expr(Box::new(async_expr()))],
         }));
-        assert!(analyzer.expr_contains_async(&Expr::Call {
-            callee: Box::new(Expr::Identifier("do_async".into())),
-            args: vec![],
-        }));
-        assert!(!analyzer.expr_contains_async(&Expr::Call {
-            callee: Box::new(Expr::Identifier("sync".into())),
-            args: vec![],
-        }));
+
+        let call_async = CallExpr::new(Expr::Identifier("do_async".into()), vec![]);
+        assert!(analyzer.expr_contains_async(&Expr::Call(call_async)));
+
+        let call_sync = CallExpr::new(Expr::Identifier("sync".into()), vec![]);
+        assert!(!analyzer.expr_contains_async(&Expr::Call(call_sync)));
     }
 
     #[test]

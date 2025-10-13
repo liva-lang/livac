@@ -119,28 +119,26 @@ fn check_stmt_concurrency(stmt: &Stmt, ctx: &mut DesugarContext) {
 
 fn check_expr_concurrency(expr: &Expr, ctx: &mut DesugarContext) {
     match expr {
-        Expr::AsyncCall { .. }
-        | Expr::TaskCall {
-            mode: ConcurrencyMode::Async,
-            ..
+        Expr::Call(call) => {
+            match call.exec_policy {
+                ExecPolicy::Async | ExecPolicy::TaskAsync | ExecPolicy::FireAsync => {
+                    ctx.has_async = true;
+                }
+                ExecPolicy::Par | ExecPolicy::TaskPar | ExecPolicy::FirePar => {
+                    ctx.has_parallel = true;
+                }
+                ExecPolicy::Normal => {}
+            }
+
+            check_expr_concurrency(&call.callee, ctx);
+            for arg in &call.args {
+                check_expr_concurrency(arg, ctx);
+            }
         }
-        | Expr::FireCall {
-            mode: ConcurrencyMode::Async,
-            ..
-        } => {
-            ctx.has_async = true;
-        }
-        Expr::ParallelCall { .. }
-        | Expr::TaskCall {
-            mode: ConcurrencyMode::Parallel,
-            ..
-        }
-        | Expr::FireCall {
-            mode: ConcurrencyMode::Parallel,
-            ..
-        } => {
-            ctx.has_parallel = true;
-        }
+        Expr::Lambda(lambda) => match &lambda.body {
+            LambdaBody::Expr(expr) => check_expr_concurrency(expr, ctx),
+            LambdaBody::Block(block) => check_block_concurrency(block, ctx),
+        },
         Expr::Binary { left, right, .. } => {
             check_expr_concurrency(left, ctx);
             check_expr_concurrency(right, ctx);
@@ -155,15 +153,6 @@ fn check_expr_concurrency(expr: &Expr, ctx: &mut DesugarContext) {
             check_expr_concurrency(then_expr, ctx);
             check_expr_concurrency(else_expr, ctx);
         }
-        Expr::Call { args, .. } => {
-            for arg in args {
-                check_expr_concurrency(arg, ctx);
-            }
-        }
-        Expr::Lambda(lambda) => match &lambda.body {
-            LambdaBody::Expr(expr) => check_expr_concurrency(expr, ctx),
-            LambdaBody::Block(block) => check_block_concurrency(block, ctx),
-        },
         Expr::Member { object, .. } => check_expr_concurrency(object, ctx),
         Expr::Index { object, index } => {
             check_expr_concurrency(object, ctx);

@@ -171,34 +171,7 @@ fn lower_expr(expr: &ast::Expr) -> ir::Expr {
     match expr {
         ast::Expr::Literal(lit) => ir::Expr::Literal(lower_literal(lit)),
         ast::Expr::Identifier(name) => ir::Expr::Identifier(name.clone()),
-        ast::Expr::Call { callee, args } => ir::Expr::Call {
-            callee: Box::new(lower_expr(callee)),
-            args: args.iter().map(lower_expr).collect(),
-        },
-        ast::Expr::AsyncCall { callee, args } => ir::Expr::AsyncCall {
-            callee: Box::new(lower_expr(callee)),
-            args: args.iter().map(lower_expr).collect(),
-        },
-        ast::Expr::ParallelCall { callee, args } => ir::Expr::ParallelCall {
-            callee: Box::new(lower_expr(callee)),
-            args: args.iter().map(lower_expr).collect(),
-        },
-        ast::Expr::TaskCall { mode, callee, args } => ir::Expr::TaskCall {
-            mode: match mode {
-                ast::ConcurrencyMode::Async => ir::ConcurrencyMode::Async,
-                ast::ConcurrencyMode::Parallel => ir::ConcurrencyMode::Parallel,
-            },
-            callee: callee.clone(),
-            args: args.iter().map(lower_expr).collect(),
-        },
-        ast::Expr::FireCall { mode, callee, args } => ir::Expr::FireCall {
-            mode: match mode {
-                ast::ConcurrencyMode::Async => ir::ConcurrencyMode::Async,
-                ast::ConcurrencyMode::Parallel => ir::ConcurrencyMode::Parallel,
-            },
-            callee: callee.clone(),
-            args: args.iter().map(lower_expr).collect(),
-        },
+        ast::Expr::Call(call) => lower_call_expr(call),
         ast::Expr::Unary { op, operand } => match op {
             ast::UnOp::Await => ir::Expr::Await(Box::new(lower_expr(operand))),
             ast::UnOp::Neg => ir::Expr::Unary {
@@ -277,6 +250,76 @@ fn lower_expr(expr: &ast::Expr) -> ir::Expr {
     }
 }
 
+fn lower_call_expr(call: &ast::CallExpr) -> ir::Expr {
+    let lowered_args: Vec<ir::Expr> = call.args.iter().map(lower_expr).collect();
+
+    match call.exec_policy {
+        ast::ExecPolicy::Normal => ir::Expr::Call {
+            callee: Box::new(lower_expr(&call.callee)),
+            args: lowered_args,
+        },
+        ast::ExecPolicy::Async => ir::Expr::AsyncCall {
+            callee: Box::new(lower_expr(&call.callee)),
+            args: lowered_args,
+        },
+        ast::ExecPolicy::Par => ir::Expr::ParallelCall {
+            callee: Box::new(lower_expr(&call.callee)),
+            args: lowered_args,
+        },
+        ast::ExecPolicy::TaskAsync => {
+            lower_task_like_call(call, ir::ConcurrencyMode::Async, lowered_args)
+        }
+        ast::ExecPolicy::TaskPar => {
+            lower_task_like_call(call, ir::ConcurrencyMode::Parallel, lowered_args)
+        }
+        ast::ExecPolicy::FireAsync => {
+            lower_fire_like_call(call, ir::ConcurrencyMode::Async, lowered_args)
+        }
+        ast::ExecPolicy::FirePar => {
+            lower_fire_like_call(call, ir::ConcurrencyMode::Parallel, lowered_args)
+        }
+    }
+}
+
+fn lower_task_like_call(
+    call: &ast::CallExpr,
+    mode: ir::ConcurrencyMode,
+    args: Vec<ir::Expr>,
+) -> ir::Expr {
+    if let Some(name) = extract_callee_name(&call.callee) {
+        ir::Expr::TaskCall {
+            mode,
+            callee: name,
+            args,
+        }
+    } else {
+        ir::Expr::Unsupported(ast::Expr::Call(call.clone()))
+    }
+}
+
+fn lower_fire_like_call(
+    call: &ast::CallExpr,
+    mode: ir::ConcurrencyMode,
+    args: Vec<ir::Expr>,
+) -> ir::Expr {
+    if let Some(name) = extract_callee_name(&call.callee) {
+        ir::Expr::FireCall {
+            mode,
+            callee: name,
+            args,
+        }
+    } else {
+        ir::Expr::Unsupported(ast::Expr::Call(call.clone()))
+    }
+}
+
+fn extract_callee_name(expr: &ast::Expr) -> Option<String> {
+    match expr {
+        ast::Expr::Identifier(name) => Some(name.clone()),
+        _ => None,
+    }
+}
+
 fn infer_param_type(func: &ast::FunctionDecl, name: &str) -> Option<ir::Type> {
     if let Some(body) = &func.body {
         if block_uses_param_as_array(body, name) {
@@ -331,10 +374,11 @@ fn stmt_uses_param_as_array(stmt: &ast::Stmt, name: &str) -> bool {
         }
         ast::Stmt::Switch(switch_stmt) => {
             expr_uses_param_as_array(&switch_stmt.discriminant, name)
-                || switch_stmt
-                    .cases
-                    .iter()
-                    .any(|case| case.body.iter().any(|stmt| stmt_uses_param_as_array(stmt, name)))
+                || switch_stmt.cases.iter().any(|case| {
+                    case.body
+                        .iter()
+                        .any(|stmt| stmt_uses_param_as_array(stmt, name))
+                })
                 || switch_stmt
                     .default
                     .as_ref()
@@ -350,14 +394,20 @@ fn expr_uses_param_as_array(expr: &ast::Expr, name: &str) -> bool {
         ast::Expr::Identifier(_) => false,
         ast::Expr::Index { object, .. } => expr_references_identifier(object, name),
         ast::Expr::Member { object, .. } => expr_uses_param_as_array(object, name),
-        ast::Expr::Call { callee, args } => {
-            if matches!(callee.as_ref(), ast::Expr::Identifier(id) if id == "len")
-                && args.iter().any(|arg| expr_references_identifier(arg, name))
+        ast::Expr::Call(call) => {
+            if matches!(call.callee.as_ref(), ast::Expr::Identifier(id) if id == "len")
+                && call
+                    .args
+                    .iter()
+                    .any(|arg| expr_references_identifier(arg, name))
             {
                 return true;
             }
-            args.iter()
-                .any(|arg| expr_uses_param_as_array(arg, name))
+            expr_uses_param_as_array(&call.callee, name)
+                || call
+                    .args
+                    .iter()
+                    .any(|arg| expr_uses_param_as_array(arg, name))
         }
         ast::Expr::Binary { left, right, .. } => {
             expr_uses_param_as_array(left, name) || expr_uses_param_as_array(right, name)
@@ -375,20 +425,13 @@ fn expr_uses_param_as_array(expr: &ast::Expr, name: &str) -> bool {
             ast::StringTemplatePart::Expr(expr) => expr_uses_param_as_array(expr, name),
             _ => false,
         }),
-        ast::Expr::ArrayLiteral(items) => {
-            items.iter().any(|item| expr_uses_param_as_array(item, name))
-        }
+        ast::Expr::ArrayLiteral(items) => items
+            .iter()
+            .any(|item| expr_uses_param_as_array(item, name)),
         ast::Expr::ObjectLiteral(fields) => fields
             .iter()
             .any(|(_, value)| expr_uses_param_as_array(value, name)),
         ast::Expr::Unary { operand, .. } => expr_uses_param_as_array(operand, name),
-        ast::Expr::AsyncCall { callee, args } | ast::Expr::ParallelCall { callee, args } => {
-            expr_uses_param_as_array(callee, name)
-                || args.iter().any(|arg| expr_uses_param_as_array(arg, name))
-        }
-        ast::Expr::TaskCall { args, .. } | ast::Expr::FireCall { args, .. } => args
-            .iter()
-            .any(|arg| expr_uses_param_as_array(arg, name)),
         _ => false,
     }
 }
@@ -409,20 +452,13 @@ fn expr_references_identifier(expr: &ast::Expr, name: &str) -> bool {
                 || expr_references_identifier(then_expr, name)
                 || expr_references_identifier(else_expr, name)
         }
-        ast::Expr::Call { callee, args } => {
-            expr_references_identifier(callee, name)
-                || args
-                    .iter()
-                    .any(|arg| expr_references_identifier(arg, name))
-        }
         ast::Expr::Member { object, .. } => expr_references_identifier(object, name),
         ast::Expr::Index { object, index } => {
-            expr_references_identifier(object, name)
-                || expr_references_identifier(index, name)
+            expr_references_identifier(object, name) || expr_references_identifier(index, name)
         }
-        ast::Expr::ArrayLiteral(items) => {
-            items.iter().any(|item| expr_references_identifier(item, name))
-        }
+        ast::Expr::ArrayLiteral(items) => items
+            .iter()
+            .any(|item| expr_references_identifier(item, name)),
         ast::Expr::ObjectLiteral(fields) => fields
             .iter()
             .any(|(_, value)| expr_references_identifier(value, name)),
@@ -430,15 +466,13 @@ fn expr_references_identifier(expr: &ast::Expr, name: &str) -> bool {
             ast::StringTemplatePart::Expr(expr) => expr_references_identifier(expr, name),
             _ => false,
         }),
-        ast::Expr::AsyncCall { callee, args } | ast::Expr::ParallelCall { callee, args } => {
-            expr_references_identifier(callee, name)
-                || args
+        ast::Expr::Call(call) => {
+            expr_references_identifier(&call.callee, name)
+                || call
+                    .args
                     .iter()
                     .any(|arg| expr_references_identifier(arg, name))
         }
-        ast::Expr::TaskCall { args, .. } | ast::Expr::FireCall { args, .. } => args
-            .iter()
-            .any(|arg| expr_references_identifier(arg, name)),
         _ => false,
     }
 }
@@ -448,10 +482,7 @@ fn infer_expr_return_type(expr: &ast::Expr) -> ir::Type {
     infer_expr_return_type_with_env(expr, &vars)
 }
 
-fn infer_expr_return_type_with_env(
-    expr: &ast::Expr,
-    vars: &HashMap<String, ir::Type>,
-) -> ir::Type {
+fn infer_expr_return_type_with_env(expr: &ast::Expr, vars: &HashMap<String, ir::Type>) -> ir::Type {
     match expr {
         ast::Expr::Literal(lit) => match lit {
             ast::Literal::Int(_) => ir::Type::Number,
@@ -486,7 +517,9 @@ fn infer_expr_return_type_with_env(
             ast::BinOp::Range => ir::Type::Array(Box::new(ir::Type::Number)),
         },
         ast::Expr::Ternary {
-            then_expr, else_expr, ..
+            then_expr,
+            else_expr,
+            ..
         } => {
             let then_ty = infer_expr_return_type_with_env(then_expr, vars);
             let else_ty = infer_expr_return_type_with_env(else_expr, vars);
