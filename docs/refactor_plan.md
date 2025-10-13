@@ -8,7 +8,7 @@ actionable diagnostics.
 
 ## 1. Front-End Refinement
 
-- [ ] **Lexer**: keep as-is for v0.6, but add token span helpers for better diagnostics.
+- [x] **Lexer**: keep as-is for v0.6, but add token span helpers for better diagnostics.
 - [ ] **Parser**:
   - [ ] Modularise production parsing (declarations vs. statements vs. expressions).
   - [ ] Support `const` declarations, assignment statements, and chained/member assignments.

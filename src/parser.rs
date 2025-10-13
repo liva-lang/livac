@@ -1,19 +1,23 @@
 use crate::ast::*;
 use crate::error::{CompilerError, Result};
 use crate::lexer::{tokenize, Token, TokenWithSpan};
+use crate::span::SourceMap;
 
 pub struct Parser {
     tokens: Vec<TokenWithSpan>,
     current: usize,
-    source: String,
+    _source: String,
+    source_map: SourceMap,
 }
 
 impl Parser {
     fn new(tokens: Vec<TokenWithSpan>, source: String) -> Self {
+        let source_map = SourceMap::new(&source);
         Self {
             tokens,
             current: 0,
-            source,
+            _source: source,
+            source_map,
         }
     }
 
@@ -157,20 +161,7 @@ impl Parser {
             return (1, 1);
         }
 
-        let span = &self.tokens[token_index].span;
-        let mut line = 1;
-        let mut col = 1;
-
-        for (_i, ch) in self.source[..span.start].chars().enumerate() {
-            if ch == '\n' {
-                line += 1;
-                col = 1;
-            } else {
-                col += 1;
-            }
-        }
-
-        (line, col)
+        self.tokens[token_index].line_col(&self.source_map)
     }
 
     pub fn parse_program(&mut self) -> Result<Program> {

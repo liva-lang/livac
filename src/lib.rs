@@ -40,6 +40,7 @@ pub mod lexer;
 pub mod lowering;
 pub mod parser;
 pub mod semantic;
+pub mod span;
 
 pub use error::{CompilerError, Result};
 

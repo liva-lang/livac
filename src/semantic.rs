@@ -935,13 +935,13 @@ mod tests {
                         stmts: vec![Stmt::Expr(ExprStmt { expr: async_expr() })],
                     },
                 }),
-                Stmt::For(ForStmt {
-                    var: "item".into(),
-                    iterable: async_expr(),
-                    body: BlockStmt {
+                Stmt::For(ForStmt::new(
+                    "item".into(),
+                    async_expr(),
+                    BlockStmt {
                         stmts: vec![Stmt::Expr(ExprStmt { expr: async_expr() })],
                     },
-                }),
+                )),
                 Stmt::Switch(SwitchStmt {
                     discriminant: async_expr(),
                     cases: vec![CaseClause {

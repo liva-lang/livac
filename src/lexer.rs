@@ -1,4 +1,5 @@
 use crate::error::{CompilerError, Result};
+use crate::span::{SourceMap, Span};
 use logos::Logos;
 
 #[derive(Logos, Debug, Clone, PartialEq)]
@@ -225,33 +226,52 @@ pub enum Token {
 #[derive(Debug, Clone)]
 pub struct TokenWithSpan {
     pub token: Token,
-    pub span: std::ops::Range<usize>,
+    pub span: Span,
+}
+
+#[allow(dead_code)]
+impl TokenWithSpan {
+    pub fn new(token: Token, span: Span) -> Self {
+        Self { token, span }
+    }
+
+    pub fn start(&self) -> usize {
+        self.span.start
+    }
+
+    pub fn end(&self) -> usize {
+        self.span.end
+    }
+
+    pub fn line_col(&self, map: &SourceMap) -> (usize, usize) {
+        self.span.start_position(map)
+    }
+
+    pub fn snippet<'a>(&self, source: &'a str) -> &'a str {
+        self.span.snippet(source)
+    }
 }
 
 pub fn tokenize(source: &str) -> Result<Vec<TokenWithSpan>> {
     let mut lexer = Token::lexer(source);
     let mut tokens = Vec::new();
+    let source_map = SourceMap::new(source);
 
     while let Some(result) = lexer.next() {
         match result {
             Ok(token) => {
-                tokens.push(TokenWithSpan {
-                    token,
-                    span: lexer.span(),
-                });
+                let span = Span::from(lexer.span());
+                tokens.push(TokenWithSpan::new(token, span));
             }
             Err(_) => {
-                let span = lexer.span();
-                let line = source[..span.start].lines().count();
-                let col = source[..span.start]
-                    .lines()
-                    .last()
-                    .map(|l| l.len())
-                    .unwrap_or(0);
+                let span = Span::from(lexer.span());
+                let (line, col) = span.start_position(&source_map);
+                let snippet = span.snippet(source);
+                let display = if snippet.is_empty() { "<EOF>" } else { snippet };
 
                 return Err(CompilerError::LexerError(format!(
                     "Invalid token at line {}, column {}: '{}'",
-                    line, col, &source[span]
+                    line, col, display
                 )));
             }
         }

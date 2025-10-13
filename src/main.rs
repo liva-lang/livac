@@ -12,6 +12,7 @@ mod lexer;
 mod lowering;
 mod parser;
 mod semantic;
+mod span;
 
 use error::CompilerError;
 
