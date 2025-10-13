@@ -212,8 +212,9 @@ impl Parser {
             None
         };
 
-        if self.match_token(&Token::Arrow) {
-            // One-liner function
+        if self.check(&Token::Arrow) || self.check(&Token::Assign) {
+            self.advance();
+            // One-liner function (=> expr or = expr)
             let body = self.parse_expression()?;
             return Ok(TopLevel::Function(FunctionDecl {
                 name,
@@ -289,9 +290,15 @@ impl Parser {
                     None
                 };
 
-                if self.match_token(&Token::Arrow) {
-                    // One-liner method
-                    let body = self.parse_expression()?;
+                let expr_body = if self.check(&Token::Arrow) || self.check(&Token::Assign) {
+                    self.advance();
+                    Some(self.parse_expression()?)
+                } else {
+                    None
+                };
+
+                if let Some(body) = expr_body {
+                    // One-liner method (=> expr or = expr)
                     members.push(Member::Method(MethodDecl {
                         name,
                         visibility,

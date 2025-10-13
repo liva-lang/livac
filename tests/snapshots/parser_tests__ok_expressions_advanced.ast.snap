@@ -179,20 +179,16 @@ expression: json
                 "name": "first",
                 "type_ref": null,
                 "init": {
-                  "Identifier": "numbers"
-                }
-              }
-            },
-            {
-              "Expr": {
-                "expr": {
-                  "ArrayLiteral": [
-                    {
+                  "Index": {
+                    "object": {
+                      "Identifier": "numbers"
+                    },
+                    "index": {
                       "Literal": {
                         "Int": 0
                       }
                     }
-                  ]
+                  }
                 }
               }
             },
@@ -201,15 +197,11 @@ expression: json
                 "name": "last",
                 "type_ref": null,
                 "init": {
-                  "Identifier": "numbers"
-                }
-              }
-            },
-            {
-              "Expr": {
-                "expr": {
-                  "ArrayLiteral": [
-                    {
+                  "Index": {
+                    "object": {
+                      "Identifier": "numbers"
+                    },
+                    "index": {
                       "Binary": {
                         "op": "Sub",
                         "left": {
@@ -231,7 +223,7 @@ expression: json
                         }
                       }
                     }
-                  ]
+                  }
                 }
               }
             },
