@@ -273,6 +273,7 @@ fn lower_expr(expr: &ast::Expr) -> ir::Expr {
                 .map(|(name, value)| (name.clone(), lower_expr(value)))
                 .collect(),
         ),
+        ast::Expr::Lambda(lambda) => ir::Expr::Unsupported(ast::Expr::Lambda(lambda.clone())),
     }
 }
 

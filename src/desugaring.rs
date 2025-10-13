@@ -160,6 +160,10 @@ fn check_expr_concurrency(expr: &Expr, ctx: &mut DesugarContext) {
                 check_expr_concurrency(arg, ctx);
             }
         }
+        Expr::Lambda(lambda) => match &lambda.body {
+            LambdaBody::Expr(expr) => check_expr_concurrency(expr, ctx),
+            LambdaBody::Block(block) => check_block_concurrency(block, ctx),
+        },
         Expr::Member { object, .. } => check_expr_concurrency(object, ctx),
         Expr::Index { object, index } => {
             check_expr_concurrency(object, ctx);

@@ -203,7 +203,94 @@ pub struct WhileStmt {
 pub struct ForStmt {
     pub var: String,
     pub iterable: Expr,
+    #[serde(default)]
+    pub policy: DataParallelPolicy,
+    #[serde(default)]
+    pub options: ForPolicyOptions,
     pub body: BlockStmt,
+}
+
+impl ForStmt {
+    pub fn new(var: String, iterable: Expr, body: BlockStmt) -> Self {
+        Self {
+            var,
+            iterable,
+            policy: DataParallelPolicy::Seq,
+            options: ForPolicyOptions::default(),
+            body,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DataParallelPolicy {
+    Seq,
+    Par,
+    Vec,
+    Boost,
+}
+
+impl Default for DataParallelPolicy {
+    fn default() -> Self {
+        DataParallelPolicy::Seq
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, Default)]
+pub struct ForPolicyOptions {
+    #[serde(default)]
+    pub ordered: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chunk: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub threads: Option<ThreadOption>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "simdWidth")]
+    pub simd_width: Option<SimdWidthOption>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prefetch: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reduction: Option<ReductionOption>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schedule: Option<ScheduleOption>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detect: Option<DetectOption>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(untagged)]
+pub enum ThreadOption {
+    #[serde(rename = "auto")]
+    Auto,
+    Count(i64),
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(untagged)]
+pub enum SimdWidthOption {
+    #[serde(rename = "auto")]
+    Auto,
+    Width(i64),
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ReductionOption {
+    Safe,
+    Fast,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ScheduleOption {
+    Static,
+    Dynamic,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum DetectOption {
+    #[serde(rename = "auto")]
+    Auto,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -291,6 +378,7 @@ pub enum Expr {
         callee: String,
         args: Vec<Expr>,
     },
+    Lambda(LambdaExpr),
     StringTemplate {
         parts: Vec<StringTemplatePart>,
     },
@@ -300,6 +388,70 @@ pub enum Expr {
 pub enum StringTemplatePart {
     Text(String),
     Expr(Box<Expr>),
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CallExpr {
+    pub callee: Box<Expr>,
+    pub args: Vec<Expr>,
+    #[serde(default)]
+    pub exec_policy: ExecPolicy,
+}
+
+impl CallExpr {
+    #[allow(dead_code)]
+    pub fn new(callee: Expr, args: Vec<Expr>) -> Self {
+        Self {
+            callee: Box::new(callee),
+            args,
+            exec_policy: ExecPolicy::Normal,
+        }
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ExecPolicy {
+    Normal,
+    Async,
+    Par,
+    TaskAsync,
+    TaskPar,
+    FireAsync,
+    FirePar,
+}
+
+impl Default for ExecPolicy {
+    fn default() -> Self {
+        ExecPolicy::Normal
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct LambdaExpr {
+    pub is_move: bool,
+    pub params: Vec<LambdaParam>,
+    pub return_type: Option<TypeRef>,
+    pub body: LambdaBody,
+    #[serde(default)]
+    pub captures: Vec<String>,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct LambdaParam {
+    pub name: String,
+    pub type_ref: Option<TypeRef>,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum LambdaBody {
+    Expr(Box<Expr>),
+    Block(BlockStmt),
 }
 
 #[derive(Debug, Clone, PartialEq, Copy, serde::Serialize, serde::Deserialize)]

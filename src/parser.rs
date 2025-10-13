@@ -609,11 +609,7 @@ impl Parser {
             let body = self.parse_block_stmt()?;
             self.expect(Token::RBrace)?;
             self.match_token(&Token::Semicolon); // Optional semicolon
-            return Ok(Stmt::For(ForStmt {
-                var,
-                iterable,
-                body,
-            }));
+            return Ok(Stmt::For(ForStmt::new(var, iterable, body)));
         }
 
         // Expression statement

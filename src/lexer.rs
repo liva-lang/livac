@@ -49,12 +49,50 @@ pub enum Token {
     Async,
     #[token("parallel")]
     Parallel,
+    #[token("par")]
+    Par,
     #[token("task")]
     Task,
     #[token("fire")]
     Fire,
     #[token("await")]
     Await,
+    #[token("move")]
+    Move,
+    #[token("seq")]
+    Seq,
+    #[token("vec")]
+    Vec,
+    #[token("boost")]
+    Boost,
+    #[token("with")]
+    With,
+    #[token("ordered")]
+    Ordered,
+    #[token("chunk")]
+    Chunk,
+    #[token("threads")]
+    Threads,
+    #[token("simdWidth")]
+    SimdWidth,
+    #[token("prefetch")]
+    Prefetch,
+    #[token("reduction")]
+    Reduction,
+    #[token("schedule")]
+    Schedule,
+    #[token("detect")]
+    Detect,
+    #[token("auto")]
+    Auto,
+    #[token("safe")]
+    Safe,
+    #[token("fast")]
+    Fast,
+    #[token("static")]
+    Static,
+    #[token("dynamic")]
+    Dynamic,
     #[token("as")]
     As,
     #[token("true")]

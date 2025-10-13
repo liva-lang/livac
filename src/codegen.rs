@@ -800,6 +800,11 @@ impl CodeGenerator {
 
                     self.output.push(')');
             }
+            Expr::Lambda(_) => {
+                return Err(CompilerError::CodegenError(
+                    "Lambda expressions are not yet supported in code generation".into(),
+                ));
+            }
         }
         Ok(())
     }

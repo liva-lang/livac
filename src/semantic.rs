@@ -324,6 +324,10 @@ impl SemanticAnalyzer {
                     false
                 }
             }
+            Expr::Lambda(lambda) => match &lambda.body {
+                LambdaBody::Expr(expr) => self.expr_contains_async(expr),
+                LambdaBody::Block(block) => self.contains_async_call(block),
+            },
             Expr::Binary { left, right, .. } => {
                 self.expr_contains_async(left) || self.expr_contains_async(right)
             }
@@ -666,6 +670,7 @@ impl SemanticAnalyzer {
                 }
                 Ok(())
             }
+            Expr::Lambda(lambda) => self.validate_lambda(lambda),
         }
     }
 
@@ -686,6 +691,41 @@ impl SemanticAnalyzer {
         }
 
         Ok(())
+    }
+
+    fn validate_lambda(&mut self, lambda: &LambdaExpr) -> Result<()> {
+        if let Some(ret_type) = &lambda.return_type {
+            let empty: HashSet<String> = HashSet::new();
+            self.validate_type_ref(ret_type, &empty)?;
+        }
+
+        self.enter_scope();
+
+        for param in &lambda.params {
+            if let Some(type_ref) = &param.type_ref {
+                let empty: HashSet<String> = HashSet::new();
+                self.validate_type_ref(type_ref, &empty)?;
+            }
+
+            if self.declare_symbol(&param.name, param.type_ref.clone()) {
+                self.exit_scope();
+                return Err(CompilerError::SemanticError(format!(
+                    "Parameter '{}' defined multiple times",
+                    param.name
+                )));
+            }
+        }
+
+        let result = match &lambda.body {
+            LambdaBody::Expr(expr) => self.validate_expr(expr),
+            LambdaBody::Block(block) => {
+                self.validate_block(block)?;
+                Ok(())
+            }
+        };
+
+        self.exit_scope();
+        result
     }
 
     fn validate_known_function(&self, name: &str, arity: usize) -> Result<()> {
