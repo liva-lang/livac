@@ -1,0 +1,5 @@
+---
+source: tests/semantics_tests.rs
+expression: error_msg
+---
+Semantic error: E0701: `.length` is only available on strings, bytes, and arrays. Consider `.count()` for iterables.

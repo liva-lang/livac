@@ -88,3 +88,8 @@ fn test_undefined_variable() {
 fn test_len_function_call() {
     test_semantics_err("len_function_call");
 }
+
+#[test]
+fn test_length_misuse() {
+    test_semantics_err("length_invalid");
+}

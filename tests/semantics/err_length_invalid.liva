@@ -1,0 +1,5 @@
+main() {
+  let value = 42
+  let size = value.length
+  print(size)
+}

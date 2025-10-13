@@ -522,10 +522,14 @@ impl SemanticAnalyzer {
                 if let Some(type_ref) = &var.type_ref {
                     self.validate_type_ref(type_ref, &empty)?;
                 }
+                let mut declared_type = var.type_ref.clone();
                 if let Some(init) = &var.init {
                     self.validate_expr(init)?;
+                    if declared_type.is_none() {
+                        declared_type = self.infer_expr_type(init);
+                    }
                 }
-                if self.declare_symbol(&var.name, var.type_ref.clone()) {
+                if self.declare_symbol(&var.name, declared_type.clone()) {
                     return Err(CompilerError::SemanticError(format!(
                         "Variable '{}' already defined in this scope",
                         var.name
@@ -537,7 +541,11 @@ impl SemanticAnalyzer {
                     self.validate_type_ref(type_ref, &empty)?;
                 }
                 self.validate_expr(&const_decl.init)?;
-                if self.declare_symbol(&const_decl.name, const_decl.type_ref.clone()) {
+                let inferred = const_decl
+                    .type_ref
+                    .clone()
+                    .or_else(|| self.infer_expr_type(&const_decl.init));
+                if self.declare_symbol(&const_decl.name, inferred) {
                     return Err(CompilerError::SemanticError(format!(
                         "Constant '{}' already defined in this scope",
                         const_decl.name
@@ -634,7 +642,16 @@ impl SemanticAnalyzer {
                 self.validate_expr(else_expr)
             }
             Expr::Call(call) => self.validate_call_expr(call),
-            Expr::Member { object, .. } => self.validate_expr(object),
+            Expr::Member { object, property } => {
+                self.validate_expr(object)?;
+                if property == "length" && !self.expr_supports_length(object) {
+                    return Err(CompilerError::SemanticError(
+                        "E0701: `.length` is only available on strings, bytes, and arrays. Consider `.count()` for iterables."
+                            .into(),
+                    ));
+                }
+                Ok(())
+            }
             Expr::Index { object, index } => {
                 self.validate_expr(object)?;
                 self.validate_expr(index)
@@ -798,6 +815,83 @@ impl SemanticAnalyzer {
             }
         }
         None
+    }
+
+    fn infer_expr_type(&self, expr: &Expr) -> Option<TypeRef> {
+        match expr {
+            Expr::Literal(lit) => match lit {
+                Literal::String(_) => Some(TypeRef::Simple("string".into())),
+                Literal::Int(_) => Some(TypeRef::Simple("number".into())),
+                Literal::Float(_) => Some(TypeRef::Simple("float".into())),
+                Literal::Bool(_) => Some(TypeRef::Simple("bool".into())),
+                Literal::Char(_) => Some(TypeRef::Simple("char".into())),
+            },
+            Expr::StringTemplate { .. } => Some(TypeRef::Simple("string".into())),
+            Expr::ArrayLiteral(elements) => {
+                let inner = elements
+                    .first()
+                    .and_then(|expr| self.infer_expr_type(expr))
+                    .unwrap_or_else(|| TypeRef::Simple("unknown".into()));
+                Some(TypeRef::Array(Box::new(inner)))
+            }
+            Expr::Identifier(name) => self.lookup_symbol(name).cloned().flatten(),
+            Expr::Member { object, property } => {
+                if property == "length" {
+                    return Some(TypeRef::Simple("number".into()));
+                }
+
+                let base_type = self.infer_expr_type(object)?;
+                let base_type = Self::strip_optional(base_type);
+                if let TypeRef::Simple(type_name) = base_type {
+                    if let Some(info) = self.types.get(&type_name) {
+                        if let Some((_, field_ty)) = info.fields.get(property) {
+                            return Some(field_ty.clone());
+                        }
+                    }
+                }
+                None
+            }
+            Expr::Index { object, .. } => {
+                let base = self.infer_expr_type(object)?;
+                if let TypeRef::Array(inner) = Self::strip_optional(base) {
+                    Some(*inner)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
+    fn strip_optional(ty: TypeRef) -> TypeRef {
+        match ty {
+            TypeRef::Optional(inner) => Self::strip_optional(*inner),
+            other => other,
+        }
+    }
+
+    fn expr_supports_length(&self, object: &Expr) -> bool {
+        match object {
+            Expr::ArrayLiteral(_) => true,
+            Expr::Literal(Literal::String(_)) => true,
+            Expr::StringTemplate { .. } => true,
+            _ => self
+                .infer_expr_type(object)
+                .map(|ty| self.type_supports_length(&Self::strip_optional(ty)))
+                .unwrap_or(false),
+        }
+    }
+
+    fn type_supports_length(&self, ty: &TypeRef) -> bool {
+        match ty {
+            TypeRef::Array(_) => true,
+            TypeRef::Simple(name) => matches!(
+                name.as_str(),
+                "string" | "bytes" | "Vec" | "Array" | "String"
+            ),
+            TypeRef::Generic { base, .. } => matches!(base.as_str(), "Vec" | "Array"),
+            TypeRef::Optional(inner) => self.type_supports_length(inner),
+        }
     }
 
     fn validate_type_ref(
