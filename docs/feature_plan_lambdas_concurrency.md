@@ -31,7 +31,7 @@ This document captures the task breakdown needed to implement the new language r
 ## 2. Semantic Analysis
 
 - Enforce `.length` correctness:
-  - Arrays/strings expose `length`; sequences must error with E0701 (suggest `.count()` or `.collect().length`).
+  - [x] Arrays/strings expose `length`; sequences must error with E0701 (suggest `.count()` or `.collect().length`).
   - [x] Replace legacy `len(x)` with warning W0700 + quick-fix suggestions.
 - Validate lambda syntax:
   - Infer/verify parameter scopes, handle move-capture diagnostics (E0510 for non-Send captures later).
@@ -66,8 +66,8 @@ This document captures the task breakdown needed to implement the new language r
 ## 4. Code Generation
 
 - Call generation:
-  - Render `.length` property with correct Rust translation (arrays → `.len()`, strings → `.chars().count()` as needed).
-  - Replace special casing of `len(x)` with new diagnostics; remove old conversion path.
+  - [x] Render `.length` property with correct Rust translation (arrays → `.len()`, strings → `.chars().count()` as needed).
+  - [x] Replace special casing of `len(x)` with new diagnostics; remove old conversion path.
   - Map execution policies:
     - `async` → spawn + implicit await on first use.
     - `par` → thread pool execution (Rayon or `std::thread` wrappers).
