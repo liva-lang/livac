@@ -154,6 +154,11 @@ fn test_examples_integration() {
 }
 
 #[test]
+fn test_data_parallel_integration() {
+    test_integration_project("proj_data_parallel");
+}
+
+#[test]
 fn test_comprehensive_integration() {
     test_integration_project("proj_comprehensive");
 }

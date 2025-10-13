@@ -77,7 +77,7 @@ This document captures the task breakdown needed to implement the new language r
   - Emit Rust closures (`|args|` or `move |args|`) with inference of async/parallel usage inside.
   - Support block bodies and typed parameters.
 - For policies:
-  - Generate Rayon/`std::simd`/custom kernels depending on chosen policy + options.
+  - [x] Generate Rayon-backed loops for `par/vec/boost` (runtime currently shares a Rayon-based fallback; SIMD/boost specialisations and advanced scheduling still pending).
   - Honour `ordered`, `chunk`, `threads`, `simdWidth`, etc. with safe fallbacks.
   - Produce runtime warnings/errors where features are not yet available.
 - Update generated diagnostics and error messages to reference new codes.
@@ -89,7 +89,7 @@ This document captures the task breakdown needed to implement the new language r
 - Extend helper module to support:
   - Task handles with await/join semantics, including consumption tracking.
   - Fire-and-forget primitives (spawn without awaiting).
-  - Data-parallel execution adapters (wrappers around Rayon or custom thread pools) plus SIMD helpers.
+  - [x] Data-parallel execution adapters (initial Rayon-backed helpers in place; SIMD-specialised helpers still TODO).
   - Count operations for sequences (`seq.count()`, `await aseq.count()`).
 - Ensure runtime enforces Send/'static checks for `par`/`boost` contexts; provide graceful error handling.
 

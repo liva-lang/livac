@@ -103,6 +103,12 @@ fn check_stmt_concurrency(stmt: &Stmt, ctx: &mut DesugarContext) {
             check_block_concurrency(&while_stmt.body, ctx);
         }
         Stmt::For(for_stmt) => {
+            if matches!(
+                for_stmt.policy,
+                DataParallelPolicy::Par | DataParallelPolicy::Vec | DataParallelPolicy::Boost
+            ) {
+                ctx.has_parallel = true;
+            }
             check_expr_concurrency(&for_stmt.iterable, ctx);
             check_block_concurrency(&for_stmt.body, ctx);
         }

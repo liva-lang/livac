@@ -635,20 +635,11 @@ impl CodeGenerator {
                 self.output.push(']');
             }
             Expr::StringTemplate { parts } => {
-                // Check if any expression part is complex (not just identifiers or literals)
-                let _has_complex_expr = parts.iter().any(|part| match part {
-                    StringTemplatePart::Expr(_) => true,
-                    _ => false,
-                });
-
-                // Always use the simple approach for now
-                // Use string concatenation for complex expressions
                 self.output.push_str("format!(\"");
 
-                for (_i, part) in parts.iter().enumerate() {
+                for part in parts.iter() {
                     match part {
                         StringTemplatePart::Text(text) => {
-                            // Escape quotes and backslashes in text parts
                             for ch in text.chars() {
                                 match ch {
                                     '"' => self.output.push_str("\\\""),
@@ -660,32 +651,33 @@ impl CodeGenerator {
                                 }
                             }
                         }
-                        StringTemplatePart::Expr(expr) => {
-                            // For expressions in string templates, use {:?} for complex expressions
-                            // and {} for simple ones to avoid format string errors
-                            match expr.as_ref() {
-                                Expr::Identifier(_) | Expr::Literal(_) => {
-                                    self.output.push_str("{}");
-                                }
-                                _ => {
-                                    // For complex expressions, use Debug formatting
-                                    self.output.push_str("{:?}");
-                                }
+                        StringTemplatePart::Expr(expr) => match expr.as_ref() {
+                            Expr::Literal(_) => {
+                                self.output.push_str("{}");
                             }
-                        }
+                            _ => {
+                                self.output.push_str("{:?}");
+                            }
+                        },
                     }
                 }
 
                 self.output.push('"');
 
-                // Generate arguments for complex expressions
-                let mut first = true;
-                for part in parts {
-                    if let StringTemplatePart::Expr(expr) = part {
-                        if !first {
+                let exprs: Vec<&Expr> = parts
+                    .iter()
+                    .filter_map(|part| match part {
+                        StringTemplatePart::Expr(expr) => Some(expr.as_ref()),
+                        _ => None,
+                    })
+                    .collect();
+
+                if !exprs.is_empty() {
+                    self.output.push_str(", ");
+                    for (idx, expr) in exprs.iter().enumerate() {
+                        if idx > 0 {
                             self.output.push_str(", ");
                         }
-                        first = false;
                         self.generate_expr(expr)?;
                     }
                 }
@@ -794,22 +786,32 @@ impl CodeGenerator {
             }
         };
 
+        let rust_name = self.sanitize_name(&callee_name);
+
         match mode {
-            ConcurrencyMode::Async => self.output.push_str("liva_rt::spawn_async("),
-            ConcurrencyMode::Parallel => self.output.push_str("liva_rt::spawn_parallel(|| "),
-        }
-        write!(self.output, "{}(", callee_name).unwrap();
-        for (i, arg) in call.args.iter().enumerate() {
-            if i > 0 {
-                self.output.push_str(", ");
+            ConcurrencyMode::Async => {
+                self.output.push_str("liva_rt::spawn_async(async move { ");
+                write!(self.output, "{}(", rust_name).unwrap();
+                for (i, arg) in call.args.iter().enumerate() {
+                    if i > 0 {
+                        self.output.push_str(", ");
+                    }
+                    self.generate_expr(arg)?;
+                }
+                self.output.push_str(") })");
             }
-            self.generate_expr(arg)?;
+            ConcurrencyMode::Parallel => {
+                self.output.push_str("liva_rt::spawn_parallel(move || { ");
+                write!(self.output, "{}(", rust_name).unwrap();
+                for (i, arg) in call.args.iter().enumerate() {
+                    if i > 0 {
+                        self.output.push_str(", ");
+                    }
+                    self.generate_expr(arg)?;
+                }
+                self.output.push_str(") })");
+            }
         }
-        self.output.push(')');
-        if matches!(mode, ConcurrencyMode::Parallel) {
-            self.output.push(')');
-        }
-        self.output.push(')');
         Ok(())
     }
 
@@ -823,22 +825,34 @@ impl CodeGenerator {
             }
         };
 
+        let rust_name = self.sanitize_name(&callee_name);
+
         match mode {
-            ConcurrencyMode::Async => self.output.push_str("liva_rt::fire_async("),
-            ConcurrencyMode::Parallel => self.output.push_str("liva_rt::fire_parallel(|| "),
-        }
-        write!(self.output, "{}(", callee_name).unwrap();
-        for (i, arg) in call.args.iter().enumerate() {
-            if i > 0 {
-                self.output.push_str(", ");
+            ConcurrencyMode::Async => {
+                self.output.push_str("liva_rt::fire_async(async move {");
+                self.output.push(' ');
+                write!(self.output, "{}(", rust_name).unwrap();
+                for (i, arg) in call.args.iter().enumerate() {
+                    if i > 0 {
+                        self.output.push_str(", ");
+                    }
+                    self.generate_expr(arg)?;
+                }
+                self.output.push_str("); });");
             }
-            self.generate_expr(arg)?;
+            ConcurrencyMode::Parallel => {
+                self.output.push_str("liva_rt::fire_parallel(move || {");
+                self.output.push(' ');
+                write!(self.output, "{}(", rust_name).unwrap();
+                for (i, arg) in call.args.iter().enumerate() {
+                    if i > 0 {
+                        self.output.push_str(", ");
+                    }
+                    self.generate_expr(arg)?;
+                }
+                self.output.push_str("); });");
+            }
         }
-        self.output.push(')');
-        if matches!(mode, ConcurrencyMode::Parallel) {
-            self.output.push(')');
-        }
-        self.output.push(')');
         Ok(())
     }
 
@@ -1217,6 +1231,182 @@ impl<'a> IrCodeGenerator<'a> {
         }
 
         if use_parallel {
+            self.writeln("use rayon::prelude::*;");
+            self.writeln("use rayon::ThreadPoolBuilder;");
+            self.writeln("use std::sync::Arc;");
+            self.output.push('\n');
+
+            self.writeln("#[derive(Clone, Copy, Debug)]");
+            self.writeln("pub enum ThreadOption {");
+            self.indent();
+            self.writeln("Auto,");
+            self.writeln("Count(usize),");
+            self.dedent();
+            self.writeln("}");
+            self.output.push('\n');
+
+            self.writeln("#[derive(Clone, Copy, Debug)]");
+            self.writeln("pub enum SimdWidthOption {");
+            self.indent();
+            self.writeln("Auto,");
+            self.writeln("Width(usize),");
+            self.dedent();
+            self.writeln("}");
+            self.output.push('\n');
+
+            self.writeln("#[derive(Clone, Copy, Debug)]");
+            self.writeln("pub enum ReductionOption {");
+            self.indent();
+            self.writeln("Safe,");
+            self.writeln("Fast,");
+            self.dedent();
+            self.writeln("}");
+            self.output.push('\n');
+
+            self.writeln("#[derive(Clone, Copy, Debug)]");
+            self.writeln("pub enum ScheduleOption {");
+            self.indent();
+            self.writeln("Static,");
+            self.writeln("Dynamic,");
+            self.dedent();
+            self.writeln("}");
+            self.output.push('\n');
+
+            self.writeln("#[derive(Clone, Copy, Debug)]");
+            self.writeln("pub enum DetectOption {");
+            self.indent();
+            self.writeln("Auto,");
+            self.dedent();
+            self.writeln("}");
+            self.output.push('\n');
+
+            self.writeln("#[derive(Clone, Copy, Debug)]");
+            self.writeln("pub struct ParallelForOptions {");
+            self.indent();
+            self.writeln("pub ordered: bool,");
+            self.writeln("pub chunk: Option<usize>,");
+            self.writeln("pub threads: Option<ThreadOption>,");
+            self.writeln("pub simd_width: Option<SimdWidthOption>,");
+            self.writeln("pub prefetch: Option<usize>,");
+            self.writeln("pub reduction: Option<ReductionOption>,");
+            self.writeln("pub schedule: Option<ScheduleOption>,");
+            self.writeln("pub detect: Option<DetectOption>,");
+            self.dedent();
+            self.writeln("}");
+            self.output.push('\n');
+
+            self.writeln("pub fn normalize_size(value: i64, fallback: usize) -> usize {");
+            self.indent();
+            self.writeln("if value > 0 { value as usize } else { fallback }");
+            self.dedent();
+            self.writeln("}");
+            self.output.push('\n');
+
+            self.writeln("fn emit_option_warnings(label: &str, options: &ParallelForOptions) {");
+            self.indent();
+            self.writeln("if let Some(prefetch) = options.prefetch {");
+            self.indent();
+            self.writeln("eprintln!(\"[liva_rt] `prefetch = {prefetch}` is not supported yet in `{label}`; ignoring.\");");
+            self.dedent();
+            self.writeln("}");
+            self.writeln("if matches!(options.reduction, Some(ReductionOption::Safe) | Some(ReductionOption::Fast)) {");
+            self.indent();
+            self.writeln("eprintln!(\"[liva_rt] `reduction` is not supported yet in `{label}`; executing without reduction semantics.\");");
+            self.dedent();
+            self.writeln("}");
+            self.writeln("if matches!(options.schedule, Some(ScheduleOption::Static) | Some(ScheduleOption::Dynamic)) {");
+            self.indent();
+            self.writeln(
+                "eprintln!(\"[liva_rt] `schedule` hints are not supported yet in `{label}`.\");",
+            );
+            self.dedent();
+            self.writeln("}");
+            self.writeln("if matches!(options.detect, Some(DetectOption::Auto)) {");
+            self.indent();
+            self.writeln(
+                "eprintln!(\"[liva_rt] `detect` hints are not supported yet in `{label}`.\");",
+            );
+            self.dedent();
+            self.writeln("}");
+            self.writeln("if matches!(options.simd_width, Some(SimdWidthOption::Auto) | Some(SimdWidthOption::Width(_))) {");
+            self.indent();
+            self.writeln("eprintln!(\"[liva_rt] `simdWidth` is not supported yet in `{label}`; falling back to scalar execution.\");");
+            self.dedent();
+            self.writeln("}");
+            self.writeln("if options.ordered {");
+            self.indent();
+            self.writeln(
+                "eprintln!(\"[liva_rt] `ordered` execution for `{label}` runs sequentially.\");",
+            );
+            self.dedent();
+            self.writeln("}");
+            self.dedent();
+            self.writeln("}");
+            self.output.push('\n');
+
+            self.writeln("fn run_parallel_items<T, F>(items: Vec<T>, func: Arc<F>, options: ParallelForOptions)");
+            self.writeln("where T: Send + 'static, F: Fn(T) + Send + Sync + 'static,");
+            self.writeln("{");
+            self.indent();
+            self.writeln("if options.ordered {");
+            self.indent();
+            self.writeln("for item in items { func(item); }");
+            self.writeln("return;");
+            self.dedent();
+            self.writeln("}");
+            self.writeln("if let Some(chunk) = options.chunk.map(|c| c.max(1)) {");
+            self.indent();
+            self.writeln("items");
+            self.writeln("    .into_par_iter()");
+            self.writeln("    .with_min_len(chunk)");
+            self.writeln("    .with_max_len(chunk)");
+            self.writeln("    .for_each(move |item| {");
+            self.indent();
+            self.writeln("let func = func.clone();");
+            self.writeln("func(item);");
+            self.dedent();
+            self.writeln("});");
+            self.dedent();
+            self.writeln("} else {");
+            self.indent();
+            self.writeln("items.into_par_iter().for_each(move |item| {");
+            self.indent();
+            self.writeln("let func = func.clone();");
+            self.writeln("func(item);");
+            self.dedent();
+            self.writeln("});");
+            self.dedent();
+            self.writeln("}");
+            self.dedent();
+            self.writeln("}");
+            self.output.push('\n');
+
+            self.writeln("fn execute_parallel<T, F>(items: Vec<T>, func: F, options: ParallelForOptions, label: &str)");
+            self.writeln("where T: Send + 'static, F: Fn(T) + Send + Sync + 'static,");
+            self.writeln("{");
+            self.indent();
+            self.writeln("emit_option_warnings(label, &options);");
+            self.writeln("let func = Arc::new(func);");
+            self.writeln("if let Some(ThreadOption::Count(count)) = options.threads {");
+            self.indent();
+            self.writeln("let count = count.max(1);");
+            self.writeln("if let Ok(pool) = ThreadPoolBuilder::new().num_threads(count).build() {");
+            self.indent();
+            self.writeln("let func_clone = func.clone();");
+            self.writeln("let options_clone = options;");
+            self.writeln(
+                "pool.install(move || run_parallel_items(items, func_clone, options_clone));",
+            );
+            self.writeln("return;");
+            self.dedent();
+            self.writeln("}");
+            self.dedent();
+            self.writeln("}");
+            self.writeln("run_parallel_items(items, func, options);");
+            self.dedent();
+            self.writeln("}");
+            self.output.push('\n');
+
             self.writeln("pub fn spawn_parallel<F, T>(job: F) -> std::thread::JoinHandle<T>");
             self.writeln("where F: FnOnce() -> T + Send + 'static, T: Send + 'static,");
             self.writeln("{");
@@ -1231,6 +1421,42 @@ impl<'a> IrCodeGenerator<'a> {
             self.writeln("{");
             self.indent();
             self.writeln("let _ = std::thread::spawn(job);");
+            self.dedent();
+            self.writeln("}");
+            self.output.push('\n');
+
+            self.writeln(
+                "pub fn for_par<I, T, F>(iterable: I, func: F, options: ParallelForOptions)",
+            );
+            self.writeln("where I: IntoIterator<Item = T>, T: Send + 'static, F: Fn(T) + Send + Sync + 'static,");
+            self.writeln("{");
+            self.indent();
+            self.writeln("let items: Vec<T> = iterable.into_iter().collect();");
+            self.writeln("execute_parallel(items, func, options, \"for par\");");
+            self.dedent();
+            self.writeln("}");
+            self.output.push('\n');
+
+            self.writeln(
+                "pub fn for_vec<I, T, F>(iterable: I, func: F, options: ParallelForOptions)",
+            );
+            self.writeln("where I: IntoIterator<Item = T>, T: Send + 'static, F: Fn(T) + Send + Sync + 'static,");
+            self.writeln("{");
+            self.indent();
+            self.writeln("let items: Vec<T> = iterable.into_iter().collect();");
+            self.writeln("execute_parallel(items, func, options, \"for vec\");");
+            self.dedent();
+            self.writeln("}");
+            self.output.push('\n');
+
+            self.writeln(
+                "pub fn for_boost<I, T, F>(iterable: I, func: F, options: ParallelForOptions)",
+            );
+            self.writeln("where I: IntoIterator<Item = T>, T: Send + 'static, F: Fn(T) + Send + Sync + 'static,");
+            self.writeln("{");
+            self.indent();
+            self.writeln("let items: Vec<T> = iterable.into_iter().collect();");
+            self.writeln("execute_parallel(items, func, options, \"for boost\");");
             self.dedent();
             self.writeln("}");
         }
@@ -1441,21 +1667,33 @@ impl<'a> IrCodeGenerator<'a> {
                 var,
                 iterable,
                 body,
-                ..
-            } => {
-                self.write_indent();
-                write!(self.output, "for {} in ", self.sanitize_name(var)).unwrap();
-                self.generate_expr(iterable)?;
-                self.output.push_str(" {\n");
-                self.indent();
-                self.push_scope();
-                self.set_var_format(var, FormatKind::Display);
-                self.generate_block(body)?;
-                self.pop_scope();
-                self.dedent();
-                self.write_indent();
-                self.output.push_str("}\n");
-            }
+                policy,
+                options,
+            } => match policy {
+                ir::DataParallelPolicy::Seq => {
+                    self.write_indent();
+                    write!(self.output, "for {} in ", self.sanitize_name(var)).unwrap();
+                    self.generate_expr(iterable)?;
+                    self.output.push_str(" {\n");
+                    self.indent();
+                    self.push_scope();
+                    self.set_var_format(var, FormatKind::Display);
+                    self.generate_block(body)?;
+                    self.pop_scope();
+                    self.dedent();
+                    self.write_indent();
+                    self.output.push_str("}\n");
+                }
+                ir::DataParallelPolicy::Par => {
+                    self.generate_parallel_for(var, iterable, body, options)?;
+                }
+                ir::DataParallelPolicy::Vec => {
+                    self.generate_vector_for(var, iterable, body, options)?;
+                }
+                ir::DataParallelPolicy::Boost => {
+                    self.generate_boost_for(var, iterable, body, options)?;
+                }
+            },
             ir::Stmt::Block(block) => {
                 self.write_indent();
                 self.output.push_str("{\n");
@@ -1554,6 +1792,237 @@ impl<'a> IrCodeGenerator<'a> {
             }
         }
         Ok(())
+    }
+
+    fn generate_parallel_for(
+        &mut self,
+        var: &str,
+        iterable: &ir::Expr,
+        body: &ir::Block,
+        options: &ir::ForPolicyOptions,
+    ) -> Result<()> {
+        self.write_indent();
+        self.output.push_str("{\n");
+        self.indent();
+
+        self.write_indent();
+        self.output.push_str("let __liva_iter = ");
+        self.generate_expr(iterable)?;
+        self.output.push_str(";\n");
+
+        self.write_indent();
+        write!(
+            self.output,
+            "liva_rt::for_par(__liva_iter, move |{}| {{\n",
+            self.sanitize_name(var)
+        )
+        .unwrap();
+        self.indent();
+        self.push_scope();
+        self.set_var_format(var, FormatKind::Display);
+        self.generate_block(body)?;
+        self.pop_scope();
+        self.dedent();
+        self.write_indent();
+        self.output.push_str("}, ");
+        self.emit_parallel_options(options);
+        self.output.push('\n');
+        self.write_indent();
+        self.output.push_str(");\n");
+
+        self.dedent();
+        self.write_indent();
+        self.output.push_str("}\n");
+        Ok(())
+    }
+
+    fn generate_vector_for(
+        &mut self,
+        var: &str,
+        iterable: &ir::Expr,
+        body: &ir::Block,
+        options: &ir::ForPolicyOptions,
+    ) -> Result<()> {
+        self.write_indent();
+        self.output.push_str("{\n");
+        self.indent();
+
+        self.write_indent();
+        self.output.push_str("let __liva_iter = ");
+        self.generate_expr(iterable)?;
+        self.output.push_str(";\n");
+
+        self.write_indent();
+        write!(
+            self.output,
+            "liva_rt::for_vec(__liva_iter, move |{}| {{\n",
+            self.sanitize_name(var)
+        )
+        .unwrap();
+        self.indent();
+        self.push_scope();
+        self.set_var_format(var, FormatKind::Display);
+        self.generate_block(body)?;
+        self.pop_scope();
+        self.dedent();
+        self.write_indent();
+        self.output.push_str("}, ");
+        self.emit_parallel_options(options);
+        self.output.push('\n');
+        self.write_indent();
+        self.output.push_str(");\n");
+
+        self.dedent();
+        self.write_indent();
+        self.output.push_str("}\n");
+        Ok(())
+    }
+
+    fn generate_boost_for(
+        &mut self,
+        var: &str,
+        iterable: &ir::Expr,
+        body: &ir::Block,
+        options: &ir::ForPolicyOptions,
+    ) -> Result<()> {
+        self.write_indent();
+        self.output.push_str("{\n");
+        self.indent();
+
+        self.write_indent();
+        self.output.push_str("let __liva_iter = ");
+        self.generate_expr(iterable)?;
+        self.output.push_str(";\n");
+
+        self.write_indent();
+        write!(
+            self.output,
+            "liva_rt::for_boost(__liva_iter, move |{}| {{\n",
+            self.sanitize_name(var)
+        )
+        .unwrap();
+        self.indent();
+        self.push_scope();
+        self.set_var_format(var, FormatKind::Display);
+        self.generate_block(body)?;
+        self.pop_scope();
+        self.dedent();
+        self.write_indent();
+        self.output.push_str("}, ");
+        self.emit_parallel_options(options);
+        self.output.push('\n');
+        self.write_indent();
+        self.output.push_str(");\n");
+
+        self.dedent();
+        self.write_indent();
+        self.output.push_str("}\n");
+        Ok(())
+    }
+
+    fn emit_parallel_options(&mut self, options: &ir::ForPolicyOptions) {
+        self.output.push_str("liva_rt::ParallelForOptions {\n");
+        self.indent();
+
+        self.write_indent();
+        write!(self.output, "ordered: {},\n", options.ordered).unwrap();
+
+        self.write_indent();
+        if let Some(chunk) = options.chunk {
+            write!(
+                self.output,
+                "chunk: Some(liva_rt::normalize_size({}, 1)),\n",
+                chunk
+            )
+            .unwrap();
+        } else {
+            self.output.push_str("chunk: None,\n");
+        }
+
+        self.write_indent();
+        match options.threads {
+            Some(ir::ThreadOption::Auto) => {
+                self.output
+                    .push_str("threads: Some(liva_rt::ThreadOption::Auto),\n");
+            }
+            Some(ir::ThreadOption::Count(value)) => {
+                write!(
+                    self.output,
+                    "threads: Some(liva_rt::ThreadOption::Count(liva_rt::normalize_size({}, 1))),\n",
+                    value
+                )
+                .unwrap();
+            }
+            None => self.output.push_str("threads: None,\n"),
+        }
+
+        self.write_indent();
+        match &options.simd_width {
+            Some(ir::SimdWidthOption::Auto) => {
+                self.output
+                    .push_str("simd_width: Some(liva_rt::SimdWidthOption::Auto),\n");
+            }
+            Some(ir::SimdWidthOption::Width(value)) => {
+                write!(
+                    self.output,
+                    "simd_width: Some(liva_rt::SimdWidthOption::Width(liva_rt::normalize_size({}, 1))),\n",
+                    value
+                )
+                .unwrap();
+            }
+            None => self.output.push_str("simd_width: None,\n"),
+        }
+
+        self.write_indent();
+        if let Some(prefetch) = options.prefetch {
+            write!(
+                self.output,
+                "prefetch: Some(liva_rt::normalize_size({}, 1)),\n",
+                prefetch
+            )
+            .unwrap();
+        } else {
+            self.output.push_str("prefetch: None,\n");
+        }
+
+        self.write_indent();
+        match options.reduction {
+            Some(ir::ReductionOption::Safe) => {
+                self.output
+                    .push_str("reduction: Some(liva_rt::ReductionOption::Safe),\n");
+            }
+            Some(ir::ReductionOption::Fast) => {
+                self.output
+                    .push_str("reduction: Some(liva_rt::ReductionOption::Fast),\n");
+            }
+            None => self.output.push_str("reduction: None,\n"),
+        }
+
+        self.write_indent();
+        match options.schedule {
+            Some(ir::ScheduleOption::Static) => {
+                self.output
+                    .push_str("schedule: Some(liva_rt::ScheduleOption::Static),\n");
+            }
+            Some(ir::ScheduleOption::Dynamic) => {
+                self.output
+                    .push_str("schedule: Some(liva_rt::ScheduleOption::Dynamic),\n");
+            }
+            None => self.output.push_str("schedule: None,\n"),
+        }
+
+        self.write_indent();
+        match options.detect {
+            Some(ir::DetectOption::Auto) => {
+                self.output
+                    .push_str("detect: Some(liva_rt::DetectOption::Auto),\n");
+            }
+            None => self.output.push_str("detect: None,\n"),
+        }
+
+        self.dedent();
+        self.write_indent();
+        self.output.push_str("}");
     }
 
     fn generate_expr(&mut self, expr: &ir::Expr) -> Result<()> {
@@ -2181,8 +2650,19 @@ fn stmt_has_parallel_concurrency(stmt: &ir::Stmt) -> bool {
         ir::Stmt::While { condition, body } => {
             expr_has_parallel_concurrency(condition) || block_has_parallel_concurrency(body)
         }
-        ir::Stmt::For { iterable, body, .. } => {
-            expr_has_parallel_concurrency(iterable) || block_has_parallel_concurrency(body)
+        ir::Stmt::For {
+            iterable,
+            body,
+            policy,
+            ..
+        } => {
+            matches!(
+                policy,
+                ir::DataParallelPolicy::Par
+                    | ir::DataParallelPolicy::Vec
+                    | ir::DataParallelPolicy::Boost
+            ) || expr_has_parallel_concurrency(iterable)
+                || block_has_parallel_concurrency(body)
         }
         ir::Stmt::Block(block) => block_has_parallel_concurrency(block),
         ir::Stmt::TryCatch {
@@ -2394,6 +2874,10 @@ fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
 
     // Add serde_json for object literals
     cargo_toml.push_str("serde_json = \"1.0\"\n");
+
+    if ctx.has_parallel {
+        cargo_toml.push_str("rayon = \"1.11\"\n");
+    }
 
     // Add user-specified crates
     for (crate_name, _) in &ctx.rust_crates {

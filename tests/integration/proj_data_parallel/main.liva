@@ -1,0 +1,11 @@
+main() {
+  let values = [1, 2, 3, 4]
+  for par value in values with threads 2 {
+    print(value)
+  }
+
+  let lanes = [10, 20, 30]
+  for vec lane in lanes with simdWidth 4 {
+    print(lane)
+  }
+}
