@@ -210,7 +210,8 @@ expression: json
                               "property": "_getEdad"
                             }
                           },
-                          "args": []
+                          "args": [],
+                          "exec_policy": "normal"
                         }
                       }
                     }
@@ -227,7 +228,8 @@ expression: json
                       "property": "_getEdad"
                     }
                   },
-                  "args": []
+                  "args": [],
+                  "exec_policy": "normal"
                 }
               },
               "is_async_inferred": false

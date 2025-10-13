@@ -25,7 +25,8 @@ expression: json
                           "String": "Hello, World!"
                         }
                       }
-                    ]
+                    ],
+                    "exec_policy": "normal"
                   }
                 }
               }
@@ -121,7 +122,8 @@ expression: json
                               }
                             }
                           }
-                        ]
+                        ],
+                        "exec_policy": "normal"
                       }
                     }
                   }
@@ -165,7 +167,8 @@ expression: json
                       {
                         "Identifier": "url"
                       }
-                    ]
+                    ],
+                    "exec_policy": "normal"
                   }
                 }
               }

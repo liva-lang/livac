@@ -198,7 +198,7 @@ mod tests {
     fn test_detect_parallel() {
         let source = r#"
             main() {
-                let x = parallel compute()
+                let x = par compute()
             }
         "#;
         let tokens = tokenize(source).unwrap();
@@ -218,8 +218,8 @@ mod tests {
 
             main() {
                 let handle = task async compute()
-                fire parallel compute()
-                let values = [parallel compute(), task parallel compute()]
+                fire par compute()
+                let values = [par compute(), task par compute()]
                 return handle
             }
         "#;

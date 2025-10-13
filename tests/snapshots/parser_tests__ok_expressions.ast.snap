@@ -214,7 +214,8 @@ expression: json
                       {
                         "Identifier": "b"
                       }
-                    ]
+                    ],
+                    "exec_policy": "normal"
                   }
                 }
               }

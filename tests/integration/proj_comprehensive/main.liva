@@ -130,9 +130,9 @@ fibonacci(n: number): number {
 
 testParallel() {
   // Run on separate OS threads
-  let f1 = parallel fibonacci(35)
-  let f2 = parallel fibonacci(36)
-  let f3 = parallel fibonacci(37)
+  let f1 = par fibonacci(35)
+  let f2 = par fibonacci(36)
+  let f3 = par fibonacci(37)
   
   // Lazy join - all compute in parallel
   print($"Results: {f1}, {f2}, {f3}")
@@ -145,7 +145,7 @@ testParallel() {
 testTasks() {
   // Returns handle, doesn't await automatically
   let t1 = task async fetchUser(1)
-  let t2 = task parallel fibonacci(30)
+  let t2 = task par fibonacci(30)
   
   // Do other work...
   print("Doing other work...")
@@ -174,7 +174,7 @@ sendMetrics(data) {
 testFireAndForget() {
   // Fire and forget - no handle, no warnings
   fire async logEvent("Application started")
-  fire parallel sendMetrics({ cpu: 45, memory: 60 })
+  fire par sendMetrics({ cpu: 45, memory: 60 })
   
   print("Main continues immediately")
 }
@@ -323,7 +323,7 @@ processData() {
   let data1 = async fetchUser(1)
   
   // Parallel CPU work
-  let result = parallel fibonacci(30)
+  let result = par fibonacci(30)
   
   // Fire and forget logging
   fire async logEvent("Processing started")

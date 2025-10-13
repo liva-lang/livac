@@ -1,6 +1,5 @@
 ---
 source: tests/parser_tests.rs
-assertion_line: 15
 expression: json
 ---
 {
@@ -221,7 +220,8 @@ expression: json
                                       "property": "_getEdad"
                                     }
                                   },
-                                  "args": []
+                                  "args": [],
+                                  "exec_policy": "normal"
                                 }
                               }
                             },
@@ -239,7 +239,8 @@ expression: json
                                       "property": "__getDni"
                                     }
                                   },
-                                  "args": []
+                                  "args": [],
+                                  "exec_policy": "normal"
                                 }
                               }
                             }
@@ -264,7 +265,8 @@ expression: json
                               "property": "_getEdad"
                             }
                           },
-                          "args": []
+                          "args": [],
+                          "exec_policy": "normal"
                         }
                       }
                     },
@@ -282,7 +284,8 @@ expression: json
                               "property": "__getDni"
                             }
                           },
-                          "args": []
+                          "args": [],
+                          "exec_policy": "normal"
                         }
                       }
                     }
@@ -342,7 +345,8 @@ expression: json
                                 "String": "Some sound"
                               }
                             }
-                          ]
+                          ],
+                          "exec_policy": "normal"
                         }
                       }
                     }

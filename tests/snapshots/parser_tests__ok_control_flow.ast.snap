@@ -53,7 +53,8 @@ expression: json
                                   "String": "x is greater than 5"
                                 }
                               }
-                            ]
+                            ],
+                            "exec_policy": "normal"
                           }
                         }
                       }
@@ -75,7 +76,8 @@ expression: json
                                   "String": "x is not greater than 5"
                                 }
                               }
-                            ]
+                            ],
+                            "exec_policy": "normal"
                           }
                         }
                       }

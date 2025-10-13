@@ -349,7 +349,8 @@ expression: json
                           "String": "hello"
                         }
                       }
-                    ]
+                    ],
+                    "exec_policy": "normal"
                   }
                 }
               }
@@ -399,7 +400,8 @@ expression: json
                           "Int": 42
                         }
                       }
-                    ]
+                    ],
+                    "exec_policy": "normal"
                   }
                 }
               }
@@ -431,7 +433,8 @@ expression: json
                           "String": "error"
                         }
                       }
-                    ]
+                    ],
+                    "exec_policy": "normal"
                   }
                 }
               }
@@ -509,7 +512,8 @@ expression: json
                           "String": "All advanced types parsed successfully"
                         }
                       }
-                    ]
+                    ],
+                    "exec_policy": "normal"
                   }
                 }
               }

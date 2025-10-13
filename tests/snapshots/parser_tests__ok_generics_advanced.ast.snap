@@ -1,6 +1,5 @@
 ---
 source: tests/parser_tests.rs
-assertion_line: 15
 expression: json
 ---
 {
@@ -37,7 +36,8 @@ expression: json
                           "String": "hello"
                         }
                       }
-                    ]
+                    ],
+                    "exec_policy": "normal"
                   }
                 }
               }
@@ -69,7 +69,8 @@ expression: json
                           "Int": 42
                         }
                       }
-                    ]
+                    ],
+                    "exec_policy": "normal"
                   }
                 }
               }
@@ -96,7 +97,8 @@ expression: json
                           ]
                         }
                       }
-                    ]
+                    ],
+                    "exec_policy": "normal"
                   }
                 }
               }
@@ -123,7 +125,8 @@ expression: json
                           ]
                         }
                       }
-                    ]
+                    ],
+                    "exec_policy": "normal"
                   }
                 }
               }
@@ -141,7 +144,8 @@ expression: json
                           "String": "Basic generics parsed successfully"
                         }
                       }
-                    ]
+                    ],
+                    "exec_policy": "normal"
                   }
                 }
               }

@@ -15,7 +15,7 @@ expression: json
             {
               "Return": {
                 "expr": {
-                  "AsyncCall": {
+                  "Call": {
                     "callee": {
                       "Member": {
                         "object": {
@@ -30,7 +30,8 @@ expression: json
                           "String": "url"
                         }
                       }
-                    ]
+                    ],
+                    "exec_policy": "async"
                   }
                 }
               }
@@ -58,7 +59,8 @@ expression: json
                     "callee": {
                       "Identifier": "fetchData"
                     },
-                    "args": []
+                    "args": [],
+                    "exec_policy": "normal"
                   }
                 }
               }
@@ -74,7 +76,8 @@ expression: json
                       {
                         "Identifier": "data"
                       }
-                    ]
+                    ],
+                    "exec_policy": "normal"
                   }
                 }
               }

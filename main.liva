@@ -196,13 +196,13 @@ main() {
   print("\n⚙️ Testing Concurrency Features:")
 
   let asyncUser = async fetchUser(1)
-  let parallelResult = parallel heavyComputation(12)
+  let parallelResult = par heavyComputation(12)
 
   let taskUser = task async fetchUser(2)
-  let taskCompute = task parallel heavyComputation(8)
+  let taskCompute = task par heavyComputation(8)
 
   fire async logEvent($"Fire-and-forget async event triggered")
-  fire parallel backgroundCleanup()
+  fire par backgroundCleanup()
 
   print($"Async user value: {asyncUser}")
   print($"Parallel result (lazy join): {parallelResult}")

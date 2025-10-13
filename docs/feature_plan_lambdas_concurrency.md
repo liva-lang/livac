@@ -8,8 +8,8 @@ This document captures the task breakdown needed to implement the new language r
 
 - **Lexer**
   - [x] Added keyword tokens for `par`, `move`, `seq`, `vec`, `boost`, `with`, and all for-option flags (`ordered`, `chunk`, `threads`, `simdWidth`, `prefetch`, `reduction`, `schedule`, `detect`, `auto`, `safe`, `fast`, `static`, `dynamic`) so downstream stages can consume the new syntax.
-  - [ ] Remove `parallel` token usages (keep for backwards compatibility warnings if desired).
-  - [ ] Ensure `async`, `par`, `task`, `fire` are recognised as separate modifiers (not identifiers).
+  - [x] Remove `parallel` token usages (keep for backwards compatibility warnings if desired).
+  - [x] Ensure `async`, `par`, `task`, `fire` are recognised as separate modifiers (not identifiers).
 
 - **Parser**
   - Member expressions: allow `.length` property access; emit diagnostics for `len(x)` at parse or semantic stage.

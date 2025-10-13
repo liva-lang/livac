@@ -42,10 +42,6 @@ async function fetch_data() {
     return await http.get("url")
 }
 
-parallel function heavy_computation() {
-    return compute()
-}
-
-task function background_task() {
-    fire log_event("task started")
-}
+par heavy_computation()
+task par background_task()
+fire par log_event()

@@ -42,7 +42,8 @@ expression: json
                                   "String": "ok"
                                 }
                               }
-                            ]
+                            ],
+                            "exec_policy": "normal"
                           }
                         }
                       }

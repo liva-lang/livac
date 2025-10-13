@@ -11,19 +11,19 @@ fetchMultipleUsers() {
     return [user1, user2, user3]
 }
 
-// Función que combina async y parallel
+// Función que combina async y par
 processData() {
     // Async I/O
     let data = async fetchData()
 
     // Parallel CPU work
-    let processed = parallel processIntensive(data)
+    let processed = par processIntensive(data)
 
     // Fire and forget logging
     fire async logProcessStart()
 
     // Task con control explícito
-    let task_handle = task parallel backgroundWork()
+    let task_handle = task par backgroundWork()
 
     // Combinar resultados
     let final = await task_handle
@@ -38,9 +38,9 @@ mixedConcurrencyDemo() {
     let a2 = async task2()
     let a3 = async task3()
 
-    // Múltiples parallel para CPU intensivo
-    let p1 = parallel cpuTask(1)
-    let p2 = parallel cpuTask(2)
+    // Múltiples par para CPU intensivo
+    let p1 = par cpuTask(1)
+    let p2 = par cpuTask(2)
 
     // Combinar resultados
     let result1 = a1 + a2 + a3
@@ -48,7 +48,7 @@ mixedConcurrencyDemo() {
 
     // Fire and forget sin esperar resultado
     fire async logResults(result1, result2)
-    fire parallel cleanup()
+    fire par cleanup()
 
     return result1 * result2
 }
@@ -57,7 +57,7 @@ mixedConcurrencyDemo() {
 lazyConcurrencyDemo() {
     // Estas llamadas no ejecutan inmediatamente
     let future1 = async expensiveAsyncOperation(1)
-    let future2 = parallel expensiveParallelOperation(2)
+    let future2 = par expensiveParallelOperation(2)
 
     // Hacen otro trabajo primero
     let intermediate = doSomeWork()

@@ -54,12 +54,12 @@ fn ir_codegen_async_helpers() {
 fn ir_codegen_parallel_helpers() {
     let source = r#"
         heavy() {
-            return parallel compute()
+            return par compute()
         }
 
         main() {
-            let value = parallel heavy()
-            fire parallel heavy()
+            let value = par heavy()
+            fire par heavy()
             print(value)
         }
     "#;

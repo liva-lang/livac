@@ -17,7 +17,7 @@ expression: json
                 "name": "response",
                 "type_ref": null,
                 "init": {
-                  "AsyncCall": {
+                  "Call": {
                     "callee": {
                       "Member": {
                         "object": {
@@ -32,7 +32,8 @@ expression: json
                           "String": "https://api.example.com/user"
                         }
                       }
-                    ]
+                    ],
+                    "exec_policy": "async"
                   }
                 }
               }
@@ -49,7 +50,8 @@ expression: json
                         "property": "json"
                       }
                     },
-                    "args": []
+                    "args": [],
+                    "exec_policy": "normal"
                   }
                 }
               }
@@ -77,7 +79,8 @@ expression: json
                     "callee": {
                       "Identifier": "fetchUser"
                     },
-                    "args": []
+                    "args": [],
+                    "exec_policy": "normal"
                   }
                 }
               }
@@ -87,7 +90,7 @@ expression: json
                 "name": "processed",
                 "type_ref": null,
                 "init": {
-                  "AsyncCall": {
+                  "Call": {
                     "callee": {
                       "Identifier": "processUser"
                     },
@@ -95,7 +98,8 @@ expression: json
                       {
                         "Identifier": "user"
                       }
-                    ]
+                    ],
+                    "exec_policy": "async"
                   }
                 }
               }
@@ -130,7 +134,8 @@ expression: json
                     "callee": {
                       "Identifier": "processData"
                     },
-                    "args": []
+                    "args": [],
+                    "exec_policy": "normal"
                   }
                 }
               }
@@ -146,7 +151,8 @@ expression: json
                       {
                         "Identifier": "result"
                       }
-                    ]
+                    ],
+                    "exec_policy": "normal"
                   }
                 }
               }

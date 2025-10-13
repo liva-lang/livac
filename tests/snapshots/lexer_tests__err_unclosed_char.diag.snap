@@ -2,5 +2,5 @@
 source: tests/lexer_tests.rs
 expression: error_msg
 ---
-Lexer error: Invalid token at line 2, column 8: ''A
+Lexer error: Invalid token at line 2, column 9: ''A
 '

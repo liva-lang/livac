@@ -29,7 +29,7 @@ expression: json
                 "name": "user1",
                 "type_ref": null,
                 "init": {
-                  "AsyncCall": {
+                  "Call": {
                     "callee": {
                       "Identifier": "fetchUser"
                     },
@@ -39,7 +39,8 @@ expression: json
                           "Int": 1
                         }
                       }
-                    ]
+                    ],
+                    "exec_policy": "async"
                   }
                 }
               }
@@ -49,7 +50,7 @@ expression: json
                 "name": "user2",
                 "type_ref": null,
                 "init": {
-                  "AsyncCall": {
+                  "Call": {
                     "callee": {
                       "Identifier": "fetchUser"
                     },
@@ -59,7 +60,8 @@ expression: json
                           "Int": 2
                         }
                       }
-                    ]
+                    ],
+                    "exec_policy": "async"
                   }
                 }
               }
@@ -69,7 +71,7 @@ expression: json
                 "name": "user3",
                 "type_ref": null,
                 "init": {
-                  "AsyncCall": {
+                  "Call": {
                     "callee": {
                       "Identifier": "fetchUser"
                     },
@@ -79,7 +81,8 @@ expression: json
                           "Int": 3
                         }
                       }
-                    ]
+                    ],
+                    "exec_policy": "async"
                   }
                 }
               }
@@ -120,11 +123,12 @@ expression: json
                 "name": "data",
                 "type_ref": null,
                 "init": {
-                  "AsyncCall": {
+                  "Call": {
                     "callee": {
                       "Identifier": "fetchData"
                     },
-                    "args": []
+                    "args": [],
+                    "exec_policy": "async"
                   }
                 }
               }
@@ -134,7 +138,7 @@ expression: json
                 "name": "processed",
                 "type_ref": null,
                 "init": {
-                  "ParallelCall": {
+                  "Call": {
                     "callee": {
                       "Identifier": "processIntensive"
                     },
@@ -142,7 +146,8 @@ expression: json
                       {
                         "Identifier": "data"
                       }
-                    ]
+                    ],
+                    "exec_policy": "par"
                   }
                 }
               }
@@ -150,10 +155,12 @@ expression: json
             {
               "Expr": {
                 "expr": {
-                  "FireCall": {
-                    "mode": "Async",
-                    "callee": "logProcessStart",
-                    "args": []
+                  "Call": {
+                    "callee": {
+                      "Identifier": "logProcessStart"
+                    },
+                    "args": [],
+                    "exec_policy": "fire-async"
                   }
                 }
               }
@@ -163,10 +170,12 @@ expression: json
                 "name": "task_handle",
                 "type_ref": null,
                 "init": {
-                  "TaskCall": {
-                    "mode": "Parallel",
-                    "callee": "backgroundWork",
-                    "args": []
+                  "Call": {
+                    "callee": {
+                      "Identifier": "backgroundWork"
+                    },
+                    "args": [],
+                    "exec_policy": "task-par"
                   }
                 }
               }
@@ -221,11 +230,12 @@ expression: json
                 "name": "a1",
                 "type_ref": null,
                 "init": {
-                  "AsyncCall": {
+                  "Call": {
                     "callee": {
                       "Identifier": "task1"
                     },
-                    "args": []
+                    "args": [],
+                    "exec_policy": "async"
                   }
                 }
               }
@@ -235,11 +245,12 @@ expression: json
                 "name": "a2",
                 "type_ref": null,
                 "init": {
-                  "AsyncCall": {
+                  "Call": {
                     "callee": {
                       "Identifier": "task2"
                     },
-                    "args": []
+                    "args": [],
+                    "exec_policy": "async"
                   }
                 }
               }
@@ -249,11 +260,12 @@ expression: json
                 "name": "a3",
                 "type_ref": null,
                 "init": {
-                  "AsyncCall": {
+                  "Call": {
                     "callee": {
                       "Identifier": "task3"
                     },
-                    "args": []
+                    "args": [],
+                    "exec_policy": "async"
                   }
                 }
               }
@@ -263,7 +275,7 @@ expression: json
                 "name": "p1",
                 "type_ref": null,
                 "init": {
-                  "ParallelCall": {
+                  "Call": {
                     "callee": {
                       "Identifier": "cpuTask"
                     },
@@ -273,7 +285,8 @@ expression: json
                           "Int": 1
                         }
                       }
-                    ]
+                    ],
+                    "exec_policy": "par"
                   }
                 }
               }
@@ -283,7 +296,7 @@ expression: json
                 "name": "p2",
                 "type_ref": null,
                 "init": {
-                  "ParallelCall": {
+                  "Call": {
                     "callee": {
                       "Identifier": "cpuTask"
                     },
@@ -293,7 +306,8 @@ expression: json
                           "Int": 2
                         }
                       }
-                    ]
+                    ],
+                    "exec_policy": "par"
                   }
                 }
               }
@@ -343,9 +357,10 @@ expression: json
             {
               "Expr": {
                 "expr": {
-                  "FireCall": {
-                    "mode": "Async",
-                    "callee": "logResults",
+                  "Call": {
+                    "callee": {
+                      "Identifier": "logResults"
+                    },
                     "args": [
                       {
                         "Identifier": "result1"
@@ -353,7 +368,8 @@ expression: json
                       {
                         "Identifier": "result2"
                       }
-                    ]
+                    ],
+                    "exec_policy": "fire-async"
                   }
                 }
               }
@@ -361,10 +377,12 @@ expression: json
             {
               "Expr": {
                 "expr": {
-                  "FireCall": {
-                    "mode": "Parallel",
-                    "callee": "cleanup",
-                    "args": []
+                  "Call": {
+                    "callee": {
+                      "Identifier": "cleanup"
+                    },
+                    "args": [],
+                    "exec_policy": "fire-par"
                   }
                 }
               }
@@ -403,7 +421,7 @@ expression: json
                 "name": "future1",
                 "type_ref": null,
                 "init": {
-                  "AsyncCall": {
+                  "Call": {
                     "callee": {
                       "Identifier": "expensiveAsyncOperation"
                     },
@@ -413,7 +431,8 @@ expression: json
                           "Int": 1
                         }
                       }
-                    ]
+                    ],
+                    "exec_policy": "async"
                   }
                 }
               }
@@ -423,7 +442,7 @@ expression: json
                 "name": "future2",
                 "type_ref": null,
                 "init": {
-                  "ParallelCall": {
+                  "Call": {
                     "callee": {
                       "Identifier": "expensiveParallelOperation"
                     },
@@ -433,7 +452,8 @@ expression: json
                           "Int": 2
                         }
                       }
-                    ]
+                    ],
+                    "exec_policy": "par"
                   }
                 }
               }
@@ -447,7 +467,8 @@ expression: json
                     "callee": {
                       "Identifier": "doSomeWork"
                     },
-                    "args": []
+                    "args": [],
+                    "exec_policy": "normal"
                   }
                 }
               }
@@ -520,7 +541,8 @@ expression: json
                           "String": "Advanced concurrency features parsed successfully"
                         }
                       }
-                    ]
+                    ],
+                    "exec_policy": "normal"
                   }
                 }
               }

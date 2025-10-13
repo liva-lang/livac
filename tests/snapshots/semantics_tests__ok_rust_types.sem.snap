@@ -88,7 +88,8 @@ expression: json
                           "String": "hello"
                         }
                       }
-                    ]
+                    ],
+                    "exec_policy": "normal"
                   }
                 }
               }
@@ -120,7 +121,8 @@ expression: json
                           "Int": 42
                         }
                       }
-                    ]
+                    ],
+                    "exec_policy": "normal"
                   }
                 }
               }

@@ -1,6 +1,5 @@
 ---
 source: tests/parser_tests.rs
-assertion_line: 15
 expression: json
 ---
 {
@@ -165,7 +164,8 @@ expression: json
                                   "String": "Division by zero"
                                 }
                               }
-                            ]
+                            ],
+                            "exec_policy": "normal"
                           }
                         }
                       }
@@ -194,7 +194,8 @@ expression: json
                           }
                         }
                       }
-                    ]
+                    ],
+                    "exec_policy": "normal"
                   }
                 }
               }
@@ -250,7 +251,8 @@ expression: json
                               {
                                 "Identifier": "b"
                               }
-                            ]
+                            ],
+                            "exec_policy": "normal"
                           }
                         }
                       }
@@ -267,7 +269,8 @@ expression: json
                                 "property": "isOk"
                               }
                             },
-                            "args": []
+                            "args": [],
+                            "exec_policy": "normal"
                           }
                         },
                         "then_branch": {
@@ -291,7 +294,8 @@ expression: json
                                                 "property": "unwrap"
                                               }
                                             },
-                                            "args": []
+                                            "args": [],
+                                            "exec_policy": "normal"
                                           }
                                         }
                                       }
@@ -323,7 +327,8 @@ expression: json
                                                 "property": "unwrapErr"
                                               }
                                             },
-                                            "args": []
+                                            "args": [],
+                                            "exec_policy": "normal"
                                           }
                                         }
                                       }
@@ -396,7 +401,8 @@ expression: json
                                   "String": "nonexistent.txt"
                                 }
                               }
-                            ]
+                            ],
+                            "exec_policy": "normal"
                           }
                         }
                       }
@@ -425,7 +431,8 @@ expression: json
                                           "Int": 0
                                         }
                                       }
-                                    ]
+                                    ],
+                                    "exec_policy": "normal"
                                   }
                                 }
                               }
@@ -452,7 +459,8 @@ expression: json
                                           ]
                                         }
                                       }
-                                    ]
+                                    ],
+                                    "exec_policy": "normal"
                                   }
                                 }
                               }
@@ -484,7 +492,8 @@ expression: json
                                           ]
                                         }
                                       }
-                                    ]
+                                    ],
+                                    "exec_policy": "normal"
                                   }
                                 }
                               }
@@ -520,7 +529,8 @@ expression: json
                                   ]
                                 }
                               }
-                            ]
+                            ],
+                            "exec_policy": "normal"
                           }
                         }
                       }
@@ -585,7 +595,8 @@ expression: json
                                   "String": "0"
                                 }
                               }
-                            ]
+                            ],
+                            "exec_policy": "normal"
                           }
                         }
                       }
@@ -612,7 +623,8 @@ expression: json
                                   ]
                                 }
                               }
-                            ]
+                            ],
+                            "exec_policy": "normal"
                           }
                         }
                       }
@@ -640,7 +652,8 @@ expression: json
                                   "String": "parse"
                                 }
                               }
-                            ]
+                            ],
+                            "exec_policy": "normal"
                           }
                         },
                         "then_branch": {
@@ -667,7 +680,8 @@ expression: json
                                           ]
                                         }
                                       }
-                                    ]
+                                    ],
+                                    "exec_policy": "normal"
                                   }
                                 }
                               }
@@ -694,7 +708,8 @@ expression: json
                                           "String": "division"
                                         }
                                       }
-                                    ]
+                                    ],
+                                    "exec_policy": "normal"
                                   }
                                 },
                                 "then_branch": {
@@ -721,7 +736,8 @@ expression: json
                                                   ]
                                                 }
                                               }
-                                            ]
+                                            ],
+                                            "exec_policy": "normal"
                                           }
                                         }
                                       }
@@ -752,7 +768,8 @@ expression: json
                                                   ]
                                                 }
                                               }
-                                            ]
+                                            ],
+                                            "exec_policy": "normal"
                                           }
                                         }
                                       }
@@ -796,7 +813,8 @@ expression: json
                           "String": "Advanced error handling parsed successfully"
                         }
                       }
-                    ]
+                    ],
+                    "exec_policy": "normal"
                   }
                 }
               }
