@@ -173,7 +173,7 @@ main() {
   ]
 
   print($"Numbers: {numbers}")
-  print($"Users count: {len(users)}")
+  print($"Users count: {users.length}")
   print($"First user: {users[0].name} and his age is {users[0].age}")
 
   // ============================================================================

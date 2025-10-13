@@ -12,7 +12,7 @@ This document captures the task breakdown needed to implement the new language r
   - [x] Ensure `async`, `par`, `task`, `fire` are recognised as separate modifiers (not identifiers).
 
 - **Parser**
-  - Member expressions: allow `.length` property access; emit diagnostics for `len(x)` at parse or semantic stage.
+  - [x] Member expressions: allow `.length` property access; emit diagnostics for `len(x)` at parse or semantic stage.
   - [x] Lambda literals support `[move] (param list) => expr|block`, single-identifier heads, and optional return annotations.
   - [x] Call expressions now carry execution policy metadata (`normal`, `async`, `par`, `task async`, `task par`, `fire async`, `fire par`).
   - [x] Disallow modifiers on declarations (diagnostic if `async foo() {}` uses keyword wrongly).
@@ -32,7 +32,7 @@ This document captures the task breakdown needed to implement the new language r
 
 - Enforce `.length` correctness:
   - Arrays/strings expose `length`; sequences must error with E0701 (suggest `.count()` or `.collect().length`).
-  - Replace legacy `len(x)` with warning W0700 + quick-fix suggestions.
+  - [x] Replace legacy `len(x)` with warning W0700 + quick-fix suggestions.
 - Validate lambda syntax:
   - Infer/verify parameter scopes, handle move-capture diagnostics (E0510 for non-Send captures later).
   - Ensure return type annotation validity.

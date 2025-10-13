@@ -204,16 +204,11 @@ expression: json
                       "Binary": {
                         "op": "Sub",
                         "left": {
-                          "Call": {
-                            "callee": {
-                              "Identifier": "len"
+                          "Member": {
+                            "object": {
+                              "Identifier": "numbers"
                             },
-                            "args": [
-                              {
-                                "Identifier": "numbers"
-                              }
-                            ],
-                            "exec_policy": "normal"
+                            "property": "length"
                           }
                         },
                         "right": {

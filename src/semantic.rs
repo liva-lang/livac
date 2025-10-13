@@ -670,6 +670,11 @@ impl SemanticAnalyzer {
     fn validate_call(&mut self, callee: &Expr, args: &[Expr]) -> Result<()> {
         match callee {
             Expr::Identifier(name) => {
+                if name == "len" {
+                    return Err(CompilerError::SemanticError(
+                        "W0700: `len(expr)` is deprecated. Use `expr.length` instead.".into(),
+                    ));
+                }
                 if self.lookup_symbol(name).is_none() {
                     self.validate_known_function(name, args.len())?;
                 }

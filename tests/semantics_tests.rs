@@ -83,3 +83,8 @@ fn test_async_without_await() {
 fn test_undefined_variable() {
     test_semantics_ok("undefined_variable");
 }
+
+#[test]
+fn test_len_function_call() {
+    test_semantics_err("len_function_call");
+}

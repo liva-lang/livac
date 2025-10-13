@@ -58,7 +58,7 @@ Persona {
 
   // Private method
   __validarDni(): bool {
-    return len(this.__dni) > 0
+  return this.__dni.length > 0
   }
 
   // One-liner method

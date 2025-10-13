@@ -21,7 +21,7 @@ main() {
     // Operaciones con arrays
     let numbers = [1, 2, 3, 4, 5]
     let first = numbers[0]
-    let last = numbers[len(numbers) - 1]
+    let last = numbers[numbers.length - 1]
 
     // Expresiones con paréntesis complejos
     let complex = ((1 + 2) * 3 - 4) / (5 + 6)

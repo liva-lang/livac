@@ -585,15 +585,19 @@ impl CodeGenerator {
             Expr::Member { object, property } => {
                 self.generate_expr(object)?;
 
-                // For serde_json::Value objects, use bracket notation instead of dot notation
-                match object.as_ref() {
-                    Expr::Identifier(_) => {
-                        // Check if this is likely a serde_json::Value (from object literals in arrays)
-                        // For now, use bracket notation for any identifier access
-                        write!(self.output, "[\"{}\"]", property).unwrap();
-                    }
-                    _ => {
-                        write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
+                if property == "length" {
+                    self.output.push_str(".len()");
+                } else {
+                    // For serde_json::Value objects, use bracket notation instead of dot notation
+                    match object.as_ref() {
+                        Expr::Identifier(_) => {
+                            // Check if this is likely a serde_json::Value (from object literals in arrays)
+                            // For now, use bracket notation for any identifier access
+                            write!(self.output, "[\"{}\"]", property).unwrap();
+                        }
+                        _ => {
+                            write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
+                        }
                     }
                 }
             }
@@ -735,14 +739,6 @@ impl CodeGenerator {
                     }
                     self.output.push(')');
                 }
-                return Ok(());
-            }
-        }
-
-        if let Expr::Identifier(name) = call.callee.as_ref() {
-            if name == "len" && call.args.len() == 1 {
-                self.generate_expr(&call.args[0])?;
-                self.output.push_str(".len()");
                 return Ok(());
             }
         }
@@ -1594,13 +1590,6 @@ impl<'a> IrCodeGenerator<'a> {
                     }
                     return Ok(());
                 }
-                if let ir::Expr::Identifier(name) = callee.as_ref() {
-                    if name == "len" && args.len() == 1 {
-                        self.generate_expr(&args[0])?;
-                        self.output.push_str(".len()");
-                        return Ok(());
-                    }
-                }
                 self.generate_expr(callee)?;
                 self.output.push('(');
                 for (idx, arg) in args.iter().enumerate() {
@@ -1813,6 +1802,11 @@ impl<'a> IrCodeGenerator<'a> {
             }
             ir::Expr::Member { object, property } => {
                 self.generate_expr(object)?;
+
+                if property == "length" {
+                    self.output.push_str(".len()");
+                    return Ok(());
+                }
 
                 // For serde_json::Value objects, use bracket notation instead of dot notation
                 // This handles cases where we're accessing properties of object literals in arrays
