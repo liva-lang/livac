@@ -42,9 +42,9 @@ This document captures the task breakdown needed to implement the new language r
   - [x] Detect tasks that are never awaited (W0601), double await (E0604), invalid awaits (E0603), etc.
   - Enforce concurrency safety rules (E0401/E0402/E0510/E0511 placeholders).
 - For-loop policies:
-  - [x] Validate option compatibility with chosen policy (e.g. `simdWidth` only for vec/boost).
+  - [x] Validate option compatibility with chosen policy (semantic checks complete; codegen still pending so loops emit sequential Rust).
   - [x] Check numeric ranges (positive chunk sizes, etc.).
-  - [x] Flag illegal constructs (await inside `par/boost` body; non-Send captures pending).
+  - [x] Flag illegal constructs (await inside `par/boost` body; non-Send captures pending, and runtime execution remains sequential until codegen lands).
 - Extend symbol/type tracking to support lambda parameters and inference in new constructs.
 
 ---
@@ -54,8 +54,8 @@ This document captures the task breakdown needed to implement the new language r
 - Update IR to mirror AST changes:
   - `ir::Expr::Call(CallExpr)` with execution policy enum.
   - `ir::Expr::Lambda(LambdaExpr)` and associated param/body structs.
-  - `ir::Stmt::For` to carry policy + options.
-  - Introduce `DataParallelPolicy`, `ForPolicyOptions`, `ThreadOption`, etc. in IR.
+  - [x] `ir::Stmt::For` now carries policy + options (codegen still sequential until policy handlers land).
+  - [x] Introduce `DataParallelPolicy`, `ForPolicyOptions`, `ThreadOption`, etc. in IR (currently used for metadata only).
 - Lowering pass adjustments:
   - Map AST structures into updated IR forms.
   - Ensure async inference still works with new call representation.

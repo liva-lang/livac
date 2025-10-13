@@ -96,6 +96,8 @@ pub enum Stmt {
     For {
         var: String,
         iterable: Expr,
+        policy: DataParallelPolicy,
+        options: ForPolicyOptions,
         body: Block,
     },
     Block(Block),
@@ -175,6 +177,27 @@ pub enum Expr {
         end: Box<Expr>,
     },
     Unsupported(ast::Expr),
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq)]
+pub struct CallExpr {
+    pub callee: Box<Expr>,
+    pub args: Vec<Expr>,
+    pub exec_policy: ExecPolicy,
+    pub callee_name: Option<String>,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq, Copy)]
+pub enum ExecPolicy {
+    Normal,
+    Async,
+    Par,
+    TaskAsync,
+    TaskPar,
+    FireAsync,
+    FirePar,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -266,6 +289,61 @@ pub enum AsyncKind {
 pub enum ConcurrencyMode {
     Async,
     Parallel,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum DataParallelPolicy {
+    Seq,
+    Par,
+    Vec,
+    Boost,
+}
+
+impl Default for DataParallelPolicy {
+    fn default() -> Self {
+        DataParallelPolicy::Seq
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct ForPolicyOptions {
+    pub ordered: bool,
+    pub chunk: Option<i64>,
+    pub threads: Option<ThreadOption>,
+    pub simd_width: Option<SimdWidthOption>,
+    pub prefetch: Option<i64>,
+    pub reduction: Option<ReductionOption>,
+    pub schedule: Option<ScheduleOption>,
+    pub detect: Option<DetectOption>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ThreadOption {
+    Auto,
+    Count(i64),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SimdWidthOption {
+    Auto,
+    Width(i64),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ReductionOption {
+    Safe,
+    Fast,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ScheduleOption {
+    Static,
+    Dynamic,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum DetectOption {
+    Auto,
 }
 
 #[derive(Debug, Clone, PartialEq)]

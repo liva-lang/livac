@@ -992,7 +992,9 @@ impl SemanticAnalyzer {
 
     fn expr_contains_await(expr: &Expr) -> bool {
         match expr {
-            Expr::Unary { op: UnOp::Await, .. } => true,
+            Expr::Unary {
+                op: UnOp::Await, ..
+            } => true,
             Expr::Unary { operand, .. } => Self::expr_contains_await(operand),
             Expr::Binary { left, right, .. } => {
                 Self::expr_contains_await(left) || Self::expr_contains_await(right)
@@ -1017,9 +1019,9 @@ impl SemanticAnalyzer {
             Expr::ObjectLiteral(fields) => fields
                 .iter()
                 .any(|(_, value)| Self::expr_contains_await(value)),
-            Expr::ArrayLiteral(elements) => {
-                elements.iter().any(|value| Self::expr_contains_await(value))
-            }
+            Expr::ArrayLiteral(elements) => elements
+                .iter()
+                .any(|value| Self::expr_contains_await(value)),
             Expr::Lambda(lambda) => match &lambda.body {
                 LambdaBody::Expr(body) => Self::expr_contains_await(body),
                 LambdaBody::Block(block) => Self::block_contains_await(block),

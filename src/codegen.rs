@@ -1441,6 +1441,7 @@ impl<'a> IrCodeGenerator<'a> {
                 var,
                 iterable,
                 body,
+                ..
             } => {
                 self.write_indent();
                 write!(self.output, "for {} in ", self.sanitize_name(var)).unwrap();

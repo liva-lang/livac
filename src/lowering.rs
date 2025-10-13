@@ -141,6 +141,8 @@ fn lower_stmt(stmt: &ast::Stmt) -> ir::Stmt {
         ast::Stmt::For(for_stmt) => ir::Stmt::For {
             var: for_stmt.var.clone(),
             iterable: lower_expr(&for_stmt.iterable),
+            policy: lower_data_parallel_policy(for_stmt.policy.clone()),
+            options: lower_for_policy_options(&for_stmt.options),
             body: lower_block(&for_stmt.body),
         },
         ast::Stmt::Block(block) => ir::Stmt::Block(lower_block(block)),
@@ -247,6 +249,48 @@ fn lower_expr(expr: &ast::Expr) -> ir::Expr {
                 .collect(),
         ),
         ast::Expr::Lambda(lambda) => ir::Expr::Unsupported(ast::Expr::Lambda(lambda.clone())),
+    }
+}
+
+fn lower_data_parallel_policy(policy: ast::DataParallelPolicy) -> ir::DataParallelPolicy {
+    match policy {
+        ast::DataParallelPolicy::Seq => ir::DataParallelPolicy::Seq,
+        ast::DataParallelPolicy::Par => ir::DataParallelPolicy::Par,
+        ast::DataParallelPolicy::Vec => ir::DataParallelPolicy::Vec,
+        ast::DataParallelPolicy::Boost => ir::DataParallelPolicy::Boost,
+    }
+}
+
+fn lower_for_policy_options(options: &ast::ForPolicyOptions) -> ir::ForPolicyOptions {
+    ir::ForPolicyOptions {
+        ordered: options.ordered,
+        chunk: options.chunk,
+        threads: options
+            .threads
+            .as_ref()
+            .map(|thread_option| match thread_option {
+                ast::ThreadOption::Auto => ir::ThreadOption::Auto,
+                ast::ThreadOption::Count(count) => ir::ThreadOption::Count(*count),
+            }),
+        simd_width: options
+            .simd_width
+            .as_ref()
+            .map(|simd_option| match simd_option {
+                ast::SimdWidthOption::Auto => ir::SimdWidthOption::Auto,
+                ast::SimdWidthOption::Width(width) => ir::SimdWidthOption::Width(*width),
+            }),
+        prefetch: options.prefetch,
+        reduction: options.reduction.as_ref().map(|reduction| match reduction {
+            ast::ReductionOption::Safe => ir::ReductionOption::Safe,
+            ast::ReductionOption::Fast => ir::ReductionOption::Fast,
+        }),
+        schedule: options.schedule.as_ref().map(|schedule| match schedule {
+            ast::ScheduleOption::Static => ir::ScheduleOption::Static,
+            ast::ScheduleOption::Dynamic => ir::ScheduleOption::Dynamic,
+        }),
+        detect: options.detect.as_ref().map(|detect| match detect {
+            ast::DetectOption::Auto => ir::DetectOption::Auto,
+        }),
     }
 }
 
