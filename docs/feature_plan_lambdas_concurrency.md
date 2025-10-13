@@ -37,7 +37,7 @@ This document captures the task breakdown needed to implement the new language r
   - Infer/verify parameter scopes, handle move-capture diagnostics (E0510 for non-Send captures later).
   - Ensure return type annotation validity.
 - Execution policies:
-  - Ensure modifiers only appear at call sites; produce diagnostics for invalid combinations (e.g. double modifiers).
+  - [x] Ensure modifiers only appear at call sites; produce diagnostics for invalid combinations (e.g. double modifiers).
   - Track async inference through new `CallExpr.exec_policy`.
   - Detect tasks that are never awaited (W0601), double await (E0604), invalid awaits (E0603), etc.
   - Enforce concurrency safety rules (E0401/E0402/E0510/E0511 placeholders).
