@@ -1,0 +1,5 @@
+---
+source: tests/semantics_tests.rs
+expression: error_msg
+---
+Semantic error: W0601: task handle 'handle' is never awaited.

@@ -1,0 +1,7 @@
+worker() {
+    return 1
+}
+
+main() {
+    let handle = task async worker()
+}

@@ -93,3 +93,18 @@ fn test_len_function_call() {
 fn test_length_misuse() {
     test_semantics_err("length_invalid");
 }
+
+#[test]
+fn test_task_never_awaited() {
+    test_semantics_err("task_never_awaited");
+}
+
+#[test]
+fn test_task_double_await() {
+    test_semantics_err("task_double_await");
+}
+
+#[test]
+fn test_invalid_await_call() {
+    test_semantics_err("invalid_await_call");
+}

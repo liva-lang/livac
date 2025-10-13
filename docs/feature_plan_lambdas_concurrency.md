@@ -39,7 +39,7 @@ This document captures the task breakdown needed to implement the new language r
 - Execution policies:
   - [x] Ensure modifiers only appear at call sites; produce diagnostics for invalid combinations (e.g. double modifiers).
   - Track async inference through new `CallExpr.exec_policy`.
-  - Detect tasks that are never awaited (W0601), double await (E0604), invalid awaits (E0603), etc.
+  - [x] Detect tasks that are never awaited (W0601), double await (E0604), invalid awaits (E0603), etc.
   - Enforce concurrency safety rules (E0401/E0402/E0510/E0511 placeholders).
 - For-loop policies:
   - Validate option compatibility with chosen policy (e.g. `simdWidth` only for vec/boost).

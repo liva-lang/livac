@@ -13,7 +13,7 @@ pub struct SemanticAnalyzer {
     external_modules: HashSet<String>,
     // Current scope for variables
     current_scope: Vec<HashMap<String, Option<TypeRef>>>,
-    pending_tasks: HashSet<String>,
+    awaitable_scopes: Vec<HashMap<String, AwaitableInfo>>,
 }
 
 #[derive(Debug, Clone)]
@@ -33,6 +33,24 @@ struct FunctionSignature {
     defaults: Vec<bool>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AwaitableKind {
+    Async,
+    Task,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AwaitState {
+    Pending,
+    Awaited,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct AwaitableInfo {
+    kind: AwaitableKind,
+    state: AwaitState,
+}
+
 impl SemanticAnalyzer {
     fn new() -> Self {
         Self {
@@ -41,7 +59,7 @@ impl SemanticAnalyzer {
             functions: HashMap::new(),
             external_modules: HashSet::new(),
             current_scope: vec![HashMap::new()],
-            pending_tasks: HashSet::new(),
+            awaitable_scopes: vec![HashMap::new()],
         }
     }
 
@@ -398,7 +416,7 @@ impl SemanticAnalyzer {
 
         for param in &func.params {
             if self.declare_symbol(&param.name, param.type_ref.clone()) {
-                self.exit_scope();
+                self.exit_scope()?;
                 return Err(CompilerError::SemanticError(format!(
                     "Parameter '{}' defined multiple times",
                     param.name
@@ -414,7 +432,7 @@ impl SemanticAnalyzer {
             self.validate_expr(expr)?;
         }
 
-        self.exit_scope();
+        self.exit_scope()?;
         Ok(())
     }
 
@@ -487,7 +505,7 @@ impl SemanticAnalyzer {
 
         for param in &method.params {
             if self.declare_symbol(&param.name, param.type_ref.clone()) {
-                self.exit_scope();
+                self.exit_scope()?;
                 return Err(CompilerError::SemanticError(format!(
                     "Parameter '{}' defined multiple times",
                     param.name
@@ -503,7 +521,7 @@ impl SemanticAnalyzer {
             self.validate_expr(expr)?;
         }
 
-        self.exit_scope();
+        self.exit_scope()?;
         Ok(())
     }
 
@@ -512,7 +530,7 @@ impl SemanticAnalyzer {
         for stmt in &block.stmts {
             self.validate_stmt(stmt)?;
         }
-        self.exit_scope();
+        self.exit_scope()?;
         Ok(())
     }
 
@@ -537,6 +555,11 @@ impl SemanticAnalyzer {
                         var.name
                     )));
                 }
+                if let Some(init) = &var.init {
+                    self.update_awaitable_from_expr(&var.name, init)?;
+                } else {
+                    self.clear_awaitable(&var.name);
+                }
             }
             Stmt::ConstDecl(const_decl) => {
                 if let Some(type_ref) = &const_decl.type_ref {
@@ -553,10 +576,12 @@ impl SemanticAnalyzer {
                         const_decl.name
                     )));
                 }
+                self.update_awaitable_from_expr(&const_decl.name, &const_decl.init)?;
             }
             Stmt::Assign(assign) => {
                 self.validate_assignment_target(&assign.target)?;
                 self.validate_expr(&assign.value)?;
+                self.handle_assignment(&assign.target, &assign.value)?;
             }
             Stmt::If(if_stmt) => {
                 self.validate_expr(&if_stmt.condition)?;
@@ -573,14 +598,14 @@ impl SemanticAnalyzer {
                 self.validate_expr(&for_stmt.iterable)?;
                 self.enter_scope();
                 if self.declare_symbol(&for_stmt.var, None) {
-                    self.exit_scope();
+                    self.exit_scope()?;
                     return Err(CompilerError::SemanticError(format!(
                         "Loop variable '{}' already defined",
                         for_stmt.var
                     )));
                 }
                 self.validate_block(&for_stmt.body)?;
-                self.exit_scope();
+                self.exit_scope()?;
             }
             Stmt::Switch(switch_stmt) => {
                 self.validate_expr(&switch_stmt.discriminant)?;
@@ -589,14 +614,14 @@ impl SemanticAnalyzer {
                     for stmt in &case.body {
                         self.validate_stmt(stmt)?;
                     }
-                    self.exit_scope();
+                    self.exit_scope()?;
                 }
                 if let Some(default) = &switch_stmt.default {
                     self.enter_scope();
                     for stmt in default {
                         self.validate_stmt(stmt)?;
                     }
-                    self.exit_scope();
+                    self.exit_scope()?;
                 }
             }
             Stmt::TryCatch(try_catch) => {
@@ -604,7 +629,7 @@ impl SemanticAnalyzer {
                 self.enter_scope();
                 self.declare_symbol(&try_catch.catch_var, None);
                 self.validate_block(&try_catch.catch_block)?;
-                self.exit_scope();
+                self.exit_scope()?;
             }
             Stmt::Throw(throw_stmt) => {
                 self.validate_expr(&throw_stmt.expr)?;
@@ -612,10 +637,21 @@ impl SemanticAnalyzer {
             Stmt::Return(ret) => {
                 if let Some(expr) = &ret.expr {
                     self.validate_expr(expr)?;
+                    self.handle_return(expr);
                 }
             }
             Stmt::Expr(expr_stmt) => {
                 self.validate_expr(&expr_stmt.expr)?;
+                if let Expr::Call(call) = &expr_stmt.expr {
+                    if matches!(
+                        call.exec_policy,
+                        ExecPolicy::TaskAsync | ExecPolicy::TaskPar
+                    ) {
+                        return Err(CompilerError::SemanticError(
+                            "W0601: task call result is never awaited.".into(),
+                        ));
+                    }
+                }
             }
             Stmt::Block(block) => {
                 self.validate_block(block)?;
@@ -633,7 +669,13 @@ impl SemanticAnalyzer {
                 self.validate_expr(left)?;
                 self.validate_expr(right)
             }
-            Expr::Unary { operand, .. } => self.validate_expr(operand),
+            Expr::Unary { op, operand } => {
+                if *op == UnOp::Await {
+                    self.validate_await_expr(operand)
+                } else {
+                    self.validate_expr(operand)
+                }
+            }
             Expr::Ternary {
                 condition,
                 then_expr,
@@ -691,15 +733,47 @@ impl SemanticAnalyzer {
         }
 
         self.validate_call(&call.callee, &call.args)?;
-        match call.exec_policy {
-            ExecPolicy::TaskAsync | ExecPolicy::TaskPar => {
-                if let Expr::Identifier(name) = call.callee.as_ref() {
-                    self.pending_tasks.insert(name.clone());
+        Ok(())
+    }
+
+    fn validate_await_expr(&mut self, operand: &Expr) -> Result<()> {
+        self.validate_expr(operand)?;
+
+        match operand {
+            Expr::Identifier(name) => self.mark_identifier_awaited(name),
+            Expr::Call(call) => {
+                if self.classify_call_awaitable(call).is_some() {
+                    return Ok(());
+                }
+
+                match call.exec_policy {
+                    ExecPolicy::FireAsync | ExecPolicy::FirePar => {
+                        let policy =
+                            Self::policy_name(call.exec_policy.clone()).unwrap_or("fire call");
+                        Err(CompilerError::SemanticError(format!(
+                            "E0603: cannot await call using '{}' policy.",
+                            policy
+                        )))
+                    }
+                    ExecPolicy::Par => Err(CompilerError::SemanticError(
+                        "E0603: `par` calls complete eagerly and cannot be awaited.".into(),
+                    )),
+                    ExecPolicy::Normal => Ok(()),
+                    _ => Err(CompilerError::SemanticError(
+                        "E0603: expression is not awaitable.".into(),
+                    )),
                 }
             }
-            _ => {}
+            Expr::Unary {
+                op: UnOp::Await, ..
+            } => Err(CompilerError::SemanticError(
+                "E0604: expression awaited more than once.".into(),
+            )),
+            Expr::Literal(_) | Expr::StringTemplate { .. } => Err(CompilerError::SemanticError(
+                "E0603: cannot await a literal value.".into(),
+            )),
+            _ => Ok(()),
         }
-        Ok(())
     }
 
     fn extract_modifier_chain(expr: &Expr) -> Option<(&'static str, &'static str)> {
@@ -764,7 +838,7 @@ impl SemanticAnalyzer {
             }
 
             if self.declare_symbol(&param.name, param.type_ref.clone()) {
-                self.exit_scope();
+                self.exit_scope()?;
                 return Err(CompilerError::SemanticError(format!(
                     "Parameter '{}' defined multiple times",
                     param.name
@@ -780,7 +854,7 @@ impl SemanticAnalyzer {
             }
         };
 
-        self.exit_scope();
+        self.exit_scope()?;
         result
     }
 
@@ -833,10 +907,30 @@ impl SemanticAnalyzer {
 
     fn enter_scope(&mut self) {
         self.current_scope.push(HashMap::new());
+        self.awaitable_scopes.push(HashMap::new());
     }
 
-    fn exit_scope(&mut self) {
+    fn exit_scope(&mut self) -> Result<()> {
+        let awaitables = self.awaitable_scopes.pop().unwrap_or_default();
+        let mut unawaited_task: Option<String> = None;
+
+        for (name, info) in awaitables.into_iter() {
+            if info.kind == AwaitableKind::Task && info.state == AwaitState::Pending {
+                unawaited_task = Some(name);
+                break;
+            }
+        }
+
         self.current_scope.pop();
+
+        if let Some(name) = unawaited_task {
+            return Err(CompilerError::SemanticError(format!(
+                "W0601: task handle '{}' is never awaited.",
+                name
+            )));
+        }
+
+        Ok(())
     }
 
     fn declare_symbol(&mut self, name: &str, ty: Option<TypeRef>) -> bool {
@@ -856,6 +950,127 @@ impl SemanticAnalyzer {
             }
         }
         None
+    }
+
+    fn find_symbol_scope(&self, name: &str) -> Option<usize> {
+        for index in (0..self.current_scope.len()).rev() {
+            if self.current_scope[index].contains_key(name) {
+                return Some(index);
+            }
+        }
+        None
+    }
+
+    fn set_awaitable(&mut self, name: &str, info: AwaitableInfo) {
+        if let Some(index) = self.find_symbol_scope(name) {
+            if let Some(scope) = self.awaitable_scopes.get_mut(index) {
+                scope.insert(name.to_string(), info);
+            }
+        }
+    }
+
+    fn clear_awaitable(&mut self, name: &str) {
+        if let Some(index) = self.find_symbol_scope(name) {
+            if let Some(scope) = self.awaitable_scopes.get_mut(index) {
+                scope.remove(name);
+            }
+        }
+    }
+
+    fn move_awaitable(&mut self, source: &str, target: &str) -> bool {
+        if let Some(index) = self.find_symbol_scope(source) {
+            if let Some(info) = self.awaitable_scopes[index].remove(source) {
+                self.set_awaitable(target, info);
+                return true;
+            }
+        }
+        false
+    }
+
+    fn classify_call_awaitable(&self, call: &CallExpr) -> Option<AwaitableKind> {
+        match call.exec_policy {
+            ExecPolicy::Async => Some(AwaitableKind::Async),
+            ExecPolicy::TaskAsync | ExecPolicy::TaskPar => Some(AwaitableKind::Task),
+            ExecPolicy::Normal => {
+                if let Expr::Identifier(name) = call.callee.as_ref() {
+                    if self.async_functions.contains(name) {
+                        Some(AwaitableKind::Async)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
+    fn classify_awaitable_expr(&self, expr: &Expr) -> Option<AwaitableKind> {
+        if let Expr::Call(call) = expr {
+            self.classify_call_awaitable(call)
+        } else {
+            None
+        }
+    }
+
+    fn update_awaitable_from_expr(&mut self, name: &str, expr: &Expr) -> Result<()> {
+        if let Expr::Identifier(source) = expr {
+            if self.move_awaitable(source, name) {
+                return Ok(());
+            }
+        }
+
+        if let Some(kind) = self.classify_awaitable_expr(expr) {
+            self.set_awaitable(
+                name,
+                AwaitableInfo {
+                    kind,
+                    state: AwaitState::Pending,
+                },
+            );
+        } else {
+            self.clear_awaitable(name);
+        }
+
+        Ok(())
+    }
+
+    fn mark_identifier_awaited(&mut self, name: &str) -> Result<()> {
+        if let Some(index) = self.find_symbol_scope(name) {
+            if let Some(info) = self.awaitable_scopes[index].get_mut(name) {
+                if info.state == AwaitState::Pending {
+                    info.state = AwaitState::Awaited;
+                    return Ok(());
+                }
+                return Err(CompilerError::SemanticError(format!(
+                    "E0604: handle '{}' awaited more than once.",
+                    name
+                )));
+            }
+            return Err(CompilerError::SemanticError(format!(
+                "E0603: expression '{}' is not awaitable.",
+                name
+            )));
+        }
+
+        Err(CompilerError::SemanticError(format!(
+            "E0603: expression '{}' is not awaitable.",
+            name
+        )))
+    }
+
+    fn handle_assignment(&mut self, target: &Expr, value: &Expr) -> Result<()> {
+        if let Expr::Identifier(name) = target {
+            self.update_awaitable_from_expr(name, value)?;
+        }
+        Ok(())
+    }
+
+    fn handle_return(&mut self, expr: &Expr) {
+        if let Expr::Identifier(name) = expr {
+            self.clear_awaitable(name);
+        }
     }
 
     fn infer_expr_type(&self, expr: &Expr) -> Option<TypeRef> {

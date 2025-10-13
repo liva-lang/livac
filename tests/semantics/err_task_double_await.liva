@@ -1,0 +1,9 @@
+worker() {
+    return 1
+}
+
+main() {
+    let handle = task async worker()
+    await handle
+    await handle
+}
