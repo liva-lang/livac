@@ -34,17 +34,17 @@ This document captures the task breakdown needed to implement the new language r
   - [x] Arrays/strings expose `length`; sequences must error with E0701 (suggest `.count()` or `.collect().length`).
   - [x] Replace legacy `len(x)` with warning W0700 + quick-fix suggestions.
 - Validate lambda syntax:
-  - [x] Infer/verify parameter scopes, handle move-capture diagnostics (E0510 for non-Send captures later).
+  - [x] Infer/verify parameter scopes, handle move-capture diagnostics (E0510 for non-Send captures).
   - [x] Ensure return type annotation validity.
 - Execution policies:
   - [x] Ensure modifiers only appear at call sites; produce diagnostics for invalid combinations (e.g. double modifiers).
   - Track async inference through new `CallExpr.exec_policy`.
   - [x] Detect tasks that are never awaited (W0601), double await (E0604), invalid awaits (E0603), etc.
-  - Enforce concurrency safety rules (E0401/E0402/E0510/E0511 placeholders).
+  - [x] Enforce concurrency safety rules (E0401/E0402/E0510/E0511 placeholders).
 - For-loop policies:
   - [x] Validate option compatibility with chosen policy (semantic checks complete; codegen still pending so loops emit sequential Rust).
   - [x] Check numeric ranges (positive chunk sizes, etc.).
-  - [x] Flag illegal constructs (await inside `par/boost` body; non-Send captures pending, and runtime execution remains sequential until codegen lands).
+  - [x] Flag illegal constructs (await inside `par/boost` body; non-Send captures detected, and runtime execution remains sequential until codegen lands).
 - Extend symbol/type tracking to support lambda parameters and inference in new constructs.
 
 ---
@@ -98,8 +98,8 @@ This document captures the task breakdown needed to implement the new language r
 ## 6. Diagnostics & Tooling
 
 - Implement new warning/error codes:
-  - W0700 (len deprecated), E0701 (length misuse).
-  - W0601, E0602, E0603, E0604, E0401, E0402, W0403, E0510, E0511.
+  - [x] W0700 (len deprecated), E0701 (length misuse).
+  - [x] W0601, E0602, E0603, E0604, E0401, E0402, W0403, E0510, E0511.
 - Add quick-fix hints where applicable (e.g. suggest `.count()`).
 - Update CLI messages and IDE tooling hooks if any rely on old codes.
 

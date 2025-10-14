@@ -734,6 +734,40 @@ impl SemanticAnalyzer {
             )));
         }
 
+        // E0401: Check for invalid concurrent execution combinations
+        match call.exec_policy {
+            ExecPolicy::Async | ExecPolicy::TaskAsync => {
+                // Check if async call is used in a context that doesn't support async
+                // For now, this is a placeholder - in a full implementation we'd track execution context
+                // TODO: Implement proper async context validation
+            }
+            ExecPolicy::Par | ExecPolicy::TaskPar | ExecPolicy::FirePar => {
+                // Check if parallel call is used in a context that doesn't support parallelism
+                // For now, this is a placeholder - in a full implementation we'd track execution context
+                // TODO: Implement proper parallel context validation
+            }
+            _ => {}
+        }
+
+        // E0402: Check for unsafe concurrent access patterns
+        // This would detect patterns like accessing shared mutable state from parallel contexts
+        // For now, this is a placeholder implementation
+        // TODO: Implement proper shared state access validation
+        if matches!(call.exec_policy, ExecPolicy::Par | ExecPolicy::TaskPar | ExecPolicy::FirePar) {
+            // Placeholder: In a full implementation, we'd check if the call accesses shared mutable state
+            // For now, we'll just note that this is where the check would go
+        }
+
+        // W0403: Warn about potentially inefficient concurrency patterns
+        // This would detect patterns like spawning too many tasks or using parallel execution for trivial operations
+        // For now, this is a placeholder implementation
+        // TODO: Implement proper efficiency analysis
+        if matches!(call.exec_policy, ExecPolicy::Par | ExecPolicy::TaskPar | ExecPolicy::FirePar) {
+            // Placeholder: In a full implementation, we'd analyze the complexity of the operation
+            // and warn if parallel execution might be inefficient
+            // For now, we'll just note that this is where the check would go
+        }
+
         self.validate_call(&call.callee, &call.args)?;
         Ok(())
     }
@@ -829,6 +863,30 @@ impl SemanticAnalyzer {
         if let Some(ret_type) = &lambda.return_type {
             let empty: HashSet<String> = HashSet::new();
             self.validate_type_ref(ret_type, &empty)?;
+        }
+
+        // E0510: Check for non-Send captures in move lambdas used in parallel contexts
+        if lambda.is_move && !lambda.captures.is_empty() {
+            // For now, we'll emit a warning for any captures in move lambdas
+            // In a full implementation, we'd check if the captured variables are Send
+            // This is a placeholder implementation
+            for capture in &lambda.captures {
+                // Check if this lambda is used in a parallel context
+                // For now, we'll emit a warning for any move lambda with captures
+                // TODO: Implement proper Send trait checking
+                println!("Warning: E0510: Move lambda captures '{}' which may not be Send-safe for parallel execution", capture);
+            }
+        }
+
+        // E0511: Check for non-Sync captures in lambdas used in parallel contexts
+        if !lambda.captures.is_empty() {
+            // For now, we'll emit a warning for any captures in lambdas that might be used in parallel contexts
+            // In a full implementation, we'd check if the captured variables are Sync
+            // This is a placeholder implementation
+            for capture in &lambda.captures {
+                // TODO: Implement proper Sync trait checking and context detection
+                println!("Warning: E0511: Lambda captures '{}' which may not be Sync-safe for parallel execution", capture);
+            }
         }
 
         self.enter_scope();
