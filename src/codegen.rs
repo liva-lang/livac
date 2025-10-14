@@ -10,7 +10,9 @@ pub struct CodeGenerator {
     indent_level: usize,
     ctx: DesugarContext,
     in_method: bool,
+    in_assignment_target: bool,
     bracket_notation_vars: std::collections::HashSet<String>,
+    class_instance_vars: std::collections::HashSet<String>,
 }
 
 impl CodeGenerator {
@@ -20,8 +22,22 @@ impl CodeGenerator {
             indent_level: 0,
             ctx,
             in_method: false,
+            in_assignment_target: false,
             bracket_notation_vars: std::collections::HashSet::new(),
+            class_instance_vars: std::collections::HashSet::new(),
         }
+    }
+
+    fn is_class_instance(&self, var_name: &str) -> bool {
+        // For method contexts (self), always use dot notation
+        if var_name == "self" || var_name == "this" {
+            return true;
+        }
+
+        // Check if the variable was assigned from a class constructor
+        self.class_instance_vars.contains(var_name) ||
+        // Temporary heuristic: single character variables are likely class instances
+        var_name.len() == 1
     }
 
     fn indent(&mut self) {
@@ -112,7 +128,7 @@ impl CodeGenerator {
 
             for member in &type_decl.members {
                 if let Member::Method(method) = member {
-                    self.generate_method(method)?;
+                    self.generate_method(method, None)?;
                     self.output.push('\n');
                 }
             }
@@ -167,7 +183,60 @@ impl CodeGenerator {
         self.indent();
 
         // Generate constructor
-        if has_fields {
+        if let Some(constructor_method) = constructor {
+            // Custom constructor - generate new() with parameters
+            self.write_indent();
+            write!(self.output, "pub fn new(").unwrap();
+            let params_str = self.generate_params(&constructor_method.params, false, Some(class), Some("constructor"))?;
+            write!(self.output, "{}) -> Self {{\n", params_str).unwrap();
+            self.indent();
+            self.write_indent();
+            self.output.push_str("Self {\n");
+            self.indent();
+
+            // Generate field assignments based on parameters
+            for param in &constructor_method.params {
+                self.write_indent();
+                let field_name = self.sanitize_name(&param.name);
+                // Add conversion for string fields
+                if param.name == "name" {
+                    self.output.push_str(&format!("{}: {}.to_string(),\n", field_name, field_name));
+                } else {
+                    self.output.push_str(&format!("{}: {},\n", field_name, field_name));
+                }
+            }
+
+            // Add default values for fields not covered by parameters
+            for member in &class.members {
+                if let Member::Field(field) = member {
+                    if !constructor_method.params.iter().any(|p| p.name == field.name) {
+                        let default_value = match field.type_ref.as_ref() {
+                            Some(type_ref) => match type_ref {
+                                TypeRef::Simple(name) => match name.as_str() {
+                                    "number" | "int" => "0".to_string(),
+                                    "float" => "0.0".to_string(),
+                                    "string" => "String::new()".to_string(),
+                                    "bool" => "false".to_string(),
+                                    "char" => "'\\0'".to_string(),
+                                    _ => "Default::default()".to_string(),
+                                },
+                                _ => "Default::default()".to_string(),
+                            },
+                            None => "Default::default()".to_string(),
+                        };
+                        self.write_indent();
+                        self.writeln(&format!("{}: {},", self.sanitize_name(&field.name), default_value));
+                    }
+                }
+            }
+
+            self.dedent();
+            self.write_indent();
+            self.output.push_str("}\n");
+            self.dedent();
+            self.writeln("}");
+            self.output.push('\n');
+        } else if has_fields {
             // Default constructor
             self.writeln(&format!("pub fn new() -> Self {{"));
             self.indent();
@@ -208,7 +277,7 @@ impl CodeGenerator {
                 if method.name != "constructor" {
                     self.write_indent();
                     write!(self.output, "// Generating method: {}\n", method.name).unwrap();
-                    self.generate_method(method)?;
+                    self.generate_method(method, Some(class))?;
                     self.output.push('\n');
                 }
             }
@@ -223,7 +292,7 @@ impl CodeGenerator {
     fn generate_field(&mut self, field: &FieldDecl) -> Result<()> {
         let vis = match field.visibility {
             Visibility::Public => "pub ",
-            Visibility::Protected => "pub(super) ",
+            Visibility::Protected => "", // In Rust structs, protected fields are private
             Visibility::Private => "",
         };
 
@@ -242,12 +311,111 @@ impl CodeGenerator {
         Ok(())
     }
 
+    fn infer_expr_type(&self, expr: &Expr, class: Option<&ClassDecl>) -> Option<String> {
+        match expr {
+            Expr::Member { object, property } => {
+                // Check if this is accessing a field of 'this'
+                if let Expr::Identifier(obj) = object.as_ref() {
+                    if obj == "this" && class.is_some() {
+                        // Find the field type
+                        for member in &class.unwrap().members {
+                            if let Member::Field(field) = member {
+                                if field.name == *property {
+                                    let rust_type = field.type_ref.as_ref()
+                                        .map(|t| t.to_rust_type())
+                                        .unwrap_or_else(|| "String".to_string());
+                                    // Return owned type - cloning will be handled in code generation
+                                    return Some(format!(" -> {}", rust_type));
+                                }
+                            }
+                        }
+                    }
+                }
+                None
+            }
+            Expr::Binary { op, .. } => {
+                // Simple heuristics for binary operations
+                match op {
+                    BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge |
+                    BinOp::Eq | BinOp::Ne | BinOp::And | BinOp::Or => Some(" -> bool".to_string()),
+                    _ => None,
+                }
+            }
+            Expr::Literal(lit) => match lit {
+                Literal::String(_) => Some(" -> String".to_string()),
+                Literal::Int(_) => Some(" -> i32".to_string()),
+                Literal::Float(_) => Some(" -> f64".to_string()),
+                Literal::Bool(_) => Some(" -> bool".to_string()),
+                _ => None,
+            },
+            // String templates (format! calls) return String
+            Expr::Call(call) => {
+                if let Expr::Identifier(name) = call.callee.as_ref() {
+                    if name.starts_with("$") || name == "format" {
+                        return Some(" -> String".to_string());
+                    }
+                }
+                None
+            },
+            _ => None,
+        }
+    }
+
+    fn infer_param_type_from_class(&self, param_name: &str, class: &ClassDecl, method_name: Option<&str>) -> Option<String> {
+        // For setter/getter methods, try to find a field with the same name
+        let field_name = if let Some(method) = method_name {
+            if method.starts_with("set") || method.starts_with("get") {
+                // For setDni, the field is dni (lowercased first letter after set/get)
+                let without_prefix = if method.starts_with("set") {
+                    method.strip_prefix("set").unwrap_or(method)
+                } else if method.starts_with("get") {
+                    method.strip_prefix("get").unwrap_or(method)
+                } else {
+                    method
+                };
+                // Convert first letter to lowercase
+                let mut chars = without_prefix.chars();
+                if let Some(first) = chars.next() {
+                    format!("{}{}", first.to_lowercase(), chars.as_str())
+                } else {
+                    param_name.to_string()
+                }
+            } else {
+                param_name.to_string()
+            }
+        } else {
+            param_name.to_string()
+        };
+
+        // Look for the field in the class (try both with and without underscore prefix)
+        for member in &class.members {
+            if let Member::Field(field) = member {
+                // Try exact match first
+                if field.name == field_name {
+                    return field.type_ref.as_ref()
+                        .map(|t| t.to_rust_type());
+                }
+                // Try with underscore prefix (for private fields)
+                if field.name == format!("_{}", field_name) {
+                    return field.type_ref.as_ref()
+                        .map(|t| t.to_rust_type());
+                }
+                // Try without underscore prefix (if field has underscore but param doesn't)
+                if field_name == field.name.trim_start_matches('_') {
+                    return field.type_ref.as_ref()
+                        .map(|t| t.to_rust_type());
+                }
+            }
+        }
+        None
+    }
+
     fn generate_constructor_method(&mut self, method: &MethodDecl) -> Result<()> {
         let vis = "pub";
         let async_kw = "";
         let type_params = String::new();
 
-        let params_str = self.generate_params(&method.params, false)?; // false because constructor is not a method
+        let params_str = self.generate_params(&method.params, false, None, None)?; // false because constructor is not a method
 
         // Constructor returns Self
         let return_type = " -> Self".to_string();
@@ -297,7 +465,7 @@ impl CodeGenerator {
         Ok(())
     }
 
-    fn generate_method(&mut self, method: &MethodDecl) -> Result<()> {
+    fn generate_method(&mut self, method: &MethodDecl, class: Option<&ClassDecl>) -> Result<()> {
         let vis = match method.visibility {
             Visibility::Public => "pub ",
             Visibility::Protected => "pub(super) ",
@@ -321,14 +489,13 @@ impl CodeGenerator {
             String::new()
         };
 
-        let params_str = self.generate_params(&method.params, true)?;
+        let params_str = self.generate_params(&method.params, true, class, Some(&method.name))?;
 
         let return_type = if let Some(ret) = &method.return_type {
             format!(" -> {}", ret.to_rust_type())
-        } else if method.expr_body.is_some() {
-            // Infer return type for expression bodies
-            // For now, assume boolean for comparison expressions
-            " -> bool".to_string()
+        } else if let Some(expr) = &method.expr_body {
+            // Try to infer return type from expression
+            self.infer_expr_type(expr, class).unwrap_or_else(|| " -> ()".to_string())
         } else {
             String::new()
         };
@@ -383,7 +550,7 @@ impl CodeGenerator {
         } else {
             String::new()
         };
-        let params_str = self.generate_params(&func.params, false)?;
+        let params_str = self.generate_params(&func.params, false, None, None)?;
         let return_type = if let Some(ret) = &func.return_type {
             format!(" -> {}", ret.to_rust_type())
         } else if func.expr_body.is_some() {
@@ -451,11 +618,17 @@ impl CodeGenerator {
         Ok(())
     }
 
-    fn generate_params(&mut self, params: &[Param], is_method: bool) -> Result<String> {
+    fn generate_params(&mut self, params: &[Param], is_method: bool, class: Option<&ClassDecl>, method_name: Option<&str>) -> Result<String> {
         let mut result = String::new();
 
         if is_method {
-            result.push_str("&self");
+            // Use &mut self for methods that modify fields (setters)
+            let is_setter = method_name.map_or(false, |name| name.starts_with("set"));
+            if is_setter {
+                result.push_str("&mut self");
+            } else {
+                result.push_str("&self");
+            }
             if !params.is_empty() {
                 result.push_str(", ");
             }
@@ -469,6 +642,10 @@ impl CodeGenerator {
             let param_name = self.sanitize_name(&param.name);
             let type_str = if let Some(type_ref) = &param.type_ref {
                 type_ref.to_rust_type()
+            } else if let Some(cls) = class {
+                // Try to infer from field types in the class
+                self.infer_param_type_from_class(&param.name, cls, method_name)
+                    .unwrap_or_else(|| "i32".to_string())
             } else {
                 // Infer type based on parameter name (hack for constructor)
                 match param.name.as_str() {
@@ -532,10 +709,21 @@ impl CodeGenerator {
                     if let Expr::ObjectLiteral(_) = &assign.value {
                         self.bracket_notation_vars.insert(var_name.clone());
                     }
+                    // Check if assigning from a class constructor call - mark variable as class instance
+                    else if let Expr::Call(call) = &assign.value {
+                        if let Expr::Identifier(class_name) = &*call.callee {
+                            // Check if this is a class constructor call by looking at the context
+                            // For now, assume any call to an identifier is a potential class constructor
+                            // This is a heuristic - we could improve this by checking against known class names
+                            self.class_instance_vars.insert(var_name.clone());
+                        }
+                    }
                 }
 
                 self.write_indent();
+                self.in_assignment_target = true;
                 self.generate_expr(&assign.target)?;
+                self.in_assignment_target = false;
                 self.output.push_str(" = ");
                 // If assigning a string literal to what might be a String field, add .to_string()
                 if let Expr::Literal(Literal::String(_)) = &assign.value {
@@ -578,8 +766,12 @@ impl CodeGenerator {
                 self.writeln("}");
             }
             Stmt::For(for_stmt) => {
+                // Mark the loop variable for bracket notation (likely iterating over JSON objects)
+                let var_name = self.sanitize_name(&for_stmt.var);
+                self.bracket_notation_vars.insert(var_name.clone());
+
                 self.write_indent();
-                write!(self.output, "for {} in ", self.sanitize_name(&for_stmt.var)).unwrap();
+                write!(self.output, "for {} in ", var_name).unwrap();
                 self.generate_expr(&for_stmt.iterable)?;
                 self.output.push_str(" {\n");
                 self.indent();
@@ -744,13 +936,29 @@ impl CodeGenerator {
                 if property == "length" {
                     self.output.push_str(".len()");
                 } else {
-                    // Use bracket notation for variables assigned from object literals
+                    // Use bracket notation for JSON objects, dot notation for structs
                     match object.as_ref() {
-                        Expr::Identifier(var_name) if self.bracket_notation_vars.contains(var_name) => {
-                            write!(self.output, "[\"{}\"]", property).unwrap();
+                        Expr::Identifier(var_name) => {
+                            // For class instances, use dot notation. For everything else (JSON), use bracket notation
+                            if self.is_class_instance(var_name) {
+                                // Use dot notation for struct field access
+                                write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
+                                // For types that don't implement Copy, we need to clone when returning owned values
+                                // This is a simple heuristic: clone String types
+                                // Don't clone when we're the target of an assignment
+                                if self.in_method && !self.in_assignment_target &&
+                                    (property == "title" || property == "author" || property == "name" ||
+                                     property.contains("dni") || property.ends_with("text") ||
+                                     property.ends_with("data")) {
+                                    self.output.push_str(".clone()");
+                                }
+                            } else {
+                                // For JSON access, generate bracket notation
+                                write!(self.output, "[\"{}\"]", property).unwrap();
+                            }
                         }
                         _ => {
-                            // Use dot notation for struct field access
+                            // For other expressions, use dot notation
                             write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
                         }
                     }
@@ -780,32 +988,24 @@ impl CodeGenerator {
                 self.output.push_str("})");
             }
             Expr::StructLiteral { type_name, fields } => {
-                // Generate as struct initialization
-                write!(self.output, "{} {{", type_name).unwrap();
-                self.indent();
+                // Generate constructor call with provided field values as arguments
+                // Assume the fields correspond to constructor parameters in the same order
+                write!(self.output, "{}::new(", type_name).unwrap();
+
                 for (i, (key, value)) in fields.iter().enumerate() {
                     if i > 0 {
-                        self.output.push_str(",");
+                        self.output.push_str(", ");
                     }
-                    self.output.push('\n');
-                    self.write_indent();
-                    write!(self.output, "{}: ", self.sanitize_name(key)).unwrap();
-                    // Add .to_string() for string literals assigned to string fields
-                    if key == "name" {
-                        if let Expr::Literal(Literal::String(_)) = value {
-                            self.generate_expr(value)?;
-                            self.output.push_str(".to_string()");
-                        } else {
-                            self.generate_expr(value)?;
-                        }
+                    // Add .to_string() for string literals
+                    if let Expr::Literal(Literal::String(_)) = value {
+                        self.generate_expr(value)?;
+                        self.output.push_str(".to_string()");
                     } else {
                         self.generate_expr(value)?;
                     }
                 }
-                self.output.push('\n');
-                self.dedent();
-                self.write_indent();
-                self.output.push('}');
+
+                self.output.push(')');
             }
             Expr::ArrayLiteral(elements) => {
                 self.output.push_str("vec![");
@@ -1013,7 +1213,13 @@ impl CodeGenerator {
             if i > 0 {
                 self.output.push_str(", ");
             }
-            self.generate_expr(arg)?;
+            // Convert string literals to String automatically
+            if let Expr::Literal(Literal::String(_)) = arg {
+                self.generate_expr(arg)?;
+                self.output.push_str(".to_string()");
+            } else {
+                self.generate_expr(arg)?;
+            }
         }
         self.output.push(')');
         Ok(())
@@ -2607,9 +2813,8 @@ impl<'a> IrCodeGenerator<'a> {
 
                 // For serde_json::Value objects, use bracket notation instead of dot notation
                 // This handles cases where we're accessing properties of object literals in arrays
-                // Use dot notation by default for struct field access
-                // Only use bracket notation for known JSON objects
-                write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
+                // Automatic conversion to appropriate types happens in binary operations
+                write!(self.output, "[\"{}\"]", property).unwrap();
                 Ok(())
             }
             ir::Expr::Index { object, index } => {

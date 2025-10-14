@@ -1,0 +1,16 @@
+// Test for automatic string conversion in function calls
+Counter {
+  value: int
+
+  constructor(value) {
+    this.value = value
+  }
+
+  getValue() => this.value
+}
+
+main() {
+  // Test that constructor works with automatic type conversion
+  let counter = Counter(42)
+  print(counter.getValue())
+}

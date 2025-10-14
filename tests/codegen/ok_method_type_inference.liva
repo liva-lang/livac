@@ -1,0 +1,23 @@
+// Test for method return type inference
+Calculator {
+  value: int
+
+  constructor(value) {
+    this.value = value
+  }
+
+  add(x): int => this.value + x
+  getValue() => this.value
+}
+
+main() {
+  let calc = Calculator(10)
+
+  // Test that add() has explicit return type
+  let result = calc.add(5)
+  print($"Result: {result}")
+
+  // Test that getValue() returns correct type
+  let val = calc.getValue()
+  print($"Value: {val}")
+}

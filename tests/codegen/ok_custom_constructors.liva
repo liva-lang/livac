@@ -1,0 +1,32 @@
+// Test for custom constructors and struct literals
+Person {
+  constructor(name, age) {
+    this.name = name
+    this.age = age
+  }
+
+  name: string
+  age: int
+  _dni: string
+
+  isAdult() => this.age >= 18
+  getDni() => this._dni
+  setDni(dni)  {this._dni = dni}
+}
+
+main() {
+  // Test constructor call
+  let p1 = Person("Fran", 40)
+
+  // Test struct literal (should convert to constructor call)
+  let p2 = Person { name: "Ana", age: 25 }
+
+  // Test both syntaxes work
+  p1.setDni("123456789")
+  p2.setDni("987654321")
+
+  print(p1.name)
+  print(p1.getDni())
+  print(p2.name)
+  print(p2.getDni())
+}

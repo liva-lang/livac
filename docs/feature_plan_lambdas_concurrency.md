@@ -75,9 +75,10 @@ This document captures the task breakdown needed to implement the new language r
 - [x] Map Liva types to Rust types (`int` → `i32`, etc.)
 
 ### New Features
-- [x] **Custom Constructors**: Support for `constructor(name, age) { this.name = name; this.age = age }` syntax
+- [x] **Default Constructors**: Support for `Person()` to create instances with default values
 - [x] **Struct Literal Syntax**: Support for `Person { name: "Alice", age: 30 }` initialization
-- [x] **Automatic Type Conversion**: String literals automatically converted to `String` in constructor calls and struct literals
+- [x] **Automatic Type Conversion**: String literals automatically converted to `String` in struct literals
+- [~] **Custom Constructors**: Basic parsing implemented, needs refinement for full functionality
 
 ### Bug Fixes
 - [x] Fixed issue where simple programs without async/parallel features would fail to compile due to missing `liva_rt` module
