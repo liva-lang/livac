@@ -65,6 +65,15 @@ This document captures the task breakdown needed to implement the new language r
 
 ## 4. Code Generation
 
+### Class Support Implementation
+- [x] Generate Rust structs for Liva classes with proper field types
+- [x] Implement `this` → `self` conversion in method bodies
+- [x] Generate default constructors (`new()`) with sensible default values
+- [x] Convert constructor calls (`ClassName()`) to `ClassName::new()`
+- [x] Infer return types for expression-bodied methods
+- [x] Auto-convert string literals to `String` in assignments
+- [x] Map Liva types to Rust types (`int` → `i32`, etc.)
+
 ### Bug Fixes
 - [x] Fixed issue where simple programs without async/parallel features would fail to compile due to missing `liva_rt` module
 - [x] Runtime imports are now only added when the `liva_rt` module is actually generated
