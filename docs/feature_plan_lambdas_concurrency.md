@@ -65,6 +65,10 @@ This document captures the task breakdown needed to implement the new language r
 
 ## 4. Code Generation
 
+### Bug Fixes
+- [x] Fixed issue where simple programs without async/parallel features would fail to compile due to missing `liva_rt` module
+- [x] Runtime imports are now only added when the `liva_rt` module is actually generated
+
 - Call generation:
   - [x] Render `.length` property with correct Rust translation (arrays → `.len()`, strings → `.chars().count()` as needed).
   - [x] Replace special casing of `len(x)` with new diagnostics; remove old conversion path.
