@@ -722,6 +722,14 @@ impl SemanticAnalyzer {
                 }
                 Ok(())
             }
+            Expr::StructLiteral { type_name, fields } => {
+                // TODO: Validate that type_name exists and is a struct/class
+                // TODO: Validate that fields match the struct definition
+                for (_, value) in fields {
+                    self.validate_expr(value)?;
+                }
+                Ok(())
+            }
             Expr::Lambda(lambda) => self.validate_lambda(lambda),
         }
     }
@@ -1075,6 +1083,9 @@ impl SemanticAnalyzer {
                 Self::expr_contains_await(object) || Self::expr_contains_await(index)
             }
             Expr::ObjectLiteral(fields) => fields
+                .iter()
+                .any(|(_, value)| Self::expr_contains_await(value)),
+            Expr::StructLiteral { fields, .. } => fields
                 .iter()
                 .any(|(_, value)| Self::expr_contains_await(value)),
             Expr::ArrayLiteral(elements) => elements

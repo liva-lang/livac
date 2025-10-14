@@ -1133,6 +1133,26 @@ impl Parser {
         loop {
             if self.match_token(&Token::LParen) {
                 expr = self.finish_call(expr)?;
+            } else if self.check(&Token::LBrace) {
+                // Check if this is a struct literal like TypeName { field: value }
+                if let Expr::Identifier(type_name) = &expr {
+                    // Only allow struct literals for identifiers that start with uppercase (type names)
+                    if type_name.chars().next().map_or(false, |c| c.is_uppercase()) {
+                        self.advance(); // consume the {
+                        let fields = self.parse_object_fields()?;
+                        self.expect(Token::RBrace)?;
+                        expr = Expr::StructLiteral {
+                            type_name: type_name.clone(),
+                            fields,
+                        };
+                    } else {
+                        // Not a struct literal, don't consume the { and continue
+                        break;
+                    }
+                } else {
+                    // Not an identifier, don't consume the { and continue
+                    break;
+                }
             } else if self.match_token(&Token::Dot) {
                 let name = self.parse_identifier()?;
                 expr = Expr::Member {
@@ -1261,7 +1281,7 @@ impl Parser {
         Ok(Expr::ArrayLiteral(elements))
     }
 
-    fn parse_object_literal(&mut self) -> Result<Expr> {
+    fn parse_object_fields(&mut self) -> Result<Vec<(String, Expr)>> {
         let mut fields = Vec::new();
 
         while !self.is_at_end() && self.peek() != Some(&Token::RBrace) {
@@ -1275,6 +1295,11 @@ impl Parser {
             }
         }
 
+        Ok(fields)
+    }
+
+    fn parse_object_literal(&mut self) -> Result<Expr> {
+        let fields = self.parse_object_fields()?;
         self.expect(Token::RBrace)?;
         Ok(Expr::ObjectLiteral(fields))
     }

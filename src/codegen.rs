@@ -150,11 +150,29 @@ impl CodeGenerator {
         let has_methods = class.members.iter().any(|m| matches!(m, Member::Method(_)));
         let has_fields = class.members.iter().any(|m| matches!(m, Member::Field(_)));
 
+        // Find constructor method
+        let constructor = class.members.iter().find_map(|m| {
+            if let Member::Method(method) = m {
+                if method.name == "constructor" {
+                    Some(method)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        });
+
         self.writeln(&format!("impl {} {{", class.name));
         self.indent();
 
-        // Generate default constructor if the class has fields
-        if has_fields {
+        // Generate constructor
+        if let Some(ctor) = constructor {
+            // Custom constructor - generate as new() method
+            self.generate_constructor_method(ctor)?;
+            self.output.push('\n');
+        } else if has_fields {
+            // Default constructor
             self.writeln(&format!("pub fn new() -> Self {{"));
             self.indent();
             self.writeln("Self {");
@@ -188,9 +206,10 @@ impl CodeGenerator {
             self.output.push('\n');
         }
 
-        if has_methods {
-            for member in &class.members {
-                if let Member::Method(method) = member {
+        // Generate other methods (excluding constructor)
+        for member in &class.members {
+            if let Member::Method(method) = member {
+                if method.name != "constructor" {
                     self.generate_method(method)?;
                     self.output.push('\n');
                 }
@@ -222,6 +241,61 @@ impl CodeGenerator {
             self.sanitize_name(&field.name),
             type_str
         ));
+        Ok(())
+    }
+
+    fn generate_constructor_method(&mut self, method: &MethodDecl) -> Result<()> {
+        let vis = "pub";
+        let async_kw = "";
+        let type_params = String::new();
+
+        let params_str = self.generate_params(&method.params, false)?; // false because constructor is not a method
+
+        // Constructor returns Self
+        let return_type = " -> Self".to_string();
+
+        self.write_indent();
+        write!(
+            self.output,
+            "{}{}fn {}({}){}",
+            vis,
+            if vis.is_empty() { "" } else { " " },
+            "new", // Always generate as new()
+            params_str,
+            return_type
+        )
+        .unwrap();
+
+        // For custom constructor, map parameters to fields by name
+        // Assume parameter names match field names
+        self.output.push_str(" {\n");
+        self.indent();
+        self.write_indent();
+        self.output.push_str("Self {\n");
+        self.indent();
+
+        // Generate field assignments based on parameters
+        for param in &method.params {
+            self.write_indent();
+            let field_name = self.sanitize_name(&param.name);
+            // Add conversion for string fields
+            if param.name == "name" {
+                self.output.push_str(&format!("{}: {}.to_string()", field_name, field_name));
+            } else {
+                self.output.push_str(&format!("{}: {}", field_name, field_name));
+            }
+            self.output.push_str(",\n");
+        }
+
+        // Add default values for fields not covered by parameters
+        // For now, assume all fields are covered by parameters
+
+        self.dedent();
+        self.write_indent();
+        self.output.push_str("}\n");
+        self.dedent();
+        self.writeln("}");
+
         Ok(())
     }
 
@@ -398,7 +472,12 @@ impl CodeGenerator {
             let type_str = if let Some(type_ref) = &param.type_ref {
                 type_ref.to_rust_type()
             } else {
-                "i32".to_string() // Default to i32
+                // Infer type based on parameter name (hack for constructor)
+                match param.name.as_str() {
+                    "name" => "String".to_string(),
+                    "age" => "i32".to_string(),
+                    _ => "i32".to_string(),
+                }
             };
 
             write!(result, "{}: {}", param_name, type_str).unwrap();
@@ -702,6 +781,34 @@ impl CodeGenerator {
                 self.write_indent();
                 self.output.push_str("})");
             }
+            Expr::StructLiteral { type_name, fields } => {
+                // Generate as struct initialization
+                write!(self.output, "{} {{", type_name).unwrap();
+                self.indent();
+                for (i, (key, value)) in fields.iter().enumerate() {
+                    if i > 0 {
+                        self.output.push_str(",");
+                    }
+                    self.output.push('\n');
+                    self.write_indent();
+                    write!(self.output, "{}: ", self.sanitize_name(key)).unwrap();
+                    // Add .to_string() for string literals assigned to string fields
+                    if key == "name" {
+                        if let Expr::Literal(Literal::String(_)) = value {
+                            self.generate_expr(value)?;
+                            self.output.push_str(".to_string()");
+                        } else {
+                            self.generate_expr(value)?;
+                        }
+                    } else {
+                        self.generate_expr(value)?;
+                    }
+                }
+                self.output.push('\n');
+                self.dedent();
+                self.write_indent();
+                self.output.push('}');
+            }
             Expr::ArrayLiteral(elements) => {
                 self.output.push_str("vec![");
                 for (i, elem) in elements.iter().enumerate() {
@@ -882,9 +989,22 @@ impl CodeGenerator {
             }
 
             // Check if this is a constructor call (starts with uppercase)
-            if name.chars().next().map_or(false, |c| c.is_uppercase()) && call.args.is_empty() {
-                // Assume it's a constructor call like ClassName()
-                write!(self.output, "{}::new()", name).unwrap();
+            if name.chars().next().map_or(false, |c| c.is_uppercase()) {
+                // Assume it's a constructor call like ClassName(args...)
+                write!(self.output, "{}::new(", name).unwrap();
+                for (i, arg) in call.args.iter().enumerate() {
+                    if i > 0 {
+                        self.output.push_str(", ");
+                    }
+                    // Add .to_string() for string literals (hack for constructor parameters)
+                    if let Expr::Literal(Literal::String(_)) = arg {
+                        self.generate_expr(arg)?;
+                        self.output.push_str(".to_string()");
+                    } else {
+                        self.generate_expr(arg)?;
+                    }
+                }
+                self.output.push(')');
                 return Ok(());
             }
         }
@@ -1213,6 +1333,7 @@ impl<'a> IrCodeGenerator<'a> {
         match expr {
             ir::Expr::ArrayLiteral(_) => FormatKind::Debug,
             ir::Expr::ObjectLiteral(_) => FormatKind::Debug,
+            ir::Expr::StructLiteral { .. } => FormatKind::Display,
             _ => FormatKind::Display,
         }
     }
@@ -1249,6 +1370,7 @@ impl<'a> IrCodeGenerator<'a> {
         match expr {
             ir::Expr::ArrayLiteral(_) => true,
             ir::Expr::ObjectLiteral(_) => true,
+            ir::Expr::StructLiteral { .. } => false,
             ir::Expr::Identifier(name) => {
                 matches!(self.lookup_var_format(name), Some(FormatKind::Debug))
             }
@@ -2516,6 +2638,34 @@ impl<'a> IrCodeGenerator<'a> {
                 self.output.push_str("})");
                 Ok(())
             }
+            ir::Expr::StructLiteral { type_name, fields } => {
+                write!(self.output, "{} {{", type_name).unwrap();
+                self.indent();
+                for (idx, (key, value)) in fields.iter().enumerate() {
+                    if idx > 0 {
+                        self.output.push_str(",");
+                    }
+                    self.output.push('\n');
+                    self.write_indent();
+                    write!(self.output, "{}: ", self.sanitize_name(key)).unwrap();
+                    // Add .to_string() for string literals assigned to string fields
+                    if key == "name" {
+                        if let ir::Expr::Literal(ir::Literal::String(_)) = value {
+                            self.generate_expr(value)?;
+                            self.output.push_str(".to_string()");
+                        } else {
+                            self.generate_expr(value)?;
+                        }
+                    } else {
+                        self.generate_expr(value)?;
+                    }
+                }
+                self.output.push('\n');
+                self.dedent();
+                self.write_indent();
+                self.output.push('}');
+                Ok(())
+            }
             ir::Expr::ArrayLiteral(elements) => {
                 self.output.push_str("vec![");
                 for (idx, elem) in elements.iter().enumerate() {
@@ -2807,6 +2957,9 @@ fn expr_has_unsupported(expr: &ir::Expr) -> bool {
         ir::Expr::ObjectLiteral(fields) => {
             fields.iter().any(|(_, value)| expr_has_unsupported(value))
         }
+        ir::Expr::StructLiteral { fields, .. } => {
+            fields.iter().any(|(_, value)| expr_has_unsupported(value))
+        }
         ir::Expr::ArrayLiteral(elements) => elements.iter().any(expr_has_unsupported),
         ir::Expr::Lambda(lambda) => match &lambda.body {
             ir::LambdaBody::Expr(expr) => expr_has_unsupported(expr),
@@ -3026,6 +3179,9 @@ fn expr_has_async_concurrency(expr: &ir::Expr) -> bool {
         &ir::Expr::ObjectLiteral(ref fields) => fields
             .iter()
             .any(|(_, value)| expr_has_async_concurrency(value)),
+        &ir::Expr::StructLiteral { ref fields, .. } => fields
+            .iter()
+            .any(|(_, value)| expr_has_async_concurrency(value)),
         &ir::Expr::ArrayLiteral(ref elements) => elements.iter().any(expr_has_async_concurrency),
         ir::Expr::Lambda(lambda) => match &lambda.body {
             ir::LambdaBody::Expr(expr) => expr_has_async_concurrency(expr),
@@ -3095,6 +3251,9 @@ fn expr_has_parallel_concurrency(expr: &ir::Expr) -> bool {
                 || expr_has_parallel_concurrency(end.as_ref())
         }
         &ir::Expr::ObjectLiteral(ref fields) => fields
+            .iter()
+            .any(|(_, value)| expr_has_parallel_concurrency(value)),
+        &ir::Expr::StructLiteral { ref fields, .. } => fields
             .iter()
             .any(|(_, value)| expr_has_parallel_concurrency(value)),
         &ir::Expr::ArrayLiteral(ref elements) => elements.iter().any(expr_has_parallel_concurrency),

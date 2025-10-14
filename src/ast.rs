@@ -356,6 +356,10 @@ pub enum Expr {
         index: Box<Expr>,
     },
     ObjectLiteral(Vec<(String, Expr)>),
+    StructLiteral {
+        type_name: String,
+        fields: Vec<(String, Expr)>,
+    },
     ArrayLiteral(Vec<Expr>),
     Lambda(LambdaExpr),
     StringTemplate {

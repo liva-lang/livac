@@ -71,23 +71,19 @@ expression: json
                 "name": "p",
                 "type_ref": null,
                 "init": {
-                  "Identifier": "Persona"
-                }
-              }
-            },
-            {
-              "Expr": {
-                "expr": {
-                  "ObjectLiteral": [
-                    [
-                      "__dni",
-                      {
-                        "Literal": {
-                          "String": "12345678"
+                  "StructLiteral": {
+                    "type_name": "Persona",
+                    "fields": [
+                      [
+                        "__dni",
+                        {
+                          "Literal": {
+                            "String": "12345678"
+                          }
                         }
-                      }
+                      ]
                     ]
-                  ]
+                  }
                 }
               }
             },

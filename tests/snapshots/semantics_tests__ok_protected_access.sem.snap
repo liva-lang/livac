@@ -35,23 +35,19 @@ expression: json
                 "name": "p",
                 "type_ref": null,
                 "init": {
-                  "Identifier": "Persona"
-                }
-              }
-            },
-            {
-              "Expr": {
-                "expr": {
-                  "ObjectLiteral": [
-                    [
-                      "_edad",
-                      {
-                        "Literal": {
-                          "Int": 30
+                  "StructLiteral": {
+                    "type_name": "Persona",
+                    "fields": [
+                      [
+                        "_edad",
+                        {
+                          "Literal": {
+                            "Int": 30
+                          }
                         }
-                      }
+                      ]
                     ]
-                  ]
+                  }
                 }
               }
             },

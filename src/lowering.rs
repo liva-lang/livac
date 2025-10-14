@@ -248,6 +248,13 @@ fn lower_expr(expr: &ast::Expr) -> ir::Expr {
                 .map(|(name, value)| (name.clone(), lower_expr(value)))
                 .collect(),
         ),
+        ast::Expr::StructLiteral { type_name, fields } => ir::Expr::StructLiteral {
+            type_name: type_name.clone(),
+            fields: fields
+                .iter()
+                .map(|(name, value)| (name.clone(), lower_expr(value)))
+                .collect(),
+        },
         ast::Expr::Lambda(lambda) => {
             let params = lambda.params.iter().map(|param| ir::LambdaParam {
                 name: param.name.clone(),
