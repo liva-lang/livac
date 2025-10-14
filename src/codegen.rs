@@ -10,6 +10,7 @@ pub struct CodeGenerator {
     indent_level: usize,
     ctx: DesugarContext,
     in_method: bool,
+    bracket_notation_vars: std::collections::HashSet<String>,
 }
 
 impl CodeGenerator {
@@ -19,6 +20,7 @@ impl CodeGenerator {
             indent_level: 0,
             ctx,
             in_method: false,
+            bracket_notation_vars: std::collections::HashSet::new(),
         }
     }
 
@@ -415,6 +417,11 @@ impl CodeGenerator {
     fn generate_stmt(&mut self, stmt: &Stmt) -> Result<()> {
         match stmt {
             Stmt::VarDecl(var) => {
+                // Check if initializing with an object literal - mark variable for bracket notation
+                if let Some(Expr::ObjectLiteral(_)) = &var.init {
+                    self.bracket_notation_vars.insert(var.name.clone());
+                }
+
                 self.write_indent();
                 write!(self.output, "let mut {}", self.sanitize_name(&var.name)).unwrap();
 
@@ -443,6 +450,13 @@ impl CodeGenerator {
                 self.output.push_str(";\n");
             }
             Stmt::Assign(assign) => {
+                // Check if assigning an object literal - mark variable for bracket notation
+                if let Expr::Identifier(var_name) = &assign.target {
+                    if let Expr::ObjectLiteral(_) = &assign.value {
+                        self.bracket_notation_vars.insert(var_name.clone());
+                    }
+                }
+
                 self.write_indent();
                 self.generate_expr(&assign.target)?;
                 self.output.push_str(" = ");
@@ -653,14 +667,14 @@ impl CodeGenerator {
                 if property == "length" {
                     self.output.push_str(".len()");
                 } else {
-                    // For serde_json::Value objects, use bracket notation instead of dot notation
+                    // Use bracket notation for variables assigned from object literals
                     match object.as_ref() {
-                        Expr::Identifier(name) if name == "self" || name == "this" => {
-                            write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
+                        Expr::Identifier(var_name) if self.bracket_notation_vars.contains(var_name) => {
+                            write!(self.output, "[\"{}\"]", property).unwrap();
                         }
                         _ => {
-                            // Use bracket notation for object literals and other cases
-                            write!(self.output, "[\"{}\"]", property).unwrap();
+                            // Use dot notation for struct field access
+                            write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
                         }
                     }
                 }
@@ -2473,23 +2487,9 @@ impl<'a> IrCodeGenerator<'a> {
 
                 // For serde_json::Value objects, use bracket notation instead of dot notation
                 // This handles cases where we're accessing properties of object literals in arrays
-                match object.as_ref() {
-                    ir::Expr::Identifier(name) => {
-                        if name == "self" || name == "this" {
-                            write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
-                        } else {
-                            write!(self.output, "[\"{}\"]", property).unwrap();
-                        }
-                    }
-                    ir::Expr::Member { .. }
-                    | ir::Expr::Index { .. }
-                    | ir::Expr::Call { .. } => {
-                        write!(self.output, "[\"{}\"]", property).unwrap();
-                    }
-                    _ => {
-                        write!(self.output, "[\"{}\"]", property).unwrap();
-                    }
-                }
+                // Use dot notation by default for struct field access
+                // Only use bracket notation for known JSON objects
+                write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
                 Ok(())
             }
             ir::Expr::Index { object, index } => {
