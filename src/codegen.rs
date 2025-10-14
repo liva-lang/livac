@@ -653,8 +653,16 @@ impl CodeGenerator {
                 if property == "length" {
                     self.output.push_str(".len()");
                 } else {
-                    // Use dot notation for struct field access
-                    write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
+                    // For serde_json::Value objects, use bracket notation instead of dot notation
+                    match object.as_ref() {
+                        Expr::Identifier(name) if name == "self" || name == "this" => {
+                            write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
+                        }
+                        _ => {
+                            // Use bracket notation for object literals and other cases
+                            write!(self.output, "[\"{}\"]", property).unwrap();
+                        }
+                    }
                 }
             }
             Expr::Index { object, index } => {
@@ -2466,11 +2474,14 @@ impl<'a> IrCodeGenerator<'a> {
                 // For serde_json::Value objects, use bracket notation instead of dot notation
                 // This handles cases where we're accessing properties of object literals in arrays
                 match object.as_ref() {
-                    ir::Expr::Identifier(name) if name == "self" => {
-                        write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
+                    ir::Expr::Identifier(name) => {
+                        if name == "self" || name == "this" {
+                            write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
+                        } else {
+                            write!(self.output, "[\"{}\"]", property).unwrap();
+                        }
                     }
-                    ir::Expr::Identifier(_)
-                    | ir::Expr::Member { .. }
+                    ir::Expr::Member { .. }
                     | ir::Expr::Index { .. }
                     | ir::Expr::Call { .. } => {
                         write!(self.output, "[\"{}\"]", property).unwrap();
