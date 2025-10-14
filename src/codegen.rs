@@ -9,6 +9,7 @@ pub struct CodeGenerator {
     output: String,
     indent_level: usize,
     ctx: DesugarContext,
+    in_method: bool,
 }
 
 impl CodeGenerator {
@@ -17,6 +18,7 @@ impl CodeGenerator {
             output: String::new(),
             indent_level: 0,
             ctx,
+            in_method: false,
         }
     }
 
@@ -144,21 +146,57 @@ impl CodeGenerator {
 
         // Generate impl block
         let has_methods = class.members.iter().any(|m| matches!(m, Member::Method(_)));
+        let has_fields = class.members.iter().any(|m| matches!(m, Member::Field(_)));
 
-        if has_methods {
-            self.writeln(&format!("impl {} {{", class.name));
+        self.writeln(&format!("impl {} {{", class.name));
+        self.indent();
+
+        // Generate default constructor if the class has fields
+        if has_fields {
+            self.writeln(&format!("pub fn new() -> Self {{"));
+            self.indent();
+            self.writeln("Self {");
             self.indent();
 
+            for member in &class.members {
+                if let Member::Field(field) = member {
+                    let default_value = match field.type_ref.as_ref() {
+                        Some(type_ref) => match type_ref {
+                            TypeRef::Simple(name) => match name.as_str() {
+                                "number" | "int" => "0".to_string(),
+                                "float" => "0.0".to_string(),
+                                "string" => "String::new()".to_string(),
+                                "bool" => "false".to_string(),
+                                "char" => "'\\0'".to_string(),
+                                _ => "Default::default()".to_string(),
+                            },
+                            _ => "Default::default()".to_string(),
+                        },
+                        None => "Default::default()".to_string(),
+                    };
+
+                    self.writeln(&format!("{}: {},", self.sanitize_name(&field.name), default_value));
+                }
+            }
+
+            self.dedent();
+            self.writeln("}");
+            self.dedent();
+            self.writeln("}");
+            self.output.push('\n');
+        }
+
+        if has_methods {
             for member in &class.members {
                 if let Member::Method(method) = member {
                     self.generate_method(method)?;
                     self.output.push('\n');
                 }
             }
-
-            self.dedent();
-            self.writeln("}");
         }
+
+        self.dedent();
+        self.writeln("}");
 
         Ok(())
     }
@@ -213,6 +251,10 @@ impl CodeGenerator {
 
         let return_type = if let Some(ret) = &method.return_type {
             format!(" -> {}", ret.to_rust_type())
+        } else if method.expr_body.is_some() {
+            // Infer return type for expression bodies
+            // For now, assume boolean for comparison expressions
+            " -> bool".to_string()
         } else {
             String::new()
         };
@@ -230,6 +272,7 @@ impl CodeGenerator {
         )
         .unwrap();
 
+        self.in_method = true;
         if let Some(expr) = &method.expr_body {
             self.output.push_str(" { ");
             self.generate_expr(expr)?;
@@ -241,6 +284,7 @@ impl CodeGenerator {
             self.dedent();
             self.writeln("}");
         }
+        self.in_method = false;
 
         Ok(())
     }
@@ -402,7 +446,13 @@ impl CodeGenerator {
                 self.write_indent();
                 self.generate_expr(&assign.target)?;
                 self.output.push_str(" = ");
-                self.generate_expr(&assign.value)?;
+                // If assigning a string literal to what might be a String field, add .to_string()
+                if let Expr::Literal(Literal::String(_)) = &assign.value {
+                    self.generate_expr(&assign.value)?;
+                    self.output.push_str(".to_string()");
+                } else {
+                    self.generate_expr(&assign.value)?;
+                }
                 self.output.push_str(";\n");
             }
             Stmt::If(if_stmt) => {
@@ -536,11 +586,18 @@ impl CodeGenerator {
         match expr {
             Expr::Literal(lit) => self.generate_literal(lit)?,
             Expr::Identifier(name) => {
-                // Check if this is a constant (uppercase identifier)
-                if name.chars().all(|c| c.is_uppercase() || c == '_') {
-                    write!(self.output, "{}", name).unwrap();
+                // Convert 'this' to 'self' when inside a method
+                let actual_name = if self.in_method && name == "this" {
+                    "self"
                 } else {
-                    write!(self.output, "{}", self.sanitize_name(name)).unwrap();
+                    name
+                };
+
+                // Check if this is a constant (uppercase identifier)
+                if actual_name.chars().all(|c| c.is_uppercase() || c == '_') {
+                    write!(self.output, "{}", actual_name).unwrap();
+                } else {
+                    write!(self.output, "{}", self.sanitize_name(actual_name)).unwrap();
                 }
             }
             Expr::Binary { op, left, right } => {
@@ -596,17 +653,8 @@ impl CodeGenerator {
                 if property == "length" {
                     self.output.push_str(".len()");
                 } else {
-                    // For serde_json::Value objects, use bracket notation instead of dot notation
-                    match object.as_ref() {
-                        Expr::Identifier(_) => {
-                            // Check if this is likely a serde_json::Value (from object literals in arrays)
-                            // For now, use bracket notation for any identifier access
-                            write!(self.output, "[\"{}\"]", property).unwrap();
-                        }
-                        _ => {
-                            write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
-                        }
-                    }
+                    // Use dot notation for struct field access
+                    write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
                 }
             }
             Expr::Index { object, index } => {
@@ -808,6 +856,13 @@ impl CodeGenerator {
                     }
                     self.output.push(')');
                 }
+                return Ok(());
+            }
+
+            // Check if this is a constructor call (starts with uppercase)
+            if name.chars().next().map_or(false, |c| c.is_uppercase()) && call.args.is_empty() {
+                // Assume it's a constructor call like ClassName()
+                write!(self.output, "{}::new()", name).unwrap();
                 return Ok(());
             }
         }
@@ -1060,6 +1115,7 @@ struct IrCodeGenerator<'a> {
     indent_level: usize,
     ctx: &'a DesugarContext,
     scope_formats: Vec<HashMap<String, FormatKind>>,
+    in_method: bool,
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -1084,6 +1140,7 @@ impl<'a> IrCodeGenerator<'a> {
             indent_level: 0,
             ctx,
             scope_formats: vec![HashMap::new()],
+            in_method: false,
         }
     }
 

@@ -122,7 +122,7 @@ impl TypeRef {
     pub fn to_rust_type(&self) -> String {
         match self {
             TypeRef::Simple(name) => match name.as_str() {
-                "number" => "i32".to_string(),
+                "number" | "int" => "i32".to_string(),
                 "float" => "f64".to_string(),
                 "string" => "String".to_string(),
                 "bytes" => "Vec<u8>".to_string(),
