@@ -77,6 +77,8 @@ This document captures the task breakdown needed to implement the new language r
 ### Bug Fixes
 - [x] Fixed issue where simple programs without async/parallel features would fail to compile due to missing `liva_rt` module
 - [x] Runtime imports are now only added when the `liva_rt` module is actually generated
+- [x] Fixed member access notation: classes use dot notation (self.age), object literals use bracket notation (p["name"])
+- [x] Fixed this/self conversion in method bodies to generate correct Rust syntax
 
 - Call generation:
   - [x] Render `.length` property with correct Rust translation (arrays → `.len()`, strings → `.chars().count()` as needed).
