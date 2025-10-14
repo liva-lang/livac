@@ -684,10 +684,79 @@ impl CodeGenerator {
 
                 self.output.push(')');
             }
-            Expr::Lambda(_) => {
-                return Err(CompilerError::CodegenError(
-                    "Lambda expressions are not yet supported in code generation".into(),
-                ));
+            Expr::Lambda(lambda) => {
+                if lambda.is_move {
+                    self.output.push_str("move ");
+                }
+                self.output.push('|');
+                
+                for (idx, param) in lambda.params.iter().enumerate() {
+                    if idx > 0 {
+                        self.output.push_str(", ");
+                    }
+                    self.output.push_str(&self.sanitize_name(&param.name));
+                    if let Some(type_ref) = &param.type_ref {
+                        self.output.push_str(": ");
+                        self.output.push_str(&type_ref.to_rust_type());
+                    }
+                }
+                
+                self.output.push_str("| ");
+                
+                match &lambda.body {
+                    LambdaBody::Expr(expr) => {
+                        self.generate_expr(expr)?;
+                    }
+                    LambdaBody::Block(block) => {
+                        // For lambdas, we need to generate a block that returns a value
+                        // Check if the last statement is a return statement
+                        if let Some(last_stmt) = block.stmts.last() {
+                            if let Stmt::Return(return_stmt) = last_stmt {
+                                if let Some(expr) = &return_stmt.expr {
+                                    // Generate the block with statements except the last return
+                                    self.output.push('{');
+                                    self.indent();
+                                    self.output.push('\n');
+                                    self.write_indent();
+                                    
+                                    // Generate all statements except the last return
+                                    for stmt in &block.stmts[..block.stmts.len()-1] {
+                                        self.generate_stmt(stmt)?;
+                                        self.output.push('\n');
+                                        self.write_indent();
+                                    }
+                                    
+                                    // Generate the return expression without the return keyword
+                                    self.generate_expr(expr)?;
+                                    
+                                    self.dedent();
+                                    self.output.push('\n');
+                                    self.write_indent();
+                                    self.output.push('}');
+                                } else {
+                                    // Empty return, generate unit type
+                                    self.output.push_str("()");
+                                }
+                            } else {
+                                // No return statement, generate block as-is
+                                self.output.push('{');
+                                self.indent();
+                                self.output.push('\n');
+                                self.write_indent();
+                                for stmt in &block.stmts {
+                                    self.generate_stmt(stmt)?;
+                                    self.output.push('\n');
+                                    self.write_indent();
+                                }
+                                self.dedent();
+                                self.output.push('}');
+                            }
+                        } else {
+                            // Empty block
+                            self.output.push_str("()");
+                        }
+                    }
+                }
             }
         }
         Ok(())
@@ -2331,6 +2400,81 @@ impl<'a> IrCodeGenerator<'a> {
                 self.output.push(']');
                 Ok(())
             }
+            ir::Expr::Lambda(lambda) => {
+                if lambda.is_move {
+                    self.output.push_str("move ");
+                }
+                self.output.push('|');
+                
+                for (idx, param) in lambda.params.iter().enumerate() {
+                    if idx > 0 {
+                        self.output.push_str(", ");
+                    }
+                    self.output.push_str(&self.sanitize_name(&param.name));
+                    if let Some(type_ref) = &param.type_ref {
+                        self.output.push_str(": ");
+                        self.output.push_str(type_ref);
+                    }
+                }
+                
+                self.output.push_str("| ");
+                
+                match &lambda.body {
+                    ir::LambdaBody::Expr(expr) => {
+                        self.generate_expr(expr)?;
+                    }
+                    ir::LambdaBody::Block(block) => {
+                        // For lambdas, we need to generate a block that returns a value
+                        // Check if the last statement is a return statement
+                        if let Some(last_stmt) = block.last() {
+                            if let ir::Stmt::Return(expr) = last_stmt {
+                                if let Some(expr) = expr {
+                                    // Generate the block with statements except the last return
+                                    self.output.push('{');
+                                    self.indent();
+                                    self.output.push('\n');
+                                    self.write_indent();
+                                    
+                                    // Generate all statements except the last return
+                                    for stmt in &block[..block.len()-1] {
+                                        self.generate_stmt(stmt)?;
+                                        self.output.push('\n');
+                                        self.write_indent();
+                                    }
+                                    
+                                    // Generate the return expression without the return keyword
+                                    self.generate_expr(expr)?;
+                                    
+                                    self.dedent();
+                                    self.output.push('\n');
+                                    self.write_indent();
+                                    self.output.push('}');
+                                } else {
+                                    // Empty return, generate unit type
+                                    self.output.push_str("()");
+                                }
+                            } else {
+                                // No return statement, generate block as-is
+                                self.output.push('{');
+                                self.indent();
+                                self.output.push('\n');
+                                self.write_indent();
+                                for stmt in block {
+                                    self.generate_stmt(stmt)?;
+                                    self.output.push('\n');
+                                    self.write_indent();
+                                }
+                                self.dedent();
+                                self.output.push('}');
+                            }
+                        } else {
+                            // Empty block
+                            self.output.push_str("()");
+                        }
+                    }
+                }
+                Ok(())
+            }
             ir::Expr::Unsupported(_) => Err(CompilerError::CodegenError(
                 "Unsupported expression in IR generator".into(),
             )),
@@ -2537,6 +2681,10 @@ fn expr_has_unsupported(expr: &ir::Expr) -> bool {
             fields.iter().any(|(_, value)| expr_has_unsupported(value))
         }
         ir::Expr::ArrayLiteral(elements) => elements.iter().any(expr_has_unsupported),
+        ir::Expr::Lambda(lambda) => match &lambda.body {
+            ir::LambdaBody::Expr(expr) => expr_has_unsupported(expr),
+            ir::LambdaBody::Block(block) => block.iter().any(stmt_has_unsupported),
+        },
     }
 }
 
@@ -2752,6 +2900,10 @@ fn expr_has_async_concurrency(expr: &ir::Expr) -> bool {
             .iter()
             .any(|(_, value)| expr_has_async_concurrency(value)),
         &ir::Expr::ArrayLiteral(ref elements) => elements.iter().any(expr_has_async_concurrency),
+        ir::Expr::Lambda(lambda) => match &lambda.body {
+            ir::LambdaBody::Expr(expr) => expr_has_async_concurrency(expr),
+            ir::LambdaBody::Block(block) => block.iter().any(stmt_has_async_concurrency),
+        },
         &ir::Expr::Literal(_) | &ir::Expr::Identifier(_) | &ir::Expr::Unsupported(_) => false,
     }
 }
@@ -2819,6 +2971,10 @@ fn expr_has_parallel_concurrency(expr: &ir::Expr) -> bool {
             .iter()
             .any(|(_, value)| expr_has_parallel_concurrency(value)),
         &ir::Expr::ArrayLiteral(ref elements) => elements.iter().any(expr_has_parallel_concurrency),
+        ir::Expr::Lambda(lambda) => match &lambda.body {
+            ir::LambdaBody::Expr(expr) => expr_has_parallel_concurrency(expr),
+            ir::LambdaBody::Block(block) => block.iter().any(stmt_has_parallel_concurrency),
+        },
         &ir::Expr::Await(_) => false,
         &ir::Expr::Literal(_) | &ir::Expr::Identifier(_) | &ir::Expr::Unsupported(_) => false,
     }

@@ -34,8 +34,8 @@ This document captures the task breakdown needed to implement the new language r
   - [x] Arrays/strings expose `length`; sequences must error with E0701 (suggest `.count()` or `.collect().length`).
   - [x] Replace legacy `len(x)` with warning W0700 + quick-fix suggestions.
 - Validate lambda syntax:
-  - Infer/verify parameter scopes, handle move-capture diagnostics (E0510 for non-Send captures later).
-  - Ensure return type annotation validity.
+  - [x] Infer/verify parameter scopes, handle move-capture diagnostics (E0510 for non-Send captures later).
+  - [x] Ensure return type annotation validity.
 - Execution policies:
   - [x] Ensure modifiers only appear at call sites; produce diagnostics for invalid combinations (e.g. double modifiers).
   - Track async inference through new `CallExpr.exec_policy`.
@@ -52,14 +52,14 @@ This document captures the task breakdown needed to implement the new language r
 ## 3. IR & Lowering
 
 - Update IR to mirror AST changes:
-  - `ir::Expr::Call(CallExpr)` with execution policy enum.
-  - `ir::Expr::Lambda(LambdaExpr)` and associated param/body structs.
+  - [x] `ir::Expr::Call(CallExpr)` with execution policy enum.
+  - [x] `ir::Expr::Lambda(LambdaExpr)` and associated param/body structs.
   - [x] `ir::Stmt::For` now carries policy + options (codegen still sequential until policy handlers land).
   - [x] Introduce `DataParallelPolicy`, `ForPolicyOptions`, `ThreadOption`, etc. in IR (currently used for metadata only).
 - Lowering pass adjustments:
-  - Map AST structures into updated IR forms.
-  - Ensure async inference still works with new call representation.
-  - Capture lambda information (move semantics, return types, captures placeholder).
+  - [x] Map AST structures into updated IR forms.
+  - [x] Ensure async inference still works with new call representation.
+  - [x] Capture lambda information (move semantics, return types, captures placeholder).
 
 ---
 
@@ -74,8 +74,8 @@ This document captures the task breakdown needed to implement the new language r
     - `task` / `fire` produce handles or fire-and-forget semantics.
   - Update runtime glue (`liva_rt`) to expose required helpers (task handles, join/await wrappers, policy-specific APIs).
 - Lambda codegen:
-  - Emit Rust closures (`|args|` or `move |args|`) with inference of async/parallel usage inside.
-  - Support block bodies and typed parameters.
+  - [x] Emit Rust closures (`|args|` or `move |args|`) with inference of async/parallel usage inside.
+  - [x] Support block bodies and typed parameters.
 - For policies:
   - [x] Generate Rayon-backed loops for `par/vec/boost` (runtime currently shares a Rayon-based fallback; SIMD/boost specialisations and advanced scheduling still pending).
   - Honour `ordered`, `chunk`, `threads`, `simdWidth`, etc. with safe fallbacks.
@@ -109,9 +109,9 @@ This document captures the task breakdown needed to implement the new language r
 
 - Lexer snapshots for new tokens.
 - Parser golden files covering:
-  - Lambda syntax variations, move capture, return types.
-  - Calls with each execution modifier.
-  - For loops with policies/options (positive and negative cases).
+  - [x] Lambda syntax variations, move capture, return types.
+  - [x] Calls with each execution modifier.
+  - [x] For loops with policies/options (positive and negative cases).
 - Semantic tests:
   - Valid usages of `.length`, `.count()`, concurrency modifiers.
   - Error snapshots for each diagnostic listed above.
@@ -129,7 +129,7 @@ This document captures the task breakdown needed to implement the new language r
   - Concurrency consumption rules.
   - Data-parallel policies and options table.
   - `.length` vs `.count()` guidance and migration notes.
-- Update `main.liva` (example entry point) with sample code demonstrating each feature.
+- [x] Update `main.liva` (example entry point) with sample code demonstrating each feature.
 - Provide migration guide from `len(x)` and old `parallel` keyword.
 
 ---

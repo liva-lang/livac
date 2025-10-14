@@ -176,6 +176,7 @@ pub enum Expr {
         start: Box<Expr>,
         end: Box<Expr>,
     },
+    Lambda(LambdaExpr),
     Unsupported(ast::Expr),
 }
 
@@ -361,4 +362,24 @@ impl From<ast::Visibility> for Visibility {
             ast::Visibility::Private => Visibility::Private,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LambdaExpr {
+    pub is_move: bool,
+    pub params: Vec<LambdaParam>,
+    pub return_type: Option<String>,
+    pub body: LambdaBody,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LambdaParam {
+    pub name: String,
+    pub type_ref: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum LambdaBody {
+    Expr(Box<Expr>),
+    Block(Vec<Stmt>),
 }

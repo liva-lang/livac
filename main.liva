@@ -229,6 +229,40 @@ main() {
     print($"Vector lane value: {lane}")
   }
 
+  // ============================================================================
+  // 11. LAMBDA EXPRESSIONS DEMO ✅
+  // ============================================================================
+  print("\n🔗 Testing Lambda Expressions:")
+
+  // Simple lambda with expression body
+  let add = (x, y) => x + y
+  let lambdaResult1 = add(10, 5)
+  print($"Simple lambda: add(10, 5) = {lambdaResult1}")
+
+  // Lambda with move capture
+  let multiplier = move (x) => x * 3
+  let lambdaResult2 = multiplier(4)
+  print($"Move lambda: multiplier(4) = {lambdaResult2}")
+
+  // Lambda with typed parameters
+  let typedAdd = (x: number, y: number) => x + y
+  let lambdaResult3 = typedAdd(15, 25)
+  print($"Typed lambda: typedAdd(15, 25) = {lambdaResult3}")
+
+  // Lambda with block body
+  let complexLambda = (x) => {
+    let doubled = x * 2
+    let squared = doubled * doubled
+    return squared
+  }
+  let lambdaResult4 = complexLambda(3)
+  print($"Complex lambda: complexLambda(3) = {lambdaResult4}")
+
+  // Lambda with return type annotation
+  let typedReturn = (x: number): number => x * x
+  let lambdaResult5 = typedReturn(5)
+  print($"Typed return lambda: typedReturn(5) = {lambdaResult5}")
+
   print("\n🎉 Liva Comprehensive Syntax Test Completed Successfully!")
   print("✅ All major language features tested and working!")
 }

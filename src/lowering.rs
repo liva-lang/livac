@@ -248,7 +248,24 @@ fn lower_expr(expr: &ast::Expr) -> ir::Expr {
                 .map(|(name, value)| (name.clone(), lower_expr(value)))
                 .collect(),
         ),
-        ast::Expr::Lambda(lambda) => ir::Expr::Unsupported(ast::Expr::Lambda(lambda.clone())),
+        ast::Expr::Lambda(lambda) => {
+            let params = lambda.params.iter().map(|param| ir::LambdaParam {
+                name: param.name.clone(),
+                type_ref: param.type_ref.as_ref().map(|tr| tr.to_rust_type()),
+            }).collect();
+            
+            let body = match &lambda.body {
+                ast::LambdaBody::Expr(expr) => ir::LambdaBody::Expr(Box::new(lower_expr(expr))),
+                ast::LambdaBody::Block(block) => ir::LambdaBody::Block(lower_block(block).statements),
+            };
+            
+            ir::Expr::Lambda(ir::LambdaExpr {
+                is_move: lambda.is_move,
+                params,
+                return_type: lambda.return_type.as_ref().map(|tr| tr.to_rust_type()),
+                body,
+            })
+        },
     }
 }
 
