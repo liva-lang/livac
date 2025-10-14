@@ -1229,6 +1229,8 @@ impl<'a> IrCodeGenerator<'a> {
         let uses_parallel_helpers = module_has_parallel_concurrency(module);
 
         if uses_async_helpers || uses_parallel_helpers {
+            // Add import for runtime helpers when module is generated
+            writeln!(self.output, "use crate::liva_rt::SequenceCount;").unwrap();
             self.emit_runtime_module(uses_async_helpers, uses_parallel_helpers);
         }
 
@@ -1272,21 +1274,14 @@ impl<'a> IrCodeGenerator<'a> {
             }
         }
 
-        // Add import for SequenceCount trait if count() is used
-        if self.module_uses_count() {
-            writeln!(self.output, "use crate::liva_rt::SequenceCount;").unwrap();
-        }
+        // Add import for SequenceCount trait if count() is used and runtime module will be generated
+        // Note: This is a placeholder - in future versions, count() will be available without runtime module
 
         if !self.output.trim().is_empty() {
             self.output.push('\n');
         }
     }
 
-    fn module_uses_count(&self) -> bool {
-        // For now, always return true since we're adding count support
-        // In the future, this could scan the module for .count() usage
-        true
-    }
 
     fn emit_runtime_module(&mut self, use_async: bool, use_parallel: bool) {
         self.writeln("mod liva_rt {");
