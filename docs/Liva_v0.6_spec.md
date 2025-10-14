@@ -152,7 +152,7 @@ if x > 18 and x < 65 {
   print("Working age")
 }
 
-if not isEmpty(name) && len(name) > 2 {
+if not isEmpty(name) && name.length > 2 {
   print("Valid")
 }
 ```
@@ -206,9 +206,43 @@ async fn fetch_user() -> User {
 }
 ```
 
+### Expresiones Lambda
+
+```js
+// Lambda simple
+let add = (x, y) => x + y
+
+// Con tipos explícitos
+let multiply = (x: number, y: number): number => x * y
+
+// Con move capture
+let multiplier = move (x) => x * 3
+
+// Con cuerpo de bloque
+let complex = (x) => {
+    let doubled = x * 2
+    return doubled * doubled
+}
+
+// Identificador único (shorthand)
+let square = x => x * x
+```
+
+➡️ Traducción:
+```rust
+let add = |x, y| x + y;
+let multiply = |x: i32, y: i32| -> i32 x * y;
+let multiplier = move |x| x * 3;
+let complex = |x| {
+    let doubled = x * 2;
+    doubled * doubled
+};
+let square = |x| x * x;
+```
+
 ---
 
-## 🧭 8. Control de flujo
+## 🧭 9. Control de flujo
 
 ```js
 if edad > 18 {
@@ -234,7 +268,7 @@ switch color {
 
 ---
 
-## 🧰 9. Módulos e imports
+## 🧰 10. Módulos e imports
 
 ```js
 import math
@@ -249,7 +283,7 @@ use crate::net::http as http;
 
 ---
 
-## ⚡ 10. Concurrencia híbrida
+## ⚡ 11. Concurrencia híbrida
 
 Liva combina:
 - **Asincronía cooperativa** (`async`) → sin hilos nuevos.
@@ -274,11 +308,11 @@ let user = user.await.unwrap();
 
 ---
 
-### 🔹 Paralelismo real (`parallel`)
+### 🔹 Paralelismo real (`par`)
 
 ```js
-let a = parallel heavyCalc(1)
-let b = parallel heavyCalc(2)
+let a = par heavyCalc(1)
+let b = par heavyCalc(2)
 print(a + b)
 ```
 
@@ -296,7 +330,7 @@ let b = b.join().unwrap();
 
 ```js
 fire async sendMetrics()
-fire parallel rebuildCache()
+fire par rebuildCache()
 ```
 
 ➡️ Traducción:
@@ -307,20 +341,34 @@ std::thread::spawn(|| rebuild_cache());
 
 ---
 
-## 💬 11. Strings y plantillas
+## 💬 12. Strings y plantillas
 
 ```js
 let saludo = $"Hola {nombre}, tienes {edad} años"
+let length = saludo.length  // Nueva propiedad .length
 ```
 
 ➡️ Traducción:
 ```rust
 let saludo = format!("Hola {}, tienes {} años", nombre, edad);
+let length = saludo.chars().count();  // Para strings Unicode
 ```
+
+### Propiedad `.length`
+
+```js
+let arr = [1, 2, 3, 4, 5]
+let len = arr.length  // 5
+
+let str = "Hola mundo"
+let strLen = str.length  // 10 (caracteres Unicode)
+```
+
+**Nota:** Sustituye la función `len(x)` obsoleta. Para secuencias asíncronas usa `.count()`.
 
 ---
 
-## 🔗 12. Interoperabilidad con Rust
+## 🔗 13. Interoperabilidad con Rust
 
 ### Importar crates
 ```js
@@ -349,7 +397,7 @@ let s = serde_json::to_string(&json!({"name": "Fran"})).unwrap();
 
 ---
 
-## 🧩 13. Tipos equivalentes
+## 🧩 14. Tipos equivalentes
 
 | Liva | Rust | Descripción |
 |--------------|------|-------------|
@@ -366,7 +414,7 @@ let s = serde_json::to_string(&json!({"name": "Fran"})).unwrap();
 
 ---
 
-## 🧠 14. Detección automática de `async`
+## 🧠 15. Detección automática de `async`
 
 Si una función contiene llamadas `async`, el compilador la marca automáticamente como `async fn`.
 
@@ -387,7 +435,7 @@ async fn fetch_data() -> String {
 
 ---
 
-## 🧩 15. Ejemplo completo
+## 🧩 16. Ejemplo completo
 
 ```js
 use rust "reqwest" as http
@@ -448,7 +496,7 @@ async fn main() {
 
 ---
 
-## ⚙️ 16. Pipeline del compilador (`livac`)
+## ⚙️ 17. Pipeline del compilador (`livac`)
 
 1. **Lexer / Parser** → genera el AST.  
 2. **Inferencia de tipos** → deduce tipos estáticos.  
@@ -462,7 +510,7 @@ async fn main() {
 
 ---
 
-## 🧠 17. Seguridad
+## 🧠 18. Seguridad
 
 - Sin `unsafe`.  
 - Sin `null`.  
@@ -472,7 +520,7 @@ async fn main() {
 
 ---
 
-## ⚡ 18. Resumen general
+## ⚡ 19. Resumen general
 
 | Categoría | Liva | Rust |
 |------------|--------------|-------|
@@ -480,8 +528,8 @@ async fn main() {
 | Función | `f(a,b):T => expr` | `fn f(a: T, b: T) -> T { expr }` |
 | Async interno | `f(){ let x = async g() }` | `async fn f()` |
 | Concurrente | `async f()` | `tokio::spawn(f())` |
-| Paralelo | `parallel f()` | `thread::spawn(|| f())` |
-| Fire & Forget | `fire async f()` | `tokio::spawn(f());` |
+| Paralelo | `par f()` | `thread::spawn(|| f())` |
+| Fire & Forget | `fire async f()` / `fire par f()` | `tokio::spawn(f());` / `thread::spawn(|| f())` |
 | Privado | `__campo` | *(sin pub)* |
 | Protegido | `_campo` | `pub(super)` |
 | Público | `campo` | `pub` |
@@ -490,6 +538,6 @@ async fn main() {
 
 ---
 
-## 🧩 19. Lema final
+## 🧩 20. Lema final
 
 > **Liva**: el lenguaje que combina la legibilidad de Python, la simplicidad de TypeScript y la potencia y seguridad de Rust.
