@@ -69,9 +69,9 @@ This document captures the task breakdown needed to implement the new language r
   - [x] Render `.length` property with correct Rust translation (arrays → `.len()`, strings → `.chars().count()` as needed).
   - [x] Replace special casing of `len(x)` with new diagnostics; remove old conversion path.
   - Map execution policies:
-    - `async` → spawn + implicit await on first use.
-    - `par` → thread pool execution (Rayon or `std::thread` wrappers).
-    - `task` / `fire` produce handles or fire-and-forget semantics.
+    - [x] `async` → spawn + implicit await on first use.
+    - [x] `par` → thread pool execution (Rayon or `std::thread` wrappers).
+    - [x] `task` / `fire` produce handles or fire-and-forget semantics.
   - Update runtime glue (`liva_rt`) to expose required helpers (task handles, join/await wrappers, policy-specific APIs).
 - Lambda codegen:
   - [x] Emit Rust closures (`|args|` or `move |args|`) with inference of async/parallel usage inside.
@@ -88,10 +88,10 @@ This document captures the task breakdown needed to implement the new language r
 
 - Extend helper module to support:
   - [x] Task handles with await/join semantics, including consumption tracking.
-  - Fire-and-forget primitives (spawn without awaiting).
+  - [x] Fire-and-forget primitives (spawn without awaiting).
   - [x] Data-parallel execution adapters (initial Rayon-backed helpers in place; SIMD-specialised helpers still TODO).
   - [x] Count operations for sequences (`seq.count()`, `await aseq.count()`).
-- Ensure runtime enforces Send/'static checks for `par`/`boost` contexts; provide graceful error handling.
+- [x] Ensure runtime enforces Send/'static checks for `par`/`boost` contexts; provide graceful error handling.
 
 ---
 
