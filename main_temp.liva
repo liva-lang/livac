@@ -268,20 +268,8 @@ main() {
   // 11. CLASSES WITH CONSTRUCTORS ✅
   // ============================================================================
   print("\n🏗️ Testing Classes with Constructors:")
-
-  Person {
-    age
-    name
-
-    isAdult() => this.age >= 18
-
-    toString() => $"Person{{name: {this.name}, age: {this.age}}}"
-  }
-
   // Create instance using constructor
-  let person1 = Person()
-  person1.name = "Alice"
-  person1.age = 30
+  let person1 = Person("Alice", 30)
   print($"Constructor: {person1.toString()}, adult: {person1.isAdult()}")
 
   // Create instance using struct literal syntax

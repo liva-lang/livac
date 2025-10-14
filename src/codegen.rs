@@ -167,11 +167,7 @@ impl CodeGenerator {
         self.indent();
 
         // Generate constructor
-        if let Some(ctor) = constructor {
-            // Custom constructor - generate as new() method
-            self.generate_constructor_method(ctor)?;
-            self.output.push('\n');
-        } else if has_fields {
+        if has_fields {
             // Default constructor
             self.writeln(&format!("pub fn new() -> Self {{"));
             self.indent();
@@ -210,6 +206,8 @@ impl CodeGenerator {
         for member in &class.members {
             if let Member::Method(method) = member {
                 if method.name != "constructor" {
+                    self.write_indent();
+                    write!(self.output, "// Generating method: {}\n", method.name).unwrap();
                     self.generate_method(method)?;
                     self.output.push('\n');
                 }

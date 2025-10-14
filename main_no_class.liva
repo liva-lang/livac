@@ -269,26 +269,6 @@ main() {
   // ============================================================================
   print("\n🏗️ Testing Classes with Constructors:")
 
-  Person {
-    age
-    name
-
-    isAdult() => this.age >= 18
-
-    toString() => $"Person{{name: {this.name}, age: {this.age}}}"
-  }
-
-  // Create instance using constructor
-  let person1 = Person()
-  person1.name = "Alice"
-  person1.age = 30
-  print($"Constructor: {person1.toString()}, adult: {person1.isAdult()}")
-
-  // Create instance using struct literal syntax
-  let person2 = Person { name: "Bob", age: 15 }
-  print($"Struct literal: {person2.toString()}, adult: {person2.isAdult()}")
-
-  // ============================================================================
   // 13. DIAGNOSTIC CODES DEMO ✅
   // ============================================================================
   print("\n🔍 Testing Diagnostic Codes:")
