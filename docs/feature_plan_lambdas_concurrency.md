@@ -87,10 +87,10 @@ This document captures the task breakdown needed to implement the new language r
 ## 5. Runtime (`liva_rt`)
 
 - Extend helper module to support:
-  - Task handles with await/join semantics, including consumption tracking.
+  - [x] Task handles with await/join semantics, including consumption tracking.
   - Fire-and-forget primitives (spawn without awaiting).
   - [x] Data-parallel execution adapters (initial Rayon-backed helpers in place; SIMD-specialised helpers still TODO).
-  - Count operations for sequences (`seq.count()`, `await aseq.count()`).
+  - [x] Count operations for sequences (`seq.count()`, `await aseq.count()`).
 - Ensure runtime enforces Send/'static checks for `par`/`boost` contexts; provide graceful error handling.
 
 ---

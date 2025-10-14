@@ -580,6 +580,14 @@ impl CodeGenerator {
                 self.output.push_str(" }");
             }
             Expr::Call(call) => {
+                // Check if this is a .count() call on a sequence
+                if let Expr::Member { object, property } = call.callee.as_ref() {
+                    if property == "count" {
+                        self.generate_expr(object)?;
+                        self.output.push_str(".count()");
+                        return Ok(());
+                    }
+                }
                 self.generate_call_expr(call)?;
             }
             Expr::Member { object, property } => {
@@ -1264,9 +1272,20 @@ impl<'a> IrCodeGenerator<'a> {
             }
         }
 
+        // Add import for SequenceCount trait if count() is used
+        if self.module_uses_count() {
+            writeln!(self.output, "use crate::liva_rt::SequenceCount;").unwrap();
+        }
+
         if !self.output.trim().is_empty() {
             self.output.push('\n');
         }
+    }
+
+    fn module_uses_count(&self) -> bool {
+        // For now, always return true since we're adding count support
+        // In the future, this could scan the module for .count() usage
+        true
     }
 
     fn emit_runtime_module(&mut self, use_async: bool, use_parallel: bool) {
@@ -1529,6 +1548,42 @@ impl<'a> IrCodeGenerator<'a> {
             self.dedent();
             self.writeln("}");
         }
+
+        // Add count operations for sequences
+        self.output.push('\n');
+        self.writeln("/// Count operations for sequences");
+        self.writeln("pub trait SequenceCount {");
+        self.indent();
+        self.writeln("type Output;");
+        self.writeln("fn count(&self) -> Self::Output;");
+        self.dedent();
+        self.writeln("}");
+        self.output.push('\n');
+
+        self.writeln("impl<T> SequenceCount for Vec<T> {");
+        self.indent();
+        self.writeln("type Output = usize;");
+        self.writeln("fn count(&self) -> usize {");
+        self.indent();
+        self.writeln("self.len()");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.output.push('\n');
+
+        self.writeln("impl<T> SequenceCount for &[T] {");
+        self.indent();
+        self.writeln("type Output = usize;");
+        self.writeln("fn count(&self) -> usize {");
+        self.indent();
+        self.writeln("self.len()");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.output.push('\n');
+
 
         self.dedent();
         self.writeln("}");
@@ -2106,6 +2161,15 @@ impl<'a> IrCodeGenerator<'a> {
                 Ok(())
             }
             ir::Expr::Call { callee, args } => {
+                // Check if this is a .count() call on a sequence
+                if let ir::Expr::Member { object, property } = callee.as_ref() {
+                    if property == "count" {
+                        self.generate_expr(object)?;
+                        self.output.push_str(".count()");
+                        return Ok(());
+                    }
+                }
+                
                 if matches!(callee.as_ref(), ir::Expr::Identifier(id) if id == "print") {
                     if args.is_empty() {
                         self.output.push_str("println!()")
