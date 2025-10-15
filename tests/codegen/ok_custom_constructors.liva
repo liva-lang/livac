@@ -30,3 +30,4 @@ main() {
   print(p2.name)
   print(p2.getDni())
 }
+

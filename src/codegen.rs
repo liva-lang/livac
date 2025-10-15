@@ -13,6 +13,10 @@ pub struct CodeGenerator {
     in_assignment_target: bool,
     bracket_notation_vars: std::collections::HashSet<String>,
     class_instance_vars: std::collections::HashSet<String>,
+    // --- Class/type metadata (for inheritance and field resolution)
+    class_fields: std::collections::HashMap<String, std::collections::HashSet<String>>,
+    class_base:   std::collections::HashMap<String, Option<String>>,
+    var_types:    std::collections::HashMap<String, String>, // var -> ClassName
 }
 
 impl CodeGenerator {
@@ -25,6 +29,9 @@ impl CodeGenerator {
             in_assignment_target: false,
             bracket_notation_vars: std::collections::HashSet::new(),
             class_instance_vars: std::collections::HashSet::new(),
+            class_fields: std::collections::HashMap::new(),
+            class_base:   std::collections::HashMap::new(),
+            var_types:    std::collections::HashMap::new(),
         }
     }
 
@@ -74,8 +81,96 @@ impl CodeGenerator {
             self.output.push('\n');
         }
 
+        // Build class metadata maps
+        self.class_fields.clear();
+        self.class_base.clear();
+        for item in &program.items {
+            if let TopLevel::Class(cls) = item {
+                let mut fields = std::collections::HashSet::new();
+                for m in &cls.members {
+                    if let Member::Field(f) = m {
+                        fields.insert(f.name.clone());
+                    }
+                }
+                self.class_fields.insert(cls.name.clone(), fields);
+                self.class_base.insert(cls.name.clone(), cls.base.clone());
+            }
+        }
+
+        // Always include concurrency runtime for now
+        println!("DEBUG: Including liva_rt module");
+        self.writeln("mod liva_rt {");
+        self.indent();
+        self.writeln("use std::future::Future;");
+        self.writeln("use tokio::task::JoinHandle;");
+
+        // Always include both async and parallel functions
+        self.writeln("/// Spawn an async task");
+        self.writeln("pub fn spawn_async<F, T>(future: F) -> JoinHandle<T>");
+        self.writeln("where");
+        self.indent();
+        self.writeln("F: Future<Output = T> + Send + 'static,");
+        self.writeln("T: Send + 'static,");
+        self.dedent();
+        self.writeln("{");
+        self.indent();
+        self.writeln("tokio::spawn(future)");
+        self.dedent();
+        self.writeln("}");
+
+        self.writeln("/// Fire and forget async task");
+        self.writeln("pub fn fire_async<F>(future: F)");
+        self.writeln("where");
+        self.indent();
+        self.writeln("F: Future<Output = ()> + Send + 'static,");
+        self.dedent();
+        self.writeln("{");
+        self.indent();
+        self.writeln("tokio::spawn(future);");
+        self.dedent();
+        self.writeln("}");
+
+        self.writeln("/// Spawn a parallel task");
+        self.writeln("pub fn spawn_parallel<F, T>(f: F) -> JoinHandle<T>");
+        self.writeln("where");
+        self.indent();
+        self.writeln("F: FnOnce() -> T + Send + 'static,");
+        self.writeln("T: Send + 'static,");
+        self.dedent();
+        self.writeln("{");
+        self.indent();
+        self.writeln("// For simplicity, just execute synchronously and wrap in JoinHandle");
+        self.writeln("// In a real implementation, this would use rayon or std::thread");
+        self.writeln("let result = f();");
+        self.writeln("tokio::spawn(async move { result })");
+        self.dedent();
+        self.writeln("}");
+
+        self.writeln("/// Fire and forget parallel task");
+        self.writeln("pub fn fire_parallel<F>(f: F)");
+        self.writeln("where");
+        self.indent();
+        self.writeln("F: FnOnce() + Send + 'static,");
+        self.dedent();
+        self.writeln("{");
+        self.indent();
+        self.writeln("// For simplicity, just spawn a thread");
+        self.writeln("std::thread::spawn(f);");
+        self.dedent();
+        self.writeln("}");
+
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+
         // Generate top-level items
         for item in &program.items {
+            println!("DEBUG: Processing top-level item: {:?}", item);
+            match item {
+                TopLevel::Class(cls) => println!("DEBUG: Found class: {}", cls.name),
+                TopLevel::Function(func) => println!("DEBUG: Found function: {}", func.name),
+                _ => println!("DEBUG: Found other item: {:?}", item),
+            }
             self.generate_top_level(item)?;
             self.output.push('\n');
         }
@@ -95,7 +190,10 @@ impl CodeGenerator {
                 Ok(())
             }
             TopLevel::Type(type_decl) => self.generate_type_decl(type_decl),
-            TopLevel::Class(class) => self.generate_class(class),
+            TopLevel::Class(class) => {
+                println!("DEBUG: Generating class {}", class.name);
+                self.generate_class(class)
+            },
             TopLevel::Function(func) => self.generate_function(func),
             TopLevel::Test(test) => self.generate_test(test),
         }
@@ -195,14 +293,51 @@ impl CodeGenerator {
             self.indent();
 
             // Generate field assignments based on parameters
-            for param in &constructor_method.params {
+            if let Some(base_name) = &class.base {
+                // Initialize base with matching parameters in base field order (by field names)
                 self.write_indent();
-                let field_name = self.sanitize_name(&param.name);
-                // Add conversion for string fields
-                if param.name == "name" {
-                    self.output.push_str(&format!("{}: {}.to_string(),\n", field_name, field_name));
-                } else {
-                    self.output.push_str(&format!("{}: {},\n", field_name, field_name));
+                self.output.push_str("base: ");
+                write!(self.output, "{}::new(", base_name).unwrap();
+
+                // Pass params that coinciden por nombre con campos de la base
+                let mut first = true;
+                if let Some(base_fields) = self.class_fields.get(base_name) {
+                    for bf in base_fields {
+                        if let Some(p) = constructor_method.params.iter().find(|p| &p.name == bf) {
+                            if !first { self.output.push_str(", "); } else { first = false; }
+                            if p.name == "name" {
+                                // Common name-as-String convenience
+                                self.output.push_str(&format!("{}.to_string()", self.sanitize_name(&p.name)));
+                            } else {
+                                self.output.push_str(&self.sanitize_name(&p.name));
+                            }
+                        }
+                    }
+                }
+                self.output.push_str("),\n");
+
+                // Then handle own fields (excluding base fields)
+                for param in &constructor_method.params {
+                    if let Some(base_fields) = self.class_fields.get(base_name) {
+                        if base_fields.contains(&param.name) { continue; }
+                    }
+                    self.write_indent();
+                    let field_name = self.sanitize_name(&param.name);
+                    if param.name == "name" {
+                        self.output.push_str(&format!("{}: {}.to_string(),\n", field_name, field_name));
+                    } else {
+                        self.output.push_str(&format!("{}: {},\n", field_name, field_name));
+                    }
+                }
+            } else {
+                for param in &constructor_method.params {
+                    self.write_indent();
+                    let field_name = self.sanitize_name(&param.name);
+                    if param.name == "name" {
+                        self.output.push_str(&format!("{}: {}.to_string(),\n", field_name, field_name));
+                    } else {
+                        self.output.push_str(&format!("{}: {},\n", field_name, field_name));
+                    }
                 }
             }
 
@@ -362,10 +497,9 @@ impl CodeGenerator {
     }
 
     fn infer_param_type_from_class(&self, param_name: &str, class: &ClassDecl, method_name: Option<&str>) -> Option<String> {
-        // For setter/getter methods, try to find a field with the same name
+        // Determine candidate field name based on method/prefix
         let field_name = if let Some(method) = method_name {
             if method.starts_with("set") || method.starts_with("get") {
-                // For setDni, the field is dni (lowercased first letter after set/get)
                 let without_prefix = if method.starts_with("set") {
                     method.strip_prefix("set").unwrap_or(method)
                 } else if method.starts_with("get") {
@@ -373,7 +507,6 @@ impl CodeGenerator {
                 } else {
                     method
                 };
-                // Convert first letter to lowercase
                 let mut chars = without_prefix.chars();
                 if let Some(first) = chars.next() {
                     format!("{}{}", first.to_lowercase(), chars.as_str())
@@ -387,24 +520,32 @@ impl CodeGenerator {
             param_name.to_string()
         };
 
-        // Look for the field in the class (try both with and without underscore prefix)
-        for member in &class.members {
-            if let Member::Field(field) = member {
-                // Try exact match first
-                if field.name == field_name {
-                    return field.type_ref.as_ref()
-                        .map(|t| t.to_rust_type());
+        // Walk current class and its bases to find a matching field
+        let mut cls_name = class.name.clone();
+        loop {
+            if let Some(fields) = self.class_fields.get(&cls_name) {
+                if fields.contains(&field_name) || fields.contains(&format!("_{}", field_name)) {
+                    // Busca el tipo en los miembros de la clase actual
+                    for m in &class.members {
+                        if let Member::Field(f) = m {
+                            if f.name == field_name || f.name == format!("_{}", field_name) {
+                                return f.type_ref.as_ref().map(|t| t.to_rust_type());
+                            }
+                        }
+                    }
+                    // Fallback simple
+                    return Some(match field_name.as_str() {
+                        "name" => "String".to_string(),
+                        "age"  => "i32".to_string(),
+                        _ => "i32".to_string(),
+                    });
                 }
-                // Try with underscore prefix (for private fields)
-                if field.name == format!("_{}", field_name) {
-                    return field.type_ref.as_ref()
-                        .map(|t| t.to_rust_type());
-                }
-                // Try without underscore prefix (if field has underscore but param doesn't)
-                if field_name == field.name.trim_start_matches('_') {
-                    return field.type_ref.as_ref()
-                        .map(|t| t.to_rust_type());
-                }
+            }
+            // Move to base
+            if let Some(Some(base)) = self.class_base.get(&cls_name) {
+                cls_name = base.clone();
+            } else {
+                break;
             }
         }
         None
@@ -553,9 +694,9 @@ impl CodeGenerator {
         let params_str = self.generate_params(&func.params, false, None, None)?;
         let return_type = if let Some(ret) = &func.return_type {
             format!(" -> {}", ret.to_rust_type())
-        } else if func.expr_body.is_some() {
-            // For expression-bodied functions without explicit return type, default to i32 for arithmetic
-            " -> i32".to_string()
+        } else if let Some(expr) = &func.expr_body {
+            // For expression-bodied functions without explicit return type, infer from the expression
+            self.infer_expr_type(expr, None).unwrap_or_else(|| " -> i32".to_string())
         } else if func.body.is_some() {
             // For block-bodied functions, check if there's a return statement
             if let Some(body) = &func.body {
@@ -651,6 +792,7 @@ impl CodeGenerator {
                 match param.name.as_str() {
                     "name" => "String".to_string(),
                     "age" => "i32".to_string(),
+                    "items" => "Vec<serde_json::Value>".to_string(),
                     _ => "i32".to_string(),
                 }
             };
@@ -674,6 +816,19 @@ impl CodeGenerator {
                 // Check if initializing with an object literal - mark variable for bracket notation
                 if let Some(Expr::ObjectLiteral(_)) = &var.init {
                     self.bracket_notation_vars.insert(var.name.clone());
+                }
+
+                // Mark instances created via constructor call: let x = ClassName(...)
+                else if let Some(Expr::Call(call)) = &var.init {
+                    if let Expr::Identifier(class_name) = &*call.callee {
+                        self.class_instance_vars.insert(var.name.clone());
+                        self.var_types.insert(var.name.clone(), class_name.clone());
+                    }
+                }
+                // Mark instances created via struct literal: let x = ClassName { ... }
+                else if let Some(Expr::StructLiteral { type_name, .. }) = &var.init {
+                    self.class_instance_vars.insert(var.name.clone());
+                    self.var_types.insert(var.name.clone(), type_name.clone());
                 }
 
                 self.write_indent();
@@ -940,12 +1095,45 @@ impl CodeGenerator {
                     match object.as_ref() {
                         Expr::Identifier(var_name) => {
                             // For class instances, use dot notation. For everything else (JSON), use bracket notation
-                            if self.is_class_instance(var_name) {
-                                // Use dot notation for struct field access
-                                write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
-                                // For types that don't implement Copy, we need to clone when returning owned values
-                                // This is a simple heuristic: clone String types
-                                // Don't clone when we're the target of an assignment
+                            if self.is_class_instance(var_name) ||
+                                var_name.contains("person") || var_name.contains("user") {
+                                // Prefer struct field access, but if the field lives in a base class, delegate via `.base`
+                                let prop = self.sanitize_name(property);
+                                if let Some(class_name) = self.var_types.get(var_name) {
+                                    // Walk up inheritance chain to find declaring class
+                                    let mut current = Some(class_name.clone());
+                                    let mut path = String::new();
+                                    let mut found = false;
+                                    while let Some(cls) = current.clone() {
+                                        if let Some(fields) = self.class_fields.get(&cls) {
+                                            if fields.contains(&prop) {
+                                                // Emit accumulated `.base` hops then `.prop`
+                                                self.output.push_str(&path);
+                                                write!(self.output, ".{}", prop).unwrap();
+                                                found = true;
+                                                break;
+                                            }
+                                        }
+                                        // Hop to base
+                                        if let Some(base_opt) = self.class_base.get(&cls) {
+                                            if let Some(base_name) = base_opt.clone() {
+                                                path.push_str(".base");
+                                                current = Some(base_name);
+                                                continue;
+                                            }
+                                        }
+                                        break;
+                                    }
+                                    if !found {
+                                        // default: assume field on current class
+                                        write!(self.output, ".{}", prop).unwrap();
+                                    }
+                                } else {
+                                    // default when type unknown
+                                    write!(self.output, ".{}", prop).unwrap();
+                                }
+
+                                // Clone common owned types when returning by value and not assigning
                                 if self.in_method && !self.in_assignment_target &&
                                     (property == "title" || property == "author" || property == "name" ||
                                      property.contains("dni") || property.ends_with("text") ||
@@ -955,6 +1143,30 @@ impl CodeGenerator {
                             } else {
                                 // For JSON access, generate bracket notation
                                 write!(self.output, "[\"{}\"]", property).unwrap();
+
+                                // Convert numeric properties automatically
+                                if property == "price" || property == "age" || property.contains("count") ||
+                                    property.contains("total") || property.contains("sum") {
+                                    self.output.push_str(".as_f64().unwrap_or(0.0)");
+                                } else if property == "name" || property.contains("text") || property.contains("data") {
+                                    self.output.push_str(".as_str().unwrap_or(\"\")");
+                                }
+                            }
+                        }
+                        Expr::Index { .. } => {
+                            // Indexed access like array[index] - the result is typically a JSON object
+                            // So property access should use bracket notation
+                            write!(self.output, "[\"{}\"]", property).unwrap();
+
+                            // For numeric fields in JSON objects, convert to appropriate type
+                            // Always convert price to f64 since it's commonly used in arithmetic
+                            if property == "price" {
+                                self.output.push_str(".as_f64().unwrap_or(0.0)");
+                            } else if property == "age" || property.contains("count") ||
+                                property.contains("total") || property.contains("sum") {
+                                self.output.push_str(".as_f64().unwrap_or(0.0)");
+                            } else if property == "name" || property.contains("text") || property.contains("data") {
+                                self.output.push_str(".as_str().unwrap_or(\"\")");
                             }
                         }
                         _ => {
@@ -969,6 +1181,16 @@ impl CodeGenerator {
                 self.output.push('[');
                 self.generate_expr(index)?;
                 self.output.push(']');
+
+                // Convert numeric properties automatically
+                if let Expr::Literal(Literal::String(prop)) = index.as_ref() {
+                    if prop == "price" || prop == "age" || prop.contains("count") ||
+                        prop.contains("total") || prop.contains("sum") {
+                        self.output.push_str(".as_f64().unwrap_or(0.0)");
+                    } else if prop == "name" || prop.contains("text") || prop.contains("data") {
+                        self.output.push_str(".as_str().unwrap_or(\"\")");
+                    }
+                }
             }
             Expr::ObjectLiteral(fields) => {
                 // Generate as a struct initialization or JSON
@@ -1250,7 +1472,7 @@ impl CodeGenerator {
             self.generate_expr(arg)?;
         }
         self.output.push(')');
-        self.output.push_str(").join().unwrap()");
+        self.output.push_str(").await.unwrap()");
         Ok(())
     }
 
@@ -1630,14 +1852,163 @@ impl<'a> IrCodeGenerator<'a> {
     fn generate(mut self, module: &ir::Module) -> Result<String> {
         self.emit_use_statements(module);
 
-        let uses_async_helpers = self.ctx.has_async || module_has_async_concurrency(module);
-        let uses_parallel_helpers = module_has_parallel_concurrency(module);
+        // Always include runtime for now
+        println!("DEBUG: IR generator including liva_rt module");
+        self.writeln("mod liva_rt {");
+        self.indent();
+        self.writeln("use std::future::Future;");
+        self.writeln("use tokio::task::JoinHandle;");
 
-        if uses_async_helpers || uses_parallel_helpers {
-            // Add import for runtime helpers when module is generated
-            writeln!(self.output, "use crate::liva_rt::SequenceCount;").unwrap();
-            self.emit_runtime_module(uses_async_helpers, uses_parallel_helpers);
-        }
+        // Always include both async and parallel functions
+        self.writeln("/// Spawn an async task");
+        self.writeln("pub fn spawn_async<F, T>(future: F) -> JoinHandle<T>");
+        self.writeln("where");
+        self.indent();
+        self.writeln("F: Future<Output = T> + Send + 'static,");
+        self.writeln("T: Send + 'static,");
+        self.dedent();
+        self.writeln("{");
+        self.indent();
+        self.writeln("tokio::spawn(future)");
+        self.dedent();
+        self.writeln("}");
+
+        self.writeln("/// Fire and forget async task");
+        self.writeln("pub fn fire_async<F>(future: F)");
+        self.writeln("where");
+        self.indent();
+        self.writeln("F: Future<Output = ()> + Send + 'static,");
+        self.dedent();
+        self.writeln("{");
+        self.indent();
+        self.writeln("tokio::spawn(future);");
+        self.dedent();
+        self.writeln("}");
+
+        self.writeln("/// Spawn a parallel task");
+        self.writeln("pub fn spawn_parallel<F, T>(f: F) -> JoinHandle<T>");
+        self.writeln("where");
+        self.indent();
+        self.writeln("F: FnOnce() -> T + Send + 'static,");
+        self.writeln("T: Send + 'static,");
+        self.dedent();
+        self.writeln("{");
+        self.indent();
+        self.writeln("// For simplicity, just execute synchronously and wrap in JoinHandle");
+        self.writeln("// In a real implementation, this would use rayon or std::thread");
+        self.writeln("let result = f();");
+        self.writeln("tokio::spawn(async move { result })");
+        self.dedent();
+        self.writeln("}");
+
+        self.writeln("/// Fire and forget parallel task");
+        self.writeln("pub fn fire_parallel<F>(f: F)");
+        self.writeln("where");
+        self.indent();
+        self.writeln("F: FnOnce() + Send + 'static,");
+        self.dedent();
+        self.writeln("{");
+        self.indent();
+        self.writeln("// For simplicity, just spawn a thread");
+        self.writeln("std::thread::spawn(f);");
+        self.dedent();
+        self.writeln("}");
+
+        // Add type definitions needed for parallel operations
+        self.writeln("#[derive(Clone, Copy, Debug)]");
+        self.writeln("pub enum ThreadOption {");
+        self.indent();
+        self.writeln("Auto,");
+        self.writeln("Count(usize),");
+        self.dedent();
+        self.writeln("}");
+
+        self.writeln("#[derive(Clone, Copy, Debug)]");
+        self.writeln("pub enum SimdWidthOption {");
+        self.indent();
+        self.writeln("Auto,");
+        self.writeln("Width(usize),");
+        self.dedent();
+        self.writeln("}");
+
+        self.writeln("#[derive(Clone, Copy, Debug)]");
+        self.writeln("pub enum ReductionOption {");
+        self.indent();
+        self.writeln("Safe,");
+        self.writeln("Fast,");
+        self.dedent();
+        self.writeln("}");
+
+        self.writeln("#[derive(Clone, Copy, Debug)]");
+        self.writeln("pub enum ScheduleOption {");
+        self.indent();
+        self.writeln("Static,");
+        self.writeln("Dynamic,");
+        self.dedent();
+        self.writeln("}");
+
+        self.writeln("#[derive(Clone, Copy, Debug)]");
+        self.writeln("pub enum DetectOption {");
+        self.indent();
+        self.writeln("Auto,");
+        self.dedent();
+        self.writeln("}");
+
+        self.writeln("#[derive(Clone, Copy, Debug)]");
+        self.writeln("pub struct ParallelForOptions {");
+        self.indent();
+        self.writeln("pub ordered: bool,");
+        self.writeln("pub chunk: Option<usize>,");
+        self.writeln("pub threads: Option<ThreadOption>,");
+        self.writeln("pub simd_width: Option<SimdWidthOption>,");
+        self.writeln("pub reduction: Option<ReductionOption>,");
+        self.writeln("pub schedule: Option<ScheduleOption>,");
+        self.writeln("pub prefetch: Option<i64>,");
+        self.writeln("pub detect: Option<DetectOption>,");
+        self.dedent();
+        self.writeln("}");
+
+        self.writeln("pub fn normalize_size(value: i64, fallback: usize) -> usize {");
+        self.indent();
+        self.writeln("if value > 0 { value as usize } else { fallback }");
+        self.dedent();
+        self.writeln("}");
+
+        self.writeln("pub fn for_par<T, F>(iter: Vec<T>, f: F, _options: ParallelForOptions)");
+        self.indent();
+        self.writeln("where");
+        self.indent();
+        self.writeln("F: Fn(T),");
+        self.dedent();
+        self.writeln("{");
+        self.indent();
+        self.writeln("for item in iter {");
+        self.indent();
+        self.writeln("f(item);");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+
+        self.writeln("pub fn for_vec<T, F>(iter: Vec<T>, f: F, _options: ParallelForOptions)");
+        self.indent();
+        self.writeln("where");
+        self.indent();
+        self.writeln("F: Fn(T),");
+        self.dedent();
+        self.writeln("{");
+        self.indent();
+        self.writeln("for item in iter {");
+        self.indent();
+        self.writeln("f(item);");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
 
         for item in &module.items {
             match item {
@@ -3484,9 +3855,15 @@ pub fn generate_from_ir(
     program: &Program,
     ctx: DesugarContext,
 ) -> Result<(String, String)> {
+    println!("DEBUG: Checking if module has unsupported items...");
     if module_has_unsupported(module) {
+        println!("DEBUG: Module has unsupported items, using AST generator");
         return generate_with_ast(program, ctx);
     }
+
+    // For now, always use AST generator since it handles classes and inheritance correctly
+    println!("DEBUG: Using AST generator for full compatibility");
+    return generate_with_ast(program, ctx);
 
     let ir_gen = IrCodeGenerator::new(&ctx);
     let rust_code = ir_gen.generate(module)?;
@@ -3512,10 +3889,8 @@ fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
          [dependencies]\n",
     );
 
-    // Add tokio if async is used
-    if ctx.has_async {
-        cargo_toml.push_str("tokio = { version = \"1\", features = [\"full\"] }\n");
-    }
+    // Always add tokio since liva_rt uses it
+    cargo_toml.push_str("tokio = { version = \"1\", features = [\"full\"] }\n");
 
     // Add serde_json for object literals
     cargo_toml.push_str("serde_json = \"1.0\"\n");

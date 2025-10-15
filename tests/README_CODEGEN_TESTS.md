@@ -97,3 +97,4 @@ async fn main() {
 - ✅ Compatibilidad con tests existentes mantenida
 
 
+

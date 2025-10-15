@@ -1,0 +1,15 @@
+// Test automatic type conversion
+main() {
+  let products = [
+    { name: "Laptop", price: 999.99 },
+    { name: "Book", price: 19.99 }
+  ]
+
+  let total = 0.0
+  for product in products {
+    total = total + product.price  // Should auto-convert Value to f64
+  }
+
+  print($"Total: {total}")
+}
+

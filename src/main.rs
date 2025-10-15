@@ -15,6 +15,7 @@ mod semantic;
 mod span;
 
 use error::CompilerError;
+use livac::CompilerOptions;
 
 #[derive(Parser)]
 #[command(name = "livac")]
@@ -55,37 +56,30 @@ fn compile(cli: &Cli) -> Result<(), CompilerError> {
     println!("{}", "🧩 Liva Compiler v0.6".cyan().bold());
     println!("{} {}", "→ Compiling".green(), cli.input.display());
 
-    // 1. Read source
-    let source =
-        std::fs::read_to_string(&cli.input).map_err(|e| CompilerError::IoError(e.to_string()))?;
+    let options = CompilerOptions {
+        input: cli.input.clone(),
+        output: cli.output.clone(),
+        verbose: false,
+        check_only: cli.check,
+    };
 
-    // 2. Lexer
-    println!("  {} Lexical analysis...", "→".blue());
-    let tokens = lexer::tokenize(&source)?;
-
-    // 3. Parser
-    println!("  {} Parsing...", "→".blue());
-    let ast = parser::parse(tokens, &source)?;
-
-    // 4. Semantic analysis
-    println!("  {} Semantic analysis...", "→".blue());
-    let analyzed_ast = semantic::analyze(ast)?;
+    let result = livac::compile_file(&options).map_err(|e| match e {
+        livac::CompilerError::LexerError(s) => CompilerError::LexerError(s),
+        livac::CompilerError::ParseError { line, col, msg } => CompilerError::ParseError { line, col, msg },
+        livac::CompilerError::SemanticError(s) => CompilerError::SemanticError(s),
+        livac::CompilerError::TypeError(s) => CompilerError::TypeError(s),
+        livac::CompilerError::CodegenError(s) => CompilerError::CodegenError(s),
+        livac::CompilerError::IoError(s) => CompilerError::IoError(s),
+        livac::CompilerError::RuntimeError(s) => CompilerError::RuntimeError(s),
+    })?;
 
     if cli.check {
         println!("{}", "✓ Check passed".green().bold());
         return Ok(());
     }
 
-    // 5. Desugaring (Liva → Rust concepts)
-    println!("  {} Desugaring to Rust...", "→".blue());
-    let desugar_ctx = desugaring::desugar(analyzed_ast.clone())?;
-
-    // 6. Code generation
-    println!("  {} Lowering to IR...", "→".blue());
-    let ir_module = lowering::lower_program(&analyzed_ast);
-
-    println!("  {} Generating Rust code...", "→".blue());
-    let (main_rs, cargo_toml) = codegen::generate_from_ir(&ir_module, &analyzed_ast, desugar_ctx)?;
+    let main_rs = result.rust_code.ok_or_else(|| CompilerError::CodegenError("No Rust code generated".to_string()))?;
+    let cargo_toml = result.cargo_toml.ok_or_else(|| CompilerError::CodegenError("No Cargo.toml generated".to_string()))?;
 
     // 7. Write output
     let output_dir = cli

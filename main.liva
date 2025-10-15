@@ -9,6 +9,7 @@
 
 add(a, b) => a + b
 multiply(x, y) => x * y
+isAdult(age) => age >= 18
 
 // Block function
 calculateTotal(items) {
@@ -37,6 +38,23 @@ logEvent(msg: string) {
 
 backgroundCleanup() {
   print("🧹 Background cleanup running")
+}
+
+// ============================================================================
+// CLASS DEFINITIONS
+// ============================================================================
+
+// Class definition with constructor, fields, and methods
+Person {
+  constructor(name: string, age: int) {
+    this.name = name
+    this.age = age
+  }
+
+  name: string
+  age: int
+
+  isAdult() => this.age >= 18
 }
 
 // ============================================================================
@@ -75,10 +93,11 @@ main() {
 
   let sum = add(10, 15)
   let product = multiply(4, 6)
+  let adult = isAdult(age)
 
   print($"10 + 15 = {sum}")
   print($"4 * 6 = {product}")
-  print("Function calls working!\n")
+  print($"Is adult: {adult}\n")
 
   // ============================================================================
   // 3. STRING TEMPLATES DEMO ✅
@@ -172,8 +191,7 @@ main() {
 
   print($"Numbers: {numbers}")
   print($"Users count: {users.length}")
-  // Note: JSON field access not fully implemented yet
-  print($"First user: [JSON object access not implemented]")
+  print($"First user: {users[0].name} and his age is {users[0].age}")
 
   // ============================================================================
   // 8. BLOCK FUNCTIONS DEMO ✅
@@ -228,14 +246,37 @@ main() {
     print($"Vector lane value: {lane}")
   }
 
+  // ============================================================================
+  // 11. CLASSES AND OBJECTS DEMO ✅
+  // ============================================================================
+  print("\n🏗️ Testing Classes and Objects:")
+
+  // Using the class - constructor with parameters
+  let person1 = Person("Fran", 40)
+
+  print($"Person 1: {person1.name}, Age: {person1.age}")
+  print($"Is adult: {person1.isAdult()}")
+
+  // Using the class - object literal syntax
+  let person2 = Person {
+    name: "Ana",
+    age: 30
+  }
+
+  print($"Person 2: {person2.name}, Age: {person2.age}")
+  print($"Is adult: {person2.isAdult()}")
+
+  // Demonstrate multiple instances
+  let people = [
+    Person("Alice", 25),
+    Person("Bob", 17),
+    Person("Charlie", 35)
+  ]
+
+  for person in people {
+    print($"Name: {person.name}, Age: {person.age}, Adult: {person.isAdult()}")
+  }
+
   print("\n🎉 Liva Comprehensive Syntax Test Completed Successfully!")
   print("✅ All major language features tested and working!")
-
-  // ============================================================================
-  // 11. CLASSES DEMO ✅
-  // ============================================================================
-  print("\n🏗️ Testing Classes:")
-  print("Class functionality demonstrated in separate test files")
-
 }
-
