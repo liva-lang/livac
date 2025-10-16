@@ -186,7 +186,7 @@ impl SemanticAnalyzer {
         match item {
             TopLevel::Function(func) => {
                 let newly_async = if let Some(body) = &func.body {
-                    self.contains_async_call(body)
+                    self.contains_async_call_stmt(body)
                 } else if let Some(expr) = &func.expr_body {
                     self.expr_contains_async(expr)
                 } else {
@@ -212,7 +212,7 @@ impl SemanticAnalyzer {
                 for member in &mut class.members {
                     if let Member::Method(method) = member {
                         let is_async = if let Some(body) = &method.body {
-                            self.contains_async_call(body)
+                            self.contains_async_call_stmt(body)
                         } else if let Some(expr) = &method.expr_body {
                             self.expr_contains_async(expr)
                         } else {
@@ -241,7 +241,7 @@ impl SemanticAnalyzer {
                 for member in &mut type_decl.members {
                     if let Member::Method(method) = member {
                         let is_async = if let Some(body) = &method.body {
-                            self.contains_async_call(body)
+                            self.contains_async_call_stmt(body)
                         } else if let Some(expr) = &method.expr_body {
                             self.expr_contains_async(expr)
                         } else {
@@ -272,7 +272,21 @@ impl SemanticAnalyzer {
         Ok(mutated)
     }
 
-    fn contains_async_call(&self, block: &BlockStmt) -> bool {
+    fn contains_async_call(&self, body: &IfBody) -> bool {
+        match body {
+            IfBody::Block(block) => {
+                for stmt in &block.stmts {
+                    if self.stmt_contains_async(stmt) {
+                        return true;
+                    }
+                }
+                false
+            }
+            IfBody::Stmt(stmt) => self.stmt_contains_async(stmt),
+        }
+    }
+
+    fn contains_async_call_stmt(&self, block: &BlockStmt) -> bool {
         for stmt in &block.stmts {
             if self.stmt_contains_async(stmt) {
                 return true;
@@ -284,11 +298,7 @@ impl SemanticAnalyzer {
     fn stmt_contains_async(&self, stmt: &Stmt) -> bool {
         match stmt {
             Stmt::VarDecl(var) => {
-                if let Some(init) = &var.init {
-                    self.expr_contains_async(init)
-                } else {
-                    false
-                }
+                self.expr_contains_async(&var.init)
             }
             Stmt::ConstDecl(const_decl) => self.expr_contains_async(&const_decl.init),
             Stmt::Assign(assign) => {
@@ -305,11 +315,11 @@ impl SemanticAnalyzer {
             }
             Stmt::While(while_stmt) => {
                 self.expr_contains_async(&while_stmt.condition)
-                    || self.contains_async_call(&while_stmt.body)
+                    || self.contains_async_call_stmt(&while_stmt.body)
             }
             Stmt::For(for_stmt) => {
                 self.expr_contains_async(&for_stmt.iterable)
-                    || self.contains_async_call(&for_stmt.body)
+                    || self.contains_async_call_stmt(&for_stmt.body)
             }
             Stmt::Switch(switch_stmt) => {
                 self.expr_contains_async(&switch_stmt.discriminant)
@@ -319,17 +329,18 @@ impl SemanticAnalyzer {
                         .any(|case| case.body.iter().any(|s| self.stmt_contains_async(s)))
             }
             Stmt::TryCatch(try_catch) => {
-                self.contains_async_call(&try_catch.try_block)
-                    || self.contains_async_call(&try_catch.catch_block)
+                self.contains_async_call_stmt(&try_catch.try_block)
+                    || self.contains_async_call_stmt(&try_catch.catch_block)
             }
             Stmt::Throw(throw_stmt) => self.expr_contains_async(&throw_stmt.expr),
+            Stmt::Fail(fail_stmt) => self.expr_contains_async(&fail_stmt.expr),
             Stmt::Return(ret) => ret
                 .expr
                 .as_ref()
                 .map(|e| self.expr_contains_async(e))
                 .unwrap_or(false),
             Stmt::Expr(expr_stmt) => self.expr_contains_async(&expr_stmt.expr),
-            Stmt::Block(block) => self.contains_async_call(block),
+            Stmt::Block(block) => self.contains_async_call_stmt(block),
         }
     }
 
@@ -359,7 +370,7 @@ impl SemanticAnalyzer {
             }
             Expr::Lambda(lambda) => match &lambda.body {
                 LambdaBody::Expr(expr) => self.expr_contains_async(expr),
-                LambdaBody::Block(block) => self.contains_async_call(block),
+                LambdaBody::Block(block) => self.contains_async_call_stmt(block),
             },
             Expr::Binary { left, right, .. } => {
                 self.expr_contains_async(left) || self.expr_contains_async(right)
@@ -412,6 +423,9 @@ impl SemanticAnalyzer {
             self.validate_type_ref(return_type, &type_params)?;
         }
 
+        // Note: Fallibility detection is now handled in lowering.rs
+        // The AST is immutable, so we can't mark functions as fallible here
+
         self.enter_scope();
 
         for param in &func.params {
@@ -425,7 +439,7 @@ impl SemanticAnalyzer {
         }
 
         if let Some(body) = &func.body {
-            self.validate_block(body)?;
+            self.validate_block_stmt(body)?;
         }
 
         if let Some(expr) = &func.expr_body {
@@ -514,7 +528,7 @@ impl SemanticAnalyzer {
         }
 
         if let Some(body) = &method.body {
-            self.validate_block(body)?;
+            self.validate_block_stmt(body)?;
         }
 
         if let Some(expr) = &method.expr_body {
@@ -525,7 +539,23 @@ impl SemanticAnalyzer {
         Ok(())
     }
 
-    fn validate_block(&mut self, block: &BlockStmt) -> Result<()> {
+    fn validate_block(&mut self, body: &IfBody) -> Result<()> {
+        self.enter_scope();
+        match body {
+            IfBody::Block(block) => {
+                for stmt in &block.stmts {
+                    self.validate_stmt(stmt)?;
+                }
+            }
+            IfBody::Stmt(stmt) => {
+                self.validate_stmt(stmt)?;
+            }
+        }
+        self.exit_scope()?;
+        Ok(())
+    }
+
+    fn validate_block_stmt(&mut self, block: &BlockStmt) -> Result<()> {
         self.enter_scope();
         for stmt in &block.stmts {
             self.validate_stmt(stmt)?;
@@ -539,26 +569,35 @@ impl SemanticAnalyzer {
 
         match stmt {
             Stmt::VarDecl(var) => {
-                if let Some(type_ref) = &var.type_ref {
-                    self.validate_type_ref(type_ref, &empty)?;
-                }
-                let mut declared_type = var.type_ref.clone();
-                if let Some(init) = &var.init {
-                    self.validate_expr(init)?;
-                    if declared_type.is_none() {
-                        declared_type = self.infer_expr_type(init);
+                // Validate the init expression
+                self.validate_expr(&var.init)?;
+
+                for binding in &var.bindings {
+                    if let Some(type_ref) = &binding.type_ref {
+                        self.validate_type_ref(type_ref, &empty)?;
                     }
-                }
-                if self.declare_symbol(&var.name, declared_type.clone()) {
-                    return Err(CompilerError::SemanticError(format!(
-                        "Variable '{}' already defined in this scope",
-                        var.name
-                    )));
-                }
-                if let Some(init) = &var.init {
-                    self.update_awaitable_from_expr(&var.name, init)?;
-                } else {
-                    self.clear_awaitable(&var.name);
+
+                    let declared_type = if var.is_fallible {
+                        // For fallible bindings, the type is inferred from context
+                        // The actual type will be Result<T, Error> but we handle this in lowering
+                        binding.type_ref.clone()
+                    } else {
+                        binding.type_ref.clone().or_else(|| self.infer_expr_type(&var.init))
+                    };
+
+                    if self.declare_symbol(&binding.name, declared_type.clone()) {
+                        return Err(CompilerError::SemanticError(format!(
+                            "Variable '{}' already defined in this scope",
+                            binding.name
+                        )));
+                    }
+
+                    if var.is_fallible {
+                        // For fallible bindings, we don't update awaitable status in the same way
+                        self.clear_awaitable(&binding.name);
+                    } else {
+                        self.update_awaitable_from_expr(&binding.name, &var.init)?;
+                    }
                 }
             }
             Stmt::ConstDecl(const_decl) => {
@@ -592,7 +631,7 @@ impl SemanticAnalyzer {
             }
             Stmt::While(while_stmt) => {
                 self.validate_expr(&while_stmt.condition)?;
-                self.validate_block(&while_stmt.body)?;
+                self.validate_block_stmt(&while_stmt.body)?;
             }
             Stmt::For(for_stmt) => {
                 self.validate_expr(&for_stmt.iterable)?;
@@ -604,7 +643,7 @@ impl SemanticAnalyzer {
                         for_stmt.var
                     )));
                 }
-                self.validate_block(&for_stmt.body)?;
+                self.validate_block_stmt(&for_stmt.body)?;
                 let validation = self.validate_for_loop(for_stmt);
                 self.exit_scope()?;
                 validation?;
@@ -627,14 +666,17 @@ impl SemanticAnalyzer {
                 }
             }
             Stmt::TryCatch(try_catch) => {
-                self.validate_block(&try_catch.try_block)?;
+                self.validate_block_stmt(&try_catch.try_block)?;
                 self.enter_scope();
                 self.declare_symbol(&try_catch.catch_var, None);
-                self.validate_block(&try_catch.catch_block)?;
+                self.validate_block_stmt(&try_catch.catch_block)?;
                 self.exit_scope()?;
             }
             Stmt::Throw(throw_stmt) => {
                 self.validate_expr(&throw_stmt.expr)?;
+            }
+            Stmt::Fail(fail_stmt) => {
+                self.validate_expr(&fail_stmt.expr)?;
             }
             Stmt::Return(ret) => {
                 if let Some(expr) = &ret.expr {
@@ -656,7 +698,7 @@ impl SemanticAnalyzer {
                 }
             }
             Stmt::Block(block) => {
-                self.validate_block(block)?;
+                self.validate_block_stmt(block)?;
             }
         }
 
@@ -667,6 +709,7 @@ impl SemanticAnalyzer {
         match expr {
             Expr::Literal(_) => Ok(()),
             Expr::Identifier(_name) => Ok(()),
+            Expr::Fail(expr) => self.validate_expr(expr),
             Expr::Binary { left, right, .. } => {
                 self.validate_expr(left)?;
                 self.validate_expr(right)
@@ -917,7 +960,7 @@ impl SemanticAnalyzer {
         let result = match &lambda.body {
             LambdaBody::Expr(expr) => self.validate_expr(expr),
             LambdaBody::Block(block) => {
-                self.validate_block(block)?;
+                self.validate_block_stmt(block)?;
                 Ok(())
             }
         };
@@ -932,7 +975,7 @@ impl SemanticAnalyzer {
         if matches!(
             for_stmt.policy,
             DataParallelPolicy::Par | DataParallelPolicy::Boost
-        ) && Self::block_contains_await(&for_stmt.body)
+        ) && Self::block_contains_await_stmt(&for_stmt.body)
         {
             return Err(CompilerError::SemanticError(
                 "E0605: `await` is not allowed inside `for par` or `for boost` loops.".into(),
@@ -992,7 +1035,17 @@ impl SemanticAnalyzer {
         Ok(())
     }
 
-    fn block_contains_await(block: &BlockStmt) -> bool {
+    fn block_contains_await(body: &IfBody) -> bool {
+        match body {
+            IfBody::Block(block) => block
+                .stmts
+                .iter()
+                .any(|stmt| Self::stmt_contains_await(stmt)),
+            IfBody::Stmt(stmt) => Self::stmt_contains_await(stmt),
+        }
+    }
+
+    fn block_contains_await_stmt(block: &BlockStmt) -> bool {
         block
             .stmts
             .iter()
@@ -1001,10 +1054,7 @@ impl SemanticAnalyzer {
 
     fn stmt_contains_await(stmt: &Stmt) -> bool {
         match stmt {
-            Stmt::VarDecl(var) => var
-                .init
-                .as_ref()
-                .map_or(false, |expr| Self::expr_contains_await(expr)),
+            Stmt::VarDecl(var) => Self::expr_contains_await(&var.init),
             Stmt::ConstDecl(const_decl) => Self::expr_contains_await(&const_decl.init),
             Stmt::Assign(assign) => {
                 Self::expr_contains_await(&assign.target)
@@ -1020,11 +1070,11 @@ impl SemanticAnalyzer {
             }
             Stmt::While(while_stmt) => {
                 Self::expr_contains_await(&while_stmt.condition)
-                    || Self::block_contains_await(&while_stmt.body)
+                    || Self::block_contains_await_stmt(&while_stmt.body)
             }
             Stmt::For(for_stmt) => {
                 Self::expr_contains_await(&for_stmt.iterable)
-                    || Self::block_contains_await(&for_stmt.body)
+                    || Self::block_contains_await_stmt(&for_stmt.body)
             }
             Stmt::Switch(switch_stmt) => {
                 if Self::expr_contains_await(&switch_stmt.discriminant) {
@@ -1043,16 +1093,17 @@ impl SemanticAnalyzer {
                 false
             }
             Stmt::TryCatch(try_catch) => {
-                Self::block_contains_await(&try_catch.try_block)
-                    || Self::block_contains_await(&try_catch.catch_block)
+                Self::block_contains_await_stmt(&try_catch.try_block)
+                    || Self::block_contains_await_stmt(&try_catch.catch_block)
             }
             Stmt::Throw(throw_stmt) => Self::expr_contains_await(&throw_stmt.expr),
+            Stmt::Fail(fail_stmt) => Self::expr_contains_await(&fail_stmt.expr),
             Stmt::Return(ret) => ret
                 .expr
                 .as_ref()
                 .map_or(false, |expr| Self::expr_contains_await(expr)),
             Stmt::Expr(expr_stmt) => Self::expr_contains_await(&expr_stmt.expr),
-            Stmt::Block(block) => Self::block_contains_await(block),
+            Stmt::Block(block) => Self::block_contains_await_stmt(block),
         }
     }
 
@@ -1093,13 +1144,14 @@ impl SemanticAnalyzer {
                 .any(|value| Self::expr_contains_await(value)),
             Expr::Lambda(lambda) => match &lambda.body {
                 LambdaBody::Expr(body) => Self::expr_contains_await(body),
-                LambdaBody::Block(block) => Self::block_contains_await(block),
+                LambdaBody::Block(block) => Self::block_contains_await_stmt(block),
             },
             Expr::StringTemplate { parts } => parts.iter().any(|part| match part {
                 StringTemplatePart::Expr(expr) => Self::expr_contains_await(expr),
                 _ => false,
             }),
             Expr::Literal(_) | Expr::Identifier(_) => false,
+            Expr::Fail(expr) => Self::expr_contains_await(expr),
         }
     }
 
@@ -1392,6 +1444,7 @@ impl SemanticAnalyzer {
             ),
             TypeRef::Generic { base, .. } => matches!(base.as_str(), "Vec" | "Array"),
             TypeRef::Optional(inner) => self.type_supports_length(inner),
+            TypeRef::Fallible(_) => false,
         }
     }
 
@@ -1410,6 +1463,7 @@ impl SemanticAnalyzer {
             }
             TypeRef::Array(inner) => self.validate_type_ref(inner, available_type_params),
             TypeRef::Optional(inner) => self.validate_type_ref(inner, available_type_params),
+            TypeRef::Fallible(inner) => self.validate_type_ref(inner, available_type_params),
         }
     }
 }
@@ -1623,6 +1677,89 @@ mod tests {
             })
             .expect_err("missing base class should error");
         matches!(err, CompilerError::SemanticError(_));
+    }
+
+    fn block_contains_fail(&self, block: &BlockStmt) -> bool {
+        for stmt in &block.stmts {
+            if self.stmt_contains_fail(stmt) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn stmt_contains_fail(&self, stmt: &Stmt) -> bool {
+        match stmt {
+            Stmt::Fail(_) => true,
+            Stmt::VarDecl(var) => self.expr_contains_fail(&var.init),
+            Stmt::Assign(assign) => self.expr_contains_fail(&assign.value),
+            Stmt::Return(ret) => ret.expr.as_ref().map_or(false, |e| self.expr_contains_fail(e)),
+            Stmt::If(if_stmt) => {
+                self.expr_contains_fail(&if_stmt.condition) ||
+                self.block_contains_fail(&if_stmt.then_branch) ||
+                if_stmt.else_branch.as_ref().map_or(false, |b| self.block_contains_fail(b))
+            }
+            Stmt::While(while_stmt) => {
+                self.expr_contains_fail(&while_stmt.condition) ||
+                self.block_contains_fail(&while_stmt.body)
+            }
+            Stmt::For(for_stmt) => self.block_contains_fail(&for_stmt.body),
+            Stmt::Switch(switch) => {
+                self.expr_contains_fail(&switch.discriminant) ||
+                switch.cases.iter().any(|case| self.block_contains_fail(&case.body)) ||
+                switch.default.as_ref().map_or(false, |b| b.iter().any(|s| self.stmt_contains_fail(s)))
+            }
+            Stmt::TryCatch(try_catch) => {
+                self.block_contains_fail(&try_catch.try_block) ||
+                self.block_contains_fail(&try_catch.catch_block)
+            }
+            Stmt::Throw(throw) => self.expr_contains_fail(&throw.expr),
+            Stmt::Expr(expr_stmt) => self.expr_contains_fail(&expr_stmt.expr),
+            _ => false,
+        }
+    }
+
+    fn expr_contains_fail(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Fail(_) => true,
+            Expr::Ternary { condition, then_expr, else_expr } => {
+                self.expr_contains_fail(condition) ||
+                self.expr_contains_fail(then_expr) ||
+                self.expr_contains_fail(else_expr)
+            }
+            Expr::Binary { left, right, .. } => {
+                self.expr_contains_fail(left) || self.expr_contains_fail(right)
+            }
+            Expr::Unary { operand, .. } => self.expr_contains_fail(operand),
+            Expr::Call(call) => {
+                self.expr_contains_fail(&call.callee) ||
+                call.args.iter().any(|arg| self.expr_contains_fail(arg))
+            }
+            Expr::Member { object, .. } => self.expr_contains_fail(object),
+            Expr::Index { object, index } => {
+                self.expr_contains_fail(object) || self.expr_contains_fail(index)
+            }
+            Expr::ObjectLiteral(fields) => {
+                fields.iter().any(|(_, value)| self.expr_contains_fail(value))
+            }
+            Expr::StructLiteral { fields, .. } => {
+                fields.iter().any(|(_, value)| self.expr_contains_fail(value))
+            }
+            Expr::ArrayLiteral(elements) => {
+                elements.iter().any(|elem| self.expr_contains_fail(elem))
+            }
+            Expr::Lambda(lambda) => match &lambda.body {
+                LambdaBody::Expr(body) => self.expr_contains_fail(body),
+                LambdaBody::Block(block) => self.block_contains_fail(block),
+            },
+            Expr::StringTemplate { parts } => {
+                parts.iter().any(|part| match part {
+                    StringTemplatePart::Expr(expr) => self.expr_contains_fail(expr),
+                    _ => false,
+                })
+            }
+            _ => false,
+        }
     }
 
     #[test]

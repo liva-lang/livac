@@ -58,6 +58,22 @@ Person {
 }
 
 // ============================================================================
+// FALLIBILITY FUNCTIONS
+// ============================================================================
+
+// Función fallable básica
+divide(a: number, b: number) => b == 0 ? fail "Division by zero" : a / b
+
+// Función con if fail
+validateUser(username: string, password: string): string {
+  if username == "" fail "Username cannot be empty"
+  if password == "" fail "Password cannot be empty"
+  return $"User {username} validated"
+}
+
+// Función normal (no fallable)
+
+// ============================================================================
 // MAIN APPLICATION
 // ============================================================================
 
@@ -277,6 +293,35 @@ main() {
     print($"Name: {person.name}, Age: {person.age}, Adult: {person.isAdult()}")
   }
 
+  // ============================================================================
+  // 12. FALLIBILITY SYSTEM DEMO ✅
+  // ============================================================================
+  print("\n🛡️ Testing Fallibility System:")
+
+  // Test binding fallible - función fallable
+  let result, err = divide(10, 2)
+  print($"Division success: {result}, error: {err}")
+
+  let result2, err2 = divide(10, 0)
+  print($"Division with error: {result2}, error: {err2}")
+
+  // Test binding fallible - función normal (err será null)
+  let result_mult, err3 = multiply(5, 3)
+  print($"Multiplication: {result_mult}, error: {err3}")
+
+  // Test if fail statement
+  let userResult, userErr = validateUser("john", "pass123")
+  print($"User validation: {userResult}, error: {userErr}")
+
+  let userResult2, userErr2 = validateUser("", "pass123")
+  print($"User validation with error: {userResult2}, error: {userErr2}")
+
+  // Test ternario con fail
+  let user_age = 15
+  let voting_result, voteErr = user_age >= 18 ? "Can vote" : fail "Too young to vote"
+  print($"Voting check: {voting_result}, error: {voteErr}")
+
   print("\n🎉 Liva Comprehensive Syntax Test Completed Successfully!")
   print("✅ All major language features tested and working!")
+  print("🛡️ Fallibility system implemented and tested!")
 }

@@ -58,6 +58,8 @@ pub enum Token {
     Fire,
     #[token("await")]
     Await,
+    #[token("fail")]
+    Fail,
     #[token("move")]
     Move,
     #[token("seq")]

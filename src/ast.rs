@@ -65,6 +65,7 @@ pub struct MethodDecl {
     pub body: Option<BlockStmt>,
     pub expr_body: Option<Expr>,
     pub is_async_inferred: bool,
+    pub contains_fail: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -76,6 +77,7 @@ pub struct FunctionDecl {
     pub body: Option<BlockStmt>,
     pub expr_body: Option<Expr>,
     pub is_async_inferred: bool,
+    pub contains_fail: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -116,6 +118,7 @@ pub enum TypeRef {
     Generic { base: String, args: Vec<TypeRef> },
     Array(Box<TypeRef>),
     Optional(Box<TypeRef>),
+    Fallible(Box<TypeRef>),
 }
 
 impl TypeRef {
@@ -141,6 +144,7 @@ impl TypeRef {
             }
             TypeRef::Array(inner) => format!("Vec<{}>", inner.to_rust_type()),
             TypeRef::Optional(inner) => format!("Option<{}>", inner.to_rust_type()),
+            TypeRef::Fallible(inner) => format!("Result<{}, liva_rt::Error>", inner.to_rust_type()),
         }
     }
 }
@@ -156,6 +160,7 @@ pub enum Stmt {
     Switch(SwitchStmt),
     TryCatch(TryCatchStmt),
     Throw(ThrowStmt),
+    Fail(FailStmt),
     Return(ReturnStmt),
     Expr(ExprStmt),
     Block(BlockStmt),
@@ -168,9 +173,15 @@ pub struct BlockStmt {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct VarDecl {
+    pub bindings: Vec<VarBinding>,
+    pub init: Expr,
+    pub is_fallible: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct VarBinding {
     pub name: String,
     pub type_ref: Option<TypeRef>,
-    pub init: Option<Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -189,8 +200,14 @@ pub struct AssignStmt {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct IfStmt {
     pub condition: Expr,
-    pub then_branch: BlockStmt,
-    pub else_branch: Option<BlockStmt>,
+    pub then_branch: IfBody,
+    pub else_branch: Option<IfBody>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum IfBody {
+    Block(BlockStmt),
+    Stmt(Box<Stmt>),
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -319,6 +336,11 @@ pub struct ThrowStmt {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct FailStmt {
+    pub expr: Expr,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ReturnStmt {
     pub expr: Option<Expr>,
 }
@@ -365,6 +387,7 @@ pub enum Expr {
     StringTemplate {
         parts: Vec<StringTemplatePart>,
     },
+    Fail(Box<Expr>),
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

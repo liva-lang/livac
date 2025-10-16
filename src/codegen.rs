@@ -11,12 +11,14 @@ pub struct CodeGenerator {
     ctx: DesugarContext,
     in_method: bool,
     in_assignment_target: bool,
+    in_fallible_function: bool,
     bracket_notation_vars: std::collections::HashSet<String>,
     class_instance_vars: std::collections::HashSet<String>,
     // --- Class/type metadata (for inheritance and field resolution)
     class_fields: std::collections::HashMap<String, std::collections::HashSet<String>>,
     class_base:   std::collections::HashMap<String, Option<String>>,
     var_types:    std::collections::HashMap<String, String>, // var -> ClassName
+    fallible_functions: std::collections::HashSet<String>, // Track which functions are fallible
 }
 
 impl CodeGenerator {
@@ -27,11 +29,13 @@ impl CodeGenerator {
             ctx,
             in_method: false,
             in_assignment_target: false,
+            in_fallible_function: false,
             bracket_notation_vars: std::collections::HashSet::new(),
             class_instance_vars: std::collections::HashSet::new(),
             class_fields: std::collections::HashMap::new(),
             class_base:   std::collections::HashMap::new(),
             var_types:    std::collections::HashMap::new(),
+            fallible_functions: std::collections::HashSet::new(),
         }
     }
 
@@ -103,6 +107,43 @@ impl CodeGenerator {
         self.indent();
         self.writeln("use std::future::Future;");
         self.writeln("use tokio::task::JoinHandle;");
+        self.writeln("");
+        
+        // Add Error type for fallibility system
+        self.writeln("/// Runtime error type for fallible operations");
+        self.writeln("#[derive(Debug, Clone)]");
+        self.writeln("pub struct Error {");
+        self.indent();
+        self.writeln("pub message: String,");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("impl Error {");
+        self.indent();
+        self.writeln("pub fn from<S: Into<String>>(message: S) -> Self {");
+        self.indent();
+        self.writeln("Error {");
+        self.indent();
+        self.writeln("message: message.into(),");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("impl std::fmt::Display for Error {");
+        self.indent();
+        self.writeln("fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {");
+        self.indent();
+        self.writeln("write!(f, \"{}\", self.message)");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("impl std::error::Error for Error {}");
+        self.writeln("");
 
         // Always include both async and parallel functions
         self.writeln("/// Spawn an async task");
@@ -692,24 +733,40 @@ impl CodeGenerator {
             String::new()
         };
         let params_str = self.generate_params(&func.params, false, None, None)?;
-        let return_type = if let Some(ret) = &func.return_type {
-            format!(" -> {}", ret.to_rust_type())
-        } else if let Some(expr) = &func.expr_body {
-            // For expression-bodied functions without explicit return type, infer from the expression
-            self.infer_expr_type(expr, None).unwrap_or_else(|| " -> i32".to_string())
-        } else if func.body.is_some() {
-            // For block-bodied functions, check if there's a return statement
-            if let Some(body) = &func.body {
-                if self.block_has_return(body) {
-                    " -> f64".to_string() // Default to f64 for functions that return values
+        
+        // Handle fallibility - wrap return type in Result if function contains fail
+        let return_type = if func.contains_fail {
+            if let Some(ret) = &func.return_type {
+                format!(" -> Result<{}, liva_rt::Error>", ret.to_rust_type())
+            } else if let Some(expr) = &func.expr_body {
+                let inner_type = self.infer_expr_type(expr, None)
+                    .unwrap_or_else(|| " -> i32".to_string())
+                    .trim_start_matches(" -> ")
+                    .to_string();
+                format!(" -> Result<{}, liva_rt::Error>", inner_type)
+            } else {
+                " -> Result<(), liva_rt::Error>".to_string()
+            }
+        } else {
+            if let Some(ret) = &func.return_type {
+                format!(" -> {}", ret.to_rust_type())
+            } else if let Some(expr) = &func.expr_body {
+                // For expression-bodied functions without explicit return type, infer from the expression
+                self.infer_expr_type(expr, None).unwrap_or_else(|| " -> i32".to_string())
+            } else if func.body.is_some() {
+                // For block-bodied functions, check if there's a return statement
+                if let Some(body) = &func.body {
+                    if self.block_has_return(body) {
+                        " -> f64".to_string() // Default to f64 for functions that return values
+                    } else {
+                        String::new()
+                    }
                 } else {
                     String::new()
                 }
             } else {
                 String::new()
             }
-        } else {
-            String::new()
         };
 
         write!(
@@ -731,14 +788,39 @@ impl CodeGenerator {
             self.output.push_str(" {\n");
             self.indent();
             self.write_indent();
-            self.generate_expr(expr)?;
+            let was_fallible = self.in_fallible_function;
+            self.in_fallible_function = func.contains_fail;
+            if func.contains_fail {
+                // Check if the expression already returns a Result (like a fallible ternary)
+                let expr_returns_result = matches!(expr, Expr::Ternary { then_expr, else_expr, .. } 
+                    if self.expr_contains_fail(then_expr) || self.expr_contains_fail(else_expr));
+                
+                if !expr_returns_result {
+                    self.output.push_str("Ok(");
+                }
+                self.generate_expr(expr)?;
+                if !expr_returns_result {
+                    self.output.push(')');
+                }
+            } else {
+                self.generate_expr(expr)?;
+            }
+            self.in_fallible_function = was_fallible;
             self.output.push('\n');
             self.dedent();
             self.writeln("}");
         } else if let Some(body) = &func.body {
             self.output.push_str(" {\n");
             self.indent();
+            let was_fallible = self.in_fallible_function;
+            self.in_fallible_function = func.contains_fail;
             self.generate_block_inner(body)?;
+            // If function is fallible and doesn't end with explicit return, add Ok(())
+            if func.contains_fail && !self.block_ends_with_return(body) {
+                self.write_indent();
+                self.writeln("Ok(())");
+            }
+            self.in_fallible_function = was_fallible;
             self.dedent();
             self.writeln("}");
         }
@@ -810,40 +892,85 @@ impl CodeGenerator {
         Ok(())
     }
 
+    fn generate_if_body(&mut self, body: &IfBody) -> Result<()> {
+        match body {
+            IfBody::Block(block) => {
+                for stmt in &block.stmts {
+                    self.generate_stmt(stmt)?;
+                }
+            }
+            IfBody::Stmt(stmt) => {
+                self.generate_stmt(stmt)?;
+            }
+        }
+        Ok(())
+    }
+
     fn generate_stmt(&mut self, stmt: &Stmt) -> Result<()> {
         match stmt {
             Stmt::VarDecl(var) => {
-                // Check if initializing with an object literal - mark variable for bracket notation
-                if let Some(Expr::ObjectLiteral(_)) = &var.init {
-                    self.bracket_notation_vars.insert(var.name.clone());
-                }
-
-                // Mark instances created via constructor call: let x = ClassName(...)
-                else if let Some(Expr::Call(call)) = &var.init {
-                    if let Expr::Identifier(class_name) = &*call.callee {
-                        self.class_instance_vars.insert(var.name.clone());
-                        self.var_types.insert(var.name.clone(), class_name.clone());
-                    }
-                }
-                // Mark instances created via struct literal: let x = ClassName { ... }
-                else if let Some(Expr::StructLiteral { type_name, .. }) = &var.init {
-                    self.class_instance_vars.insert(var.name.clone());
-                    self.var_types.insert(var.name.clone(), type_name.clone());
-                }
-
                 self.write_indent();
-                write!(self.output, "let mut {}", self.sanitize_name(&var.name)).unwrap();
 
-                if let Some(type_ref) = &var.type_ref {
-                    write!(self.output, ": {}", type_ref.to_rust_type()).unwrap();
-                }
+                if var.bindings.len() > 1 {
+                    // Multiple bindings - fallible pattern
+                    // Need to check if expression is actually fallible
+                    let is_fallible_call = self.is_fallible_expr(&var.init);
+                    
+                    write!(self.output, "let (").unwrap();
+                    for (i, binding) in var.bindings.iter().enumerate() {
+                        if i > 0 { self.output.push_str(", "); }
+                        write!(self.output, "{}", self.sanitize_name(&binding.name)).unwrap();
+                    }
+                    
+                    if is_fallible_call {
+                        // Generate: let (value, err) = match expr { Ok(v) => (v, ""), Err(e) => (Default::default(), e.message) };
+                        self.output.push_str(") = match ");
+                        self.generate_expr(&var.init)?;
+                        self.output.push_str(" { Ok(v) => (v, \"\".to_string()), Err(e) => (Default::default(), e.message) };\n");
+                    } else {
+                        // Non-fallible function called with fallible binding pattern
+                        // Generate: let (value, err) = (expr, "".to_string());
+                        self.output.push_str(") = (");
+                        self.generate_expr(&var.init)?;
+                        self.output.push_str(", \"\".to_string());\n");
+                    }
+                } else {
+                    // Normal binding: let a = expr (only one binding expected)
+                    if var.bindings.len() != 1 {
+                        return Err(CompilerError::CodegenError(
+                            "Let should have exactly one binding".to_string()
+                        ));
+                    }
+                    let binding = &var.bindings[0];
 
-                if let Some(init) = &var.init {
+                    // Check if initializing with an object literal - mark variable for bracket notation
+                    if let Expr::ObjectLiteral(_) = &var.init {
+                        self.bracket_notation_vars.insert(binding.name.clone());
+                    }
+
+                    // Mark instances created via constructor call: let x = ClassName(...)
+                    else if let Expr::Call(call) = &var.init {
+                        if let Expr::Identifier(class_name) = &*call.callee {
+                            self.class_instance_vars.insert(binding.name.clone());
+                            self.var_types.insert(binding.name.clone(), class_name.clone());
+                        }
+                    }
+                    // Mark instances created via struct literal: let x = ClassName { ... }
+                    else if let Expr::StructLiteral { type_name, .. } = &var.init {
+                        self.class_instance_vars.insert(binding.name.clone());
+                        self.var_types.insert(binding.name.clone(), type_name.clone());
+                    }
+
+                    write!(self.output, "let mut {}", self.sanitize_name(&binding.name)).unwrap();
+
+                    if let Some(type_ref) = &binding.type_ref {
+                        write!(self.output, ": {}", type_ref.to_rust_type()).unwrap();
+                    }
+
                     self.output.push_str(" = ");
-                    self.generate_expr(init)?;
+                    self.generate_expr(&var.init)?;
+                    self.output.push_str(";\n");
                 }
-
-                self.output.push_str(";\n");
             }
             Stmt::ConstDecl(const_decl) => {
                 self.write_indent();
@@ -895,7 +1022,7 @@ impl CodeGenerator {
                 self.generate_expr(&if_stmt.condition)?;
                 self.output.push_str(" {\n");
                 self.indent();
-                self.generate_block_inner(&if_stmt.then_branch)?;
+                self.generate_if_body(&if_stmt.then_branch)?;
                 self.dedent();
                 self.write_indent();
                 self.output.push('}');
@@ -903,7 +1030,7 @@ impl CodeGenerator {
                 if let Some(else_branch) = &if_stmt.else_branch {
                     self.output.push_str(" else {\n");
                     self.indent();
-                    self.generate_block_inner(else_branch)?;
+                    self.generate_if_body(else_branch)?;
                     self.dedent();
                     self.write_indent();
                     self.output.push('}');
@@ -1000,7 +1127,13 @@ impl CodeGenerator {
                 self.output.push_str("return");
                 if let Some(expr) = &ret.expr {
                     self.output.push(' ');
-                    self.generate_expr(expr)?;
+                    if self.in_fallible_function {
+                        self.output.push_str("Ok(");
+                        self.generate_expr(expr)?;
+                        self.output.push(')');
+                    } else {
+                        self.generate_expr(expr)?;
+                    }
                 }
                 self.output.push_str(";\n");
             }
@@ -1015,6 +1148,12 @@ impl CodeGenerator {
                 self.generate_block_inner(block)?;
                 self.dedent();
                 self.writeln("}");
+            }
+            Stmt::Fail(fail_stmt) => {
+                self.write_indent();
+                self.output.push_str("return Err(liva_rt::Error::from(");
+                self.generate_expr(&fail_stmt.expr)?;
+                self.output.push_str("));\n");
             }
         }
         Ok(())
@@ -1066,13 +1205,45 @@ impl CodeGenerator {
                 then_expr,
                 else_expr,
             } => {
-                self.output.push_str("if ");
-                self.generate_expr(condition)?;
-                self.output.push_str(" { ");
-                self.generate_expr(then_expr)?;
-                self.output.push_str(" } else { ");
-                self.generate_expr(else_expr)?;
-                self.output.push_str(" }");
+                // Check if this ternary contains a fail - if so, generate as Result
+                let has_fail = self.expr_contains_fail(then_expr) || self.expr_contains_fail(else_expr);
+                
+                if has_fail {
+                    // Generate as Result: if cond { Ok(then) or Err(...) } else { Err(...) or Ok(else) }
+                    self.output.push_str("if ");
+                    self.generate_expr(condition)?;
+                    self.output.push_str(" { ");
+                    // For the then branch, check if it's a fail
+                    if let Expr::Fail(expr) = then_expr.as_ref() {
+                        self.output.push_str("return Err(liva_rt::Error::from(");
+                        self.generate_expr(expr)?;
+                        self.output.push_str("))");
+                    } else {
+                        self.output.push_str("Ok(");
+                        self.generate_expr(then_expr)?;
+                        self.output.push_str(")");
+                    }
+                    self.output.push_str(" } else { ");
+                    // For the else branch, check if it's a fail
+                    if let Expr::Fail(expr) = else_expr.as_ref() {
+                        self.output.push_str("Err(liva_rt::Error::from(");
+                        self.generate_expr(expr)?;
+                        self.output.push_str("))");
+                    } else {
+                        self.output.push_str("Ok(");
+                        self.generate_expr(else_expr)?;
+                        self.output.push_str(")");
+                    }
+                    self.output.push_str(" }");
+                } else {
+                    self.output.push_str("if ");
+                    self.generate_expr(condition)?;
+                    self.output.push_str(" { ");
+                    self.generate_expr(then_expr)?;
+                    self.output.push_str(" } else { ");
+                    self.generate_expr(else_expr)?;
+                    self.output.push_str(" }");
+                }
             }
             Expr::Call(call) => {
                 // Check if this is a .count() call on a sequence
@@ -1363,6 +1534,12 @@ impl CodeGenerator {
                     }
                 }
             }
+            Expr::Fail(expr) => {
+                self.write_indent();
+                self.output.push_str("return Err(liva_rt::Error::from(");
+                self.generate_expr(expr)?;
+                self.output.push_str("));\n");
+            }
         }
         Ok(())
     }
@@ -1612,6 +1789,43 @@ impl CodeGenerator {
             .any(|stmt| matches!(stmt, Stmt::Return(_)))
     }
 
+    fn block_ends_with_return(&self, block: &BlockStmt) -> bool {
+        block
+            .stmts
+            .last()
+            .map(|stmt| matches!(stmt, Stmt::Return(_) | Stmt::Fail(_)))
+            .unwrap_or(false)
+    }
+
+    fn is_fallible_expr(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Call(call) => {
+                // Check if calling a fallible function
+                if let Expr::Identifier(name) = call.callee.as_ref() {
+                    self.fallible_functions.contains(name)
+                } else {
+                    false
+                }
+            }
+            Expr::Ternary { condition, then_expr, else_expr } => {
+                // A ternary is fallible if either branch contains a fail or calls a fallible function
+                self.expr_contains_fail(then_expr) || self.expr_contains_fail(else_expr)
+            }
+            _ => false,
+        }
+    }
+
+    fn expr_contains_fail(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Fail(_) => true,
+            Expr::Call(call) => self.is_fallible_expr(&Expr::Call(call.clone())),
+            Expr::Ternary { then_expr, else_expr, .. } => {
+                self.expr_contains_fail(then_expr) || self.expr_contains_fail(else_expr)
+            }
+            _ => false,
+        }
+    }
+
     fn expr_is_stringy(&self, expr: &Expr) -> bool {
         match expr {
             Expr::Literal(Literal::String(_)) => true,
@@ -1815,6 +2029,14 @@ impl<'a> IrCodeGenerator<'a> {
             ir::Expr::Member { object, .. } | ir::Expr::Index { object, .. } => {
                 self.is_self_reference(object)
             }
+            _ => false,
+        }
+    }
+
+    fn is_liva_rt_member(&self, expr: &ir::Expr) -> bool {
+        match expr {
+            ir::Expr::Identifier(name) => name == "liva_rt",
+            ir::Expr::Member { object, .. } => self.is_liva_rt_member(object),
             _ => false,
         }
     }
@@ -2041,6 +2263,9 @@ impl<'a> IrCodeGenerator<'a> {
         for ext in &module.extern_crates {
             emitted.insert((ext.crate_name.clone(), ext.alias.clone()));
         }
+
+        // Always include liva_rt for runtime support
+        writeln!(self.output, "use liva_rt;").unwrap();
 
         for (crate_name, alias) in emitted {
             if let Some(alias_name) = alias {
@@ -3123,13 +3348,43 @@ impl<'a> IrCodeGenerator<'a> {
                 then_expr,
                 else_expr,
             } => {
-                self.output.push_str("if ");
-                self.generate_expr(condition)?;
-                self.output.push_str(" { ");
-                self.generate_expr(then_expr)?;
-                self.output.push_str(" } else { ");
-                self.generate_expr(else_expr)?;
-                self.output.push_str(" }");
+                // Check if either branch is a call to Err (representing fail)
+                let then_is_err = matches!(then_expr.as_ref(), ir::Expr::Call { callee, .. }
+                    if matches!(callee.as_ref(), ir::Expr::Identifier(id) if id == "Err"));
+                let else_is_err = matches!(else_expr.as_ref(), ir::Expr::Call { callee, .. }
+                    if matches!(callee.as_ref(), ir::Expr::Identifier(id) if id == "Err"));
+
+                if then_is_err || else_is_err {
+                    // Generate Result-returning expression for ternary with fail
+                    self.output.push_str("if ");
+                    self.generate_expr(condition)?;
+                    self.output.push_str(" { ");
+                    if then_is_err {
+                        self.generate_expr(then_expr)?;
+                    } else {
+                        self.output.push_str("Ok(");
+                        self.generate_expr(then_expr)?;
+                        self.output.push_str(")");
+                    }
+                    self.output.push_str(" } else { ");
+                    if else_is_err {
+                        self.generate_expr(else_expr)?;
+                    } else {
+                        self.output.push_str("Ok(");
+                        self.generate_expr(else_expr)?;
+                        self.output.push_str(")");
+                    }
+                    self.output.push_str(" }");
+                } else {
+                    // Normal ternary expression
+                    self.output.push_str("if ");
+                    self.generate_expr(condition)?;
+                    self.output.push_str(" { ");
+                    self.generate_expr(then_expr)?;
+                    self.output.push_str(" } else { ");
+                    self.generate_expr(else_expr)?;
+                    self.output.push_str(" }");
+                }
                 Ok(())
             }
             ir::Expr::StringTemplate(parts) => {
@@ -3182,10 +3437,15 @@ impl<'a> IrCodeGenerator<'a> {
                     return Ok(());
                 }
 
-                // For serde_json::Value objects, use bracket notation instead of dot notation
-                // This handles cases where we're accessing properties of object literals in arrays
-                // Automatic conversion to appropriate types happens in binary operations
-                write!(self.output, "[\"{}\"]", property).unwrap();
+                // For liva_rt members, use dot notation
+                if self.is_liva_rt_member(object) {
+                    write!(self.output, ".{}", property).unwrap();
+                } else {
+                    // For serde_json::Value objects, use bracket notation instead of dot notation
+                    // This handles cases where we're accessing properties of object literals in arrays
+                    // Automatic conversion to appropriate types happens in binary operations
+                    write!(self.output, "[\"{}\"]", property).unwrap();
+                }
                 Ok(())
             }
             ir::Expr::Index { object, index } => {
@@ -3873,6 +4133,16 @@ pub fn generate_from_ir(
 
 pub fn generate_with_ast(program: &Program, ctx: DesugarContext) -> Result<(String, String)> {
     let mut generator = CodeGenerator::new(ctx);
+    
+    // First pass: collect fallible functions
+    for item in &program.items {
+        if let TopLevel::Function(func) = item {
+            if func.contains_fail {
+                generator.fallible_functions.insert(func.name.clone());
+            }
+        }
+    }
+    
     generator.generate_program(program)?;
 
     let cargo_toml = generate_cargo_toml(&generator.ctx)?;
