@@ -1,7 +1,7 @@
 use thiserror::Error;
 use colored::Colorize;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ErrorLocation {
     pub file: String,
     pub line: usize,
@@ -9,7 +9,7 @@ pub struct ErrorLocation {
     pub source_line: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SemanticErrorInfo {
     pub location: Option<ErrorLocation>,
     pub code: String,
@@ -115,6 +115,16 @@ impl SemanticErrorInfo {
         output.push_str(&format!("{}\n", "─".repeat(60).bright_black()));
         
         output
+    }
+
+    /// Convert to JSON format for IDE integration
+    pub fn to_json(&self) -> std::result::Result<String, serde_json::Error> {
+        serde_json::to_string(self)
+    }
+
+    /// Convert to pretty-printed JSON format
+    pub fn to_json_pretty(&self) -> std::result::Result<String, serde_json::Error> {
+        serde_json::to_string_pretty(self)
     }
 }
 

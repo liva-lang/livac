@@ -39,13 +39,29 @@ struct Cli {
     /// Only check, don't compile
     #[arg(short, long)]
     check: bool,
+
+    /// Output errors in JSON format for IDE integration
+    #[arg(long)]
+    json: bool,
 }
 
 fn main() {
     let cli = Cli::parse();
 
     if let Err(e) = compile(&cli) {
-        eprintln!("{} {}", "Error:".red().bold(), e);
+        // Output errors in JSON format if requested
+        if cli.json {
+            if let CompilerError::SemanticError(ref info) = e {
+                if let Ok(json) = info.to_json() {
+                    println!("{}", json);
+                    std::process::exit(1);
+                }
+            }
+            // For non-semantic errors, output simple JSON
+            eprintln!(r#"{{"error": "{}"}}"#, e);
+        } else {
+            eprintln!("{} {}", "Error:".red().bold(), e);
+        }
         std::process::exit(1);
     }
 }
@@ -217,6 +233,7 @@ mod tests {
             run: false,
             verbose: false,
             check: true,
+            json: false,
         };
 
         let _guard = EnvVarGuard::set("LIVAC_SKIP_CARGO", "1");
@@ -243,6 +260,7 @@ mod tests {
             run: false,
             verbose: true,
             check: false,
+            json: false,
         };
 
         let _guard = EnvVarGuard::set("LIVAC_SKIP_CARGO", "1");
@@ -262,6 +280,7 @@ mod tests {
             run: false,
             verbose: false,
             check: false,
+            json: false,
         };
 
         let err = compile(&cli).expect_err("expected IO error");
