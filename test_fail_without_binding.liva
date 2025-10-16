@@ -1,0 +1,9 @@
+// Test: Calling a fallible function without error binding should fail at compile time
+
+divide(a: number, b: number) => b == 0 ? fail "Division by zero" : a / b
+
+main() {
+  // This should cause a compile error
+  let result = divide(10, 0)
+  print($"Result: {result}")
+}

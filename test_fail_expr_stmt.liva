@@ -1,0 +1,13 @@
+// Test: Calling a fallible function as expression statement should fail at compile time
+
+validateUser(username: string, password: string): string {
+  if username == "" fail "Username cannot be empty"
+  if password == "" fail "Password cannot be empty"
+  return $"User {username} validated"
+}
+
+main() {
+  // This should cause a compile error
+  validateUser("john", "pass123")
+  print("Done")
+}

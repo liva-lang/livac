@@ -69,9 +69,20 @@ fn lower_function(func: &ast::FunctionDecl) -> ir::Function {
         ir::Block { statements: vec![] }
     };
 
-    let contains_fail = contains_fail_in_function(func);
+    let body_fail = func.body.as_ref().map(|b| contains_fail_in_block(b)).unwrap_or(false);
+    let expr_fail = func.expr_body.as_ref().map(|e| contains_fail_in_expr(e)).unwrap_or(false);
+    let contains_fail = body_fail || expr_fail;
 
-    let mut ret_type = if let Some(ret) = &func.return_type {
+    // If expr_body contains fail, convert it to body with statements
+    let (body, expr_body) = if expr_fail && func.expr_body.is_some() {
+        let expr = func.expr_body.as_ref().unwrap();
+        let statements = convert_expr_to_statements(expr);
+        (Some(ir::Block { statements }), None)
+    } else {
+        (body, func.expr_body.as_ref().map(lower_expr))
+    };
+
+    let ret_type = if let Some(ret) = &func.return_type {
         ir::Type::from_ast(&Some(ret.clone()))
     } else if let Some(expr) = &func.expr_body {
         infer_expr_return_type(expr)
@@ -81,19 +92,31 @@ fn lower_function(func: &ast::FunctionDecl) -> ir::Function {
         ir::Type::Inferred
     };
 
-    // If function contains fail, wrap return type in Result<T, Error>
-    if contains_fail {
-        ret_type = match ret_type {
+    // If function contains fail, wrap return type in Result<T, Error> and modify body
+    let (ret_type, body) = if contains_fail {
+        let old_ret_type = ret_type.clone();
+        let new_ret_type = match ret_type {
             ir::Type::Unit => ir::Type::Custom("Result<(), liva_rt::Error>".to_string()),
+            ir::Type::Custom(type_str) => ir::Type::Custom(format!("Result<{}, liva_rt::Error>", type_str)),
             ir::Type::Number => ir::Type::Custom("Result<i32, liva_rt::Error>".to_string()),
             ir::Type::Float => ir::Type::Custom("Result<f64, liva_rt::Error>".to_string()),
-            ir::Type::Bool => ir::Type::Custom("Result<bool, liva_rt::Error>".to_string()),
+            ir::Type::Bool => ir::Type::Custom("Result<bool, liva_rt::Error>.to_string()),
             ir::Type::String => ir::Type::Custom("Result<String, liva_rt::Error>".to_string()),
-            ir::Type::Custom(type_str) => ir::Type::Custom(format!("Result<{}, liva_rt::Error>", type_str)),
             ir::Type::Inferred => ir::Type::Custom("Result<(), liva_rt::Error>".to_string()),
             _ => ir::Type::Custom("Result<(), liva_rt::Error>".to_string()), // Handle other types
         };
-    }
+
+        // Wrap all return statements in Ok() except those that return Err
+        let new_body = body.map(|b| wrap_returns_in_ok(b));
+
+        if func.name == "divide" || func.name == "validateUser" {
+            eprintln!("DEBUG: Modified return type for {}: {:?} -> {:?}", func.name, old_ret_type, new_ret_type);
+        }
+
+        (new_ret_type, new_body)
+    } else {
+        (ret_type, body)
+    };
 
     ir::Function {
         name: func.name.clone(),
@@ -138,7 +161,6 @@ fn lower_stmt(stmt: &ast::Stmt) -> ir::Stmt {
     match stmt {
         ast::Stmt::VarDecl(var) => {
             let value = lower_expr(&var.init);
-            // For now, handle only single binding
             if var.bindings.len() == 1 {
                 let binding = &var.bindings[0];
                 ir::Stmt::Let {
@@ -147,9 +169,10 @@ fn lower_stmt(stmt: &ast::Stmt) -> ir::Stmt {
                     value,
                 }
             } else {
-                // Multiple bindings - for now just use first name
+                // For multiple bindings, create a tuple assignment
+                let names = var.bindings.iter().map(|b| b.name.clone()).collect::<Vec<_>>().join(", ");
                 ir::Stmt::Let {
-                    name: var.bindings[0].name.clone(),
+                    name: format!("({})", names),
                     ty: None,
                     value,
                 }
@@ -167,6 +190,19 @@ fn lower_stmt(stmt: &ast::Stmt) -> ir::Stmt {
             target: lower_expr(&assign.target),
             value: lower_expr(&assign.value),
         },
+                ast::Stmt::Fail(fail_stmt) => ir::Stmt::Return(Some(ir::Expr::Call {
+                    callee: Box::new(ir::Expr::Identifier("Err".into())),
+                    args: vec![ir::Expr::Call {
+                        callee: Box::new(ir::Expr::Member {
+                            object: Box::new(ir::Expr::Member {
+                                object: Box::new(ir::Expr::Identifier("liva_rt".into())),
+                                property: "Error".into(),
+                            }),
+                            property: "from".into(),
+                        }),
+                        args: vec![lower_expr(&fail_stmt.expr)],
+                    }],
+                })),
         ast::Stmt::Return(ret) => ir::Stmt::Return(ret.expr.as_ref().map(lower_expr)),
         ast::Stmt::Throw(throw_stmt) => ir::Stmt::Throw(lower_expr(&throw_stmt.expr)),
         ast::Stmt::Expr(expr_stmt) => ir::Stmt::Expr(lower_expr(&expr_stmt.expr)),
@@ -192,19 +228,6 @@ fn lower_stmt(stmt: &ast::Stmt) -> ir::Stmt {
             error_var: try_catch.catch_var.clone(),
             catch_block: lower_block(&try_catch.catch_block),
         },
-        ast::Stmt::Fail(fail_stmt) => ir::Stmt::Return(Some(ir::Expr::Call {
-            callee: Box::new(ir::Expr::Identifier("Err".to_string())),
-            args: vec![ir::Expr::Call {
-                callee: Box::new(ir::Expr::Member {
-                    object: Box::new(ir::Expr::Member {
-                        object: Box::new(ir::Expr::Identifier("liva_rt".to_string())),
-                        property: "Error".to_string(),
-                    }),
-                    property: "from".to_string(),
-                }),
-                args: vec![lower_expr(&fail_stmt.expr)],
-            }],
-        })),
         ast::Stmt::Switch(switch_stmt) => ir::Stmt::Switch {
             discriminant: lower_expr(&switch_stmt.discriminant),
             cases: switch_stmt
@@ -227,6 +250,19 @@ fn lower_expr(expr: &ast::Expr) -> ir::Expr {
     match expr {
         ast::Expr::Literal(lit) => ir::Expr::Literal(lower_literal(lit)),
         ast::Expr::Identifier(name) => ir::Expr::Identifier(name.clone()),
+        ast::Expr::Fail(expr) => ir::Expr::Call {
+            callee: Box::new(ir::Expr::Identifier("Err".into())),
+            args: vec![ir::Expr::Call {
+                callee: Box::new(ir::Expr::Member {
+                    object: Box::new(ir::Expr::Member {
+                        object: Box::new(ir::Expr::Identifier("liva_rt".into())),
+                        property: "Error".into(),
+                    }),
+                    property: "from".into(),
+                }),
+                args: vec![lower_expr(expr)],
+            }],
+        },
         ast::Expr::Call(call) => lower_call_expr(call),
         ast::Expr::Unary { op, operand } => match op {
             ast::UnOp::Await => ir::Expr::Await(Box::new(lower_expr(operand))),
@@ -308,19 +344,6 @@ fn lower_expr(expr: &ast::Expr) -> ir::Expr {
                 .iter()
                 .map(|(name, value)| (name.clone(), lower_expr(value)))
                 .collect(),
-        },
-        ast::Expr::Fail(expr) => ir::Expr::Call {
-            callee: Box::new(ir::Expr::Identifier("Err".to_string())),
-            args: vec![ir::Expr::Call {
-                callee: Box::new(ir::Expr::Member {
-                    object: Box::new(ir::Expr::Member {
-                        object: Box::new(ir::Expr::Identifier("liva_rt".to_string())),
-                        property: "Error".to_string(),
-                    }),
-                    property: "from".to_string(),
-                }),
-                args: vec![lower_expr(expr)],
-            }],
         },
         ast::Expr::Lambda(lambda) => {
             let params = lambda.params.iter().map(|param| ir::LambdaParam {
@@ -459,18 +482,11 @@ fn infer_param_type(func: &ast::FunctionDecl, name: &str) -> Option<ir::Type> {
     if let Some(body) = &func.body {
         if block_uses_param_as_array(body, name) {
             return Some(ir::Type::Array(Box::new(ir::Type::Custom(
-                "serde_json::Value".into(),
+                "serde_json::Value ".into(),
             ))));
         }
     }
     None
-}
-
-fn block_uses_param_as_array(block: &ast::BlockStmt, name: &str) -> bool {
-    block
-        .stmts
-        .iter()
-        .any(|stmt| stmt_uses_param_as_array(stmt, name))
 }
 
 fn if_body_uses_param_as_array(body: &ast::IfBody, name: &str) -> bool {
@@ -478,6 +494,13 @@ fn if_body_uses_param_as_array(body: &ast::IfBody, name: &str) -> bool {
         ast::IfBody::Block(block) => block_uses_param_as_array(block, name),
         ast::IfBody::Stmt(stmt) => stmt_uses_param_as_array(stmt, name),
     }
+}
+
+fn block_uses_param_as_array(block: &ast::BlockStmt, name: &str) -> bool {
+    block
+        .stmts
+        .iter()
+        .any(|stmt| stmt_uses_param_as_array(stmt, name))
 }
 
 fn stmt_uses_param_as_array(stmt: &ast::Stmt, name: &str) -> bool {
@@ -503,11 +526,11 @@ fn stmt_uses_param_as_array(stmt: &ast::Stmt, name: &str) -> bool {
         ast::Stmt::If(if_stmt) => {
             expr_uses_param_as_array(&if_stmt.condition, name)
                 || if_body_uses_param_as_array(&if_stmt.then_branch, name)
-                || if_stmt
-                    .else_branch
-                    .as_ref()
-                    .map(|body| if_body_uses_param_as_array(body, name))
-                    .unwrap_or(false)
+                    || if_stmt
+                        .else_branch
+                        .as_ref()
+                        .map(|body| if_body_uses_param_as_array(body, name))
+                        .unwrap_or(false)
         }
         ast::Stmt::Block(block) => block_uses_param_as_array(block, name),
         ast::Stmt::TryCatch(try_catch) => {
@@ -694,6 +717,16 @@ fn infer_block_return_type(block: &ast::BlockStmt) -> ir::Type {
     infer_block_return_type_with_env(block, &mut vars)
 }
 
+fn infer_if_body_return_type_with_env(
+    body: &ast::IfBody,
+    vars: &mut HashMap<String, ir::Type>,
+) -> ir::Type {
+    match body {
+        ast::IfBody::Block(block) => infer_block_return_type_with_env(block, vars),
+        ast::IfBody::Stmt(stmt) => infer_stmt_return_type_with_env(stmt, vars).unwrap_or(ir::Type::Unit),
+    }
+}
+
 fn infer_block_return_type_with_env(
     block: &ast::BlockStmt,
     vars: &mut HashMap<String, ir::Type>,
@@ -704,16 +737,6 @@ fn infer_block_return_type_with_env(
         }
     }
     ir::Type::Inferred
-}
-
-fn infer_if_body_return_type_with_env(
-    body: &ast::IfBody,
-    vars: &mut HashMap<String, ir::Type>,
-) -> ir::Type {
-    match body {
-        ast::IfBody::Block(block) => infer_block_return_type_with_env(block, vars),
-        ast::IfBody::Stmt(stmt) => infer_stmt_return_type_with_env(stmt, vars).unwrap_or(ir::Type::Inferred),
-    }
 }
 
 fn infer_stmt_return_type_with_env(
@@ -775,23 +798,6 @@ fn lower_literal(lit: &ast::Literal) -> ir::Literal {
         ast::Literal::String(s) => ir::Literal::String(s.clone()),
         ast::Literal::Char(c) => ir::Literal::Char(*c),
     }
-}
-
-fn contains_fail_in_function(func: &ast::FunctionDecl) -> bool {
-    // Check body for fail statements
-    if let Some(body) = &func.body {
-        if contains_fail_in_block(body) {
-            return true;
-        }
-    }
-
-    // Check expr_body for fail expressions
-    if let Some(expr) = &func.expr_body {
-        if contains_fail_in_expr(expr) {
-            return true;
-        }
-    }
-    false
 }
 
 fn contains_fail_in_block(block: &ast::BlockStmt) -> bool {
@@ -879,6 +885,81 @@ fn contains_fail_in_expr(expr: &ast::Expr) -> bool {
                 ast::StringTemplatePart::Expr(expr) => contains_fail_in_expr(expr),
                 _ => false,
             })
+        }
+        _ => false,
+    }
+}
+
+fn convert_expr_to_statements(expr: &ast::Expr) -> Vec<ir::Stmt> {
+    match expr {
+        ast::Expr::Ternary { condition, then_expr, else_expr } => {
+            if is_fail_expr(then_expr) || is_fail_expr(else_expr) {
+                // Convert to if-else with fail statements
+                vec![ir::Stmt::If {
+                    condition: lower_expr(condition),
+                    then_block: ir::Block {
+                        statements: convert_expr_to_statements(then_expr),
+                    },
+                    else_block: Some(ir::Block {
+                        statements: convert_expr_to_statements(else_expr),
+                    }),
+                }]
+            } else {
+                vec![ir::Stmt::Return(Some(lower_expr(expr)))]
+            }
+        }
+        ast::Expr::Fail(_) => {
+            vec![lower_stmt(&ast::Stmt::Fail(ast::FailStmt { expr: expr.clone() }))]
+        }
+        _ => vec![ir::Stmt::Return(Some(lower_expr(expr)))],
+    }
+}
+
+fn is_fail_expr(expr: &ast::Expr) -> bool {
+    matches!(expr, ast::Expr::Fail(_))
+}
+
+fn wrap_returns_in_ok(block: ir::Block) -> ir::Block {
+    ir::Block {
+        statements: block.statements.into_iter().map(wrap_stmt_returns_in_ok).collect(),
+    }
+}
+
+fn wrap_stmt_returns_in_ok(stmt: ir::Stmt) -> ir::Stmt {
+    match stmt {
+        ir::Stmt::Return(Some(expr)) => {
+            if is_err_call(&expr) {
+                // Don't wrap Err calls
+                ir::Stmt::Return(Some(expr))
+            } else {
+                // Wrap other returns in Ok()
+                ir::Stmt::Return(Some(ir::Expr::Call {
+                    callee: Box::new(ir::Expr::Identifier("Ok".into())),
+                    args: vec![expr],
+                }))
+            }
+        }
+        ir::Stmt::Return(None) => ir::Stmt::Return(Some(ir::Expr::Call {
+            callee: Box::new(ir::Expr::Identifier("Ok".into())),
+            args: vec![ir::Expr::Literal(ir::Literal::Null)],
+        })),
+        ir::Stmt::If { condition, then_block, else_block } => ir::Stmt::If {
+            condition,
+            then_block: wrap_returns_in_ok(then_block),
+            else_block: else_block.map(wrap_returns_in_ok),
+        },
+        ir::Stmt::Block(block) => ir::Stmt::Block(wrap_returns_in_ok(block)),
+        _ => stmt,
+    }
+}
+
+fn is_err_call(expr: &ir::Expr) -> bool {
+    match expr {
+        ir::Expr::Call { callee, .. } => {
+            if let ir::Expr::Identifier(ref id) = callee.as_ref() {
+                return id == &"Err".to_string();
+            }
+            false
         }
         _ => false,
     }

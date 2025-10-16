@@ -1,10 +1,13 @@
 use crate::ast::*;
-use crate::error::{CompilerError, Result};
+use crate::error::{CompilerError, Result, SemanticErrorInfo, ErrorLocation};
+use colored::Colorize;
 use std::collections::{HashMap, HashSet};
 
 pub struct SemanticAnalyzer {
     // Track which functions are async
     async_functions: HashSet<String>,
+    // Track which functions are fallible (contain fail)
+    fallible_functions: HashSet<String>,
     // Track defined types
     types: HashMap<String, TypeInfo>,
     // Track function signatures (arity, optional type information)
@@ -14,6 +17,12 @@ pub struct SemanticAnalyzer {
     // Current scope for variables
     current_scope: Vec<HashMap<String, Option<TypeRef>>>,
     awaitable_scopes: Vec<HashMap<String, AwaitableInfo>>,
+    // Source file name for error reporting
+    source_file: String,
+    // Source code for line tracking
+    source_code: String,
+    // Source map for precise line/column tracking
+    source_map: Option<crate::span::SourceMap>,
 }
 
 #[derive(Debug, Clone)]
@@ -52,14 +61,24 @@ struct AwaitableInfo {
 }
 
 impl SemanticAnalyzer {
-    fn new() -> Self {
+    fn new(source_file: String, source_code: String) -> Self {
+        let source_map = if !source_code.is_empty() {
+            Some(crate::span::SourceMap::new(&source_code))
+        } else {
+            None
+        };
+        
         Self {
             async_functions: HashSet::new(),
+            fallible_functions: HashSet::new(),
             types: HashMap::new(),
             functions: HashMap::new(),
             external_modules: HashSet::new(),
             current_scope: vec![HashMap::new()],
             awaitable_scopes: vec![HashMap::new()],
+            source_file,
+            source_code,
+            source_map,
         }
     }
 
@@ -77,6 +96,9 @@ impl SemanticAnalyzer {
                 }
             }
         }
+
+        // Detect fallible functions (those containing 'fail')
+        self.detect_fallible_functions(&program);
 
         // Third pass: type checking and validation
         for item in &program.items {
@@ -186,7 +208,7 @@ impl SemanticAnalyzer {
         match item {
             TopLevel::Function(func) => {
                 let newly_async = if let Some(body) = &func.body {
-                    self.contains_async_call(body)
+                    self.contains_async_call_stmt(body)
                 } else if let Some(expr) = &func.expr_body {
                     self.expr_contains_async(expr)
                 } else {
@@ -212,7 +234,7 @@ impl SemanticAnalyzer {
                 for member in &mut class.members {
                     if let Member::Method(method) = member {
                         let is_async = if let Some(body) = &method.body {
-                            self.contains_async_call(body)
+                            self.contains_async_call_stmt(body)
                         } else if let Some(expr) = &method.expr_body {
                             self.expr_contains_async(expr)
                         } else {
@@ -241,7 +263,7 @@ impl SemanticAnalyzer {
                 for member in &mut type_decl.members {
                     if let Member::Method(method) = member {
                         let is_async = if let Some(body) = &method.body {
-                            self.contains_async_call(body)
+                            self.contains_async_call_stmt(body)
                         } else if let Some(expr) = &method.expr_body {
                             self.expr_contains_async(expr)
                         } else {
@@ -272,7 +294,21 @@ impl SemanticAnalyzer {
         Ok(mutated)
     }
 
-    fn contains_async_call(&self, block: &BlockStmt) -> bool {
+    fn contains_async_call(&self, body: &IfBody) -> bool {
+        match body {
+            IfBody::Block(block) => {
+                for stmt in &block.stmts {
+                    if self.stmt_contains_async(stmt) {
+                        return true;
+                    }
+                }
+                false
+            }
+            IfBody::Stmt(stmt) => self.stmt_contains_async(stmt),
+        }
+    }
+
+    fn contains_async_call_stmt(&self, block: &BlockStmt) -> bool {
         for stmt in &block.stmts {
             if self.stmt_contains_async(stmt) {
                 return true;
@@ -284,11 +320,7 @@ impl SemanticAnalyzer {
     fn stmt_contains_async(&self, stmt: &Stmt) -> bool {
         match stmt {
             Stmt::VarDecl(var) => {
-                if let Some(init) = &var.init {
-                    self.expr_contains_async(init)
-                } else {
-                    false
-                }
+                self.expr_contains_async(&var.init)
             }
             Stmt::ConstDecl(const_decl) => self.expr_contains_async(&const_decl.init),
             Stmt::Assign(assign) => {
@@ -305,11 +337,11 @@ impl SemanticAnalyzer {
             }
             Stmt::While(while_stmt) => {
                 self.expr_contains_async(&while_stmt.condition)
-                    || self.contains_async_call(&while_stmt.body)
+                    || self.contains_async_call_stmt(&while_stmt.body)
             }
             Stmt::For(for_stmt) => {
                 self.expr_contains_async(&for_stmt.iterable)
-                    || self.contains_async_call(&for_stmt.body)
+                    || self.contains_async_call_stmt(&for_stmt.body)
             }
             Stmt::Switch(switch_stmt) => {
                 self.expr_contains_async(&switch_stmt.discriminant)
@@ -319,17 +351,18 @@ impl SemanticAnalyzer {
                         .any(|case| case.body.iter().any(|s| self.stmt_contains_async(s)))
             }
             Stmt::TryCatch(try_catch) => {
-                self.contains_async_call(&try_catch.try_block)
-                    || self.contains_async_call(&try_catch.catch_block)
+                self.contains_async_call_stmt(&try_catch.try_block)
+                    || self.contains_async_call_stmt(&try_catch.catch_block)
             }
             Stmt::Throw(throw_stmt) => self.expr_contains_async(&throw_stmt.expr),
+            Stmt::Fail(fail_stmt) => self.expr_contains_async(&fail_stmt.expr),
             Stmt::Return(ret) => ret
                 .expr
                 .as_ref()
                 .map(|e| self.expr_contains_async(e))
                 .unwrap_or(false),
             Stmt::Expr(expr_stmt) => self.expr_contains_async(&expr_stmt.expr),
-            Stmt::Block(block) => self.contains_async_call(block),
+            Stmt::Block(block) => self.contains_async_call_stmt(block),
         }
     }
 
@@ -359,7 +392,7 @@ impl SemanticAnalyzer {
             }
             Expr::Lambda(lambda) => match &lambda.body {
                 LambdaBody::Expr(expr) => self.expr_contains_async(expr),
-                LambdaBody::Block(block) => self.contains_async_call(block),
+                LambdaBody::Block(block) => self.contains_async_call_stmt(block),
             },
             Expr::Binary { left, right, .. } => {
                 self.expr_contains_async(left) || self.expr_contains_async(right)
@@ -388,6 +421,196 @@ impl SemanticAnalyzer {
         }
     }
 
+    // ============================================
+    // Fallibility detection and validation
+    // ============================================
+
+    /// Detect which functions are fallible (contain 'fail' statements)
+    fn detect_fallible_functions(&mut self, program: &Program) {
+        for item in &program.items {
+            if let TopLevel::Function(func) = item {
+                if self.function_contains_fail(&func.body, &func.expr_body) {
+                    self.fallible_functions.insert(func.name.clone());
+                }
+            }
+        }
+    }
+
+    /// Check if a function contains any 'fail' statements
+    fn function_contains_fail(&self, body: &Option<BlockStmt>, expr_body: &Option<Expr>) -> bool {
+        if let Some(block) = body {
+            for stmt in &block.stmts {
+                if self.stmt_contains_fail(stmt) {
+                    return true;
+                }
+            }
+        }
+        if let Some(expr) = expr_body {
+            if self.expr_contains_fail(expr) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Recursively check if a statement contains 'fail'
+    fn stmt_contains_fail(&self, stmt: &Stmt) -> bool {
+        match stmt {
+            Stmt::Fail(_) => true,
+            Stmt::If(if_stmt) => {
+                self.if_body_contains_fail(&if_stmt.then_branch)
+                    || if_stmt.else_branch.as_ref().map_or(false, |eb| self.if_body_contains_fail(eb))
+            }
+            Stmt::While(while_stmt) => self.stmt_list_contains_fail(&while_stmt.body.stmts),
+            Stmt::For(for_stmt) => self.stmt_list_contains_fail(&for_stmt.body.stmts),
+            Stmt::Return(ret) => ret.expr.as_ref().map_or(false, |e| self.expr_contains_fail(e)),
+            Stmt::Expr(expr_stmt) => self.expr_contains_fail(&expr_stmt.expr),
+            Stmt::VarDecl(var) => self.expr_contains_fail(&var.init),
+            _ => false,
+        }
+    }
+
+    fn if_body_contains_fail(&self, body: &IfBody) -> bool {
+        match body {
+            IfBody::Block(block_stmt) => self.stmt_list_contains_fail(&block_stmt.stmts),
+            IfBody::Stmt(stmt) => self.stmt_contains_fail(stmt),
+        }
+    }
+
+    fn stmt_list_contains_fail(&self, stmts: &[Stmt]) -> bool {
+        stmts.iter().any(|s| self.stmt_contains_fail(s))
+    }
+
+    /// Recursively check if an expression contains calls to fallible functions
+    fn expr_contains_fail(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Call(call) => {
+                if let Expr::Identifier(name) = &*call.callee {
+                    if self.fallible_functions.contains(name) {
+                        return true;
+                    }
+                }
+                call.args.iter().any(|arg| self.expr_contains_fail(arg))
+            }
+            Expr::Binary { left, right, .. } => {
+                self.expr_contains_fail(left) || self.expr_contains_fail(right)
+            }
+            Expr::Unary { operand, .. } => self.expr_contains_fail(operand),
+            Expr::StringTemplate { parts } => {
+                parts.iter().any(|part| {
+                    if let StringTemplatePart::Expr(e) = part {
+                        self.expr_contains_fail(e)
+                    } else {
+                        false
+                    }
+                })
+            }
+            Expr::ArrayLiteral(elements) => elements.iter().any(|e| self.expr_contains_fail(e)),
+            Expr::Index { object, index } => {
+                self.expr_contains_fail(object) || self.expr_contains_fail(index)
+            }
+            Expr::Member { object, .. } => self.expr_contains_fail(object),
+            Expr::StructLiteral { fields, .. } => {
+                fields.iter().any(|(_, expr)| self.expr_contains_fail(expr))
+            }
+            Expr::Ternary { condition, then_expr, else_expr } => {
+                self.expr_contains_fail(condition)
+                    || self.expr_contains_fail(then_expr)
+                    || self.expr_contains_fail(else_expr)
+            }
+            Expr::Fail(_) => true,
+            _ => false,
+        }
+    }
+
+    /// Check if an expression is a direct call to a fallible function
+    fn is_expr_fallible(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Call(call) => {
+                if let Expr::Identifier(name) = &*call.callee {
+                    self.fallible_functions.contains(name)
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        }
+    }
+
+    /// Get a specific line from the source code
+    fn get_source_line(&self, line_num: usize) -> Option<String> {
+        self.source_code
+            .lines()
+            .nth(line_num.saturating_sub(1))
+            .map(|s| s.to_string())
+    }
+
+    /// Find the line number where a function is called WITHOUT error binding (heuristic)
+    /// Tries to find calls that don't use the pattern "let result, err = func(...)"
+    fn find_line_for_function_call(&self, func_name: &str) -> Option<usize> {
+        let mut first_call = None;
+        
+        for (line_num, line) in self.source_code.lines().enumerate() {
+            let trimmed = line.trim();
+            
+            // Skip empty lines
+            if trimmed.is_empty() {
+                continue;
+            }
+            
+            // Check if line contains the function name
+            if !trimmed.contains(func_name) {
+                continue;
+            }
+            
+            // Skip if it's a function declaration (has parameter types or return type declaration)
+            // Pattern: "functionName(param: type" or "functionName(...): returnType"
+            if trimmed.contains(&format!("{}(", func_name)) {
+                // Check if it looks like a declaration
+                let after_func = trimmed.split(&format!("{}(", func_name)).nth(1).unwrap_or("");
+                
+                // If there's a colon before the closing paren or opening brace, it's likely a declaration
+                if after_func.contains("): ") || 
+                   (after_func.contains(':') && after_func.contains('{')) ||
+                   (after_func.contains(':') && !after_func.contains(')')) {
+                    continue;
+                }
+                
+                // If the line starts with "function" or "fn", it's a declaration
+                if trimmed.starts_with("function ") || trimmed.starts_with("fn ") {
+                    continue;
+                }
+                
+                // Check if this call has error binding (pattern: "let x, err =")
+                // The pattern should have a comma in the left side of assignment before the '='
+                let has_error_binding = if trimmed.starts_with("let ") {
+                    // Split by '=' to get the left side
+                    if let Some(left_side) = trimmed.split('=').next() {
+                        // Check if the left side has a comma (indicating multiple bindings)
+                        left_side.contains(',')
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
+                
+                // If we found a call without error binding, return it immediately
+                if !has_error_binding {
+                    return Some(line_num + 1);
+                }
+                
+                // Otherwise, save it as potential fallback
+                if first_call.is_none() {
+                    first_call = Some(line_num + 1);
+                }
+            }
+        }
+        
+        // If we didn't find a call without error binding, return the first call we found
+        first_call
+    }
+
     fn validate_item(&mut self, item: &TopLevel) -> Result<()> {
         match item {
             TopLevel::Function(func) => self.validate_function(func),
@@ -412,6 +635,9 @@ impl SemanticAnalyzer {
             self.validate_type_ref(return_type, &type_params)?;
         }
 
+        // Note: Fallibility detection is now handled in lowering.rs
+        // The AST is immutable, so we can't mark functions as fallible here
+
         self.enter_scope();
 
         for param in &func.params {
@@ -419,13 +645,12 @@ impl SemanticAnalyzer {
                 self.exit_scope()?;
                 return Err(CompilerError::SemanticError(format!(
                     "Parameter '{}' defined multiple times",
-                    param.name
-                )));
+                    param.name).into()));
             }
         }
 
         if let Some(body) = &func.body {
-            self.validate_block(body)?;
+            self.validate_block_stmt(body)?;
         }
 
         if let Some(expr) = &func.expr_body {
@@ -457,8 +682,7 @@ impl SemanticAnalyzer {
             if !self.types.contains_key(base) {
                 return Err(CompilerError::SemanticError(format!(
                     "Base class '{}' not found",
-                    base
-                )));
+                    base).into()));
             }
         }
 
@@ -508,13 +732,12 @@ impl SemanticAnalyzer {
                 self.exit_scope()?;
                 return Err(CompilerError::SemanticError(format!(
                     "Parameter '{}' defined multiple times",
-                    param.name
-                )));
+                    param.name).into()));
             }
         }
 
         if let Some(body) = &method.body {
-            self.validate_block(body)?;
+            self.validate_block_stmt(body)?;
         }
 
         if let Some(expr) = &method.expr_body {
@@ -525,7 +748,23 @@ impl SemanticAnalyzer {
         Ok(())
     }
 
-    fn validate_block(&mut self, block: &BlockStmt) -> Result<()> {
+    fn validate_block(&mut self, body: &IfBody) -> Result<()> {
+        self.enter_scope();
+        match body {
+            IfBody::Block(block) => {
+                for stmt in &block.stmts {
+                    self.validate_stmt(stmt)?;
+                }
+            }
+            IfBody::Stmt(stmt) => {
+                self.validate_stmt(stmt)?;
+            }
+        }
+        self.exit_scope()?;
+        Ok(())
+    }
+
+    fn validate_block_stmt(&mut self, block: &BlockStmt) -> Result<()> {
         self.enter_scope();
         for stmt in &block.stmts {
             self.validate_stmt(stmt)?;
@@ -539,26 +778,62 @@ impl SemanticAnalyzer {
 
         match stmt {
             Stmt::VarDecl(var) => {
-                if let Some(type_ref) = &var.type_ref {
-                    self.validate_type_ref(type_ref, &empty)?;
-                }
-                let mut declared_type = var.type_ref.clone();
-                if let Some(init) = &var.init {
-                    self.validate_expr(init)?;
-                    if declared_type.is_none() {
-                        declared_type = self.infer_expr_type(init);
+                // Validate the init expression
+                self.validate_expr(&var.init)?;
+
+                // Check fallibility: if init expression calls a fallible function, var must have is_fallible=true
+                if !var.is_fallible && self.is_expr_fallible(&var.init) {
+                    if let Expr::Call(call) = &var.init {
+                        if let Expr::Identifier(func_name) = &*call.callee {
+                            let line = self.find_line_for_function_call(func_name).unwrap_or(0);
+                            let source_line = self.get_source_line(line);
+                            
+                            let error = SemanticErrorInfo {
+                                location: Some(ErrorLocation {
+                                    file: self.source_file.clone(),
+                                    line,
+                                    column: None,
+                                    source_line,
+                                }),
+                                code: "E0701".to_string(),
+                                title: "Fallible function must be called with error binding".to_string(),
+                                message: format!(
+                                    "Function '{}' can fail but is not being called with error binding.\n       The function contains 'fail' statements and must be handled properly.",
+                                    func_name
+                                ),
+                                help: Some(format!("Change to: let result, err = {}(...)", func_name)),
+                            };
+                            
+                            return Err(CompilerError::SemanticError(error));
+                        }
                     }
                 }
-                if self.declare_symbol(&var.name, declared_type.clone()) {
-                    return Err(CompilerError::SemanticError(format!(
-                        "Variable '{}' already defined in this scope",
-                        var.name
-                    )));
-                }
-                if let Some(init) = &var.init {
-                    self.update_awaitable_from_expr(&var.name, init)?;
-                } else {
-                    self.clear_awaitable(&var.name);
+
+                for binding in &var.bindings {
+                    if let Some(type_ref) = &binding.type_ref {
+                        self.validate_type_ref(type_ref, &empty)?;
+                    }
+
+                    let declared_type = if var.is_fallible {
+                        // For fallible bindings, the type is inferred from context
+                        // The actual type will be Result<T, Error> but we handle this in lowering
+                        binding.type_ref.clone()
+                    } else {
+                        binding.type_ref.clone().or_else(|| self.infer_expr_type(&var.init))
+                    };
+
+                    if self.declare_symbol(&binding.name, declared_type.clone()) {
+                        return Err(CompilerError::SemanticError(format!(
+                            "Variable '{}' already defined in this scope",
+                            binding.name).into()));
+                    }
+
+                    if var.is_fallible {
+                        // For fallible bindings, we don't update awaitable status in the same way
+                        self.clear_awaitable(&binding.name);
+                    } else {
+                        self.update_awaitable_from_expr(&binding.name, &var.init)?;
+                    }
                 }
             }
             Stmt::ConstDecl(const_decl) => {
@@ -573,8 +848,7 @@ impl SemanticAnalyzer {
                 if self.declare_symbol(&const_decl.name, inferred) {
                     return Err(CompilerError::SemanticError(format!(
                         "Constant '{}' already defined in this scope",
-                        const_decl.name
-                    )));
+                        const_decl.name).into()));
                 }
                 self.update_awaitable_from_expr(&const_decl.name, &const_decl.init)?;
             }
@@ -592,7 +866,7 @@ impl SemanticAnalyzer {
             }
             Stmt::While(while_stmt) => {
                 self.validate_expr(&while_stmt.condition)?;
-                self.validate_block(&while_stmt.body)?;
+                self.validate_block_stmt(&while_stmt.body)?;
             }
             Stmt::For(for_stmt) => {
                 self.validate_expr(&for_stmt.iterable)?;
@@ -601,10 +875,9 @@ impl SemanticAnalyzer {
                     self.exit_scope()?;
                     return Err(CompilerError::SemanticError(format!(
                         "Loop variable '{}' already defined",
-                        for_stmt.var
-                    )));
+                        for_stmt.var).into()));
                 }
-                self.validate_block(&for_stmt.body)?;
+                self.validate_block_stmt(&for_stmt.body)?;
                 let validation = self.validate_for_loop(for_stmt);
                 self.exit_scope()?;
                 validation?;
@@ -627,14 +900,17 @@ impl SemanticAnalyzer {
                 }
             }
             Stmt::TryCatch(try_catch) => {
-                self.validate_block(&try_catch.try_block)?;
+                self.validate_block_stmt(&try_catch.try_block)?;
                 self.enter_scope();
                 self.declare_symbol(&try_catch.catch_var, None);
-                self.validate_block(&try_catch.catch_block)?;
+                self.validate_block_stmt(&try_catch.catch_block)?;
                 self.exit_scope()?;
             }
             Stmt::Throw(throw_stmt) => {
                 self.validate_expr(&throw_stmt.expr)?;
+            }
+            Stmt::Fail(fail_stmt) => {
+                self.validate_expr(&fail_stmt.expr)?;
             }
             Stmt::Return(ret) => {
                 if let Some(expr) = &ret.expr {
@@ -644,6 +920,35 @@ impl SemanticAnalyzer {
             }
             Stmt::Expr(expr_stmt) => {
                 self.validate_expr(&expr_stmt.expr)?;
+                
+                // Check if expression is a fallible function call without error binding
+                if self.is_expr_fallible(&expr_stmt.expr) {
+                    if let Expr::Call(call) = &expr_stmt.expr {
+                        if let Expr::Identifier(func_name) = &*call.callee {
+                            let line = self.find_line_for_function_call(func_name).unwrap_or(0);
+                            let source_line = self.get_source_line(line);
+                            
+                            let error = SemanticErrorInfo {
+                                location: Some(ErrorLocation {
+                                    file: self.source_file.clone(),
+                                    line,
+                                    column: None,
+                                    source_line,
+                                }),
+                                code: "E0701".to_string(),
+                                title: "Fallible function must be called with error binding".to_string(),
+                                message: format!(
+                                    "Function '{}' can fail but is not being called with error binding.\n       The function contains 'fail' statements and must be handled properly.",
+                                    func_name
+                                ),
+                                help: Some(format!("Change to: let result, err = {}(...)", func_name)),
+                            };
+                            
+                            return Err(CompilerError::SemanticError(error));
+                        }
+                    }
+                }
+                
                 if let Expr::Call(call) = &expr_stmt.expr {
                     if matches!(
                         call.exec_policy,
@@ -656,7 +961,7 @@ impl SemanticAnalyzer {
                 }
             }
             Stmt::Block(block) => {
-                self.validate_block(block)?;
+                self.validate_block_stmt(block)?;
             }
         }
 
@@ -667,6 +972,7 @@ impl SemanticAnalyzer {
         match expr {
             Expr::Literal(_) => Ok(()),
             Expr::Identifier(_name) => Ok(()),
+            Expr::Fail(expr) => self.validate_expr(expr),
             Expr::Binary { left, right, .. } => {
                 self.validate_expr(left)?;
                 self.validate_expr(right)
@@ -738,8 +1044,7 @@ impl SemanticAnalyzer {
         if let Some((first, second)) = Self::extract_modifier_chain(&call.callee) {
             return Err(CompilerError::SemanticError(format!(
                 "E0602: duplicate execution modifiers '{}' and '{}' on the same call",
-                first, second
-            )));
+                first, second).into()));
         }
 
         // E0401: Check for invalid concurrent execution combinations
@@ -796,8 +1101,7 @@ impl SemanticAnalyzer {
                             Self::policy_name(call.exec_policy.clone()).unwrap_or("fire call");
                         Err(CompilerError::SemanticError(format!(
                             "E0603: cannot await call using '{}' policy.",
-                            policy
-                        )))
+                            policy).into()))
                     }
                     ExecPolicy::Par => Err(CompilerError::SemanticError(
                         "E0603: `par` calls complete eagerly and cannot be awaited.".into(),
@@ -909,15 +1213,14 @@ impl SemanticAnalyzer {
                 self.exit_scope()?;
                 return Err(CompilerError::SemanticError(format!(
                     "Parameter '{}' defined multiple times",
-                    param.name
-                )));
+                    param.name).into()));
             }
         }
 
         let result = match &lambda.body {
             LambdaBody::Expr(expr) => self.validate_expr(expr),
             LambdaBody::Block(block) => {
-                self.validate_block(block)?;
+                self.validate_block_stmt(block)?;
                 Ok(())
             }
         };
@@ -932,7 +1235,7 @@ impl SemanticAnalyzer {
         if matches!(
             for_stmt.policy,
             DataParallelPolicy::Par | DataParallelPolicy::Boost
-        ) && Self::block_contains_await(&for_stmt.body)
+        ) && Self::block_contains_await_stmt(&for_stmt.body)
         {
             return Err(CompilerError::SemanticError(
                 "E0605: `await` is not allowed inside `for par` or `for boost` loops.".into(),
@@ -992,7 +1295,17 @@ impl SemanticAnalyzer {
         Ok(())
     }
 
-    fn block_contains_await(block: &BlockStmt) -> bool {
+    fn block_contains_await(body: &IfBody) -> bool {
+        match body {
+            IfBody::Block(block) => block
+                .stmts
+                .iter()
+                .any(|stmt| Self::stmt_contains_await(stmt)),
+            IfBody::Stmt(stmt) => Self::stmt_contains_await(stmt),
+        }
+    }
+
+    fn block_contains_await_stmt(block: &BlockStmt) -> bool {
         block
             .stmts
             .iter()
@@ -1001,10 +1314,7 @@ impl SemanticAnalyzer {
 
     fn stmt_contains_await(stmt: &Stmt) -> bool {
         match stmt {
-            Stmt::VarDecl(var) => var
-                .init
-                .as_ref()
-                .map_or(false, |expr| Self::expr_contains_await(expr)),
+            Stmt::VarDecl(var) => Self::expr_contains_await(&var.init),
             Stmt::ConstDecl(const_decl) => Self::expr_contains_await(&const_decl.init),
             Stmt::Assign(assign) => {
                 Self::expr_contains_await(&assign.target)
@@ -1020,11 +1330,11 @@ impl SemanticAnalyzer {
             }
             Stmt::While(while_stmt) => {
                 Self::expr_contains_await(&while_stmt.condition)
-                    || Self::block_contains_await(&while_stmt.body)
+                    || Self::block_contains_await_stmt(&while_stmt.body)
             }
             Stmt::For(for_stmt) => {
                 Self::expr_contains_await(&for_stmt.iterable)
-                    || Self::block_contains_await(&for_stmt.body)
+                    || Self::block_contains_await_stmt(&for_stmt.body)
             }
             Stmt::Switch(switch_stmt) => {
                 if Self::expr_contains_await(&switch_stmt.discriminant) {
@@ -1043,16 +1353,17 @@ impl SemanticAnalyzer {
                 false
             }
             Stmt::TryCatch(try_catch) => {
-                Self::block_contains_await(&try_catch.try_block)
-                    || Self::block_contains_await(&try_catch.catch_block)
+                Self::block_contains_await_stmt(&try_catch.try_block)
+                    || Self::block_contains_await_stmt(&try_catch.catch_block)
             }
             Stmt::Throw(throw_stmt) => Self::expr_contains_await(&throw_stmt.expr),
+            Stmt::Fail(fail_stmt) => Self::expr_contains_await(&fail_stmt.expr),
             Stmt::Return(ret) => ret
                 .expr
                 .as_ref()
                 .map_or(false, |expr| Self::expr_contains_await(expr)),
             Stmt::Expr(expr_stmt) => Self::expr_contains_await(&expr_stmt.expr),
-            Stmt::Block(block) => Self::block_contains_await(block),
+            Stmt::Block(block) => Self::block_contains_await_stmt(block),
         }
     }
 
@@ -1093,13 +1404,14 @@ impl SemanticAnalyzer {
                 .any(|value| Self::expr_contains_await(value)),
             Expr::Lambda(lambda) => match &lambda.body {
                 LambdaBody::Expr(body) => Self::expr_contains_await(body),
-                LambdaBody::Block(block) => Self::block_contains_await(block),
+                LambdaBody::Block(block) => Self::block_contains_await_stmt(block),
             },
             Expr::StringTemplate { parts } => parts.iter().any(|part| match part {
                 StringTemplatePart::Expr(expr) => Self::expr_contains_await(expr),
                 _ => false,
             }),
             Expr::Literal(_) | Expr::Identifier(_) => false,
+            Expr::Fail(expr) => Self::expr_contains_await(expr),
         }
     }
 
@@ -1116,8 +1428,7 @@ impl SemanticAnalyzer {
             if arity < required || arity > total {
                 return Err(CompilerError::SemanticError(format!(
                     "Function '{}' expects between {} and {} arguments but {} were provided",
-                    name, required, total, arity
-                )));
+                    name, required, total, arity).into()));
             }
         }
 
@@ -1130,8 +1441,7 @@ impl SemanticAnalyzer {
                 if self.lookup_symbol(name).is_none() {
                     return Err(CompilerError::SemanticError(format!(
                         "Cannot assign to undefined variable '{}'",
-                        name
-                    )));
+                        name).into()));
                 }
             }
             Expr::Member { object, .. } => {
@@ -1171,8 +1481,7 @@ impl SemanticAnalyzer {
         if let Some(name) = unawaited_task {
             return Err(CompilerError::SemanticError(format!(
                 "W0601: task handle '{}' is never awaited.",
-                name
-            )));
+                name).into()));
         }
 
         Ok(())
@@ -1290,19 +1599,16 @@ impl SemanticAnalyzer {
                 }
                 return Err(CompilerError::SemanticError(format!(
                     "E0604: handle '{}' awaited more than once.",
-                    name
-                )));
+                    name).into()));
             }
             return Err(CompilerError::SemanticError(format!(
                 "E0603: expression '{}' is not awaitable.",
-                name
-            )));
+                name).into()));
         }
 
         Err(CompilerError::SemanticError(format!(
             "E0603: expression '{}' is not awaitable.",
-            name
-        )))
+            name).into()))
     }
 
     fn handle_assignment(&mut self, target: &Expr, value: &Expr) -> Result<()> {
@@ -1392,6 +1698,7 @@ impl SemanticAnalyzer {
             ),
             TypeRef::Generic { base, .. } => matches!(base.as_str(), "Vec" | "Array"),
             TypeRef::Optional(inner) => self.type_supports_length(inner),
+            TypeRef::Fallible(_) => false,
         }
     }
 
@@ -1410,12 +1717,18 @@ impl SemanticAnalyzer {
             }
             TypeRef::Array(inner) => self.validate_type_ref(inner, available_type_params),
             TypeRef::Optional(inner) => self.validate_type_ref(inner, available_type_params),
+            TypeRef::Fallible(inner) => self.validate_type_ref(inner, available_type_params),
         }
     }
 }
 
 pub fn analyze(program: Program) -> Result<Program> {
-    let mut analyzer = SemanticAnalyzer::new();
+    let mut analyzer = SemanticAnalyzer::new(String::new(), String::new());
+    analyzer.analyze_program(program)
+}
+
+pub fn analyze_with_source(program: Program, source_file: String, source_code: String) -> Result<Program> {
+    let mut analyzer = SemanticAnalyzer::new(source_file, source_code);
     analyzer.analyze_program(program)
 }
 
@@ -1623,6 +1936,89 @@ mod tests {
             })
             .expect_err("missing base class should error");
         matches!(err, CompilerError::SemanticError(_));
+    }
+
+    fn block_contains_fail(&self, block: &BlockStmt) -> bool {
+        for stmt in &block.stmts {
+            if self.stmt_contains_fail(stmt) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn stmt_contains_fail(&self, stmt: &Stmt) -> bool {
+        match stmt {
+            Stmt::Fail(_) => true,
+            Stmt::VarDecl(var) => self.expr_contains_fail(&var.init),
+            Stmt::Assign(assign) => self.expr_contains_fail(&assign.value),
+            Stmt::Return(ret) => ret.expr.as_ref().map_or(false, |e| self.expr_contains_fail(e)),
+            Stmt::If(if_stmt) => {
+                self.expr_contains_fail(&if_stmt.condition) ||
+                self.block_contains_fail(&if_stmt.then_branch) ||
+                if_stmt.else_branch.as_ref().map_or(false, |b| self.block_contains_fail(b))
+            }
+            Stmt::While(while_stmt) => {
+                self.expr_contains_fail(&while_stmt.condition) ||
+                self.block_contains_fail(&while_stmt.body)
+            }
+            Stmt::For(for_stmt) => self.block_contains_fail(&for_stmt.body),
+            Stmt::Switch(switch) => {
+                self.expr_contains_fail(&switch.discriminant) ||
+                switch.cases.iter().any(|case| self.block_contains_fail(&case.body)) ||
+                switch.default.as_ref().map_or(false, |b| b.iter().any(|s| self.stmt_contains_fail(s)))
+            }
+            Stmt::TryCatch(try_catch) => {
+                self.block_contains_fail(&try_catch.try_block) ||
+                self.block_contains_fail(&try_catch.catch_block)
+            }
+            Stmt::Throw(throw) => self.expr_contains_fail(&throw.expr),
+            Stmt::Expr(expr_stmt) => self.expr_contains_fail(&expr_stmt.expr),
+            _ => false,
+        }
+    }
+
+    fn expr_contains_fail(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Fail(_) => true,
+            Expr::Ternary { condition, then_expr, else_expr } => {
+                self.expr_contains_fail(condition) ||
+                self.expr_contains_fail(then_expr) ||
+                self.expr_contains_fail(else_expr)
+            }
+            Expr::Binary { left, right, .. } => {
+                self.expr_contains_fail(left) || self.expr_contains_fail(right)
+            }
+            Expr::Unary { operand, .. } => self.expr_contains_fail(operand),
+            Expr::Call(call) => {
+                self.expr_contains_fail(&call.callee) ||
+                call.args.iter().any(|arg| self.expr_contains_fail(arg))
+            }
+            Expr::Member { object, .. } => self.expr_contains_fail(object),
+            Expr::Index { object, index } => {
+                self.expr_contains_fail(object) || self.expr_contains_fail(index)
+            }
+            Expr::ObjectLiteral(fields) => {
+                fields.iter().any(|(_, value)| self.expr_contains_fail(value))
+            }
+            Expr::StructLiteral { fields, .. } => {
+                fields.iter().any(|(_, value)| self.expr_contains_fail(value))
+            }
+            Expr::ArrayLiteral(elements) => {
+                elements.iter().any(|elem| self.expr_contains_fail(elem))
+            }
+            Expr::Lambda(lambda) => match &lambda.body {
+                LambdaBody::Expr(body) => self.expr_contains_fail(body),
+                LambdaBody::Block(block) => self.block_contains_fail(block),
+            },
+            Expr::StringTemplate { parts } => {
+                parts.iter().any(|part| match part {
+                    StringTemplatePart::Expr(expr) => self.expr_contains_fail(expr),
+                    _ => false,
+                })
+            }
+            _ => false,
+        }
     }
 
     #[test]

@@ -117,3 +117,25 @@ where
     // For simplicity, just spawn a thread
     std::thread::spawn(f);
 }
+
+/// Runtime error type for fallible operations
+#[derive(Debug, Clone)]
+pub struct Error {
+    pub message: String,
+}
+
+impl Error {
+    pub fn from<S: Into<String>>(message: S) -> Self {
+        Error {
+            message: message.into(),
+        }
+    }
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
+impl std::error::Error for Error {}

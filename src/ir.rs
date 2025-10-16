@@ -43,6 +43,7 @@ pub struct Function {
     pub body: Block,
     pub async_kind: AsyncKind,
     pub visibility: Visibility,
+    pub contains_fail: bool,
     pub source: ast::FunctionDecl,
 }
 
@@ -279,6 +280,11 @@ impl Type {
                 Type::Optional(Box::new(Type::from_ast(&Some((**inner).clone()))))
             }
             Some(ast::TypeRef::Generic { base, .. }) => Type::Custom(base.clone()),
+            Some(ast::TypeRef::Fallible(inner)) => {
+                let inner_type = (**inner).clone();
+                let inner_rust = inner_type.to_rust_type();
+                Type::Custom(format!("Result<{}, liva_rt::Error>", inner_rust))
+            }
             None => Type::Inferred,
         }
     }

@@ -1,0 +1,7 @@
+// Simple test for fail system
+testFail() => fail "Test error"
+
+main() {
+    let result, err = testFail()
+    print($"Error: {err}")
+}

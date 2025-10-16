@@ -48,7 +48,7 @@ fn check_concurrency(item: &TopLevel, ctx: &mut DesugarContext) {
                 ctx.has_async = true;
             }
             if let Some(body) = &func.body {
-                check_block_concurrency(body, ctx);
+                check_block_concurrency_block(body, ctx);
             }
             if let Some(expr) = &func.expr_body {
                 check_expr_concurrency(expr, ctx);
@@ -61,7 +61,7 @@ fn check_concurrency(item: &TopLevel, ctx: &mut DesugarContext) {
                         ctx.has_async = true;
                     }
                     if let Some(body) = &method.body {
-                        check_block_concurrency(body, ctx);
+                        check_block_concurrency_block(body, ctx);
                     }
                     if let Some(expr) = &method.expr_body {
                         check_expr_concurrency(expr, ctx);
@@ -73,7 +73,20 @@ fn check_concurrency(item: &TopLevel, ctx: &mut DesugarContext) {
     }
 }
 
-fn check_block_concurrency(block: &BlockStmt, ctx: &mut DesugarContext) {
+fn check_block_concurrency(body: &IfBody, ctx: &mut DesugarContext) {
+    match body {
+        IfBody::Block(block) => {
+            for stmt in &block.stmts {
+                check_stmt_concurrency(stmt, ctx);
+            }
+        }
+        IfBody::Stmt(stmt) => {
+            check_stmt_concurrency(stmt, ctx);
+        }
+    }
+}
+
+fn check_block_concurrency_block(block: &BlockStmt, ctx: &mut DesugarContext) {
     for stmt in &block.stmts {
         check_stmt_concurrency(stmt, ctx);
     }
@@ -82,9 +95,7 @@ fn check_block_concurrency(block: &BlockStmt, ctx: &mut DesugarContext) {
 fn check_stmt_concurrency(stmt: &Stmt, ctx: &mut DesugarContext) {
     match stmt {
         Stmt::VarDecl(var) => {
-            if let Some(init) = &var.init {
-                check_expr_concurrency(init, ctx);
-            }
+            check_expr_concurrency(&var.init, ctx);
         }
         Stmt::ConstDecl(const_decl) => check_expr_concurrency(&const_decl.init, ctx),
         Stmt::Assign(assign) => {
@@ -100,7 +111,7 @@ fn check_stmt_concurrency(stmt: &Stmt, ctx: &mut DesugarContext) {
         }
         Stmt::While(while_stmt) => {
             check_expr_concurrency(&while_stmt.condition, ctx);
-            check_block_concurrency(&while_stmt.body, ctx);
+            check_block_concurrency_block(&while_stmt.body, ctx);
         }
         Stmt::For(for_stmt) => {
             if matches!(
@@ -110,7 +121,7 @@ fn check_stmt_concurrency(stmt: &Stmt, ctx: &mut DesugarContext) {
                 ctx.has_parallel = true;
             }
             check_expr_concurrency(&for_stmt.iterable, ctx);
-            check_block_concurrency(&for_stmt.body, ctx);
+            check_block_concurrency_block(&for_stmt.body, ctx);
         }
         Stmt::Return(ret) => {
             if let Some(expr) = &ret.expr {
@@ -118,7 +129,7 @@ fn check_stmt_concurrency(stmt: &Stmt, ctx: &mut DesugarContext) {
             }
         }
         Stmt::Expr(expr_stmt) => check_expr_concurrency(&expr_stmt.expr, ctx),
-        Stmt::Block(block) => check_block_concurrency(block, ctx),
+        Stmt::Block(block) => check_block_concurrency_block(block, ctx),
         _ => {}
     }
 }
@@ -143,7 +154,7 @@ fn check_expr_concurrency(expr: &Expr, ctx: &mut DesugarContext) {
         }
         Expr::Lambda(lambda) => match &lambda.body {
             LambdaBody::Expr(expr) => check_expr_concurrency(expr, ctx),
-            LambdaBody::Block(block) => check_block_concurrency(block, ctx),
+            LambdaBody::Block(block) => check_block_concurrency_block(block, ctx),
         },
         Expr::Binary { left, right, .. } => {
             check_expr_concurrency(left, ctx);

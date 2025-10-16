@@ -106,10 +106,53 @@ pub fn compile_file(options: &CompilerOptions) -> Result<CompilationResult> {
     let source = std::fs::read_to_string(&options.input)
         .map_err(|e| CompilerError::IoError(format!("Failed to read input file: {}", e)))?;
 
-    compile_source(&source, options)
+    let filename = options.input.to_str().unwrap_or("unknown");
+    compile_source_with_filename(&source, filename, options)
 }
 
-/// Compile Liva source code from a string
+fn compile_source_with_filename(source: &str, filename: &str, options: &CompilerOptions) -> Result<CompilationResult> {
+    // 1. Lexer - tokenize source
+    let tokens = lexer::tokenize(source)?;
+
+    // 2. Parser - build AST
+    let ast = parser::parse(tokens, source)?;
+
+    // 3. Semantic analysis with source information
+    let analyzed_ast = semantic::analyze_with_source(ast, filename.to_string(), source.to_string())?;
+
+    // If check-only mode, stop here
+    if options.check_only {
+        return Ok(CompilationResult {
+            rust_code: None,
+            cargo_toml: None,
+            output_dir: None,
+        });
+    }
+
+    // 4. Desugaring
+    let desugar_ctx = desugaring::desugar(analyzed_ast.clone())?;
+
+    // 5. Code generation
+    let ir_module = lowering::lower_program(&analyzed_ast);
+
+    let (rust_code, cargo_toml) =
+        codegen::generate_from_ir(&ir_module, &analyzed_ast, desugar_ctx)?;
+
+    // 6. Write output files if output directory specified
+    let output_dir = if let Some(out_dir) = &options.output {
+        Some(write_output_files(&rust_code, &cargo_toml, out_dir)?)
+    } else {
+        None
+    };
+
+    Ok(CompilationResult {
+        rust_code: Some(rust_code),
+        cargo_toml: Some(cargo_toml),
+        output_dir,
+    })
+}
+
+/// Compile Liva source code from a string (public API)
 ///
 /// # Arguments
 ///
@@ -121,6 +164,13 @@ pub fn compile_file(options: &CompilerOptions) -> Result<CompilationResult> {
 /// * `Ok(CompilationResult)` - On successful compilation
 /// * `Err(CompilerError)` - On compilation failure
 pub fn compile_source(source: &str, options: &CompilerOptions) -> Result<CompilationResult> {
+    compile_source_with_filename(source, "unknown", options)
+}
+
+// Note: The implementation below was replaced by compile_source_with_filename above
+// Keeping the old version commented out to avoid duplication
+/*
+pub fn compile_source_old(source: &str, options: &CompilerOptions) -> Result<CompilationResult> {
     // 1. Lexer - tokenize source
     let tokens = lexer::tokenize(source)?;
 
@@ -161,6 +211,7 @@ pub fn compile_source(source: &str, options: &CompilerOptions) -> Result<Compila
         output_dir,
     })
 }
+*/
 
 /// Result of a successful compilation
 #[derive(Debug, Clone)]
