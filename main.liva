@@ -316,7 +316,7 @@ main() {
   let userResult2, userErr2 = validateUser("", "pass123")
   print($"User validation with error: {userResult2}, error: {userErr2}")
 
-  let userResult3 = validateUser("", "pass123")
+  let userResult3,err = validateUser("", "pass123")
   print($"User validation with error: 3 {userResult3}")
 
   // Test ternario con fail
