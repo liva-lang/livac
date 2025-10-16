@@ -316,6 +316,9 @@ main() {
   let userResult2, userErr2 = validateUser("", "pass123")
   print($"User validation with error: {userResult2}, error: {userErr2}")
 
+  let userResult3 = validateUser("", "pass123")
+  print($"User validation with error: 3 {userResult3}")
+
   // Test ternario con fail
   let user_age = 15
   let voting_result, voteErr = user_age >= 18 ? "Can vote" : fail "Too young to vote"

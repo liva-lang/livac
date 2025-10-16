@@ -1,0 +1,15 @@
+// Test: Calling a non-fallible function should work without error binding
+
+add(a: number, b: number): number {
+  return a + b
+}
+
+main() {
+  // This should work fine
+  let result = add(10, 5)
+  print($"Result: {result}")
+  
+  // And this too
+  add(20, 30)
+  print("Done")
+}

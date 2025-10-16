@@ -66,7 +66,21 @@ fn compile(cli: &Cli) -> Result<(), CompilerError> {
     let result = livac::compile_file(&options).map_err(|e| match e {
         livac::CompilerError::LexerError(s) => CompilerError::LexerError(s),
         livac::CompilerError::ParseError { line, col, msg } => CompilerError::ParseError { line, col, msg },
-        livac::CompilerError::SemanticError(s) => CompilerError::SemanticError(s),
+        livac::CompilerError::SemanticError(info) => {
+            // Just recreate using the local error module
+            CompilerError::SemanticError(crate::error::SemanticErrorInfo {
+                location: info.location.map(|loc| crate::error::ErrorLocation {
+                    file: loc.file,
+                    line: loc.line,
+                    column: loc.column,
+                    source_line: loc.source_line,
+                }),
+                code: info.code,
+                title: info.title,
+                message: info.message,
+                help: info.help,
+            })
+        },
         livac::CompilerError::TypeError(s) => CompilerError::TypeError(s),
         livac::CompilerError::CodegenError(s) => CompilerError::CodegenError(s),
         livac::CompilerError::IoError(s) => CompilerError::IoError(s),

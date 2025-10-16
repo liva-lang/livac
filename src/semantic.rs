@@ -1,10 +1,13 @@
 use crate::ast::*;
-use crate::error::{CompilerError, Result};
+use crate::error::{CompilerError, Result, SemanticErrorInfo, ErrorLocation};
+use colored::Colorize;
 use std::collections::{HashMap, HashSet};
 
 pub struct SemanticAnalyzer {
     // Track which functions are async
     async_functions: HashSet<String>,
+    // Track which functions are fallible (contain fail)
+    fallible_functions: HashSet<String>,
     // Track defined types
     types: HashMap<String, TypeInfo>,
     // Track function signatures (arity, optional type information)
@@ -14,6 +17,12 @@ pub struct SemanticAnalyzer {
     // Current scope for variables
     current_scope: Vec<HashMap<String, Option<TypeRef>>>,
     awaitable_scopes: Vec<HashMap<String, AwaitableInfo>>,
+    // Source file name for error reporting
+    source_file: String,
+    // Source code for line tracking
+    source_code: String,
+    // Source map for precise line/column tracking
+    source_map: Option<crate::span::SourceMap>,
 }
 
 #[derive(Debug, Clone)]
@@ -52,14 +61,24 @@ struct AwaitableInfo {
 }
 
 impl SemanticAnalyzer {
-    fn new() -> Self {
+    fn new(source_file: String, source_code: String) -> Self {
+        let source_map = if !source_code.is_empty() {
+            Some(crate::span::SourceMap::new(&source_code))
+        } else {
+            None
+        };
+        
         Self {
             async_functions: HashSet::new(),
+            fallible_functions: HashSet::new(),
             types: HashMap::new(),
             functions: HashMap::new(),
             external_modules: HashSet::new(),
             current_scope: vec![HashMap::new()],
             awaitable_scopes: vec![HashMap::new()],
+            source_file,
+            source_code,
+            source_map,
         }
     }
 
@@ -77,6 +96,9 @@ impl SemanticAnalyzer {
                 }
             }
         }
+
+        // Detect fallible functions (those containing 'fail')
+        self.detect_fallible_functions(&program);
 
         // Third pass: type checking and validation
         for item in &program.items {
@@ -399,6 +421,196 @@ impl SemanticAnalyzer {
         }
     }
 
+    // ============================================
+    // Fallibility detection and validation
+    // ============================================
+
+    /// Detect which functions are fallible (contain 'fail' statements)
+    fn detect_fallible_functions(&mut self, program: &Program) {
+        for item in &program.items {
+            if let TopLevel::Function(func) = item {
+                if self.function_contains_fail(&func.body, &func.expr_body) {
+                    self.fallible_functions.insert(func.name.clone());
+                }
+            }
+        }
+    }
+
+    /// Check if a function contains any 'fail' statements
+    fn function_contains_fail(&self, body: &Option<BlockStmt>, expr_body: &Option<Expr>) -> bool {
+        if let Some(block) = body {
+            for stmt in &block.stmts {
+                if self.stmt_contains_fail(stmt) {
+                    return true;
+                }
+            }
+        }
+        if let Some(expr) = expr_body {
+            if self.expr_contains_fail(expr) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Recursively check if a statement contains 'fail'
+    fn stmt_contains_fail(&self, stmt: &Stmt) -> bool {
+        match stmt {
+            Stmt::Fail(_) => true,
+            Stmt::If(if_stmt) => {
+                self.if_body_contains_fail(&if_stmt.then_branch)
+                    || if_stmt.else_branch.as_ref().map_or(false, |eb| self.if_body_contains_fail(eb))
+            }
+            Stmt::While(while_stmt) => self.stmt_list_contains_fail(&while_stmt.body.stmts),
+            Stmt::For(for_stmt) => self.stmt_list_contains_fail(&for_stmt.body.stmts),
+            Stmt::Return(ret) => ret.expr.as_ref().map_or(false, |e| self.expr_contains_fail(e)),
+            Stmt::Expr(expr_stmt) => self.expr_contains_fail(&expr_stmt.expr),
+            Stmt::VarDecl(var) => self.expr_contains_fail(&var.init),
+            _ => false,
+        }
+    }
+
+    fn if_body_contains_fail(&self, body: &IfBody) -> bool {
+        match body {
+            IfBody::Block(block_stmt) => self.stmt_list_contains_fail(&block_stmt.stmts),
+            IfBody::Stmt(stmt) => self.stmt_contains_fail(stmt),
+        }
+    }
+
+    fn stmt_list_contains_fail(&self, stmts: &[Stmt]) -> bool {
+        stmts.iter().any(|s| self.stmt_contains_fail(s))
+    }
+
+    /// Recursively check if an expression contains calls to fallible functions
+    fn expr_contains_fail(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Call(call) => {
+                if let Expr::Identifier(name) = &*call.callee {
+                    if self.fallible_functions.contains(name) {
+                        return true;
+                    }
+                }
+                call.args.iter().any(|arg| self.expr_contains_fail(arg))
+            }
+            Expr::Binary { left, right, .. } => {
+                self.expr_contains_fail(left) || self.expr_contains_fail(right)
+            }
+            Expr::Unary { operand, .. } => self.expr_contains_fail(operand),
+            Expr::StringTemplate { parts } => {
+                parts.iter().any(|part| {
+                    if let StringTemplatePart::Expr(e) = part {
+                        self.expr_contains_fail(e)
+                    } else {
+                        false
+                    }
+                })
+            }
+            Expr::ArrayLiteral(elements) => elements.iter().any(|e| self.expr_contains_fail(e)),
+            Expr::Index { object, index } => {
+                self.expr_contains_fail(object) || self.expr_contains_fail(index)
+            }
+            Expr::Member { object, .. } => self.expr_contains_fail(object),
+            Expr::StructLiteral { fields, .. } => {
+                fields.iter().any(|(_, expr)| self.expr_contains_fail(expr))
+            }
+            Expr::Ternary { condition, then_expr, else_expr } => {
+                self.expr_contains_fail(condition)
+                    || self.expr_contains_fail(then_expr)
+                    || self.expr_contains_fail(else_expr)
+            }
+            Expr::Fail(_) => true,
+            _ => false,
+        }
+    }
+
+    /// Check if an expression is a direct call to a fallible function
+    fn is_expr_fallible(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Call(call) => {
+                if let Expr::Identifier(name) = &*call.callee {
+                    self.fallible_functions.contains(name)
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        }
+    }
+
+    /// Get a specific line from the source code
+    fn get_source_line(&self, line_num: usize) -> Option<String> {
+        self.source_code
+            .lines()
+            .nth(line_num.saturating_sub(1))
+            .map(|s| s.to_string())
+    }
+
+    /// Find the line number where a function is called WITHOUT error binding (heuristic)
+    /// Tries to find calls that don't use the pattern "let result, err = func(...)"
+    fn find_line_for_function_call(&self, func_name: &str) -> Option<usize> {
+        let mut first_call = None;
+        
+        for (line_num, line) in self.source_code.lines().enumerate() {
+            let trimmed = line.trim();
+            
+            // Skip empty lines
+            if trimmed.is_empty() {
+                continue;
+            }
+            
+            // Check if line contains the function name
+            if !trimmed.contains(func_name) {
+                continue;
+            }
+            
+            // Skip if it's a function declaration (has parameter types or return type declaration)
+            // Pattern: "functionName(param: type" or "functionName(...): returnType"
+            if trimmed.contains(&format!("{}(", func_name)) {
+                // Check if it looks like a declaration
+                let after_func = trimmed.split(&format!("{}(", func_name)).nth(1).unwrap_or("");
+                
+                // If there's a colon before the closing paren or opening brace, it's likely a declaration
+                if after_func.contains("): ") || 
+                   (after_func.contains(':') && after_func.contains('{')) ||
+                   (after_func.contains(':') && !after_func.contains(')')) {
+                    continue;
+                }
+                
+                // If the line starts with "function" or "fn", it's a declaration
+                if trimmed.starts_with("function ") || trimmed.starts_with("fn ") {
+                    continue;
+                }
+                
+                // Check if this call has error binding (pattern: "let x, err =")
+                // The pattern should have a comma in the left side of assignment before the '='
+                let has_error_binding = if trimmed.starts_with("let ") {
+                    // Split by '=' to get the left side
+                    if let Some(left_side) = trimmed.split('=').next() {
+                        // Check if the left side has a comma (indicating multiple bindings)
+                        left_side.contains(',')
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
+                
+                // If we found a call without error binding, return it immediately
+                if !has_error_binding {
+                    return Some(line_num + 1);
+                }
+                
+                // Otherwise, save it as potential fallback
+                if first_call.is_none() {
+                    first_call = Some(line_num + 1);
+                }
+            }
+        }
+        
+        // If we didn't find a call without error binding, return the first call we found
+        first_call
+    }
+
     fn validate_item(&mut self, item: &TopLevel) -> Result<()> {
         match item {
             TopLevel::Function(func) => self.validate_function(func),
@@ -433,8 +645,7 @@ impl SemanticAnalyzer {
                 self.exit_scope()?;
                 return Err(CompilerError::SemanticError(format!(
                     "Parameter '{}' defined multiple times",
-                    param.name
-                )));
+                    param.name).into()));
             }
         }
 
@@ -471,8 +682,7 @@ impl SemanticAnalyzer {
             if !self.types.contains_key(base) {
                 return Err(CompilerError::SemanticError(format!(
                     "Base class '{}' not found",
-                    base
-                )));
+                    base).into()));
             }
         }
 
@@ -522,8 +732,7 @@ impl SemanticAnalyzer {
                 self.exit_scope()?;
                 return Err(CompilerError::SemanticError(format!(
                     "Parameter '{}' defined multiple times",
-                    param.name
-                )));
+                    param.name).into()));
             }
         }
 
@@ -572,6 +781,34 @@ impl SemanticAnalyzer {
                 // Validate the init expression
                 self.validate_expr(&var.init)?;
 
+                // Check fallibility: if init expression calls a fallible function, var must have is_fallible=true
+                if !var.is_fallible && self.is_expr_fallible(&var.init) {
+                    if let Expr::Call(call) = &var.init {
+                        if let Expr::Identifier(func_name) = &*call.callee {
+                            let line = self.find_line_for_function_call(func_name).unwrap_or(0);
+                            let source_line = self.get_source_line(line);
+                            
+                            let error = SemanticErrorInfo {
+                                location: Some(ErrorLocation {
+                                    file: self.source_file.clone(),
+                                    line,
+                                    column: None,
+                                    source_line,
+                                }),
+                                code: "E0701".to_string(),
+                                title: "Fallible function must be called with error binding".to_string(),
+                                message: format!(
+                                    "Function '{}' can fail but is not being called with error binding.\n       The function contains 'fail' statements and must be handled properly.",
+                                    func_name
+                                ),
+                                help: Some(format!("Change to: let result, err = {}(...)", func_name)),
+                            };
+                            
+                            return Err(CompilerError::SemanticError(error));
+                        }
+                    }
+                }
+
                 for binding in &var.bindings {
                     if let Some(type_ref) = &binding.type_ref {
                         self.validate_type_ref(type_ref, &empty)?;
@@ -588,8 +825,7 @@ impl SemanticAnalyzer {
                     if self.declare_symbol(&binding.name, declared_type.clone()) {
                         return Err(CompilerError::SemanticError(format!(
                             "Variable '{}' already defined in this scope",
-                            binding.name
-                        )));
+                            binding.name).into()));
                     }
 
                     if var.is_fallible {
@@ -612,8 +848,7 @@ impl SemanticAnalyzer {
                 if self.declare_symbol(&const_decl.name, inferred) {
                     return Err(CompilerError::SemanticError(format!(
                         "Constant '{}' already defined in this scope",
-                        const_decl.name
-                    )));
+                        const_decl.name).into()));
                 }
                 self.update_awaitable_from_expr(&const_decl.name, &const_decl.init)?;
             }
@@ -640,8 +875,7 @@ impl SemanticAnalyzer {
                     self.exit_scope()?;
                     return Err(CompilerError::SemanticError(format!(
                         "Loop variable '{}' already defined",
-                        for_stmt.var
-                    )));
+                        for_stmt.var).into()));
                 }
                 self.validate_block_stmt(&for_stmt.body)?;
                 let validation = self.validate_for_loop(for_stmt);
@@ -686,6 +920,35 @@ impl SemanticAnalyzer {
             }
             Stmt::Expr(expr_stmt) => {
                 self.validate_expr(&expr_stmt.expr)?;
+                
+                // Check if expression is a fallible function call without error binding
+                if self.is_expr_fallible(&expr_stmt.expr) {
+                    if let Expr::Call(call) = &expr_stmt.expr {
+                        if let Expr::Identifier(func_name) = &*call.callee {
+                            let line = self.find_line_for_function_call(func_name).unwrap_or(0);
+                            let source_line = self.get_source_line(line);
+                            
+                            let error = SemanticErrorInfo {
+                                location: Some(ErrorLocation {
+                                    file: self.source_file.clone(),
+                                    line,
+                                    column: None,
+                                    source_line,
+                                }),
+                                code: "E0701".to_string(),
+                                title: "Fallible function must be called with error binding".to_string(),
+                                message: format!(
+                                    "Function '{}' can fail but is not being called with error binding.\n       The function contains 'fail' statements and must be handled properly.",
+                                    func_name
+                                ),
+                                help: Some(format!("Change to: let result, err = {}(...)", func_name)),
+                            };
+                            
+                            return Err(CompilerError::SemanticError(error));
+                        }
+                    }
+                }
+                
                 if let Expr::Call(call) = &expr_stmt.expr {
                     if matches!(
                         call.exec_policy,
@@ -781,8 +1044,7 @@ impl SemanticAnalyzer {
         if let Some((first, second)) = Self::extract_modifier_chain(&call.callee) {
             return Err(CompilerError::SemanticError(format!(
                 "E0602: duplicate execution modifiers '{}' and '{}' on the same call",
-                first, second
-            )));
+                first, second).into()));
         }
 
         // E0401: Check for invalid concurrent execution combinations
@@ -839,8 +1101,7 @@ impl SemanticAnalyzer {
                             Self::policy_name(call.exec_policy.clone()).unwrap_or("fire call");
                         Err(CompilerError::SemanticError(format!(
                             "E0603: cannot await call using '{}' policy.",
-                            policy
-                        )))
+                            policy).into()))
                     }
                     ExecPolicy::Par => Err(CompilerError::SemanticError(
                         "E0603: `par` calls complete eagerly and cannot be awaited.".into(),
@@ -952,8 +1213,7 @@ impl SemanticAnalyzer {
                 self.exit_scope()?;
                 return Err(CompilerError::SemanticError(format!(
                     "Parameter '{}' defined multiple times",
-                    param.name
-                )));
+                    param.name).into()));
             }
         }
 
@@ -1168,8 +1428,7 @@ impl SemanticAnalyzer {
             if arity < required || arity > total {
                 return Err(CompilerError::SemanticError(format!(
                     "Function '{}' expects between {} and {} arguments but {} were provided",
-                    name, required, total, arity
-                )));
+                    name, required, total, arity).into()));
             }
         }
 
@@ -1182,8 +1441,7 @@ impl SemanticAnalyzer {
                 if self.lookup_symbol(name).is_none() {
                     return Err(CompilerError::SemanticError(format!(
                         "Cannot assign to undefined variable '{}'",
-                        name
-                    )));
+                        name).into()));
                 }
             }
             Expr::Member { object, .. } => {
@@ -1223,8 +1481,7 @@ impl SemanticAnalyzer {
         if let Some(name) = unawaited_task {
             return Err(CompilerError::SemanticError(format!(
                 "W0601: task handle '{}' is never awaited.",
-                name
-            )));
+                name).into()));
         }
 
         Ok(())
@@ -1342,19 +1599,16 @@ impl SemanticAnalyzer {
                 }
                 return Err(CompilerError::SemanticError(format!(
                     "E0604: handle '{}' awaited more than once.",
-                    name
-                )));
+                    name).into()));
             }
             return Err(CompilerError::SemanticError(format!(
                 "E0603: expression '{}' is not awaitable.",
-                name
-            )));
+                name).into()));
         }
 
         Err(CompilerError::SemanticError(format!(
             "E0603: expression '{}' is not awaitable.",
-            name
-        )))
+            name).into()))
     }
 
     fn handle_assignment(&mut self, target: &Expr, value: &Expr) -> Result<()> {
@@ -1469,7 +1723,12 @@ impl SemanticAnalyzer {
 }
 
 pub fn analyze(program: Program) -> Result<Program> {
-    let mut analyzer = SemanticAnalyzer::new();
+    let mut analyzer = SemanticAnalyzer::new(String::new(), String::new());
+    analyzer.analyze_program(program)
+}
+
+pub fn analyze_with_source(program: Program, source_file: String, source_code: String) -> Result<Program> {
+    let mut analyzer = SemanticAnalyzer::new(source_file, source_code);
     analyzer.analyze_program(program)
 }
 
