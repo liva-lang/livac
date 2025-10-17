@@ -1,12 +1,12 @@
 use crate::ast::*;
-use crate::error::{CompilerError, Result};
+use crate::error::{CompilerError, Result, SemanticErrorInfo};
 use crate::lexer::{tokenize, Token, TokenWithSpan};
 use crate::span::SourceMap;
 
 pub struct Parser {
     tokens: Vec<TokenWithSpan>,
     current: usize,
-    _source: String,
+    source: String,
     source_map: SourceMap,
 }
 
@@ -16,7 +16,7 @@ impl Parser {
         Self {
             tokens,
             current: 0,
-            _source: source,
+            source,
             source_map,
         }
     }
@@ -68,6 +68,24 @@ impl Parser {
             true
         } else {
             false
+        }
+    }
+
+    /// Get the span of the current token
+    fn current_span(&self) -> Option<crate::span::Span> {
+        if self.current < self.tokens.len() {
+            Some(self.tokens[self.current].span)
+        } else {
+            None
+        }
+    }
+
+    /// Get the span of the previous token
+    fn previous_span(&self) -> Option<crate::span::Span> {
+        if self.current > 0 && self.current - 1 < self.tokens.len() {
+            Some(self.tokens[self.current - 1].span)
+        } else {
+            None
         }
     }
 
@@ -142,18 +160,36 @@ impl Parser {
     }
 
     fn error(&self, message: String) -> CompilerError {
-        let (line, col) = if self.current < self.tokens.len() {
-            self.calculate_line_col(self.current)
+        self.error_with_help(message, None)
+    }
+
+    fn error_with_help(&self, message: String, help: Option<String>) -> CompilerError {
+        let token_index = if self.current < self.tokens.len() {
+            self.current
         } else if !self.tokens.is_empty() {
-            self.calculate_line_col(self.tokens.len() - 1)
+            self.tokens.len() - 1
         } else {
-            (1, 1)
+            return CompilerError::ParseError(
+                SemanticErrorInfo::new("E2000", "Parse Error", &message)
+                    .with_location("<input>", 1)
+            );
         };
-        CompilerError::ParseError {
-            line,
-            col,
-            msg: message,
+
+        let (line, col) = self.calculate_line_col(token_index);
+        let source_line = self.source.lines().nth(line.saturating_sub(1))
+            .unwrap_or("")
+            .to_string();
+
+        let mut error = SemanticErrorInfo::new("E2000", "Parse Error", &message)
+            .with_location("<input>", line)
+            .with_column(col)
+            .with_source_line(source_line);
+
+        if let Some(help_text) = help {
+            error = error.with_help(&help_text);
         }
+
+        CompilerError::ParseError(error)
     }
 
     fn calculate_line_col(&self, token_index: usize) -> (usize, usize) {
@@ -621,22 +657,24 @@ impl Parser {
 
         // Parse first binding
         let name = self.parse_identifier()?;
+        let span = self.previous_span();
         let type_ref = if self.match_token(&Token::Colon) {
             Some(self.parse_type()?)
         } else {
             None
         };
-        bindings.push(VarBinding { name, type_ref });
+        bindings.push(VarBinding { name, type_ref, span });
 
         // Parse additional bindings if present (for fallible binding)
         while self.match_token(&Token::Comma) {
             let name = self.parse_identifier()?;
+            let span = self.previous_span();
             let type_ref = if self.match_token(&Token::Colon) {
                 Some(self.parse_type()?)
             } else {
                 None
             };
-            bindings.push(VarBinding { name, type_ref });
+            bindings.push(VarBinding { name, type_ref, span });
         }
 
         Ok(bindings)
@@ -687,6 +725,7 @@ impl Parser {
 
         if self.match_token(&Token::Const) {
             let name = self.parse_identifier()?;
+            let span = self.previous_span();
             let type_ref = if self.match_token(&Token::Colon) {
                 Some(self.parse_type()?)
             } else {
@@ -699,6 +738,7 @@ impl Parser {
                 name,
                 type_ref,
                 init: value,
+                span,
             }));
         }
 
@@ -852,8 +892,8 @@ impl Parser {
                 policy = DataParallelPolicy::Par;
             } else if self.match_token(&Token::Vec) {
                 policy = DataParallelPolicy::Vec;
-            } else if self.match_token(&Token::Boost) {
-                policy = DataParallelPolicy::Boost;
+            } else if self.match_token(&Token::ParVec) {
+                policy = DataParallelPolicy::ParVec;
             }
 
             let var = self.parse_identifier()?;
@@ -1576,19 +1616,27 @@ fn parse_string_template_parts(raw: &str) -> Result<Vec<StringTemplatePart>> {
                     }
                 }
                 if depth != 0 {
-                    return Err(CompilerError::ParseError {
-                        line: 1,
-                        col: 1,
-                        msg: "Unclosed interpolation in string template".into(),
-                    });
+                    return Err(CompilerError::ParseError(
+                        SemanticErrorInfo::new(
+                            "E2001",
+                            "Unclosed interpolation",
+                            "String template has an unclosed interpolation expression"
+                        )
+                        .with_location("<input>", 1)
+                        .with_help("Make sure all '{' characters in interpolations have matching '}'")
+                    ));
                 }
                 let expr_src_trimmed = expr_src.trim();
                 if expr_src_trimmed.is_empty() {
-                    return Err(CompilerError::ParseError {
-                        line: 1,
-                        col: 1,
-                        msg: "Empty interpolation in string template".into(),
-                    });
+                    return Err(CompilerError::ParseError(
+                        SemanticErrorInfo::new(
+                            "E2002",
+                            "Empty interpolation",
+                            "String template has an empty interpolation: {}"
+                        )
+                        .with_location("<input>", 1)
+                        .with_help("Add an expression inside the interpolation or remove the empty braces")
+                    ));
                 }
                 match parse_template_expression(expr_src_trimmed) {
                     Ok(expr) => parts.push(StringTemplatePart::Expr(Box::new(expr))),
@@ -1612,11 +1660,15 @@ fn parse_string_template_parts(raw: &str) -> Result<Vec<StringTemplatePart>> {
                     chars.next();
                     buffer.push('}');
                 } else {
-                    return Err(CompilerError::ParseError {
-                        line: 1,
-                        col: 1,
-                        msg: "Unmatched '}' in string template".into(),
-                    });
+                    return Err(CompilerError::ParseError(
+                        SemanticErrorInfo::new(
+                            "E2003",
+                            "Unmatched closing brace",
+                            "String template has an unmatched '}' character"
+                        )
+                        .with_location("<input>", 1)
+                        .with_help("Use '}}' to escape a literal '}' character in a string template")
+                    ));
                 }
             }
             _ => buffer.push(ch),

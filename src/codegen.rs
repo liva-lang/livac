@@ -1,6 +1,6 @@
 use crate::ast::*;
 use crate::desugaring::DesugarContext;
-use crate::error::{CompilerError, Result};
+use crate::error::{CompilerError, Result, SemanticErrorInfo};
 use crate::ir;
 use std::collections::HashMap;
 use std::fmt::Write;
@@ -938,7 +938,12 @@ impl CodeGenerator {
                     // Normal binding: let a = expr (only one binding expected)
                     if var.bindings.len() != 1 {
                         return Err(CompilerError::CodegenError(
-                            "Let should have exactly one binding".to_string()
+                            SemanticErrorInfo::new(
+                                "E3000",
+                                "Invalid binding pattern",
+                                "Let statement should have exactly one binding when not using fallible pattern"
+                            )
+                            .with_help("Use fallible binding pattern 'let result, err = ...' or single binding 'let result = ...'")
                         ));
                     }
                     let binding = &var.bindings[0];
@@ -2534,13 +2539,13 @@ impl<'a> IrCodeGenerator<'a> {
             self.output.push('\n');
 
             self.writeln(
-                "pub fn for_boost<I, T, F>(iterable: I, func: F, options: ParallelForOptions)",
+                "pub fn for_parvec<I, T, F>(iterable: I, func: F, options: ParallelForOptions)",
             );
             self.writeln("where I: IntoIterator<Item = T>, T: Send + 'static, F: Fn(T) + Send + Sync + 'static,");
             self.writeln("{");
             self.indent();
             self.writeln("let items: Vec<T> = iterable.into_iter().collect();");
-            self.writeln("execute_parallel(items, func, options, \"for boost\");");
+            self.writeln("execute_parallel(items, func, options, \"for parvec\");");
             self.dedent();
             self.writeln("}");
         }
@@ -2810,8 +2815,8 @@ impl<'a> IrCodeGenerator<'a> {
                 ir::DataParallelPolicy::Vec => {
                     self.generate_vector_for(var, iterable, body, options)?;
                 }
-                ir::DataParallelPolicy::Boost => {
-                    self.generate_boost_for(var, iterable, body, options)?;
+                ir::DataParallelPolicy::ParVec => {
+                    self.generate_parvec_for(var, iterable, body, options)?;
                 }
             },
             ir::Stmt::Block(block) => {
@@ -2998,7 +3003,7 @@ impl<'a> IrCodeGenerator<'a> {
         Ok(())
     }
 
-    fn generate_boost_for(
+    fn generate_parvec_for(
         &mut self,
         var: &str,
         iterable: &ir::Expr,
@@ -3017,7 +3022,7 @@ impl<'a> IrCodeGenerator<'a> {
         self.write_indent();
         write!(
             self.output,
-            "liva_rt::for_boost(__liva_iter, move |{}| {{\n",
+            "liva_rt::for_parvec(__liva_iter, move |{}| {{\n",
             self.sanitize_name(var)
         )
         .unwrap();
@@ -3922,7 +3927,7 @@ fn stmt_has_parallel_concurrency(stmt: &ir::Stmt) -> bool {
                 policy,
                 ir::DataParallelPolicy::Par
                     | ir::DataParallelPolicy::Vec
-                    | ir::DataParallelPolicy::Boost
+                    | ir::DataParallelPolicy::ParVec
             ) || expr_has_parallel_concurrency(iterable)
                 || block_has_parallel_concurrency(body)
         }

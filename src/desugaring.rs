@@ -116,7 +116,7 @@ fn check_stmt_concurrency(stmt: &Stmt, ctx: &mut DesugarContext) {
         Stmt::For(for_stmt) => {
             if matches!(
                 for_stmt.policy,
-                DataParallelPolicy::Par | DataParallelPolicy::Vec | DataParallelPolicy::Boost
+                DataParallelPolicy::Par | DataParallelPolicy::Vec | DataParallelPolicy::ParVec
             ) {
                 ctx.has_parallel = true;
             }

@@ -1,0 +1,28 @@
+// Test file for parvec keyword
+main() {
+    let items = [1, 2, 3, 4, 5]
+    
+    print("Testing parvec keyword (previously boost)")
+    
+    // Sequential loop
+    for seq x in items {
+        print($"Seq: {x}")
+    }
+    
+    // Parallel loop
+    for par x in items {
+        print($"Par: {x}")
+    }
+    
+    // Vector loop
+    for vec x in items {
+        print($"Vec: {x}")
+    }
+    
+    // Parallel vector loop (previously boost)
+    for parvec x in items with simdWidth 4 {
+        print($"ParVec: {x}")
+    }
+    
+    print("All loops completed!")
+}

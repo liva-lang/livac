@@ -82,6 +82,24 @@ impl SemanticAnalyzer {
         }
     }
 
+    /// Create a semantic error with location information from a span
+    fn error_with_span(&self, code: &str, title: &str, message: &str, span: Option<crate::span::Span>) -> SemanticErrorInfo {
+        let mut error = SemanticErrorInfo::new(code, title, message);
+        
+        if let (Some(span), Some(source_map)) = (span, &self.source_map) {
+            let (line, column) = span.start_position(source_map);
+            let source_line = self.get_source_line(line);
+            
+            error = error.with_location(&self.source_file, line).with_column(column);
+            
+            if let Some(source_line) = source_line {
+                error = error.with_source_line(source_line);
+            }
+        }
+        
+        error
+    }
+
     fn analyze_program(&mut self, mut program: Program) -> Result<Program> {
         // First pass: collect type definitions and function signatures
         self.collect_definitions(&program)?;
@@ -823,9 +841,15 @@ impl SemanticAnalyzer {
                     };
 
                     if self.declare_symbol(&binding.name, declared_type.clone()) {
-                        return Err(CompilerError::SemanticError(format!(
-                            "Variable '{}' already defined in this scope",
-                            binding.name).into()));
+                        let error = self.error_with_span(
+                            "E0001",
+                            &format!("Variable '{}' already defined in this scope", binding.name),
+                            &format!("Variable '{}' already defined in this scope", binding.name),
+                            binding.span
+                        )
+                        .with_help(&format!("Consider using a different name or removing the previous declaration of '{}'", binding.name));
+                        
+                        return Err(CompilerError::SemanticError(error));
                     }
 
                     if var.is_fallible {
@@ -846,9 +870,15 @@ impl SemanticAnalyzer {
                     .clone()
                     .or_else(|| self.infer_expr_type(&const_decl.init));
                 if self.declare_symbol(&const_decl.name, inferred) {
-                    return Err(CompilerError::SemanticError(format!(
-                        "Constant '{}' already defined in this scope",
-                        const_decl.name).into()));
+                    let error = self.error_with_span(
+                        "E0002",
+                        &format!("Constant '{}' already defined in this scope", const_decl.name),
+                        &format!("Constant '{}' already defined in this scope", const_decl.name),
+                        const_decl.span
+                    )
+                    .with_help(&format!("Consider using a different name or removing the previous declaration of '{}'", const_decl.name));
+                    
+                    return Err(CompilerError::SemanticError(error));
                 }
                 self.update_awaitable_from_expr(&const_decl.name, &const_decl.init)?;
             }
@@ -1234,11 +1264,11 @@ impl SemanticAnalyzer {
 
         if matches!(
             for_stmt.policy,
-            DataParallelPolicy::Par | DataParallelPolicy::Boost
+            DataParallelPolicy::Par | DataParallelPolicy::ParVec
         ) && Self::block_contains_await_stmt(&for_stmt.body)
         {
             return Err(CompilerError::SemanticError(
-                "E0605: `await` is not allowed inside `for par` or `for boost` loops.".into(),
+                "E0605: `await` is not allowed inside `for par` or `for parvec` loops.".into(),
             ));
         }
 
@@ -1277,9 +1307,9 @@ impl SemanticAnalyzer {
         }
 
         if let Some(simd) = &options.simd_width {
-            if !matches!(policy, DataParallelPolicy::Vec | DataParallelPolicy::Boost) {
+            if !matches!(policy, DataParallelPolicy::Vec | DataParallelPolicy::ParVec) {
                 return Err(CompilerError::SemanticError(
-                    "E0705: `simdWidth` option requires `for vec` or `for boost` policy.".into(),
+                    "E0705: `simdWidth` option requires `for vec` or `for parvec` policy.".into(),
                 ));
             }
 

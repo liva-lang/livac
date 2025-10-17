@@ -258,7 +258,7 @@ main() {
 
   let vectorWorkloads = [1, 2, 3, 4]
 
-  for vec lane in vectorWorkloads with simdWidth 4 ordered {
+  for parvec lane in vectorWorkloads with simdWidth 4 ordered {
     print($"Vector lane value: {lane}")
   }
 
@@ -316,7 +316,7 @@ main() {
   let userResult2, userErr2 = validateUser("", "pass123")
   print($"User validation with error: {userResult2}, error: {userErr2}")
 
-  let userResult3,err = validateUser("", "pass123")
+  let userResult3,err4 = validateUser("", "pass123")
   print($"User validation with error: 3 {userResult3}")
 
   // Test ternario con fail
