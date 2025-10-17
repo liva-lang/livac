@@ -1,13 +1,25 @@
 # 🔄 Sistema de Concurrencia de Liva - Especificación Técnica Completa
 
-**Versión:** 1.0  
+**Versión:** 1.1  
 **Fecha:** 18 de octubre de 2025  
 **Estado:** Especificación de Referencia  
 **Autores:** Equipo Liva
 
 ---
 
-## 📋 TABLA DE CONTENIDOS
+## � DOCUMENTACIÓN RELACIONADA
+
+Este documento contiene la especificación técnica completa del sistema de concurrencia. Para otros aspectos:
+
+- **[EXECUTION_MODES.md](EXECUTION_MODES.md)** - Las 7 formas de ejecutar funciones (LEER PRIMERO)
+- **[ERROR_HANDLING.md](ERROR_HANDLING.md)** - Manejo de errores en contextos concurrentes
+- **[PLAN_CONCURRENCIA.md](PLAN_CONCURRENCIA.md)** - Roadmap de implementación
+- **[PHASE1_PROGRESS.md](PHASE1_PROGRESS.md)** - Estado actual de implementación
+- **[README.md](README.md)** - Índice completo de documentación
+
+---
+
+## �📋 TABLA DE CONTENIDOS
 
 1. [Visión y Filosofía](#visión-y-filosofía)
 2. [Sintaxis Completa](#sintaxis-completa)
@@ -35,10 +47,16 @@ getUser(id: number): User {
 }
 
 // La LLAMADA define CÓMO se ejecuta
-let u1 = getUser(1)        // síncrono
-let u2 = async getUser(2)  // asíncrono (IO-bound)
-let u3 = par getUser(3)    // paralelo (puede ser CPU-bound)
+let u1 = getUser(1)            // síncrono
+let u2 = async getUser(2)      // asíncrono (IO-bound)
+let u3 = par getUser(3)        // paralelo (CPU-bound)
+let u4 = task async getUser(4) // handle manual
+let u5 = task par getUser(5)   // handle paralelo manual
+fire async getUser(6)          // fire-and-forget async
+fire par getUser(7)            // fire-and-forget parallel
 ```
+
+**Ver [EXECUTION_MODES.md](EXECUTION_MODES.md) para detalles de cada modo.**
 
 **2. Inferencia Total**
 ```liva
