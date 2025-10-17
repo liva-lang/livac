@@ -301,6 +301,39 @@ main() {
   // Test binding fallible - función fallable
   let result, err = divide(10, 2)
   print($"Division success: {result}, error: {err}")
+  
+  // ============================================================================
+  // 12.1 ERROR BINDING WITH ASYNC/PAR (PHASE 1) 🆕
+  // ============================================================================
+  print("\n🔥 Testing Error Binding with Async/Par:")
+  
+  // Error binding with async call (lazy await on first use)
+  let divResult, divErr = async divide(20, 4)
+  print($"Async division: {divResult}, error: {divErr}")
+  
+  // Error binding with par call (lazy join on first use)
+  let parResult, parErr = par divide(15, 3)
+  print($"Parallel division: {parResult}, error: {parErr}")
+  
+  // Async error handling - division by zero
+  let asyncFailResult, asyncFailErr = async divide(10, 0)
+  if asyncFailErr != "" {
+    print($"Async error caught: {asyncFailErr}")
+  } else {
+    print($"Async result: {asyncFailResult}")
+  }
+  
+  // Par error handling - success case
+  let parSuccessResult, parSuccessErr = par validateUser("alice", "pass123")
+  if parSuccessErr != "" {
+    print($"Par validation error: {parSuccessErr}")
+  } else {
+    print($"Par validation success: {parSuccessResult}")
+  }
+  
+  // Ignore error with dummy variable
+  let onlyValue, ignored = async divide(100, 5)
+  print($"Value only (error ignored): {onlyValue}")
 
   let result2, err2 = divide(10, 0)
   print($"Division with error: {result2}, error: {err2}")

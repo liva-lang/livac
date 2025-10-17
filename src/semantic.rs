@@ -389,11 +389,12 @@ impl SemanticAnalyzer {
             Expr::Call(call) => {
                 match call.exec_policy {
                     ExecPolicy::Async
+                    | ExecPolicy::Par  // Par also needs await for JoinHandle
                     | ExecPolicy::TaskAsync
                     | ExecPolicy::TaskPar
                     | ExecPolicy::FireAsync
                     | ExecPolicy::FirePar => return true,
-                    ExecPolicy::Par | ExecPolicy::Normal => {}
+                    ExecPolicy::Normal => {}
                 }
 
                 if let Expr::Identifier(name) = call.callee.as_ref() {

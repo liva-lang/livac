@@ -1,26 +1,37 @@
 // Test: Error binding básico con async
 // Expected: Compilar correctamente y manejar error
 
-getUser(id: number): Result<User, string> {
-    if id == 0 {
-        return Err("Invalid ID")
-    }
-    return Ok(User("Test User", id))
-}
-
 User {
+    constructor(name: string, id: number) {
+        this.name = name
+        this.id = id
+    }
+    
     name: string
     id: number
 }
 
+getUser(id: number): User {
+    if id == 0 fail "Invalid ID"
+    return User("Test User", id)
+}
+
 main() {
-    // Error binding con async
+    // Error binding con async - caso de error
     let user, err = async getUser(0)
     
-    if err {
+    if err != "" {
         print($"Error: {err}")
-        return
+    } else {
+        print($"User: {user.name}")
     }
     
-    print($"User: {user.name}")
+    // Error binding con async - caso de éxito
+    let user2, err2 = async getUser(42)
+    
+    if err2 != "" {
+        print($"Error: {err2}")
+    } else {
+        print($"User: {user2.name}, ID: {user2.id}")
+    }
 }

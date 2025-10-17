@@ -283,10 +283,12 @@ impl CodeGenerator {
         // Handle inheritance with composition
         if let Some(base) = &class.base {
             self.writeln(&format!("// Class {} extends {}", class.name, base));
+            self.writeln("#[derive(Debug, Clone, Default)]");
             self.writeln(&format!("pub struct {} {{", class.name));
             self.indent();
             self.writeln(&format!("pub base: {},", base));
         } else {
+            self.writeln("#[derive(Debug, Clone, Default)]");
             self.writeln(&format!("pub struct {} {{", class.name));
             self.indent();
         }
@@ -1637,7 +1639,13 @@ impl CodeGenerator {
             if i > 0 {
                 self.output.push_str(", ");
             }
-            self.generate_expr(arg)?;
+            // Convert string literals to String automatically
+            if let Expr::Literal(Literal::String(_)) = arg {
+                self.generate_expr(arg)?;
+                self.output.push_str(".to_string()");
+            } else {
+                self.generate_expr(arg)?;
+            }
         }
         self.output.push_str(") }).await.unwrap()");
         Ok(())
@@ -1651,7 +1659,13 @@ impl CodeGenerator {
             if i > 0 {
                 self.output.push_str(", ");
             }
-            self.generate_expr(arg)?;
+            // Convert string literals to String automatically
+            if let Expr::Literal(Literal::String(_)) = arg {
+                self.generate_expr(arg)?;
+                self.output.push_str(".to_string()");
+            } else {
+                self.generate_expr(arg)?;
+            }
         }
         self.output.push(')');
         self.output.push_str(").await.unwrap()");

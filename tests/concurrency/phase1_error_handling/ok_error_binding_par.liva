@@ -1,21 +1,27 @@
 // Test: Error binding con par
 // Expected: Compilar correctamente y manejar error
 
-compute(n: number): Result<number, string> {
-    if n < 0 {
-        return Err("Negative number")
-    }
-    return Ok(n * n)
+compute(n: number): number {
+    if n < 0 fail "Negative number"
+    return n * n
 }
 
 main() {
-    // Error binding con parallel
+    // Error binding con parallel - caso de error
     let result, err = par compute(-5)
     
-    if err {
+    if err != "" {
         print($"Error: {err}")
-        return
+    } else {
+        print($"Result: {result}")
     }
     
-    print($"Result: {result}")
+    // Error binding con parallel - caso de éxito
+    let result2, err2 = par compute(5)
+    
+    if err2 != "" {
+        print($"Error: {err2}")
+    } else {
+        print($"Result: {result2}")
+    }
 }
