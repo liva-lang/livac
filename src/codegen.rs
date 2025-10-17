@@ -1,6 +1,6 @@
 use crate::ast::*;
 use crate::desugaring::DesugarContext;
-use crate::error::{CompilerError, Result};
+use crate::error::{CompilerError, Result, SemanticErrorInfo};
 use crate::ir;
 use std::collections::HashMap;
 use std::fmt::Write;
@@ -938,7 +938,12 @@ impl CodeGenerator {
                     // Normal binding: let a = expr (only one binding expected)
                     if var.bindings.len() != 1 {
                         return Err(CompilerError::CodegenError(
-                            "Let should have exactly one binding".to_string()
+                            SemanticErrorInfo::new(
+                                "E3000",
+                                "Invalid binding pattern",
+                                "Let statement should have exactly one binding when not using fallible pattern"
+                            )
+                            .with_help("Use fallible binding pattern 'let result, err = ...' or single binding 'let result = ...'")
                         ));
                     }
                     let binding = &var.bindings[0];

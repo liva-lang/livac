@@ -1,4 +1,4 @@
-use crate::error::{CompilerError, Result};
+use crate::error::{CompilerError, Result, SemanticErrorInfo};
 use crate::span::{SourceMap, Span};
 use logos::Logos;
 
@@ -270,11 +270,22 @@ pub fn tokenize(source: &str) -> Result<Vec<TokenWithSpan>> {
                 let (line, col) = span.start_position(&source_map);
                 let snippet = span.snippet(source);
                 let display = if snippet.is_empty() { "<EOF>" } else { snippet };
+                
+                let source_line = source.lines().nth(line.saturating_sub(1))
+                    .unwrap_or("")
+                    .to_string();
 
-                return Err(CompilerError::LexerError(format!(
-                    "Invalid token at line {}, column {}: '{}'",
-                    line, col, display
-                )));
+                let error = SemanticErrorInfo::new(
+                    "E1000",
+                    "Invalid token",
+                    &format!("Encountered an invalid token: '{}'", display)
+                )
+                .with_location("<input>", line)
+                .with_column(col)
+                .with_source_line(source_line)
+                .with_help("Check for unexpected characters or typos in your code");
+
+                return Err(CompilerError::LexerError(error));
             }
         }
     }

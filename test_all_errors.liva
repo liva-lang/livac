@@ -1,0 +1,23 @@
+// Test comprehensive error messages
+// This file intentionally contains various errors to test error reporting
+
+main() {
+  // Test 1: Duplicate variable ✓
+  let x = 10
+  let x = 20  // E0001: Variable already defined
+  
+  // Test 2: Duplicate constant ✓
+  const MAX = 100
+  const MAX = 200  // E0002: Constant already defined
+  
+  // Test 3: Valid code for contrast
+  let y = 30
+  let z = 40
+  
+  // Test 4: String template errors
+  let msg1 = $"Hello {name"  // E2001: Unclosed interpolation
+  let msg2 = $"Value: {}"    // E2002: Empty interpolation  
+  let msg3 = $"Test }"       // E2003: Unmatched closing brace
+  
+  print($"Values: {x}, {y}, {z}")
+}

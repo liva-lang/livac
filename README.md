@@ -51,6 +51,7 @@ OPTIONS:
   -r, --run             Run the program after compilation
   -v, --verbose         Show generated Rust code
   -c, --check           Only check syntax, don't compile
+      --json            Output errors in JSON format (for IDE integration)
   -h, --help            Print help
 ```
 
@@ -70,6 +71,45 @@ livac my_program.liva --run
 ```bash
 livac my_program.liva --verbose
 ```
+
+**JSON output for IDE integration:**
+```bash
+livac my_program.liva --check --json
+```
+
+## 🔴 Error Reporting System
+
+Liva v0.6 includes a comprehensive error reporting system with:
+
+- ✅ **Unique error codes** (E1xxx for lexer, E2xxx for parser, E0xxx for semantic, E3xxx for codegen)
+- ✅ **Precise location** (file, line, and column)
+- ✅ **Code snippets** with visual indicators pointing to the error
+- ✅ **Descriptive messages** with context and helpful suggestions
+- ✅ **Colorized output** in terminal for better readability
+- ✅ **JSON output** for IDE integration
+- ✅ **VS Code integration** with real-time error highlighting
+
+### Example Error Output
+
+```
+● E0001: Variable 'x' already defined in this scope
+────────────────────────────────────────────────────────────
+  → test.liva:6:7
+
+     6 │
+       │ let x = 20
+       │     ^^^
+       │
+
+  ⓘ Variable 'x' already defined in this scope
+
+  💡 Consider using a different name or removing the previous declaration of 'x'
+────────────────────────────────────────────────────────────
+```
+
+For complete documentation on error codes and the error system, see:
+- **[ERROR_SYSTEM.md](docs/ERROR_SYSTEM.md)** - Detailed error system documentation
+- **[ERROR_CODES.md](docs/ERROR_CODES.md)** - Complete list of error codes
 
 ## 🧪 Testing
 
@@ -302,6 +342,8 @@ Full language documentation is available in the `docs/` directory:
 - **[Liva_v0.6_spec.md](docs/Liva_v0.6_spec.md)** - Complete language specification
 - **[Liva_v0.6_EBNF_AST.md](docs/Liva_v0.6_EBNF_AST.md)** - Formal grammar and AST
 - **[Liva_v0.6_Desugaring.md](docs/Liva_v0.6_Desugaring.md)** - Transformation rules
+- **[ERROR_SYSTEM.md](docs/ERROR_SYSTEM.md)** - 🆕 Comprehensive error reporting system
+- **[ERROR_CODES.md](docs/ERROR_CODES.md)** - 🆕 Complete error code reference
 
 ## 🎓 Examples Directory
 

@@ -43,7 +43,7 @@ pub mod parser;
 pub mod semantic;
 pub mod span;
 
-pub use error::{CompilerError, Result};
+pub use error::{CompilerError, Result, SemanticErrorInfo, ErrorLocation};
 
 use std::path::{Path, PathBuf};
 

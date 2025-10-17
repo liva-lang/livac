@@ -181,30 +181,50 @@ impl From<&str> for SemanticErrorInfo {
 
 #[derive(Error, Debug)]
 pub enum CompilerError {
-    #[error("Lexer error: {0}")]
-    LexerError(String),
+    #[error("{}", .0.format())]
+    LexerError(SemanticErrorInfo),
 
-    #[error("Parse error at line {line}, column {col}: {msg}")]
-    ParseError {
-        line: usize,
-        col: usize,
-        msg: String,
-    },
+    #[error("{}", .0.format())]
+    ParseError(SemanticErrorInfo),
 
     #[error("{}", .0.format())]
     SemanticError(SemanticErrorInfo),
 
-    #[error("Type error: {0}")]
-    TypeError(String),
+    #[error("{}", .0.format())]
+    TypeError(SemanticErrorInfo),
 
-    #[error("Code generation error: {0}")]
-    CodegenError(String),
+    #[error("{}", .0.format())]
+    CodegenError(SemanticErrorInfo),
 
     #[error("IO error: {0}")]
     IoError(String),
 
     #[error("Runtime error: {0}")]
     RuntimeError(String),
+}
+
+impl CompilerError {
+    /// Check if error can be serialized to JSON (all structured errors can)
+    pub fn can_serialize_json(&self) -> bool {
+        !matches!(self, CompilerError::IoError(_) | CompilerError::RuntimeError(_))
+    }
+
+    /// Get the underlying SemanticErrorInfo if available
+    pub fn error_info(&self) -> Option<&SemanticErrorInfo> {
+        match self {
+            CompilerError::LexerError(info) => Some(info),
+            CompilerError::ParseError(info) => Some(info),
+            CompilerError::SemanticError(info) => Some(info),
+            CompilerError::TypeError(info) => Some(info),
+            CompilerError::CodegenError(info) => Some(info),
+            _ => None,
+        }
+    }
+
+    /// Convert to JSON if possible
+    pub fn to_json(&self) -> Option<String> {
+        self.error_info().and_then(|info| info.to_json().ok())
+    }
 }
 
 pub type Result<T> = std::result::Result<T, CompilerError>;

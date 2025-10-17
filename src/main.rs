@@ -3,19 +3,7 @@ use colored::*;
 use std::path::PathBuf;
 use std::process::Command;
 
-mod ast;
-mod codegen;
-mod desugaring;
-mod error;
-mod ir;
-mod lexer;
-mod lowering;
-mod parser;
-mod semantic;
-mod span;
-
-use error::CompilerError;
-use livac::CompilerOptions;
+use livac::{CompilerOptions, CompilerError};
 
 #[derive(Parser)]
 #[command(name = "livac")]
@@ -51,13 +39,11 @@ fn main() {
     if let Err(e) = compile(&cli) {
         // Output errors in JSON format if requested
         if cli.json {
-            if let CompilerError::SemanticError(ref info) = e {
-                if let Ok(json) = info.to_json() {
-                    println!("{}", json);
-                    std::process::exit(1);
-                }
+            if let Some(json) = e.to_json() {
+                println!("{}", json);
+                std::process::exit(1);
             }
-            // For non-semantic errors, output simple JSON
+            // For non-structured errors, output simple JSON
             eprintln!(r#"{{"error": "{}"}}"#, e);
         } else {
             eprintln!("{} {}", "Error:".red().bold(), e);
@@ -69,8 +55,10 @@ fn main() {
 fn compile(cli: &Cli) -> Result<(), CompilerError> {
     let skip_cargo = std::env::var("LIVAC_SKIP_CARGO").is_ok();
 
-    println!("{}", "🧩 Liva Compiler v0.6".cyan().bold());
-    println!("{} {}", "→ Compiling".green(), cli.input.display());
+    if !cli.json {
+        println!("{}", "🧩 Liva Compiler v0.6".cyan().bold());
+        println!("{} {}", "→ Compiling".green(), cli.input.display());
+    }
 
     let options = CompilerOptions {
         input: cli.input.clone(),
@@ -79,37 +67,25 @@ fn compile(cli: &Cli) -> Result<(), CompilerError> {
         check_only: cli.check,
     };
 
-    let result = livac::compile_file(&options).map_err(|e| match e {
-        livac::CompilerError::LexerError(s) => CompilerError::LexerError(s),
-        livac::CompilerError::ParseError { line, col, msg } => CompilerError::ParseError { line, col, msg },
-        livac::CompilerError::SemanticError(info) => {
-            // Just recreate using the local error module
-            CompilerError::SemanticError(crate::error::SemanticErrorInfo {
-                location: info.location.map(|loc| crate::error::ErrorLocation {
-                    file: loc.file,
-                    line: loc.line,
-                    column: loc.column,
-                    source_line: loc.source_line,
-                }),
-                code: info.code,
-                title: info.title,
-                message: info.message,
-                help: info.help,
-            })
-        },
-        livac::CompilerError::TypeError(s) => CompilerError::TypeError(s),
-        livac::CompilerError::CodegenError(s) => CompilerError::CodegenError(s),
-        livac::CompilerError::IoError(s) => CompilerError::IoError(s),
-        livac::CompilerError::RuntimeError(s) => CompilerError::RuntimeError(s),
-    })?;
+    let result = livac::compile_file(&options)?;
 
     if cli.check {
-        println!("{}", "✓ Check passed".green().bold());
+        if !cli.json {
+            println!("{}", "✓ Check passed".green().bold());
+        }
         return Ok(());
     }
 
-    let main_rs = result.rust_code.ok_or_else(|| CompilerError::CodegenError("No Rust code generated".to_string()))?;
-    let cargo_toml = result.cargo_toml.ok_or_else(|| CompilerError::CodegenError("No Cargo.toml generated".to_string()))?;
+    let main_rs = result.rust_code.ok_or_else(|| {
+        CompilerError::CodegenError(
+            livac::SemanticErrorInfo::new("E3001", "Code generation failed", "No Rust code generated")
+        )
+    })?;
+    let cargo_toml = result.cargo_toml.ok_or_else(|| {
+        CompilerError::CodegenError(
+            livac::SemanticErrorInfo::new("E3002", "Code generation failed", "No Cargo.toml generated")
+        )
+    })?;
 
     // 7. Write output
     let output_dir = cli

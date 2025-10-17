@@ -1,0 +1,13 @@
+// Test file for error messages
+
+main() {
+  // Error 1: Variable duplicada
+  let x = 10
+  let x = 20
+  
+  // Error 2: Constante duplicada  
+  const MAX = 100
+  const MAX = 200
+  
+  print($"Value: {x}")
+}

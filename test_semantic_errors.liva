@@ -1,0 +1,18 @@
+// Test semantic error messages
+// This file contains semantic errors (not parsing errors)
+
+main() {
+  // Test 1: Duplicate variable
+  let x = 10
+  let x = 20  // E0001: Variable already defined
+  
+  // Test 2: Duplicate constant
+  const MAX = 100
+  const MAX = 200  // E0002: Constant already defined
+  
+  // Test 3: Valid code after errors
+  let y = 30
+  let z = 40
+  
+  print($"Values: {x}, {y}, {z}")
+}
