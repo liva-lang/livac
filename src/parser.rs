@@ -71,6 +71,24 @@ impl Parser {
         }
     }
 
+    /// Get the span of the current token
+    fn current_span(&self) -> Option<crate::span::Span> {
+        if self.current < self.tokens.len() {
+            Some(self.tokens[self.current].span)
+        } else {
+            None
+        }
+    }
+
+    /// Get the span of the previous token
+    fn previous_span(&self) -> Option<crate::span::Span> {
+        if self.current > 0 && self.current - 1 < self.tokens.len() {
+            Some(self.tokens[self.current - 1].span)
+        } else {
+            None
+        }
+    }
+
     fn is_lambda_start_from(&self, offset: usize) -> bool {
         match self.peek_token(offset) {
             Some(Token::LParen) => {
@@ -621,22 +639,24 @@ impl Parser {
 
         // Parse first binding
         let name = self.parse_identifier()?;
+        let span = self.previous_span();
         let type_ref = if self.match_token(&Token::Colon) {
             Some(self.parse_type()?)
         } else {
             None
         };
-        bindings.push(VarBinding { name, type_ref });
+        bindings.push(VarBinding { name, type_ref, span });
 
         // Parse additional bindings if present (for fallible binding)
         while self.match_token(&Token::Comma) {
             let name = self.parse_identifier()?;
+            let span = self.previous_span();
             let type_ref = if self.match_token(&Token::Colon) {
                 Some(self.parse_type()?)
             } else {
                 None
             };
-            bindings.push(VarBinding { name, type_ref });
+            bindings.push(VarBinding { name, type_ref, span });
         }
 
         Ok(bindings)
@@ -687,6 +707,7 @@ impl Parser {
 
         if self.match_token(&Token::Const) {
             let name = self.parse_identifier()?;
+            let span = self.previous_span();
             let type_ref = if self.match_token(&Token::Colon) {
                 Some(self.parse_type()?)
             } else {
@@ -699,6 +720,7 @@ impl Parser {
                 name,
                 type_ref,
                 init: value,
+                span,
             }));
         }
 

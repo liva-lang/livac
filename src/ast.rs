@@ -182,6 +182,8 @@ pub struct VarDecl {
 pub struct VarBinding {
     pub name: String,
     pub type_ref: Option<TypeRef>,
+    #[serde(skip)]
+    pub span: Option<crate::span::Span>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -189,6 +191,8 @@ pub struct ConstDecl {
     pub name: String,
     pub type_ref: Option<TypeRef>,
     pub init: Expr,
+    #[serde(skip)]
+    pub span: Option<crate::span::Span>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

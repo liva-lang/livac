@@ -49,6 +49,13 @@ impl SemanticErrorInfo {
         self
     }
 
+    pub fn with_column(mut self, column: usize) -> Self {
+        if let Some(loc) = &mut self.location {
+            loc.column = Some(column);
+        }
+        self
+    }
+
     pub fn with_source_line(mut self, source_line: String) -> Self {
         if let Some(loc) = &mut self.location {
             loc.source_line = Some(source_line);
@@ -76,10 +83,17 @@ impl SemanticErrorInfo {
         if let Some(loc) = &self.location {
             output.push_str(&format!("  {} ", "→".blue().bold()));
             output.push_str(&format!("{}:", loc.file.cyan()));
-            output.push_str(&format!("{}\n", loc.line.to_string().yellow().bold()));
+            output.push_str(&format!("{}", loc.line.to_string().yellow().bold()));
+            if let Some(col) = loc.column {
+                output.push_str(&format!(":{}", col.to_string().yellow().bold()));
+            }
+            output.push_str("\n");
             
             // Línea de código fuente si está disponible
             if let Some(source) = &loc.source_line {
+                let trimmed = source.trim_start();
+                let leading_spaces = source.len() - trimmed.len();
+                
                 output.push_str("\n");
                 output.push_str(&format!("  {} {}\n", 
                     format!("{:>4}", loc.line).bright_black(), 
@@ -88,8 +102,19 @@ impl SemanticErrorInfo {
                 output.push_str(&format!("  {} {} {}\n", 
                     format!("{:>4}", " ").bright_black(),
                     "│".bright_black(),
-                    source.trim()
+                    trimmed
                 ));
+                
+                // Indicador visual si tenemos la columna
+                if let Some(col) = loc.column {
+                    let adjusted_col = col.saturating_sub(leading_spaces + 1);
+                    output.push_str(&format!("  {} {} {}{}\n", 
+                        format!("{:>4}", " ").bright_black(),
+                        "│".bright_black(),
+                        " ".repeat(adjusted_col),
+                        "^".repeat(3).red().bold()
+                    ));
+                }
                 output.push_str(&format!("  {} {}\n", 
                     format!("{:>4}", " ").bright_black(),
                     "│".bright_black()

@@ -1,0 +1,13 @@
+// Test de visualización de errores mejorados
+
+divide(a: number, b: number) => b == 0 ? fail "Division by zero" : a / b
+
+main() {
+  // Primera declaración de 'result'
+  let result, err = divide(10, 2)
+  print($"First result: {result}")
+  
+  // Segunda declaración de 'result' (debería dar error)
+  let result, err2 = divide(20, 4)
+  print($"Second result: {result}")
+}
