@@ -1,0 +1,17 @@
+// Test: Binding con nombre incorrecto (no 'err' ni '_')
+// Expected: Error de compilación
+
+getUser(id: number): Result<User, string> {
+    return Ok(User("Test", id))
+}
+
+User {
+    name: string
+    id: number
+}
+
+main() {
+    // ERROR: segunda variable debe llamarse 'err' o '_'
+    let user, error = async getUser(1)
+    print(user.name)
+}

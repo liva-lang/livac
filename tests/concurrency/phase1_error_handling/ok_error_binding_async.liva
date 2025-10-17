@@ -1,0 +1,26 @@
+// Test: Error binding básico con async
+// Expected: Compilar correctamente y manejar error
+
+getUser(id: number): Result<User, string> {
+    if id == 0 {
+        return Err("Invalid ID")
+    }
+    return Ok(User("Test User", id))
+}
+
+User {
+    name: string
+    id: number
+}
+
+main() {
+    // Error binding con async
+    let user, err = async getUser(0)
+    
+    if err {
+        print($"Error: {err}")
+        return
+    }
+    
+    print($"User: {user.name}")
+}

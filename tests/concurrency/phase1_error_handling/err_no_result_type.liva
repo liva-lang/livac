@@ -1,0 +1,17 @@
+// Test: Error binding en función que no retorna Result
+// Expected: Error de compilación
+
+getUser(id: number): User {  // No retorna Result
+    return User("Test", id)
+}
+
+User {
+    name: string
+    id: number
+}
+
+main() {
+    // ERROR: getUser no retorna Result
+    let user, err = async getUser(1)
+    print(user.name)
+}

@@ -1,0 +1,22 @@
+// Test: Múltiples error bindings
+// Expected: Compilar y manejar múltiples errores
+
+getUser(id: number): Result<User, string> {
+    if id == 0 return Err("Invalid ID")
+    return Ok(User($"User{id}", id))
+}
+
+User {
+    name: string
+    id: number
+}
+
+main() {
+    let user1, err1 = async getUser(1)
+    let user2, err2 = async getUser(0)
+    let user3, err3 = async getUser(3)
+    
+    if !err1 { print($"User 1: {user1.name}") }
+    if !err2 { print($"User 2: {user2.name}") } else { print($"Error 2: {err2}") }
+    if !err3 { print($"User 3: {user3.name}") }
+}
