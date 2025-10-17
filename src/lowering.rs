@@ -348,7 +348,7 @@ fn lower_data_parallel_policy(policy: ast::DataParallelPolicy) -> ir::DataParall
         ast::DataParallelPolicy::Seq => ir::DataParallelPolicy::Seq,
         ast::DataParallelPolicy::Par => ir::DataParallelPolicy::Par,
         ast::DataParallelPolicy::Vec => ir::DataParallelPolicy::Vec,
-        ast::DataParallelPolicy::Boost => ir::DataParallelPolicy::Boost,
+        ast::DataParallelPolicy::ParVec => ir::DataParallelPolicy::ParVec,
     }
 }
 

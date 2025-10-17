@@ -874,8 +874,8 @@ impl Parser {
                 policy = DataParallelPolicy::Par;
             } else if self.match_token(&Token::Vec) {
                 policy = DataParallelPolicy::Vec;
-            } else if self.match_token(&Token::Boost) {
-                policy = DataParallelPolicy::Boost;
+            } else if self.match_token(&Token::ParVec) {
+                policy = DataParallelPolicy::ParVec;
             }
 
             let var = self.parse_identifier()?;

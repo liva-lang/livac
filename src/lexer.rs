@@ -66,8 +66,8 @@ pub enum Token {
     Seq,
     #[token("vec")]
     Vec,
-    #[token("boost")]
-    Boost,
+    #[token("parvec")]
+    ParVec,
     #[token("with")]
     With,
     #[token("ordered")]

@@ -73,7 +73,7 @@ where
     // Placeholder - not implemented
 }
 
-pub fn for_boost<T, F>(_iter: Vec<T>, _func: F)
+pub fn for_parvec<T, F>(_iter: Vec<T>, _func: F)
 where
     F: Fn(T) + Send + Sync,
 {

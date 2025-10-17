@@ -249,7 +249,7 @@ pub enum DataParallelPolicy {
     Seq,
     Par,
     Vec,
-    Boost,
+    ParVec,
 }
 
 impl Default for DataParallelPolicy {

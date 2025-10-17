@@ -7,7 +7,7 @@ This document captures the task breakdown needed to implement the new language r
 ## 1. Language Surface
 
 - **Lexer**
-  - [x] Added keyword tokens for `par`, `move`, `seq`, `vec`, `boost`, `with`, and all for-option flags (`ordered`, `chunk`, `threads`, `simdWidth`, `prefetch`, `reduction`, `schedule`, `detect`, `auto`, `safe`, `fast`, `static`, `dynamic`) so downstream stages can consume the new syntax.
+  - [x] Added keyword tokens for `par`, `move`, `seq`, `vec`, `parvec`, `with`, and all for-option flags (`ordered`, `chunk`, `threads`, `simdWidth`, `prefetch`, `reduction`, `schedule`, `detect`, `auto`, `safe`, `fast`, `static`, `dynamic`) so downstream stages can consume the new syntax.
   - [x] Remove `parallel` token usages (keep for backwards compatibility warnings if desired).
   - [x] Ensure `async`, `par`, `task`, `fire` are recognised as separate modifiers (not identifiers).
 
@@ -16,7 +16,7 @@ This document captures the task breakdown needed to implement the new language r
   - [x] Lambda literals support `[move] (param list) => expr|block`, single-identifier heads, and optional return annotations.
   - [x] Call expressions now carry execution policy metadata (`normal`, `async`, `par`, `task async`, `task par`, `fire async`, `fire par`).
   - [x] Disallow modifiers on declarations (diagnostic if `async foo() {}` uses keyword wrongly).
-  - [x] `for` statement accepts policy keywords (`seq`/`par`/`vec`/`boost`) and parses `with` clause options.
+  - [x] `for` statement accepts policy keywords (`seq`/`par`/`vec`/`parvec`) and parses `with` clause options.
   - [x] Await expressions remain unary and interoperate with policy-decorated calls.
 
 - **AST Updates**
@@ -44,7 +44,7 @@ This document captures the task breakdown needed to implement the new language r
 - For-loop policies:
   - [x] Validate option compatibility with chosen policy (semantic checks complete; codegen still pending so loops emit sequential Rust).
   - [x] Check numeric ranges (positive chunk sizes, etc.).
-  - [x] Flag illegal constructs (await inside `par/boost` body; non-Send captures detected, and runtime execution remains sequential until codegen lands).
+  - [x] Flag illegal constructs (await inside `par/parvec` body; non-Send captures detected, and runtime execution remains sequential until codegen lands).
 - Extend symbol/type tracking to support lambda parameters and inference in new constructs.
 
 ---
@@ -101,7 +101,7 @@ This document captures the task breakdown needed to implement the new language r
   - [x] Emit Rust closures (`|args|` or `move |args|`) with inference of async/parallel usage inside.
   - [x] Support block bodies and typed parameters.
 - For policies:
-  - [x] Generate Rayon-backed loops for `par/vec/boost` (runtime currently shares a Rayon-based fallback; SIMD/boost specialisations and advanced scheduling still pending).
+  - [x] Generate Rayon-backed loops for `par/vec/parvec` (runtime currently shares a Rayon-based fallback; SIMD/parvec specialisations and advanced scheduling still pending).
   - Honour `ordered`, `chunk`, `threads`, `simdWidth`, etc. with safe fallbacks.
   - Produce runtime warnings/errors where features are not yet available.
 - Update generated diagnostics and error messages to reference new codes.
@@ -115,7 +115,7 @@ This document captures the task breakdown needed to implement the new language r
   - [x] Fire-and-forget primitives (spawn without awaiting).
   - [x] Data-parallel execution adapters (initial Rayon-backed helpers in place; SIMD-specialised helpers still TODO).
   - [x] Count operations for sequences (`seq.count()`, `await aseq.count()`).
-- [x] Ensure runtime enforces Send/'static checks for `par`/`boost` contexts; provide graceful error handling.
+- [x] Ensure runtime enforces Send/'static checks for `par`/`parvec` contexts; provide graceful error handling.
 
 ---
 

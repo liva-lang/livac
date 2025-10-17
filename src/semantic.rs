@@ -1264,11 +1264,11 @@ impl SemanticAnalyzer {
 
         if matches!(
             for_stmt.policy,
-            DataParallelPolicy::Par | DataParallelPolicy::Boost
+            DataParallelPolicy::Par | DataParallelPolicy::ParVec
         ) && Self::block_contains_await_stmt(&for_stmt.body)
         {
             return Err(CompilerError::SemanticError(
-                "E0605: `await` is not allowed inside `for par` or `for boost` loops.".into(),
+                "E0605: `await` is not allowed inside `for par` or `for parvec` loops.".into(),
             ));
         }
 
@@ -1307,9 +1307,9 @@ impl SemanticAnalyzer {
         }
 
         if let Some(simd) = &options.simd_width {
-            if !matches!(policy, DataParallelPolicy::Vec | DataParallelPolicy::Boost) {
+            if !matches!(policy, DataParallelPolicy::Vec | DataParallelPolicy::ParVec) {
                 return Err(CompilerError::SemanticError(
-                    "E0705: `simdWidth` option requires `for vec` or `for boost` policy.".into(),
+                    "E0705: `simdWidth` option requires `for vec` or `for parvec` policy.".into(),
                 ));
             }
 
