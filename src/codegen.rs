@@ -981,14 +981,14 @@ impl CodeGenerator {
                         }
                         
                         if is_fallible_call {
-                            // Generate: let (value, err) = match expr { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e.message)) };
+                            // Generate: let (value, err) = match expr { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };
                             self.output.push_str(") = match ");
                             self.generate_expr(&var.init)?;
-                            self.output.push_str(" { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e.message.to_string())) };\n");
+                            self.output.push_str(" { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };\n");
                         } else {
                             // Non-fallible function called with fallible binding pattern
                             // Generate: let (value, err) = (expr, None);
-                            self.output.push_str("): (_, Option<String>) = (");
+                            self.output.push_str("): (_, Option<liva_rt::Error>) = (");
                             self.generate_expr(&var.init)?;
                             self.output.push_str(", None);\n");
                         }
@@ -1345,6 +1345,15 @@ impl CodeGenerator {
                 self.generate_call_expr(call)?;
             }
             Expr::Member { object, property } => {
+                // Phase 3.5: Special handling for error.message
+                if let Expr::Identifier(name) = object.as_ref() {
+                    let sanitized = self.sanitize_name(name);
+                    if self.error_binding_vars.contains(&sanitized) && property == "message" {
+                        write!(self.output, "{}.as_ref().map(|e| e.message.as_str()).unwrap_or(\"None\")", sanitized).unwrap();
+                        return Ok(());
+                    }
+                }
+                
                 self.generate_expr(object)?;
 
                 if property == "length" {
@@ -1542,6 +1551,14 @@ impl CodeGenerator {
                         if idx > 0 {
                             self.output.push_str(", ");
                         }
+                        // Phase 3.5: If expr is an error binding variable, use .message
+                        if let Expr::Identifier(name) = expr {
+                            let sanitized = self.sanitize_name(name);
+                            if self.error_binding_vars.contains(&sanitized) {
+                                write!(self.output, "{}.as_ref().map(|e| e.message.as_str())", sanitized).unwrap();
+                                continue;
+                            }
+                        }
                         self.generate_expr(expr)?;
                     }
                 }
@@ -1665,6 +1682,14 @@ impl CodeGenerator {
                     for (i, arg) in call.args.iter().enumerate() {
                         if i > 0 {
                             self.output.push_str(", ");
+                        }
+                        // Phase 3.5: If arg is an error binding variable, print .message
+                        if let Expr::Identifier(name) = arg {
+                            let sanitized = self.sanitize_name(name);
+                            if self.error_binding_vars.contains(&sanitized) {
+                                write!(self.output, "{}.as_ref().map(|e| e.message.as_str()).unwrap_or(\"None\")", sanitized).unwrap();
+                                continue;
+                            }
                         }
                         self.generate_expr(arg)?;
                     }
@@ -1822,7 +1847,7 @@ impl CodeGenerator {
         self.write_indent();
         
         if task_info.is_error_binding {
-            // Error binding: let (value, err) = match task.await.unwrap() { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e.message)) };
+            // Error binding: let (value, err) = match task.await.unwrap() { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };
             write!(self.output, "let (").unwrap();
             for (i, binding_name) in task_info.binding_names.iter().enumerate() {
                 if i > 0 { self.output.push_str(", "); }
@@ -1830,7 +1855,7 @@ impl CodeGenerator {
             }
             self.output.push_str(") = match ");
             write!(self.output, "{}.await.unwrap()", task_var_name).unwrap();
-            self.output.push_str(" { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e.message.to_string())) };\n");
+            self.output.push_str(" { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };\n");
         } else {
             // Simple binding: let var_name = var_name_task.await.unwrap();
             write!(self.output, "let mut {} = {}.await.unwrap();\n", var_name, task_var_name).unwrap();
