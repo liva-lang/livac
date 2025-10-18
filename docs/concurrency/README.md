@@ -24,27 +24,34 @@
 
 ### 📋 Planificación y Progreso
 
-4. **[PLAN_CONCURRENCIA.md](PLAN_CONCURRENCIA.md)** - Plan de implementación en 5 fases
+4. **[PROGRESS.md](PROGRESS.md)** 🎯 **CONTEXT FILE** - Estado actual y próximos pasos
+   - **Archivo único de contexto para continuar el proyecto**
+   - Qué está completado (Phase 1 ✅) y qué falta (Phase 2 ⏳)
+   - Índice de archivos necesarios por tipo de tarea
+   - Roadmap visual y próximos pasos
+   - **Usa este archivo cuando necesites contexto completo**
+
+5. **[PLAN_CONCURRENCIA.md](PLAN_CONCURRENCIA.md)** - Plan de implementación en 5 fases
    - Phase 1: Error binding ✅ COMPLETADO
    - Phase 2: Lazy await/join (próxima)
    - Phase 3: Mejoras ergonómicas
    - Phase 4: Optimizaciones
    - Phase 5: Features avanzados
 
-5. **[PHASE1_PROGRESS.md](PHASE1_PROGRESS.md)** - Reporte de Phase 1 completada
+6. **[PHASE1_PROGRESS.md](PHASE1_PROGRESS.md)** - Reporte de Phase 1 completada [DEPRECADO → Ver PROGRESS.md]
    - Cambios implementados
    - Tests y validación
    - Código Rust generado
    - Limitaciones conocidas
 
-6. **[RESUMEN_DOCUMENTACION.md](RESUMEN_DOCUMENTACION.md)** - Resumen ejecutivo
+7. **[REORGANIZATION_SUMMARY.md](REORGANIZATION_SUMMARY.md)** - Resumen de reorganización de docs
    - Overview de todo el sistema
    - Quick reference
    - Enlaces a documentación detallada
 
 ### 🚀 Getting Started
 
-7. **[INICIO_RAMA.md](INICIO_RAMA.md)** - Quick start para desarrollo
+8. **[INICIO_RAMA.md](INICIO_RAMA.md)** - Quick start para desarrollo
    - Setup del branch feature/concurrency-improvements
    - Cómo ejecutar tests
    - Estructura del proyecto
@@ -57,8 +64,13 @@
 2. ✅ **ERROR_HANDLING.md** - Manejo de errores en concurrencia
 3. ✅ **CONCURRENCIA_SISTEMA.md** (secciones 1-3) - Conceptos avanzados
 
-### Para Desarrolladores del Compilador
-1. ✅ **INICIO_RAMA.md** - Setup y estructura
+### Para Desarrolladores del Compilador (Implementación)
+1. ✅ **PROGRESS.md** 🎯 - **EMPIEZA AQUÍ** - Estado y contexto completo
+2. ✅ **EXECUTION_MODES.md** - Entender los 7 modos
+3. ✅ **PLAN_CONCURRENCIA.md** - Ver tareas pendientes
+
+### Para Continuar el Proyecto
+**Solo necesitas: `PROGRESS.md`** - Todo el contexto en un archivo
 2. ✅ **PLAN_CONCURRENCIA.md** - Roadmap de implementación
 3. ✅ **PHASE1_PROGRESS.md** - Estado actual
 4. ✅ **CONCURRENCIA_SISTEMA.md** - Especificación técnica completa

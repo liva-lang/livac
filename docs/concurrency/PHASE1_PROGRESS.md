@@ -1,5 +1,8 @@
 # Phase 1: Error Binding Implementation - COMPLETED ✅
 
+> **⚠️ NOTA:** Este archivo ha sido reemplazado por `PROGRESS.md`  
+> Para el contexto completo y actualizado del proyecto, usa **`docs/concurrency/PROGRESS.md`**
+
 ## Fecha: 18 de octubre de 2025
 
 ## Resumen
