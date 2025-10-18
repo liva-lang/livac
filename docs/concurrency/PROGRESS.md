@@ -28,6 +28,7 @@ Cuando necesites que yo implemente una fase, continúe el trabajo, o haga cualqu
 | **Phase 1** | ✅ **COMPLETADA** | Error binding con async/par | 100% |
 | **Phase 2** | ✅ **COMPLETADA** | Lazy await/join (await implícito) | 100% |
 | **Phase 3** | ✅ **COMPLETADA** | Option<String> error type | 100% |
+| **Phase 3.5** | ✅ **COMPLETADA** | Option<liva_rt::Error> con smart extraction | 100% |
 | **Phase 4** | 📋 **PLANIFICADA** | Optimizaciones avanzadas | 0% |
 
 ### Línea de Tiempo
@@ -36,6 +37,7 @@ Cuando necesites que yo implemente una fase, continúe el trabajo, o haga cualqu
 ✅ Phase 1: 18 oct 2025 - COMPLETADA
 ✅ Phase 2: 18 oct 2025 - COMPLETADA
 ✅ Phase 3: 18 oct 2025 - COMPLETADA
+✅ Phase 3.5: 18 oct 2025 - COMPLETADA
 📋 Phase 4: Pendiente
 ```
 
@@ -309,6 +311,184 @@ let (value, err): (_, Option<String>) = (expr, None);
 
 ---
 
+## ✅ Phase 3.5: COMPLETADA
+
+### Phase 3.5: COMPLETADA - Option<liva_rt::Error> con Smart Extraction
+
+**Implementado:** 18 oct 2025
+
+#### Qué Se Implementó
+
+**Upgrade de Option<String> a Option<liva_rt::Error>:**
+
+Después de discutir el diseño de tipos de error, decidimos cambiar de `Option<String>` a `Option<liva_rt::Error>` para mayor type safety e idiomaticidad. La clave es que **la sintaxis de Liva se mantiene simple** mientras que el código Rust generado es idiomático.
+
+```liva
+// Código Liva (sin cambios)
+let result, err = async divide(10, 0)
+if err != "" {  
+  print($"Error: {err}")  // ← Imprime "Some("Division by zero")" automáticamente
+}
+print(err.message)  // ← Acceso directo al mensaje
+```
+
+```rust
+// Código Rust generado (Phase 3 - String)
+let (result, err): (_, Option<String>) = match task.await.unwrap() { 
+  Ok(v) => (v, None), 
+  Err(e) => (Default::default(), Some(e.message.to_string())) 
+};
+
+// Código Rust generado (Phase 3.5 - Error object)
+let (result, err): (_, Option<liva_rt::Error>) = match task.await.unwrap() { 
+  Ok(v) => (v, None), 
+  Err(e) => (Default::default(), Some(e))  // ← Error object completo
+};
+
+// Smart extraction automática:
+// print(err) genera:
+err.as_ref().map(|e| e.message.as_str()).unwrap_or("None")
+
+// $"Error: {err}" genera:
+format!("Error: {}", err.as_ref().map(|e| e.message.as_str()).unwrap_or("None"))
+```
+
+#### Cambios en el Código
+
+**1. Modificado error binding generation (src/codegen.rs):**
+```rust
+// Non-Task error binding (línea 987)
+{ Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) }  // ← Era Some(e.message.to_string())
+
+// Task error binding (línea 1833)
+{ Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) }  // ← Era Some(e.message.to_string())
+
+// Type annotation (línea 991)
+let (value, err): (_, Option<liva_rt::Error>) = ...  // ← Era Option<String>
+```
+
+**2. Smart .message extraction en print() (src/codegen.rs línea 1672):**
+```rust
+if self.error_binding_vars.contains(&name) {
+    // err → err.as_ref().map(|e| e.message.as_str()).unwrap_or("None")
+    return format!(
+        "{}.as_ref().map(|e| e.message.as_str()).unwrap_or(\"None\")",
+        self.generate_expr(arg)
+    );
+}
+```
+
+**3. Smart extraction en string templates (src/codegen.rs línea 1551):**
+```rust
+if self.error_binding_vars.contains(&name) {
+    // {err} → {}.as_ref().map(|e| e.message.as_str()).unwrap_or("None")
+    format!(
+        "{}.as_ref().map(|e| e.message.as_str()).unwrap_or(\"None\")",
+        self.generate_expr(part)
+    )
+}
+```
+
+**4. Smart member access para err.message (src/codegen.rs línea 1347):**
+```rust
+if field == "message" && self.error_binding_vars.contains(&name) {
+    // err.message → err.as_ref().map(|e| e.message.as_str()).unwrap_or("None")
+    return format!(
+        "{}.as_ref().map(|e| e.message.as_str()).unwrap_or(\"None\")",
+        obj_code
+    );
+}
+```
+
+#### Beneficios
+
+✅ **Type Safety:** `liva_rt::Error` es un objeto tipado, no un string  
+✅ **Idiomático:** Rust code usa `Option<Error>` en vez de `Option<String>`  
+✅ **Extensible:** Error struct puede tener más campos en el futuro (stack trace, error code, etc.)  
+✅ **Compatible:** Funciona con ecosystem de Rust (`std::error::Error` trait)  
+✅ **User-Friendly:** Sintaxis Liva sigue siendo simple gracias a smart extraction  
+✅ **Clean Output:** `print(err)` genera `Some("Division by zero")` en vez de `Some(Error { message: "..." })`  
+
+#### Smart Extraction Contexts
+
+La extracción automática de `.message` ocurre en 3 contextos:
+
+1. **print() arguments:**
+   ```liva
+   print(err)  // ← err.as_ref().map(|e| e.message.as_str()).unwrap_or("None")
+   ```
+
+2. **String templates:**
+   ```liva
+   $"Error: {err}"  // ← Extrae .message automáticamente
+   ```
+
+3. **Member access:**
+   ```liva
+   err.message  // ← err.as_ref().map(|e| e.message.as_str()).unwrap_or("None")
+   ```
+
+#### Tests Realizados
+
+✅ **ok_phase3_option_error.liva** - Funciona con Option<Error>  
+✅ **main.liva** - Todos los tests pasan con nueva implementación  
+✅ **Compilación exitosa** - Sin errores E0609  
+✅ **Output limpio** - Errores imprimen `Some("message")` sin Debug format  
+
+#### Código Rust Generado Verificado
+
+**Antes (E0609 error):**
+```rust
+Some(e.message.to_string())  // ❌ e es Error, no tiene .message directo
+```
+
+**Después (correcto):**
+```rust
+Some(e)  // ✅ e es Error completo
+// Y cuando se usa:
+err.as_ref().map(|e| e.message.as_str()).unwrap_or("None")  // ✅ Safe unwrap
+```
+
+#### Commits Realizados
+
+- `c902465` - feat(phase3.5): Change Option<String> to Option<liva_rt::Error> with smart .message extraction
+
+#### Comparación Phase 3 vs Phase 3.5
+
+| Aspecto | Phase 3 (String) | Phase 3.5 (Error) |
+|---------|-----------------|-------------------|
+| **Tipo** | `Option<String>` | `Option<liva_rt::Error>` |
+| **Error binding** | `Some(e.message.to_string())` | `Some(e)` |
+| **Type safety** | ❌ String no es semántico | ✅ Error es tipo específico |
+| **Extensibilidad** | ❌ Solo mensaje | ✅ Puede tener más campos |
+| **Print output** | `Some("message")` | `Some("message")` (igual) |
+| **Idiomaticidad** | ⚠️ Strings no son errors | ✅ `Option<Error>` es idiomático |
+| **Sintaxis Liva** | `err != ""` | `err != ""` (sin cambios) |
+
+#### Decisiones de Diseño
+
+**¿Por qué Option<Error> en vez de Option<String>?**
+
+1. **Type Safety:** Error es un tipo específico, no genérico
+2. **Idiomaticidad:** Rust usa `Result<T, Error>`, no `Result<T, String>`
+3. **Extensibilidad:** Podemos agregar `error_code`, `stack_trace`, etc.
+4. **Ecosystem:** Compatible con `std::error::Error` trait
+
+**¿Por qué mantener sintaxis `err != ""`?**
+
+1. **Familiaridad:** Usuarios de otros lenguajes esperan esta sintaxis
+2. **Simplicidad:** No necesitan aprender `Option<T>` de inmediato
+3. **Traducción automática:** Compilador convierte a `.is_some()`
+4. **Sin overhead:** Es syntax sugar, no runtime cost
+
+#### Limitaciones Actuales
+
+1. **Solo .message extraction** - Error solo tiene campo `message` (por ahora)
+2. **Smart extraction limitada** - Solo en 3 contextos (print, templates, member access)
+3. **No error propagation** - Sin `?` operator nativo en Liva (futuro)
+
+---
+
 ## 📋 Phase 4: PLANIFICADA
 
 ### Phase 4: Optimizaciones
@@ -417,15 +597,21 @@ Yo leeré los demás archivos según lo que necesite.
          │
          ▼
 ┌────────────────┐
-│   Phase 2      │  ⏳ PENDIENTE (Siguiente)
+│   Phase 2      │  ✅ COMPLETADA (18 oct 2025)
 │  Lazy Await    │     let x = async f()  // Task<T>
 └────────┬───────┘     print(x.field)     // Await aquí
          │
          ▼
 ┌────────────────┐
-│   Phase 3      │  📋 PLANIFICADA
-│  Ergonomía     │     let _, err = async f()
-└────────┬───────┘     Better error types
+│   Phase 3      │  ✅ COMPLETADA (18 oct 2025)
+│ Option<String> │     err != "" → err.is_some()
+└────────┬───────┘     Smart comparisons
+         │
+         ▼
+┌────────────────┐
+│  Phase 3.5     │  ✅ COMPLETADA (18 oct 2025)
+│ Option<Error>  │     Option<liva_rt::Error>
+└────────┬───────┘     Smart .message extraction
          │
          ▼
 ┌────────────────┐
@@ -617,23 +803,25 @@ find docs/ -name "*.md" | sort
 ┌─────────────────────────────────────┐
 │   ESTADO DEL PROYECTO CONCURRENCIA  │
 ├─────────────────────────────────────┤
-│ Fase Actual:    Phase 3 Completada  │
+│ Fase Actual:    Phase 3.5 Completada│
 │ Próxima Fase:   Phase 4 Pendiente   │
 │ Tests Pasando:  ✅ 100%             │
 │ Documentación:  ✅ Completa          │
 │ Branch:         feature/concurrency  │
-│ Commits:        6 (cac9514→617a8e5) │
+│ Commits:        7 (cac9514→c902465) │
 └─────────────────────────────────────┘
 ```
 
 ### 🚀 Ready to Go!
 
-**Phase 1, 2 y 3 completas!**
+**Phase 1, 2, 3 y 3.5 completas!**
 
 - ✅ Error binding con async/par
 - ✅ Lazy await/join (await en primer uso)
 - ✅ Option<String> error type
 - ✅ Smart comparison translation (err != "" → err.is_some())
+- ✅ Option<liva_rt::Error> con smart extraction
+- ✅ Smart print(), string templates, y member access
 - ✅ Funciona con error binding
 - ✅ main.liva con ejemplos trabajando
 - ✅ Código Rust generado correcto e idiomático
