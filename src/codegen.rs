@@ -831,6 +831,11 @@ impl CodeGenerator {
             }
             self.in_fallible_function = was_fallible;
             self.output.push('\n');
+            
+            // Phase 4.2: Check for dead tasks
+            self.check_dead_tasks();
+            self.pending_tasks.clear();
+            
             self.dedent();
             self.writeln("}");
         } else if let Some(body) = &func.body {
@@ -845,6 +850,13 @@ impl CodeGenerator {
                 self.writeln("Ok(())");
             }
             self.in_fallible_function = was_fallible;
+            
+            // Phase 4.2: Check for dead tasks (tasks that were never awaited)
+            self.check_dead_tasks();
+            
+            // Clear pending tasks for next function
+            self.pending_tasks.clear();
+            
             self.dedent();
             self.writeln("}");
         }
@@ -1889,6 +1901,24 @@ impl CodeGenerator {
         }
         
         used_tasks
+    }
+
+    /// Phase 4.2: Check for dead tasks (never awaited) and emit warnings
+    fn check_dead_tasks(&self) {
+        for (var_name, task_info) in &self.pending_tasks {
+            if !task_info.awaited {
+                eprintln!(
+                    "⚠️  Warning: Task '{}' was created but never used",
+                    var_name
+                );
+                eprintln!(
+                    "   → Consider removing the task creation or using the variable"
+                );
+                eprintln!(
+                    "   → This creates an async/parallel task that does nothing"
+                );
+            }
+        }
     }
 
     /// Phase 4: Generate tokio::join! for multiple pending tasks (optimization)

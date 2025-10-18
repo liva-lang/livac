@@ -1,0 +1,13 @@
+// Phase 4.2: Dead Task Detection Test
+// This should emit a warning about unused task
+
+fetchUser(id): string => $"User {id}"
+
+main() {
+    // This task is never used - should trigger warning
+    let deadTask = async fetchUser(999)
+    
+    // This task IS used
+    let user = async fetchUser(1)
+    print($"User: {user}")
+}
