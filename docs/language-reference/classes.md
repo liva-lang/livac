@@ -9,7 +9,7 @@ Complete reference for object-oriented programming in Liva: classes, constructor
 - [Methods](#methods)
 - [Visibility](#visibility)
 - [Instantiation](#instantiation)
-- [Inheritance](#inheritance)
+- [Interfaces](#interfaces)
 - [Best Practices](#best-practices)
 
 ---
@@ -337,103 +337,331 @@ for person in people {
 
 ---
 
-## Inheritance
+## Interfaces
 
-### Basic Inheritance
+### What is an Interface?
+
+An **interface** defines a contract: a set of method signatures that a class must implement. Interfaces have **only method signatures** (no fields, no implementations).
 
 ```liva
-// Base class
-Animal {
-  constructor(name: string) {
-    this.name = name
-  }
-  
-  name: string
-  
-  speak() => "Some sound"
+// Interface: only method signatures, no fields
+Drawable {
+  draw(): void
+  getBounds(): string
 }
 
-// Derived class
-Dog: Animal {
-  constructor(name: string, breed: string) {
-    // Call parent constructor
-    super(name)
-    this.breed = breed
-  }
+// Class implementing interface: has fields and implementations
+Circle : Drawable {
+  radius: float
   
-  breed: string
-  
-  // Override method
-  speak() => "Woof!"
-  
-  // New method
-  fetch() => $"{this.name} is fetching"
+  draw() => println("Drawing a circle")
+  getBounds() => $"Circle(radius={this.radius})"
 }
 ```
 
 ### Syntax
 
 ```liva
-ChildClass: ParentClass {
-  // ...
+// Interface definition (no fields, only signatures)
+InterfaceName {
+  methodName(params): returnType
+  anotherMethod(): returnType
+}
+
+// Class implementing interface
+ClassName : InterfaceName {
+  // Fields
+  field: type
+  
+  // Constructor
+  constructor(params) { }
+  
+  // Method implementations (must implement all interface methods)
+  methodName(params): returnType { }
+  anotherMethod(): returnType { }
 }
 ```
 
-### Calling Parent Constructor
+### Distinguishing Interfaces from Classes
+
+| Feature | Interface | Class |
+|---------|-----------|-------|
+| **Fields** | ❌ No fields allowed | ✅ Can have fields |
+| **Method Bodies** | ❌ Only signatures | ✅ Must have implementations |
+| **Constructor** | ❌ No constructor | ✅ Has constructor |
+| **Purpose** | Define contract | Implement behavior |
 
 ```liva
-Employee: Person {
-  constructor(name: string, age: number, employeeId: string) {
-    super(name, age)  // Call parent constructor
-    this.employeeId = employeeId
+// This is an INTERFACE (only signatures)
+Animal {
+  makeSound(): string
+  getName(): string
+}
+
+// This is a CLASS (has fields)
+Dog : Animal {
+  name: string
+  
+  constructor(name: string) {
+    this.name = name
   }
   
-  employeeId: string
+  makeSound() => "Woof!"
+  getName() => this.name
 }
 ```
 
-### Method Overriding
+### Multiple Interfaces
+
+A class can implement **multiple interfaces** using comma-separated syntax:
 
 ```liva
-Vehicle {
-  constructor(brand: string) {
-    this.brand = brand
-  }
-  
-  brand: string
-  
-  describe() => $"A vehicle of brand {this.brand}"
+// Multiple interfaces
+Drawable {
+  draw(): void
 }
 
-Car: Vehicle {
-  constructor(brand: string, model: string) {
-    super(brand)
-    this.model = model
+Named {
+  getName(): string
+}
+
+Comparable {
+  compareTo(other: Self): int
+}
+
+// Class implementing multiple interfaces
+Circle : Drawable, Named, Comparable {
+  radius: float
+  name: string
+  
+  constructor(name: string, radius: float) {
+    this.name = name
+    this.radius = radius
   }
   
-  model: string
-  
-  // Override parent method
-  describe() => $"A {this.brand} {this.model}"
+  draw() => println($"Drawing {this.name}")
+  getName() => this.name
+  compareTo(other: Circle) => (this.radius - other.radius) as int
 }
 ```
 
-### Accessing Parent Methods
+### Interface Examples
+
+#### Simple Interface
 
 ```liva
-Employee: Person {
-  constructor(name: string, age: number, department: string) {
-    super(name, age)
-    this.department = department
+// Interface
+Greetable {
+  greet(): string
+}
+
+// Implementation
+Person : Greetable {
+  name: string
+  
+  constructor(name: string) {
+    this.name = name
   }
   
-  department: string
+  greet() => $"Hello, I'm {this.name}"
+}
+
+Robot : Greetable {
+  id: number
   
-  // Call parent method
-  introduce() {
-    let greeting = super.greet()
-    return $"{greeting}. I work in {this.department}."
+  constructor(id: number) {
+    this.id = id
   }
+  
+  greet() => $"Greetings, I am Robot {this.id}"
+}
+```
+
+#### Interface with Multiple Methods
+
+```liva
+// Interface
+Serializable {
+  toJSON(): string
+  fromJSON(json: string): Self
+  validate(): bool
+}
+
+// Implementation
+User : Serializable {
+  name: string
+  email: string
+  
+  constructor(name: string, email: string) {
+    this.name = name
+    this.email = email
+  }
+  
+  toJSON() => $"{\"name\":\"{this.name}\",\"email\":\"{this.email}\"}"
+  
+  fromJSON(json: string): User {
+    // Parse JSON and create User
+    return User("parsed", "parsed@example.com")
+  }
+  
+  validate() => this.email != "" && this.name != ""
+}
+```
+
+#### Interface for Polymorphism
+
+```liva
+// Interface
+Shape {
+  area(): float
+  perimeter(): float
+}
+
+// Implementations
+Circle : Shape {
+  radius: float
+  
+  constructor(radius: float) {
+    this.radius = radius
+  }
+  
+  area() => 3.14159 * this.radius * this.radius
+  perimeter() => 2.0 * 3.14159 * this.radius
+}
+
+Rectangle : Shape {
+  width: float
+  height: float
+  
+  constructor(width: float, height: float) {
+    this.width = width
+    this.height = height
+  }
+  
+  area() => this.width * this.height
+  perimeter() => 2.0 * (this.width + this.height)
+}
+
+// Function accepting any Shape
+calculateTotalArea(shapes: [Shape]): float {
+  let total = 0.0
+  for shape in shapes {
+    total = total + shape.area()
+  }
+  return total
+}
+
+// Usage
+let shapes = [
+  Circle(5.0),
+  Rectangle(4.0, 6.0)
+]
+let total = calculateTotalArea(shapes)
+```
+
+### Interface Composition
+
+Interfaces can reference other interfaces:
+
+```liva
+// Base interfaces
+Readable {
+  read(): string
+}
+
+Writable {
+  write(data: string): void
+}
+
+// Class implementing both
+File : Readable, Writable {
+  path: string
+  content: string
+  
+  constructor(path: string) {
+    this.path = path
+    this.content = ""
+  }
+  
+  read() => this.content
+  
+  write(data: string) {
+    this.content = data
+  }
+}
+```
+
+### Semantic Validation
+
+When implementing an interface, the compiler validates:
+
+1. ✅ **All methods are implemented**
+   ```liva
+   Animal {
+     makeSound(): string
+     getName(): string
+   }
+   
+   // ❌ Error: Missing getName() implementation
+   Dog : Animal {
+     makeSound() => "Woof!"
+   }
+   ```
+
+2. ✅ **Method signatures match**
+   ```liva
+   Comparable {
+     compareTo(other: Self): int
+   }
+   
+   // ❌ Error: Wrong return type (should be int, not bool)
+   Point : Comparable {
+     compareTo(other: Point): bool => true
+   }
+   ```
+
+3. ✅ **Parameter types match**
+   ```liva
+   Processor {
+     process(data: string): string
+   }
+   
+   // ❌ Error: Wrong parameter type (should be string, not int)
+   DataProcessor : Processor {
+     process(data: int): string => ""
+   }
+   ```
+
+### Rust Mapping
+
+Interfaces compile to Rust traits:
+
+```liva
+// Liva interface
+Animal {
+  makeSound(): string
+}
+
+Dog : Animal {
+  name: string
+  makeSound() => "Woof!"
+}
+```
+
+```rust
+// Generated Rust code
+trait Animal {
+    fn make_sound(&self) -> String;
+}
+
+struct Dog {
+    name: String,
+}
+
+impl Animal for Dog {
+    fn make_sound(&self) -> String {
+        "Woof!".to_string()
+    }
 }
 ```
 
@@ -557,9 +785,13 @@ Counter {
 
 ### Composition Over Inheritance
 
+Prefer **composition** (embedding objects) over **inheritance** (extending classes):
+
 ```liva
 // ✅ Good: Composition
 Logger {
+  constructor() { }
+  
   log(msg: string) {
     print($"[LOG] {msg}")
   }
@@ -578,14 +810,20 @@ UserService {
   }
 }
 
-// ⚠️ Use inheritance sparingly
-BaseService {
-  log(msg: string) { }
+// ✅ Also good: Interfaces for contracts
+Loggable {
+  log(msg: string): void
 }
 
-UserService: BaseService {
+UserService : Loggable {
+  constructor() { }
+  
+  log(msg: string) {
+    print($"[UserService] {msg}")
+  }
+  
   createUser(name: string) {
-    this.log($"Creating user")
+    this.log($"Creating user: {name}")
   }
 }
 ```
@@ -600,8 +838,9 @@ UserService: BaseService {
 | **Constructor** | `constructor(params) { }` | `constructor(name: string) { }` |
 | **Field** | `fieldName: type` | `name: string` |
 | **Method** | `methodName() { }` | `greet() => "Hi"` |
-| **Inheritance** | `Child: Parent { }` | `Dog: Animal { }` |
-| **Super Call** | `super(args)` | `super(name, age)` |
+| **Interface** | `InterfaceName { signatures }` | `Animal { makeSound(): string }` |
+| **Implements** | `Class : Interface { }` | `Dog : Animal { }` |
+| **Multiple** | `Class : I1, I2 { }` | `Dog : Animal, Named { }` |
 | **Visibility** | `name` / `_name` / `__name` | Public / Protected / Private |
 
 ### Quick Reference
@@ -631,14 +870,22 @@ let bob = Person {
   age: 25
 }
 
-// Inheritance
-Employee: Person {
-  constructor(name: string, age: number, id: string) {
-    super(name, age)
-    this.id = id
+// Interface
+Animal {
+  makeSound(): string
+  getName(): string
+}
+
+// Implementation
+Dog : Animal {
+  constructor(name: string) {
+    this.name = name
   }
   
-  id: string
+  name: string
+  
+  makeSound() => "Woof!"
+  getName() => this.name
 }
 ```
 
