@@ -1,17 +1,15 @@
 # 🚀 Liva Programming Language
 
-> *The simplicity of TypeScript, the expressiveness of Python, and the safety of Rust.*
+> *A simple, modern programming language that compiles to Rust*
 
-**Liva** is a modern, statically-typed programming language that compiles to Rust. Designed for developers who want expressive syntax without sacrificing performance or safety.
+**Liva** is designed to be easy to learn while being powerful and safe. If you know any programming language, you'll feel at home with Liva.
 
 ## ✨ Why Liva?
 
-- 🎯 **Clean, minimal syntax** - Write less, express more
-- ⚡ **Hybrid concurrency** - Mix async (I/O) and parallel (CPU) seamlessly  
-- 🛡️ **Explicit error handling** - No exceptions, errors are values
-- 🏗️ **Interface-based design** - Clean abstractions without inheritance
-- 🔒 **Memory safety** - Compiles to Rust for zero-cost abstractions
-- 🚀 **Native performance** - No runtime overhead, no garbage collector
+- 🎯 **Simple syntax** - Easy to read and write
+- ⚡ **Fast performance** - Compiles to Rust for native speed
+- 🛡️ **Safe** - Catch errors at compile time
+- � **Practical** - Built for real-world applications
 
 ## ⚡ Quick Example
 
@@ -71,7 +69,638 @@ main() {
 
 **Output:**
 ```
-I'm Alice, 25 years old
+
+## 🚀 Installation
+
+### Prerequisites
+
+Before installing Liva, make sure you have:
+- **Rust** 1.70 or newer ([Install Rust](https://rustup.rs/))
+- **Git** (to clone the repository)
+
+### Install Liva
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/liva-lang/livac.git
+cd livac
+
+# 2. Build and install
+cargo build --release
+cargo install --path .
+
+# 3. Verify installation
+livac --version
+```
+
+You should see: `livac 0.6.0`
+
+## 👋 Your First Liva Program
+
+Let's start with the simplest program possible:
+
+**Create a file called `hello.liva`:**
+```liva
+main() => print("Hello, World!")
+```
+
+**Run it:**
+```bash
+livac hello.liva --run
+```
+
+**Output:**
+```
+Hello, World!
+```
+
+Congratulations! You just wrote and ran your first Liva program! 🎉
+
+## 📖 Basic Commands
+
+Before we dive into the language, let's learn the compiler commands:
+
+```bash
+# Compile a Liva program
+livac program.liva
+
+# Compile and run immediately
+livac program.liva --run
+
+# Check syntax without compiling (fast!)
+livac program.liva --check
+
+# See what Rust code is generated (advanced)
+livac program.liva --verbose
+```
+
+**Pro tip:** Use `--check` while coding to quickly catch errors!
+
+## 📚 Language Basics
+
+### 1. Variables
+
+Variables store values. Use `let` to create them:
+
+```liva
+main() {
+  let name = "Alice"
+  let age = 25
+  let pi = 3.14159
+  
+  print(name)
+  print(age)
+}
+```
+
+**Key points:**
+- `let` creates a variable
+- Liva automatically figures out the type (string, number, etc.)
+- Variables are **mutable** by default (you can change their value)
+
+**Change a variable's value:**
+```liva
+main() {
+  let count = 0
+  count = count + 1
+  print(count)  // Prints: 1
+}
+```
+
+**Constants** (values that never change):
+```liva
+main() {
+  const MAX_USERS = 100
+  const APP_NAME = "MyApp"
+  
+  print(MAX_USERS)
+  // MAX_USERS = 200  ← ERROR! Can't change constants
+}
+```
+
+### 2. String Templates
+
+Want to mix text with variables? Use string templates with `$`:
+
+```liva
+main() {
+  let name = "Bob"
+  let age = 30
+  
+  // Use {} inside $"..." to insert variables
+  print($"Hello, my name is {name}")
+  print($"I am {age} years old")
+  print($"Next year I'll be {age + 1}")
+}
+```
+
+**Output:**
+```
+Hello, my name is Bob
+I am 30 years old
+Next year I'll be 31
+```
+
+### 3. Basic Operations
+
+You can do math and logic with Liva:
+
+```liva
+main() {
+  // Math
+  let sum = 10 + 5        // 15
+  let diff = 10 - 5       // 5
+  let product = 10 * 5    // 50
+  let quotient = 10 / 5   // 2
+  let remainder = 10 % 3  // 1 (modulo)
+  
+  // Comparison
+  let isEqual = 5 == 5         // true
+  let isNotEqual = 5 != 3      // true
+  let isGreater = 10 > 5       // true
+  let isLessOrEqual = 5 <= 10  // true
+  
+  // Logic (use and, or, not)
+  let canVote = age >= 18 and age < 100
+  let isWeekend = day == "Saturday" or day == "Sunday"
+  let isNotReady = not isReady
+}
+```
+
+### 4. Control Flow: if/else
+
+Make decisions in your code:
+
+```liva
+main() {
+  let age = 20
+  
+  if age >= 18 {
+    print("You can vote!")
+  } else {
+    print("Too young to vote")
+  }
+}
+```
+
+**Multiple conditions:**
+```liva
+main() {
+  let score = 85
+  
+  if score >= 90 {
+    print("Grade: A")
+  } else if score >= 80 {
+    print("Grade: B")
+  } else if score >= 70 {
+    print("Grade: C")
+  } else {
+    print("Grade: F")
+  }
+}
+```
+
+**One-line if (ternary operator):**
+```liva
+main() {
+  let age = 20
+  let status = age >= 18 ? "adult" : "minor"
+  print(status)  // Prints: adult
+}
+```
+
+**Logical operators:**
+```liva
+main() {
+  let age = 25
+  let hasLicense = true
+  
+  if age >= 18 and hasLicense {
+    print("Can drive!")
+  }
+  
+  if age < 18 or not hasLicense {
+    print("Cannot drive")
+  }
+}
+```
+
+### 5. Loops
+
+**While loop** (repeat while condition is true):
+```liva
+main() {
+  let count = 0
+  
+  while count < 5 {
+    print(count)
+    count = count + 1
+  }
+}
+```
+
+**Output:** `0 1 2 3 4`
+
+**For loop** (iterate over a range):
+```liva
+main() {
+  // From 0 to 4 (5 iterations)
+  for i in 0..5 {
+    print(i)
+  }
+  
+  // From 1 to 10
+  for i in 1..11 {
+    print($"Number: {i}")
+  }
+}
+```
+
+**Break and continue:**
+```liva
+main() {
+  let i = 0
+  while i < 10 {
+    i = i + 1
+    
+    if i == 5 {
+      continue  // Skip 5
+    }
+    
+    if i == 8 {
+      break  // Stop at 8
+    }
+    
+    print(i)
+  }
+}
+```
+
+**Output:** `1 2 3 4 6 7`
+
+### 6. Functions
+
+Functions let you reuse code:
+
+**Simple function (one-liner):**
+```liva
+greet() => print("Hello!")
+
+main() {
+  greet()  // Call the function
+}
+```
+
+**Function with parameters:**
+```liva
+greet(name) => print($"Hello, {name}!")
+
+main() {
+  greet("Alice")
+  greet("Bob")
+}
+```
+
+**Function that returns a value:**
+```liva
+add(a, b) => a + b
+
+main() {
+  let result = add(5, 3)
+  print(result)  // 8
+}
+```
+
+**Function with multiple lines:**
+```liva
+calculateDiscount(price, percent) {
+  let discount = price * percent / 100
+  let finalPrice = price - discount
+  return finalPrice
+}
+
+main() {
+  let price = calculateDiscount(100, 20)
+  print(price)  // 80
+}
+```
+
+**Type annotations** (optional but recommended):
+```liva
+multiply(a: number, b: number): number => a * b
+
+greetPerson(name: string, age: number) {
+  print($"{name} is {age} years old")
+}
+
+main() {
+  let result = multiply(5, 10)
+  greetPerson("Alice", 25)
+}
+```
+
+### 7. Arrays and Switch
+
+**Arrays:**
+```liva
+main() {
+  let numbers = [1, 2, 3, 4, 5]
+  let names = ["Alice", "Bob", "Charlie"]
+  
+  // Access by index (starts at 0)
+  print(numbers[0])  // 1
+  print(names[1])    // Bob
+  
+  // Iterate over array
+  for num in numbers {
+    print(num)
+  }
+}
+```
+
+**Switch statement:**
+```liva
+main() {
+  let day = "Monday"
+  
+  switch day {
+    "Monday" => print("Start of week")
+    "Friday" => print("Almost weekend!")
+    "Saturday" | "Sunday" => print("Weekend!")
+    _ => print("Regular day")
+  }
+}
+```
+
+### 8. Classes and Objects
+
+Create your own types with classes:
+
+```liva
+Person {
+  // Constructor
+  constructor(name: string, age: number) {
+    this.name = name
+    this.age = age
+  }
+  
+  // Fields (properties)
+  name: string
+  age: number
+  
+  // Methods
+  introduce() {
+    print($"Hi, I'm {this.name} and I'm {this.age} years old")
+  }
+  
+  canVote() => this.age >= 18
+}
+
+main() {
+  // Create an instance
+  let person = Person("Alice", 25)
+  
+  // Call methods
+  person.introduce()
+  
+  // Check if can vote
+  if person.canVote() {
+    print($"{person.name} can vote")
+  }
+}
+```
+
+**Output:**
+```
+Hi, I'm Alice and I'm 25 years old
+Alice can vote
+```
+
+### 9. Error Handling
+
+Liva doesn't use exceptions. Instead, errors are explicit values:
+
+```liva
+divide(a: number, b: number) {
+  if b == 0 {
+    fail "Cannot divide by zero"
+  }
+  return a / b
+}
+
+main() {
+  // Get both result and error
+  let result, err = divide(10, 0)
+  
+  if err != "" {
+    print($"Error: {err}")  // "Cannot divide by zero"
+  } else {
+    print($"Result: {result}")
+  }
+}
+```
+
+**Output:**
+```
+Error: Cannot divide by zero
+```
+
+**Why this is good:**
+- ✅ You **can't forget** to handle errors
+- ✅ Errors are **visible** in the code
+- ✅ No surprise exceptions crashing your program
+
+## 🎯 Complete Example
+
+Let's put it all together in a grade calculator:
+
+```liva
+// Calculate letter grade from score
+getGrade(score: number): string {
+  if score >= 90 {
+    return "A"
+  } else if score >= 80 {
+    return "B"
+  } else if score >= 70 {
+    return "C"
+  } else if score >= 60 {
+    return "D"
+  } else {
+    return "F"
+  }
+}
+
+// Student class
+Student {
+  constructor(name: string, score: number) {
+    this.name = name
+    this.score = score
+  }
+  
+  name: string
+  score: number
+  
+  getGrade() => getGrade(this.score)
+  
+  isPassing() => this.score >= 60
+  
+  report() {
+    let grade = this.getGrade()
+    let status = this.isPassing() ? "PASS" : "FAIL"
+    
+    print($"Student: {this.name}")
+    print($"Score: {this.score}")
+    print($"Grade: {grade}")
+    print($"Status: {status}")
+    print("---")
+  }
+}
+
+main() {
+  let students = [
+    Student("Alice", 92),
+    Student("Bob", 78),
+    Student("Charlie", 55)
+  ]
+  
+  print("=== Grade Report ===")
+  
+  for student in students {
+    student.report()
+  }
+}
+```
+
+**Output:**
+```
+=== Grade Report ===
+Student: Alice
+Score: 92
+Grade: A
+Status: PASS
+---
+Student: Bob
+Score: 78
+Grade: C
+Status: PASS
+---
+Student: Charlie
+Score: 55
+Grade: F
+Status: FAIL
+---
+```
+
+## 🎓 What's Next?
+
+Now that you know the basics, you can:
+
+1. **Practice** - Write your own programs
+2. **Explore** - Try more complex examples
+3. **Learn Advanced Features**:
+   - Async/await for concurrent operations
+   - Interfaces for clean abstractions
+   - Parallel computation
+   - Custom types and generics (coming soon)
+
+## 📖 Full Documentation
+
+Want to learn more? Check out the complete documentation:
+
+- **[Language Reference](docs/language-reference/)** - Complete guide to all features
+- **[Getting Started](docs/getting-started/)** - Detailed tutorials
+- **[Compiler Internals](docs/compiler-internals/)** - How Liva works under the hood
+
+## ⚡ Quick Reference
+
+### Compile & Run
+```bash
+livac file.liva --run     # Compile and run
+livac file.liva --check   # Check syntax only
+livac file.liva           # Just compile
+```
+
+### Variables
+```liva
+let x = 10           // Mutable variable
+const PI = 3.14      // Constant
+```
+
+### Functions
+```liva
+greet() => print("Hi")                    // One-liner
+add(a, b) => a + b                        // With params
+calculate(x: number): number => x * 2     // With types
+```
+
+### Control Flow
+```liva
+if condition { }                          // If
+if x > 0 { } else { }                    // If-else
+let result = x > 0 ? "pos" : "neg"       // Ternary
+while condition { }                       // While loop
+for i in 0..10 { }                       // For loop
+```
+
+### Classes
+```liva
+Person {
+  constructor(name: string) {
+    this.name = name
+  }
+  name: string
+  greet() => print($"Hi, I'm {this.name}")
+}
+```
+
+### Error Handling
+```liva
+if error_condition {
+  fail "Error message"
+}
+
+let result, err = someFunction()
+if err != "" {
+  // Handle error
+}
+```
+
+## 🏗️ Project Structure
+
+```
+livac/
+├── src/           # Compiler source code
+├── docs/          # Full documentation
+├── examples/      # Example programs
+├── tests/         # Test suite
+└── README.md      # This file
+```
+
+## 🤝 Contributing
+
+Want to help improve Liva? Contributions are welcome!
+
+1. Fork the repository
+2. Create your feature branch
+3. Make your changes
+4. Submit a pull request
+
+## 📄 License
+
+MIT License - See [LICENSE](LICENSE) for details.
+
+## 👤 Author
+
+**Fran Nadal** - Creator and maintainer of Liva
+
+---
+
+**Happy coding! 🚀**
+
+```bash
+# Start now!
+livac --help
+```
 Alice can vote: true
 Data: User data for 123, Result: 1000000
 Error: Invalid ID
