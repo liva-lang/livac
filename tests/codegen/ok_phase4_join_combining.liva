@@ -1,0 +1,16 @@
+// Phase 4.1: Join Combining Test
+// Multiple async tasks should use tokio::join! instead of sequential awaits
+
+fetchUser(id): string => $"User {id}"
+fetchPost(id): string => $"Post {id}"
+fetchComment(id): string => $"Comment {id}"
+
+main() {
+    // Create 3 tasks
+    let user = async fetchUser(1)
+    let post = async fetchPost(2)
+    let comment = async fetchComment(3)
+    
+    // All 3 tasks should be joined with tokio::join! here
+    print($"User: {user}, Post: {post}, Comment: {comment}")
+}

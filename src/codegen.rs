@@ -36,6 +36,8 @@ pub struct CodeGenerator {
     pending_tasks: std::collections::HashMap<String, TaskInfo>, // Variables that hold unawaited Tasks
     // --- Phase 3: Error binding variables (Option<String> type)
     error_binding_vars: std::collections::HashSet<String>, // Variables from error binding (second variable in let x, err = ...)
+    // --- Phase 4: Join combining optimization
+    awaitable_tasks: Vec<String>, // Tasks that can be combined with tokio::join!
 }
 
 impl CodeGenerator {
@@ -55,6 +57,7 @@ impl CodeGenerator {
             fallible_functions: std::collections::HashSet::new(),
             pending_tasks: std::collections::HashMap::new(),
             error_binding_vars: std::collections::HashSet::new(),
+            awaitable_tasks: Vec::new(),
         }
     }
 
@@ -928,8 +931,19 @@ impl CodeGenerator {
     }
 
     fn generate_stmt(&mut self, stmt: &Stmt) -> Result<()> {
-        // Phase 2: Check if this statement uses a pending task for the first time
-        if let Some(var_name) = self.stmt_uses_pending_task(stmt) {
+        // Phase 4: Check if this statement uses multiple pending tasks (join combining optimization)
+        let used_tasks = self.stmt_uses_pending_tasks(stmt);
+        
+        if used_tasks.len() > 1 {
+            // Multiple tasks used - generate tokio::join! for parallel await
+            self.generate_tasks_join(&used_tasks)?;
+        } else if used_tasks.len() == 1 {
+            // Single task - use regular await (Phase 2 behavior)
+            self.generate_task_await(&used_tasks[0])?;
+        }
+        // Phase 2 fallback: Check if this statement uses a pending task for the first time
+        // (This is kept for backwards compatibility, but should not trigger if Phase 4 works)
+        else if let Some(var_name) = self.stmt_uses_pending_task(stmt) {
             self.generate_task_await(&var_name)?;
         }
         
@@ -1828,6 +1842,151 @@ impl CodeGenerator {
             }
         }
         None
+    }
+
+    /// Phase 4: Get ALL pending tasks used in a statement (for join combining)
+    fn stmt_uses_pending_tasks(&self, stmt: &Stmt) -> Vec<String> {
+        let mut used_tasks = Vec::new();
+        
+        for (var_name, task_info) in &self.pending_tasks {
+            if task_info.awaited {
+                continue; // Already awaited
+            }
+            
+            // For error binding, check if ANY of the binding variables is used
+            let check_vars: Vec<&String> = if task_info.is_error_binding {
+                task_info.binding_names.iter().collect()
+            } else {
+                vec![var_name]
+            };
+            
+            let uses_var = match stmt {
+                Stmt::Expr(expr_stmt) => {
+                    check_vars.iter().any(|v| self.expr_uses_var(&expr_stmt.expr, v))
+                }
+                Stmt::If(if_stmt) => {
+                    check_vars.iter().any(|v| self.expr_uses_var(&if_stmt.condition, v))
+                }
+                Stmt::Return(ret_stmt) => {
+                    ret_stmt.expr.as_ref().map_or(false, |e| {
+                        check_vars.iter().any(|v| self.expr_uses_var(e, v))
+                    })
+                }
+                Stmt::While(while_stmt) => {
+                    check_vars.iter().any(|v| self.expr_uses_var(&while_stmt.condition, v))
+                }
+                Stmt::Assign(assign) => {
+                    check_vars.iter().any(|v| {
+                        self.expr_uses_var(&assign.target, v) || self.expr_uses_var(&assign.value, v)
+                    })
+                }
+                _ => false,
+            };
+            
+            if uses_var {
+                used_tasks.push(var_name.clone());
+            }
+        }
+        
+        used_tasks
+    }
+
+    /// Phase 4: Generate tokio::join! for multiple pending tasks (optimization)
+    fn generate_tasks_join(&mut self, task_vars: &[String]) -> Result<()> {
+        if task_vars.is_empty() {
+            return Ok(());
+        }
+        
+        // Collect task infos and skip already awaited tasks
+        let mut tasks_to_join: Vec<(String, TaskInfo)> = Vec::new();
+        for var_name in task_vars {
+            if let Some(task_info) = self.pending_tasks.get(var_name) {
+                if !task_info.awaited {
+                    tasks_to_join.push((var_name.clone(), task_info.clone()));
+                }
+            }
+        }
+        
+        if tasks_to_join.is_empty() {
+            return Ok(());
+        }
+        
+        // If only one task, use regular await
+        if tasks_to_join.len() == 1 {
+            return self.generate_task_await(&tasks_to_join[0].0);
+        }
+        
+        // Generate tokio::join! for multiple tasks
+        self.write_indent();
+        self.output.push_str("let (");
+        
+        // Generate tuple of result variables
+        for (i, (var_name, task_info)) in tasks_to_join.iter().enumerate() {
+            if i > 0 { self.output.push_str(", "); }
+            
+            if task_info.is_error_binding {
+                // Error binding: (value, err)
+                self.output.push('(');
+                for (j, binding_name) in task_info.binding_names.iter().enumerate() {
+                    if j > 0 { self.output.push_str(", "); }
+                    self.output.push_str(binding_name);
+                }
+                self.output.push(')');
+            } else {
+                // Simple binding: value
+                self.output.push_str(var_name);
+            }
+        }
+        
+        self.output.push_str(") = ");
+        
+        // Check if all tasks are the same type (all async or all par)
+        let all_same_type = tasks_to_join.iter().all(|(_, info)| {
+            info.exec_policy == tasks_to_join[0].1.exec_policy
+        });
+        
+        if !all_same_type {
+            // Mixed async/par - fall back to sequential awaits
+            // Drop the "let (" we just wrote
+            let output_len = self.output.len();
+            let last_line_start = self.output[..output_len].rfind('\n').map(|i| i + 1).unwrap_or(0);
+            self.output.truncate(last_line_start);
+            
+            // Generate sequential awaits instead
+            for (var_name, _) in &tasks_to_join {
+                self.generate_task_await(var_name)?;
+            }
+            return Ok(());
+        }
+        
+        // Generate tokio::join! macro call
+        self.output.push_str("tokio::join!(");
+        
+        for (i, (var_name, task_info)) in tasks_to_join.iter().enumerate() {
+            if i > 0 { self.output.push_str(", "); }
+            
+            let task_var_name = format!("{}_task", var_name);
+            
+            if task_info.is_error_binding {
+                // Error binding: async { match task.await.unwrap() { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) } }
+                write!(self.output, "async {{ match {}.await.unwrap() {{ Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) }} }}", 
+                    task_var_name).unwrap();
+            } else {
+                // Simple binding: async { task.await.unwrap() }
+                write!(self.output, "async {{ {}.await.unwrap() }}", task_var_name).unwrap();
+            }
+        }
+        
+        self.output.push_str(");\n");
+        
+        // Mark all tasks as awaited
+        for (var_name, _) in &tasks_to_join {
+            if let Some(task_info) = self.pending_tasks.get_mut(var_name) {
+                task_info.awaited = true;
+            }
+        }
+        
+        Ok(())
     }
 
     /// Generate the await code for a pending task (Phase 2: Lazy await)
