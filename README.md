@@ -9,66 +9,7 @@
 - 🎯 **Simple syntax** - Easy to read and write
 - ⚡ **Fast performance** - Compiles to Rust for native speed
 - 🛡️ **Safe** - Catch errors at compile time
-- � **Practical** - Built for real-world applications
-
-## ⚡ Quick Example
-
-```liva
-// Define an interface (only method signatures)
-Greetable {
-    greet(): string
-    introduce(): string
-}
-
-// Implement interface in a class
-User : Greetable {
-  constructor(name: string, age: number) {
-    this.name = name
-    this.age = age
-  }
-  
-  name: string
-  age: number
-  
-  // Interface implementation
-  greet() => $"Hello!"
-  introduce() => $"I'm {this.name}, {this.age} years old"
-  
-  // Additional methods
-  canVote() => this.age >= 18
-}
-
-// Async function with error handling
-fetchUserData(id: number): string {
-  if id < 0 fail "Invalid ID"
-  return $"User data for {id}"
-}
-
-// Parallel computation
-heavyCalc(n: number) => n * n
-
-main() {
-  // Create instances
-  let user = User("Alice", 25)
-  print(user.introduce())
-  print($"{user.name} can vote: {user.canVote()}")
-  
-  // Hybrid concurrency
-  let data = async fetchUserData(123)    // I/O-bound: async
-  let result = par heavyCalc(1000)       // CPU-bound: parallel
-  
-  print($"Data: {data}, Result: {result}")
-  
-  // Error handling
-  let value, err = fetchUserData(-1)
-  if err != "" {
-    print($"Error: {err}")
-  }
-}
-```
-
-**Output:**
-```
+- 🔧 **Practical** - Built for real-world applications
 
 ## 🚀 Installation
 
@@ -492,7 +433,7 @@ main() {
   // Get both result and error
   let result, err = divide(10, 0)
   
-  if err != "" {
+  if err {
     print($"Error: {err}")  // "Cannot divide by zero"
   } else {
     print($"Result: {result}")
@@ -660,7 +601,7 @@ if error_condition {
 }
 
 let result, err = someFunction()
-if err != "" {
+if err {
   // Handle error
 }
 ```
@@ -844,7 +785,7 @@ divide(a: number, b: number) => b == 0 ? fail "Division by zero" : a / b
 main() {
   let result, err = divide(10, 0)
   
-  if err != "" {
+  if err {
     print($"Error: {err}")  // "Division by zero"
   } else {
     print($"Result: {result}")
