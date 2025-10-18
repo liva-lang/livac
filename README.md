@@ -419,8 +419,7 @@ livac/
 │   ├── README.md              # Documentation index
 │   ├── getting-started/       # Installation, tutorials
 │   ├── language-reference/    # Complete language spec (14 files)
-│   ├── compiler-internals/    # Architecture, design (8 files)
-│   └── archive/               # Old documentation (archived)
+│   └── compiler-internals/    # Architecture, design (8 files)
 │
 ├── tests/                     # Comprehensive test suite
 │   ├── lexer_tests.rs         # Tokenization tests
