@@ -759,22 +759,6 @@ main() {
 }
 ```
 
-### 2. Hybrid Concurrency
-
-Mix **async** (for I/O) and **par** (for CPU) in the same program:
-
-```liva
-main() {
-  let data = async fetchFromAPI()      // Non-blocking I/O
-  let result = par complexCalc()       // Parallel computation
-  
-  fire async logEvent("started")       // Fire-and-forget
-  
-  let task1 = task async operation()   // Explicit task handle
-  let value = await task1              // Await when needed
-}
-```
-
 ### 3. Explicit Error Handling
 
 No exceptions - errors are values with **error binding**:
@@ -811,11 +795,10 @@ greet(name) {
 
 // Classes with visibility
 Person {
-  name: string           // public
-  _age: number           // protected (pub(super))
-  __ssn: string          // private (no pub)
+  name: string      // public
+  _ssn: string      // private
   
-  isAdult() => this._age >= 18
+  isAdult() => this.age >= 18
 }
 ```
 
@@ -850,7 +833,7 @@ fetchData() {
 #### Object-Oriented Programming
 - **[Classes](docs/language-reference/classes.md)** - Constructors, fields, methods, visibility
 - **[Interfaces](docs/language-reference/classes.md#interfaces)** - Contracts, implementation, multiple interfaces
-- **[Visibility](docs/language-reference/visibility.md)** - Public, protected, private
+- **[Visibility](docs/language-reference/visibility.md)** - Public, private
 
 #### Control Flow & Logic
 - **[Control Flow](docs/language-reference/control-flow.md)** - `if`, `while`, `for`, `switch`
@@ -1028,7 +1011,7 @@ livac/
 - ✅ Control flow (`if`, `while`, `for`, `switch`, ternary)
 - ✅ Operators (arithmetic, logical, comparison, bitwise)
 - ✅ String templates with interpolation
-- ✅ Visibility modifiers (public, protected, private)
+- ✅ Visibility modifiers (public, private)
 
 **Concurrency:**
 - ✅ Async/await for I/O-bound operations

@@ -42,17 +42,19 @@ expression: json
                           }
                         },
                         "then_branch": {
-                          "stmts": [
-                            {
-                              "Throw": {
-                                "expr": {
-                                  "Literal": {
-                                    "String": "File not found"
+                          "Block": {
+                            "stmts": [
+                              {
+                                "Throw": {
+                                  "expr": {
+                                    "Literal": {
+                                      "String": "File not found"
+                                    }
                                   }
                                 }
                               }
-                            }
-                          ]
+                            ]
+                          }
                         },
                         "else_branch": null
                       }
@@ -96,7 +98,8 @@ expression: json
           ]
         },
         "expr_body": null,
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     },
     {
@@ -150,27 +153,29 @@ expression: json
                   }
                 },
                 "then_branch": {
-                  "stmts": [
-                    {
-                      "Return": {
-                        "expr": {
-                          "Call": {
-                            "callee": {
-                              "Identifier": "Err"
-                            },
-                            "args": [
-                              {
-                                "Literal": {
-                                  "String": "Division by zero"
+                  "Block": {
+                    "stmts": [
+                      {
+                        "Return": {
+                          "expr": {
+                            "Call": {
+                              "callee": {
+                                "Identifier": "Err"
+                              },
+                              "args": [
+                                {
+                                  "Literal": {
+                                    "String": "Division by zero"
+                                  }
                                 }
-                              }
-                            ],
-                            "exec_policy": "normal"
+                              ],
+                              "exec_policy": "normal"
+                            }
                           }
                         }
                       }
-                    }
-                  ]
+                    ]
+                  }
                 },
                 "else_branch": null
               }
@@ -203,7 +208,8 @@ expression: json
           ]
         },
         "expr_body": null,
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     },
     {
@@ -237,8 +243,12 @@ expression: json
                   "stmts": [
                     {
                       "VarDecl": {
-                        "name": "result",
-                        "type_ref": null,
+                        "bindings": [
+                          {
+                            "name": "result",
+                            "type_ref": null
+                          }
+                        ],
                         "init": {
                           "Call": {
                             "callee": {
@@ -254,7 +264,8 @@ expression: json
                             ],
                             "exec_policy": "normal"
                           }
-                        }
+                        },
+                        "is_fallible": false
                       }
                     },
                     {
@@ -274,70 +285,74 @@ expression: json
                           }
                         },
                         "then_branch": {
-                          "stmts": [
-                            {
-                              "Return": {
-                                "expr": {
-                                  "StringTemplate": {
-                                    "parts": [
-                                      {
-                                        "Text": "Success: "
-                                      },
-                                      {
-                                        "Expr": {
-                                          "Call": {
-                                            "callee": {
-                                              "Member": {
-                                                "object": {
-                                                  "Identifier": "result"
-                                                },
-                                                "property": "unwrap"
-                                              }
-                                            },
-                                            "args": [],
-                                            "exec_policy": "normal"
+                          "Block": {
+                            "stmts": [
+                              {
+                                "Return": {
+                                  "expr": {
+                                    "StringTemplate": {
+                                      "parts": [
+                                        {
+                                          "Text": "Success: "
+                                        },
+                                        {
+                                          "Expr": {
+                                            "Call": {
+                                              "callee": {
+                                                "Member": {
+                                                  "object": {
+                                                    "Identifier": "result"
+                                                  },
+                                                  "property": "unwrap"
+                                                }
+                                              },
+                                              "args": [],
+                                              "exec_policy": "normal"
+                                            }
                                           }
                                         }
-                                      }
-                                    ]
+                                      ]
+                                    }
                                   }
                                 }
                               }
-                            }
-                          ]
+                            ]
+                          }
                         },
                         "else_branch": {
-                          "stmts": [
-                            {
-                              "Return": {
-                                "expr": {
-                                  "StringTemplate": {
-                                    "parts": [
-                                      {
-                                        "Text": "Error: "
-                                      },
-                                      {
-                                        "Expr": {
-                                          "Call": {
-                                            "callee": {
-                                              "Member": {
-                                                "object": {
-                                                  "Identifier": "result"
-                                                },
-                                                "property": "unwrapErr"
-                                              }
-                                            },
-                                            "args": [],
-                                            "exec_policy": "normal"
+                          "Block": {
+                            "stmts": [
+                              {
+                                "Return": {
+                                  "expr": {
+                                    "StringTemplate": {
+                                      "parts": [
+                                        {
+                                          "Text": "Error: "
+                                        },
+                                        {
+                                          "Expr": {
+                                            "Call": {
+                                              "callee": {
+                                                "Member": {
+                                                  "object": {
+                                                    "Identifier": "result"
+                                                  },
+                                                  "property": "unwrapErr"
+                                                }
+                                              },
+                                              "args": [],
+                                              "exec_policy": "normal"
+                                            }
                                           }
                                         }
-                                      }
-                                    ]
+                                      ]
+                                    }
                                   }
                                 }
                               }
-                            }
-                          ]
+                            ]
+                          }
                         }
                       }
                     }
@@ -371,7 +386,8 @@ expression: json
           ]
         },
         "expr_body": null,
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     },
     {
@@ -388,8 +404,12 @@ expression: json
                   "stmts": [
                     {
                       "VarDecl": {
-                        "name": "data",
-                        "type_ref": null,
+                        "bindings": [
+                          {
+                            "name": "data",
+                            "type_ref": null
+                          }
+                        ],
                         "init": {
                           "Call": {
                             "callee": {
@@ -404,7 +424,8 @@ expression: json
                             ],
                             "exec_policy": "normal"
                           }
-                        }
+                        },
+                        "is_fallible": false
                       }
                     },
                     {
@@ -413,8 +434,12 @@ expression: json
                           "stmts": [
                             {
                               "VarDecl": {
-                                "name": "result",
-                                "type_ref": null,
+                                "bindings": [
+                                  {
+                                    "name": "result",
+                                    "type_ref": null
+                                  }
+                                ],
                                 "init": {
                                   "Call": {
                                     "callee": {
@@ -434,7 +459,8 @@ expression: json
                                     ],
                                     "exec_policy": "normal"
                                   }
-                                }
+                                },
+                                "is_fallible": false
                               }
                             },
                             {
@@ -560,7 +586,8 @@ expression: json
           ]
         },
         "expr_body": null,
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     },
     {
@@ -577,8 +604,12 @@ expression: json
                   "stmts": [
                     {
                       "VarDecl": {
-                        "name": "result",
-                        "type_ref": null,
+                        "bindings": [
+                          {
+                            "name": "result",
+                            "type_ref": null
+                          }
+                        ],
                         "init": {
                           "Call": {
                             "callee": {
@@ -598,7 +629,8 @@ expression: json
                             ],
                             "exec_policy": "normal"
                           }
-                        }
+                        },
+                        "is_fallible": false
                       }
                     },
                     {
@@ -657,62 +689,64 @@ expression: json
                           }
                         },
                         "then_branch": {
-                          "stmts": [
-                            {
-                              "Expr": {
-                                "expr": {
-                                  "Call": {
-                                    "callee": {
-                                      "Identifier": "print"
-                                    },
-                                    "args": [
-                                      {
-                                        "StringTemplate": {
-                                          "parts": [
-                                            {
-                                              "Text": "Parse error: "
-                                            },
-                                            {
-                                              "Expr": {
-                                                "Identifier": "e"
+                          "Block": {
+                            "stmts": [
+                              {
+                                "Expr": {
+                                  "expr": {
+                                    "Call": {
+                                      "callee": {
+                                        "Identifier": "print"
+                                      },
+                                      "args": [
+                                        {
+                                          "StringTemplate": {
+                                            "parts": [
+                                              {
+                                                "Text": "Parse error: "
+                                              },
+                                              {
+                                                "Expr": {
+                                                  "Identifier": "e"
+                                                }
                                               }
-                                            }
-                                          ]
+                                            ]
+                                          }
                                         }
-                                      }
-                                    ],
-                                    "exec_policy": "normal"
+                                      ],
+                                      "exec_policy": "normal"
+                                    }
                                   }
                                 }
                               }
-                            }
-                          ]
+                            ]
+                          }
                         },
                         "else_branch": {
-                          "stmts": [
-                            {
-                              "If": {
-                                "condition": {
-                                  "Call": {
-                                    "callee": {
-                                      "Member": {
-                                        "object": {
-                                          "Identifier": "e"
-                                        },
-                                        "property": "contains"
+                          "Stmt": {
+                            "If": {
+                              "condition": {
+                                "Call": {
+                                  "callee": {
+                                    "Member": {
+                                      "object": {
+                                        "Identifier": "e"
+                                      },
+                                      "property": "contains"
+                                    }
+                                  },
+                                  "args": [
+                                    {
+                                      "Literal": {
+                                        "String": "division"
                                       }
-                                    },
-                                    "args": [
-                                      {
-                                        "Literal": {
-                                          "String": "division"
-                                        }
-                                      }
-                                    ],
-                                    "exec_policy": "normal"
-                                  }
-                                },
-                                "then_branch": {
+                                    }
+                                  ],
+                                  "exec_policy": "normal"
+                                }
+                              },
+                              "then_branch": {
+                                "Block": {
                                   "stmts": [
                                     {
                                       "Expr": {
@@ -743,8 +777,10 @@ expression: json
                                       }
                                     }
                                   ]
-                                },
-                                "else_branch": {
+                                }
+                              },
+                              "else_branch": {
+                                "Block": {
                                   "stmts": [
                                     {
                                       "Expr": {
@@ -778,7 +814,7 @@ expression: json
                                 }
                               }
                             }
-                          ]
+                          }
                         }
                       }
                     }
@@ -789,7 +825,8 @@ expression: json
           ]
         },
         "expr_body": null,
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     },
     {
@@ -822,7 +859,8 @@ expression: json
           ]
         },
         "expr_body": null,
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     }
   ]

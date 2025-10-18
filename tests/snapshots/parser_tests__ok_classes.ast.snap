@@ -22,7 +22,7 @@ expression: json
           {
             "Field": {
               "name": "_edad",
-              "visibility": "Protected",
+              "visibility": "Private",
               "type_ref": {
                 "Simple": "number"
               },
@@ -96,7 +96,8 @@ expression: json
                 ]
               },
               "expr_body": null,
-              "is_async_inferred": false
+              "is_async_inferred": false,
+              "contains_fail": false
             }
           },
           {
@@ -132,13 +133,14 @@ expression: json
                   "property": "nombre"
                 }
               },
-              "is_async_inferred": false
+              "is_async_inferred": false,
+              "contains_fail": false
             }
           },
           {
             "Method": {
               "name": "_getEdad",
-              "visibility": "Protected",
+              "visibility": "Private",
               "type_params": [],
               "params": [],
               "return_type": {
@@ -161,7 +163,8 @@ expression: json
                 ]
               },
               "expr_body": null,
-              "is_async_inferred": false
+              "is_async_inferred": false,
+              "contains_fail": false
             }
           },
           {
@@ -190,7 +193,8 @@ expression: json
                 ]
               },
               "expr_body": null,
-              "is_async_inferred": false
+              "is_async_inferred": false,
+              "contains_fail": false
             }
           },
           {
@@ -292,7 +296,8 @@ expression: json
                   ]
                 }
               },
-              "is_async_inferred": false
+              "is_async_inferred": false,
+              "contains_fail": false
             }
           }
         ]
@@ -316,7 +321,7 @@ expression: json
           {
             "Field": {
               "name": "_habitat",
-              "visibility": "Protected",
+              "visibility": "Private",
               "type_ref": {
                 "Simple": "string"
               },
@@ -354,7 +359,8 @@ expression: json
                 ]
               },
               "expr_body": null,
-              "is_async_inferred": false
+              "is_async_inferred": false,
+              "contains_fail": false
             }
           }
         ]

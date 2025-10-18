@@ -2,4 +2,14 @@
 source: tests/parser_tests.rs
 expression: error_msg
 ---
-Parse error at line 4, column 1: Expected RParen
+● E2000: Parse Error
+────────────────────────────────────────────────────────────
+  → <input>:4:1
+
+     4 │
+       │ }
+       │ ^^^
+       │
+
+  ⓘ Expected RParen
+────────────────────────────────────────────────────────────

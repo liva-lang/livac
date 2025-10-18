@@ -492,7 +492,6 @@ impl CodeGenerator {
     fn generate_field(&mut self, field: &FieldDecl) -> Result<()> {
         let vis = match field.visibility {
             Visibility::Public => "pub ",
-            Visibility::Protected => "", // In Rust structs, protected fields are private
             Visibility::Private => "",
         };
 
@@ -674,7 +673,6 @@ impl CodeGenerator {
     fn generate_method(&mut self, method: &MethodDecl, class: Option<&ClassDecl>) -> Result<()> {
         let vis = match method.visibility {
             Visibility::Public => "pub ",
-            Visibility::Protected => "pub(super) ",
             Visibility::Private => "",
         };
 

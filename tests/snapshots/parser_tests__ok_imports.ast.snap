@@ -58,7 +58,8 @@ expression: json
           ]
         },
         "expr_body": null,
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     }
   ]

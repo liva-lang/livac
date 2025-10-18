@@ -215,11 +215,8 @@ pub enum Token {
     StringTemplate(String),
 
     // Identifiers
-    #[regex(r"__[a-zA-Z_][a-zA-Z0-9_]*", |lex| lex.slice().to_string())]
-    PrivateIdent(String),
-
     #[regex(r"_[a-zA-Z_][a-zA-Z0-9_]*", |lex| lex.slice().to_string())]
-    ProtectedIdent(String),
+    PrivateIdent(String),
 
     #[regex(r"[a-zA-Z][a-zA-Z0-9_]*", |lex| lex.slice().to_string())]
     Ident(String),
@@ -310,17 +307,13 @@ mod tests {
 
     #[test]
     fn test_visibility() {
-        let source = "public _protected __private";
+        let source = "public _private";
         let tokens = tokenize(source).unwrap();
 
         assert_eq!(tokens[0].token, Token::Ident("public".to_string()));
         assert_eq!(
             tokens[1].token,
-            Token::ProtectedIdent("_protected".to_string())
-        );
-        assert_eq!(
-            tokens[2].token,
-            Token::PrivateIdent("__private".to_string())
+            Token::PrivateIdent("_private".to_string())
         );
     }
 

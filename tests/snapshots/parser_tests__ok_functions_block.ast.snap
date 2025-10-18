@@ -43,7 +43,8 @@ expression: json
           ]
         },
         "expr_body": null,
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     },
     {
@@ -80,17 +81,19 @@ expression: json
                   }
                 },
                 "then_branch": {
-                  "stmts": [
-                    {
-                      "Return": {
-                        "expr": {
-                          "Literal": {
-                            "Int": 1
+                  "Block": {
+                    "stmts": [
+                      {
+                        "Return": {
+                          "expr": {
+                            "Literal": {
+                              "Int": 1
+                            }
                           }
                         }
                       }
-                    }
-                  ]
+                    ]
+                  }
                 },
                 "else_branch": null
               }
@@ -133,7 +136,8 @@ expression: json
           ]
         },
         "expr_body": null,
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     },
     {
@@ -156,8 +160,12 @@ expression: json
           "stmts": [
             {
               "VarDecl": {
-                "name": "response",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "response",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Call": {
                     "callee": {
@@ -170,7 +178,8 @@ expression: json
                     ],
                     "exec_policy": "normal"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
@@ -183,7 +192,8 @@ expression: json
           ]
         },
         "expr_body": null,
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     }
   ]

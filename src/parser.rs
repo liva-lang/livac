@@ -138,7 +138,6 @@ impl Parser {
                 }
             }
             Some(Token::Ident(_))
-            | Some(Token::ProtectedIdent(_))
             | Some(Token::PrivateIdent(_)) => {
                 matches!(self.peek_token(offset + 1), Some(Token::Arrow))
             }
@@ -1521,7 +1520,6 @@ impl Parser {
     fn parse_identifier(&mut self) -> Result<String> {
         match self.advance() {
             Some(Token::Ident(s)) => Ok(s.clone()),
-            Some(Token::ProtectedIdent(s)) => Ok(s.clone()),
             Some(Token::PrivateIdent(s)) => Ok(s.clone()),
             _ => Err(self.error("Expected identifier".into())),
         }

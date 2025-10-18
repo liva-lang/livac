@@ -2,4 +2,14 @@
 source: tests/parser_tests.rs
 expression: error_msg
 ---
-Parse error at line 2, column 8: Expected identifier
+● E2000: Parse Error
+────────────────────────────────────────────────────────────
+  → <input>:2:8
+
+     2 │
+       │ return 42
+       │        ^^^
+       │
+
+  ⓘ Expected identifier
+────────────────────────────────────────────────────────────

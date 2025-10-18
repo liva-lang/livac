@@ -14,35 +14,50 @@ expression: json
           "stmts": [
             {
               "VarDecl": {
-                "name": "PI",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "PI",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Float": 3.14159
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "GREETING",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "GREETING",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "String": "Hello, World!"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "MAX_SIZE",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "MAX_SIZE",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Int": 1024
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
@@ -151,7 +166,8 @@ expression: json
           ]
         },
         "expr_body": null,
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     }
   ]

@@ -96,16 +96,13 @@ pub struct TestDecl {
 #[derive(Debug, Clone, PartialEq, Copy, serde::Serialize, serde::Deserialize)]
 pub enum Visibility {
     Public,
-    Protected,
     Private,
 }
 
 impl Visibility {
     pub fn from_name(name: &str) -> Self {
-        if name.starts_with("__") {
+        if name.starts_with('_') {
             Visibility::Private
-        } else if name.starts_with('_') {
-            Visibility::Protected
         } else {
             Visibility::Public
         }
@@ -539,8 +536,7 @@ mod tests {
     #[test]
     fn test_visibility_from_name_variants() {
         assert_eq!(Visibility::from_name("public_name"), Visibility::Public);
-        assert_eq!(Visibility::from_name("_protected"), Visibility::Protected);
-        assert_eq!(Visibility::from_name("__private"), Visibility::Private);
+        assert_eq!(Visibility::from_name("_private"), Visibility::Private);
     }
 
     #[test]

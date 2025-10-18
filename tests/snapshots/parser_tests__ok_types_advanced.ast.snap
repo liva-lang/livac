@@ -14,67 +14,92 @@ expression: json
           "stmts": [
             {
               "VarDecl": {
-                "name": "i8_val",
-                "type_ref": {
-                  "Simple": "i8"
-                },
+                "bindings": [
+                  {
+                    "name": "i8_val",
+                    "type_ref": {
+                      "Simple": "i8"
+                    }
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Int": 127
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "i16_val",
-                "type_ref": {
-                  "Simple": "i16"
-                },
+                "bindings": [
+                  {
+                    "name": "i16_val",
+                    "type_ref": {
+                      "Simple": "i16"
+                    }
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Int": 32767
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "i32_val",
-                "type_ref": {
-                  "Simple": "i32"
-                },
+                "bindings": [
+                  {
+                    "name": "i32_val",
+                    "type_ref": {
+                      "Simple": "i32"
+                    }
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Int": 2147483647
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "i64_val",
-                "type_ref": {
-                  "Simple": "i64"
-                },
+                "bindings": [
+                  {
+                    "name": "i64_val",
+                    "type_ref": {
+                      "Simple": "i64"
+                    }
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Int": 9223372036854775807
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "i128_val",
-                "type_ref": {
-                  "Simple": "i128"
-                },
+                "bindings": [
+                  {
+                    "name": "i128_val",
+                    "type_ref": {
+                      "Simple": "i128"
+                    }
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Int": 1000000000000000000
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
@@ -86,41 +111,56 @@ expression: json
             },
             {
               "VarDecl": {
-                "name": "u8_val",
-                "type_ref": {
-                  "Simple": "u8"
-                },
+                "bindings": [
+                  {
+                    "name": "u8_val",
+                    "type_ref": {
+                      "Simple": "u8"
+                    }
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Int": 255
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "u16_val",
-                "type_ref": {
-                  "Simple": "u16"
-                },
+                "bindings": [
+                  {
+                    "name": "u16_val",
+                    "type_ref": {
+                      "Simple": "u16"
+                    }
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Int": 65535
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "u32_val",
-                "type_ref": {
-                  "Simple": "u32"
-                },
+                "bindings": [
+                  {
+                    "name": "u32_val",
+                    "type_ref": {
+                      "Simple": "u32"
+                    }
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Int": 4294967295
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
@@ -132,15 +172,20 @@ expression: json
             },
             {
               "VarDecl": {
-                "name": "u64_val",
-                "type_ref": {
-                  "Simple": "u64"
-                },
+                "bindings": [
+                  {
+                    "name": "u64_val",
+                    "type_ref": {
+                      "Simple": "u64"
+                    }
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Int": 1000000000000
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
@@ -152,15 +197,20 @@ expression: json
             },
             {
               "VarDecl": {
-                "name": "u128_val",
-                "type_ref": {
-                  "Simple": "u128"
-                },
+                "bindings": [
+                  {
+                    "name": "u128_val",
+                    "type_ref": {
+                      "Simple": "u128"
+                    }
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Int": 1000000000000000000
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
@@ -172,41 +222,56 @@ expression: json
             },
             {
               "VarDecl": {
-                "name": "isize_val",
-                "type_ref": {
-                  "Simple": "isize"
-                },
+                "bindings": [
+                  {
+                    "name": "isize_val",
+                    "type_ref": {
+                      "Simple": "isize"
+                    }
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Int": 1000000000000
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "usize_val",
-                "type_ref": {
-                  "Simple": "usize"
-                },
+                "bindings": [
+                  {
+                    "name": "usize_val",
+                    "type_ref": {
+                      "Simple": "usize"
+                    }
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Int": 1000000000000
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "f32_val",
-                "type_ref": {
-                  "Simple": "f32"
-                },
+                "bindings": [
+                  {
+                    "name": "f32_val",
+                    "type_ref": {
+                      "Simple": "f32"
+                    }
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Float": 3.14
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
@@ -218,15 +283,20 @@ expression: json
             },
             {
               "VarDecl": {
-                "name": "f64_val",
-                "type_ref": {
-                  "Simple": "f64"
-                },
+                "bindings": [
+                  {
+                    "name": "f64_val",
+                    "type_ref": {
+                      "Simple": "f64"
+                    }
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Float": 2.718281828
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
@@ -238,62 +308,86 @@ expression: json
             },
             {
               "VarDecl": {
-                "name": "char_a",
-                "type_ref": {
-                  "Simple": "char"
-                },
+                "bindings": [
+                  {
+                    "name": "char_a",
+                    "type_ref": {
+                      "Simple": "char"
+                    }
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Char": "A"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "char_b",
-                "type_ref": {
-                  "Simple": "char"
-                },
+                "bindings": [
+                  {
+                    "name": "char_b",
+                    "type_ref": {
+                      "Simple": "char"
+                    }
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Char": "B"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "char_z",
-                "type_ref": {
-                  "Simple": "char"
-                },
+                "bindings": [
+                  {
+                    "name": "char_z",
+                    "type_ref": {
+                      "Simple": "char"
+                    }
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Char": "Z"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "char_space",
-                "type_ref": {
-                  "Simple": "char"
-                },
+                "bindings": [
+                  {
+                    "name": "char_space",
+                    "type_ref": {
+                      "Simple": "char"
+                    }
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Char": " "
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "bytes_val",
-                "type_ref": {
-                  "Simple": "bytes"
-                },
+                "bindings": [
+                  {
+                    "name": "bytes_val",
+                    "type_ref": {
+                      "Simple": "bytes"
+                    }
+                  }
+                ],
                 "init": {
                   "ArrayLiteral": [
                     {
@@ -322,22 +416,27 @@ expression: json
                       }
                     }
                   ]
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "optional",
-                "type_ref": {
-                  "Generic": {
-                    "base": "Option",
-                    "args": [
-                      {
-                        "Simple": "string"
+                "bindings": [
+                  {
+                    "name": "optional",
+                    "type_ref": {
+                      "Generic": {
+                        "base": "Option",
+                        "args": [
+                          {
+                            "Simple": "string"
+                          }
+                        ]
                       }
-                    ]
+                    }
                   }
-                },
+                ],
                 "init": {
                   "Call": {
                     "callee": {
@@ -352,43 +451,53 @@ expression: json
                     ],
                     "exec_policy": "normal"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "optional_none",
-                "type_ref": {
-                  "Generic": {
-                    "base": "Option",
-                    "args": [
-                      {
-                        "Simple": "number"
+                "bindings": [
+                  {
+                    "name": "optional_none",
+                    "type_ref": {
+                      "Generic": {
+                        "base": "Option",
+                        "args": [
+                          {
+                            "Simple": "number"
+                          }
+                        ]
                       }
-                    ]
+                    }
                   }
-                },
+                ],
                 "init": {
                   "Identifier": "None"
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "result_ok",
-                "type_ref": {
-                  "Generic": {
-                    "base": "Result",
-                    "args": [
-                      {
-                        "Simple": "number"
-                      },
-                      {
-                        "Simple": "string"
+                "bindings": [
+                  {
+                    "name": "result_ok",
+                    "type_ref": {
+                      "Generic": {
+                        "base": "Result",
+                        "args": [
+                          {
+                            "Simple": "number"
+                          },
+                          {
+                            "Simple": "string"
+                          }
+                        ]
                       }
-                    ]
+                    }
                   }
-                },
+                ],
                 "init": {
                   "Call": {
                     "callee": {
@@ -403,25 +512,30 @@ expression: json
                     ],
                     "exec_policy": "normal"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "result_err",
-                "type_ref": {
-                  "Generic": {
-                    "base": "Result",
-                    "args": [
-                      {
-                        "Simple": "string"
-                      },
-                      {
-                        "Simple": "string"
+                "bindings": [
+                  {
+                    "name": "result_err",
+                    "type_ref": {
+                      "Generic": {
+                        "base": "Result",
+                        "args": [
+                          {
+                            "Simple": "string"
+                          },
+                          {
+                            "Simple": "string"
+                          }
+                        ]
                       }
-                    ]
+                    }
                   }
-                },
+                ],
                 "init": {
                   "Call": {
                     "callee": {
@@ -436,13 +550,18 @@ expression: json
                     ],
                     "exec_policy": "normal"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "int_array",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "int_array",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "ArrayLiteral": [
                     {
@@ -471,13 +590,18 @@ expression: json
                       }
                     }
                   ]
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "str_array",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "str_array",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "ArrayLiteral": [
                     {
@@ -496,7 +620,8 @@ expression: json
                       }
                     }
                   ]
-                }
+                },
+                "is_fallible": false
               }
             },
             {
@@ -521,7 +646,8 @@ expression: json
           ]
         },
         "expr_body": null,
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     }
   ]

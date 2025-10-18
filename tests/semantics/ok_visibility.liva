@@ -1,25 +1,17 @@
 // Visibilidad de miembros
 Persona {
-    nombre: string           // public
-    _edad: number           // protected
-    __dni: string           // private
+    nombre: string   // public
+    _dni: string     // private
     
     getNombre(): string = this.nombre
     
-    _getEdad(): number {
-        return this._edad
-    }
-    
-    __getDni(): string {
-        return this.__dni
+    _getDni(): string {
+        return this._dni
     }
 }
 
-Empleado : Persona {
-    salario: number
-    
-    getSalario(): number = this.salario
-    
-    // Puede acceder a _edad (protected)
-    getEdadEmpleado(): number = this._getEdad()
+main() {
+    let p = Persona()
+    let nombre = p.getNombre()  // OK: public method
+    // let dni = p._getDni()     // Error: private method
 }

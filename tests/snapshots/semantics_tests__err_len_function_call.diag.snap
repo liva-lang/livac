@@ -2,4 +2,8 @@
 source: tests/semantics_tests.rs
 expression: error_msg
 ---
-Semantic error: W0700: `len(expr)` is deprecated. Use `expr.length` instead.
+● : W0700: `len(expr)` is deprecated. Use `expr.length` instead.
+────────────────────────────────────────────────────────────
+
+  ⓘ W0700: `len(expr)` is deprecated. Use `expr.length` instead.
+────────────────────────────────────────────────────────────

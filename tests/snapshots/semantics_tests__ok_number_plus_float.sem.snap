@@ -14,34 +14,48 @@ expression: json
           "stmts": [
             {
               "VarDecl": {
-                "name": "a",
-                "type_ref": {
-                  "Simple": "number"
-                },
+                "bindings": [
+                  {
+                    "name": "a",
+                    "type_ref": {
+                      "Simple": "number"
+                    }
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Int": 1
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "b",
-                "type_ref": {
-                  "Simple": "float"
-                },
+                "bindings": [
+                  {
+                    "name": "b",
+                    "type_ref": {
+                      "Simple": "float"
+                    }
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Float": 2.0
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "c",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "c",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Binary": {
                     "op": "Add",
@@ -52,13 +66,15 @@ expression: json
                       "Identifier": "b"
                     }
                   }
-                }
+                },
+                "is_fallible": false
               }
             }
           ]
         },
         "expr_body": null,
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     }
   ]

@@ -251,14 +251,12 @@ UserService {
 ```liva
 User {
   constructor(name: string, password: string) {
-    this.name = name        // Public
-    this._email = ""        // Protected
-    this.__password = password  // Private
+    this.name = name              // Public
+    this._password = password     // Private
   }
   
   name: string       // Public
-  _email: string     // Protected
-  __password: string // Private
+  _password: string  // Private
 }
 ```
 
@@ -274,17 +272,17 @@ BankAccount {
   
   // Public method
   deposit(amount: number) {
-    this.__validateAmount(amount)
+    this._validateAmount(amount)
     this.balance = this.balance + amount
   }
   
-  // Protected method
+  // Private method
   _logTransaction(type: string, amount: number) {
     print($"[{type}] ${amount}")
   }
   
   // Private method
-  __validateAmount(amount: number) {
+  _validateAmount(amount: number) {
     if amount <= 0 fail "Invalid amount"
   }
 }
@@ -295,8 +293,7 @@ BankAccount {
 | Prefix | Visibility | Access |
 |--------|-----------|--------|
 | None | **Public** | Everywhere |
-| `_` | **Protected** | Same module + subclasses |
-| `__` | **Private** | Same class only |
+| `_` | **Private** | Same class only |
 
 ---
 
@@ -841,7 +838,7 @@ UserService : Loggable {
 | **Interface** | `InterfaceName { signatures }` | `Animal { makeSound(): string }` |
 | **Implements** | `Class : Interface { }` | `Dog : Animal { }` |
 | **Multiple** | `Class : I1, I2 { }` | `Dog : Animal, Named { }` |
-| **Visibility** | `name` / `_name` / `__name` | Public / Protected / Private |
+| **Visibility** | `name` / `_name` | Public / Private |
 
 ### Quick Reference
 

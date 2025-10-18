@@ -21,17 +21,7 @@ expression: json
           },
           {
             "Field": {
-              "name": "_edad",
-              "visibility": "Protected",
-              "type_ref": {
-                "Simple": "number"
-              },
-              "init": null
-            }
-          },
-          {
-            "Field": {
-              "name": "__dni",
+              "name": "_dni",
               "visibility": "Private",
               "type_ref": {
                 "Simple": "string"
@@ -72,41 +62,13 @@ expression: json
                   "property": "nombre"
                 }
               },
-              "is_async_inferred": false
+              "is_async_inferred": false,
+              "contains_fail": false
             }
           },
           {
             "Method": {
-              "name": "_getEdad",
-              "visibility": "Protected",
-              "type_params": [],
-              "params": [],
-              "return_type": {
-                "Simple": "number"
-              },
-              "body": {
-                "stmts": [
-                  {
-                    "Return": {
-                      "expr": {
-                        "Member": {
-                          "object": {
-                            "Identifier": "this"
-                          },
-                          "property": "_edad"
-                        }
-                      }
-                    }
-                  }
-                ]
-              },
-              "expr_body": null,
-              "is_async_inferred": false
-            }
-          },
-          {
-            "Method": {
-              "name": "__getDni",
+              "name": "_getDni",
               "visibility": "Private",
               "type_params": [],
               "params": [],
@@ -122,7 +84,7 @@ expression: json
                           "object": {
                             "Identifier": "this"
                           },
-                          "property": "__dni"
+                          "property": "_dni"
                         }
                       }
                     }
@@ -130,112 +92,71 @@ expression: json
                 ]
               },
               "expr_body": null,
-              "is_async_inferred": false
+              "is_async_inferred": false,
+              "contains_fail": false
             }
           }
         ]
       }
     },
     {
-      "Class": {
-        "name": "Empleado",
-        "base": "Persona",
-        "members": [
-          {
-            "Field": {
-              "name": "salario",
-              "visibility": "Public",
-              "type_ref": {
-                "Simple": "number"
-              },
-              "init": null
-            }
-          },
-          {
-            "Method": {
-              "name": "getSalario",
-              "visibility": "Public",
-              "type_params": [],
-              "params": [],
-              "return_type": {
-                "Simple": "number"
-              },
-              "body": {
-                "stmts": [
+      "Function": {
+        "name": "main",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "bindings": [
                   {
-                    "Return": {
-                      "expr": {
-                        "Member": {
-                          "object": {
-                            "Identifier": "this"
-                          },
-                          "property": "salario"
-                        }
-                      }
-                    }
+                    "name": "p",
+                    "type_ref": null
                   }
-                ]
-              },
-              "expr_body": {
-                "Member": {
-                  "object": {
-                    "Identifier": "this"
-                  },
-                  "property": "salario"
-                }
-              },
-              "is_async_inferred": false
-            }
-          },
-          {
-            "Method": {
-              "name": "getEdadEmpleado",
-              "visibility": "Public",
-              "type_params": [],
-              "params": [],
-              "return_type": {
-                "Simple": "number"
-              },
-              "body": {
-                "stmts": [
+                ],
+                "init": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "Persona"
+                    },
+                    "args": [],
+                    "exec_policy": "normal"
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
                   {
-                    "Return": {
-                      "expr": {
-                        "Call": {
-                          "callee": {
-                            "Member": {
-                              "object": {
-                                "Identifier": "this"
-                              },
-                              "property": "_getEdad"
-                            }
-                          },
-                          "args": [],
-                          "exec_policy": "normal"
-                        }
-                      }
-                    }
+                    "name": "nombre",
+                    "type_ref": null
                   }
-                ]
-              },
-              "expr_body": {
-                "Call": {
-                  "callee": {
-                    "Member": {
-                      "object": {
-                        "Identifier": "this"
-                      },
-                      "property": "_getEdad"
-                    }
-                  },
-                  "args": [],
-                  "exec_policy": "normal"
-                }
-              },
-              "is_async_inferred": false
+                ],
+                "init": {
+                  "Call": {
+                    "callee": {
+                      "Member": {
+                        "object": {
+                          "Identifier": "p"
+                        },
+                        "property": "getNombre"
+                      }
+                    },
+                    "args": [],
+                    "exec_policy": "normal"
+                  }
+                },
+                "is_fallible": false
+              }
             }
-          }
-        ]
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     }
   ]

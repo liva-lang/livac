@@ -1,33 +1,80 @@
 ---
 source: tests/codegen_ir_tests.rs
-assertion_line: 50
 expression: rust_code
 ---
 use tokio;
 
 mod liva_rt {
     use std::future::Future;
-    pub fn spawn_async<Fut>(future: Fut) -> tokio::task::JoinHandle<Fut::Output>
-    where Fut: Future + Send + 'static, Fut::Output: Send + 'static,
+    use tokio::task::JoinHandle;
+    
+    /// Runtime error type for fallible operations
+    #[derive(Debug, Clone)]
+    pub struct Error {
+        pub message: String,
+    }
+    
+    impl Error {
+        pub fn from<S: Into<String>>(message: S) -> Self {
+            Error {
+                message: message.into(),
+            }
+        }
+    }
+    
+    impl std::fmt::Display for Error {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.message)
+        }
+    }
+    
+    impl std::error::Error for Error {}
+    
+    /// Spawn an async task
+    pub fn spawn_async<F, T>(future: F) -> JoinHandle<T>
+    where
+        F: Future<Output = T> + Send + 'static,
+        T: Send + 'static,
     {
         tokio::spawn(future)
     }
-
-    pub fn fire_async<Fut>(future: Fut)
-    where Fut: Future<Output = ()> + Send + 'static,
+    /// Fire and forget async task
+    pub fn fire_async<F>(future: F)
+    where
+        F: Future<Output = ()> + Send + 'static,
     {
-        let _ = tokio::spawn(future);
+        tokio::spawn(future);
+    }
+    /// Spawn a parallel task
+    pub fn spawn_parallel<F, T>(f: F) -> JoinHandle<T>
+    where
+        F: FnOnce() -> T + Send + 'static,
+        T: Send + 'static,
+    {
+        // For simplicity, just execute synchronously and wrap in JoinHandle
+        // In a real implementation, this would use rayon or std::thread
+        let result = f();
+        tokio::spawn(async move { result })
+    }
+    /// Fire and forget parallel task
+    pub fn fire_parallel<F>(f: F)
+    where
+        F: FnOnce() + Send + 'static,
+    {
+        // For simplicity, just spawn a thread
+        std::thread::spawn(f);
     }
 }
 
-async fn fetch() {
-    let response = tokio::spawn(async move {get_data() }).await.unwrap();
+fn fetch() -> f64 {
+    let response_task = liva_rt::spawn_async(async move { get_data() });
+    let mut response = response_task.await.unwrap();
     return response;
 }
 
-#[tokio::main]
-async fn main() {
-    let value = tokio::spawn(async move {fetch() }).await.unwrap();
-    tokio::spawn(fetch());
+fn main() {
+    let value_task = liva_rt::spawn_async(async move { fetch() });
+    liva_rt::fire_async(async move { fetch(); });;
+    let mut value = value_task.await.unwrap();
     println!("{}", value);
 }

@@ -14,17 +14,21 @@ expression: json
           "stmts": [
             {
               "VarDecl": {
-                "name": "optional",
-                "type_ref": {
-                  "Generic": {
-                    "base": "Option",
-                    "args": [
-                      {
-                        "Simple": "string"
+                "bindings": [
+                  {
+                    "name": "optional",
+                    "type_ref": {
+                      "Generic": {
+                        "base": "Option",
+                        "args": [
+                          {
+                            "Simple": "string"
+                          }
+                        ]
                       }
-                    ]
+                    }
                   }
-                },
+                ],
                 "init": {
                   "Call": {
                     "callee": {
@@ -39,25 +43,30 @@ expression: json
                     ],
                     "exec_policy": "normal"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "result",
-                "type_ref": {
-                  "Generic": {
-                    "base": "Result",
-                    "args": [
-                      {
-                        "Simple": "number"
-                      },
-                      {
-                        "Simple": "string"
+                "bindings": [
+                  {
+                    "name": "result",
+                    "type_ref": {
+                      "Generic": {
+                        "base": "Result",
+                        "args": [
+                          {
+                            "Simple": "number"
+                          },
+                          {
+                            "Simple": "string"
+                          }
+                        ]
                       }
-                    ]
+                    }
                   }
-                },
+                ],
                 "init": {
                   "Call": {
                     "callee": {
@@ -72,7 +81,8 @@ expression: json
                     ],
                     "exec_policy": "normal"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
@@ -153,7 +163,8 @@ expression: json
           ]
         },
         "expr_body": null,
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     }
   ]

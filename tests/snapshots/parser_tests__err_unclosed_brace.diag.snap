@@ -2,4 +2,14 @@
 source: tests/parser_tests.rs
 expression: error_msg
 ---
-Parse error at line 5, column 22: Expected RBrace
+● E2000: Parse Error
+────────────────────────────────────────────────────────────
+  → <input>:5:22
+
+     5 │
+       │ print("World")
+       │              ^^^
+       │
+
+  ⓘ Expected RBrace
+────────────────────────────────────────────────────────────

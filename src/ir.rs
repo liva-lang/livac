@@ -360,7 +360,6 @@ pub enum DetectOption {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Visibility {
     Public,
-    Protected,
     Private,
 }
 
@@ -368,7 +367,6 @@ impl From<ast::Visibility> for Visibility {
     fn from(value: ast::Visibility) -> Self {
         match value {
             ast::Visibility::Public => Visibility::Public,
-            ast::Visibility::Protected => Visibility::Protected,
             ast::Visibility::Private => Visibility::Private,
         }
     }

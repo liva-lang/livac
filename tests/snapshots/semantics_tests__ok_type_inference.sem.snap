@@ -14,63 +14,92 @@ expression: json
           "stmts": [
             {
               "VarDecl": {
-                "name": "x",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "x",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Int": 42
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "y",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "y",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Float": 3.14
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "z",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "z",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "String": "hello"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "w",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "w",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Bool": true
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "c",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "c",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Char": "A"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "numbers",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "numbers",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "ArrayLiteral": [
                     {
@@ -99,13 +128,18 @@ expression: json
                       }
                     }
                   ]
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "names",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "names",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "ArrayLiteral": [
                     {
@@ -124,13 +158,18 @@ expression: json
                       }
                     }
                   ]
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "person",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "person",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "ObjectLiteral": [
                     [
@@ -150,13 +189,15 @@ expression: json
                       }
                     ]
                   ]
-                }
+                },
+                "is_fallible": false
               }
             }
           ]
         },
         "expr_body": null,
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     }
   ]

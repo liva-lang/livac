@@ -26,8 +26,12 @@ expression: json
           "stmts": [
             {
               "VarDecl": {
-                "name": "user1",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "user1",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Call": {
                     "callee": {
@@ -42,13 +46,18 @@ expression: json
                     ],
                     "exec_policy": "async"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "user2",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "user2",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Call": {
                     "callee": {
@@ -63,13 +72,18 @@ expression: json
                     ],
                     "exec_policy": "async"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "user3",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "user3",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Call": {
                     "callee": {
@@ -84,7 +98,8 @@ expression: json
                     ],
                     "exec_policy": "async"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
@@ -107,7 +122,8 @@ expression: json
           ]
         },
         "expr_body": null,
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     },
     {
@@ -120,8 +136,12 @@ expression: json
           "stmts": [
             {
               "VarDecl": {
-                "name": "data",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "data",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Call": {
                     "callee": {
@@ -130,13 +150,18 @@ expression: json
                     "args": [],
                     "exec_policy": "async"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "processed",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "processed",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Call": {
                     "callee": {
@@ -149,7 +174,8 @@ expression: json
                     ],
                     "exec_policy": "par"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
@@ -167,8 +193,12 @@ expression: json
             },
             {
               "VarDecl": {
-                "name": "task_handle",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "task_handle",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Call": {
                     "callee": {
@@ -177,13 +207,18 @@ expression: json
                     "args": [],
                     "exec_policy": "task-par"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "final",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "final",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Unary": {
                     "op": "Await",
@@ -191,7 +226,8 @@ expression: json
                       "Identifier": "task_handle"
                     }
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
@@ -214,7 +250,8 @@ expression: json
           ]
         },
         "expr_body": null,
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     },
     {
@@ -227,8 +264,12 @@ expression: json
           "stmts": [
             {
               "VarDecl": {
-                "name": "a1",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "a1",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Call": {
                     "callee": {
@@ -237,13 +278,18 @@ expression: json
                     "args": [],
                     "exec_policy": "async"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "a2",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "a2",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Call": {
                     "callee": {
@@ -252,13 +298,18 @@ expression: json
                     "args": [],
                     "exec_policy": "async"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "a3",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "a3",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Call": {
                     "callee": {
@@ -267,13 +318,18 @@ expression: json
                     "args": [],
                     "exec_policy": "async"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "p1",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "p1",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Call": {
                     "callee": {
@@ -288,13 +344,18 @@ expression: json
                     ],
                     "exec_policy": "par"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "p2",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "p2",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Call": {
                     "callee": {
@@ -309,13 +370,18 @@ expression: json
                     ],
                     "exec_policy": "par"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "result1",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "result1",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Binary": {
                     "op": "Add",
@@ -334,13 +400,18 @@ expression: json
                       "Identifier": "a3"
                     }
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "result2",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "result2",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Binary": {
                     "op": "Add",
@@ -351,7 +422,8 @@ expression: json
                       "Identifier": "p2"
                     }
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
@@ -405,7 +477,8 @@ expression: json
           ]
         },
         "expr_body": null,
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     },
     {
@@ -418,8 +491,12 @@ expression: json
           "stmts": [
             {
               "VarDecl": {
-                "name": "future1",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "future1",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Call": {
                     "callee": {
@@ -434,13 +511,18 @@ expression: json
                     ],
                     "exec_policy": "async"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "future2",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "future2",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Call": {
                     "callee": {
@@ -455,13 +537,18 @@ expression: json
                     ],
                     "exec_policy": "par"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "intermediate",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "intermediate",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Call": {
                     "callee": {
@@ -470,25 +557,36 @@ expression: json
                     "args": [],
                     "exec_policy": "normal"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "result1",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "result1",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Identifier": "future1"
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "result2",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "result2",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Identifier": "future2"
-                }
+                },
+                "is_fallible": false
               }
             },
             {
@@ -517,7 +615,8 @@ expression: json
           ]
         },
         "expr_body": null,
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     },
     {
@@ -550,7 +649,8 @@ expression: json
           ]
         },
         "expr_body": null,
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     }
   ]

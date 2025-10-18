@@ -27,25 +27,7 @@ expression: json
         "return_type": {
           "Simple": "number"
         },
-        "body": {
-          "stmts": [
-            {
-              "Return": {
-                "expr": {
-                  "Binary": {
-                    "op": "Add",
-                    "left": {
-                      "Identifier": "a"
-                    },
-                    "right": {
-                      "Identifier": "b"
-                    }
-                  }
-                }
-              }
-            }
-          ]
-        },
+        "body": null,
         "expr_body": {
           "Binary": {
             "op": "Add",
@@ -57,7 +39,8 @@ expression: json
             }
           }
         },
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     },
     {
@@ -72,27 +55,7 @@ expression: json
           }
         ],
         "return_type": null,
-        "body": {
-          "stmts": [
-            {
-              "Return": {
-                "expr": {
-                  "Binary": {
-                    "op": "Ge",
-                    "left": {
-                      "Identifier": "age"
-                    },
-                    "right": {
-                      "Literal": {
-                        "Int": 18
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          ]
-        },
+        "body": null,
         "expr_body": {
           "Binary": {
             "op": "Ge",
@@ -106,7 +69,8 @@ expression: json
             }
           }
         },
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     },
     {
@@ -123,25 +87,14 @@ expression: json
           }
         ],
         "return_type": null,
-        "body": {
-          "stmts": [
-            {
-              "Return": {
-                "expr": {
-                  "Literal": {
-                    "String": "Hello"
-                  }
-                }
-              }
-            }
-          ]
-        },
+        "body": null,
         "expr_body": {
           "Literal": {
             "String": "Hello"
           }
         },
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     }
   ]

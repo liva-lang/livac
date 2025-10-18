@@ -13,15 +13,16 @@ Complete reference for visibility modifiers and access control in Liva.
 
 ## Overview
 
-Liva uses **identifier-based visibility** instead of explicit keywords (`public`, `private`, `protected`).
+Liva uses **identifier-based visibility** instead of explicit keywords (`public`, `private`).
 
-Visibility is determined by the **number of leading underscores**:
+Visibility is determined by a **leading underscore**:
 
 | Prefix | Visibility | Access Scope |
 |--------|-----------|--------------|
 | None | **Public** | Anywhere |
-| `_` (single) | **Protected** | Same module + subclasses |
-| `__` (double) | **Private** | Same class/file only |
+| `_` (underscore) | **Private** | Same class/module only |
+
+**Note**: Since Liva doesn't have class inheritance, there's no need for `protected` visibility.
 
 ---
 
@@ -41,29 +42,15 @@ Person {
 
 **Accessible**: Everywhere (internal and external modules)
 
-### Protected (Single Underscore `_`)
-
-```liva
-// Protected function
-_validateInput(data) => data != null && data.length > 0
-
-// Protected field
-Person {
-  _email: string  // Protected
-}
-```
-
-**Accessible**: Same module and subclasses
-
-### Private (Double Underscore `__`)
+### Private (Single Underscore `_`)
 
 ```liva
 // Private function
-__internalHelper(value) => value * 2 + 1
+_validateInput(data) => data != null && data.length > 0
 
 // Private field
 Person {
-  __password: string  // Private
+  _password: string  // Private
 }
 ```
 
@@ -86,29 +73,16 @@ processOrder(order) {
 }
 ```
 
-### Protected Functions
-
-```liva
-// Protected: Internal to module, available to subclasses
-_validateUser(user) {
-  return user.name != "" && user.age >= 0
-}
-
-_logTransaction(type: string, amount: number) {
-  print($"[{type}] ${amount}")
-}
-```
-
 ### Private Functions
 
 ```liva
 // Private: Internal implementation details
-__secretAlgorithm(data) {
+_secretAlgorithm(data) {
   // Complex internal logic
   return result
 }
 
-__generateToken(userId: number): string {
+_generateToken(userId: number): string {
   // Private helper
 }
 ```
@@ -118,8 +92,8 @@ __generateToken(userId: number): string {
 ```liva
 // Public API
 createUser(name: string, email: string, password: string): User {
-  _validateEmail(email)       // Protected helper
-  let hashed = __hashPassword(password)  // Private helper
+  _validateEmail(email)         // Private helper
+  let hashed = _hashPassword(password)  // Private helper
   
   return User {
     name: name,
@@ -128,14 +102,14 @@ createUser(name: string, email: string, password: string): User {
   }
 }
 
-// Protected helper (available to subclasses/module)
+// Private helper
 _validateEmail(email: string) {
   if email == "" fail "Email required"
   if not email.contains("@") fail "Invalid email"
 }
 
-// Private helper (internal only)
-__hashPassword(password: string): string {
+// Private helper
+_hashPassword(password: string): string {
   // Secret hashing algorithm
   return hashedValue
 }
@@ -150,14 +124,14 @@ __hashPassword(password: string): string {
 ```liva
 User {
   constructor(name: string, email: string, password: string) {
-    this.name = name           // Public
-    this._email = email        // Protected
-    this.__password = password // Private
+    this.name = name             // Public
+    this.email = email           // Public
+    this._password = password    // Private
   }
   
-  name: string        // Public
-  _email: string      // Protected
-  __password: string  // Private
+  name: string      // Public
+  email: string     // Public
+  _password: string // Private
 }
 ```
 
@@ -166,9 +140,9 @@ User {
 ```liva
 let user = User("Alice", "alice@example.com", "secret123")
 
-print(user.name)          // ✅ Public: OK
-print(user._email)        // ⚠️ Protected: OK in same module
-print(user.__password)    // ❌ Private: Compile error (outside class)
+print(user.name)       // ✅ Public: OK
+print(user.email)      // ✅ Public: OK
+print(user._password)  // ❌ Private: Compile error (outside class)
 ```
 
 ### Class Methods
@@ -186,18 +160,18 @@ BankAccount {
   
   // Public method
   deposit(amount: number) {
-    this._validateAmount(amount)  // Call protected
+    _validateAmount(amount)  // Call private helper
     this.balance = this.balance + amount
-    this.__logTransaction("deposit", amount)  // Call private
+    this._logTransaction("deposit", amount)  // Call private method
   }
   
-  // Protected method
+  // Private helper function
   _validateAmount(amount: number) {
     if amount <= 0 fail "Amount must be positive"
   }
   
   // Private method
-  __logTransaction(type: string, amount: number) {
+  _logTransaction(type: string, amount: number) {
     print($"[{type}] ${amount}")
   }
 }
@@ -210,8 +184,7 @@ let account = BankAccount(100)
 
 account.getBalance()           // ✅ Public: OK
 account.deposit(50)            // ✅ Public: OK
-account._validateAmount(10)    // ⚠️ Protected: OK in same module
-account.__logTransaction(...)  // ❌ Private: Compile error
+account._logTransaction(...)   // ❌ Private: Compile error
 ```
 
 ---
@@ -227,41 +200,32 @@ processPayment(order) { }
 fetchUserData(id) { }
 ```
 
-### Use Protected for Module Internals
-
-```liva
-// ✅ Good: Protected helpers shared within module
-_validateInput(data) { }
-_formatCurrency(amount) { }
-_logDebug(message) { }
-```
-
 ### Use Private for Implementation Details
 
 ```liva
 // ✅ Good: Private internal logic
-__encryptData(data) { }
-__generateRandomId() { }
-__connectToDatabase() { }
+_encryptData(data) { }
+_generateRandomId() { }
+_connectToDatabase() { }
 ```
 
-### Keep Fields Private or Protected
+### Keep Sensitive Fields Private
 
 ```liva
 // ✅ Good: Encapsulation
 User {
   constructor(name: string, balance: number) {
-    this.name = name              // Public (immutable via methods)
-    this.__balance = balance      // Private
+    this.name = name        // Public (readable)
+    this._balance = balance // Private
   }
   
   name: string
-  __balance: number
+  _balance: number
   
-  getBalance() => this.__balance
+  getBalance() => this._balance
   
   deposit(amount: number) {
-    this.__balance = this.__balance + amount
+    this._balance = this._balance + amount
   }
 }
 
@@ -278,11 +242,11 @@ User {
 // Public API: Create a new user account
 createUser(name: string, email: string) { }
 
-// Protected: Validate email format (module-internal)
+// Private: Validate email format (internal)
 _validateEmail(email: string) { }
 
 // Private: Internal password hashing
-__hashPassword(password: string) { }
+_hashPassword(password: string) { }
 ```
 
 ### Consistency
@@ -294,13 +258,11 @@ class UserService {
   createUser() { }
   deleteUser() { }
   
-  // Protected helpers
+  // Private internals
   _validateUser() { }
   _formatUser() { }
-  
-  // Private internals
-  __saveToDatabase() { }
-  __generateId() { }
+  _saveToDatabase() { }
+  _generateId() { }
 }
 ```
 
@@ -313,8 +275,7 @@ class UserService {
 | Level | Prefix | Access | Use Case |
 |-------|--------|--------|----------|
 | **Public** | (none) | Everywhere | Public APIs, exported functions |
-| **Protected** | `_` | Module + subclasses | Internal helpers, shared utilities |
-| **Private** | `__` | Same file/class | Implementation details, secrets |
+| **Private** | `_` | Same file/class | Implementation details, secrets |
 
 ### Examples
 
@@ -322,11 +283,8 @@ class UserService {
 // Public
 calculatePrice(quantity, price) => quantity * price
 
-// Protected
-_validateInput(data) => data != null
-
 // Private
-__secretKey() => "..."
+_validateInput(data) => data != null
 ```
 
 ### Class Visibility
@@ -335,25 +293,18 @@ __secretKey() => "..."
 User {
   constructor(name: string, password: string) {
     this.name = name            // Public
-    this._verified = false      // Protected
-    this.__password = password  // Private
+    this._password = password   // Private
   }
   
   name: string        // Public
-  _verified: bool     // Protected
-  __password: string  // Private
+  _password: string   // Private
   
   // Public method
   getName() => this.name
   
-  // Protected method
-  _setVerified(value: bool) {
-    this._verified = value
-  }
-  
   // Private method
-  __checkPassword(input: string): bool {
-    return input == this.__password
+  _checkPassword(input: string): bool {
+    return input == this._password
   }
 }
 ```
@@ -363,21 +314,18 @@ User {
 ```liva
 // Functions
 publicFunction() { }
-_protectedFunction() { }
-__privateFunction() { }
+_privateFunction() { }
 
 // Fields
 class Example {
   publicField: string
-  _protectedField: string
-  __privateField: string
+  _privateField: string
 }
 
 // Methods
 class Example {
   publicMethod() { }
-  _protectedMethod() { }
-  __privateMethod() { }
+  _privateMethod() { }
 }
 ```
 

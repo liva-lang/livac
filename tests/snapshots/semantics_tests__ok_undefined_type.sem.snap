@@ -14,21 +14,27 @@ expression: json
           "stmts": [
             {
               "VarDecl": {
-                "name": "x",
-                "type_ref": {
-                  "Simple": "UndefinedType"
-                },
+                "bindings": [
+                  {
+                    "name": "x",
+                    "type_ref": {
+                      "Simple": "UndefinedType"
+                    }
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Int": 42
                   }
-                }
+                },
+                "is_fallible": false
               }
             }
           ]
         },
         "expr_body": null,
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     }
   ]

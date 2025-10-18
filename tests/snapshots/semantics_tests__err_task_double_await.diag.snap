@@ -2,4 +2,8 @@
 source: tests/semantics_tests.rs
 expression: error_msg
 ---
-Semantic error: E0604: handle 'handle' awaited more than once.
+● : E0604: handle 'handle' awaited more than once.
+────────────────────────────────────────────────────────────
+
+  ⓘ E0604: handle 'handle' awaited more than once.
+────────────────────────────────────────────────────────────

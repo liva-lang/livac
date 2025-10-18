@@ -2,4 +2,8 @@
 source: tests/semantics_tests.rs
 expression: error_msg
 ---
-Semantic error: E0705: `simdWidth` option requires `for vec` or `for parvec` policy.
+● : E0705: `simdWidth` option requires `for vec` or `for parvec` policy.
+────────────────────────────────────────────────────────────
+
+  ⓘ E0705: `simdWidth` option requires `for vec` or `for parvec` policy.
+────────────────────────────────────────────────────────────

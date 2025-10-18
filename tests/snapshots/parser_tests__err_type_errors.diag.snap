@@ -2,4 +2,14 @@
 source: tests/parser_tests.rs
 expression: error_msg
 ---
-Parse error at line 7, column 5: Expected expression
+● E2000: Parse Error
+────────────────────────────────────────────────────────────
+  → <input>:7:5
+
+     7 │
+       │ = 42
+       │ ^^^
+       │
+
+  ⓘ Expected expression
+────────────────────────────────────────────────────────────

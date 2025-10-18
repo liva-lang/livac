@@ -65,11 +65,6 @@ fn test_private_access() {
 }
 
 #[test]
-fn test_protected_access() {
-    test_semantics_ok("protected_access");
-}
-
-#[test]
 fn test_undefined_type() {
     test_semantics_ok("undefined_type");
 }

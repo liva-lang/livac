@@ -1,18 +1,18 @@
 // Test for field visibility (private fields should be private in Rust)
 User {
-  name: string      // public
-  _email: string    // private
-  __password: string // private
+  name: string       // public
+  _email: string     // private
+  _password: string  // private
 
   constructor(name, email, password) {
     this.name = name
     this._email = email
-    this.__password = password
+    this._password = password
   }
 
   getName() => this.name
   getEmail() => this._email
-  getPassword() => this.__password
+  getPassword() => this._password
 }
 
 main() {

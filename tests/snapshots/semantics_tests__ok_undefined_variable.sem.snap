@@ -28,27 +28,29 @@ expression: json
                   }
                 },
                 "then_branch": {
-                  "stmts": [
-                    {
-                      "Expr": {
-                        "expr": {
-                          "Call": {
-                            "callee": {
-                              "Identifier": "print"
-                            },
-                            "args": [
-                              {
-                                "Literal": {
-                                  "String": "ok"
+                  "Block": {
+                    "stmts": [
+                      {
+                        "Expr": {
+                          "expr": {
+                            "Call": {
+                              "callee": {
+                                "Identifier": "print"
+                              },
+                              "args": [
+                                {
+                                  "Literal": {
+                                    "String": "ok"
+                                  }
                                 }
-                              }
-                            ],
-                            "exec_policy": "normal"
+                              ],
+                              "exec_policy": "normal"
+                            }
                           }
                         }
                       }
-                    }
-                  ]
+                    ]
+                  }
                 },
                 "else_branch": null
               }
@@ -56,7 +58,8 @@ expression: json
           ]
         },
         "expr_body": null,
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     }
   ]

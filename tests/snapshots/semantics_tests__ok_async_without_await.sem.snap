@@ -39,7 +39,8 @@ expression: json
           ]
         },
         "expr_body": null,
-        "is_async_inferred": true
+        "is_async_inferred": true,
+        "contains_fail": false
       }
     },
     {
@@ -52,8 +53,12 @@ expression: json
           "stmts": [
             {
               "VarDecl": {
-                "name": "data",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "data",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Call": {
                     "callee": {
@@ -62,7 +67,8 @@ expression: json
                     "args": [],
                     "exec_policy": "normal"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
@@ -85,7 +91,8 @@ expression: json
           ]
         },
         "expr_body": null,
-        "is_async_inferred": true
+        "is_async_inferred": true,
+        "contains_fail": false
       }
     }
   ]

@@ -52,7 +52,8 @@ expression: json
                   "property": "__dni"
                 }
               },
-              "is_async_inferred": false
+              "is_async_inferred": false,
+              "contains_fail": false
             }
           }
         ]
@@ -68,8 +69,12 @@ expression: json
           "stmts": [
             {
               "VarDecl": {
-                "name": "p",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "p",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "StructLiteral": {
                     "type_name": "Persona",
@@ -84,13 +89,18 @@ expression: json
                       ]
                     ]
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "dni",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "dni",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Member": {
                     "object": {
@@ -98,13 +108,15 @@ expression: json
                     },
                     "property": "__dni"
                   }
-                }
+                },
+                "is_fallible": false
               }
             }
           ]
         },
         "expr_body": null,
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     }
   ]

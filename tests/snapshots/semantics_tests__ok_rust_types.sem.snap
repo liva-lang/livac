@@ -14,69 +14,93 @@ expression: json
           "stmts": [
             {
               "VarDecl": {
-                "name": "x",
-                "type_ref": {
-                  "Simple": "i32"
-                },
+                "bindings": [
+                  {
+                    "name": "x",
+                    "type_ref": {
+                      "Simple": "i32"
+                    }
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Int": 42
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "y",
-                "type_ref": {
-                  "Simple": "u64"
-                },
+                "bindings": [
+                  {
+                    "name": "y",
+                    "type_ref": {
+                      "Simple": "u64"
+                    }
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Int": 1000000
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "z",
-                "type_ref": {
-                  "Simple": "f32"
-                },
+                "bindings": [
+                  {
+                    "name": "z",
+                    "type_ref": {
+                      "Simple": "f32"
+                    }
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Float": 3.14
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "w",
-                "type_ref": {
-                  "Simple": "f64"
-                },
+                "bindings": [
+                  {
+                    "name": "w",
+                    "type_ref": {
+                      "Simple": "f64"
+                    }
+                  }
+                ],
                 "init": {
                   "Literal": {
                     "Float": 2.718281828
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "optional",
-                "type_ref": {
-                  "Generic": {
-                    "base": "Option",
-                    "args": [
-                      {
-                        "Simple": "string"
+                "bindings": [
+                  {
+                    "name": "optional",
+                    "type_ref": {
+                      "Generic": {
+                        "base": "Option",
+                        "args": [
+                          {
+                            "Simple": "string"
+                          }
+                        ]
                       }
-                    ]
+                    }
                   }
-                },
+                ],
                 "init": {
                   "Call": {
                     "callee": {
@@ -91,25 +115,30 @@ expression: json
                     ],
                     "exec_policy": "normal"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "result",
-                "type_ref": {
-                  "Generic": {
-                    "base": "Result",
-                    "args": [
-                      {
-                        "Simple": "number"
-                      },
-                      {
-                        "Simple": "string"
+                "bindings": [
+                  {
+                    "name": "result",
+                    "type_ref": {
+                      "Generic": {
+                        "base": "Result",
+                        "args": [
+                          {
+                            "Simple": "number"
+                          },
+                          {
+                            "Simple": "string"
+                          }
+                        ]
                       }
-                    ]
+                    }
                   }
-                },
+                ],
                 "init": {
                   "Call": {
                     "callee": {
@@ -124,13 +153,15 @@ expression: json
                     ],
                     "exec_policy": "normal"
                   }
-                }
+                },
+                "is_fallible": false
               }
             }
           ]
         },
         "expr_body": null,
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     }
   ]

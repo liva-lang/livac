@@ -14,8 +14,12 @@ expression: json
           "stmts": [
             {
               "VarDecl": {
-                "name": "person",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "person",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "ObjectLiteral": [
                     [
@@ -58,13 +62,18 @@ expression: json
                       }
                     ]
                   ]
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "mixed_array",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "mixed_array",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "ArrayLiteral": [
                     {
@@ -88,13 +97,18 @@ expression: json
                       }
                     }
                   ]
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "street",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "street",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Member": {
                     "object": {
@@ -107,13 +121,18 @@ expression: json
                     },
                     "property": "street"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "name",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "name",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Member": {
                     "object": {
@@ -121,13 +140,18 @@ expression: json
                     },
                     "property": "name"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "age",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "age",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Member": {
                     "object": {
@@ -135,13 +159,18 @@ expression: json
                     },
                     "property": "age"
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "numbers",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "numbers",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "ArrayLiteral": [
                     {
@@ -170,13 +199,18 @@ expression: json
                       }
                     }
                   ]
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "first",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "first",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Index": {
                     "object": {
@@ -188,13 +222,18 @@ expression: json
                       }
                     }
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "last",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "last",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Index": {
                     "object": {
@@ -219,13 +258,18 @@ expression: json
                       }
                     }
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "complex",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "complex",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Binary": {
                     "op": "Div",
@@ -280,13 +324,18 @@ expression: json
                       }
                     }
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "logical",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "logical",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "Binary": {
                     "op": "Or",
@@ -326,13 +375,18 @@ expression: json
                       }
                     }
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
               "VarDecl": {
-                "name": "message",
-                "type_ref": null,
+                "bindings": [
+                  {
+                    "name": "message",
+                    "type_ref": null
+                  }
+                ],
                 "init": {
                   "StringTemplate": {
                     "parts": [
@@ -400,7 +454,8 @@ expression: json
                       }
                     ]
                   }
-                }
+                },
+                "is_fallible": false
               }
             },
             {
@@ -526,7 +581,8 @@ expression: json
           ]
         },
         "expr_body": null,
-        "is_async_inferred": false
+        "is_async_inferred": false,
+        "contains_fail": false
       }
     }
   ]
