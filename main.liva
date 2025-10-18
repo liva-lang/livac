@@ -325,6 +325,7 @@ main() {
   
   // Par error handling - success case
   let parSuccessResult, parSuccessErr = par validateUser("alice", "pass123")
+  print("Es un Test")
   if parSuccessErr != "" {
     print($"Par validation error: {parSuccessErr}")
   } else {

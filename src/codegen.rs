@@ -5,6 +5,19 @@ use crate::ir;
 use std::collections::HashMap;
 use std::fmt::Write;
 
+/// Information about a pending Task (async/par) that hasn't been awaited yet
+#[derive(Debug, Clone)]
+struct TaskInfo {
+    /// Whether this is error binding (two variables: value, err)
+    is_error_binding: bool,
+    /// The names of all variables in the binding (1 for simple, 2 for error binding)
+    binding_names: Vec<String>,
+    /// Whether the task has already been awaited
+    awaited: bool,
+    /// The execution policy (Async or Par)
+    exec_policy: ExecPolicy,
+}
+
 pub struct CodeGenerator {
     output: String,
     indent_level: usize,
@@ -19,6 +32,8 @@ pub struct CodeGenerator {
     class_base:   std::collections::HashMap<String, Option<String>>,
     var_types:    std::collections::HashMap<String, String>, // var -> ClassName
     fallible_functions: std::collections::HashSet<String>, // Track which functions are fallible
+    // --- Phase 2: Lazy await/join tracking
+    pending_tasks: std::collections::HashMap<String, TaskInfo>, // Variables that hold unawaited Tasks
 }
 
 impl CodeGenerator {
@@ -36,6 +51,7 @@ impl CodeGenerator {
             class_base:   std::collections::HashMap::new(),
             var_types:    std::collections::HashMap::new(),
             fallible_functions: std::collections::HashSet::new(),
+            pending_tasks: std::collections::HashMap::new(),
         }
     }
 
@@ -909,32 +925,65 @@ impl CodeGenerator {
     }
 
     fn generate_stmt(&mut self, stmt: &Stmt) -> Result<()> {
+        // Phase 2: Check if this statement uses a pending task for the first time
+        if let Some(var_name) = self.stmt_uses_pending_task(stmt) {
+            self.generate_task_await(&var_name)?;
+        }
+        
         match stmt {
             Stmt::VarDecl(var) => {
                 self.write_indent();
 
+                // Phase 2: Check if init expression is a Task (async/par call)
+                let task_exec_policy = self.is_task_expr(&var.init);
+
                 if var.bindings.len() > 1 {
-                    // Multiple bindings - fallible pattern
-                    // Need to check if expression is actually fallible
+                    // Multiple bindings - fallible pattern (error binding)
                     let is_fallible_call = self.is_fallible_expr(&var.init);
                     
-                    write!(self.output, "let (").unwrap();
-                    for (i, binding) in var.bindings.iter().enumerate() {
-                        if i > 0 { self.output.push_str(", "); }
-                        write!(self.output, "{}", self.sanitize_name(&binding.name)).unwrap();
-                    }
+                    // Collect binding names for tracking
+                    let binding_names: Vec<String> = var.bindings.iter()
+                        .map(|b| self.sanitize_name(&b.name))
+                        .collect();
                     
-                    if is_fallible_call {
-                        // Generate: let (value, err) = match expr { Ok(v) => (v, ""), Err(e) => (Default::default(), e.message) };
-                        self.output.push_str(") = match ");
+                    if let Some(exec_policy) = task_exec_policy {
+                        // Phase 2: Error binding with Task - store task without awaiting
+                        // Generate: let task_name = async/par call();
+                        let task_var_name = format!("{}_task", binding_names[0]);
+                        write!(self.output, "let {} = ", task_var_name).unwrap();
                         self.generate_expr(&var.init)?;
-                        self.output.push_str(" { Ok(v) => (v, \"\".to_string()), Err(e) => (Default::default(), e.message) };\n");
+                        self.output.push_str(";\n");
+                        
+                        // Register as pending task with error binding
+                        self.pending_tasks.insert(
+                            binding_names[0].clone(),
+                            TaskInfo {
+                                is_error_binding: true,
+                                binding_names: binding_names.clone(),
+                                awaited: false,
+                                exec_policy,
+                            }
+                        );
                     } else {
-                        // Non-fallible function called with fallible binding pattern
-                        // Generate: let (value, err) = (expr, "".to_string());
-                        self.output.push_str(") = (");
-                        self.generate_expr(&var.init)?;
-                        self.output.push_str(", \"\".to_string());\n");
+                        // Non-Task error binding (original behavior)
+                        write!(self.output, "let (").unwrap();
+                        for (i, binding) in var.bindings.iter().enumerate() {
+                            if i > 0 { self.output.push_str(", "); }
+                            write!(self.output, "{}", self.sanitize_name(&binding.name)).unwrap();
+                        }
+                        
+                        if is_fallible_call {
+                            // Generate: let (value, err) = match expr { Ok(v) => (v, ""), Err(e) => (Default::default(), e.message) };
+                            self.output.push_str(") = match ");
+                            self.generate_expr(&var.init)?;
+                            self.output.push_str(" { Ok(v) => (v, \"\".to_string()), Err(e) => (Default::default(), e.message) };\n");
+                        } else {
+                            // Non-fallible function called with fallible binding pattern
+                            // Generate: let (value, err) = (expr, "".to_string());
+                            self.output.push_str(") = (");
+                            self.generate_expr(&var.init)?;
+                            self.output.push_str(", \"\".to_string());\n");
+                        }
                     }
                 } else {
                     // Normal binding: let a = expr (only one binding expected)
@@ -949,34 +998,58 @@ impl CodeGenerator {
                         ));
                     }
                     let binding = &var.bindings[0];
+                    let var_name = self.sanitize_name(&binding.name);
 
-                    // Check if initializing with an object literal - mark variable for bracket notation
-                    if let Expr::ObjectLiteral(_) = &var.init {
-                        self.bracket_notation_vars.insert(binding.name.clone());
-                    }
-
-                    // Mark instances created via constructor call: let x = ClassName(...)
-                    else if let Expr::Call(call) = &var.init {
-                        if let Expr::Identifier(class_name) = &*call.callee {
-                            self.class_instance_vars.insert(binding.name.clone());
-                            self.var_types.insert(binding.name.clone(), class_name.clone());
+                    // Phase 2: Check if this is a Task assignment
+                    if let Some(exec_policy) = task_exec_policy {
+                        // Simple task binding (no error handling)
+                        // Generate: let var_name_task = async/par call();
+                        let task_var_name = format!("{}_task", var_name);
+                        write!(self.output, "let {} = ", task_var_name).unwrap();
+                        self.generate_expr(&var.init)?;
+                        self.output.push_str(";\n");
+                        
+                        // Register as pending task
+                        self.pending_tasks.insert(
+                            var_name.clone(),
+                            TaskInfo {
+                                is_error_binding: false,
+                                binding_names: vec![var_name.clone()],
+                                awaited: false,
+                                exec_policy,
+                            }
+                        );
+                    } else {
+                        // Non-Task normal binding (original behavior)
+                        
+                        // Check if initializing with an object literal - mark variable for bracket notation
+                        if let Expr::ObjectLiteral(_) = &var.init {
+                            self.bracket_notation_vars.insert(binding.name.clone());
                         }
-                    }
-                    // Mark instances created via struct literal: let x = ClassName { ... }
-                    else if let Expr::StructLiteral { type_name, .. } = &var.init {
-                        self.class_instance_vars.insert(binding.name.clone());
-                        self.var_types.insert(binding.name.clone(), type_name.clone());
-                    }
 
-                    write!(self.output, "let mut {}", self.sanitize_name(&binding.name)).unwrap();
+                        // Mark instances created via constructor call: let x = ClassName(...)
+                        else if let Expr::Call(call) = &var.init {
+                            if let Expr::Identifier(class_name) = &*call.callee {
+                                self.class_instance_vars.insert(binding.name.clone());
+                                self.var_types.insert(binding.name.clone(), class_name.clone());
+                            }
+                        }
+                        // Mark instances created via struct literal: let x = ClassName { ... }
+                        else if let Expr::StructLiteral { type_name, .. } = &var.init {
+                            self.class_instance_vars.insert(binding.name.clone());
+                            self.var_types.insert(binding.name.clone(), type_name.clone());
+                        }
 
-                    if let Some(type_ref) = &binding.type_ref {
-                        write!(self.output, ": {}", type_ref.to_rust_type()).unwrap();
+                        write!(self.output, "let mut {}", var_name).unwrap();
+
+                        if let Some(type_ref) = &binding.type_ref {
+                            write!(self.output, ": {}", type_ref.to_rust_type()).unwrap();
+                        }
+
+                        self.output.push_str(" = ");
+                        self.generate_expr(&var.init)?;
+                        self.output.push_str(";\n");
                     }
-
-                    self.output.push_str(" = ");
-                    self.generate_expr(&var.init)?;
-                    self.output.push_str(";\n");
                 }
             }
             Stmt::ConstDecl(const_decl) => {
@@ -1631,7 +1704,139 @@ impl CodeGenerator {
         Ok(())
     }
 
+    /// Check if an expression is an async or par call (returns Task)
+    fn is_task_expr(&self, expr: &Expr) -> Option<ExecPolicy> {
+        match expr {
+            Expr::Call(call) => {
+                match call.exec_policy {
+                    ExecPolicy::Async | ExecPolicy::Par => Some(call.exec_policy.clone()),
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
+    /// Check if an expression uses a variable (recursively)
+    fn expr_uses_var(&self, expr: &Expr, var_name: &str) -> bool {
+        match expr {
+            Expr::Identifier(name) => {
+                let sanitized = if self.in_method && name == "this" {
+                    "self"
+                } else {
+                    name
+                };
+                self.sanitize_name(sanitized) == var_name
+            }
+            Expr::Binary { left, right, .. } => {
+                self.expr_uses_var(left, var_name) || self.expr_uses_var(right, var_name)
+            }
+            Expr::Unary { operand, .. } => self.expr_uses_var(operand, var_name),
+            Expr::Call(call) => {
+                self.expr_uses_var(&call.callee, var_name) ||
+                call.args.iter().any(|arg| self.expr_uses_var(arg, var_name))
+            }
+            Expr::Member { object, .. } => self.expr_uses_var(object, var_name),
+            Expr::Index { object, index } => {
+                self.expr_uses_var(object, var_name) || self.expr_uses_var(index, var_name)
+            }
+            Expr::StringTemplate { parts } => {
+                parts.iter().any(|p| {
+                    if let crate::ast::StringTemplatePart::Expr(e) = p {
+                        self.expr_uses_var(e, var_name)
+                    } else {
+                        false
+                    }
+                })
+            }
+            _ => false,
+        }
+    }
+
+    /// Check if a statement uses a pending task variable
+    fn stmt_uses_pending_task(&self, stmt: &Stmt) -> Option<String> {
+        for (var_name, task_info) in &self.pending_tasks {
+            if task_info.awaited {
+                continue; // Already awaited
+            }
+            
+            // For error binding, check if ANY of the binding variables is used
+            let check_vars: Vec<&String> = if task_info.is_error_binding {
+                task_info.binding_names.iter().collect()
+            } else {
+                vec![var_name]
+            };
+            
+            let uses_var = match stmt {
+                Stmt::Expr(expr_stmt) => {
+                    check_vars.iter().any(|v| self.expr_uses_var(&expr_stmt.expr, v))
+                }
+                Stmt::If(if_stmt) => {
+                    check_vars.iter().any(|v| self.expr_uses_var(&if_stmt.condition, v))
+                }
+                Stmt::Return(ret_stmt) => {
+                    ret_stmt.expr.as_ref().map_or(false, |e| {
+                        check_vars.iter().any(|v| self.expr_uses_var(e, v))
+                    })
+                }
+                Stmt::While(while_stmt) => {
+                    check_vars.iter().any(|v| self.expr_uses_var(&while_stmt.condition, v))
+                }
+                Stmt::Assign(assign) => {
+                    check_vars.iter().any(|v| {
+                        self.expr_uses_var(&assign.target, v) || self.expr_uses_var(&assign.value, v)
+                    })
+                }
+                _ => false,
+            };
+            
+            if uses_var {
+                return Some(var_name.clone());
+            }
+        }
+        None
+    }
+
+    /// Generate the await code for a pending task (Phase 2: Lazy await)
+    fn generate_task_await(&mut self, var_name: &str) -> Result<()> {
+        let task_info = self.pending_tasks.get(var_name).cloned();
+        if task_info.is_none() {
+            return Ok(()); // Not a task or already awaited
+        }
+        
+        let task_info = task_info.unwrap();
+        if task_info.awaited {
+            return Ok(()); // Already awaited
+        }
+
+        let task_var_name = format!("{}_task", var_name);
+        
+        self.write_indent();
+        
+        if task_info.is_error_binding {
+            // Error binding: let (value, err) = match task.await.unwrap() { Ok(v) => (v, ""), Err(e) => (Default::default(), e.message) };
+            write!(self.output, "let (").unwrap();
+            for (i, binding_name) in task_info.binding_names.iter().enumerate() {
+                if i > 0 { self.output.push_str(", "); }
+                write!(self.output, "{}", binding_name).unwrap();
+            }
+            self.output.push_str(") = match ");
+            write!(self.output, "{}.await.unwrap()", task_var_name).unwrap();
+            self.output.push_str(" { Ok(v) => (v, \"\".to_string()), Err(e) => (Default::default(), e.message) };\n");
+        } else {
+            // Simple binding: let var_name = var_name_task.await.unwrap();
+            write!(self.output, "let mut {} = {}.await.unwrap();\n", var_name, task_var_name).unwrap();
+        }
+
+        // Mark as awaited
+        self.pending_tasks.get_mut(var_name).unwrap().awaited = true;
+        
+        Ok(())
+    }
+
     fn generate_async_call(&mut self, call: &CallExpr) -> Result<()> {
+        // Phase 2: NO await here - just create the Task
+        // The await will be inserted at first use of the variable
         self.output.push_str("liva_rt::spawn_async(async move { ");
         self.generate_expr(&call.callee)?;
         self.output.push('(');
@@ -1647,11 +1852,14 @@ impl CodeGenerator {
                 self.generate_expr(arg)?;
             }
         }
-        self.output.push_str(") }).await.unwrap()");
+        self.output.push_str(") })");
+        // Note: NO .await.unwrap() here anymore!
         Ok(())
     }
 
     fn generate_parallel_call(&mut self, call: &CallExpr) -> Result<()> {
+        // Phase 2: NO await here - just create the Task
+        // The await will be inserted at first use of the variable
         self.output.push_str("liva_rt::spawn_parallel(move || ");
         self.generate_expr(&call.callee)?;
         self.output.push('(');
@@ -1668,7 +1876,8 @@ impl CodeGenerator {
             }
         }
         self.output.push(')');
-        self.output.push_str(").await.unwrap()");
+        self.output.push(')');
+        // Note: NO .await.unwrap() here anymore!
         Ok(())
     }
 
