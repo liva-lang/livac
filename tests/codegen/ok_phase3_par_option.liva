@@ -1,0 +1,26 @@
+// Phase 3: Parallel with Option<String> error
+// Tests that par error binding uses Option<String>
+
+heavyCompute(n: number) => n < 0 ? fail "Negative input" : n * n
+
+main() {
+  // Par with error binding
+  let result1, err1 = par heavyCompute(10)
+  if err1 != "" {  // Compiles to err1.is_some()
+    print($"Par Error 1: {err1}")
+  } else {
+    print($"Par Result 1: {result1}")
+  }
+
+  // Par with error
+  let result2, err2 = par heavyCompute(-5)
+  if err2 != "" {  // Compiles to err2.is_some()
+    print($"Par Error 2: {err2}")
+  } else {
+    print($"Par Result 2: {result2}")
+  }
+
+  // Par with custom error name
+  let result3, computeError = par heavyCompute(20)
+  print($"Par Result 3: {result3}, Error: {computeError}")
+}

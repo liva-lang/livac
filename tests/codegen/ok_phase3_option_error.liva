@@ -1,0 +1,31 @@
+// Phase 3: Option<String> error type test
+// Tests that error binding variables are Option<String> instead of String
+
+fallibleDivide(a: number, b: number) => b == 0 ? fail "Division by zero" : a / b
+
+main() {
+  let result1, err1 = fallibleDivide(10, 2)
+  if err1 != "" {  // Should compile as err1.is_some()
+    print($"Error 1: {err1}")
+  } else {
+    print($"Result 1: {result1}")
+  }
+
+  let result2, err2 = fallibleDivide(10, 0)
+  if err2 != "" {  // Should compile as err2.is_some()
+    print($"Error 2: {err2}")
+  } else {
+    print($"Result 2: {result2}")
+  }
+
+  // Test == "" comparison (should compile as err.is_none())
+  if err1 == "" {
+    print("err1 is empty")
+  }
+
+  if err2 == "" {
+    print("err2 is empty")
+  } else {
+    print("err2 has error")
+  }
+}

@@ -1,0 +1,29 @@
+// Phase 3: Async with Option<String> error
+// Tests that async error binding uses Option<String>
+
+asyncFetch(id: number): string {
+  if id < 0 fail "Invalid ID"
+  return $"User {id}"
+}
+
+main() {
+  // Async with error binding
+  let user1, err1 = async asyncFetch(123)
+  if err1 != "" {  // Compiles to err1.is_some()
+    print($"Async Error 1: {err1}")
+  } else {
+    print($"Async User 1: {user1}")
+  }
+
+  // Async with error
+  let user2, err2 = async asyncFetch(-1)
+  if err2 != "" {  // Compiles to err2.is_some()
+    print($"Async Error 2: {err2}")
+  } else {
+    print($"Async User 2: {user2}")
+  }
+
+  // Async with custom error name
+  let user3, fetchError = async asyncFetch(456)
+  print($"Async User 3: {user3}, Error: {fetchError}")
+}

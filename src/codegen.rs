@@ -34,6 +34,8 @@ pub struct CodeGenerator {
     fallible_functions: std::collections::HashSet<String>, // Track which functions are fallible
     // --- Phase 2: Lazy await/join tracking
     pending_tasks: std::collections::HashMap<String, TaskInfo>, // Variables that hold unawaited Tasks
+    // --- Phase 3: Error binding variables (Option<String> type)
+    error_binding_vars: std::collections::HashSet<String>, // Variables from error binding (second variable in let x, err = ...)
 }
 
 impl CodeGenerator {
@@ -52,6 +54,7 @@ impl CodeGenerator {
             var_types:    std::collections::HashMap::new(),
             fallible_functions: std::collections::HashSet::new(),
             pending_tasks: std::collections::HashMap::new(),
+            error_binding_vars: std::collections::HashSet::new(),
         }
     }
 
@@ -946,6 +949,11 @@ impl CodeGenerator {
                         .map(|b| self.sanitize_name(&b.name))
                         .collect();
                     
+                    // Phase 3: Track the error variable (second binding) as Option<String>
+                    if binding_names.len() == 2 {
+                        self.error_binding_vars.insert(binding_names[1].clone());
+                    }
+                    
                     if let Some(exec_policy) = task_exec_policy {
                         // Phase 2: Error binding with Task - store task without awaiting
                         // Generate: let task_name = async/par call();
@@ -973,16 +981,16 @@ impl CodeGenerator {
                         }
                         
                         if is_fallible_call {
-                            // Generate: let (value, err) = match expr { Ok(v) => (v, ""), Err(e) => (Default::default(), e.message) };
+                            // Generate: let (value, err) = match expr { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e.message)) };
                             self.output.push_str(") = match ");
                             self.generate_expr(&var.init)?;
-                            self.output.push_str(" { Ok(v) => (v, \"\".to_string()), Err(e) => (Default::default(), e.message) };\n");
+                            self.output.push_str(" { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e.message.to_string())) };\n");
                         } else {
                             // Non-fallible function called with fallible binding pattern
-                            // Generate: let (value, err) = (expr, "".to_string());
-                            self.output.push_str(") = (");
+                            // Generate: let (value, err) = (expr, None);
+                            self.output.push_str("): (_, Option<String>) = (");
                             self.generate_expr(&var.init)?;
-                            self.output.push_str(", \"\".to_string());\n");
+                            self.output.push_str(", None);\n");
                         }
                     }
                 } else {
@@ -1814,7 +1822,7 @@ impl CodeGenerator {
         self.write_indent();
         
         if task_info.is_error_binding {
-            // Error binding: let (value, err) = match task.await.unwrap() { Ok(v) => (v, ""), Err(e) => (Default::default(), e.message) };
+            // Error binding: let (value, err) = match task.await.unwrap() { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e.message)) };
             write!(self.output, "let (").unwrap();
             for (i, binding_name) in task_info.binding_names.iter().enumerate() {
                 if i > 0 { self.output.push_str(", "); }
@@ -1822,7 +1830,7 @@ impl CodeGenerator {
             }
             self.output.push_str(") = match ");
             write!(self.output, "{}.await.unwrap()", task_var_name).unwrap();
-            self.output.push_str(" { Ok(v) => (v, \"\".to_string()), Err(e) => (Default::default(), e.message) };\n");
+            self.output.push_str(" { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e.message.to_string())) };\n");
         } else {
             // Simple binding: let var_name = var_name_task.await.unwrap();
             write!(self.output, "let mut {} = {}.await.unwrap();\n", var_name, task_var_name).unwrap();
@@ -1962,6 +1970,40 @@ impl CodeGenerator {
     }
 
     fn generate_binary_operation(&mut self, op: &BinOp, left: &Expr, right: &Expr) -> Result<()> {
+        // Phase 3: Special handling for error binding variable comparisons with ""
+        // Transform: err != "" to err.is_some()
+        // Transform: err == "" to err.is_none()
+        if matches!(op, BinOp::Ne | BinOp::Eq) {
+            let is_error_var_comparison = match (left, right) {
+                (Expr::Identifier(name), Expr::Literal(Literal::String(s))) if s.is_empty() => {
+                    let sanitized = self.sanitize_name(name);
+                    self.error_binding_vars.contains(&sanitized)
+                }
+                (Expr::Literal(Literal::String(s)), Expr::Identifier(name)) if s.is_empty() => {
+                    let sanitized = self.sanitize_name(name);
+                    self.error_binding_vars.contains(&sanitized)
+                }
+                _ => false,
+            };
+            
+            if is_error_var_comparison {
+                // Generate err.is_some() or err.is_none()
+                if let Expr::Identifier(name) = left {
+                    write!(self.output, "{}", self.sanitize_name(name)).unwrap();
+                } else if let Expr::Identifier(name) = right {
+                    write!(self.output, "{}", self.sanitize_name(name)).unwrap();
+                }
+                
+                if matches!(op, BinOp::Ne) {
+                    self.output.push_str(".is_some()");
+                } else {
+                    self.output.push_str(".is_none()");
+                }
+                return Ok(());
+            }
+        }
+        
+        // Original logic for other binary operations
         // Only add parentheses when necessary for precedence
         let left_needs_parens = self.expr_needs_parens_for_binop(left, op);
         let right_needs_parens = self.expr_needs_parens_for_binop(right, op);

@@ -1,0 +1,27 @@
+// Phase 3: Error variable naming test
+// Tests that any name can be used for error variable (not just "err")
+
+fallibleDivide(a: number, b: number) => b == 0 ? fail "Division by zero" : a / b
+
+main() {
+  // Using "error" instead of "err"
+  let result1, error = fallibleDivide(10, 2)
+  if error != "" {
+    print($"Error 1: {error}")
+  } else {
+    print($"Result 1: {result1}")
+  }
+
+  // Using "e" instead of "err"  
+  let result2, e = fallibleDivide(10, 0)
+  if e != "" {
+    print($"Error 2: {e}")
+  } else {
+    print($"Result 2: {result2}")
+  }
+
+  // Using custom name "divError"
+  let value, divError = fallibleDivide(20, 4)
+  print($"Value: {value}, Error: {divError}")
+}
+
