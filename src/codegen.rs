@@ -37,6 +37,7 @@ pub struct CodeGenerator {
     // --- Phase 3: Error binding variables (Option<String> type)
     error_binding_vars: std::collections::HashSet<String>, // Variables from error binding (second variable in let x, err = ...)
     // --- Phase 4: Join combining optimization
+    #[allow(dead_code)]
     awaitable_tasks: Vec<String>, // Tasks that can be combined with tokio::join!
 }
 
@@ -326,7 +327,7 @@ impl CodeGenerator {
         self.output.push('\n');
 
         // Generate impl block
-        let has_methods = class.members.iter().any(|m| matches!(m, Member::Method(_)));
+        let _has_methods = class.members.iter().any(|m| matches!(m, Member::Method(_)));
         let has_fields = class.members.iter().any(|m| matches!(m, Member::Field(_)));
 
         // Find constructor method
@@ -615,10 +616,11 @@ impl CodeGenerator {
         None
     }
 
+    #[allow(dead_code)]
     fn generate_constructor_method(&mut self, method: &MethodDecl) -> Result<()> {
         let vis = "pub";
-        let async_kw = "";
-        let type_params = String::new();
+        let _async_kw = "";
+        let _type_params = String::new();
 
         let params_str = self.generate_params(&method.params, false, None, None)?; // false because constructor is not a method
 
@@ -1105,7 +1107,7 @@ impl CodeGenerator {
                     }
                     // Check if assigning from a class constructor call - mark variable as class instance
                     else if let Expr::Call(call) = &assign.value {
-                        if let Expr::Identifier(class_name) = &*call.callee {
+                        if let Expr::Identifier(_class_name) = &*call.callee {
                             // Check if this is a class constructor call by looking at the context
                             // For now, assume any call to an identifier is a potential class constructor
                             // This is a heuristic - we could improve this by checking against known class names
@@ -1506,7 +1508,7 @@ impl CodeGenerator {
                 // Assume the fields correspond to constructor parameters in the same order
                 write!(self.output, "{}::new(", type_name).unwrap();
 
-                for (i, (key, value)) in fields.iter().enumerate() {
+                for (i, (_key, value)) in fields.iter().enumerate() {
                     if i > 0 {
                         self.output.push_str(", ");
                     }
@@ -2289,7 +2291,7 @@ impl CodeGenerator {
                     false
                 }
             }
-            Expr::Ternary { condition, then_expr, else_expr } => {
+            Expr::Ternary { condition: _, then_expr, else_expr } => {
                 // A ternary is fallible if either branch contains a fail or calls a fallible function
                 self.expr_contains_fail(then_expr) || self.expr_contains_fail(else_expr)
             }
@@ -2377,18 +2379,23 @@ impl CodeGenerator {
 struct IrCodeGenerator<'a> {
     output: String,
     indent_level: usize,
+    #[allow(dead_code)]
     ctx: &'a DesugarContext,
+    #[allow(dead_code)]
     scope_formats: Vec<HashMap<String, FormatKind>>,
+    #[allow(dead_code)]
     in_method: bool,
 }
 
 #[derive(Copy, Clone, PartialEq)]
+#[allow(dead_code)]
 enum FormatKind {
     Display,
     Debug,
 }
 
 impl FormatKind {
+    #[allow(dead_code)]
     fn placeholder(self) -> &'static str {
         match self {
             FormatKind::Display => "{}",
@@ -2397,6 +2404,7 @@ impl FormatKind {
     }
 }
 
+#[allow(dead_code)]
 impl<'a> IrCodeGenerator<'a> {
     fn new(ctx: &'a DesugarContext) -> Self {
         Self {
@@ -2765,7 +2773,7 @@ impl<'a> IrCodeGenerator<'a> {
         }
     }
 
-
+    #[allow(dead_code)]
     fn emit_runtime_module(&mut self, use_async: bool, use_parallel: bool) {
         self.writeln("mod liva_rt {");
         self.indent();
@@ -4284,6 +4292,7 @@ fn expr_has_unsupported(expr: &ir::Expr) -> bool {
     }
 }
 
+#[allow(dead_code)]
 fn module_has_async_concurrency(module: &ir::Module) -> bool {
     module.items.iter().any(|item| match item {
         ir::Item::Function(func) => {
@@ -4295,6 +4304,7 @@ fn module_has_async_concurrency(module: &ir::Module) -> bool {
     })
 }
 
+#[allow(dead_code)]
 fn module_has_parallel_concurrency(module: &ir::Module) -> bool {
     module.items.iter().any(|item| match item {
         ir::Item::Function(func) => block_has_parallel_concurrency(&func.body),
@@ -4303,14 +4313,17 @@ fn module_has_parallel_concurrency(module: &ir::Module) -> bool {
     })
 }
 
+#[allow(dead_code)]
 fn block_has_async_concurrency(block: &ir::Block) -> bool {
     block.statements.iter().any(stmt_has_async_concurrency)
 }
 
+#[allow(dead_code)]
 fn block_has_parallel_concurrency(block: &ir::Block) -> bool {
     block.statements.iter().any(stmt_has_parallel_concurrency)
 }
 
+#[allow(dead_code)]
 fn stmt_has_async_concurrency(stmt: &ir::Stmt) -> bool {
     match stmt {
         ir::Stmt::Let { value, .. } | ir::Stmt::Const { value, .. } => {
@@ -4366,6 +4379,7 @@ fn stmt_has_async_concurrency(stmt: &ir::Stmt) -> bool {
     }
 }
 
+#[allow(dead_code)]
 fn stmt_has_parallel_concurrency(stmt: &ir::Stmt) -> bool {
     match stmt {
         ir::Stmt::Let { value, .. } | ir::Stmt::Const { value, .. } => {
@@ -4434,6 +4448,7 @@ fn stmt_has_parallel_concurrency(stmt: &ir::Stmt) -> bool {
     }
 }
 
+#[allow(dead_code)]
 fn expr_has_async_concurrency(expr: &ir::Expr) -> bool {
     match expr {
         &ir::Expr::AsyncCall { .. }
@@ -4507,6 +4522,7 @@ fn expr_has_async_concurrency(expr: &ir::Expr) -> bool {
     }
 }
 
+#[allow(dead_code)]
 fn expr_has_parallel_concurrency(expr: &ir::Expr) -> bool {
     match expr {
         &ir::Expr::ParallelCall { .. }
@@ -4606,11 +4622,6 @@ pub fn generate_from_ir(
     // For now, always use AST generator since it handles classes and inheritance correctly
     println!("DEBUG: Using AST generator for full compatibility");
     return generate_with_ast(program, ctx);
-
-    let ir_gen = IrCodeGenerator::new(&ctx);
-    let rust_code = ir_gen.generate(module)?;
-    let cargo_toml = generate_cargo_toml(&ctx)?;
-    Ok((rust_code, cargo_toml))
 }
 
 pub fn generate_with_ast(program: &Program, ctx: DesugarContext) -> Result<(String, String)> {

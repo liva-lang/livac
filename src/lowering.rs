@@ -21,18 +21,17 @@ pub fn lower_program(program: &ast::Program) -> ir::Module {
             ast::TopLevel::Test(test) => {
                 module.items.push(ir::Item::Test(lower_test(test)));
             }
-            ast::TopLevel::Class(class) => {
+            ast::TopLevel::Class(_class) => {
                 // For now, skip classes in IR - they will be handled by AST generator
                 // module.items.push(ir::Item::Class(lower_class(class)));
             }
-            ast::TopLevel::Type(type_decl) => {
+            ast::TopLevel::Type(_type_decl) => {
                 // For now, skip type declarations in IR - they will be handled by AST generator
                 // module.items.push(ir::Item::Type(lower_type(type_decl)));
             }
             ast::TopLevel::Import(_) => {
                 // Skip imports in IR
             }
-            _ => module.items.push(ir::Item::Unsupported(item.clone())),
         }
     }
 

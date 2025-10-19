@@ -1058,7 +1058,7 @@ impl SemanticAnalyzer {
                 }
                 Ok(())
             }
-            Expr::StructLiteral { type_name, fields } => {
+            Expr::StructLiteral { type_name: _, fields } => {
                 // TODO: Validate that type_name exists and is a struct/class
                 // TODO: Validate that fields match the struct definition
                 for (_, value) in fields {

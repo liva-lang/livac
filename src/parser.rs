@@ -72,6 +72,7 @@ impl Parser {
     }
 
     /// Get the span of the current token
+    #[allow(dead_code)]
     fn current_span(&self) -> Option<crate::span::Span> {
         if self.current < self.tokens.len() {
             Some(self.tokens[self.current].span)
