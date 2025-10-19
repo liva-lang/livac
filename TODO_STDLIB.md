@@ -31,46 +31,55 @@ Implement a comprehensive standard library with:
 #### 1.1 Design Array API
 - [ ] Review Rust Vec/Rayon methods for inspiration
 - [ ] Design Liva-style API (syntax, error handling)
-- [ ] **Design execution policy syntax for methods**
-  - Option A: `arr.map(fn, par)` - policy as second argument
-  - Option B: `arr.map(fn) with par` - keyword-based
-  - Option C: `arr.par().map(fn)` - chaining adapters
+- [ ] **Design execution policy syntax for methods: ADAPTER STYLE (Rust-like)**
+  - Sequential (default): `arr.map(x => x * 2)`
+  - Parallel adapter: `arr.par().map(x => x * 2)`
+  - Vectorized adapter: `arr.vec().map(x => x * 2)`
+  - Parallel+Vec adapter: `arr.parvec().map(x => x * 2)`
+  - With options: `arr.par({threads: 4, chunk: 2}).map(x => x * 2)`
 - [ ] **Define which methods support which policies:**
   - `seq` (sequential) - ALL methods support this (default)
-  - `par` (parallel) - `map`, `filter`, `reduce`, `forEach`, `some`, `every`, `includes`
-  - `vec` (SIMD) - `map`, `filter` (numeric operations only)
-  - `parvec` (parallel+SIMD) - `map`, `filter` (numeric operations only)
-- [ ] **Design policy options (chunk size, threads, simdWidth, ordered)**
-  - Example: `arr.map(fn, par with threads 4 chunk 2)`
-  - Example: `arr.map(fn, parvec with simdWidth 4 ordered)`
-- [ ] Document API design in `docs/stdlib/arrays.md`
+  - `.par()` adapter - `map`, `filter`, `reduce`, `forEach`, `some`, `every`, `includes`
+  - `.vec()` adapter - `map`, `filter` (numeric operations only)
+  - `.parvec()` adapter - `map`, `filter` (numeric operations only)
+- [ ] **Design adapter options:**
+  - `par({threads: N, chunk: M})` - Parallel with N threads, chunk size M
+  - `vec({simdWidth: N})` - SIMD with vector width N
+  - `parvec({threads: N, simdWidth: M, ordered: true})` - Combined options
+- [ ] Document API design in `docs/language-reference/stdlib/arrays.md`
 
 #### 1.2 Implement Core Methods
 - [ ] `map(fn)` - Transform each element
-  - Example: `[1,2,3].map(x => x * 2)` → `[2,4,6]`
-  - **Support execution policies:** `seq`, `par`, `vec`, `parvec`
-  - Example: `[1,2,3].map(x => x * 2, par)` - parallel execution
-  - Example: `[1,2,3].map(x => x * 2, parvec with simdWidth 4)` - SIMD
+  - Sequential: `[1,2,3].map(x => x * 2)` → `[2,4,6]`
+  - Parallel: `[1,2,3].par().map(x => x * 2)`
+  - With options: `[1,2,3].par({threads: 4, chunk: 2}).map(x => heavy(x))`
+  - Vectorized: `[1,2,3].vec().map(x => x * 2)`
+  - Par+Vec: `[1,2,3].parvec().map(x => x * 2)`
 - [ ] `filter(fn)` - Keep elements matching predicate
-  - Example: `[1,2,3].filter(x => x > 1)` → `[2,3]`
-  - **Support execution policies:** `seq`, `par`, `vec`, `parvec`
+  - Sequential: `[1,2,3].filter(x => x > 1)` → `[2,3]`
+  - Parallel: `[1,2,3].par().filter(x => x > 1)`
+  - Vectorized: `[1,2,3].vec().filter(x => x > 1)`
 - [ ] `reduce(fn, initial)` - Reduce to single value
-  - Example: `[1,2,3].reduce((acc, x) => acc + x, 0)` → `6`
-  - **Support execution policies:** `seq`, `par` (with reduction strategies)
+  - Sequential: `[1,2,3].reduce((acc, x) => acc + x, 0)` → `6`
+  - Parallel: `[1,2,3].par().reduce((acc, x) => acc + x, 0)`
 
 #### 1.3 Implement Utility Methods
 - [ ] `forEach(fn)` - Iterate with side effects
-  - **Support execution policies:** `seq`, `par`
+  - Sequential: `arr.forEach(x => print(x))`
+  - Parallel: `arr.par().forEach(x => print(x))`
 - [ ] `find(fn)` - Find first element matching predicate
-  - Sequential only (early exit)
+  - Sequential only: `arr.find(x => x > 5)`
 - [ ] `some(fn)` - Check if any element matches
-  - **Support execution policies:** `seq`, `par` (short-circuit)
+  - Sequential: `arr.some(x => x > 5)`
+  - Parallel: `arr.par().some(x => x > 5)`
 - [ ] `every(fn)` - Check if all elements match
-  - **Support execution policies:** `seq`, `par` (short-circuit)
+  - Sequential: `arr.every(x => x > 0)`
+  - Parallel: `arr.par().every(x => x > 0)`
 - [ ] `indexOf(value)` - Find index of value
-  - Sequential only (order-dependent)
+  - Sequential only: `arr.indexOf(42)`
 - [ ] `includes(value)` - Check if array contains value
-  - **Support execution policies:** `seq`, `par`
+  - Sequential: `arr.includes(42)`
+  - Parallel: `arr.par().includes(42)`
 
 #### 1.4 Testing & Documentation
 - [ ] Add unit tests for each method in `tests/stdlib_tests.rs`
@@ -286,32 +295,70 @@ let upper = toUpperCase("hello")
 
 **Execution Policies for Array Methods:**
 
-Liva supports 4 execution policies: `seq`, `par`, `vec`, `parvec` (from concurrency.md)
+Liva uses **adapter methods** (inspired by Rust's Rayon) for execution policies:
 
 ```liva
-// Sequential (default)
-let result = [1,2,3,4].map(x => x * 2)
+// Sequential (default) - no adapter needed
+let doubled = [1,2,3,4].map(x => x * 2)
 
-// Parallel (multi-threading)
-let result = [1,2,3,4].map(x => heavyComputation(x), par)
-let result = [1,2,3,4].map(x => heavyComputation(x), par with threads 4 chunk 2)
+// Parallel adapter - multi-threading
+let doubled = [1,2,3,4].par().map(x => heavyComputation(x))
 
-// Vectorized (SIMD)
-let result = [1,2,3,4].map(x => x * 2, vec)
-let result = [1,2,3,4].map(x => x * 2, vec with simdWidth 4)
+// Parallel with options
+let doubled = [1,2,3,4].par({threads: 4, chunk: 2}).map(x => heavy(x))
+
+// Vectorized adapter - SIMD
+let doubled = [1,2,3,4].vec().map(x => x * 2)
+let doubled = [1,2,3,4].vec({simdWidth: 4}).map(x => x * 2)
 
 // Parallel + Vectorized
-let result = [1,2,3,4].map(x => x * 2, parvec with simdWidth 4 ordered)
+let doubled = [1,2,3,4].parvec().map(x => x * 2)
+let doubled = [1,2,3,4].parvec({threads: 4, simdWidth: 4, ordered: true}).map(x => x * 2)
+
+// Chaining multiple operations
+let result = [1,2,3,4,5,6,7,8]
+  .par()
+  .filter(x => x > 3)
+  .map(x => x * 2)
+  .reduce((a, b) => a + b, 0)
 ```
+
+**Adapter Methods:**
+- `.par()` - Returns parallel iterator adapter
+- `.par({threads: N, chunk: M, ordered: bool})` - Parallel with options
+- `.vec()` - Returns vectorized iterator adapter
+- `.vec({simdWidth: N})` - Vectorized with SIMD width
+- `.parvec()` - Returns parallel+vectorized adapter
+- `.parvec({threads: N, simdWidth: M, ordered: bool})` - Combined with options
+
+**For Loops (different syntax - kept as is):**
+```liva
+// For loops use prefix syntax (existing, unchanged)
+for par item in numbers {
+  heavy(item)
+}
+
+for vec value in values {
+  compute(value)
+}
+
+for parvec item in data with simdWidth 4 ordered {
+  process(item)
+}
+```
+
+**Why Different Syntax?**
+- **For loops**: Prefix syntax (`for par`) - matches language keywords, clear control flow
+- **Array methods**: Adapter syntax (`.par()`) - chainable, composable, familiar to Rust/Java developers
 
 **Policy Support Matrix:**
 
-| Method | `seq` | `par` | `vec` | `parvec` | Notes |
-|--------|-------|-------|-------|----------|-------|
+| Method | Sequential | `.par()` | `.vec()` | `.parvec()` | Notes |
+|--------|-----------|----------|----------|-------------|-------|
 | `map` | ✅ | ✅ | ✅ | ✅ | Full support |
 | `filter` | ✅ | ✅ | ✅ | ✅ | Full support |
-| `reduce` | ✅ | ✅ | ❌ | ❌ | Sequential dependency |
-| `forEach` | ✅ | ✅ | ❌ | ❌ | Side effects |
+| `reduce` | ✅ | ✅ | ❌ | ❌ | Parallel requires associative op |
+| `forEach` | ✅ | ✅ | ❌ | ❌ | Side effects only |
 | `find` | ✅ | ❌ | ❌ | ❌ | Early exit, order-dependent |
 | `some` | ✅ | ✅ | ❌ | ❌ | Short-circuit possible |
 | `every` | ✅ | ✅ | ❌ | ❌ | Short-circuit possible |
@@ -337,14 +384,37 @@ let processed = numbers.map(x => {
 let multiplier = 10
 let scaled = numbers.map(x => x * multiplier)  // Captures 'multiplier'
 
-// Parallel with closure
-let scaled = numbers.map(x => x * multiplier, par)  // Safe: immutable capture
+// Parallel with closure (immutable capture is safe)
+let scaled = numbers.par().map(x => x * multiplier)
+
+// Complex parallel pipeline
+let result = numbers
+  .par({threads: 4})
+  .filter(x => x > 5)
+  .map(x => x * multiplier)
+  .reduce((a, b) => a + b, 0)
 ```
 
 **Thread Safety:**
-- Closures must be `Send + Sync` for `par`/`parvec`
+- Closures must be `Send + Sync` for `.par()`/`.parvec()`
 - Mutable captures not allowed in parallel contexts
-- Compiler enforces safety
+- Compiler enforces safety at compile time
+
+```liva
+// ✅ Safe: immutable capture
+let multiplier = 10
+let scaled = numbers.par().map(x => x * multiplier)
+
+// ❌ Compile error: mutable capture in parallel context
+let mut counter = 0
+let result = numbers.par().map(x => {
+  counter = counter + 1  // ERROR: cannot mutate in parallel
+  return x * 2
+})
+
+// ✅ Safe: no shared state
+let result = numbers.parvec().map(x => x * 2)
+```
 
 **Error Handling:**
 ```liva
