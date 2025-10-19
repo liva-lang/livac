@@ -1,5 +1,5 @@
 use std::future::Future;
-use tokio::task::{JoinHandle, spawn as tokio_spawn};
+use tokio::task::spawn as tokio_spawn;
 
 // Placeholder types for advanced parallelism features
 pub enum ThreadOption {

@@ -1,6 +1,5 @@
 use crate::ast::*;
 use crate::error::{CompilerError, Result, SemanticErrorInfo, ErrorLocation};
-use colored::Colorize;
 use std::collections::{HashMap, HashSet};
 
 pub struct SemanticAnalyzer {
