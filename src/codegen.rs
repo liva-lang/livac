@@ -1621,7 +1621,7 @@ impl CodeGenerator {
                         if let Expr::Identifier(name) = expr {
                             let sanitized = self.sanitize_name(name);
                             if self.error_binding_vars.contains(&sanitized) {
-                                write!(self.output, "{}.as_ref().map(|e| e.message.as_str())", sanitized).unwrap();
+                                write!(self.output, "{}.as_ref().map(|e| e.message.as_str()).unwrap_or(\"\")", sanitized).unwrap();
                                 continue;
                             }
                         }
@@ -2207,7 +2207,7 @@ impl CodeGenerator {
                     }
                     self.generate_expr(arg)?;
                 }
-                self.output.push_str("); });");
+                self.output.push_str("); })");
             }
             ConcurrencyMode::Parallel => {
                 self.output.push_str("liva_rt::fire_parallel(move || {");
@@ -2219,7 +2219,7 @@ impl CodeGenerator {
                     }
                     self.generate_expr(arg)?;
                 }
-                self.output.push_str("); });");
+                self.output.push_str("); })");
             }
         }
         Ok(())

@@ -74,7 +74,7 @@ fn fetch() -> f64 {
 
 fn main() {
     let value_task = liva_rt::spawn_async(async move { fetch() });
-    liva_rt::fire_async(async move { fetch(); });;
+    liva_rt::fire_async(async move { fetch(); });
     let mut value = value_task.await.unwrap();
     println!("{}", value);
 }
