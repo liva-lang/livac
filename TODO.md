@@ -45,27 +45,27 @@
 
 ---
 
-### 2. Fix Failing Test (~15 min)
+### ✅ 2. Fix Failing Test (~15 min) - COMPLETED
 
 #### 2.1 Identify Failure
-- [ ] Run `cargo test --test codegen_ir_tests ir_codegen_string_templates`
-- [ ] Note the exact error/diff
+- [x] Run `cargo test --test codegen_ir_tests ir_codegen_string_templates`
+- [x] Note the exact error/diff
 
 #### 2.2 Review Snapshot
-- [ ] Open `tests/snapshots/codegen_ir_tests__ir_string_templates.snap`
-- [ ] Compare with actual output
-- [ ] Determine if snapshot is outdated or code is wrong
+- [x] Open `tests/snapshots/codegen_ir_tests__ir_string_templates.snap`
+- [x] Compare with actual output
+- [x] Determine if snapshot is outdated or code is wrong
 
 #### 2.3 Fix or Accept
-- [ ] **If snapshot is outdated:** `cargo insta accept`
-- [ ] **If code is wrong:** Fix code generation logic
-- [ ] Re-run test to confirm pass
+- [x] **If snapshot is outdated:** `cargo insta accept`
+- [x] **If code is wrong:** Fix code generation logic
+- [x] Re-run test to confirm pass
 
 #### 2.4 Verify
-- [ ] Run `cargo test --test codegen_ir_tests`
-- [ ] Confirm all codegen IR tests pass
+- [x] Run `cargo test --test codegen_ir_tests`
+- [x] Confirm all codegen IR tests pass
 
-**Success Criteria:** `cargo test` shows 0 failures ✅
+**Success Criteria:** `cargo test` shows 0 failures ✅ **DONE**
 
 ---
 
