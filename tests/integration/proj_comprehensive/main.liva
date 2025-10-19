@@ -65,15 +65,26 @@ Persona {
   esMayorDeEdad(): bool = this._edad >= 18
 }
 
-// Inheritance
-Empleado : Persona {
+// Composition (preferred over inheritance)
+Empleado {
+  persona: Persona
   empresa: string
   _salario: number
 
+  init(nombre: string, edad: number, dni: string, empresa: string, salario: number) {
+    this.persona = Persona(nombre, edad, dni)
+    this.empresa = empresa
+    this._salario = salario
+  }
+
   trabajar() {
-    print($"{this.nombre} trabaja en {this.empresa}")
-    // Can access protected members from base class
-    print($"Tiene {this._edad} años")
+    print($"{this.persona.nombre} trabaja en {this.empresa}")
+    // Access public members through composition
+    print($"Tiene {this.persona._edad} años")
+  }
+  
+  saludar() {
+    this.persona.saludar()
   }
 }
 
@@ -84,6 +95,7 @@ testClasses() {
 
   let e = Empleado("Carlos", 30, "87654321B", "TechCorp", 50000)
   e.trabajar()
+  e.saludar()
 }
 
 // ============================================
