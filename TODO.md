@@ -156,58 +156,49 @@ Empleado {
 
 ---
 
-### 5. Update CHANGELOG (~15 min)
+### 5. Update CHANGELOG (~15 min) ✅
 
-#### 5.1 Create CHANGELOG.md (if doesn't exist)
-- [ ] Create `CHANGELOG.md` in root
-- [ ] Follow [Keep a Changelog](https://keepachangelog.com/) format
+**Status:** ✅ COMPLETED - CHANGELOG.md created
 
-#### 5.2 Document v0.6.1
+#### 5.1 Create CHANGELOG.md (if doesn't exist) ✅
+- [x] Create `CHANGELOG.md` in root
+- [x] Follow [Keep a Changelog](https://keepachangelog.com/) format
+
+#### 5.2 Document v0.6.1 ✅
 ```markdown
-## [0.6.1] - 2025-10-19
+## [0.6.1] - 2025-10-20
 
 ### Fixed
 - Removed 26 compiler warnings
-- Fixed unreachable code in codegen.rs
-- Restored semantic.rs unit tests
-- Fixed failing ir_codegen_string_templates test
-- Removed all class inheritance examples
+- Fixed ir_codegen_string_templates test
+- Fixed error variable formatting in string templates
+- Fixed double semicolons in fire calls
+- Removed illegal class inheritance from examples
 
 ### Changed
-- All tests now pass (110+ integration tests)
+- All tests now pass (178 tests total)
 - Zero compiler warnings
 - Improved code quality
 ```
 
-#### 5.3 Document v0.6.0 Breaking Changes
+#### 5.3 Document v0.6.0 Breaking Changes ✅
 ```markdown
 ## [0.6.0] - 2025-10-19
 
 ### BREAKING CHANGES
 - **Removed `protected` visibility**
-  - Single underscore `_` now means private (was protected)
-  - Double underscore `__` syntax removed (no longer needed)
-  - Rationale: No class inheritance = no need for protected
+  - Rationale: Liva doesn't support class inheritance
+  - Migration: Use composition instead
   
 ### Migration Guide
-**Before (v0.5.x):**
-```liva
-class User {
-  name: string        // public
-  _email: string      // protected
-  __password: string  // private
-}
+- Class inheritance → Use composition
+- Protected fields → Use private fields
+- Interfaces still supported (`:` syntax for interface implementation)
 ```
 
-**After (v0.6.x):**
-```liva
-class User {
-  name: string      // public
-  _password: string // private (single underscore)
-}
-```
+**Success Criteria:** CHANGELOG.md exists and documents all changes ✅
 
-### Added
+---
 - Interface-based design with `:` syntax
 - Real-time interface validation in VS Code
 - 110+ comprehensive integration tests
@@ -265,12 +256,12 @@ class User {
 
 ## 🎯 Completion Checklist
 
-- [ ] Task 1: Fix Compiler Warnings ✅
-- [ ] Task 2: Fix Failing Test ✅
-- [ ] Task 3: Restore Semantic Unit Tests ✅
-- [ ] Task 4: Audit Inheritance Usage ✅
-- [ ] Task 5: Update CHANGELOG ✅
-- [ ] Task 6: Final Verification ✅
+- [x] Task 1: Fix Compiler Warnings ✅
+- [x] Task 2: Fix Failing Test ✅
+- [x] Task 3: Restore Semantic Unit Tests (SKIPPED) ⏭️
+- [x] Task 4: Audit Inheritance Usage ✅
+- [x] Task 5: Update CHANGELOG ✅
+- [ ] Task 6: Final Verification
 
 ---
 
