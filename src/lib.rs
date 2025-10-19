@@ -43,7 +43,7 @@ pub mod parser;
 pub mod semantic;
 pub mod span;
 
-pub use error::{CompilerError, Result, SemanticErrorInfo, ErrorLocation};
+pub use error::{CompilerError, ErrorLocation, Result, SemanticErrorInfo};
 
 use std::path::{Path, PathBuf};
 
@@ -110,7 +110,11 @@ pub fn compile_file(options: &CompilerOptions) -> Result<CompilationResult> {
     compile_source_with_filename(&source, filename, options)
 }
 
-fn compile_source_with_filename(source: &str, filename: &str, options: &CompilerOptions) -> Result<CompilationResult> {
+fn compile_source_with_filename(
+    source: &str,
+    filename: &str,
+    options: &CompilerOptions,
+) -> Result<CompilationResult> {
     // 1. Lexer - tokenize source
     let tokens = lexer::tokenize(source)?;
 
@@ -118,7 +122,8 @@ fn compile_source_with_filename(source: &str, filename: &str, options: &Compiler
     let ast = parser::parse(tokens, source)?;
 
     // 3. Semantic analysis with source information
-    let analyzed_ast = semantic::analyze_with_source(ast, filename.to_string(), source.to_string())?;
+    let analyzed_ast =
+        semantic::analyze_with_source(ast, filename.to_string(), source.to_string())?;
 
     // If check-only mode, stop here
     if options.check_only {

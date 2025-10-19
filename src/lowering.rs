@@ -21,18 +21,17 @@ pub fn lower_program(program: &ast::Program) -> ir::Module {
             ast::TopLevel::Test(test) => {
                 module.items.push(ir::Item::Test(lower_test(test)));
             }
-            ast::TopLevel::Class(class) => {
+            ast::TopLevel::Class(_class) => {
                 // For now, skip classes in IR - they will be handled by AST generator
                 // module.items.push(ir::Item::Class(lower_class(class)));
             }
-            ast::TopLevel::Type(type_decl) => {
+            ast::TopLevel::Type(_type_decl) => {
                 // For now, skip type declarations in IR - they will be handled by AST generator
                 // module.items.push(ir::Item::Type(lower_type(type_decl)));
             }
             ast::TopLevel::Import(_) => {
                 // Skip imports in IR
             }
-            _ => module.items.push(ir::Item::Unsupported(item.clone())),
         }
     }
 
@@ -89,7 +88,9 @@ fn lower_function(func: &ast::FunctionDecl) -> ir::Function {
             ir::Type::Float => ir::Type::Custom("Result<f64, liva_rt::Error>".to_string()),
             ir::Type::Bool => ir::Type::Custom("Result<bool, liva_rt::Error>".to_string()),
             ir::Type::String => ir::Type::Custom("Result<String, liva_rt::Error>".to_string()),
-            ir::Type::Custom(type_str) => ir::Type::Custom(format!("Result<{}, liva_rt::Error>", type_str)),
+            ir::Type::Custom(type_str) => {
+                ir::Type::Custom(format!("Result<{}, liva_rt::Error>", type_str))
+            }
             ir::Type::Inferred => ir::Type::Custom("Result<(), liva_rt::Error>".to_string()),
             _ => ir::Type::Custom("Result<(), liva_rt::Error>".to_string()), // Handle other types
         };
@@ -143,7 +144,10 @@ fn lower_stmt(stmt: &ast::Stmt) -> ir::Stmt {
                 let binding = &var.bindings[0];
                 ir::Stmt::Let {
                     name: binding.name.clone(),
-                    ty: binding.type_ref.as_ref().map(|ty| ir::Type::from_ast(&Some(ty.clone()))),
+                    ty: binding
+                        .type_ref
+                        .as_ref()
+                        .map(|ty| ir::Type::from_ast(&Some(ty.clone()))),
                     value,
                 }
             } else {
@@ -323,23 +327,29 @@ fn lower_expr(expr: &ast::Expr) -> ir::Expr {
             }],
         },
         ast::Expr::Lambda(lambda) => {
-            let params = lambda.params.iter().map(|param| ir::LambdaParam {
-                name: param.name.clone(),
-                type_ref: param.type_ref.as_ref().map(|tr| tr.to_rust_type()),
-            }).collect();
-            
+            let params = lambda
+                .params
+                .iter()
+                .map(|param| ir::LambdaParam {
+                    name: param.name.clone(),
+                    type_ref: param.type_ref.as_ref().map(|tr| tr.to_rust_type()),
+                })
+                .collect();
+
             let body = match &lambda.body {
                 ast::LambdaBody::Expr(expr) => ir::LambdaBody::Expr(Box::new(lower_expr(expr))),
-                ast::LambdaBody::Block(block) => ir::LambdaBody::Block(lower_block(block).statements),
+                ast::LambdaBody::Block(block) => {
+                    ir::LambdaBody::Block(lower_block(block).statements)
+                }
             };
-            
+
             ir::Expr::Lambda(ir::LambdaExpr {
                 is_move: lambda.is_move,
                 params,
                 return_type: lambda.return_type.as_ref().map(|tr| tr.to_rust_type()),
                 body,
             })
-        },
+        }
     }
 }
 
@@ -712,7 +722,9 @@ fn infer_if_body_return_type_with_env(
 ) -> ir::Type {
     match body {
         ast::IfBody::Block(block) => infer_block_return_type_with_env(block, vars),
-        ast::IfBody::Stmt(stmt) => infer_stmt_return_type_with_env(stmt, vars).unwrap_or(ir::Type::Inferred),
+        ast::IfBody::Stmt(stmt) => {
+            infer_stmt_return_type_with_env(stmt, vars).unwrap_or(ir::Type::Inferred)
+        }
     }
 }
 
@@ -808,25 +820,36 @@ fn contains_fail_in_stmt(stmt: &ast::Stmt) -> bool {
         ast::Stmt::Fail(_) => true,
         ast::Stmt::VarDecl(var) => contains_fail_in_expr(&var.init),
         ast::Stmt::Assign(assign) => contains_fail_in_expr(&assign.value),
-        ast::Stmt::Return(ret) => ret.expr.as_ref().map_or(false, |e| contains_fail_in_expr(e)),
+        ast::Stmt::Return(ret) => ret
+            .expr
+            .as_ref()
+            .map_or(false, |e| contains_fail_in_expr(e)),
         ast::Stmt::If(if_stmt) => {
-            contains_fail_in_expr(&if_stmt.condition) ||
-            contains_fail_in_if_body(&if_stmt.then_branch) ||
-            if_stmt.else_branch.as_ref().map_or(false, |b| contains_fail_in_if_body(b))
+            contains_fail_in_expr(&if_stmt.condition)
+                || contains_fail_in_if_body(&if_stmt.then_branch)
+                || if_stmt
+                    .else_branch
+                    .as_ref()
+                    .map_or(false, |b| contains_fail_in_if_body(b))
         }
         ast::Stmt::While(while_stmt) => {
-            contains_fail_in_expr(&while_stmt.condition) ||
-            contains_fail_in_block(&while_stmt.body)
+            contains_fail_in_expr(&while_stmt.condition) || contains_fail_in_block(&while_stmt.body)
         }
         ast::Stmt::For(for_stmt) => contains_fail_in_block(&for_stmt.body),
         ast::Stmt::Switch(switch) => {
-            contains_fail_in_expr(&switch.discriminant) ||
-            switch.cases.iter().any(|case| case.body.iter().any(|s| contains_fail_in_stmt(s))) ||
-            switch.default.as_ref().map_or(false, |b| b.iter().any(|s| contains_fail_in_stmt(s)))
+            contains_fail_in_expr(&switch.discriminant)
+                || switch
+                    .cases
+                    .iter()
+                    .any(|case| case.body.iter().any(|s| contains_fail_in_stmt(s)))
+                || switch
+                    .default
+                    .as_ref()
+                    .map_or(false, |b| b.iter().any(|s| contains_fail_in_stmt(s)))
         }
         ast::Stmt::TryCatch(try_catch) => {
-            contains_fail_in_block(&try_catch.try_block) ||
-            contains_fail_in_block(&try_catch.catch_block)
+            contains_fail_in_block(&try_catch.try_block)
+                || contains_fail_in_block(&try_catch.catch_block)
         }
         ast::Stmt::Throw(throw) => contains_fail_in_expr(&throw.expr),
         ast::Stmt::Expr(expr_stmt) => contains_fail_in_expr(&expr_stmt.expr),
@@ -844,18 +867,22 @@ fn contains_fail_in_if_body(body: &ast::IfBody) -> bool {
 fn contains_fail_in_expr(expr: &ast::Expr) -> bool {
     match expr {
         ast::Expr::Fail(_) => true,
-        ast::Expr::Ternary { condition, then_expr, else_expr } => {
-            contains_fail_in_expr(condition) ||
-            contains_fail_in_expr(then_expr) ||
-            contains_fail_in_expr(else_expr)
+        ast::Expr::Ternary {
+            condition,
+            then_expr,
+            else_expr,
+        } => {
+            contains_fail_in_expr(condition)
+                || contains_fail_in_expr(then_expr)
+                || contains_fail_in_expr(else_expr)
         }
         ast::Expr::Binary { left, right, .. } => {
             contains_fail_in_expr(left) || contains_fail_in_expr(right)
         }
         ast::Expr::Unary { operand, .. } => contains_fail_in_expr(operand),
         ast::Expr::Call(call) => {
-            contains_fail_in_expr(&call.callee) ||
-            call.args.iter().any(|arg| contains_fail_in_expr(arg))
+            contains_fail_in_expr(&call.callee)
+                || call.args.iter().any(|arg| contains_fail_in_expr(arg))
         }
         ast::Expr::Member { object, .. } => contains_fail_in_expr(object),
         ast::Expr::Index { object, index } => {
@@ -874,12 +901,10 @@ fn contains_fail_in_expr(expr: &ast::Expr) -> bool {
             ast::LambdaBody::Expr(body) => contains_fail_in_expr(body),
             ast::LambdaBody::Block(block) => contains_fail_in_block(block),
         },
-        ast::Expr::StringTemplate { parts } => {
-            parts.iter().any(|part| match part {
-                ast::StringTemplatePart::Expr(expr) => contains_fail_in_expr(expr),
-                _ => false,
-            })
-        }
+        ast::Expr::StringTemplate { parts } => parts.iter().any(|part| match part {
+            ast::StringTemplatePart::Expr(expr) => contains_fail_in_expr(expr),
+            _ => false,
+        }),
         _ => false,
     }
 }

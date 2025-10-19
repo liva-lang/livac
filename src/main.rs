@@ -3,7 +3,7 @@ use colored::*;
 use std::path::PathBuf;
 use std::process::Command;
 
-use livac::{CompilerOptions, CompilerError};
+use livac::{CompilerError, CompilerOptions};
 
 #[derive(Parser)]
 #[command(name = "livac")]
@@ -77,14 +77,18 @@ fn compile(cli: &Cli) -> Result<(), CompilerError> {
     }
 
     let main_rs = result.rust_code.ok_or_else(|| {
-        CompilerError::CodegenError(
-            livac::SemanticErrorInfo::new("E3001", "Code generation failed", "No Rust code generated")
-        )
+        CompilerError::CodegenError(livac::SemanticErrorInfo::new(
+            "E3001",
+            "Code generation failed",
+            "No Rust code generated",
+        ))
     })?;
     let cargo_toml = result.cargo_toml.ok_or_else(|| {
-        CompilerError::CodegenError(
-            livac::SemanticErrorInfo::new("E3002", "Code generation failed", "No Cargo.toml generated")
-        )
+        CompilerError::CodegenError(livac::SemanticErrorInfo::new(
+            "E3002",
+            "Code generation failed",
+            "No Cargo.toml generated",
+        ))
     })?;
 
     // 7. Write output

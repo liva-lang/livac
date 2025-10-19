@@ -1,6 +1,5 @@
 use crate::ast::*;
-use crate::error::{CompilerError, Result, SemanticErrorInfo, ErrorLocation};
-use colored::Colorize;
+use crate::error::{CompilerError, ErrorLocation, Result, SemanticErrorInfo};
 use std::collections::{HashMap, HashSet};
 
 pub struct SemanticAnalyzer {
@@ -67,7 +66,7 @@ impl SemanticAnalyzer {
         } else {
             None
         };
-        
+
         Self {
             async_functions: HashSet::new(),
             fallible_functions: HashSet::new(),
@@ -83,20 +82,28 @@ impl SemanticAnalyzer {
     }
 
     /// Create a semantic error with location information from a span
-    fn error_with_span(&self, code: &str, title: &str, message: &str, span: Option<crate::span::Span>) -> SemanticErrorInfo {
+    fn error_with_span(
+        &self,
+        code: &str,
+        title: &str,
+        message: &str,
+        span: Option<crate::span::Span>,
+    ) -> SemanticErrorInfo {
         let mut error = SemanticErrorInfo::new(code, title, message);
-        
+
         if let (Some(span), Some(source_map)) = (span, &self.source_map) {
             let (line, column) = span.start_position(source_map);
             let source_line = self.get_source_line(line);
-            
-            error = error.with_location(&self.source_file, line).with_column(column);
-            
+
+            error = error
+                .with_location(&self.source_file, line)
+                .with_column(column);
+
             if let Some(source_line) = source_line {
                 error = error.with_source_line(source_line);
             }
         }
-        
+
         error
     }
 
@@ -337,9 +344,7 @@ impl SemanticAnalyzer {
 
     fn stmt_contains_async(&self, stmt: &Stmt) -> bool {
         match stmt {
-            Stmt::VarDecl(var) => {
-                self.expr_contains_async(&var.init)
-            }
+            Stmt::VarDecl(var) => self.expr_contains_async(&var.init),
             Stmt::ConstDecl(const_decl) => self.expr_contains_async(&const_decl.init),
             Stmt::Assign(assign) => {
                 self.expr_contains_async(&assign.target) || self.expr_contains_async(&assign.value)
@@ -478,11 +483,17 @@ impl SemanticAnalyzer {
             Stmt::Fail(_) => true,
             Stmt::If(if_stmt) => {
                 self.if_body_contains_fail(&if_stmt.then_branch)
-                    || if_stmt.else_branch.as_ref().map_or(false, |eb| self.if_body_contains_fail(eb))
+                    || if_stmt
+                        .else_branch
+                        .as_ref()
+                        .map_or(false, |eb| self.if_body_contains_fail(eb))
             }
             Stmt::While(while_stmt) => self.stmt_list_contains_fail(&while_stmt.body.stmts),
             Stmt::For(for_stmt) => self.stmt_list_contains_fail(&for_stmt.body.stmts),
-            Stmt::Return(ret) => ret.expr.as_ref().map_or(false, |e| self.expr_contains_fail(e)),
+            Stmt::Return(ret) => ret
+                .expr
+                .as_ref()
+                .map_or(false, |e| self.expr_contains_fail(e)),
             Stmt::Expr(expr_stmt) => self.expr_contains_fail(&expr_stmt.expr),
             Stmt::VarDecl(var) => self.expr_contains_fail(&var.init),
             _ => false,
@@ -515,15 +526,13 @@ impl SemanticAnalyzer {
                 self.expr_contains_fail(left) || self.expr_contains_fail(right)
             }
             Expr::Unary { operand, .. } => self.expr_contains_fail(operand),
-            Expr::StringTemplate { parts } => {
-                parts.iter().any(|part| {
-                    if let StringTemplatePart::Expr(e) = part {
-                        self.expr_contains_fail(e)
-                    } else {
-                        false
-                    }
-                })
-            }
+            Expr::StringTemplate { parts } => parts.iter().any(|part| {
+                if let StringTemplatePart::Expr(e) = part {
+                    self.expr_contains_fail(e)
+                } else {
+                    false
+                }
+            }),
             Expr::ArrayLiteral(elements) => elements.iter().any(|e| self.expr_contains_fail(e)),
             Expr::Index { object, index } => {
                 self.expr_contains_fail(object) || self.expr_contains_fail(index)
@@ -532,7 +541,11 @@ impl SemanticAnalyzer {
             Expr::StructLiteral { fields, .. } => {
                 fields.iter().any(|(_, expr)| self.expr_contains_fail(expr))
             }
-            Expr::Ternary { condition, then_expr, else_expr } => {
+            Expr::Ternary {
+                condition,
+                then_expr,
+                else_expr,
+            } => {
                 self.expr_contains_fail(condition)
                     || self.expr_contains_fail(then_expr)
                     || self.expr_contains_fail(else_expr)
@@ -568,38 +581,42 @@ impl SemanticAnalyzer {
     /// Tries to find calls that don't use the pattern "let result, err = func(...)"
     fn find_line_for_function_call(&self, func_name: &str) -> Option<usize> {
         let mut first_call = None;
-        
+
         for (line_num, line) in self.source_code.lines().enumerate() {
             let trimmed = line.trim();
-            
+
             // Skip empty lines
             if trimmed.is_empty() {
                 continue;
             }
-            
+
             // Check if line contains the function name
             if !trimmed.contains(func_name) {
                 continue;
             }
-            
+
             // Skip if it's a function declaration (has parameter types or return type declaration)
             // Pattern: "functionName(param: type" or "functionName(...): returnType"
             if trimmed.contains(&format!("{}(", func_name)) {
                 // Check if it looks like a declaration
-                let after_func = trimmed.split(&format!("{}(", func_name)).nth(1).unwrap_or("");
-                
+                let after_func = trimmed
+                    .split(&format!("{}(", func_name))
+                    .nth(1)
+                    .unwrap_or("");
+
                 // If there's a colon before the closing paren or opening brace, it's likely a declaration
-                if after_func.contains("): ") || 
-                   (after_func.contains(':') && after_func.contains('{')) ||
-                   (after_func.contains(':') && !after_func.contains(')')) {
+                if after_func.contains("): ")
+                    || (after_func.contains(':') && after_func.contains('{'))
+                    || (after_func.contains(':') && !after_func.contains(')'))
+                {
                     continue;
                 }
-                
+
                 // If the line starts with "function" or "fn", it's a declaration
                 if trimmed.starts_with("function ") || trimmed.starts_with("fn ") {
                     continue;
                 }
-                
+
                 // Check if this call has error binding (pattern: "let x, err =")
                 // The pattern should have a comma in the left side of assignment before the '='
                 let has_error_binding = if trimmed.starts_with("let ") {
@@ -613,19 +630,19 @@ impl SemanticAnalyzer {
                 } else {
                     false
                 };
-                
+
                 // If we found a call without error binding, return it immediately
                 if !has_error_binding {
                     return Some(line_num + 1);
                 }
-                
+
                 // Otherwise, save it as potential fallback
                 if first_call.is_none() {
                     first_call = Some(line_num + 1);
                 }
             }
         }
-        
+
         // If we didn't find a call without error binding, return the first call we found
         first_call
     }
@@ -662,9 +679,9 @@ impl SemanticAnalyzer {
         for param in &func.params {
             if self.declare_symbol(&param.name, param.type_ref.clone()) {
                 self.exit_scope()?;
-                return Err(CompilerError::SemanticError(format!(
-                    "Parameter '{}' defined multiple times",
-                    param.name).into()));
+                return Err(CompilerError::SemanticError(
+                    format!("Parameter '{}' defined multiple times", param.name).into(),
+                ));
             }
         }
 
@@ -699,9 +716,9 @@ impl SemanticAnalyzer {
         // Check base class exists if specified
         if let Some(base) = &class.base {
             if !self.types.contains_key(base) {
-                return Err(CompilerError::SemanticError(format!(
-                    "Base class '{}' not found",
-                    base).into()));
+                return Err(CompilerError::SemanticError(
+                    format!("Base class '{}' not found", base).into(),
+                ));
             }
         }
 
@@ -749,9 +766,9 @@ impl SemanticAnalyzer {
         for param in &method.params {
             if self.declare_symbol(&param.name, param.type_ref.clone()) {
                 self.exit_scope()?;
-                return Err(CompilerError::SemanticError(format!(
-                    "Parameter '{}' defined multiple times",
-                    param.name).into()));
+                return Err(CompilerError::SemanticError(
+                    format!("Parameter '{}' defined multiple times", param.name).into(),
+                ));
             }
         }
 
@@ -806,7 +823,7 @@ impl SemanticAnalyzer {
                         if let Expr::Identifier(func_name) = &*call.callee {
                             let line = self.find_line_for_function_call(func_name).unwrap_or(0);
                             let source_line = self.get_source_line(line);
-                            
+
                             let error = SemanticErrorInfo {
                                 location: Some(ErrorLocation {
                                     file: self.source_file.clone(),
@@ -822,7 +839,7 @@ impl SemanticAnalyzer {
                                 ),
                                 help: Some(format!("Change to: let result, err = {}(...)", func_name)),
                             };
-                            
+
                             return Err(CompilerError::SemanticError(error));
                         }
                     }
@@ -838,7 +855,10 @@ impl SemanticAnalyzer {
                         // The actual type will be Result<T, Error> but we handle this in lowering
                         binding.type_ref.clone()
                     } else {
-                        binding.type_ref.clone().or_else(|| self.infer_expr_type(&var.init))
+                        binding
+                            .type_ref
+                            .clone()
+                            .or_else(|| self.infer_expr_type(&var.init))
                     };
 
                     if self.declare_symbol(&binding.name, declared_type.clone()) {
@@ -849,7 +869,7 @@ impl SemanticAnalyzer {
                             binding.span
                         )
                         .with_help(&format!("Consider using a different name or removing the previous declaration of '{}'", binding.name));
-                        
+
                         return Err(CompilerError::SemanticError(error));
                     }
 
@@ -878,7 +898,7 @@ impl SemanticAnalyzer {
                         const_decl.span
                     )
                     .with_help(&format!("Consider using a different name or removing the previous declaration of '{}'", const_decl.name));
-                    
+
                     return Err(CompilerError::SemanticError(error));
                 }
                 self.update_awaitable_from_expr(&const_decl.name, &const_decl.init)?;
@@ -904,9 +924,9 @@ impl SemanticAnalyzer {
                 self.enter_scope();
                 if self.declare_symbol(&for_stmt.var, None) {
                     self.exit_scope()?;
-                    return Err(CompilerError::SemanticError(format!(
-                        "Loop variable '{}' already defined",
-                        for_stmt.var).into()));
+                    return Err(CompilerError::SemanticError(
+                        format!("Loop variable '{}' already defined", for_stmt.var).into(),
+                    ));
                 }
                 self.validate_block_stmt(&for_stmt.body)?;
                 let validation = self.validate_for_loop(for_stmt);
@@ -951,14 +971,14 @@ impl SemanticAnalyzer {
             }
             Stmt::Expr(expr_stmt) => {
                 self.validate_expr(&expr_stmt.expr)?;
-                
+
                 // Check if expression is a fallible function call without error binding
                 if self.is_expr_fallible(&expr_stmt.expr) {
                     if let Expr::Call(call) = &expr_stmt.expr {
                         if let Expr::Identifier(func_name) = &*call.callee {
                             let line = self.find_line_for_function_call(func_name).unwrap_or(0);
                             let source_line = self.get_source_line(line);
-                            
+
                             let error = SemanticErrorInfo {
                                 location: Some(ErrorLocation {
                                     file: self.source_file.clone(),
@@ -974,12 +994,12 @@ impl SemanticAnalyzer {
                                 ),
                                 help: Some(format!("Change to: let result, err = {}(...)", func_name)),
                             };
-                            
+
                             return Err(CompilerError::SemanticError(error));
                         }
                     }
                 }
-                
+
                 if let Expr::Call(call) = &expr_stmt.expr {
                     if matches!(
                         call.exec_policy,
@@ -1059,7 +1079,10 @@ impl SemanticAnalyzer {
                 }
                 Ok(())
             }
-            Expr::StructLiteral { type_name, fields } => {
+            Expr::StructLiteral {
+                type_name: _,
+                fields,
+            } => {
                 // TODO: Validate that type_name exists and is a struct/class
                 // TODO: Validate that fields match the struct definition
                 for (_, value) in fields {
@@ -1073,9 +1096,13 @@ impl SemanticAnalyzer {
 
     fn validate_call_expr(&mut self, call: &CallExpr) -> Result<()> {
         if let Some((first, second)) = Self::extract_modifier_chain(&call.callee) {
-            return Err(CompilerError::SemanticError(format!(
-                "E0602: duplicate execution modifiers '{}' and '{}' on the same call",
-                first, second).into()));
+            return Err(CompilerError::SemanticError(
+                format!(
+                    "E0602: duplicate execution modifiers '{}' and '{}' on the same call",
+                    first, second
+                )
+                .into(),
+            ));
         }
 
         // E0401: Check for invalid concurrent execution combinations
@@ -1097,7 +1124,10 @@ impl SemanticAnalyzer {
         // This would detect patterns like accessing shared mutable state from parallel contexts
         // For now, this is a placeholder implementation
         // TODO: Implement proper shared state access validation
-        if matches!(call.exec_policy, ExecPolicy::Par | ExecPolicy::TaskPar | ExecPolicy::FirePar) {
+        if matches!(
+            call.exec_policy,
+            ExecPolicy::Par | ExecPolicy::TaskPar | ExecPolicy::FirePar
+        ) {
             // Placeholder: In a full implementation, we'd check if the call accesses shared mutable state
             // For now, we'll just note that this is where the check would go
         }
@@ -1106,7 +1136,10 @@ impl SemanticAnalyzer {
         // This would detect patterns like spawning too many tasks or using parallel execution for trivial operations
         // For now, this is a placeholder implementation
         // TODO: Implement proper efficiency analysis
-        if matches!(call.exec_policy, ExecPolicy::Par | ExecPolicy::TaskPar | ExecPolicy::FirePar) {
+        if matches!(
+            call.exec_policy,
+            ExecPolicy::Par | ExecPolicy::TaskPar | ExecPolicy::FirePar
+        ) {
             // Placeholder: In a full implementation, we'd analyze the complexity of the operation
             // and warn if parallel execution might be inefficient
             // For now, we'll just note that this is where the check would go
@@ -1130,9 +1163,9 @@ impl SemanticAnalyzer {
                     ExecPolicy::FireAsync | ExecPolicy::FirePar => {
                         let policy =
                             Self::policy_name(call.exec_policy.clone()).unwrap_or("fire call");
-                        Err(CompilerError::SemanticError(format!(
-                            "E0603: cannot await call using '{}' policy.",
-                            policy).into()))
+                        Err(CompilerError::SemanticError(
+                            format!("E0603: cannot await call using '{}' policy.", policy).into(),
+                        ))
                     }
                     ExecPolicy::Par => Err(CompilerError::SemanticError(
                         "E0603: `par` calls complete eagerly and cannot be awaited.".into(),
@@ -1242,9 +1275,9 @@ impl SemanticAnalyzer {
 
             if self.declare_symbol(&param.name, param.type_ref.clone()) {
                 self.exit_scope()?;
-                return Err(CompilerError::SemanticError(format!(
-                    "Parameter '{}' defined multiple times",
-                    param.name).into()));
+                return Err(CompilerError::SemanticError(
+                    format!("Parameter '{}' defined multiple times", param.name).into(),
+                ));
             }
         }
 
@@ -1457,9 +1490,13 @@ impl SemanticAnalyzer {
             let required = total.saturating_sub(optional);
 
             if arity < required || arity > total {
-                return Err(CompilerError::SemanticError(format!(
-                    "Function '{}' expects between {} and {} arguments but {} were provided",
-                    name, required, total, arity).into()));
+                return Err(CompilerError::SemanticError(
+                    format!(
+                        "Function '{}' expects between {} and {} arguments but {} were provided",
+                        name, required, total, arity
+                    )
+                    .into(),
+                ));
             }
         }
 
@@ -1470,9 +1507,9 @@ impl SemanticAnalyzer {
         match target {
             Expr::Identifier(name) => {
                 if self.lookup_symbol(name).is_none() {
-                    return Err(CompilerError::SemanticError(format!(
-                        "Cannot assign to undefined variable '{}'",
-                        name).into()));
+                    return Err(CompilerError::SemanticError(
+                        format!("Cannot assign to undefined variable '{}'", name).into(),
+                    ));
                 }
             }
             Expr::Member { object, .. } => {
@@ -1510,9 +1547,9 @@ impl SemanticAnalyzer {
         self.current_scope.pop();
 
         if let Some(name) = unawaited_task {
-            return Err(CompilerError::SemanticError(format!(
-                "W0601: task handle '{}' is never awaited.",
-                name).into()));
+            return Err(CompilerError::SemanticError(
+                format!("W0601: task handle '{}' is never awaited.", name).into(),
+            ));
         }
 
         Ok(())
@@ -1628,18 +1665,18 @@ impl SemanticAnalyzer {
                     info.state = AwaitState::Awaited;
                     return Ok(());
                 }
-                return Err(CompilerError::SemanticError(format!(
-                    "E0604: handle '{}' awaited more than once.",
-                    name).into()));
+                return Err(CompilerError::SemanticError(
+                    format!("E0604: handle '{}' awaited more than once.", name).into(),
+                ));
             }
-            return Err(CompilerError::SemanticError(format!(
-                "E0603: expression '{}' is not awaitable.",
-                name).into()));
+            return Err(CompilerError::SemanticError(
+                format!("E0603: expression '{}' is not awaitable.", name).into(),
+            ));
         }
 
-        Err(CompilerError::SemanticError(format!(
-            "E0603: expression '{}' is not awaitable.",
-            name).into()))
+        Err(CompilerError::SemanticError(
+            format!("E0603: expression '{}' is not awaitable.", name).into(),
+        ))
     }
 
     fn handle_assignment(&mut self, target: &Expr, value: &Expr) -> Result<()> {
@@ -1758,8 +1795,11 @@ pub fn analyze(program: Program) -> Result<Program> {
     analyzer.analyze_program(program)
 }
 
-pub fn analyze_with_source(program: Program, source_file: String, source_code: String) -> Result<Program> {
+pub fn analyze_with_source(
+    program: Program,
+    source_file: String,
+    source_code: String,
+) -> Result<Program> {
     let mut analyzer = SemanticAnalyzer::new(source_file, source_code);
     analyzer.analyze_program(program)
 }
-

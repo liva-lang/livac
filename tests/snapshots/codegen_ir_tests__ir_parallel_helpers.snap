@@ -72,7 +72,7 @@ fn heavy() -> f64 {
 
 fn main() {
     let value_task = liva_rt::spawn_parallel(move || heavy());
-    liva_rt::fire_parallel(move || { heavy(); });;
+    liva_rt::fire_parallel(move || { heavy(); });
     let mut value = value_task.await.unwrap();
     println!("{}", value);
 }

@@ -25,18 +25,21 @@ pub struct CodeGenerator {
     in_method: bool,
     in_assignment_target: bool,
     in_fallible_function: bool,
+    in_string_template: bool, // Track if we're inside a string template
     bracket_notation_vars: std::collections::HashSet<String>,
     class_instance_vars: std::collections::HashSet<String>,
+    array_vars: std::collections::HashSet<String>, // Track which variables are arrays
     // --- Class/type metadata (for inheritance and field resolution)
     class_fields: std::collections::HashMap<String, std::collections::HashSet<String>>,
-    class_base:   std::collections::HashMap<String, Option<String>>,
-    var_types:    std::collections::HashMap<String, String>, // var -> ClassName
+    class_base: std::collections::HashMap<String, Option<String>>,
+    var_types: std::collections::HashMap<String, String>, // var -> ClassName
     fallible_functions: std::collections::HashSet<String>, // Track which functions are fallible
     // --- Phase 2: Lazy await/join tracking
     pending_tasks: std::collections::HashMap<String, TaskInfo>, // Variables that hold unawaited Tasks
     // --- Phase 3: Error binding variables (Option<String> type)
     error_binding_vars: std::collections::HashSet<String>, // Variables from error binding (second variable in let x, err = ...)
     // --- Phase 4: Join combining optimization
+    #[allow(dead_code)]
     awaitable_tasks: Vec<String>, // Tasks that can be combined with tokio::join!
 }
 
@@ -49,11 +52,13 @@ impl CodeGenerator {
             in_method: false,
             in_assignment_target: false,
             in_fallible_function: false,
+            in_string_template: false,
             bracket_notation_vars: std::collections::HashSet::new(),
             class_instance_vars: std::collections::HashSet::new(),
+            array_vars: std::collections::HashSet::new(),
             class_fields: std::collections::HashMap::new(),
-            class_base:   std::collections::HashMap::new(),
-            var_types:    std::collections::HashMap::new(),
+            class_base: std::collections::HashMap::new(),
+            var_types: std::collections::HashMap::new(),
             fallible_functions: std::collections::HashSet::new(),
             pending_tasks: std::collections::HashMap::new(),
             error_binding_vars: std::collections::HashSet::new(),
@@ -130,7 +135,7 @@ impl CodeGenerator {
         self.writeln("use std::future::Future;");
         self.writeln("use tokio::task::JoinHandle;");
         self.writeln("");
-        
+
         // Add Error type for fallibility system
         self.writeln("/// Runtime error type for fallible operations");
         self.writeln("#[derive(Debug, Clone)]");
@@ -256,7 +261,7 @@ impl CodeGenerator {
             TopLevel::Class(class) => {
                 println!("DEBUG: Generating class {}", class.name);
                 self.generate_class(class)
-            },
+            }
             TopLevel::Function(func) => self.generate_function(func),
             TopLevel::Test(test) => self.generate_test(test),
         }
@@ -326,7 +331,7 @@ impl CodeGenerator {
         self.output.push('\n');
 
         // Generate impl block
-        let has_methods = class.members.iter().any(|m| matches!(m, Member::Method(_)));
+        let _has_methods = class.members.iter().any(|m| matches!(m, Member::Method(_)));
         let has_fields = class.members.iter().any(|m| matches!(m, Member::Field(_)));
 
         // Find constructor method
@@ -350,7 +355,12 @@ impl CodeGenerator {
             // Custom constructor - generate new() with parameters
             self.write_indent();
             write!(self.output, "pub fn new(").unwrap();
-            let params_str = self.generate_params(&constructor_method.params, false, Some(class), Some("constructor"))?;
+            let params_str = self.generate_params(
+                &constructor_method.params,
+                false,
+                Some(class),
+                Some("constructor"),
+            )?;
             write!(self.output, "{}) -> Self {{\n", params_str).unwrap();
             self.indent();
             self.write_indent();
@@ -369,10 +379,17 @@ impl CodeGenerator {
                 if let Some(base_fields) = self.class_fields.get(base_name) {
                     for bf in base_fields {
                         if let Some(p) = constructor_method.params.iter().find(|p| &p.name == bf) {
-                            if !first { self.output.push_str(", "); } else { first = false; }
+                            if !first {
+                                self.output.push_str(", ");
+                            } else {
+                                first = false;
+                            }
                             if p.name == "name" {
                                 // Common name-as-String convenience
-                                self.output.push_str(&format!("{}.to_string()", self.sanitize_name(&p.name)));
+                                self.output.push_str(&format!(
+                                    "{}.to_string()",
+                                    self.sanitize_name(&p.name)
+                                ));
                             } else {
                                 self.output.push_str(&self.sanitize_name(&p.name));
                             }
@@ -384,14 +401,18 @@ impl CodeGenerator {
                 // Then handle own fields (excluding base fields)
                 for param in &constructor_method.params {
                     if let Some(base_fields) = self.class_fields.get(base_name) {
-                        if base_fields.contains(&param.name) { continue; }
+                        if base_fields.contains(&param.name) {
+                            continue;
+                        }
                     }
                     self.write_indent();
                     let field_name = self.sanitize_name(&param.name);
                     if param.name == "name" {
-                        self.output.push_str(&format!("{}: {}.to_string(),\n", field_name, field_name));
+                        self.output
+                            .push_str(&format!("{}: {}.to_string(),\n", field_name, field_name));
                     } else {
-                        self.output.push_str(&format!("{}: {},\n", field_name, field_name));
+                        self.output
+                            .push_str(&format!("{}: {},\n", field_name, field_name));
                     }
                 }
             } else {
@@ -399,9 +420,11 @@ impl CodeGenerator {
                     self.write_indent();
                     let field_name = self.sanitize_name(&param.name);
                     if param.name == "name" {
-                        self.output.push_str(&format!("{}: {}.to_string(),\n", field_name, field_name));
+                        self.output
+                            .push_str(&format!("{}: {}.to_string(),\n", field_name, field_name));
                     } else {
-                        self.output.push_str(&format!("{}: {},\n", field_name, field_name));
+                        self.output
+                            .push_str(&format!("{}: {},\n", field_name, field_name));
                     }
                 }
             }
@@ -409,7 +432,11 @@ impl CodeGenerator {
             // Add default values for fields not covered by parameters
             for member in &class.members {
                 if let Member::Field(field) = member {
-                    if !constructor_method.params.iter().any(|p| p.name == field.name) {
+                    if !constructor_method
+                        .params
+                        .iter()
+                        .any(|p| p.name == field.name)
+                    {
                         let default_value = match field.type_ref.as_ref() {
                             Some(type_ref) => match type_ref {
                                 TypeRef::Simple(name) => match name.as_str() {
@@ -425,7 +452,11 @@ impl CodeGenerator {
                             None => "Default::default()".to_string(),
                         };
                         self.write_indent();
-                        self.writeln(&format!("{}: {},", self.sanitize_name(&field.name), default_value));
+                        self.writeln(&format!(
+                            "{}: {},",
+                            self.sanitize_name(&field.name),
+                            default_value
+                        ));
                     }
                 }
             }
@@ -460,7 +491,11 @@ impl CodeGenerator {
                         None => "Default::default()".to_string(),
                     };
 
-                    self.writeln(&format!("{}: {},", self.sanitize_name(&field.name), default_value));
+                    self.writeln(&format!(
+                        "{}: {},",
+                        self.sanitize_name(&field.name),
+                        default_value
+                    ));
                 }
             }
 
@@ -520,7 +555,9 @@ impl CodeGenerator {
                         for member in &class.unwrap().members {
                             if let Member::Field(field) = member {
                                 if field.name == *property {
-                                    let rust_type = field.type_ref.as_ref()
+                                    let rust_type = field
+                                        .type_ref
+                                        .as_ref()
                                         .map(|t| t.to_rust_type())
                                         .unwrap_or_else(|| "String".to_string());
                                     // Return owned type - cloning will be handled in code generation
@@ -535,8 +572,14 @@ impl CodeGenerator {
             Expr::Binary { op, .. } => {
                 // Simple heuristics for binary operations
                 match op {
-                    BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge |
-                    BinOp::Eq | BinOp::Ne | BinOp::And | BinOp::Or => Some(" -> bool".to_string()),
+                    BinOp::Lt
+                    | BinOp::Le
+                    | BinOp::Gt
+                    | BinOp::Ge
+                    | BinOp::Eq
+                    | BinOp::Ne
+                    | BinOp::And
+                    | BinOp::Or => Some(" -> bool".to_string()),
                     _ => None,
                 }
             }
@@ -555,12 +598,17 @@ impl CodeGenerator {
                     }
                 }
                 None
-            },
+            }
             _ => None,
         }
     }
 
-    fn infer_param_type_from_class(&self, param_name: &str, class: &ClassDecl, method_name: Option<&str>) -> Option<String> {
+    fn infer_param_type_from_class(
+        &self,
+        param_name: &str,
+        class: &ClassDecl,
+        method_name: Option<&str>,
+    ) -> Option<String> {
         // Determine candidate field name based on method/prefix
         let field_name = if let Some(method) = method_name {
             if method.starts_with("set") || method.starts_with("get") {
@@ -600,7 +648,7 @@ impl CodeGenerator {
                     // Fallback simple
                     return Some(match field_name.as_str() {
                         "name" => "String".to_string(),
-                        "age"  => "i32".to_string(),
+                        "age" => "i32".to_string(),
                         _ => "i32".to_string(),
                     });
                 }
@@ -615,10 +663,11 @@ impl CodeGenerator {
         None
     }
 
+    #[allow(dead_code)]
     fn generate_constructor_method(&mut self, method: &MethodDecl) -> Result<()> {
         let vis = "pub";
-        let async_kw = "";
-        let type_params = String::new();
+        let _async_kw = "";
+        let _type_params = String::new();
 
         let params_str = self.generate_params(&method.params, false, None, None)?; // false because constructor is not a method
 
@@ -651,9 +700,11 @@ impl CodeGenerator {
             let field_name = self.sanitize_name(&param.name);
             // Add conversion for string fields
             if param.name == "name" {
-                self.output.push_str(&format!("{}: {}.to_string()", field_name, field_name));
+                self.output
+                    .push_str(&format!("{}: {}.to_string()", field_name, field_name));
             } else {
-                self.output.push_str(&format!("{}: {}", field_name, field_name));
+                self.output
+                    .push_str(&format!("{}: {}", field_name, field_name));
             }
             self.output.push_str(",\n");
         }
@@ -699,7 +750,8 @@ impl CodeGenerator {
             format!(" -> {}", ret.to_rust_type())
         } else if let Some(expr) = &method.expr_body {
             // Try to infer return type from expression
-            self.infer_expr_type(expr, class).unwrap_or_else(|| " -> ()".to_string())
+            self.infer_expr_type(expr, class)
+                .unwrap_or_else(|| " -> ()".to_string())
         } else {
             String::new()
         };
@@ -755,13 +807,14 @@ impl CodeGenerator {
             String::new()
         };
         let params_str = self.generate_params(&func.params, false, None, None)?;
-        
+
         // Handle fallibility - wrap return type in Result if function contains fail
         let return_type = if func.contains_fail {
             if let Some(ret) = &func.return_type {
                 format!(" -> Result<{}, liva_rt::Error>", ret.to_rust_type())
             } else if let Some(expr) = &func.expr_body {
-                let inner_type = self.infer_expr_type(expr, None)
+                let inner_type = self
+                    .infer_expr_type(expr, None)
                     .unwrap_or_else(|| " -> i32".to_string())
                     .trim_start_matches(" -> ")
                     .to_string();
@@ -774,7 +827,8 @@ impl CodeGenerator {
                 format!(" -> {}", ret.to_rust_type())
             } else if let Some(expr) = &func.expr_body {
                 // For expression-bodied functions without explicit return type, infer from the expression
-                self.infer_expr_type(expr, None).unwrap_or_else(|| " -> i32".to_string())
+                self.infer_expr_type(expr, None)
+                    .unwrap_or_else(|| " -> i32".to_string())
             } else if func.body.is_some() {
                 // For block-bodied functions, check if there's a return statement
                 if let Some(body) = &func.body {
@@ -814,9 +868,9 @@ impl CodeGenerator {
             self.in_fallible_function = func.contains_fail;
             if func.contains_fail {
                 // Check if the expression already returns a Result (like a fallible ternary)
-                let expr_returns_result = matches!(expr, Expr::Ternary { then_expr, else_expr, .. } 
+                let expr_returns_result = matches!(expr, Expr::Ternary { then_expr, else_expr, .. }
                     if self.expr_contains_fail(then_expr) || self.expr_contains_fail(else_expr));
-                
+
                 if !expr_returns_result {
                     self.output.push_str("Ok(");
                 }
@@ -829,11 +883,11 @@ impl CodeGenerator {
             }
             self.in_fallible_function = was_fallible;
             self.output.push('\n');
-            
+
             // Phase 4.2: Check for dead tasks
             self.check_dead_tasks();
             self.pending_tasks.clear();
-            
+
             self.dedent();
             self.writeln("}");
         } else if let Some(body) = &func.body {
@@ -848,13 +902,13 @@ impl CodeGenerator {
                 self.writeln("Ok(())");
             }
             self.in_fallible_function = was_fallible;
-            
+
             // Phase 4.2: Check for dead tasks (tasks that were never awaited)
             self.check_dead_tasks();
-            
+
             // Clear pending tasks for next function
             self.pending_tasks.clear();
-            
+
             self.dedent();
             self.writeln("}");
         }
@@ -875,7 +929,13 @@ impl CodeGenerator {
         Ok(())
     }
 
-    fn generate_params(&mut self, params: &[Param], is_method: bool, class: Option<&ClassDecl>, method_name: Option<&str>) -> Result<String> {
+    fn generate_params(
+        &mut self,
+        params: &[Param],
+        is_method: bool,
+        class: Option<&ClassDecl>,
+        method_name: Option<&str>,
+    ) -> Result<String> {
         let mut result = String::new();
 
         if is_method {
@@ -943,7 +1003,7 @@ impl CodeGenerator {
     fn generate_stmt(&mut self, stmt: &Stmt) -> Result<()> {
         // Phase 4: Check if this statement uses multiple pending tasks (join combining optimization)
         let used_tasks = self.stmt_uses_pending_tasks(stmt);
-        
+
         if used_tasks.len() > 1 {
             // Multiple tasks used - generate tokio::join! for parallel await
             self.generate_tasks_join(&used_tasks)?;
@@ -956,7 +1016,7 @@ impl CodeGenerator {
         else if let Some(var_name) = self.stmt_uses_pending_task(stmt) {
             self.generate_task_await(&var_name)?;
         }
-        
+
         match stmt {
             Stmt::VarDecl(var) => {
                 self.write_indent();
@@ -967,17 +1027,19 @@ impl CodeGenerator {
                 if var.bindings.len() > 1 {
                     // Multiple bindings - fallible pattern (error binding)
                     let is_fallible_call = self.is_fallible_expr(&var.init);
-                    
+
                     // Collect binding names for tracking
-                    let binding_names: Vec<String> = var.bindings.iter()
+                    let binding_names: Vec<String> = var
+                        .bindings
+                        .iter()
                         .map(|b| self.sanitize_name(&b.name))
                         .collect();
-                    
+
                     // Phase 3: Track the error variable (second binding) as Option<String>
                     if binding_names.len() == 2 {
                         self.error_binding_vars.insert(binding_names[1].clone());
                     }
-                    
+
                     if let Some(exec_policy) = task_exec_policy {
                         // Phase 2: Error binding with Task - store task without awaiting
                         // Generate: let task_name = async/par call();
@@ -985,7 +1047,7 @@ impl CodeGenerator {
                         write!(self.output, "let {} = ", task_var_name).unwrap();
                         self.generate_expr(&var.init)?;
                         self.output.push_str(";\n");
-                        
+
                         // Register as pending task with error binding
                         self.pending_tasks.insert(
                             binding_names[0].clone(),
@@ -994,16 +1056,18 @@ impl CodeGenerator {
                                 binding_names: binding_names.clone(),
                                 awaited: false,
                                 exec_policy,
-                            }
+                            },
                         );
                     } else {
                         // Non-Task error binding (original behavior)
                         write!(self.output, "let (").unwrap();
                         for (i, binding) in var.bindings.iter().enumerate() {
-                            if i > 0 { self.output.push_str(", "); }
+                            if i > 0 {
+                                self.output.push_str(", ");
+                            }
                             write!(self.output, "{}", self.sanitize_name(&binding.name)).unwrap();
                         }
-                        
+
                         if is_fallible_call {
                             // Generate: let (value, err) = match expr { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };
                             self.output.push_str(") = match ");
@@ -1040,7 +1104,7 @@ impl CodeGenerator {
                         write!(self.output, "let {} = ", task_var_name).unwrap();
                         self.generate_expr(&var.init)?;
                         self.output.push_str(";\n");
-                        
+
                         // Register as pending task
                         self.pending_tasks.insert(
                             var_name.clone(),
@@ -1049,27 +1113,33 @@ impl CodeGenerator {
                                 binding_names: vec![var_name.clone()],
                                 awaited: false,
                                 exec_policy,
-                            }
+                            },
                         );
                     } else {
                         // Non-Task normal binding (original behavior)
-                        
+
                         // Check if initializing with an object literal - mark variable for bracket notation
                         if let Expr::ObjectLiteral(_) = &var.init {
                             self.bracket_notation_vars.insert(binding.name.clone());
                         }
 
+                        // Check if initializing with an array literal - mark variable as array
+                        if let Expr::ArrayLiteral(_) = &var.init {
+                            self.array_vars.insert(binding.name.clone());
+                        }
                         // Mark instances created via constructor call: let x = ClassName(...)
                         else if let Expr::Call(call) = &var.init {
                             if let Expr::Identifier(class_name) = &*call.callee {
                                 self.class_instance_vars.insert(binding.name.clone());
-                                self.var_types.insert(binding.name.clone(), class_name.clone());
+                                self.var_types
+                                    .insert(binding.name.clone(), class_name.clone());
                             }
                         }
                         // Mark instances created via struct literal: let x = ClassName { ... }
                         else if let Expr::StructLiteral { type_name, .. } = &var.init {
                             self.class_instance_vars.insert(binding.name.clone());
-                            self.var_types.insert(binding.name.clone(), type_name.clone());
+                            self.var_types
+                                .insert(binding.name.clone(), type_name.clone());
                         }
 
                         write!(self.output, "let mut {}", var_name).unwrap();
@@ -1105,7 +1175,7 @@ impl CodeGenerator {
                     }
                     // Check if assigning from a class constructor call - mark variable as class instance
                     else if let Expr::Call(call) = &assign.value {
-                        if let Expr::Identifier(class_name) = &*call.callee {
+                        if let Expr::Identifier(_class_name) = &*call.callee {
                             // Check if this is a class constructor call by looking at the context
                             // For now, assume any call to an identifier is a potential class constructor
                             // This is a heuristic - we could improve this by checking against known class names
@@ -1318,8 +1388,9 @@ impl CodeGenerator {
                 else_expr,
             } => {
                 // Check if this ternary contains a fail - if so, generate as Result
-                let has_fail = self.expr_contains_fail(then_expr) || self.expr_contains_fail(else_expr);
-                
+                let has_fail =
+                    self.expr_contains_fail(then_expr) || self.expr_contains_fail(else_expr);
+
                 if has_fail {
                     // Generate as Result: if cond { Ok(then) or Err(...) } else { Err(...) or Ok(else) }
                     self.output.push_str("if ");
@@ -1373,11 +1444,16 @@ impl CodeGenerator {
                 if let Expr::Identifier(name) = object.as_ref() {
                     let sanitized = self.sanitize_name(name);
                     if self.error_binding_vars.contains(&sanitized) && property == "message" {
-                        write!(self.output, "{}.as_ref().map(|e| e.message.as_str()).unwrap_or(\"None\")", sanitized).unwrap();
+                        write!(
+                            self.output,
+                            "{}.as_ref().map(|e| e.message.as_str()).unwrap_or(\"None\")",
+                            sanitized
+                        )
+                        .unwrap();
                         return Ok(());
                     }
                 }
-                
+
                 self.generate_expr(object)?;
 
                 if property == "length" {
@@ -1387,8 +1463,10 @@ impl CodeGenerator {
                     match object.as_ref() {
                         Expr::Identifier(var_name) => {
                             // For class instances, use dot notation. For everything else (JSON), use bracket notation
-                            if self.is_class_instance(var_name) ||
-                                var_name.contains("person") || var_name.contains("user") {
+                            if self.is_class_instance(var_name)
+                                || var_name.contains("person")
+                                || var_name.contains("user")
+                            {
                                 // Prefer struct field access, but if the field lives in a base class, delegate via `.base`
                                 let prop = self.sanitize_name(property);
                                 if let Some(class_name) = self.var_types.get(var_name) {
@@ -1426,22 +1504,36 @@ impl CodeGenerator {
                                 }
 
                                 // Clone common owned types when returning by value and not assigning
-                                if self.in_method && !self.in_assignment_target &&
-                                    (property == "title" || property == "author" || property == "name" ||
-                                     property.contains("dni") || property.ends_with("text") ||
-                                     property.ends_with("data")) {
+                                if self.in_method
+                                    && !self.in_assignment_target
+                                    && (property == "title"
+                                        || property == "author"
+                                        || property == "name"
+                                        || property.contains("dni")
+                                        || property.ends_with("text")
+                                        || property.ends_with("data"))
+                                {
                                     self.output.push_str(".clone()");
                                 }
                             } else {
                                 // For JSON access, generate bracket notation
                                 write!(self.output, "[\"{}\"]", property).unwrap();
 
-                                // Convert numeric properties automatically
-                                if property == "price" || property == "age" || property.contains("count") ||
-                                    property.contains("total") || property.contains("sum") {
-                                    self.output.push_str(".as_f64().unwrap_or(0.0)");
-                                } else if property == "name" || property.contains("text") || property.contains("data") {
-                                    self.output.push_str(".as_str().unwrap_or(\"\")");
+                                // Convert numeric properties automatically (but not in string templates - format! handles it)
+                                if !self.in_string_template {
+                                    if property == "price"
+                                        || property == "age"
+                                        || property.contains("count")
+                                        || property.contains("total")
+                                        || property.contains("sum")
+                                    {
+                                        self.output.push_str(".as_f64().unwrap_or(0.0)");
+                                    } else if property == "name"
+                                        || property.contains("text")
+                                        || property.contains("data")
+                                    {
+                                        self.output.push_str(".as_str().unwrap_or(\"\")");
+                                    }
                                 }
                             }
                         }
@@ -1450,15 +1542,23 @@ impl CodeGenerator {
                             // So property access should use bracket notation
                             write!(self.output, "[\"{}\"]", property).unwrap();
 
-                            // For numeric fields in JSON objects, convert to appropriate type
-                            // Always convert price to f64 since it's commonly used in arithmetic
-                            if property == "price" {
-                                self.output.push_str(".as_f64().unwrap_or(0.0)");
-                            } else if property == "age" || property.contains("count") ||
-                                property.contains("total") || property.contains("sum") {
-                                self.output.push_str(".as_f64().unwrap_or(0.0)");
-                            } else if property == "name" || property.contains("text") || property.contains("data") {
-                                self.output.push_str(".as_str().unwrap_or(\"\")");
+                            // For numeric fields in JSON objects, convert to appropriate type (but not in string templates)
+                            if !self.in_string_template {
+                                // Always convert price to f64 since it's commonly used in arithmetic
+                                if property == "price" {
+                                    self.output.push_str(".as_f64().unwrap_or(0.0)");
+                                } else if property == "age"
+                                    || property.contains("count")
+                                    || property.contains("total")
+                                    || property.contains("sum")
+                                {
+                                    self.output.push_str(".as_f64().unwrap_or(0.0)");
+                                } else if property == "name"
+                                    || property.contains("text")
+                                    || property.contains("data")
+                                {
+                                    self.output.push_str(".as_str().unwrap_or(\"\")");
+                                }
                             }
                         }
                         _ => {
@@ -1476,8 +1576,12 @@ impl CodeGenerator {
 
                 // Convert numeric properties automatically
                 if let Expr::Literal(Literal::String(prop)) = index.as_ref() {
-                    if prop == "price" || prop == "age" || prop.contains("count") ||
-                        prop.contains("total") || prop.contains("sum") {
+                    if prop == "price"
+                        || prop == "age"
+                        || prop.contains("count")
+                        || prop.contains("total")
+                        || prop.contains("sum")
+                    {
                         self.output.push_str(".as_f64().unwrap_or(0.0)");
                     } else if prop == "name" || prop.contains("text") || prop.contains("data") {
                         self.output.push_str(".as_str().unwrap_or(\"\")");
@@ -1506,7 +1610,7 @@ impl CodeGenerator {
                 // Assume the fields correspond to constructor parameters in the same order
                 write!(self.output, "{}::new(", type_name).unwrap();
 
-                for (i, (key, value)) in fields.iter().enumerate() {
+                for (i, (_key, value)) in fields.iter().enumerate() {
                     if i > 0 {
                         self.output.push_str(", ");
                     }
@@ -1549,9 +1653,31 @@ impl CodeGenerator {
                             }
                         }
                         StringTemplatePart::Expr(expr) => match expr.as_ref() {
+                            // Literals always use Display
                             Expr::Literal(_) => {
                                 self.output.push_str("{}");
                             }
+                            // Simple identifiers: check if they're arrays
+                            Expr::Identifier(name) => {
+                                if self.array_vars.contains(name) {
+                                    self.output.push_str("{:?}");
+                                } else {
+                                    self.output.push_str("{}");
+                                }
+                            }
+                            // Member access uses Display
+                            Expr::Member { .. } => {
+                                self.output.push_str("{}");
+                            }
+                            // Index access uses Display
+                            Expr::Index { .. } => {
+                                self.output.push_str("{}");
+                            }
+                            // Arrays and objects use Debug
+                            Expr::ArrayLiteral(_) | Expr::ObjectLiteral(_) => {
+                                self.output.push_str("{:?}");
+                            }
+                            // Everything else uses Debug
                             _ => {
                                 self.output.push_str("{:?}");
                             }
@@ -1571,6 +1697,11 @@ impl CodeGenerator {
 
                 if !exprs.is_empty() {
                     self.output.push_str(", ");
+
+                    // Mark that we're inside a string template for proper member access generation
+                    let was_in_template = self.in_string_template;
+                    self.in_string_template = true;
+
                     for (idx, expr) in exprs.iter().enumerate() {
                         if idx > 0 {
                             self.output.push_str(", ");
@@ -1579,12 +1710,19 @@ impl CodeGenerator {
                         if let Expr::Identifier(name) = expr {
                             let sanitized = self.sanitize_name(name);
                             if self.error_binding_vars.contains(&sanitized) {
-                                write!(self.output, "{}.as_ref().map(|e| e.message.as_str())", sanitized).unwrap();
+                                write!(
+                                    self.output,
+                                    "{}.as_ref().map(|e| e.message.as_str()).unwrap_or(\"\")",
+                                    sanitized
+                                )
+                                .unwrap();
                                 continue;
                             }
                         }
                         self.generate_expr(expr)?;
                     }
+
+                    self.in_string_template = was_in_template;
                 }
 
                 self.output.push(')');
@@ -1594,7 +1732,7 @@ impl CodeGenerator {
                     self.output.push_str("move ");
                 }
                 self.output.push('|');
-                
+
                 for (idx, param) in lambda.params.iter().enumerate() {
                     if idx > 0 {
                         self.output.push_str(", ");
@@ -1605,9 +1743,9 @@ impl CodeGenerator {
                         self.output.push_str(&type_ref.to_rust_type());
                     }
                 }
-                
+
                 self.output.push_str("| ");
-                
+
                 match &lambda.body {
                     LambdaBody::Expr(expr) => {
                         self.generate_expr(expr)?;
@@ -1623,17 +1761,17 @@ impl CodeGenerator {
                                     self.indent();
                                     self.output.push('\n');
                                     self.write_indent();
-                                    
+
                                     // Generate all statements except the last return
-                                    for stmt in &block.stmts[..block.stmts.len()-1] {
+                                    for stmt in &block.stmts[..block.stmts.len() - 1] {
                                         self.generate_stmt(stmt)?;
                                         self.output.push('\n');
                                         self.write_indent();
                                     }
-                                    
+
                                     // Generate the return expression without the return keyword
                                     self.generate_expr(expr)?;
-                                    
+
                                     self.dedent();
                                     self.output.push('\n');
                                     self.write_indent();
@@ -1711,7 +1849,12 @@ impl CodeGenerator {
                         if let Expr::Identifier(name) = arg {
                             let sanitized = self.sanitize_name(name);
                             if self.error_binding_vars.contains(&sanitized) {
-                                write!(self.output, "{}.as_ref().map(|e| e.message.as_str()).unwrap_or(\"None\")", sanitized).unwrap();
+                                write!(
+                                    self.output,
+                                    "{}.as_ref().map(|e| e.message.as_str()).unwrap_or(\"None\")",
+                                    sanitized
+                                )
+                                .unwrap();
                                 continue;
                             }
                         }
@@ -1764,12 +1907,10 @@ impl CodeGenerator {
     /// Check if an expression is an async or par call (returns Task)
     fn is_task_expr(&self, expr: &Expr) -> Option<ExecPolicy> {
         match expr {
-            Expr::Call(call) => {
-                match call.exec_policy {
-                    ExecPolicy::Async | ExecPolicy::Par => Some(call.exec_policy.clone()),
-                    _ => None,
-                }
-            }
+            Expr::Call(call) => match call.exec_policy {
+                ExecPolicy::Async | ExecPolicy::Par => Some(call.exec_policy.clone()),
+                _ => None,
+            },
             _ => None,
         }
     }
@@ -1790,22 +1931,23 @@ impl CodeGenerator {
             }
             Expr::Unary { operand, .. } => self.expr_uses_var(operand, var_name),
             Expr::Call(call) => {
-                self.expr_uses_var(&call.callee, var_name) ||
-                call.args.iter().any(|arg| self.expr_uses_var(arg, var_name))
+                self.expr_uses_var(&call.callee, var_name)
+                    || call
+                        .args
+                        .iter()
+                        .any(|arg| self.expr_uses_var(arg, var_name))
             }
             Expr::Member { object, .. } => self.expr_uses_var(object, var_name),
             Expr::Index { object, index } => {
                 self.expr_uses_var(object, var_name) || self.expr_uses_var(index, var_name)
             }
-            Expr::StringTemplate { parts } => {
-                parts.iter().any(|p| {
-                    if let crate::ast::StringTemplatePart::Expr(e) = p {
-                        self.expr_uses_var(e, var_name)
-                    } else {
-                        false
-                    }
-                })
-            }
+            Expr::StringTemplate { parts } => parts.iter().any(|p| {
+                if let crate::ast::StringTemplatePart::Expr(e) = p {
+                    self.expr_uses_var(e, var_name)
+                } else {
+                    false
+                }
+            }),
             _ => false,
         }
     }
@@ -1816,37 +1958,33 @@ impl CodeGenerator {
             if task_info.awaited {
                 continue; // Already awaited
             }
-            
+
             // For error binding, check if ANY of the binding variables is used
             let check_vars: Vec<&String> = if task_info.is_error_binding {
                 task_info.binding_names.iter().collect()
             } else {
                 vec![var_name]
             };
-            
+
             let uses_var = match stmt {
-                Stmt::Expr(expr_stmt) => {
-                    check_vars.iter().any(|v| self.expr_uses_var(&expr_stmt.expr, v))
-                }
-                Stmt::If(if_stmt) => {
-                    check_vars.iter().any(|v| self.expr_uses_var(&if_stmt.condition, v))
-                }
-                Stmt::Return(ret_stmt) => {
-                    ret_stmt.expr.as_ref().map_or(false, |e| {
-                        check_vars.iter().any(|v| self.expr_uses_var(e, v))
-                    })
-                }
-                Stmt::While(while_stmt) => {
-                    check_vars.iter().any(|v| self.expr_uses_var(&while_stmt.condition, v))
-                }
-                Stmt::Assign(assign) => {
-                    check_vars.iter().any(|v| {
-                        self.expr_uses_var(&assign.target, v) || self.expr_uses_var(&assign.value, v)
-                    })
-                }
+                Stmt::Expr(expr_stmt) => check_vars
+                    .iter()
+                    .any(|v| self.expr_uses_var(&expr_stmt.expr, v)),
+                Stmt::If(if_stmt) => check_vars
+                    .iter()
+                    .any(|v| self.expr_uses_var(&if_stmt.condition, v)),
+                Stmt::Return(ret_stmt) => ret_stmt.expr.as_ref().map_or(false, |e| {
+                    check_vars.iter().any(|v| self.expr_uses_var(e, v))
+                }),
+                Stmt::While(while_stmt) => check_vars
+                    .iter()
+                    .any(|v| self.expr_uses_var(&while_stmt.condition, v)),
+                Stmt::Assign(assign) => check_vars.iter().any(|v| {
+                    self.expr_uses_var(&assign.target, v) || self.expr_uses_var(&assign.value, v)
+                }),
                 _ => false,
             };
-            
+
             if uses_var {
                 return Some(var_name.clone());
             }
@@ -1857,47 +1995,43 @@ impl CodeGenerator {
     /// Phase 4: Get ALL pending tasks used in a statement (for join combining)
     fn stmt_uses_pending_tasks(&self, stmt: &Stmt) -> Vec<String> {
         let mut used_tasks = Vec::new();
-        
+
         for (var_name, task_info) in &self.pending_tasks {
             if task_info.awaited {
                 continue; // Already awaited
             }
-            
+
             // For error binding, check if ANY of the binding variables is used
             let check_vars: Vec<&String> = if task_info.is_error_binding {
                 task_info.binding_names.iter().collect()
             } else {
                 vec![var_name]
             };
-            
+
             let uses_var = match stmt {
-                Stmt::Expr(expr_stmt) => {
-                    check_vars.iter().any(|v| self.expr_uses_var(&expr_stmt.expr, v))
-                }
-                Stmt::If(if_stmt) => {
-                    check_vars.iter().any(|v| self.expr_uses_var(&if_stmt.condition, v))
-                }
-                Stmt::Return(ret_stmt) => {
-                    ret_stmt.expr.as_ref().map_or(false, |e| {
-                        check_vars.iter().any(|v| self.expr_uses_var(e, v))
-                    })
-                }
-                Stmt::While(while_stmt) => {
-                    check_vars.iter().any(|v| self.expr_uses_var(&while_stmt.condition, v))
-                }
-                Stmt::Assign(assign) => {
-                    check_vars.iter().any(|v| {
-                        self.expr_uses_var(&assign.target, v) || self.expr_uses_var(&assign.value, v)
-                    })
-                }
+                Stmt::Expr(expr_stmt) => check_vars
+                    .iter()
+                    .any(|v| self.expr_uses_var(&expr_stmt.expr, v)),
+                Stmt::If(if_stmt) => check_vars
+                    .iter()
+                    .any(|v| self.expr_uses_var(&if_stmt.condition, v)),
+                Stmt::Return(ret_stmt) => ret_stmt.expr.as_ref().map_or(false, |e| {
+                    check_vars.iter().any(|v| self.expr_uses_var(e, v))
+                }),
+                Stmt::While(while_stmt) => check_vars
+                    .iter()
+                    .any(|v| self.expr_uses_var(&while_stmt.condition, v)),
+                Stmt::Assign(assign) => check_vars.iter().any(|v| {
+                    self.expr_uses_var(&assign.target, v) || self.expr_uses_var(&assign.value, v)
+                }),
                 _ => false,
             };
-            
+
             if uses_var {
                 used_tasks.push(var_name.clone());
             }
         }
-        
+
         used_tasks
     }
 
@@ -1909,12 +2043,8 @@ impl CodeGenerator {
                     "⚠️  Warning: Task '{}' was created but never used",
                     var_name
                 );
-                eprintln!(
-                    "   → Consider removing the task creation or using the variable"
-                );
-                eprintln!(
-                    "   → This creates an async/parallel task that does nothing"
-                );
+                eprintln!("   → Consider removing the task creation or using the variable");
+                eprintln!("   → This creates an async/parallel task that does nothing");
             }
         }
     }
@@ -1924,7 +2054,7 @@ impl CodeGenerator {
         if task_vars.is_empty() {
             return Ok(());
         }
-        
+
         // Collect task infos and skip already awaited tasks
         let mut tasks_to_join: Vec<(String, TaskInfo)> = Vec::new();
         for var_name in task_vars {
@@ -1934,29 +2064,33 @@ impl CodeGenerator {
                 }
             }
         }
-        
+
         if tasks_to_join.is_empty() {
             return Ok(());
         }
-        
+
         // If only one task, use regular await
         if tasks_to_join.len() == 1 {
             return self.generate_task_await(&tasks_to_join[0].0);
         }
-        
+
         // Generate tokio::join! for multiple tasks
         self.write_indent();
         self.output.push_str("let (");
-        
+
         // Generate tuple of result variables
         for (i, (var_name, task_info)) in tasks_to_join.iter().enumerate() {
-            if i > 0 { self.output.push_str(", "); }
-            
+            if i > 0 {
+                self.output.push_str(", ");
+            }
+
             if task_info.is_error_binding {
                 // Error binding: (value, err)
                 self.output.push('(');
                 for (j, binding_name) in task_info.binding_names.iter().enumerate() {
-                    if j > 0 { self.output.push_str(", "); }
+                    if j > 0 {
+                        self.output.push_str(", ");
+                    }
                     self.output.push_str(binding_name);
                 }
                 self.output.push(')');
@@ -1965,36 +2099,41 @@ impl CodeGenerator {
                 self.output.push_str(var_name);
             }
         }
-        
+
         self.output.push_str(") = ");
-        
+
         // Check if all tasks are the same type (all async or all par)
-        let all_same_type = tasks_to_join.iter().all(|(_, info)| {
-            info.exec_policy == tasks_to_join[0].1.exec_policy
-        });
-        
+        let all_same_type = tasks_to_join
+            .iter()
+            .all(|(_, info)| info.exec_policy == tasks_to_join[0].1.exec_policy);
+
         if !all_same_type {
             // Mixed async/par - fall back to sequential awaits
             // Drop the "let (" we just wrote
             let output_len = self.output.len();
-            let last_line_start = self.output[..output_len].rfind('\n').map(|i| i + 1).unwrap_or(0);
+            let last_line_start = self.output[..output_len]
+                .rfind('\n')
+                .map(|i| i + 1)
+                .unwrap_or(0);
             self.output.truncate(last_line_start);
-            
+
             // Generate sequential awaits instead
             for (var_name, _) in &tasks_to_join {
                 self.generate_task_await(var_name)?;
             }
             return Ok(());
         }
-        
+
         // Generate tokio::join! macro call
         self.output.push_str("tokio::join!(");
-        
+
         for (i, (var_name, task_info)) in tasks_to_join.iter().enumerate() {
-            if i > 0 { self.output.push_str(", "); }
-            
+            if i > 0 {
+                self.output.push_str(", ");
+            }
+
             let task_var_name = format!("{}_task", var_name);
-            
+
             if task_info.is_error_binding {
                 // Error binding: async { match task.await.unwrap() { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) } }
                 write!(self.output, "async {{ match {}.await.unwrap() {{ Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) }} }}", 
@@ -2004,16 +2143,16 @@ impl CodeGenerator {
                 write!(self.output, "async {{ {}.await.unwrap() }}", task_var_name).unwrap();
             }
         }
-        
+
         self.output.push_str(");\n");
-        
+
         // Mark all tasks as awaited
         for (var_name, _) in &tasks_to_join {
             if let Some(task_info) = self.pending_tasks.get_mut(var_name) {
                 task_info.awaited = true;
             }
         }
-        
+
         Ok(())
     }
 
@@ -2023,34 +2162,42 @@ impl CodeGenerator {
         if task_info.is_none() {
             return Ok(()); // Not a task or already awaited
         }
-        
+
         let task_info = task_info.unwrap();
         if task_info.awaited {
             return Ok(()); // Already awaited
         }
 
         let task_var_name = format!("{}_task", var_name);
-        
+
         self.write_indent();
-        
+
         if task_info.is_error_binding {
             // Error binding: let (value, err) = match task.await.unwrap() { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };
             write!(self.output, "let (").unwrap();
             for (i, binding_name) in task_info.binding_names.iter().enumerate() {
-                if i > 0 { self.output.push_str(", "); }
+                if i > 0 {
+                    self.output.push_str(", ");
+                }
                 write!(self.output, "{}", binding_name).unwrap();
             }
             self.output.push_str(") = match ");
             write!(self.output, "{}.await.unwrap()", task_var_name).unwrap();
-            self.output.push_str(" { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };\n");
+            self.output
+                .push_str(" { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };\n");
         } else {
             // Simple binding: let var_name = var_name_task.await.unwrap();
-            write!(self.output, "let mut {} = {}.await.unwrap();\n", var_name, task_var_name).unwrap();
+            write!(
+                self.output,
+                "let mut {} = {}.await.unwrap();\n",
+                var_name, task_var_name
+            )
+            .unwrap();
         }
 
         // Mark as awaited
         self.pending_tasks.get_mut(var_name).unwrap().awaited = true;
-        
+
         Ok(())
     }
 
@@ -2163,7 +2310,7 @@ impl CodeGenerator {
                     }
                     self.generate_expr(arg)?;
                 }
-                self.output.push_str("); });");
+                self.output.push_str("); })");
             }
             ConcurrencyMode::Parallel => {
                 self.output.push_str("liva_rt::fire_parallel(move || {");
@@ -2175,7 +2322,7 @@ impl CodeGenerator {
                     }
                     self.generate_expr(arg)?;
                 }
-                self.output.push_str("); });");
+                self.output.push_str("); })");
             }
         }
         Ok(())
@@ -2197,7 +2344,7 @@ impl CodeGenerator {
                 }
                 _ => false,
             };
-            
+
             if is_error_var_comparison {
                 // Generate err.is_some() or err.is_none()
                 if let Expr::Identifier(name) = left {
@@ -2205,7 +2352,7 @@ impl CodeGenerator {
                 } else if let Expr::Identifier(name) = right {
                     write!(self.output, "{}", self.sanitize_name(name)).unwrap();
                 }
-                
+
                 if matches!(op, BinOp::Ne) {
                     self.output.push_str(".is_some()");
                 } else {
@@ -2214,7 +2361,7 @@ impl CodeGenerator {
                 return Ok(());
             }
         }
-        
+
         // Original logic for other binary operations
         // Only add parentheses when necessary for precedence
         let left_needs_parens = self.expr_needs_parens_for_binop(left, op);
@@ -2289,7 +2436,11 @@ impl CodeGenerator {
                     false
                 }
             }
-            Expr::Ternary { condition, then_expr, else_expr } => {
+            Expr::Ternary {
+                condition: _,
+                then_expr,
+                else_expr,
+            } => {
                 // A ternary is fallible if either branch contains a fail or calls a fallible function
                 self.expr_contains_fail(then_expr) || self.expr_contains_fail(else_expr)
             }
@@ -2301,9 +2452,11 @@ impl CodeGenerator {
         match expr {
             Expr::Fail(_) => true,
             Expr::Call(call) => self.is_fallible_expr(&Expr::Call(call.clone())),
-            Expr::Ternary { then_expr, else_expr, .. } => {
-                self.expr_contains_fail(then_expr) || self.expr_contains_fail(else_expr)
-            }
+            Expr::Ternary {
+                then_expr,
+                else_expr,
+                ..
+            } => self.expr_contains_fail(then_expr) || self.expr_contains_fail(else_expr),
             _ => false,
         }
     }
@@ -2377,18 +2530,23 @@ impl CodeGenerator {
 struct IrCodeGenerator<'a> {
     output: String,
     indent_level: usize,
+    #[allow(dead_code)]
     ctx: &'a DesugarContext,
+    #[allow(dead_code)]
     scope_formats: Vec<HashMap<String, FormatKind>>,
+    #[allow(dead_code)]
     in_method: bool,
 }
 
 #[derive(Copy, Clone, PartialEq)]
+#[allow(dead_code)]
 enum FormatKind {
     Display,
     Debug,
 }
 
 impl FormatKind {
+    #[allow(dead_code)]
     fn placeholder(self) -> &'static str {
         match self {
             FormatKind::Display => "{}",
@@ -2397,6 +2555,7 @@ impl FormatKind {
     }
 }
 
+#[allow(dead_code)]
 impl<'a> IrCodeGenerator<'a> {
     fn new(ctx: &'a DesugarContext) -> Self {
         Self {
@@ -2765,7 +2924,7 @@ impl<'a> IrCodeGenerator<'a> {
         }
     }
 
-
+    #[allow(dead_code)]
     fn emit_runtime_module(&mut self, use_async: bool, use_parallel: bool) {
         self.writeln("mod liva_rt {");
         self.indent();
@@ -3061,7 +3220,6 @@ impl<'a> IrCodeGenerator<'a> {
         self.dedent();
         self.writeln("}");
         self.output.push('\n');
-
 
         self.dedent();
         self.writeln("}");
@@ -3647,7 +3805,7 @@ impl<'a> IrCodeGenerator<'a> {
                         return Ok(());
                     }
                 }
-                
+
                 if matches!(callee.as_ref(), ir::Expr::Identifier(id) if id == "print") {
                     if args.is_empty() {
                         self.output.push_str("println!()")
@@ -3998,7 +4156,7 @@ impl<'a> IrCodeGenerator<'a> {
                     self.output.push_str("move ");
                 }
                 self.output.push('|');
-                
+
                 for (idx, param) in lambda.params.iter().enumerate() {
                     if idx > 0 {
                         self.output.push_str(", ");
@@ -4009,9 +4167,9 @@ impl<'a> IrCodeGenerator<'a> {
                         self.output.push_str(type_ref);
                     }
                 }
-                
+
                 self.output.push_str("| ");
-                
+
                 match &lambda.body {
                     ir::LambdaBody::Expr(expr) => {
                         self.generate_expr(expr)?;
@@ -4027,17 +4185,17 @@ impl<'a> IrCodeGenerator<'a> {
                                     self.indent();
                                     self.output.push('\n');
                                     self.write_indent();
-                                    
+
                                     // Generate all statements except the last return
-                                    for stmt in &block[..block.len()-1] {
+                                    for stmt in &block[..block.len() - 1] {
                                         self.generate_stmt(stmt)?;
                                         self.output.push('\n');
                                         self.write_indent();
                                     }
-                                    
+
                                     // Generate the return expression without the return keyword
                                     self.generate_expr(expr)?;
-                                    
+
                                     self.dedent();
                                     self.output.push('\n');
                                     self.write_indent();
@@ -4284,6 +4442,7 @@ fn expr_has_unsupported(expr: &ir::Expr) -> bool {
     }
 }
 
+#[allow(dead_code)]
 fn module_has_async_concurrency(module: &ir::Module) -> bool {
     module.items.iter().any(|item| match item {
         ir::Item::Function(func) => {
@@ -4295,6 +4454,7 @@ fn module_has_async_concurrency(module: &ir::Module) -> bool {
     })
 }
 
+#[allow(dead_code)]
 fn module_has_parallel_concurrency(module: &ir::Module) -> bool {
     module.items.iter().any(|item| match item {
         ir::Item::Function(func) => block_has_parallel_concurrency(&func.body),
@@ -4303,14 +4463,17 @@ fn module_has_parallel_concurrency(module: &ir::Module) -> bool {
     })
 }
 
+#[allow(dead_code)]
 fn block_has_async_concurrency(block: &ir::Block) -> bool {
     block.statements.iter().any(stmt_has_async_concurrency)
 }
 
+#[allow(dead_code)]
 fn block_has_parallel_concurrency(block: &ir::Block) -> bool {
     block.statements.iter().any(stmt_has_parallel_concurrency)
 }
 
+#[allow(dead_code)]
 fn stmt_has_async_concurrency(stmt: &ir::Stmt) -> bool {
     match stmt {
         ir::Stmt::Let { value, .. } | ir::Stmt::Const { value, .. } => {
@@ -4366,6 +4529,7 @@ fn stmt_has_async_concurrency(stmt: &ir::Stmt) -> bool {
     }
 }
 
+#[allow(dead_code)]
 fn stmt_has_parallel_concurrency(stmt: &ir::Stmt) -> bool {
     match stmt {
         ir::Stmt::Let { value, .. } | ir::Stmt::Const { value, .. } => {
@@ -4434,6 +4598,7 @@ fn stmt_has_parallel_concurrency(stmt: &ir::Stmt) -> bool {
     }
 }
 
+#[allow(dead_code)]
 fn expr_has_async_concurrency(expr: &ir::Expr) -> bool {
     match expr {
         &ir::Expr::AsyncCall { .. }
@@ -4507,6 +4672,7 @@ fn expr_has_async_concurrency(expr: &ir::Expr) -> bool {
     }
 }
 
+#[allow(dead_code)]
 fn expr_has_parallel_concurrency(expr: &ir::Expr) -> bool {
     match expr {
         &ir::Expr::ParallelCall { .. }
@@ -4606,16 +4772,11 @@ pub fn generate_from_ir(
     // For now, always use AST generator since it handles classes and inheritance correctly
     println!("DEBUG: Using AST generator for full compatibility");
     return generate_with_ast(program, ctx);
-
-    let ir_gen = IrCodeGenerator::new(&ctx);
-    let rust_code = ir_gen.generate(module)?;
-    let cargo_toml = generate_cargo_toml(&ctx)?;
-    Ok((rust_code, cargo_toml))
 }
 
 pub fn generate_with_ast(program: &Program, ctx: DesugarContext) -> Result<(String, String)> {
     let mut generator = CodeGenerator::new(ctx);
-    
+
     // First pass: collect fallible functions
     for item in &program.items {
         if let TopLevel::Function(func) = item {
@@ -4624,7 +4785,7 @@ pub fn generate_with_ast(program: &Program, ctx: DesugarContext) -> Result<(Stri
             }
         }
     }
-    
+
     generator.generate_program(program)?;
 
     let cargo_toml = generate_cargo_toml(&generator.ctx)?;
