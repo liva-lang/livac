@@ -51,9 +51,13 @@ Implement a comprehensive standard library with:
 - [ ] `includes(value)` - Check if array contains value
 
 #### 1.4 Testing & Documentation
-- [ ] Add unit tests for each method
+- [ ] Add unit tests for each method in `tests/stdlib_tests.rs`
 - [ ] Add integration tests with real examples
-- [ ] Update `docs/stdlib/arrays.md` with examples
+- [ ] Create `docs/language-reference/stdlib/arrays.md` with:
+  - API reference for all array methods
+  - Examples for each method
+  - Error handling examples
+  - Performance notes
 - [ ] Add code snippets to VSCode extension
 
 **Success Criteria:** All array methods work correctly with 100% test coverage
@@ -85,10 +89,13 @@ Implement a comprehensive standard library with:
 - [ ] `indexOf(substring)` - Find index of substring
 
 #### 2.4 Testing & Documentation
-- [ ] Add unit tests for each method
+- [ ] Add unit tests for each method in `tests/stdlib_tests.rs`
 - [ ] Add integration tests
-- [ ] Update `docs/stdlib/strings.md`
-- [ ] Add code snippets
+- [ ] Create `docs/language-reference/stdlib/strings.md` with:
+  - API reference for all string methods
+  - Examples for each method
+  - Edge cases and error handling
+- [ ] Add code snippets to VSCode extension
 
 **Success Criteria:** All string methods work correctly with 100% test coverage
 
@@ -122,10 +129,14 @@ Implement a comprehensive standard library with:
 - [ ] `Math.E` - Euler's number (2.71828...)
 
 #### 3.6 Testing & Documentation
-- [ ] Add unit tests
+- [ ] Add unit tests in `tests/stdlib_tests.rs`
 - [ ] Add integration tests
-- [ ] Update `docs/stdlib/math.md`
-- [ ] Add code snippets
+- [ ] Create `docs/language-reference/stdlib/math.md` with:
+  - API reference for all math functions
+  - Mathematical definitions
+  - Examples and use cases
+  - Constants documentation
+- [ ] Add code snippets to VSCode extension
 
 **Success Criteria:** All math functions work correctly with 100% test coverage
 
@@ -147,10 +158,13 @@ Implement a comprehensive standard library with:
 - [ ] `toFloat(value)` - Convert to float
 
 #### 4.3 Testing & Documentation
-- [ ] Add unit tests with error cases
+- [ ] Add unit tests with error cases in `tests/stdlib_tests.rs`
 - [ ] Add integration tests
-- [ ] Update `docs/stdlib/conversions.md`
-- [ ] Add code snippets
+- [ ] Create `docs/language-reference/stdlib/conversions.md` with:
+  - API reference for conversion functions
+  - Error handling examples
+  - Type compatibility matrix
+- [ ] Add code snippets to VSCode extension
 
 **Success Criteria:** All conversion functions handle errors gracefully
 
@@ -171,10 +185,13 @@ Implement a comprehensive standard library with:
   - Example: `let name = prompt("Enter name: ")`
 
 #### 5.3 Testing & Documentation
-- [ ] Add unit tests
+- [ ] Add unit tests in `tests/stdlib_tests.rs`
 - [ ] Add integration tests
-- [ ] Update `docs/stdlib/io.md`
-- [ ] Add code snippets
+- [ ] Create `docs/language-reference/stdlib/io.md` with:
+  - API reference for console/IO functions
+  - Examples for input/output
+  - Error handling
+- [ ] Add code snippets to VSCode extension
 
 **Success Criteria:** All I/O functions work correctly
 
@@ -189,11 +206,20 @@ Implement a comprehensive standard library with:
 - [ ] `examples/stdlib/conversions_demo.liva` - Type conversion examples
 - [ ] `examples/stdlib/io_demo.liva` - Console/IO examples
 
-#### 6.2 Update Documentation
-- [ ] Update `docs/getting-started.md` with stdlib usage
-- [ ] Create `docs/stdlib/README.md` - Overview of stdlib
-- [ ] Update `README.md` with stdlib examples
-- [ ] Add stdlib section to language reference
+#### 6.2 Create Documentation Structure
+- [ ] Create `docs/language-reference/stdlib/` directory
+- [ ] Create `docs/language-reference/stdlib/README.md` - Overview
+- [ ] Create `docs/language-reference/stdlib/arrays.md` - Array methods reference
+- [ ] Create `docs/language-reference/stdlib/strings.md` - String methods reference
+- [ ] Create `docs/language-reference/stdlib/math.md` - Math functions reference
+- [ ] Create `docs/language-reference/stdlib/conversions.md` - Type conversion reference
+- [ ] Create `docs/language-reference/stdlib/io.md` - Console/IO reference
+
+#### 6.3 Update Existing Documentation
+- [ ] Update `docs/getting-started/basic-usage.md` with stdlib examples
+- [ ] Update `docs/README.md` to include stdlib section
+- [ ] Update root `README.md` with stdlib showcase
+- [ ] Add stdlib to language reference index
 
 #### 6.3 Update VSCode Extension
 - [ ] Add stdlib functions to IntelliSense
