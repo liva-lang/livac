@@ -267,15 +267,17 @@ pub fn tokenize(source: &str) -> Result<Vec<TokenWithSpan>> {
                 let (line, col) = span.start_position(&source_map);
                 let snippet = span.snippet(source);
                 let display = if snippet.is_empty() { "<EOF>" } else { snippet };
-                
-                let source_line = source.lines().nth(line.saturating_sub(1))
+
+                let source_line = source
+                    .lines()
+                    .nth(line.saturating_sub(1))
                     .unwrap_or("")
                     .to_string();
 
                 let error = SemanticErrorInfo::new(
                     "E1000",
                     "Invalid token",
-                    &format!("Encountered an invalid token: '{}'", display)
+                    &format!("Encountered an invalid token: '{}'", display),
                 )
                 .with_location("<input>", line)
                 .with_column(col)
@@ -311,10 +313,7 @@ mod tests {
         let tokens = tokenize(source).unwrap();
 
         assert_eq!(tokens[0].token, Token::Ident("public".to_string()));
-        assert_eq!(
-            tokens[1].token,
-            Token::PrivateIdent("_private".to_string())
-        );
+        assert_eq!(tokens[1].token, Token::PrivateIdent("_private".to_string()));
     }
 
     #[test]

@@ -138,8 +138,7 @@ impl Parser {
                     matches!(self.peek_token(idx_after), Some(Token::Arrow))
                 }
             }
-            Some(Token::Ident(_))
-            | Some(Token::PrivateIdent(_)) => {
+            Some(Token::Ident(_)) | Some(Token::PrivateIdent(_)) => {
                 matches!(self.peek_token(offset + 1), Some(Token::Arrow))
             }
             _ => false,
@@ -171,12 +170,15 @@ impl Parser {
         } else {
             return CompilerError::ParseError(
                 SemanticErrorInfo::new("E2000", "Parse Error", &message)
-                    .with_location("<input>", 1)
+                    .with_location("<input>", 1),
             );
         };
 
         let (line, col) = self.calculate_line_col(token_index);
-        let source_line = self.source.lines().nth(line.saturating_sub(1))
+        let source_line = self
+            .source
+            .lines()
+            .nth(line.saturating_sub(1))
             .unwrap_or("")
             .to_string();
 
@@ -349,7 +351,11 @@ impl Parser {
         }))
     }
 
-    fn function_body_contains_fail(&self, body: &Option<BlockStmt>, expr_body: &Option<Expr>) -> bool {
+    fn function_body_contains_fail(
+        &self,
+        body: &Option<BlockStmt>,
+        expr_body: &Option<Expr>,
+    ) -> bool {
         if let Some(block) = body {
             self.block_contains_fail(block)
         } else if let Some(expr) = expr_body {
@@ -373,25 +379,37 @@ impl Parser {
             Stmt::Fail(_) => true,
             Stmt::VarDecl(var) => self.expr_contains_fail(&var.init),
             Stmt::Assign(assign) => self.expr_contains_fail(&assign.value),
-            Stmt::Return(ret) => ret.expr.as_ref().map_or(false, |e| self.expr_contains_fail(e)),
+            Stmt::Return(ret) => ret
+                .expr
+                .as_ref()
+                .map_or(false, |e| self.expr_contains_fail(e)),
             Stmt::If(if_stmt) => {
-                self.expr_contains_fail(&if_stmt.condition) ||
-                self.if_body_contains_fail(&if_stmt.then_branch) ||
-                if_stmt.else_branch.as_ref().map_or(false, |b| self.if_body_contains_fail(b))
+                self.expr_contains_fail(&if_stmt.condition)
+                    || self.if_body_contains_fail(&if_stmt.then_branch)
+                    || if_stmt
+                        .else_branch
+                        .as_ref()
+                        .map_or(false, |b| self.if_body_contains_fail(b))
             }
             Stmt::While(while_stmt) => {
-                self.expr_contains_fail(&while_stmt.condition) ||
-                self.block_contains_fail(&while_stmt.body)
+                self.expr_contains_fail(&while_stmt.condition)
+                    || self.block_contains_fail(&while_stmt.body)
             }
             Stmt::For(for_stmt) => self.block_contains_fail(&for_stmt.body),
             Stmt::Switch(switch) => {
-                self.expr_contains_fail(&switch.discriminant) ||
-                switch.cases.iter().any(|case| case.body.iter().any(|s| self.stmt_contains_fail(s))) ||
-                switch.default.as_ref().map_or(false, |b| b.iter().any(|s| self.stmt_contains_fail(s)))
+                self.expr_contains_fail(&switch.discriminant)
+                    || switch
+                        .cases
+                        .iter()
+                        .any(|case| case.body.iter().any(|s| self.stmt_contains_fail(s)))
+                    || switch
+                        .default
+                        .as_ref()
+                        .map_or(false, |b| b.iter().any(|s| self.stmt_contains_fail(s)))
             }
             Stmt::TryCatch(try_catch) => {
-                self.block_contains_fail(&try_catch.try_block) ||
-                self.block_contains_fail(&try_catch.catch_block)
+                self.block_contains_fail(&try_catch.try_block)
+                    || self.block_contains_fail(&try_catch.catch_block)
             }
             Stmt::Throw(throw) => self.expr_contains_fail(&throw.expr),
             Stmt::Expr(expr_stmt) => self.expr_contains_fail(&expr_stmt.expr),
@@ -409,29 +427,33 @@ impl Parser {
     fn expr_contains_fail(&self, expr: &Expr) -> bool {
         match expr {
             Expr::Fail(_) => true,
-            Expr::Ternary { condition, then_expr, else_expr } => {
-                self.expr_contains_fail(condition) ||
-                self.expr_contains_fail(then_expr) ||
-                self.expr_contains_fail(else_expr)
+            Expr::Ternary {
+                condition,
+                then_expr,
+                else_expr,
+            } => {
+                self.expr_contains_fail(condition)
+                    || self.expr_contains_fail(then_expr)
+                    || self.expr_contains_fail(else_expr)
             }
             Expr::Binary { left, right, .. } => {
                 self.expr_contains_fail(left) || self.expr_contains_fail(right)
             }
             Expr::Unary { operand, .. } => self.expr_contains_fail(operand),
             Expr::Call(call) => {
-                self.expr_contains_fail(&call.callee) ||
-                call.args.iter().any(|arg| self.expr_contains_fail(arg))
+                self.expr_contains_fail(&call.callee)
+                    || call.args.iter().any(|arg| self.expr_contains_fail(arg))
             }
             Expr::Member { object, .. } => self.expr_contains_fail(object),
             Expr::Index { object, index } => {
                 self.expr_contains_fail(object) || self.expr_contains_fail(index)
             }
-            Expr::ObjectLiteral(fields) => {
-                fields.iter().any(|(_, value)| self.expr_contains_fail(value))
-            }
-            Expr::StructLiteral { fields, .. } => {
-                fields.iter().any(|(_, value)| self.expr_contains_fail(value))
-            }
+            Expr::ObjectLiteral(fields) => fields
+                .iter()
+                .any(|(_, value)| self.expr_contains_fail(value)),
+            Expr::StructLiteral { fields, .. } => fields
+                .iter()
+                .any(|(_, value)| self.expr_contains_fail(value)),
             Expr::ArrayLiteral(elements) => {
                 elements.iter().any(|elem| self.expr_contains_fail(elem))
             }
@@ -439,12 +461,10 @@ impl Parser {
                 LambdaBody::Expr(body) => self.expr_contains_fail(body),
                 LambdaBody::Block(block) => self.block_contains_fail(block),
             },
-            Expr::StringTemplate { parts } => {
-                parts.iter().any(|part| match part {
-                    StringTemplatePart::Expr(expr) => self.expr_contains_fail(expr),
-                    _ => false,
-                })
-            }
+            Expr::StringTemplate { parts } => parts.iter().any(|part| match part {
+                StringTemplatePart::Expr(expr) => self.expr_contains_fail(expr),
+                _ => false,
+            }),
             _ => false,
         }
     }
@@ -663,7 +683,11 @@ impl Parser {
         } else {
             None
         };
-        bindings.push(VarBinding { name, type_ref, span });
+        bindings.push(VarBinding {
+            name,
+            type_ref,
+            span,
+        });
 
         // Parse additional bindings if present (for fallible binding)
         while self.match_token(&Token::Comma) {
@@ -674,7 +698,11 @@ impl Parser {
             } else {
                 None
             };
-            bindings.push(VarBinding { name, type_ref, span });
+            bindings.push(VarBinding {
+                name,
+                type_ref,
+                span,
+            });
         }
 
         Ok(bindings)
@@ -1619,10 +1647,12 @@ fn parse_string_template_parts(raw: &str) -> Result<Vec<StringTemplatePart>> {
                         SemanticErrorInfo::new(
                             "E2001",
                             "Unclosed interpolation",
-                            "String template has an unclosed interpolation expression"
+                            "String template has an unclosed interpolation expression",
                         )
                         .with_location("<input>", 1)
-                        .with_help("Make sure all '{' characters in interpolations have matching '}'")
+                        .with_help(
+                            "Make sure all '{' characters in interpolations have matching '}'",
+                        ),
                     ));
                 }
                 let expr_src_trimmed = expr_src.trim();
@@ -1631,10 +1661,12 @@ fn parse_string_template_parts(raw: &str) -> Result<Vec<StringTemplatePart>> {
                         SemanticErrorInfo::new(
                             "E2002",
                             "Empty interpolation",
-                            "String template has an empty interpolation: {}"
+                            "String template has an empty interpolation: {}",
                         )
                         .with_location("<input>", 1)
-                        .with_help("Add an expression inside the interpolation or remove the empty braces")
+                        .with_help(
+                            "Add an expression inside the interpolation or remove the empty braces",
+                        ),
                     ));
                 }
                 match parse_template_expression(expr_src_trimmed) {
@@ -1663,10 +1695,12 @@ fn parse_string_template_parts(raw: &str) -> Result<Vec<StringTemplatePart>> {
                         SemanticErrorInfo::new(
                             "E2003",
                             "Unmatched closing brace",
-                            "String template has an unmatched '}' character"
+                            "String template has an unmatched '}' character",
                         )
                         .with_location("<input>", 1)
-                        .with_help("Use '}}' to escape a literal '}' character in a string template")
+                        .with_help(
+                            "Use '}}' to escape a literal '}' character in a string template",
+                        ),
                     ));
                 }
             }

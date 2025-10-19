@@ -1,5 +1,5 @@
-use thiserror::Error;
 use colored::Colorize;
+use thiserror::Error;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ErrorLocation {
@@ -70,15 +70,15 @@ impl SemanticErrorInfo {
 
     pub fn format(&self) -> String {
         let mut output = String::new();
-        
+
         // Header con icono y código de error
         output.push_str(&format!("\n{} ", "●".red().bold()));
         output.push_str(&format!("{}: ", self.code.red().bold()));
         output.push_str(&format!("{}\n", self.title.bold()));
-        
+
         // Separador
         output.push_str(&format!("{}\n", "─".repeat(60).bright_black()));
-        
+
         // Ubicación
         if let Some(loc) = &self.location {
             output.push_str(&format!("  {} ", "→".blue().bold()));
@@ -88,57 +88,55 @@ impl SemanticErrorInfo {
                 output.push_str(&format!(":{}", col.to_string().yellow().bold()));
             }
             output.push_str("\n");
-            
+
             // Línea de código fuente si está disponible
             if let Some(source) = &loc.source_line {
                 let trimmed = source.trim_start();
                 let leading_spaces = source.len() - trimmed.len();
-                
+
                 output.push_str("\n");
-                output.push_str(&format!("  {} {}\n", 
-                    format!("{:>4}", loc.line).bright_black(), 
+                output.push_str(&format!(
+                    "  {} {}\n",
+                    format!("{:>4}", loc.line).bright_black(),
                     "│".bright_black()
                 ));
-                output.push_str(&format!("  {} {} {}\n", 
+                output.push_str(&format!(
+                    "  {} {} {}\n",
                     format!("{:>4}", " ").bright_black(),
                     "│".bright_black(),
                     trimmed
                 ));
-                
+
                 // Indicador visual si tenemos la columna
                 if let Some(col) = loc.column {
                     let adjusted_col = col.saturating_sub(leading_spaces + 1);
-                    output.push_str(&format!("  {} {} {}{}\n", 
+                    output.push_str(&format!(
+                        "  {} {} {}{}\n",
                         format!("{:>4}", " ").bright_black(),
                         "│".bright_black(),
                         " ".repeat(adjusted_col),
                         "^".repeat(3).red().bold()
                     ));
                 }
-                output.push_str(&format!("  {} {}\n", 
+                output.push_str(&format!(
+                    "  {} {}\n",
                     format!("{:>4}", " ").bright_black(),
                     "│".bright_black()
                 ));
             }
         }
-        
+
         // Mensaje principal
-        output.push_str(&format!("\n  {} {}\n", 
-            "ⓘ".blue().bold(),
-            self.message
-        ));
-        
+        output.push_str(&format!("\n  {} {}\n", "ⓘ".blue().bold(), self.message));
+
         // Ayuda si está disponible
         if let Some(help) = &self.help {
-            output.push_str(&format!("\n  {} {}\n", 
-                "💡".yellow(),
-                help.bright_white()
-            ));
+            output.push_str(&format!("\n  {} {}\n", "💡".yellow(), help.bright_white()));
         }
-        
+
         // Separador final
         output.push_str(&format!("{}\n", "─".repeat(60).bright_black()));
-        
+
         output
     }
 
@@ -206,7 +204,10 @@ pub enum CompilerError {
 impl CompilerError {
     /// Check if error can be serialized to JSON (all structured errors can)
     pub fn can_serialize_json(&self) -> bool {
-        !matches!(self, CompilerError::IoError(_) | CompilerError::RuntimeError(_))
+        !matches!(
+            self,
+            CompilerError::IoError(_) | CompilerError::RuntimeError(_)
+        )
     }
 
     /// Get the underlying SemanticErrorInfo if available
