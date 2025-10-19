@@ -29,26 +29,48 @@ Implement a comprehensive standard library with:
 ### Task 1: Array Methods (~3 hours)
 
 #### 1.1 Design Array API
-- [ ] Review Rust Vec methods for inspiration
+- [ ] Review Rust Vec/Rayon methods for inspiration
 - [ ] Design Liva-style API (syntax, error handling)
-- [ ] Decide: methods vs functions (e.g., `arr.map(fn)` vs `map(arr, fn)`)
+- [ ] **Design execution policy syntax for methods**
+  - Option A: `arr.map(fn, par)` - policy as second argument
+  - Option B: `arr.map(fn) with par` - keyword-based
+  - Option C: `arr.par().map(fn)` - chaining adapters
+- [ ] **Define which methods support which policies:**
+  - `seq` (sequential) - ALL methods support this (default)
+  - `par` (parallel) - `map`, `filter`, `reduce`, `forEach`, `some`, `every`, `includes`
+  - `vec` (SIMD) - `map`, `filter` (numeric operations only)
+  - `parvec` (parallel+SIMD) - `map`, `filter` (numeric operations only)
+- [ ] **Design policy options (chunk size, threads, simdWidth, ordered)**
+  - Example: `arr.map(fn, par with threads 4 chunk 2)`
+  - Example: `arr.map(fn, parvec with simdWidth 4 ordered)`
 - [ ] Document API design in `docs/stdlib/arrays.md`
 
 #### 1.2 Implement Core Methods
 - [ ] `map(fn)` - Transform each element
   - Example: `[1,2,3].map(x => x * 2)` → `[2,4,6]`
+  - **Support execution policies:** `seq`, `par`, `vec`, `parvec`
+  - Example: `[1,2,3].map(x => x * 2, par)` - parallel execution
+  - Example: `[1,2,3].map(x => x * 2, parvec with simdWidth 4)` - SIMD
 - [ ] `filter(fn)` - Keep elements matching predicate
   - Example: `[1,2,3].filter(x => x > 1)` → `[2,3]`
+  - **Support execution policies:** `seq`, `par`, `vec`, `parvec`
 - [ ] `reduce(fn, initial)` - Reduce to single value
   - Example: `[1,2,3].reduce((acc, x) => acc + x, 0)` → `6`
+  - **Support execution policies:** `seq`, `par` (with reduction strategies)
 
 #### 1.3 Implement Utility Methods
 - [ ] `forEach(fn)` - Iterate with side effects
+  - **Support execution policies:** `seq`, `par`
 - [ ] `find(fn)` - Find first element matching predicate
+  - Sequential only (early exit)
 - [ ] `some(fn)` - Check if any element matches
+  - **Support execution policies:** `seq`, `par` (short-circuit)
 - [ ] `every(fn)` - Check if all elements match
+  - **Support execution policies:** `seq`, `par` (short-circuit)
 - [ ] `indexOf(value)` - Find index of value
+  - Sequential only (order-dependent)
 - [ ] `includes(value)` - Check if array contains value
+  - **Support execution policies:** `seq`, `par`
 
 #### 1.4 Testing & Documentation
 - [ ] Add unit tests for each method in `tests/stdlib_tests.rs`
@@ -261,6 +283,68 @@ let upper = toUpperCase("hello")
 ```
 
 **Decision:** Use method syntax (Option 1) for better ergonomics and consistency with modern languages.
+
+**Execution Policies for Array Methods:**
+
+Liva supports 4 execution policies: `seq`, `par`, `vec`, `parvec` (from concurrency.md)
+
+```liva
+// Sequential (default)
+let result = [1,2,3,4].map(x => x * 2)
+
+// Parallel (multi-threading)
+let result = [1,2,3,4].map(x => heavyComputation(x), par)
+let result = [1,2,3,4].map(x => heavyComputation(x), par with threads 4 chunk 2)
+
+// Vectorized (SIMD)
+let result = [1,2,3,4].map(x => x * 2, vec)
+let result = [1,2,3,4].map(x => x * 2, vec with simdWidth 4)
+
+// Parallel + Vectorized
+let result = [1,2,3,4].map(x => x * 2, parvec with simdWidth 4 ordered)
+```
+
+**Policy Support Matrix:**
+
+| Method | `seq` | `par` | `vec` | `parvec` | Notes |
+|--------|-------|-------|-------|----------|-------|
+| `map` | ✅ | ✅ | ✅ | ✅ | Full support |
+| `filter` | ✅ | ✅ | ✅ | ✅ | Full support |
+| `reduce` | ✅ | ✅ | ❌ | ❌ | Sequential dependency |
+| `forEach` | ✅ | ✅ | ❌ | ❌ | Side effects |
+| `find` | ✅ | ❌ | ❌ | ❌ | Early exit, order-dependent |
+| `some` | ✅ | ✅ | ❌ | ❌ | Short-circuit possible |
+| `every` | ✅ | ✅ | ❌ | ❌ | Short-circuit possible |
+| `indexOf` | ✅ | ❌ | ❌ | ❌ | Order-dependent |
+| `includes` | ✅ | ✅ | ❌ | ❌ | Order-independent |
+
+**Arrow Functions and Closures:**
+
+```liva
+// Arrow functions for array methods
+let numbers = [1, 2, 3, 4, 5]
+
+// Simple arrow
+let doubled = numbers.map(x => x * 2)
+
+// Block arrow
+let processed = numbers.map(x => {
+  let result = x * 2
+  return result + 1
+})
+
+// Closure capture
+let multiplier = 10
+let scaled = numbers.map(x => x * multiplier)  // Captures 'multiplier'
+
+// Parallel with closure
+let scaled = numbers.map(x => x * multiplier, par)  // Safe: immutable capture
+```
+
+**Thread Safety:**
+- Closures must be `Send + Sync` for `par`/`parvec`
+- Mutable captures not allowed in parallel contexts
+- Compiler enforces safety
 
 **Error Handling:**
 ```liva
