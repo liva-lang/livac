@@ -25,8 +25,10 @@ pub struct CodeGenerator {
     in_method: bool,
     in_assignment_target: bool,
     in_fallible_function: bool,
+    in_string_template: bool, // Track if we're inside a string template
     bracket_notation_vars: std::collections::HashSet<String>,
     class_instance_vars: std::collections::HashSet<String>,
+    array_vars: std::collections::HashSet<String>, // Track which variables are arrays
     // --- Class/type metadata (for inheritance and field resolution)
     class_fields: std::collections::HashMap<String, std::collections::HashSet<String>>,
     class_base:   std::collections::HashMap<String, Option<String>>,
@@ -50,8 +52,10 @@ impl CodeGenerator {
             in_method: false,
             in_assignment_target: false,
             in_fallible_function: false,
+            in_string_template: false,
             bracket_notation_vars: std::collections::HashSet::new(),
             class_instance_vars: std::collections::HashSet::new(),
+            array_vars: std::collections::HashSet::new(),
             class_fields: std::collections::HashMap::new(),
             class_base:   std::collections::HashMap::new(),
             var_types:    std::collections::HashMap::new(),
@@ -1061,6 +1065,11 @@ impl CodeGenerator {
                             self.bracket_notation_vars.insert(binding.name.clone());
                         }
 
+                        // Check if initializing with an array literal - mark variable as array
+                        if let Expr::ArrayLiteral(_) = &var.init {
+                            self.array_vars.insert(binding.name.clone());
+                        }
+
                         // Mark instances created via constructor call: let x = ClassName(...)
                         else if let Expr::Call(call) = &var.init {
                             if let Expr::Identifier(class_name) = &*call.callee {
@@ -1438,12 +1447,14 @@ impl CodeGenerator {
                                 // For JSON access, generate bracket notation
                                 write!(self.output, "[\"{}\"]", property).unwrap();
 
-                                // Convert numeric properties automatically
-                                if property == "price" || property == "age" || property.contains("count") ||
-                                    property.contains("total") || property.contains("sum") {
-                                    self.output.push_str(".as_f64().unwrap_or(0.0)");
-                                } else if property == "name" || property.contains("text") || property.contains("data") {
-                                    self.output.push_str(".as_str().unwrap_or(\"\")");
+                                // Convert numeric properties automatically (but not in string templates - format! handles it)
+                                if !self.in_string_template {
+                                    if property == "price" || property == "age" || property.contains("count") ||
+                                        property.contains("total") || property.contains("sum") {
+                                        self.output.push_str(".as_f64().unwrap_or(0.0)");
+                                    } else if property == "name" || property.contains("text") || property.contains("data") {
+                                        self.output.push_str(".as_str().unwrap_or(\"\")");
+                                    }
                                 }
                             }
                         }
@@ -1452,15 +1463,17 @@ impl CodeGenerator {
                             // So property access should use bracket notation
                             write!(self.output, "[\"{}\"]", property).unwrap();
 
-                            // For numeric fields in JSON objects, convert to appropriate type
-                            // Always convert price to f64 since it's commonly used in arithmetic
-                            if property == "price" {
-                                self.output.push_str(".as_f64().unwrap_or(0.0)");
-                            } else if property == "age" || property.contains("count") ||
-                                property.contains("total") || property.contains("sum") {
-                                self.output.push_str(".as_f64().unwrap_or(0.0)");
-                            } else if property == "name" || property.contains("text") || property.contains("data") {
-                                self.output.push_str(".as_str().unwrap_or(\"\")");
+                            // For numeric fields in JSON objects, convert to appropriate type (but not in string templates)
+                            if !self.in_string_template {
+                                // Always convert price to f64 since it's commonly used in arithmetic
+                                if property == "price" {
+                                    self.output.push_str(".as_f64().unwrap_or(0.0)");
+                                } else if property == "age" || property.contains("count") ||
+                                    property.contains("total") || property.contains("sum") {
+                                    self.output.push_str(".as_f64().unwrap_or(0.0)");
+                                } else if property == "name" || property.contains("text") || property.contains("data") {
+                                    self.output.push_str(".as_str().unwrap_or(\"\")");
+                                }
                             }
                         }
                         _ => {
@@ -1551,9 +1564,31 @@ impl CodeGenerator {
                             }
                         }
                         StringTemplatePart::Expr(expr) => match expr.as_ref() {
+                            // Literals always use Display
                             Expr::Literal(_) => {
                                 self.output.push_str("{}");
                             }
+                            // Simple identifiers: check if they're arrays
+                            Expr::Identifier(name) => {
+                                if self.array_vars.contains(name) {
+                                    self.output.push_str("{:?}");
+                                } else {
+                                    self.output.push_str("{}");
+                                }
+                            }
+                            // Member access uses Display
+                            Expr::Member { .. } => {
+                                self.output.push_str("{}");
+                            }
+                            // Index access uses Display
+                            Expr::Index { .. } => {
+                                self.output.push_str("{}");
+                            }
+                            // Arrays and objects use Debug
+                            Expr::ArrayLiteral(_) | Expr::ObjectLiteral(_) => {
+                                self.output.push_str("{:?}");
+                            }
+                            // Everything else uses Debug
                             _ => {
                                 self.output.push_str("{:?}");
                             }
@@ -1573,6 +1608,11 @@ impl CodeGenerator {
 
                 if !exprs.is_empty() {
                     self.output.push_str(", ");
+                    
+                    // Mark that we're inside a string template for proper member access generation
+                    let was_in_template = self.in_string_template;
+                    self.in_string_template = true;
+                    
                     for (idx, expr) in exprs.iter().enumerate() {
                         if idx > 0 {
                             self.output.push_str(", ");
@@ -1587,6 +1627,8 @@ impl CodeGenerator {
                         }
                         self.generate_expr(expr)?;
                     }
+                    
+                    self.in_string_template = was_in_template;
                 }
 
                 self.output.push(')');
