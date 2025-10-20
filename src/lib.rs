@@ -231,20 +231,31 @@ fn compile_with_modules(
     // 3. Desugaring
     let desugar_ctx = desugaring::desugar(analyzed_ast.clone())?;
     
-    // 4. Code generation
-    let ir_module = lowering::lower_program(&analyzed_ast);
-    let (rust_code, cargo_toml) =
-        codegen::generate_from_ir(&ir_module, &analyzed_ast, desugar_ctx)?;
+    // 4. Code generation - Multi-file project
+    let files = codegen::generate_multifile_project(
+        &compilation_order[..],
+        entry_module,
+        desugar_ctx.clone(),
+    )?;
+    
+    // Generate Cargo.toml
+    let cargo_toml = codegen::generate_cargo_toml(&desugar_ctx)?;
     
     // 5. Write output files if output directory specified
     let output_dir = if let Some(out_dir) = &options.output {
-        Some(write_output_files(&rust_code, &cargo_toml, out_dir)?)
+        Some(write_multifile_output(&files, &cargo_toml, out_dir)?)
     } else {
         None
     };
     
+    // For backward compatibility with single-file result
+    // Extract main.rs content if available
+    let main_rs_content = files
+        .get(&std::path::PathBuf::from("src/main.rs"))
+        .cloned();
+    
     Ok(CompilationResult {
-        rust_code: Some(rust_code),
+        rust_code: main_rs_content,
         cargo_toml: Some(cargo_toml),
         output_dir,
     })
@@ -339,6 +350,40 @@ fn write_output_files(rust_code: &str, cargo_toml: &str, output_dir: &Path) -> R
     let main_rs_path = src_dir.join("main.rs");
     std::fs::write(&main_rs_path, rust_code)
         .map_err(|e| CompilerError::IoError(format!("Failed to write main.rs: {}", e)))?;
+
+    // Write Cargo.toml
+    let cargo_toml_path = output_dir.join("Cargo.toml");
+    std::fs::write(&cargo_toml_path, cargo_toml)
+        .map_err(|e| CompilerError::IoError(format!("Failed to write Cargo.toml: {}", e)))?;
+
+    Ok(output_dir.to_path_buf())
+}
+
+/// Write multi-file Rust project to output directory
+fn write_multifile_output(
+    files: &std::collections::HashMap<std::path::PathBuf, String>,
+    cargo_toml: &str,
+    output_dir: &Path,
+) -> Result<PathBuf> {
+    
+    // Create output directory
+    std::fs::create_dir_all(output_dir)
+        .map_err(|e| CompilerError::IoError(format!("Failed to create output directory: {}", e)))?;
+
+    // Write each module file
+    for (file_path, content) in files {
+        let full_path = output_dir.join(file_path);
+        
+        // Create parent directory if needed
+        if let Some(parent) = full_path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| CompilerError::IoError(format!("Failed to create directory {}: {}", parent.display(), e)))?;
+        }
+        
+        // Write file
+        std::fs::write(&full_path, content)
+            .map_err(|e| CompilerError::IoError(format!("Failed to write {}: {}", full_path.display(), e)))?;
+    }
 
     // Write Cargo.toml
     let cargo_toml_path = output_dir.join("Cargo.toml");
