@@ -361,4 +361,5 @@ main() {
   print("\n🎉 Liva Comprehensive Syntax Test Completed Successfully!")
   print("✅ All major language features tested and working!")
   print("🛡️ Fallibility system implemented and tested!")
+  console.log("Liva syntax demonstration finished.")
 }

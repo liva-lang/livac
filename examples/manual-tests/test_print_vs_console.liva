@@ -1,0 +1,163 @@
+// Test: print() vs console.log() comparison
+// Purpose: Demonstrate the differences between simple print() and console.* functions
+// 
+// Run with: livac examples/manual-tests/test_print_vs_console.liva --run
+
+main() {
+    print("=" * 50)
+    print("🆚 print() vs console.log() Comparison")
+    print("=" * 50)
+    print("")
+    
+    // ========================================
+    // 1. Simple Strings
+    // ========================================
+    print("--- 1. Simple Strings ---")
+    print("")
+    
+    print("print():")
+    print("Hello, World!")
+    print("")
+    
+    print("console.log():")
+    console.log("Hello, World!")
+    print("")
+    
+    // Expected difference:
+    // print()       → Hello, World!
+    // console.log() → "Hello, World!"  (with quotes)
+    
+    
+    // ========================================
+    // 2. Variables
+    // ========================================
+    print("--- 2. Variables ---")
+    print("")
+    
+    let name = "Alice"
+    let age = 25
+    let height = 1.75
+    
+    print("print() with string template:")
+    print($"Name: {name}, Age: {age}, Height: {height}")
+    print("")
+    
+    print("console.log() with values:")
+    console.log(name)
+    console.log(age)
+    console.log(height)
+    print("")
+    
+    // Expected difference:
+    // print()       → Name: Alice, Age: 25, Height: 1.75
+    // console.log() → "Alice"
+    //                 25
+    //                 1.75
+    
+    
+    // ========================================
+    // 3. Arrays
+    // ========================================
+    print("--- 3. Arrays ---")
+    print("")
+    
+    let numbers = [1, 2, 3, 4, 5]
+    let names = ["Alice", "Bob", "Charlie"]
+    
+    print("console.log() with arrays:")
+    console.log(numbers)
+    console.log(names)
+    print("")
+    
+    // Note: print() doesn't format arrays nicely, so we use console.log()
+    // console.log() → [1, 2, 3, 4, 5]
+    //                 ["Alice", "Bob", "Charlie"]
+    
+    
+    // ========================================
+    // 4. Objects
+    // ========================================
+    print("--- 4. Objects ---")
+    print("")
+    
+    let user = { name: "Alice", age: 25, active: true }
+    
+    print("console.log() with object:")
+    console.log(user)
+    print("")
+    
+    // console.log() → { name: "Alice", age: 25, active: true }
+    
+    
+    // ========================================
+    // 5. Error Output
+    // ========================================
+    print("--- 5. Error Output (stderr) ---")
+    print("")
+    
+    console.error("This is an error message")
+    console.warn("This is a warning message")
+    print("")
+    
+    // Both go to stderr (separate stream)
+    // error → "This is an error message"
+    // warn  → Warning: "This is a warning message"
+    
+    
+    // ========================================
+    // 6. Use Cases
+    // ========================================
+    print("--- 6. Use Cases ---")
+    print("")
+    
+    // User-facing output (clean, friendly)
+    print("✅ Use print() for:")
+    print("  - Welcome messages")
+    print("  - Status updates")
+    print("  - Final results")
+    print("  - User-friendly output")
+    print("")
+    
+    // Developer-facing output (detailed, structured)
+    print("✅ Use console.log() for:")
+    print("  - Debugging")
+    print("  - Inspecting data structures")
+    print("  - Development logging")
+    print("  - Detailed error information")
+    print("")
+    
+    
+    // ========================================
+    // 7. Interactive Input
+    // ========================================
+    print("--- 7. Interactive Input ---")
+    print("")
+    
+    print("The following functions are available:")
+    print("  - console.readLine()     → Read a line")
+    print("  - console.prompt(msg)    → Show prompt and read")
+    print("")
+    
+    // Uncomment to test interactively:
+    // let name = console.prompt("Enter your name: ")
+    // print($"Hello, {name}!")
+    // console.log($"Debug - name variable: {name}")
+    
+    
+    // ========================================
+    // Summary
+    // ========================================
+    print("=" * 50)
+    print("📊 Summary")
+    print("=" * 50)
+    print("")
+    print("| Feature          | print()         | console.log()   |")
+    print("|------------------|-----------------|-----------------|")
+    print("| Format           | Display {}      | Debug {:?}      |")
+    print("| Strings          | Hello           | \"Hello\"         |")
+    print("| Use Case         | End users       | Developers      |")
+    print("| Best For         | Final output    | Debugging       |")
+    print("")
+    print("✅ Both approaches are valid - choose based on your needs!")
+    print("")
+}

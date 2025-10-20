@@ -277,8 +277,8 @@ Build a modern, practical programming language that combines:
 - [x] Implement `console.log(...)` - Enhanced print ✅
 - [x] Implement `console.error(...)` - Error output ✅
 - [x] Implement `console.warn(...)` - Warning output ✅
-- [x] Implement `readLine()` - Read user input ✅
-- [x] Implement `prompt(message)` - Prompt and read ✅
+- [x] Implement `console.readLine()` - Read user input ✅
+- [x] Implement `console.prompt(message)` - Prompt and read ✅
 - [x] Add tests (test_io.liva) ✅
 - [x] Update documentation (io.md, CHANGELOG, TODO, ROADMAP) ✅
 
@@ -286,9 +286,20 @@ Build a modern, practical programming language that combines:
 **Branch:** `feature/stdlib-v0.7.0`  
 **Completion:** 2025-10-20
 
+**Design Decision: Hybrid I/O Approach**
+- **`print()`** - Simple function for beginners, Display format `{}`
+  - Use case: Final output, user-facing messages
+  - Example: `print("Hello")`, `print($"Name: {name}")`
+- **`console.*`** - Professional namespace, Debug format `{:?}`
+  - Use case: Debugging, development, structured logging
+  - Functions: `console.log()`, `console.error()`, `console.warn()`, `console.readLine()`, `console.prompt()`
+  - Familiar to JavaScript/Node.js developers
+  - Organized under single namespace for discoverability
+
 **Deliverables:**
+- ✅ Hybrid approach: `print()` + `console.*` namespace
 - ✅ console.log/error/warn for different output streams
-- ✅ readLine/prompt for user input
+- ✅ console.readLine/prompt for user input
 - ✅ Comprehensive test suite
 - ✅ Full documentation
 

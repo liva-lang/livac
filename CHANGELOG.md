@@ -126,11 +126,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Uses `format!("{}", value)` with Rust's Display trait
   - Works with all primitive types (Int, Float, Bool)
 
-#### Console/IO Functions (5 functions)
-- **`console.log(...args)`** - Print to stdout
-  - Example: `console.log($"Hello, World!")`
-  - Uses `println!("{:?}", ...)` for standard output
-  - Supports multiple arguments
+#### Console/IO Functions (6 functions - Hybrid Approach)
+- **`print(...args)`** - Simple output for end users
+  - Format: Display `{}` (clean, no quotes on strings)
+  - Example: `print("Hello")` → `Hello`
+  - Example: `print($"Name: {name}")` → `Name: Alice`
+  - Uses `println!("{}", ...)` for user-facing output
+  - Best for: Final output, status messages, simple scripts
+- **`console.log(...args)`** - Debug output for developers
+  - Format: Debug `{:?}` (shows structure, quotes strings)
+  - Example: `console.log("Hello")` → `"Hello"` (with quotes)
+  - Example: `console.log([1,2,3])` → `[1, 2, 3]`
+  - Uses `println!("{:?}", ...)` for stdout
+  - Best for: Debugging, data inspection, development
 - **`console.error(...args)`** - Print to stderr
   - Example: `console.error($"Error message")`
   - Uses `eprintln!("{:?}", ...)` for error output
@@ -139,14 +147,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Example: `console.warn($"Warning message")`
   - Uses `eprintln!("Warning: {:?}", ...)` with prefix
   - Writes to stderr with "Warning: " prefix
-- **`readLine()`** - Read line from stdin
-  - Example: `let input = readLine()`
+- **`console.readLine()`** - Read line from stdin
+  - Example: `let input = console.readLine()`
   - Generates inline block with `std::io::stdin().read_line()`
   - Returns trimmed string
-- **`prompt(message)`** - Display message and read input
-  - Example: `let name = prompt("Enter name: ")`
+  - Blocks until user provides input
+- **`console.prompt(message)`** - Display message and read input
+  - Example: `let name = console.prompt("Enter name: ")`
   - Generates inline block with `print!()` + `flush()` + `read_line()`
   - Returns trimmed string
+  - Combines prompt display + input reading in one call
+
+**Design Decision: Hybrid I/O Approach**
+- **`print()`** - Simple function for beginners and user-facing output
+  - Uses Display format `{}` for clean, readable output
+  - Strings without quotes: `"Hello"` → `Hello`
+  - Best for final results and status messages
+- **`console.*`** - Professional namespace for debugging and development
+  - Uses Debug format `{:?}` for detailed inspection
+  - Strings with quotes: `"Hello"` → `"Hello"`
+  - Arrays formatted: `[1, 2, 3]`
+  - Organized under single namespace for discoverability
+  - Familiar to JavaScript/Node.js developers
 
 ### Changed
 - Extended `generate_method_call_expr()` in codegen.rs to handle string and console methods
