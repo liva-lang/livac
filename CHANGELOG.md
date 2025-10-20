@@ -7,6 +7,97 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - TBD (In Development)
+
+### Added - Standard Library (Phase 2)
+
+#### Array Methods (9 methods)
+- **`map(fn)`** - Transform each element
+  - Sequential: `[1,2,3].map(x => x * 2)` → `[2,4,6]`
+  - Uses `.iter().map(|&x| ...).collect()`
+- **`filter(fn)`** - Keep elements matching predicate
+  - Sequential: `[1,2,3,4,5].filter(x => x > 2)` → `[3,4,5]`
+  - Uses `.iter().filter(|&&x| ...).copied().collect()`
+- **`reduce(fn, initial)`** - Reduce to single value
+  - Example: `[1,2,3,4,5].reduce((acc, x) => acc + x, 0)` → `15`
+  - Uses `.iter().fold(initial, |acc, &x| expr)`
+- **`forEach(fn)`** - Iterate with side effects
+  - Example: `[1,2,3].forEach(x => print(x))`
+  - Uses `.iter().for_each(|&x| { ... })`
+- **`find(fn)`** - Find first element matching predicate
+  - Example: `[1,5,10,15].find(x => x > 10)` → `Some(15)`
+  - Returns `Option<T>`, uses `.iter().find(|&&x| pred).copied()`
+- **`some(fn)`** - Check if any element matches
+  - Example: `[2,4,6].some(x => x % 2 == 0)` → `true`
+  - Returns `bool`, uses `.iter().any(|&x| pred)`
+- **`every(fn)`** - Check if all elements match
+  - Example: `[2,4,6].every(x => x % 2 == 0)` → `true`
+  - Returns `bool`, uses `.iter().all(|&x| pred)`
+- **`indexOf(value)`** - Find index of value
+  - Example: `[10,20,30].indexOf(30)` → `2`
+  - Returns `i32` (-1 if not found), uses `.iter().position(|&x| x == value)`
+- **`includes(value)`** - Check if array contains value
+  - Example: `[10,20,30].includes(20)` → `true`
+  - Returns `bool`, uses `.iter().any(|&x| x == value)`
+
+#### String Methods (11 methods)
+- **`split(delimiter)`** - Split string into array
+  - Example: `"apple,banana,orange".split(",")` → `["apple","banana","orange"]`
+  - Returns `Vec<String>`, uses `.split(delim).map(|s| s.to_string()).collect()`
+- **`replace(old, new)`** - Replace substring
+  - Example: `"hello world".replace("world", "Liva")` → `"hello Liva"`
+  - Uses `.replace(old, new)`
+- **`toUpperCase()`** - Convert to uppercase
+  - Example: `"hello".toUpperCase()` → `"HELLO"`
+  - Uses `.to_uppercase()`
+- **`toLowerCase()`** - Convert to lowercase
+  - Example: `"HELLO WORLD".toLowerCase()` → `"hello world"`
+  - Uses `.to_lowercase()`
+- **`trim()`** - Remove leading/trailing whitespace
+  - Example: `"  hello  ".trim()` → `"hello"`
+  - Uses `.trim()`
+- **`trimStart()`** - Remove leading whitespace
+  - Example: `"  hello".trimStart()` → `"hello"`
+  - Uses `.trim_start()`
+- **`trimEnd()`** - Remove trailing whitespace
+  - Example: `"hello  ".trimEnd()` → `"hello"`
+  - Uses `.trim_end()`
+- **`startsWith(prefix)`** - Check if starts with prefix
+  - Example: `"hello.liva".startsWith("hello")` → `true`
+  - Returns `bool`, uses `.starts_with(prefix)`
+- **`endsWith(suffix)`** - Check if ends with suffix
+  - Example: `"file.pdf".endsWith(".pdf")` → `true`
+  - Returns `bool`, uses `.ends_with(suffix)`
+- **`substring(start, end)`** - Extract substring
+  - Example: `"Hello World".substring(0, 5)` → `"Hello"`
+  - Uses slice syntax `[start as usize..end as usize].to_string()`
+- **`charAt(index)`** - Get character at index
+  - Example: `"Hello".charAt(0)` → `'H'`
+  - Uses `.chars().nth(index as usize).unwrap_or(' ')` for UTF-8 safety
+- **`indexOf(substring)`** - Find position of substring
+  - Example: `"The quick brown fox".indexOf("quick")` → `4`
+  - Returns `i32` (-1 if not found), uses `.find(substring).map(|i| i as i32).unwrap_or(-1)`
+  - Disambiguated from array `indexOf` by argument type detection
+
+### Changed
+- Extended `generate_method_call_expr()` in codegen.rs to handle string methods
+- Added `generate_string_method_call()` function for string-specific code generation
+- Method call detection now differentiates between array and string methods
+- `indexOf` method now supports both arrays (numeric search) and strings (substring search)
+
+### Technical Details
+- Array methods use iterator patterns for efficient processing
+- String methods map directly to Rust standard library methods
+- All methods tested with comprehensive test suites
+- Reused existing `MethodCall` AST node (no parser changes required)
+
+### Tests
+- Created 6 test files for array methods
+- Created 4 test files for string methods
+- All 20 methods (9 array + 11 string) verified working correctly
+
+---
+
 ## [0.6.1] - 2025-10-20
 
 ### Fixed
