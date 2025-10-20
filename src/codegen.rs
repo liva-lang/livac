@@ -2414,16 +2414,16 @@ impl CodeGenerator {
         
         // Map Liva method names to Rust iterator method names
         let rust_method = match method_call.method.as_str() {
-            "forEach" => "for_each",
-            "indexOf" => "position",
-            "includes" => "any",
-            "reduce" => "fold",  // Rust uses fold instead of reduce
-            "some" => "any",      // Liva: some, Rust: any
-            "every" => "all",     // Liva: every, Rust: all
-            method_name => method_name,
+            "forEach" => "for_each".to_string(),
+            "indexOf" => "position".to_string(),
+            "includes" => "any".to_string(),
+            "reduce" => "fold".to_string(),  // Rust uses fold instead of reduce
+            "some" => "any".to_string(),      // Liva: some, Rust: any
+            "every" => "all".to_string(),     // Liva: every, Rust: all
+            method_name => self.sanitize_name(method_name),  // Sanitize custom method names (e.g., isAdult -> is_adult)
         };
         
-        self.output.push_str(rust_method);
+        self.output.push_str(&rust_method);
         self.output.push('(');
         
         // Generate arguments
