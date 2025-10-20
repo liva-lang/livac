@@ -370,18 +370,23 @@ Build a modern, practical programming language that combines:
 
 **Actual Time:** ~2 hours (vs 8 hours estimated)
 
-### 3.3 Module Resolver (~15 hours) � IN PROGRESS (Commit: 11abaaf)
+### 3.3 Module Resolver (~15 hours) ✅ COMPLETE (Commits: 11abaaf, ad229ef)
 - [x] Implement file resolution (relative paths with ./, ../)
 - [x] Implement module cache (HashMap with canonical paths)
 - [x] Handle circular dependencies (DFS cycle detection)
 - [x] Resolve exported symbols (extract non-`_` symbols)
 - [x] Build dependency graph with topological sort
 - [x] Add unit tests (3 cycle detection tests in module.rs)
-- [ ] Integration tests (pending compiler integration)
-- [ ] Integrate with compiler pipeline
+- [x] Integrate with compiler pipeline
+  - compile_with_modules() function
+  - Auto-detection of imports
+  - resolve_all() returns modules in compilation order
+  - Tested with multi-file example
+- [ ] Integration tests (comprehensive test suite pending)
 
-**Status:** Core infrastructure complete (module.rs with 400+ lines)
-**Next:** Integrate ModuleResolver with compile_file()
+**Status:** Complete - ModuleResolver fully integrated ✅
+**Note:** Currently compiles entry point only. Multi-file codegen in Phase 3.5
+**Next:** Phase 3.4 - Semantic Analysis for import validation
 
 ### 3.4 Semantic Analysis (~8 hours) 📋 Not Started
 - [ ] Validate import paths exist

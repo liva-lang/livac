@@ -81,7 +81,7 @@ import * as math from "./math.liva"
 
 ---
 
-### Phase 2: Module Resolver (Days 3-4) � IN PROGRESS (Commit: 11abaaf)
+### Phase 2: Module Resolver (Days 3-4) ✅ COMPLETE (Commits: 11abaaf, ad229ef)
 
 **Goal:** Load and resolve imported files
 
@@ -165,48 +165,22 @@ import * as math from "./math.liva"
   - Test caching
   - Diamond dependency: A → B, A → C, B → D, C → D
 
-**Deliverable:** ModuleResolver infrastructure complete ✅ (Commit: 11abaaf)
-**Next:** Integrate with compiler pipeline
+#### 2.6 Compiler Integration (~2 hours) ✅
+- [x] Integrate ModuleResolver with compile_file()
+  - Added compile_with_modules() function
+  - Auto-detect imports in source
+  - Use ModuleResolver for multi-file projects
+  - Fallback to single-file compilation
+- [x] Modified resolve_all() to return Vec<&Module>
+  - Returns modules in topological order
+  - Entry point accessible
+- [x] Test with example files
+  - test_import_syntax.liva loads all dependencies
+  - Cycle detection works
+  - Path resolution works
 
-#### 2.3 Module Loading (~4 hours)
-- [ ] Implement `load_module(path)`
-  - Read file from filesystem
-  - Parse with existing parser
-  - Extract public symbols (no `_` prefix)
-  - Extract private symbols (`_` prefix)
-  - Cache in `modules` HashMap
-- [ ] Implement recursive loading
-  - Parse imports from loaded module
-  - Recursively load imported modules
-  - Build dependency graph
-- [ ] Module caching
-  - Don't re-parse same file
-  - Use canonical paths as keys
-
-#### 2.4 Dependency Graph (~3 hours)
-- [ ] Build dependency graph while loading
-- [ ] Implement cycle detection
-  - Use DFS to detect cycles
-  - Report full cycle path in error
-- [ ] Topological sort for compilation order
-
-#### 2.5 Resolver Tests (~3 hours)
-- [ ] Test path resolution
-  - Relative paths
-  - Different directory levels
-  - Path normalization
-- [ ] Test module loading
-  - Single file
-  - Multiple files
-  - Recursive imports
-- [ ] Test cycle detection
-  - Direct cycle: A → B → A
-  - Indirect cycle: A → B → C → A
-- [ ] Test caching
-  - Same file imported twice
-  - Diamond dependency: A → B, A → C, B → D, C → D
-
-**Deliverable:** ModuleResolver can load multi-file projects
+**Deliverable:** ModuleResolver integrated with compiler ✅ (Commit: ad229ef)
+**Note:** Currently only compiles entry point. Full multi-file codegen in Phase 3.5
 
 ---
 
