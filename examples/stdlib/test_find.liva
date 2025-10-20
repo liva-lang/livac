@@ -1,0 +1,25 @@
+// Test find() method
+
+main() {
+    let numbers = [1, 5, 10, 15, 20, 25]
+    
+    // Test 1: Find first element > 10
+    let found = numbers.find(x => x > 10)
+    print($"Found element > 10: {found}")
+    
+    // Test 2: Find element that doesn't exist
+    let notFound = numbers.find(x => x > 100)
+    print($"Found element > 100: {notFound}")
+    
+    // Test 3: Find with complex condition
+    let foundEven = numbers.find(x => {
+        let isEven = x % 2 == 0
+        let isGreaterThan5 = x > 5
+        return isEven && isGreaterThan5
+    })
+    print($"Found even > 5: {foundEven}")
+    
+    // Test 4: Find first element (always matches)
+    let first = numbers.find(x => true)
+    print($"First element: {first}")
+}
