@@ -1,0 +1,8 @@
+// operations.liva - More math operations
+
+multiply(a: number, b: number): number => a * b
+
+divide(a: number, b: number): number => a / b
+
+// Private validation
+_validate(n: number): bool => n > 0

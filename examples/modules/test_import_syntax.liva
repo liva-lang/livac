@@ -1,10 +1,9 @@
-// Test file for import statement parsing
-
+// Test import syntax
 import { add } from "./math.liva"
 import { multiply, divide } from "./operations.liva"
 import * as utils from "./utils.liva"
 
 main() {
-    let result = add(5, 3)
-    print($"Result: {result}")
+    let result = add(10, 20)
+    print($"10 + 20 = {result}")
 }
