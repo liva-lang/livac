@@ -7,6 +7,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### [0.8.0-dev] - In Development
+
+**🚀 Phase 3: Module System - Multi-file projects**
+
+#### Added - Module System (Phase 3, ongoing)
+
+**Phase 3.1: Design (2h) ✅ Complete**
+- Module system specification document (400+ lines)
+- Syntax comparison document (4 options evaluated)
+- Implementation roadmap (TODO_MODULES.md, 700+ lines)
+- Design decisions:
+  * Public by default (no prefix)
+  * Private with `_` prefix (consistent with Liva)
+  * JavaScript-style import syntax
+  * Relative paths (`./, ../`)
+
+**Phase 3.2: Parser & AST (2h) ✅ Complete**
+- Added `ImportDecl` struct to AST with Display trait
+- Added `from` keyword to lexer
+- Implemented `parse_import_decl()` method (~60 lines)
+- Support for named imports: `import { a, b } from "path"`
+- Support for wildcard imports: `import * as name from "path"`
+- Handles comma-separated imports with trailing commas
+- Comprehensive error handling for malformed imports
+
+**Phase 3.3: Module Resolver (4h) ✅ Complete**
+- Created `module.rs` with 400+ lines of infrastructure:
+  * **Module struct**: Loads .liva files, extracts public/private symbols
+  * **DependencyGraph**: DFS-based cycle detection, topological sort
+  * **ModuleResolver**: Recursive loading with caching
+- Path resolution for relative imports (`./, ../`)
+- Symbol extraction based on `_` prefix
+- Circular dependency detection with clear error messages (E4003)
+- File not found errors with helpful context (E4004)
+- Integration with compiler pipeline:
+  * `compile_with_modules()` function
+  * Auto-detection of import statements
+  * `resolve_all()` returns modules in compilation order
+- Unit tests for cycle detection (3 tests)
+- Example files: math.liva, operations.liva, utils.liva
+
+**Current Status:**
+- ✅ Import syntax parsing works
+- ✅ Module resolution with cycle detection works
+- ✅ Loads all dependencies recursively
+- ✅ Returns modules in topological order
+- ⏳ Only compiles entry point (multi-file codegen pending)
+- 📋 Import symbol validation (Phase 3.4, planned)
+- 📋 Multi-file Rust project generation (Phase 3.5, planned)
+
+**Example:**
+```liva
+// math.liva
+add(a, b) {
+    ret a + b
+}
+
+// main.liva
+import { add } from "./math.liva"
+
+main() {
+    let result = add(10, 20)
+    print($"Result: {result}")
+}
+```
+
+**Next Steps:**
+- Phase 3.4: Semantic Analysis (8h) - Validate imported symbols exist
+- Phase 3.5: Code Generation (13h) - Generate multi-file Rust projects
+
+---
+
 ## [0.7.0] - 2025-10-20
 
 **🎉 Phase 2 Complete: Standard Library - 37 functions implemented in one day!**
