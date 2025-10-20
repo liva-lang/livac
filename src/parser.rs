@@ -214,8 +214,7 @@ impl Parser {
 
     fn parse_top_level(&mut self) -> Result<TopLevel> {
         if self.match_token(&Token::Import) {
-            let name = self.parse_identifier()?;
-            return Ok(TopLevel::Import(ImportDecl { name, alias: None }));
+            return self.parse_import_decl();
         }
 
         if self.match_token(&Token::Use) {
@@ -348,6 +347,57 @@ impl Parser {
             expr_body: None,
             is_async_inferred: false,
             contains_fail: self.function_body_contains_fail(&Some(body), &None),
+        }))
+    }
+
+    /// Parse import declaration
+    /// Supports:
+    /// - Named imports: `import { add, multiply } from "./math.liva"`
+    /// - Wildcard imports: `import * as math from "./math.liva"`
+    fn parse_import_decl(&mut self) -> Result<TopLevel> {
+        // Check for wildcard import: import * as alias from "path"
+        if self.match_token(&Token::Star) {
+            self.expect(Token::As)?;
+            let alias = self.parse_identifier()?;
+            self.expect(Token::From)?;
+            let source = self.parse_string_literal()?;
+            
+            return Ok(TopLevel::Import(ImportDecl {
+                imports: vec![],
+                source,
+                is_wildcard: true,
+                alias: Some(alias),
+            }));
+        }
+
+        // Named imports: import { name1, name2, ... } from "path"
+        self.expect(Token::LBrace)?;
+        
+        let mut imports = Vec::new();
+        
+        // Parse first import
+        if !self.check(&Token::RBrace) {
+            imports.push(self.parse_identifier()?);
+            
+            // Parse remaining imports
+            while self.match_token(&Token::Comma) {
+                // Allow trailing comma
+                if self.check(&Token::RBrace) {
+                    break;
+                }
+                imports.push(self.parse_identifier()?);
+            }
+        }
+        
+        self.expect(Token::RBrace)?;
+        self.expect(Token::From)?;
+        let source = self.parse_string_literal()?;
+        
+        Ok(TopLevel::Import(ImportDecl {
+            imports,
+            source,
+            is_wildcard: false,
+            alias: None,
         }))
     }
 
