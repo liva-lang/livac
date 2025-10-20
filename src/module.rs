@@ -254,7 +254,7 @@ impl ModuleResolver {
     }
     
     /// Resolve all modules starting from entry point
-    pub fn resolve_all(&mut self) -> Result<()> {
+    pub fn resolve_all(&mut self) -> Result<Vec<&Module>> {
         // Load entry point
         self.load_module_recursive(&self.entry_point.clone())?;
         
@@ -273,7 +273,16 @@ impl ModuleResolver {
             )));
         }
         
-        Ok(())
+        // Get compilation order (topological sort)
+        let order = self.dependency_graph.topological_sort()?;
+        
+        // Return modules in compilation order
+        let modules: Vec<&Module> = order
+            .iter()
+            .filter_map(|path| self.modules.get(path))
+            .collect();
+        
+        Ok(modules)
     }
     
     /// Load a module and all its dependencies recursively

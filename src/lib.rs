@@ -108,7 +108,17 @@ pub fn compile_file(options: &CompilerOptions) -> Result<CompilationResult> {
         .map_err(|e| CompilerError::IoError(format!("Failed to read input file: {}", e)))?;
 
     let filename = options.input.to_str().unwrap_or("unknown");
-    compile_source_with_filename(&source, filename, options)
+    
+    // Quick check: does this file have imports?
+    let has_imports = source.contains("import ");
+    
+    if has_imports {
+        // Multi-file compilation with module resolver
+        compile_with_modules(&options.input, options)
+    } else {
+        // Single-file compilation (legacy path)
+        compile_source_with_filename(&source, filename, options)
+    }
 }
 
 fn compile_source_with_filename(
@@ -151,6 +161,78 @@ fn compile_source_with_filename(
         None
     };
 
+    Ok(CompilationResult {
+        rust_code: Some(rust_code),
+        cargo_toml: Some(cargo_toml),
+        output_dir,
+    })
+}
+
+/// Compile a multi-file Liva project using the module resolver
+fn compile_with_modules(
+    entry_point: &std::path::Path,
+    options: &CompilerOptions,
+) -> Result<CompilationResult> {
+    use crate::module::ModuleResolver;
+    
+    // 1. Resolve all modules starting from entry point
+    let mut resolver = ModuleResolver::new(entry_point)?;
+    let compilation_order = resolver.resolve_all()?;
+    
+    if options.verbose {
+        eprintln!("📦 Module resolution complete:");
+        eprintln!("   Found {} modules", compilation_order.len());
+        for (i, module) in compilation_order.iter().enumerate() {
+            eprintln!("   {}. {}", i + 1, module.path.display());
+        }
+    }
+    
+    // For now, compile only the entry point module
+    // TODO: Phase 3.5 - Generate multi-file Rust project
+    let entry_module = compilation_order
+        .iter()
+        .find(|m| m.path.canonicalize().ok() == entry_point.canonicalize().ok())
+        .ok_or_else(|| {
+            CompilerError::CodegenError(error::SemanticErrorInfo::new(
+                "E4005",
+                "Entry point not found in resolved modules",
+                "",
+            ))
+        })?;
+    
+    let filename = entry_point.to_str().unwrap_or("unknown");
+    
+    // 2. Semantic analysis with source information
+    let analyzed_ast = semantic::analyze_with_source(
+        entry_module.ast.clone(),
+        filename.to_string(),
+        entry_module.source.clone(),
+    )?;
+    
+    // If check-only mode, stop here
+    if options.check_only {
+        return Ok(CompilationResult {
+            rust_code: None,
+            cargo_toml: None,
+            output_dir: None,
+        });
+    }
+    
+    // 3. Desugaring
+    let desugar_ctx = desugaring::desugar(analyzed_ast.clone())?;
+    
+    // 4. Code generation
+    let ir_module = lowering::lower_program(&analyzed_ast);
+    let (rust_code, cargo_toml) =
+        codegen::generate_from_ir(&ir_module, &analyzed_ast, desugar_ctx)?;
+    
+    // 5. Write output files if output directory specified
+    let output_dir = if let Some(out_dir) = &options.output {
+        Some(write_output_files(&rust_code, &cargo_toml, out_dir)?)
+    } else {
+        None
+    };
+    
     Ok(CompilationResult {
         rust_code: Some(rust_code),
         cargo_toml: Some(cargo_toml),
