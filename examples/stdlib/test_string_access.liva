@@ -1,0 +1,23 @@
+// Test substring and charAt methods
+
+main() {
+    // Test substring
+    print("Testing substring:")
+    let text = "Hello World"
+    
+    // substring(start, end) - note: in Rust this is &str[start..end]
+    // We'll implement it as a method call that gets converted
+    let sub1 = text.substring(0, 5)
+    print($"substring(0, 5): '{sub1}'")
+    
+    let sub2 = text.substring(6, 11)
+    print($"substring(6, 11): '{sub2}'")
+    
+    // Test charAt - gets a single character at index
+    print("\nTesting charAt:")
+    let char0 = text.charAt(0)
+    print($"charAt(0): '{char0}'")
+    
+    let char6 = text.charAt(6)
+    print($"charAt(6): '{char6}'")
+}

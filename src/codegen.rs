@@ -2230,6 +2230,26 @@ impl CodeGenerator {
     fn generate_method_call_expr(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
         use crate::ast::ArrayAdapter;
         
+        // Check if this is a string method (no adapter means it's not an array method)
+        // Special case: indexOf can be both string and array method
+        // We detect string indexOf if the argument is a string literal
+        let is_string_indexof = method_call.method == "indexOf" 
+            && !method_call.args.is_empty()
+            && matches!(&method_call.args[0], Expr::Literal(Literal::String(_)));
+        
+        let is_string_method = (matches!(method_call.adapter, ArrayAdapter::Seq) 
+            && matches!(
+                method_call.method.as_str(),
+                "split" | "replace" | "toUpperCase" | "toLowerCase" | 
+                "trim" | "trimStart" | "trimEnd" | "startsWith" | "endsWith" |
+                "substring" | "charAt"
+            )) || is_string_indexof;
+        
+        if is_string_method {
+            // Handle string methods
+            return self.generate_string_method_call(method_call);
+        }
+        
         // Generate the object
         self.generate_expr(&method_call.object)?;
         
@@ -2430,6 +2450,90 @@ impl CodeGenerator {
             // some, every, includes return bool - no transformation needed
             (_, "some") | (_, "every") | (_, "includes") => {}
             // Default: no transformation
+            _ => {}
+        }
+        
+        Ok(())
+    }
+
+    fn generate_string_method_call(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
+        // Special handling for substring and charAt - they need different syntax
+        match method_call.method.as_str() {
+            "substring" => {
+                // substring(start, end) -> &str[start..end].to_string()
+                self.generate_expr(&method_call.object)?;
+                self.output.push('[');
+                if method_call.args.len() >= 1 {
+                    self.generate_expr(&method_call.args[0])?;
+                    self.output.push_str(" as usize");
+                }
+                self.output.push_str("..");
+                if method_call.args.len() >= 2 {
+                    self.generate_expr(&method_call.args[1])?;
+                    self.output.push_str(" as usize");
+                }
+                self.output.push_str("].to_string()");
+                return Ok(());
+            }
+            "charAt" => {
+                // charAt(index) -> str.chars().nth(index).unwrap_or(' ')
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".chars().nth(");
+                if !method_call.args.is_empty() {
+                    self.generate_expr(&method_call.args[0])?;
+                    self.output.push_str(" as usize");
+                }
+                self.output.push_str(").unwrap_or(' ')");
+                return Ok(());
+            }
+            "indexOf" => {
+                // indexOf(substring) -> str.find(substring).map(|i| i as i32).unwrap_or(-1)
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".find(");
+                if !method_call.args.is_empty() {
+                    self.generate_expr(&method_call.args[0])?;
+                }
+                self.output.push_str(").map(|i| i as i32).unwrap_or(-1)");
+                return Ok(());
+            }
+            _ => {}
+        }
+        
+        // Generate the string object
+        self.generate_expr(&method_call.object)?;
+        
+        // Map Liva string method names to Rust method names
+        let rust_method = match method_call.method.as_str() {
+            "toUpperCase" => "to_uppercase",
+            "toLowerCase" => "to_lowercase",
+            "trimStart" => "trim_start",
+            "trimEnd" => "trim_end",
+            "startsWith" => "starts_with",
+            "endsWith" => "ends_with",
+            method_name => method_name,  // split, replace, trim, substring, charAt
+        };
+        
+        // Generate the method call
+        self.output.push('.');
+        self.output.push_str(rust_method);
+        self.output.push('(');
+        
+        // Generate arguments
+        for (i, arg) in method_call.args.iter().enumerate() {
+            if i > 0 {
+                self.output.push_str(", ");
+            }
+            self.generate_expr(arg)?;
+        }
+        
+        self.output.push(')');
+        
+        // Post-processing for specific methods
+        match method_call.method.as_str() {
+            "split" => {
+                // split returns an iterator, collect to Vec<String>
+                self.output.push_str(".map(|s| s.to_string()).collect::<Vec<String>>()");
+            }
             _ => {}
         }
         

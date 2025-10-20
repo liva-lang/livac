@@ -1,0 +1,30 @@
+// Test string methods - split, replace, case conversion
+
+main() {
+    // Test split()
+    print("Testing split():")
+    let csv = "apple,banana,orange"
+    let fruits = csv.split(",")
+    print(fruits)
+    
+    // Test replace()
+    print("\nTesting replace():")
+    let text = "hello world"
+    let replaced = text.replace("world", "Liva")
+    print($"Original: {text}")
+    print($"Replaced: {replaced}")
+    
+    // Test toUpperCase()
+    print("\nTesting toUpperCase():")
+    let lower = "hello"
+    let upper = lower.toUpperCase()
+    print($"Lower: {lower}")
+    print($"Upper: {upper}")
+    
+    // Test toLowerCase()
+    print("\nTesting toLowerCase():")
+    let mixed = "HeLLo WoRLd"
+    let allLower = mixed.toLowerCase()
+    print($"Mixed: {mixed}")
+    print($"Lower: {allLower}")
+}
