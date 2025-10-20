@@ -138,7 +138,7 @@ console.log("Name:", "Alice", "Age:", 25)
 
 **Print error messages to standard error (stderr).**
 
-**Format:** Debug (`{:?}`)
+**Format:** Display (`{}`)
 
 **Parameters:**
 - `...args` - Variable number of arguments to print
@@ -155,17 +155,17 @@ console.log("Name:", "Alice", "Age:", 25)
 ```liva
 // Simple error
 console.error("File not found!")
-// Output (stderr): "File not found!"
+// Output (stderr): File not found!
 
 // Error with code
 let code = 404
 console.error($"Error {code}: Not found")
-// Output (stderr): "Error 404: Not found"
+// Output (stderr): Error 404: Not found
 
 // Error with context
 let filename = "config.json"
 console.error($"Cannot read file: {filename}")
-// Output (stderr): "Cannot read file: config.json"
+// Output (stderr): Cannot read file: config.json
 ```
 
 **Best for:**
@@ -180,7 +180,7 @@ console.error($"Cannot read file: {filename}")
 
 **Print warning messages to stderr with "Warning: " prefix.**
 
-**Format:** Debug (`{:?}`)
+**Format:** Display (`{}`)
 
 **Parameters:**
 - `...args` - Variable number of arguments to print
@@ -192,14 +192,14 @@ console.error($"Cannot read file: {filename}")
 
 **Prefix:** Automatically adds "Warning: " before message
 
-**Generates:** `eprintln!("Warning: {:?}", ...)` (Rust)
+**Generates:** `eprintln!("Warning: {}", ...)` (Rust)
 
 **Examples:**
 
 ```liva
 // Simple warning
 console.warn("This feature is deprecated")
-// Output (stderr): Warning: "This feature is deprecated"
+// Output (stderr): Warning: This feature is deprecated
 
 // Conditional warning
 if age < 18 {
@@ -322,15 +322,16 @@ console.log($"Email: {email}")
 
 ## 🆚 print() vs console.log() Comparison
 
-| Feature | `print()` | `console.log()` |
-|---------|-----------|-----------------|
-| **Format** | Display `{}` | Debug `{:?}` |
-| **Strings** | `Hello` | `"Hello"` (with quotes) |
-| **Arrays** | N/A (not formatted) | `[1, 2, 3]` |
-| **Objects** | N/A (not formatted) | `{ name: "Alice" }` |
-| **Use Case** | User output | Development/debugging |
-| **Audience** | End users | Developers |
-| **Best For** | Final messages | Data inspection |
+| Feature | `print()` | `console.log()` | `console.error()` / `console.warn()` |
+|---------|-----------|-----------------|--------------------------------------|
+| **Format** | Display `{}` | Debug `{:?}` | Display `{}` |
+| **Strings** | `Hello` | `"Hello"` (with quotes) | `Hello` |
+| **Arrays** | N/A (not formatted) | `[1, 2, 3]` | N/A (not formatted) |
+| **Objects** | N/A (not formatted) | `{ name: "Alice" }` | N/A (not formatted) |
+| **Stream** | stdout | stdout | stderr |
+| **Use Case** | User output | Development/debugging | Error/Warning messages |
+| **Audience** | End users | Developers | End users |
+| **Best For** | Final messages | Data inspection | Error reporting |
 
 ### Side-by-Side Examples
 
