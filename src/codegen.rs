@@ -1898,6 +1898,29 @@ impl CodeGenerator {
                 return Ok(());
             }
             
+            // Handle readLine() -> String (read from stdin)
+            if name == "readLine" {
+                self.output.push_str("{ let mut input = String::new(); std::io::stdin().read_line(&mut input).expect(\"Failed to read line\"); input.trim().to_string() }");
+                return Ok(());
+            }
+            
+            // Handle prompt(message) -> String (display message and read input)
+            if name == "prompt" {
+                if call.args.is_empty() {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            "prompt requires 1 argument",
+                            "prompt(message) takes exactly one string argument"
+                        )
+                    ));
+                }
+                self.output.push_str("{ print!(\"{}\", ");
+                self.generate_expr(&call.args[0])?;
+                self.output.push_str("); std::io::stdout().flush().expect(\"Failed to flush stdout\"); let mut input = String::new(); std::io::stdin().read_line(&mut input).expect(\"Failed to read line\"); input.trim().to_string() }");
+                return Ok(());
+            }
+            
             if name == "print" {
                 if call.args.is_empty() {
                     self.output.push_str("println!()");
@@ -2296,6 +2319,11 @@ impl CodeGenerator {
         if let Expr::Identifier(name) = method_call.object.as_ref() {
             if name == "Math" {
                 return self.generate_math_function_call(method_call);
+            }
+            
+            // Check if this is a console function call (console.log, console.error, etc.)
+            if name == "console" {
+                return self.generate_console_function_call(method_call);
             }
         }
         
@@ -2700,6 +2728,80 @@ impl CodeGenerator {
                         "E3000",
                         &format!("Unknown Math function: {}", method_call.method),
                         "Available Math functions: sqrt, pow, abs, floor, ceil, round, min, max, random"
+                    )
+                ));
+            }
+        }
+        
+        Ok(())
+    }
+
+    fn generate_console_function_call(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
+        // Console functions: log, error, warn
+        match method_call.method.as_str() {
+            "log" => {
+                // console.log(...) -> println!(...)
+                if method_call.args.is_empty() {
+                    self.output.push_str("println!()");
+                } else {
+                    self.output.push_str("println!(\"");
+                    for _ in method_call.args.iter() {
+                        self.output.push_str("{:?}");
+                    }
+                    self.output.push_str("\", ");
+                    for (i, arg) in method_call.args.iter().enumerate() {
+                        if i > 0 {
+                            self.output.push_str(", ");
+                        }
+                        self.generate_expr(arg)?;
+                    }
+                    self.output.push(')');
+                }
+            }
+            "error" => {
+                // console.error(...) -> eprintln!(...)
+                if method_call.args.is_empty() {
+                    self.output.push_str("eprintln!()");
+                } else {
+                    self.output.push_str("eprintln!(\"");
+                    for _ in method_call.args.iter() {
+                        self.output.push_str("{:?}");
+                    }
+                    self.output.push_str("\", ");
+                    for (i, arg) in method_call.args.iter().enumerate() {
+                        if i > 0 {
+                            self.output.push_str(", ");
+                        }
+                        self.generate_expr(arg)?;
+                    }
+                    self.output.push(')');
+                }
+            }
+            "warn" => {
+                // console.warn(...) -> eprintln!("Warning: ...", ...)
+                if method_call.args.is_empty() {
+                    self.output.push_str("eprintln!(\"Warning:\")");
+                } else {
+                    self.output.push_str("eprintln!(\"Warning: ");
+                    for _ in method_call.args.iter() {
+                        self.output.push_str("{:?}");
+                    }
+                    self.output.push_str("\", ");
+                    for (i, arg) in method_call.args.iter().enumerate() {
+                        if i > 0 {
+                            self.output.push_str(", ");
+                        }
+                        self.generate_expr(arg)?;
+                    }
+                    self.output.push(')');
+                }
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(
+                    SemanticErrorInfo::new(
+                        "E3000",
+                        &format!("Unknown console function: {}", method_call.method),
+                        "Available console functions: log, error, warn"
                     )
                 ));
             }

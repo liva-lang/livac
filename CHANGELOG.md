@@ -126,14 +126,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Uses `format!("{}", value)` with Rust's Display trait
   - Works with all primitive types (Int, Float, Bool)
 
+#### Console/IO Functions (5 functions)
+- **`console.log(...args)`** - Print to stdout
+  - Example: `console.log($"Hello, World!")`
+  - Uses `println!("{:?}", ...)` for standard output
+  - Supports multiple arguments
+- **`console.error(...args)`** - Print to stderr
+  - Example: `console.error($"Error message")`
+  - Uses `eprintln!("{:?}", ...)` for error output
+  - Useful for separating errors from normal output
+- **`console.warn(...args)`** - Print warning to stderr
+  - Example: `console.warn($"Warning message")`
+  - Uses `eprintln!("Warning: {:?}", ...)` with prefix
+  - Writes to stderr with "Warning: " prefix
+- **`readLine()`** - Read line from stdin
+  - Example: `let input = readLine()`
+  - Generates inline block with `std::io::stdin().read_line()`
+  - Returns trimmed string
+- **`prompt(message)`** - Display message and read input
+  - Example: `let name = prompt("Enter name: ")`
+  - Generates inline block with `print!()` + `flush()` + `read_line()`
+  - Returns trimmed string
+
 ### Changed
-- Extended `generate_method_call_expr()` in codegen.rs to handle string methods
+- Extended `generate_method_call_expr()` in codegen.rs to handle string and console methods
 - Added `generate_string_method_call()` function for string-specific code generation
 - Added `generate_math_function_call()` function for Math namespace functions
-- Added `parseInt()`, `parseFloat()`, and `toString()` as built-in functions in `generate_normal_call()`
+- Added `generate_console_function_call()` function for console.* methods
+- Added `parseInt()`, `parseFloat()`, `toString()`, `readLine()`, and `prompt()` as built-in functions
 - Added `is_builtin_conversion_call()` helper to detect conversion functions
 - Fixed VarDecl code generation to properly destructure tuples from built-in conversions
-- Method call detection now differentiates between array and string methods
+- Method call detection now differentiates between array, string, Math, and console methods
 - `indexOf` method now supports both arrays (numeric search) and strings (substring search)
 - Float literals now generate with `_f64` suffix for explicit typing
 - Added `has_random` flag to `DesugarContext` for dependency detection
@@ -144,11 +167,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Array methods use iterator patterns for efficient processing
 - String methods map directly to Rust standard library methods
 - Math functions use namespace style (`Math.*`) and map to Rust f64 methods
+- Console functions use namespace style (`console.*`) and map to println!/eprintln! macros
 - Type conversion functions use error binding pattern: `(value, Option<Error>)` tuples
 - parseInt/parseFloat return default values (0 or 0.0) on error with error message
 - toString uses Rust's Display trait for universal type conversion
+- readLine/prompt generate inline blocks with stdin operations
 - All methods tested with comprehensive test suites
-- Reused existing `MethodCall` AST node (no parser changes required)
+- Reused existing `MethodCall` and `CallExpr` AST nodes (no parser changes required)
 - Fixed precedence issue with `abs()` by wrapping unary expressions in parentheses
 - **Critical Fix**: Error binding variables now destructure correctly from built-in functions
 
@@ -156,8 +181,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Created 6 test files for array methods
 - Created 4 test files for string methods
 - Created 2 test files for Math functions (basic and comprehensive)
-- Created 1 test file for Type Conversion functions (all 3 functions)
-- All 32 functions (9 array + 11 string + 9 Math + 3 conversion) verified working correctly
+- Created 1 test file for Type Conversion functions (3 functions)
+- Created 1 test file for Console/IO functions (3 console functions tested)
+- All 37 functions (9 array + 11 string + 9 Math + 3 conversion + 5 I/O) implemented
+- 35 functions verified working (readLine/prompt require interactive testing)
 
 ---
 
