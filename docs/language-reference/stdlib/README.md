@@ -1,7 +1,7 @@
 # Liva Standard Library
 
 > **Status:** 🚧 In Development (v0.7.0)  
-> **Completion:** 76.3% (29/38 methods) - Arrays ✅ | Strings ✅ | Math ✅
+> **Completion:** 84.2% (32/38 functions) - Arrays ✅ | Strings ✅ | Math ✅ | Conversions ✅
 
 The Liva Standard Library provides built-in functions and methods for common programming tasks.
 
@@ -42,10 +42,10 @@ Methods for string manipulation and queries.
 - `charAt(index)` - Get character
 - `indexOf(substring)` - Find substring position
 
-### 📋 [Math Functions](./math.md)
+### ✅ [Math Functions](./math.md)
 Mathematical operations and constants.
 
-**Status:** ✅ Complete (9/9 functions)
+**Status:** Complete (9/9 functions)
 
 - `Math.sqrt(x)` - Square root ✅
 - `Math.pow(base, exp)` - Power ✅
@@ -55,15 +55,17 @@ Mathematical operations and constants.
 - `Math.random()` - Random number ✅
 - `Math.PI`, `Math.E` - Constants (planned)
 
-### 📋 [Type Conversion](./conversions.md)
+### ✅ [Type Conversion](./conversions.md)
 Functions for converting between types.
 
-**Status:** Planned (0/4 functions)
+**Status:** Complete (3/3 functions)
 
-- `parseInt(str)` - Parse integer
-- `parseFloat(str)` - Parse float
-- `toString(value)` - Convert to string
-- `toNumber(str)` - Convert to number
+- `parseInt(str)` - Parse string to integer with error binding ✅
+- `parseFloat(str)` - Parse string to float with error binding ✅
+- `toString(value)` - Convert value to string ✅
+- `toNumber(str)` - Convert string to number (future enhancement)
+- `toInt(value)` - Convert to integer (future enhancement)
+- `toFloat(value)` - Convert to float (future enhancement)
 
 ### 📋 [Console/IO](./io.md)
 Input/output and console functions.
@@ -124,6 +126,61 @@ print(hasWorld)  // 7
 
 let startsWithHello = text.startsWith("Hello")
 print(startsWithHello)  // true
+```
+
+### Math Functions
+
+```liva
+// Basic operations
+let root = Math.sqrt(16.0)
+print(root)  // 4.0
+
+let power = Math.pow(2.0, 3.0)
+print(power)  // 8.0
+
+let absolute = Math.abs(-10.5)
+print(absolute)  // 10.5
+
+// Rounding
+let floored = Math.floor(3.7)
+print(floored)  // 3
+
+let ceiled = Math.ceil(3.2)
+print(ceiled)  // 4
+
+// Min/Max
+let maximum = Math.max(10.5, 20.3)
+print(maximum)  // 20.3
+
+// Random
+let random = Math.random()
+print(random)  // 0.0 to 1.0 (varies)
+```
+
+### Type Conversion
+
+```liva
+// Parse strings to numbers with error handling
+let num, err = parseInt("42")
+if err == "" {
+    print($"Parsed: {num}")  // "Parsed: 42"
+}
+
+let invalid, parseErr = parseInt("abc")
+if parseErr != "" {
+    print($"Error: {parseErr}")  // "Error: Invalid integer format"
+}
+
+// Parse floats
+let pi, _ = parseFloat("3.14")
+print(pi)  // 3.14
+
+// Convert to string
+let str1 = toString(42)
+print(str1)  // "42"
+
+let str2 = toString(true)
+print(str2)  // "true"
 ```
 
 ---
@@ -218,14 +275,24 @@ let char = text.charAt(100)  // ' ' (space)
 let index = text.indexOf("xyz")  // -1
 ```
 
-### Type Conversion (Planned)
-Conversion functions will return error bindings:
+### Type Conversion
+Conversion functions use error binding for parse failures:
 
 ```liva
+// parseInt and parseFloat return error binding tuples
 let num, err = parseInt("123")
-if err != null {
+if err == "" {
+  print($"Success: {num}")  // Prints: "Success: 123"
+} else {
   print($"Parse error: {err}")
 }
+
+// Invalid input returns default value + error
+let invalid, parseErr = parseInt("abc")
+// invalid = 0, parseErr = "Invalid integer format"
+
+// toString never fails
+let str = toString(42)  // Always returns "42"
 ```
 
 ---

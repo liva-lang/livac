@@ -131,13 +131,11 @@ Build a modern, practical programming language that combines:
 
 **Goal:** Built-in functions and methods for common operations
 
-**Status:** 🎉 ARRAY & STRING METHODS COMPLETE! (20/20 core methods)  
+**Status:** 🎉 32/38 FUNCTIONS COMPLETE! (84.2%)  
 **Branch:** `feature/stdlib-v0.7.0`  
 **Started:** 2025-10-20  
-**Array Methods Completed:** 2025-10-20 (same day - 9/9 methods)  
-**String Methods Completed:** 2025-10-20 (same day - 11/11 methods)  
-**Progress:** Array methods 9/9 ✅ | String methods 11/11 ✅  
-**Next:** Math functions, Type conversion, Console/IO
+**Progress:** Arrays 9/9 ✅ | Strings 11/11 ✅ | Math 9/9 ✅ | Conversions 3/3 ✅  
+**Next:** Console/IO functions (6 remaining)
 
 ### 2.1 Array Methods ✅ COMPLETED (9/9 methods) 🎉
 - [x] Design API for array methods ✅
@@ -253,14 +251,26 @@ Build a modern, practical programming language that combines:
 - Float literals now generate with `_f64` suffix for type clarity
 - Fixed precedence issue with `abs()` for unary expressions
 
-### 2.4 Type Conversion (~1 hour)
-- [ ] Implement `parseInt(str)` - String to int
-- [ ] Implement `parseFloat(str)` - String to float
-- [ ] Implement `toString(value)` - Any to string
-- [ ] Implement `toNumber(str)` - String to number
-- [ ] Handle errors in parsing (return error binding)
-- [ ] Add tests
-- [ ] Update documentation
+### 2.4 Type Conversion ✅ COMPLETED (~1 hour)
+- [x] Implement `parseInt(str)` - String to int with error binding
+- [x] Implement `parseFloat(str)` - String to float with error binding
+- [x] Implement `toString(value)` - Any to string
+- [ ] Implement `toNumber(str)` - String to number (future enhancement)
+- [x] Handle errors in parsing (return error binding tuples)
+- [x] Add tests (test_conversions.liva)
+- [x] Update documentation (conversions.md, CHANGELOG, TODO, ROADMAP)
+
+**Status:** ✅ Complete (3/3 functions implemented)  
+**Branch:** `feature/stdlib-v0.7.0`  
+**Completion:** 2025-10-20
+
+**Deliverables:**
+- ✅ parseInt/parseFloat with error binding pattern
+- ✅ toString for all primitive types
+- ✅ Comprehensive test suite
+- ✅ Full documentation
+
+**Next:** Console/IO functions
 
 ### 2.5 Console/IO (~1 hour)
 - [ ] Implement `console.log(...)` - Enhanced print

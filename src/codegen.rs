@@ -1074,11 +1074,22 @@ impl CodeGenerator {
                             self.generate_expr(&var.init)?;
                             self.output.push_str(" { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };\n");
                         } else {
-                            // Non-fallible function called with fallible binding pattern
-                            // Generate: let (value, err) = (expr, None);
-                            self.output.push_str("): (_, Option<liva_rt::Error>) = (");
-                            self.generate_expr(&var.init)?;
-                            self.output.push_str(", None);\n");
+                            // Check if the expression is a built-in conversion function that returns a tuple
+                            let returns_tuple = self.is_builtin_conversion_call(&var.init);
+                            
+                            if returns_tuple {
+                                // Built-in conversion functions (parseInt, parseFloat) already return (value, Option<Error>)
+                                // Generate: let (value, err) = expr;
+                                self.output.push_str(") = ");
+                                self.generate_expr(&var.init)?;
+                                self.output.push_str(";\n");
+                            } else {
+                                // Non-fallible function called with fallible binding pattern
+                                // Generate: let (value, err) = (expr, None);
+                                self.output.push_str("): (_, Option<liva_rt::Error>) = (");
+                                self.generate_expr(&var.init)?;
+                                self.output.push_str(", None);\n");
+                            }
                         }
                     }
                 } else {
@@ -1836,6 +1847,57 @@ impl CodeGenerator {
 
     fn generate_normal_call(&mut self, call: &CallExpr) -> Result<()> {
         if let Expr::Identifier(name) = call.callee.as_ref() {
+            // Handle parseInt(str) -> (i32, Option<Error>)
+            if name == "parseInt" {
+                if call.args.is_empty() {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            "parseInt requires 1 argument",
+                            "parseInt(str) takes exactly one string argument"
+                        )
+                    ));
+                }
+                self.output.push_str("match ");
+                self.generate_expr(&call.args[0])?;
+                self.output.push_str(".parse::<i32>() { Ok(v) => (v, None), Err(_) => (0, Some(liva_rt::Error::from(\"Invalid integer format\"))) }");
+                return Ok(());
+            }
+            
+            // Handle parseFloat(str) -> (f64, Option<Error>)
+            if name == "parseFloat" {
+                if call.args.is_empty() {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            "parseFloat requires 1 argument",
+                            "parseFloat(str) takes exactly one string argument"
+                        )
+                    ));
+                }
+                self.output.push_str("match ");
+                self.generate_expr(&call.args[0])?;
+                self.output.push_str(".parse::<f64>() { Ok(v) => (v, None), Err(_) => (0.0_f64, Some(liva_rt::Error::from(\"Invalid float format\"))) }");
+                return Ok(());
+            }
+            
+            // Handle toString(value) -> String
+            if name == "toString" {
+                if call.args.is_empty() {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            "toString requires 1 argument",
+                            "toString(value) takes exactly one argument"
+                        )
+                    ));
+                }
+                self.output.push_str("format!(\"{}\", ");
+                self.generate_expr(&call.args[0])?;
+                self.output.push_str(")");
+                return Ok(());
+            }
+            
             if name == "print" {
                 if call.args.is_empty() {
                     self.output.push_str("println!()");
@@ -2888,6 +2950,20 @@ impl CodeGenerator {
             } => {
                 // A ternary is fallible if either branch contains a fail or calls a fallible function
                 self.expr_contains_fail(then_expr) || self.expr_contains_fail(else_expr)
+            }
+            _ => false,
+        }
+    }
+
+    /// Check if expression is a built-in conversion function call that returns (value, Option<Error>)
+    fn is_builtin_conversion_call(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Call(call) => {
+                if let Expr::Identifier(name) = call.callee.as_ref() {
+                    name == "parseInt" || name == "parseFloat"
+                } else {
+                    false
+                }
             }
             _ => false,
         }

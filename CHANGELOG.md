@@ -108,10 +108,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Example: `Math.random()` → `0.8025414370953201` (varies)
   - Uses `rand::random::<f64>()`, automatically adds `rand` crate dependency
 
+#### Type Conversion Functions (3 functions)
+- **`parseInt(str)`** - Parse string to integer with error binding
+  - Example: `let num, err = parseInt("42")` → `(42, None)`
+  - Example: `let num, err = parseInt("abc")` → `(0, Some("Invalid integer format"))`
+  - Returns tuple `(i32, Option<Error>)` using Liva's error binding pattern
+  - Uses Rust's `.parse::<i32>()`  internally
+- **`parseFloat(str)`** - Parse string to float with error binding
+  - Example: `let value, err = parseFloat("3.14")` → `(3.14, None)`
+  - Example: `let value, err = parseFloat("xyz")` → `(0.0, Some("Invalid float format"))`
+  - Returns tuple `(f64, Option<Error>)` using Liva's error binding pattern
+  - Uses Rust's `.parse::<f64>()` internally
+- **`toString(value)`** - Convert any value to string
+  - Example: `toString(42)` → `"42"`
+  - Example: `toString(3.14)` → `"3.14"`
+  - Example: `toString(true)` → `"true"`
+  - Uses `format!("{}", value)` with Rust's Display trait
+  - Works with all primitive types (Int, Float, Bool)
+
 ### Changed
 - Extended `generate_method_call_expr()` in codegen.rs to handle string methods
 - Added `generate_string_method_call()` function for string-specific code generation
 - Added `generate_math_function_call()` function for Math namespace functions
+- Added `parseInt()`, `parseFloat()`, and `toString()` as built-in functions in `generate_normal_call()`
+- Added `is_builtin_conversion_call()` helper to detect conversion functions
+- Fixed VarDecl code generation to properly destructure tuples from built-in conversions
 - Method call detection now differentiates between array and string methods
 - `indexOf` method now supports both arrays (numeric search) and strings (substring search)
 - Float literals now generate with `_f64` suffix for explicit typing
@@ -123,15 +144,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Array methods use iterator patterns for efficient processing
 - String methods map directly to Rust standard library methods
 - Math functions use namespace style (`Math.*`) and map to Rust f64 methods
+- Type conversion functions use error binding pattern: `(value, Option<Error>)` tuples
+- parseInt/parseFloat return default values (0 or 0.0) on error with error message
+- toString uses Rust's Display trait for universal type conversion
 - All methods tested with comprehensive test suites
 - Reused existing `MethodCall` AST node (no parser changes required)
 - Fixed precedence issue with `abs()` by wrapping unary expressions in parentheses
+- **Critical Fix**: Error binding variables now destructure correctly from built-in functions
 
 ### Tests
 - Created 6 test files for array methods
 - Created 4 test files for string methods
 - Created 2 test files for Math functions (basic and comprehensive)
-- All 29 methods (9 array + 11 string + 9 Math) verified working correctly
+- Created 1 test file for Type Conversion functions (all 3 functions)
+- All 32 functions (9 array + 11 string + 9 Math + 3 conversion) verified working correctly
 
 ---
 
