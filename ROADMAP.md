@@ -324,58 +324,79 @@ Build a modern, practical programming language that combines:
 
 ---
 
-## 📦 Phase 3: Module System (v0.8.0)
+## 📦 Phase 3: Module System (v0.8.0) 🚧 IN PROGRESS
 
 **Goal:** Organize code across multiple files
 
-**Status:** 📋 Planned  
-**Branch:** `feature/modules-v0.8`  
-**ETA:** 8-12 hours
+**Status:** � In Progress  
+**Branch:** `feature/modules-v0.8.0`  
+**Started:** 2025-10-20  
+**ETA:** 8-10 days (53 hours estimated)
 
-### 3.1 Design (~2 hours)
-- [ ] Define module syntax (import/export)
-- [ ] Design module resolution algorithm
-- [ ] Decide on relative vs absolute imports
-- [ ] Plan namespace handling
-- [ ] Write module system spec
+**Design Decision:** Hybrid approach
+- **Public by default** - Functions, classes, constants without `_` prefix are exported
+- **Private with `_` prefix** - Consistent with Liva's existing conventions
+- **JavaScript-style imports** - `import { name } from "./path.liva"`
+- **Wildcard imports** - `import * as name from "./path.liva"`
+- **No new keywords** - Simple and intuitive
 
-### 3.2 Parser & AST (~2 hours)
+### 3.1 Design ✅ COMPLETED (~2 hours)
+- [x] Define module syntax (import/export)
+  - Syntax: `import { name } from "./file.liva"`
+  - Wildcard: `import * as name from "./file.liva"`
+  - Public: No `_` prefix (auto-exported)
+  - Private: `_` prefix (not exported)
+- [x] Design module resolution algorithm
+  - Relative path resolution
+  - Recursive loading with caching
+  - Dependency graph with cycle detection
+- [x] Decide on relative vs absolute imports
+  - Relative paths for now: `./`, `../`
+  - Absolute paths from root: future enhancement
+- [x] Plan namespace handling
+  - Named imports: add to scope directly
+  - Wildcard imports: namespace with dot notation
+- [x] Write module system spec
+  - Complete specification document created
+  - Examples and edge cases documented
+
+### 3.2 Parser & AST (~8 hours) 📋 Not Started
 - [ ] Add `ImportDecl` to AST
-- [ ] Add `ExportDecl` to AST
 - [ ] Parse `import { name } from "path"`
-- [ ] Parse `export { name }`
-- [ ] Parse `export default`
-- [ ] Handle multiple imports/exports
-- [ ] Add tests
+- [ ] Parse `import * as name from "path"`
+- [ ] Handle multiple imports in braces
+- [ ] Add tests (10+ parser tests)
 
-### 3.3 Module Resolver (~3 hours)
+### 3.3 Module Resolver (~15 hours) 📋 Not Started
 - [ ] Implement file resolution (relative paths)
 - [ ] Implement module cache (avoid re-parsing)
 - [ ] Handle circular dependencies
-- [ ] Resolve exported symbols
+- [ ] Resolve exported symbols (extract non-`_` symbols)
 - [ ] Build dependency graph
-- [ ] Add tests
+- [ ] Add tests (15+ resolver tests)
 
-### 3.4 Semantic Analysis (~2 hours)
+### 3.4 Semantic Analysis (~8 hours) 📋 Not Started
 - [ ] Validate import paths exist
 - [ ] Validate imported symbols exist
+- [ ] Check imported symbols are public (no `_` prefix)
 - [ ] Check for naming conflicts
-- [ ] Ensure all exports are defined
 - [ ] Add module-aware scope checking
-- [ ] Add tests
+- [ ] Add tests (10+ semantic tests)
 
-### 3.5 Code Generation (~2 hours)
+### 3.5 Code Generation (~13 hours) 📋 Not Started
 - [ ] Generate Rust module structure
 - [ ] Handle imports as `use` statements
-- [ ] Handle exports as `pub` modifiers
-- [ ] Generate Cargo.toml with dependencies
-- [ ] Add tests
+- [ ] Handle exports as `pub` modifiers (for non-`_` symbols)
+- [ ] Generate multi-file Cargo project
+- [ ] Add tests (10+ codegen tests)
 
-### 3.6 Documentation & Examples (~1 hour)
+### 3.6 Documentation & Examples (~9 hours) 📋 Not Started
 - [ ] Write module system documentation
-- [ ] Create multi-file example project
+- [ ] Create multi-file example project (calculator)
 - [ ] Update getting-started guide
 - [ ] Add best practices guide
+- [ ] Update CHANGELOG.md
+- [ ] Prepare release notes
 
 **Deliverable:** Liva v0.8.0 - Multi-file projects supported
 
