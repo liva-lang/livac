@@ -1,0 +1,25 @@
+// Test reduce() method with different operations
+
+main() {
+    // Test 1: Sum of numbers
+    let numbers = [1, 2, 3, 4, 5]
+    let sum = numbers.reduce((acc, x) => acc + x, 0)
+    print($"Sum: {sum}")
+    
+    // Test 2: Product of numbers
+    let product = numbers.reduce((acc, x) => acc * x, 1)
+    print($"Product: {product}")
+    
+    // Test 3: Maximum value
+    let max = numbers.reduce((acc, x) => {
+        if x > acc {
+            return x
+        }
+        return acc
+    }, 0)
+    print($"Max: {max}")
+    
+    // Test 4: Count elements (constant accumulator)
+    let count = numbers.reduce((acc, x) => acc + 1, 0)
+    print($"Count: {count}")
+}

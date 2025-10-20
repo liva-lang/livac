@@ -1127,6 +1127,12 @@ impl CodeGenerator {
                         if let Expr::ArrayLiteral(_) = &var.init {
                             self.array_vars.insert(binding.name.clone());
                         }
+                        // Check if initializing with a method call that returns an array (map, filter, etc.)
+                        else if let Expr::MethodCall(method_call) = &var.init {
+                            if matches!(method_call.method.as_str(), "map" | "filter") {
+                                self.array_vars.insert(binding.name.clone());
+                            }
+                        }
                         // Mark instances created via constructor call: let x = ClassName(...)
                         else if let Expr::Call(call) = &var.init {
                             if let Expr::Identifier(class_name) = &*call.callee {
@@ -1807,6 +1813,11 @@ impl CodeGenerator {
                 self.generate_expr(expr)?;
                 self.output.push_str("));\n");
             }
+            Expr::MethodCall(method_call) => {
+                // TODO: Implement method call code generation (stdlib Phase 2)
+                // For now, just generate a placeholder
+                self.generate_method_call_expr(method_call)?;
+            }
         }
         Ok(())
     }
@@ -1832,11 +1843,25 @@ impl CodeGenerator {
                     self.output.push_str("println!(\"");
                     for arg in call.args.iter() {
                         match arg {
+                            // Use {:?} for arrays, objects, and complex types
                             Expr::ArrayLiteral(_) | Expr::ObjectLiteral(_) => {
                                 self.output.push_str("{:?}");
                             }
+                            // MethodCall on arrays (map, filter, etc.) should use {:?}
+                            Expr::MethodCall(method_call) => {
+                                match method_call.method.as_str() {
+                                    "map" | "filter" => {
+                                        self.output.push_str("{:?}");
+                                    }
+                                    _ => {
+                                        self.output.push_str("{:?}");
+                                    }
+                                }
+                            }
+                            // For now, use {:?} for everything to be safe
+                            // TODO: Phase 2 - implement proper type inference to use {} vs {:?}
                             _ => {
-                                self.output.push_str("{}");
+                                self.output.push_str("{:?}");
                             }
                         }
                     }
@@ -2198,6 +2223,213 @@ impl CodeGenerator {
         // Mark as awaited
         self.pending_tasks.get_mut(var_name).unwrap().awaited = true;
 
+        Ok(())
+    }
+
+    /// Generate code for method calls (stdlib Phase 2 - array methods)
+    fn generate_method_call_expr(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
+        use crate::ast::ArrayAdapter;
+        
+        // Generate the object
+        self.generate_expr(&method_call.object)?;
+        
+        // Handle array methods with adapters
+        match method_call.adapter {
+            ArrayAdapter::Seq => {
+                // Sequential: use .iter() and handle references in lambdas
+                match method_call.method.as_str() {
+                    "map" => {
+                        // For map, use iter() and the lambda will work with &T
+                        self.output.push_str(".iter()");
+                    }
+                    "filter" => {
+                        // For filter, use iter() and work with references
+                        // We'll add .copied() after filter
+                        self.output.push_str(".iter()");
+                    }
+                    "reduce" => {
+                        // reduce doesn't use .iter() - it operates directly on the vector
+                        // We use .fold() which requires initial value and accumulator
+                    }
+                    "forEach" => {
+                        self.output.push_str(".iter()");
+                    }
+                    "find" | "some" | "every" | "indexOf" | "includes" => {
+                        self.output.push_str(".iter()");
+                    }
+                    _ => {
+                        // For other methods, call directly
+                    }
+                }
+            }
+            ArrayAdapter::Par => {
+                // Parallel: use rayon's .par_iter()
+                self.output.push_str(".par_iter()");
+                
+                // TODO: Handle adapter options (threads, chunk, ordered)
+                if method_call.adapter_options.threads.is_some()
+                    || method_call.adapter_options.chunk.is_some()
+                {
+                    // For now, just use default parallel iterator
+                    // TODO: Configure rayon thread pool with options
+                }
+            }
+            ArrayAdapter::Vec => {
+                // Vectorized: use SIMD
+                // TODO: Implement SIMD version
+                self.output.push_str(".into_iter()");
+            }
+            ArrayAdapter::ParVec => {
+                // Parallel + Vectorized
+                // TODO: Implement combined parallel + SIMD
+                self.output.push_str(".par_iter()");
+            }
+        }
+        
+        // Generate the method call
+        
+        // Special handling for reduce: it uses .iter() on the vector itself
+        if method_call.method == "reduce" && matches!(method_call.adapter, ArrayAdapter::Seq) {
+            self.output.push_str(".iter()");
+        }
+        
+        self.output.push('.');
+        
+        // Map Liva method names to Rust iterator method names
+        let rust_method = match method_call.method.as_str() {
+            "forEach" => "for_each",
+            "indexOf" => "position",
+            "includes" => "any",
+            "reduce" => "fold",  // Rust uses fold instead of reduce
+            method_name => method_name,
+        };
+        
+        self.output.push_str(rust_method);
+        self.output.push('(');
+        
+        // Generate arguments
+        // Special case: reduce needs arguments reversed (initial first, then lambda)
+        let args_to_generate: Vec<&Expr> = if method_call.method == "reduce" && method_call.args.len() == 2 {
+            // Liva: .reduce(lambda, initial) -> Rust: .fold(initial, lambda)
+            vec![&method_call.args[1], &method_call.args[0]]
+        } else {
+            method_call.args.iter().collect()
+        };
+        
+        for (i, arg) in args_to_generate.iter().enumerate() {
+            if i > 0 {
+                self.output.push_str(", ");
+            }
+            
+            // Special handling for includes: wrap value in closure
+            if method_call.method == "includes" {
+                self.output.push_str("|&x| x == ");
+                self.generate_expr(arg)?;
+                continue;
+            }
+            
+            // For map/filter/reduce/forEach with .iter(), we need to dereference in the lambda
+            // map: |&x| - filter: |&&x| - reduce: |acc, &x| - forEach: |&x|
+            if (method_call.method == "map" || method_call.method == "filter" || method_call.method == "reduce" || method_call.method == "forEach") 
+                && matches!(method_call.adapter, ArrayAdapter::Seq) {
+                if let Expr::Lambda(lambda) = arg {
+                    // Generate lambda with pattern |&x| or |&&x| or |acc, &x|
+                    if lambda.is_move {
+                        self.output.push_str("move ");
+                    }
+                    self.output.push('|');
+                    for (idx, param) in lambda.params.iter().enumerate() {
+                        if idx > 0 {
+                            self.output.push_str(", ");
+                        }
+                        // reduce: first param (acc) no pattern, second param (&x) gets &
+                        if method_call.method == "reduce" {
+                            if idx == 0 {
+                                // Accumulator: no dereferencing
+                                self.output.push_str(&self.sanitize_name(&param.name));
+                            } else {
+                                // Element: dereference once
+                                self.output.push('&');
+                                self.output.push_str(&self.sanitize_name(&param.name));
+                            }
+                        } else {
+                            // filter needs && (closure takes &&T), map/forEach need & (closure takes &T)
+                            if method_call.method == "filter" {
+                                self.output.push_str("&&");
+                            } else {
+                                self.output.push('&');
+                            }
+                            self.output.push_str(&self.sanitize_name(&param.name));
+                        }
+                    }
+                    self.output.push_str("| ");
+                    
+                    match &lambda.body {
+                        LambdaBody::Expr(expr) => {
+                            self.generate_expr(expr)?;
+                        }
+                        LambdaBody::Block(block) => {
+                            self.output.push('{');
+                            self.indent();
+                            self.output.push('\n');
+                            self.write_indent();
+                            for stmt in &block.stmts[..block.stmts.len().saturating_sub(1)] {
+                                self.generate_stmt(stmt)?;
+                                self.output.push('\n');
+                                self.write_indent();
+                            }
+                            if let Some(last_stmt) = block.stmts.last() {
+                                if let Stmt::Return(return_stmt) = last_stmt {
+                                    if let Some(expr) = &return_stmt.expr {
+                                        self.generate_expr(expr)?;
+                                    }
+                                } else {
+                                    self.generate_stmt(last_stmt)?;
+                                }
+                            }
+                            self.dedent();
+                            self.output.push('\n');
+                            self.write_indent();
+                            self.output.push('}');
+                        }
+                    }
+                    continue;
+                }
+            }
+            
+            self.generate_expr(arg)?;
+        }
+        
+        self.output.push(')');
+        
+        // Add transformations after the method call
+        match (method_call.adapter, method_call.method.as_str()) {
+            // Sequential map: just collect (lambda already returns owned values)
+            (ArrayAdapter::Seq, "map") => {
+                self.output.push_str(".collect::<Vec<_>>()");
+            }
+            // Sequential filter: copy values after filtering, then collect
+            (ArrayAdapter::Seq, "filter") => {
+                self.output.push_str(".copied().collect::<Vec<_>>()");
+            }
+            // Parallel map/filter with rayon
+            (ArrayAdapter::Par, "map") | (ArrayAdapter::Par, "filter") => {
+                self.output.push_str(".cloned().collect::<Vec<_>>()");
+            }
+            // Find returns Option<&T>, copy it
+            (_, "find") => {
+                self.output.push_str(".copied()");
+            }
+            // indexOf/position returns Option<usize>
+            (_, "indexOf") => {
+                self.output.push_str(".map(|i| i as i32).unwrap_or(-1)");
+            }
+            // some, every, includes return bool - no transformation needed
+            (_, "some") | (_, "every") | (_, "includes") => {}
+            // Default: no transformation
+            _ => {}
+        }
+        
         Ok(())
     }
 

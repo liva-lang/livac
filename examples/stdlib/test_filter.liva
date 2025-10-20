@@ -1,0 +1,21 @@
+// Test filter method
+
+main() {
+  let numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  
+  // Test filter - keep even numbers
+  let evens = numbers.filter(x => x % 2 == 0)
+  print($"Even numbers: {evens}")
+  
+  // Test filter - keep numbers > 5
+  let large = numbers.filter(x => x > 5)
+  print($"Numbers > 5: {large}")
+  
+  // Test filter with complex predicate
+  let filtered = numbers.filter(x => {
+    let isEven = x % 2 == 0
+    let isLarge = x > 3
+    return isEven and isLarge
+  })
+  print($"Even AND > 3: {filtered}")
+}

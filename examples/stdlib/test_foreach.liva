@@ -1,0 +1,23 @@
+// Test forEach() method
+
+main() {
+    let numbers = [1, 2, 3, 4, 5]
+    
+    // Test 1: Simple print
+    print($"Numbers:")
+    numbers.forEach(x => print(x))
+    
+    // Test 2: With block body
+    print($"\nSquares:")
+    numbers.forEach(x => {
+        let square = x * x
+        print(square)
+    })
+    
+    // Test 3: Complex side effect
+    let sum = 0
+    numbers.forEach(x => {
+        sum = sum + x
+    })
+    print($"\nSum via forEach: {sum}")
+}

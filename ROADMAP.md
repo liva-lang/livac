@@ -131,20 +131,35 @@ Build a modern, practical programming language that combines:
 
 **Goal:** Built-in functions and methods for common operations
 
-**Status:** 📋 Planned  
-**Branch:** `feature/stdlib-v0.7`  
-**ETA:** 6-10 hours
+**Status:** 🚧 IN PROGRESS (60% complete)  
+**Branch:** `feature/stdlib-v0.7.0`  
+**Started:** 2025-10-20  
+**Progress:** map() ✅ | filter() ✅ | reduce() ✅ | forEach() ✅ | find() 🚧  
+**ETA:** 2-4 hours remaining
 
-### 2.1 Array Methods (~3 hours)
-- [ ] Design API for array methods
-- [ ] Implement `map(fn)` - Transform elements
-- [ ] Implement `filter(fn)` - Filter elements
-- [ ] Implement `reduce(fn, initial)` - Reduce to single value
-- [ ] Implement `forEach(fn)` - Iterate with side effects
+### 2.1 Array Methods (~3 hours) - 🚧 IN PROGRESS
+- [x] Design API for array methods ✅
+  - [x] Adapter syntax (`.par()`, `.vec()`, `.parvec()`)
+  - [x] Parser implementation for adapters
+  - [x] AST extensions (`MethodCallExpr`, `ArrayAdapter`)
+- [x] Implement `map(fn)` - Transform elements ✅ **WORKING!**
+  - [x] Sequential: `.map(x => x * 2)` ✅
+  - [x] Generates: `.iter().map(|&x| ...).collect()`
+  - [x] Tested with simple and block lambdas
+- [x] Implement `filter(fn)` - Filter elements ✅ **WORKING!**
+  - [x] Sequential: `.filter(x => x > 5)` ✅
+  - [x] Generates: `.iter().filter(|&&x| ...).copied().collect()`
+  - [x] Tested with simple and complex predicates
+- [x] Implement `reduce(fn, initial)` - Reduce to single value ✅ **WORKING!**
+  - [x] Uses Rust's `.iter().fold(initial, |acc, &x| expr)`
+  - [x] Tested: Sum(15), Product(120), Max(5), Count(5)
+- [x] Implement `forEach(fn)` - Iterate with side effects ✅ **WORKING!**
+  - [x] Uses `.iter().for_each(|&x| { ... })`
+  - [x] Tested: print, squares, sum accumulation
 - [ ] Implement `find(fn)` - Find first match
 - [ ] Implement `some(fn)` / `every(fn)` - Boolean checks
-- [ ] Add tests for all array methods
-- [ ] Update documentation
+- [ ] Add comprehensive tests for all array methods
+- [ ] Update documentation with working examples
 
 ### 2.2 String Methods (~2 hours)
 - [ ] Implement `split(delimiter)` - Split into array

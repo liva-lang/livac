@@ -1,0 +1,188 @@
+// Array Methods Demo - Liva Standard Library v0.7.0
+
+main() {
+  print("🚀 Array Methods Demo\n")
+
+  // ============================================================================
+  // 1. MAP - Transform elements
+  // ============================================================================
+  print("1️⃣ MAP - Transform elements:")
+  
+  let numbers = [1, 2, 3, 4, 5]
+  
+  // Sequential map (default)
+  let doubled = numbers.map(x => x * 2)
+  print($"Doubled: {doubled}")
+  
+  // Map with block body
+  let squared = numbers.map(x => {
+    let result = x * x
+    return result
+  })
+  print($"Squared: {squared}")
+  
+  // Parallel map
+  let parallelDoubled = numbers.par().map(x => x * 2)
+  print($"Parallel doubled: {parallelDoubled}")
+  
+  // Parallel with options
+  let heavyResults = numbers.par({threads: 4, chunk: 2}).map(x => x * 10)
+  print($"Parallel with options: {heavyResults}")
+  
+  // Vectorized map
+  let vecDoubled = numbers.vec().map(x => x * 2)
+  print($"Vectorized doubled: {vecDoubled}")
+  
+  // Parallel + Vectorized
+  let parvecResults = numbers.parvec().map(x => x * 2)
+  print($"Parallel + Vec: {parvecResults}\n")
+
+  // ============================================================================
+  // 2. FILTER - Keep matching elements
+  // ============================================================================
+  print("2️⃣ FILTER - Keep matching elements:")
+  
+  let values = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  
+  // Sequential filter
+  let evens = values.filter(x => x % 2 == 0)
+  print($"Even numbers: {evens}")
+  
+  // Parallel filter
+  let largeNumbers = values.par().filter(x => x > 5)
+  print($"Numbers > 5 (parallel): {largeNumbers}")
+  
+  // Filter with complex predicate
+  let filtered = values.filter(x => {
+    let isEven = x % 2 == 0
+    let isLarge = x > 3
+    return isEven and isLarge
+  })
+  print($"Even AND > 3: {filtered}\n")
+
+  // ============================================================================
+  // 3. REDUCE - Aggregate to single value
+  // ============================================================================
+  print("3️⃣ REDUCE - Aggregate to single value:")
+  
+  let nums = [1, 2, 3, 4, 5]
+  
+  // Sequential sum
+  let sum = nums.reduce((acc, x) => acc + x, 0)
+  print($"Sum: {sum}")
+  
+  // Sequential product
+  let product = nums.reduce((acc, x) => acc * x, 1)
+  print($"Product: {product}")
+  
+  // Parallel reduction
+  let parallelSum = nums.par().reduce((acc, x) => acc + x, 0)
+  print($"Parallel sum: {parallelSum}\n")
+
+  // ============================================================================
+  // 4. FOR_EACH - Iterate with side effects
+  // ============================================================================
+  print("4️⃣ FOR_EACH - Iterate with side effects:")
+  
+  let items = [1, 2, 3]
+  
+  // Sequential forEach
+  print("Sequential forEach:")
+  items.forEach(x => print($"  Item: {x}"))
+  
+  // Parallel forEach (unordered)
+  print("Parallel forEach:")
+  items.par().forEach(x => print($"  Processing {x}"))
+  
+  print()
+
+  // ============================================================================
+  // 5. METHOD CHAINING
+  // ============================================================================
+  print("5️⃣ METHOD CHAINING - Combine operations:")
+  
+  let data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  
+  // Sequential chain
+  let result = data
+    .filter(x => x > 3)
+    .map(x => x * 2)
+    .reduce((a, b) => a + b, 0)
+  print($"Chain result (filter > 3, map *2, sum): {result}")
+  
+  // Parallel chain
+  let parallelResult = data
+    .par()
+    .filter(x => x > 3)
+    .map(x => x * 2)
+    .reduce((a, b) => a + b, 0)
+  print($"Parallel chain result: {parallelResult}\n")
+
+  // ============================================================================
+  // 6. FIND, SOME, EVERY
+  // ============================================================================
+  print("6️⃣ FIND, SOME, EVERY - Search operations:")
+  
+  let searchData = [1, 2, 3, 4, 5]
+  
+  // Find first match
+  let firstEven = searchData.find(x => x % 2 == 0)
+  print($"First even: {firstEven}")
+  
+  // Check if any match
+  let hasEven = searchData.some(x => x % 2 == 0)
+  print($"Has even number: {hasEven}")
+  
+  // Check if all match
+  let allPositive = searchData.every(x => x > 0)
+  print($"All positive: {allPositive}")
+  
+  // Parallel search
+  let hasLarge = searchData.par().some(x => x > 100)
+  print($"Has number > 100 (parallel): {hasLarge}\n")
+
+  // ============================================================================
+  // 7. INDEX_OF, INCLUDES
+  // ============================================================================
+  print("7️⃣ INDEX_OF, INCLUDES - Element lookup:")
+  
+  let lookupData = [10, 20, 30, 40, 50]
+  
+  // Find index
+  let index = lookupData.indexOf(30)
+  print($"Index of 30: {index}")
+  
+  // Check if contains
+  let hasThirty = lookupData.includes(30)
+  print($"Contains 30: {hasThirty}")
+  
+  let hasHundred = lookupData.includes(100)
+  print($"Contains 100: {hasHundred}\n")
+
+  // ============================================================================
+  // 8. COMPLEX EXAMPLE - Real world scenario
+  // ============================================================================
+  print("8️⃣ COMPLEX EXAMPLE - Processing user scores:")
+  
+  let scores = [45, 78, 92, 65, 88, 71, 96, 54, 82, 90]
+  
+  // Process: filter passing scores, boost by 5%, calculate average
+  let passingScores = scores.filter(x => x >= 70)
+  let boostedScores = passingScores.map(x => x + 5)
+  let average = boostedScores.reduce((sum, score) => sum + score, 0) / boostedScores.length
+  
+  print($"Passing scores: {passingScores}")
+  print($"Boosted scores: {boostedScores}")
+  print($"Average (boosted): {average}")
+  
+  // Same with parallel processing
+  let parallelAverage = scores
+    .par()
+    .filter(x => x >= 70)
+    .map(x => x + 5)
+    .reduce((sum, score) => sum + score, 0) / scores.filter(x => x >= 70).length
+  
+  print($"Parallel average: {parallelAverage}\n")
+
+  print("✅ Array Methods Demo completed successfully!")
+}

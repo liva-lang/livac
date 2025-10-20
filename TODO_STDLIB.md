@@ -28,45 +28,49 @@ Implement a comprehensive standard library with:
 
 ### Task 1: Array Methods (~3 hours)
 
-#### 1.1 Design Array API
-- [ ] Review Rust Vec/Rayon methods for inspiration
-- [ ] Design Liva-style API (syntax, error handling)
-- [ ] **Design execution policy syntax for methods: ADAPTER STYLE (Rust-like)**
+#### 1.1 Design Array API ✅ COMPLETED
+- [x] Review Rust Vec/Rayon methods for inspiration
+- [x] Design Liva-style API (syntax, error handling)
+- [x] **Design execution policy syntax for methods: ADAPTER STYLE (Rust-like)**
   - Sequential (default): `arr.map(x => x * 2)`
   - Parallel adapter: `arr.par().map(x => x * 2)`
   - Vectorized adapter: `arr.vec().map(x => x * 2)`
   - Parallel+Vec adapter: `arr.parvec().map(x => x * 2)`
   - With options: `arr.par({threads: 4, chunk: 2}).map(x => x * 2)`
-- [ ] **Define which methods support which policies:**
+- [x] **Define which methods support which policies:**
   - `seq` (sequential) - ALL methods support this (default)
   - `.par()` adapter - `map`, `filter`, `reduce`, `forEach`, `some`, `every`, `includes`
   - `.vec()` adapter - `map`, `filter` (numeric operations only)
   - `.parvec()` adapter - `map`, `filter` (numeric operations only)
-- [ ] **Design adapter options:**
+- [x] **Design adapter options:**
   - `par({threads: N, chunk: M})` - Parallel with N threads, chunk size M
   - `vec({simdWidth: N})` - SIMD with vector width N
   - `parvec({threads: N, simdWidth: M, ordered: true})` - Combined options
-- [ ] Document API design in `docs/language-reference/stdlib/arrays.md`
+- [x] Document API design in `docs/language-reference/stdlib/arrays.md`
 
-#### 1.2 Implement Core Methods
-- [ ] `map(fn)` - Transform each element
-  - Sequential: `[1,2,3].map(x => x * 2)` → `[2,4,6]`
-  - Parallel: `[1,2,3].par().map(x => x * 2)`
-  - With options: `[1,2,3].par({threads: 4, chunk: 2}).map(x => heavy(x))`
-  - Vectorized: `[1,2,3].vec().map(x => x * 2)`
-  - Par+Vec: `[1,2,3].parvec().map(x => x * 2)`
-- [ ] `filter(fn)` - Keep elements matching predicate
-  - Sequential: `[1,2,3].filter(x => x > 1)` → `[2,3]`
-  - Parallel: `[1,2,3].par().filter(x => x > 1)`
-  - Vectorized: `[1,2,3].vec().filter(x => x > 1)`
-- [ ] `reduce(fn, initial)` - Reduce to single value
-  - Sequential: `[1,2,3].reduce((acc, x) => acc + x, 0)` → `6`
-  - Parallel: `[1,2,3].par().reduce((acc, x) => acc + x, 0)`
+#### 1.2 Implement Core Methods ✅ COMPLETED (3/3)
+- [x] `map(fn)` - Transform each element ✅ **WORKING!**
+  - Sequential: `[1,2,3].map(x => x * 2)` → `[2,4,6]` ✅
+  - Parallel: `[1,2,3].par().map(x => x * 2)` (parser ready, codegen TODO)
+  - With options: `[1,2,3].par({threads: 4, chunk: 2}).map(x => heavy(x))` (TODO)
+  - Vectorized: `[1,2,3].vec().map(x => x * 2)` (TODO)
+  - Par+Vec: `[1,2,3].parvec().map(x => x * 2)` (TODO)
+- [x] `filter(fn)` - Keep elements matching predicate ✅ **WORKING!**
+  - Sequential: `[1,2,3].filter(x => x > 1)` → `[2,3]` ✅
+  - Parallel: `[1,2,3].par().filter(x => x > 1)` (parser ready, codegen TODO)
+  - Vectorized: `[1,2,3].vec().filter(x => x > 1)` (TODO)
+- [x] `reduce(fn, initial)` - Reduce to single value ✅ **WORKING!**
+  - Sequential: `[1,2,3,4,5].reduce((acc, x) => acc + x, 0)` → `15` ✅
+  - Uses Rust's `.iter().fold(initial, |acc, &x| expr)`
+  - Tested: Sum(15), Product(120), Max(5), Count(5) ✅
+  - Parallel: `[1,2,3].par().reduce((acc, x) => acc + x, 0)` (TODO)
 
-#### 1.3 Implement Utility Methods
-- [ ] `forEach(fn)` - Iterate with side effects
-  - Sequential: `arr.forEach(x => print(x))`
-  - Parallel: `arr.par().forEach(x => print(x))`
+#### 1.3 Implement Utility Methods (IN PROGRESS - 1/6 DONE)
+- [x] `forEach(fn)` - Iterate with side effects ✅ **WORKING!**
+  - Sequential: `[1,2,3].forEach(x => print(x))` ✅
+  - Uses `.iter().for_each(|&x| { ... })`
+  - Tested: prints, squares, sum accumulation ✅
+  - Parallel: `arr.par().forEach(x => print(x))` (TODO)
 - [ ] `find(fn)` - Find first element matching predicate
   - Sequential only: `arr.find(x => x > 5)`
 - [ ] `some(fn)` - Check if any element matches
