@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.7.0] - TBD (In Development)
+## [0.7.0] - 2025-10-20
+
+**🎉 Phase 2 Complete: Standard Library - 37 functions implemented in one day!**
 
 ### Added - Standard Library (Phase 2)
 
@@ -140,12 +142,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Uses `println!("{:?}", ...)` for stdout
   - Best for: Debugging, data inspection, development
 - **`console.error(...args)`** - Print to stderr
-  - Example: `console.error($"Error message")`
-  - Uses `eprintln!("{:?}", ...)` for error output
+  - Format: Display `{}` (clean, readable error messages)
+  - Example: `console.error("File not found!")` → `File not found!`
+  - Uses `eprintln!("{}", ...)` for error output
   - Useful for separating errors from normal output
 - **`console.warn(...args)`** - Print warning to stderr
-  - Example: `console.warn($"Warning message")`
-  - Uses `eprintln!("Warning: {:?}", ...)` with prefix
+  - Format: Display `{}` (clean, readable warning messages)
+  - Example: `console.warn("Deprecated feature")` → `Warning: Deprecated feature`
+  - Uses `eprintln!("Warning: {}", ...)` with prefix
   - Writes to stderr with "Warning: " prefix
 - **`console.readLine()`** - Read line from stdin
   - Example: `let input = console.readLine()`
@@ -171,6 +175,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Familiar to JavaScript/Node.js developers
 
 ### Changed
+- **`print()` now uses Display format `{}`** - Clean output for end users (no quotes)
+- **`console.log()` uses Debug format `{:?}`** - Shows data structure for debugging
+- **`console.error()` and `console.warn()` use Display format `{}`** - Readable error messages
 - Extended `generate_method_call_expr()` in codegen.rs to handle string and console methods
 - Added `generate_string_method_call()` function for string-specific code generation
 - Added `generate_math_function_call()` function for Math namespace functions
@@ -178,6 +185,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `parseInt()`, `parseFloat()`, `toString()`, `readLine()`, and `prompt()` as built-in functions
 - Added `is_builtin_conversion_call()` helper to detect conversion functions
 - Fixed VarDecl code generation to properly destructure tuples from built-in conversions
+- Fixed method name sanitization - custom methods now convert camelCase to snake_case
 - Method call detection now differentiates between array, string, Math, and console methods
 - `indexOf` method now supports both arrays (numeric search) and strings (substring search)
 - Float literals now generate with `_f64` suffix for explicit typing
@@ -205,8 +213,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Created 2 test files for Math functions (basic and comprehensive)
 - Created 1 test file for Type Conversion functions (3 functions)
 - Created 1 test file for Console/IO functions (3 console functions tested)
+- Created 1 comprehensive comparison file (print vs console.log)
 - All 37 functions (9 array + 11 string + 9 Math + 3 conversion + 5 I/O) implemented
 - 35 functions verified working (readLine/prompt require interactive testing)
+
+### Documentation
+- Complete documentation for all stdlib functions in `docs/language-reference/stdlib/`
+- Hybrid I/O approach extensively documented (print vs console.*)
+- Updated README.md with Standard Library examples
+- Updated ROADMAP.md with design decisions
+- Created comparison examples showing format differences
 
 ---
 
