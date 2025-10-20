@@ -202,11 +202,21 @@ fn compile_with_modules(
     
     let filename = entry_point.to_str().unwrap_or("unknown");
     
-    // 2. Semantic analysis with source information
-    let analyzed_ast = semantic::analyze_with_source(
+    // Build module context map for semantic analysis
+    let mut module_map = std::collections::HashMap::new();
+    for module in &compilation_order {
+        module_map.insert(
+            module.path.clone(),
+            (module.public_symbols.clone(), module.private_symbols.clone()),
+        );
+    }
+    
+    // 2. Semantic analysis with module context
+    let analyzed_ast = semantic::analyze_with_modules(
         entry_module.ast.clone(),
         filename.to_string(),
         entry_module.source.clone(),
+        &module_map,
     )?;
     
     // If check-only mode, stop here
