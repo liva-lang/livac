@@ -1,0 +1,28 @@
+// Test some() and every() methods
+
+main() {
+    let numbers = [2, 4, 6, 8, 10]
+    let mixed = [1, 2, 3, 4, 5]
+    
+    // Test some()
+    print("Testing some():")
+    let hasEven = numbers.some(x => x % 2 == 0)
+    print($"All even numbers - has even? {hasEven}")
+    
+    let hasOdd = numbers.some(x => x % 2 != 0)
+    print($"All even numbers - has odd? {hasOdd}")
+    
+    let hasGreaterThan5 = mixed.some(x => x > 5)
+    print($"Mixed [1-5] - has > 5? {hasGreaterThan5}")
+    
+    // Test every()
+    print("\nTesting every():")
+    let allEven = numbers.every(x => x % 2 == 0)
+    print($"All even numbers - all even? {allEven}")
+    
+    let allPositive = mixed.every(x => x > 0)
+    print($"Mixed [1-5] - all positive? {allPositive}")
+    
+    let allGreaterThan3 = mixed.every(x => x > 3)
+    print($"Mixed [1-5] - all > 3? {allGreaterThan3}")
+}

@@ -389,6 +389,7 @@ pub enum Expr {
         parts: Vec<StringTemplatePart>,
     },
     Fail(Box<Expr>),
+    MethodCall(MethodCallExpr),
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -413,6 +414,73 @@ impl CallExpr {
             exec_policy: ExecPolicy::Normal,
         }
     }
+}
+
+/// Method call expression for array methods and other instance methods
+/// Example: arr.map(x => x * 2) or arr.par().map(x => x * 2)
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct MethodCallExpr {
+    /// The object on which the method is called
+    pub object: Box<Expr>,
+    /// The method name (e.g., "map", "filter", "par", "vec")
+    pub method: String,
+    /// Arguments to the method
+    pub args: Vec<Expr>,
+    /// Execution policy adapter (if any)
+    #[serde(default)]
+    pub adapter: ArrayAdapter,
+    /// Options for the adapter (threads, chunk, simdWidth, etc.)
+    #[serde(default)]
+    pub adapter_options: AdapterOptions,
+}
+
+impl MethodCallExpr {
+    pub fn new(object: Expr, method: String, args: Vec<Expr>) -> Self {
+        Self {
+            object: Box::new(object),
+            method,
+            args,
+            adapter: ArrayAdapter::Seq,
+            adapter_options: AdapterOptions::default(),
+        }
+    }
+}
+
+/// Array execution adapters for performance policies
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ArrayAdapter {
+    /// Sequential execution (default)
+    Seq,
+    /// Parallel execution (.par())
+    Par,
+    /// Vectorized execution (.vec())
+    Vec,
+    /// Parallel + Vectorized (.parvec())
+    ParVec,
+}
+
+impl Default for ArrayAdapter {
+    fn default() -> Self {
+        ArrayAdapter::Seq
+    }
+}
+
+/// Options for array adapters
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, Default)]
+pub struct AdapterOptions {
+    /// Number of threads for parallel execution
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub threads: Option<i32>,
+    /// Chunk size for work distribution
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chunk: Option<i32>,
+    /// SIMD width for vectorized execution
+    #[serde(skip_serializing_if = "Option::is_none", rename = "simdWidth")]
+    pub simd_width: Option<i32>,
+    /// Whether to preserve order in results
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ordered: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

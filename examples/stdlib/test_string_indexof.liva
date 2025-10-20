@@ -1,0 +1,20 @@
+// Test string indexOf method
+
+main() {
+    print("Testing string indexOf:")
+    let text = "The quick brown fox jumps over the lazy dog"
+    
+    // Find substring position
+    let idx1 = text.indexOf("quick")
+    print($"indexOf('quick'): {idx1}")
+    
+    let idx2 = text.indexOf("fox")
+    print($"indexOf('fox'): {idx2}")
+    
+    let idx3 = text.indexOf("the")
+    print($"indexOf('the'): {idx3}")
+    
+    // Not found returns -1
+    let idx4 = text.indexOf("cat")
+    print($"indexOf('cat'): {idx4}")
+}

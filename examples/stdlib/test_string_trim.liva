@@ -1,0 +1,32 @@
+// Test string methods - trim, starts/ends with
+
+main() {
+    // Test trim methods
+    print("Testing trim methods:")
+    let padded = "  hello world  "
+    let trimmed = padded.trim()
+    print($"Original: '{padded}'")
+    print($"Trimmed: '{trimmed}'")
+    
+    let leftPadded = "  left spaces"
+    let trimmedStart = leftPadded.trimStart()
+    print($"Original: '{leftPadded}'")
+    print($"TrimStart: '{trimmedStart}'")
+    
+    let rightPadded = "right spaces  "
+    let trimmedEnd = rightPadded.trimEnd()
+    print($"Original: '{rightPadded}'")
+    print($"TrimEnd: '{trimmedEnd}'")
+    
+    // Test startsWith and endsWith
+    print("\nTesting startsWith/endsWith:")
+    let filename = "document.pdf"
+    let startsWithDoc = filename.startsWith("doc")
+    print($"Starts with 'doc'? {startsWithDoc}")
+    
+    let endsWithPdf = filename.endsWith(".pdf")
+    print($"Ends with '.pdf'? {endsWithPdf}")
+    
+    let endsWithTxt = filename.endsWith(".txt")
+    print($"Ends with '.txt'? {endsWithTxt}")
+}

@@ -1074,11 +1074,22 @@ impl CodeGenerator {
                             self.generate_expr(&var.init)?;
                             self.output.push_str(" { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };\n");
                         } else {
-                            // Non-fallible function called with fallible binding pattern
-                            // Generate: let (value, err) = (expr, None);
-                            self.output.push_str("): (_, Option<liva_rt::Error>) = (");
-                            self.generate_expr(&var.init)?;
-                            self.output.push_str(", None);\n");
+                            // Check if the expression is a built-in conversion function that returns a tuple
+                            let returns_tuple = self.is_builtin_conversion_call(&var.init);
+                            
+                            if returns_tuple {
+                                // Built-in conversion functions (parseInt, parseFloat) already return (value, Option<Error>)
+                                // Generate: let (value, err) = expr;
+                                self.output.push_str(") = ");
+                                self.generate_expr(&var.init)?;
+                                self.output.push_str(";\n");
+                            } else {
+                                // Non-fallible function called with fallible binding pattern
+                                // Generate: let (value, err) = (expr, None);
+                                self.output.push_str("): (_, Option<liva_rt::Error>) = (");
+                                self.generate_expr(&var.init)?;
+                                self.output.push_str(", None);\n");
+                            }
                         }
                     }
                 } else {
@@ -1126,6 +1137,12 @@ impl CodeGenerator {
                         // Check if initializing with an array literal - mark variable as array
                         if let Expr::ArrayLiteral(_) = &var.init {
                             self.array_vars.insert(binding.name.clone());
+                        }
+                        // Check if initializing with a method call that returns an array (map, filter, etc.)
+                        else if let Expr::MethodCall(method_call) = &var.init {
+                            if matches!(method_call.method.as_str(), "map" | "filter") {
+                                self.array_vars.insert(binding.name.clone());
+                            }
                         }
                         // Mark instances created via constructor call: let x = ClassName(...)
                         else if let Expr::Call(call) = &var.init {
@@ -1807,6 +1824,11 @@ impl CodeGenerator {
                 self.generate_expr(expr)?;
                 self.output.push_str("));\n");
             }
+            Expr::MethodCall(method_call) => {
+                // TODO: Implement method call code generation (stdlib Phase 2)
+                // For now, just generate a placeholder
+                self.generate_method_call_expr(method_call)?;
+            }
         }
         Ok(())
     }
@@ -1825,20 +1847,88 @@ impl CodeGenerator {
 
     fn generate_normal_call(&mut self, call: &CallExpr) -> Result<()> {
         if let Expr::Identifier(name) = call.callee.as_ref() {
+            // Handle parseInt(str) -> (i32, Option<Error>)
+            if name == "parseInt" {
+                if call.args.is_empty() {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            "parseInt requires 1 argument",
+                            "parseInt(str) takes exactly one string argument"
+                        )
+                    ));
+                }
+                self.output.push_str("match ");
+                self.generate_expr(&call.args[0])?;
+                self.output.push_str(".parse::<i32>() { Ok(v) => (v, None), Err(_) => (0, Some(liva_rt::Error::from(\"Invalid integer format\"))) }");
+                return Ok(());
+            }
+            
+            // Handle parseFloat(str) -> (f64, Option<Error>)
+            if name == "parseFloat" {
+                if call.args.is_empty() {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            "parseFloat requires 1 argument",
+                            "parseFloat(str) takes exactly one string argument"
+                        )
+                    ));
+                }
+                self.output.push_str("match ");
+                self.generate_expr(&call.args[0])?;
+                self.output.push_str(".parse::<f64>() { Ok(v) => (v, None), Err(_) => (0.0_f64, Some(liva_rt::Error::from(\"Invalid float format\"))) }");
+                return Ok(());
+            }
+            
+            // Handle toString(value) -> String
+            if name == "toString" {
+                if call.args.is_empty() {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            "toString requires 1 argument",
+                            "toString(value) takes exactly one argument"
+                        )
+                    ));
+                }
+                self.output.push_str("format!(\"{}\", ");
+                self.generate_expr(&call.args[0])?;
+                self.output.push_str(")");
+                return Ok(());
+            }
+            
+            // Handle readLine() -> String (read from stdin)
+            if name == "readLine" {
+                self.output.push_str("{ let mut input = String::new(); std::io::stdin().read_line(&mut input).expect(\"Failed to read line\"); input.trim().to_string() }");
+                return Ok(());
+            }
+            
+            // Handle prompt(message) -> String (display message and read input)
+            if name == "prompt" {
+                if call.args.is_empty() {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            "prompt requires 1 argument",
+                            "prompt(message) takes exactly one string argument"
+                        )
+                    ));
+                }
+                self.output.push_str("{ print!(\"{}\", ");
+                self.generate_expr(&call.args[0])?;
+                self.output.push_str("); std::io::stdout().flush().expect(\"Failed to flush stdout\"); let mut input = String::new(); std::io::stdin().read_line(&mut input).expect(\"Failed to read line\"); input.trim().to_string() }");
+                return Ok(());
+            }
+            
             if name == "print" {
                 if call.args.is_empty() {
                     self.output.push_str("println!()");
                 } else {
                     self.output.push_str("println!(\"");
-                    for arg in call.args.iter() {
-                        match arg {
-                            Expr::ArrayLiteral(_) | Expr::ObjectLiteral(_) => {
-                                self.output.push_str("{:?}");
-                            }
-                            _ => {
-                                self.output.push_str("{}");
-                            }
-                        }
+                    for _arg in call.args.iter() {
+                        // print() uses Display format {} for clean, user-facing output
+                        self.output.push_str("{}");
                     }
                     self.output.push_str("\", ");
                     for (i, arg) in call.args.iter().enumerate() {
@@ -2201,6 +2291,505 @@ impl CodeGenerator {
         Ok(())
     }
 
+    /// Generate code for method calls (stdlib Phase 2 - array methods)
+    fn generate_method_call_expr(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
+        use crate::ast::ArrayAdapter;
+        
+        // Check if this is a Math function call (Math.sqrt, Math.pow, etc.)
+        if let Expr::Identifier(name) = method_call.object.as_ref() {
+            if name == "Math" {
+                return self.generate_math_function_call(method_call);
+            }
+            
+            // Check if this is a console function call (console.log, console.error, etc.)
+            if name == "console" {
+                return self.generate_console_function_call(method_call);
+            }
+        }
+        
+        // Check if this is a string method (no adapter means it's not an array method)
+        // Special case: indexOf can be both string and array method
+        // We detect string indexOf if the argument is a string literal
+        let is_string_indexof = method_call.method == "indexOf" 
+            && !method_call.args.is_empty()
+            && matches!(&method_call.args[0], Expr::Literal(Literal::String(_)));
+        
+        let is_string_method = (matches!(method_call.adapter, ArrayAdapter::Seq) 
+            && matches!(
+                method_call.method.as_str(),
+                "split" | "replace" | "toUpperCase" | "toLowerCase" | 
+                "trim" | "trimStart" | "trimEnd" | "startsWith" | "endsWith" |
+                "substring" | "charAt"
+            )) || is_string_indexof;
+        
+        if is_string_method {
+            // Handle string methods
+            return self.generate_string_method_call(method_call);
+        }
+        
+        // Generate the object
+        self.generate_expr(&method_call.object)?;
+        
+        // Handle array methods with adapters
+        match method_call.adapter {
+            ArrayAdapter::Seq => {
+                // Sequential: use .iter() and handle references in lambdas
+                match method_call.method.as_str() {
+                    "map" => {
+                        // For map, use iter() and the lambda will work with &T
+                        self.output.push_str(".iter()");
+                    }
+                    "filter" => {
+                        // For filter, use iter() and work with references
+                        // We'll add .copied() after filter
+                        self.output.push_str(".iter()");
+                    }
+                    "reduce" => {
+                        // reduce doesn't use .iter() - it operates directly on the vector
+                        // We use .fold() which requires initial value and accumulator
+                    }
+                    "forEach" => {
+                        self.output.push_str(".iter()");
+                    }
+                    "find" | "some" | "every" | "indexOf" | "includes" => {
+                        self.output.push_str(".iter()");
+                    }
+                    _ => {
+                        // For other methods, call directly
+                    }
+                }
+            }
+            ArrayAdapter::Par => {
+                // Parallel: use rayon's .par_iter()
+                self.output.push_str(".par_iter()");
+                
+                // TODO: Handle adapter options (threads, chunk, ordered)
+                if method_call.adapter_options.threads.is_some()
+                    || method_call.adapter_options.chunk.is_some()
+                {
+                    // For now, just use default parallel iterator
+                    // TODO: Configure rayon thread pool with options
+                }
+            }
+            ArrayAdapter::Vec => {
+                // Vectorized: use SIMD
+                // TODO: Implement SIMD version
+                self.output.push_str(".into_iter()");
+            }
+            ArrayAdapter::ParVec => {
+                // Parallel + Vectorized
+                // TODO: Implement combined parallel + SIMD
+                self.output.push_str(".par_iter()");
+            }
+        }
+        
+        // Generate the method call
+        
+        // Special handling for reduce: it uses .iter() on the vector itself
+        if method_call.method == "reduce" && matches!(method_call.adapter, ArrayAdapter::Seq) {
+            self.output.push_str(".iter()");
+        }
+        
+        self.output.push('.');
+        
+        // Map Liva method names to Rust iterator method names
+        let rust_method = match method_call.method.as_str() {
+            "forEach" => "for_each".to_string(),
+            "indexOf" => "position".to_string(),
+            "includes" => "any".to_string(),
+            "reduce" => "fold".to_string(),  // Rust uses fold instead of reduce
+            "some" => "any".to_string(),      // Liva: some, Rust: any
+            "every" => "all".to_string(),     // Liva: every, Rust: all
+            method_name => self.sanitize_name(method_name),  // Sanitize custom method names (e.g., isAdult -> is_adult)
+        };
+        
+        self.output.push_str(&rust_method);
+        self.output.push('(');
+        
+        // Generate arguments
+        // Special case: reduce needs arguments reversed (initial first, then lambda)
+        let args_to_generate: Vec<&Expr> = if method_call.method == "reduce" && method_call.args.len() == 2 {
+            // Liva: .reduce(lambda, initial) -> Rust: .fold(initial, lambda)
+            vec![&method_call.args[1], &method_call.args[0]]
+        } else {
+            method_call.args.iter().collect()
+        };
+        
+        for (i, arg) in args_to_generate.iter().enumerate() {
+            if i > 0 {
+                self.output.push_str(", ");
+            }
+            
+            // Special handling for includes/indexOf: wrap value in closure
+            if method_call.method == "includes" || method_call.method == "indexOf" {
+                self.output.push_str("|&x| x == ");
+                self.generate_expr(arg)?;
+                continue;
+            }
+            
+            // For map/filter/reduce/forEach/find/some/every with .iter(), we need to dereference in the lambda
+            // map: |&x| - filter: |&&x| - reduce: |acc, &x| - forEach: |&x| - find: |&&x| - some: |&&x| - every: |&&x|
+            if (method_call.method == "map" || method_call.method == "filter" || method_call.method == "reduce" || method_call.method == "forEach" || method_call.method == "find" || method_call.method == "some" || method_call.method == "every") 
+                && matches!(method_call.adapter, ArrayAdapter::Seq) {
+                if let Expr::Lambda(lambda) = arg {
+                    // Generate lambda with pattern |&x| or |&&x| or |acc, &x|
+                    if lambda.is_move {
+                        self.output.push_str("move ");
+                    }
+                    self.output.push('|');
+                    for (idx, param) in lambda.params.iter().enumerate() {
+                        if idx > 0 {
+                            self.output.push_str(", ");
+                        }
+                        // reduce: first param (acc) no pattern, second param (&x) gets &
+                        if method_call.method == "reduce" {
+                            if idx == 0 {
+                                // Accumulator: no dereferencing
+                                self.output.push_str(&self.sanitize_name(&param.name));
+                            } else {
+                                // Element: dereference once
+                                self.output.push('&');
+                                self.output.push_str(&self.sanitize_name(&param.name));
+                            }
+                        } else {
+                            // filter/find need && (closure takes &&T for filter/find)
+                            // map/forEach/some/every need & (closure takes &T)
+                            if method_call.method == "filter" || method_call.method == "find" {
+                                self.output.push_str("&&");
+                            } else {
+                                self.output.push('&');
+                            }
+                            self.output.push_str(&self.sanitize_name(&param.name));
+                        }
+                    }
+                    self.output.push_str("| ");
+                    
+                    match &lambda.body {
+                        LambdaBody::Expr(expr) => {
+                            self.generate_expr(expr)?;
+                        }
+                        LambdaBody::Block(block) => {
+                            self.output.push('{');
+                            self.indent();
+                            self.output.push('\n');
+                            self.write_indent();
+                            for stmt in &block.stmts[..block.stmts.len().saturating_sub(1)] {
+                                self.generate_stmt(stmt)?;
+                                self.output.push('\n');
+                                self.write_indent();
+                            }
+                            if let Some(last_stmt) = block.stmts.last() {
+                                if let Stmt::Return(return_stmt) = last_stmt {
+                                    if let Some(expr) = &return_stmt.expr {
+                                        self.generate_expr(expr)?;
+                                    }
+                                } else {
+                                    self.generate_stmt(last_stmt)?;
+                                }
+                            }
+                            self.dedent();
+                            self.output.push('\n');
+                            self.write_indent();
+                            self.output.push('}');
+                        }
+                    }
+                    continue;
+                }
+            }
+            
+            self.generate_expr(arg)?;
+        }
+        
+        self.output.push(')');
+        
+        // Add transformations after the method call
+        match (method_call.adapter, method_call.method.as_str()) {
+            // Sequential map: just collect (lambda already returns owned values)
+            (ArrayAdapter::Seq, "map") => {
+                self.output.push_str(".collect::<Vec<_>>()");
+            }
+            // Sequential filter: copy values after filtering, then collect
+            (ArrayAdapter::Seq, "filter") => {
+                self.output.push_str(".copied().collect::<Vec<_>>()");
+            }
+            // Parallel map/filter with rayon
+            (ArrayAdapter::Par, "map") | (ArrayAdapter::Par, "filter") => {
+                self.output.push_str(".cloned().collect::<Vec<_>>()");
+            }
+            // Find returns Option<&T>, copy it
+            (_, "find") => {
+                self.output.push_str(".copied()");
+            }
+            // indexOf/position returns Option<usize>
+            (_, "indexOf") => {
+                self.output.push_str(".map(|i| i as i32).unwrap_or(-1)");
+            }
+            // some, every, includes return bool - no transformation needed
+            (_, "some") | (_, "every") | (_, "includes") => {}
+            // Default: no transformation
+            _ => {}
+        }
+        
+        Ok(())
+    }
+
+    fn generate_string_method_call(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
+        // Special handling for substring and charAt - they need different syntax
+        match method_call.method.as_str() {
+            "substring" => {
+                // substring(start, end) -> &str[start..end].to_string()
+                self.generate_expr(&method_call.object)?;
+                self.output.push('[');
+                if method_call.args.len() >= 1 {
+                    self.generate_expr(&method_call.args[0])?;
+                    self.output.push_str(" as usize");
+                }
+                self.output.push_str("..");
+                if method_call.args.len() >= 2 {
+                    self.generate_expr(&method_call.args[1])?;
+                    self.output.push_str(" as usize");
+                }
+                self.output.push_str("].to_string()");
+                return Ok(());
+            }
+            "charAt" => {
+                // charAt(index) -> str.chars().nth(index).unwrap_or(' ')
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".chars().nth(");
+                if !method_call.args.is_empty() {
+                    self.generate_expr(&method_call.args[0])?;
+                    self.output.push_str(" as usize");
+                }
+                self.output.push_str(").unwrap_or(' ')");
+                return Ok(());
+            }
+            "indexOf" => {
+                // indexOf(substring) -> str.find(substring).map(|i| i as i32).unwrap_or(-1)
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".find(");
+                if !method_call.args.is_empty() {
+                    self.generate_expr(&method_call.args[0])?;
+                }
+                self.output.push_str(").map(|i| i as i32).unwrap_or(-1)");
+                return Ok(());
+            }
+            _ => {}
+        }
+        
+        // Generate the string object
+        self.generate_expr(&method_call.object)?;
+        
+        // Map Liva string method names to Rust method names
+        let rust_method = match method_call.method.as_str() {
+            "toUpperCase" => "to_uppercase",
+            "toLowerCase" => "to_lowercase",
+            "trimStart" => "trim_start",
+            "trimEnd" => "trim_end",
+            "startsWith" => "starts_with",
+            "endsWith" => "ends_with",
+            method_name => method_name,  // split, replace, trim, substring, charAt
+        };
+        
+        // Generate the method call
+        self.output.push('.');
+        self.output.push_str(rust_method);
+        self.output.push('(');
+        
+        // Generate arguments
+        for (i, arg) in method_call.args.iter().enumerate() {
+            if i > 0 {
+                self.output.push_str(", ");
+            }
+            self.generate_expr(arg)?;
+        }
+        
+        self.output.push(')');
+        
+        // Post-processing for specific methods
+        match method_call.method.as_str() {
+            "split" => {
+                // split returns an iterator, collect to Vec<String>
+                self.output.push_str(".map(|s| s.to_string()).collect::<Vec<String>>()");
+            }
+            _ => {}
+        }
+        
+        Ok(())
+    }
+
+    fn generate_math_function_call(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
+        // Math functions: sqrt, pow, abs, floor, ceil, round, min, max, random
+        match method_call.method.as_str() {
+            "sqrt" | "abs" => {
+                // sqrt(x) -> x.sqrt() or abs(x) -> x.abs()
+                if method_call.args.is_empty() {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            &format!("Math.{} requires 1 argument", method_call.method),
+                            &format!("Math.{} takes exactly one argument", method_call.method)
+                        )
+                    ));
+                }
+                
+                // Wrap argument in parentheses if it's a unary expression to avoid precedence issues
+                let needs_parens = matches!(&method_call.args[0], Expr::Unary { .. });
+                
+                if needs_parens {
+                    self.output.push('(');
+                }
+                self.generate_expr(&method_call.args[0])?;
+                if needs_parens {
+                    self.output.push(')');
+                }
+                
+                self.output.push('.');
+                self.output.push_str(&method_call.method);
+                self.output.push_str("()");
+            }
+            "pow" => {
+                // pow(base, exp) -> base.powf(exp)
+                if method_call.args.len() < 2 {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            "Math.pow requires 2 arguments",
+                            "Math.pow(base, exponent) takes exactly two arguments"
+                        )
+                    ));
+                }
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(".powf(");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push(')');
+            }
+            "floor" | "ceil" | "round" => {
+                // floor(x) -> x.floor() as i32
+                if method_call.args.is_empty() {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            &format!("Math.{} requires 1 argument", method_call.method),
+                            &format!("Math.{} takes exactly one argument", method_call.method)
+                        )
+                    ));
+                }
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push('.');
+                self.output.push_str(&method_call.method);
+                self.output.push_str("() as i32");
+            }
+            "min" | "max" => {
+                // min(a, b) -> a.min(b) or max(a, b) -> a.max(b)
+                if method_call.args.len() < 2 {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            &format!("Math.{} requires 2 arguments", method_call.method),
+                            &format!("Math.{} takes exactly two arguments", method_call.method)
+                        )
+                    ));
+                }
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push('.');
+                self.output.push_str(&method_call.method);
+                self.output.push('(');
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push(')');
+            }
+            "random" => {
+                // random() -> rand::random::<f64>()
+                // Note: requires use rand::Rng in the generated code
+                self.output.push_str("rand::random::<f64>()");
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(
+                    SemanticErrorInfo::new(
+                        "E3000",
+                        &format!("Unknown Math function: {}", method_call.method),
+                        "Available Math functions: sqrt, pow, abs, floor, ceil, round, min, max, random"
+                    )
+                ));
+            }
+        }
+        
+        Ok(())
+    }
+
+    fn generate_console_function_call(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
+        // Console functions: log, error, warn
+        match method_call.method.as_str() {
+            "log" => {
+                // console.log(...) -> println!(...)
+                if method_call.args.is_empty() {
+                    self.output.push_str("println!()");
+                } else {
+                    self.output.push_str("println!(\"");
+                    for _ in method_call.args.iter() {
+                        self.output.push_str("{:?}");
+                    }
+                    self.output.push_str("\", ");
+                    for (i, arg) in method_call.args.iter().enumerate() {
+                        if i > 0 {
+                            self.output.push_str(", ");
+                        }
+                        self.generate_expr(arg)?;
+                    }
+                    self.output.push(')');
+                }
+            }
+            "error" => {
+                // console.error(...) -> eprintln!(...) with Display format {} for user-friendly messages
+                if method_call.args.is_empty() {
+                    self.output.push_str("eprintln!()");
+                } else {
+                    self.output.push_str("eprintln!(\"");
+                    for _ in method_call.args.iter() {
+                        self.output.push_str("{}");
+                    }
+                    self.output.push_str("\", ");
+                    for (i, arg) in method_call.args.iter().enumerate() {
+                        if i > 0 {
+                            self.output.push_str(", ");
+                        }
+                        self.generate_expr(arg)?;
+                    }
+                    self.output.push(')');
+                }
+            }
+            "warn" => {
+                // console.warn(...) -> eprintln!("Warning: ...", ...) with Display format {} for user-friendly messages
+                if method_call.args.is_empty() {
+                    self.output.push_str("eprintln!(\"Warning:\")");
+                } else {
+                    self.output.push_str("eprintln!(\"Warning: ");
+                    for _ in method_call.args.iter() {
+                        self.output.push_str("{}");
+                    }
+                    self.output.push_str("\", ");
+                    for (i, arg) in method_call.args.iter().enumerate() {
+                        if i > 0 {
+                            self.output.push_str(", ");
+                        }
+                        self.generate_expr(arg)?;
+                    }
+                    self.output.push(')');
+                }
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(
+                    SemanticErrorInfo::new(
+                        "E3000",
+                        &format!("Unknown console function: {}", method_call.method),
+                        "Available console functions: log, error, warn"
+                    )
+                ));
+            }
+        }
+        
+        Ok(())
+    }
+
     fn generate_async_call(&mut self, call: &CallExpr) -> Result<()> {
         // Phase 2: NO await here - just create the Task
         // The await will be inserted at first use of the variable
@@ -2448,6 +3037,20 @@ impl CodeGenerator {
         }
     }
 
+    /// Check if expression is a built-in conversion function call that returns (value, Option<Error>)
+    fn is_builtin_conversion_call(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Call(call) => {
+                if let Expr::Identifier(name) = call.callee.as_ref() {
+                    name == "parseInt" || name == "parseFloat"
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        }
+    }
+
     fn expr_contains_fail(&self, expr: &Expr) -> bool {
         match expr {
             Expr::Fail(_) => true,
@@ -2477,7 +3080,10 @@ impl CodeGenerator {
     fn generate_literal(&mut self, lit: &Literal) -> Result<()> {
         match lit {
             Literal::Int(n) => write!(self.output, "{}", n).unwrap(),
-            Literal::Float(f) => write!(self.output, "{:?}", f).unwrap(),
+            Literal::Float(f) => {
+                // Always add _f64 suffix to avoid ambiguous numeric type errors
+                write!(self.output, "{}_f64", f).unwrap();
+            }
             Literal::String(s) => write!(self.output, "\"{}\"", s.escape_default()).unwrap(),
             Literal::Char(c) => write!(self.output, "'{}'", c.escape_default()).unwrap(),
             Literal::Bool(b) => write!(self.output, "{}", b).unwrap(),
@@ -4812,9 +5418,13 @@ fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
         cargo_toml.push_str("rayon = \"1.11\"\n");
     }
 
+    if ctx.has_random {
+        cargo_toml.push_str("rand = \"0.8\"\n");
+    }
+
     // Add user-specified crates
     for (crate_name, _) in &ctx.rust_crates {
-        if crate_name != "tokio" && crate_name != "serde_json" {
+        if crate_name != "tokio" && crate_name != "serde_json" && crate_name != "rand" {
             writeln!(cargo_toml, "{} = \"*\"", crate_name).unwrap();
         }
     }

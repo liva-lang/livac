@@ -532,6 +532,160 @@ Status: FAIL
 ---
 ```
 
+---
+
+## 📦 Standard Library (v0.7.0)
+
+Liva comes with a comprehensive standard library for common operations.
+
+### 🖨️ Output & Input
+
+**Two ways to output:**
+
+```liva
+// print() - Simple, clean output for users
+print("Hello, World!")           // → Hello, World!
+print($"Name: {name}")           // → Name: Alice
+
+// console.log() - Debug output for developers
+console.log("Hello, World!")     // → "Hello, World!" (with quotes)
+console.log([1, 2, 3])           // → [1, 2, 3] (formatted)
+console.log(data)                // → Shows full structure
+```
+
+**Interactive input:**
+
+```liva
+// Read user input
+let name = console.prompt("Enter your name: ")
+let age = console.prompt("Enter your age: ")
+
+print($"Hello, {name}! You are {age} years old.")
+```
+
+**Error output:**
+
+```liva
+console.error("Something went wrong!")  // → stderr
+console.warn("Be careful!")             // → stderr with Warning:
+```
+
+### 📊 Arrays
+
+Transform and analyze collections:
+
+```liva
+let numbers = [1, 2, 3, 4, 5]
+
+// Transform
+let doubled = numbers.map(x => x * 2)       // [2, 4, 6, 8, 10]
+
+// Filter
+let evens = numbers.filter(x => x % 2 == 0) // [2, 4]
+
+// Reduce
+let sum = numbers.reduce((acc, x) => acc + x, 0)  // 15
+
+// Find
+let found = numbers.find(x => x > 3)        // Some(4)
+
+// Check
+let hasEven = numbers.some(x => x % 2 == 0) // true
+let allPositive = numbers.every(x => x > 0) // true
+
+// Search
+let index = numbers.indexOf(3)              // 2
+let exists = numbers.includes(5)            // true
+
+// Chain operations
+let result = numbers
+    .filter(x => x > 2)
+    .map(x => x * 2)
+    .reduce((acc, x) => acc + x, 0)         // 24
+```
+
+### 🔤 Strings
+
+Manipulate text easily:
+
+```liva
+let text = "Hello, World!"
+
+// Split and join
+let words = text.split(", ")                // ["Hello", "World!"]
+
+// Case conversion
+let upper = text.toUpperCase()              // "HELLO, WORLD!"
+let lower = text.toLowerCase()              // "hello, world!"
+
+// Trim whitespace
+let clean = "  hello  ".trim()              // "hello"
+
+// Replace
+let greeting = text.replace("World", "Liva") // "Hello, Liva!"
+
+// Query
+let starts = text.startsWith("Hello")       // true
+let ends = text.endsWith("!")               // true
+
+// Extract
+let sub = text.substring(0, 5)              // "Hello"
+let char = text.charAt(0)                   // 'H'
+let pos = text.indexOf("World")             // 7
+```
+
+### 🧮 Math
+
+Mathematical operations:
+
+```liva
+// Basic math
+let x = Math.sqrt(16.0)         // 4.0
+let y = Math.pow(2.0, 3.0)      // 8.0
+let z = Math.abs(-10.5)         // 10.5
+
+// Rounding
+let a = Math.floor(3.7)         // 3
+let b = Math.ceil(3.2)          // 4
+let c = Math.round(3.5)         // 4
+
+// Comparison
+let min = Math.min(10.5, 20.3)  // 10.5
+let max = Math.max(10.5, 20.3)  // 20.3
+
+// Random
+let rand = Math.random()        // 0.0 to 1.0
+```
+
+### 🔄 Type Conversion
+
+Convert between types with error handling:
+
+```liva
+// Parse integers
+let num, err = parseInt("42")
+if err == "" {
+    print($"Number: {num}")     // Number: 42
+} else {
+    console.error($"Parse error: {err}")
+}
+
+// Parse floats
+let value, err2 = parseFloat("3.14")
+if err2 == "" {
+    print($"Float: {value}")    // Float: 3.14
+}
+
+// To string
+let str = toString(42)          // "42"
+let strFloat = toString(3.14)   // "3.14"
+let strBool = toString(true)    // "true"
+```
+
+**Full documentation:** [Standard Library Reference](docs/language-reference/stdlib/)
+
+---
+
 ## 🎓 What's Next?
 
 Now that you know the basics, you can:

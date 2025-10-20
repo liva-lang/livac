@@ -1091,6 +1091,19 @@ impl SemanticAnalyzer {
                 Ok(())
             }
             Expr::Lambda(lambda) => self.validate_lambda(lambda),
+            Expr::MethodCall(method_call) => {
+                // Validate the object expression
+                self.validate_expr(&method_call.object)?;
+                
+                // Validate method arguments
+                for arg in &method_call.args {
+                    self.validate_expr(arg)?;
+                }
+                
+                // TODO: Phase 2 - validate method exists for the object type
+                // TODO: Phase 2 - validate adapter usage (par, vec, parvec)
+                Ok(())
+            }
         }
     }
 
@@ -1476,6 +1489,10 @@ impl SemanticAnalyzer {
             }),
             Expr::Literal(_) | Expr::Identifier(_) => false,
             Expr::Fail(expr) => Self::expr_contains_await(expr),
+            Expr::MethodCall(method_call) => {
+                Self::expr_contains_await(&method_call.object)
+                    || method_call.args.iter().any(Self::expr_contains_await)
+            }
         }
     }
 

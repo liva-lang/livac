@@ -350,6 +350,17 @@ fn lower_expr(expr: &ast::Expr) -> ir::Expr {
                 body,
             })
         }
+        ast::Expr::MethodCall(method_call) => {
+            // TODO: Phase 2 - implement proper IR lowering for method calls
+            // For now, lower as a regular function call with the object as first argument
+            ir::Expr::Call {
+                callee: Box::new(ir::Expr::Member {
+                    object: Box::new(lower_expr(&method_call.object)),
+                    property: method_call.method.clone(),
+                }),
+                args: method_call.args.iter().map(lower_expr).collect(),
+            }
+        }
     }
 }
 

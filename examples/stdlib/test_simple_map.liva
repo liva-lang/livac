@@ -1,0 +1,9 @@
+// Simple array methods test
+
+main() {
+  let numbers = [1, 2, 3]
+  
+  // Test simple map
+  let doubled = numbers.map(x => x * 2)
+  print(doubled)
+}

@@ -1392,10 +1392,73 @@ impl Parser {
                 }
             } else if self.match_token(&Token::Dot) {
                 let name = self.parse_identifier()?;
-                expr = Expr::Member {
-                    object: Box::new(expr),
-                    property: name,
-                };
+                
+                // Check if this is a method call (followed by parentheses)
+                if self.check(&Token::LParen) {
+                    self.advance(); // consume the (
+                    
+                    // Check if this is an adapter method (par, vec, parvec)
+                    let (adapter, options) = if name == "par" || name == "vec" || name == "parvec" {
+                        let adapter = match name.as_str() {
+                            "par" => ArrayAdapter::Par,
+                            "vec" => ArrayAdapter::Vec,
+                            "parvec" => ArrayAdapter::ParVec,
+                            _ => ArrayAdapter::Seq,
+                        };
+                        
+                        // Check for adapter options like {threads: 4, chunk: 2}
+                        let options = if self.match_token(&Token::LBrace) {
+                            self.parse_adapter_options()?
+                        } else {
+                            AdapterOptions::default()
+                        };
+                        
+                        self.expect(Token::RParen)?;
+                        
+                        // The adapter call returns the same array with the adapter applied
+                        // We need to continue parsing to get the actual method call
+                        if !self.match_token(&Token::Dot) {
+                            return Err(self.error(format!("Expected method call after adapter '.{}()'", name)));
+                        }
+                        
+                        // Now parse the actual array method (map, filter, etc.)
+                        (adapter, options)
+                    } else {
+                        // Not an adapter, this is a regular method call
+                        // Parse arguments and create MethodCall expression
+                        let args = self.parse_args()?;
+                        self.expect(Token::RParen)?;
+                        
+                        expr = Expr::MethodCall(MethodCallExpr {
+                            object: Box::new(expr),
+                            method: name,
+                            args,
+                            adapter: ArrayAdapter::Seq,
+                            adapter_options: AdapterOptions::default(),
+                        });
+                        continue;
+                    };
+                    
+                    // Parse the actual method name after adapter
+                    let method_name = self.parse_identifier()?;
+                    self.expect(Token::LParen)?;
+                    let args = self.parse_args()?;
+                    self.expect(Token::RParen)?;
+                    
+                    expr = Expr::MethodCall(MethodCallExpr {
+                        object: Box::new(expr),
+                        method: method_name,
+                        args,
+                        adapter,
+                        adapter_options: options,
+                    });
+                } else {
+                    // Regular member access (not a method call)
+                    expr = Expr::Member {
+                        object: Box::new(expr),
+                        property: name,
+                    };
+                }
             } else if self.match_token(&Token::LBracket) {
                 let index = self.parse_expression()?;
                 self.expect(Token::RBracket)?;
@@ -1409,6 +1472,67 @@ impl Parser {
         }
 
         Ok(expr)
+    }
+
+    fn parse_adapter_options(&mut self) -> Result<AdapterOptions> {
+        let mut options = AdapterOptions::default();
+
+        loop {
+            if self.match_token(&Token::RBrace) {
+                break;
+            }
+
+            // Parse option name
+            let option_name = self.parse_identifier()?;
+            self.expect(Token::Colon)?;
+
+            match option_name.as_str() {
+                "threads" => {
+                    if let Some(Token::IntLiteral(value)) = self.peek() {
+                        options.threads = Some(*value as i32);
+                        self.advance();
+                    } else {
+                        return Err(self.error("Expected integer value for 'threads'".into()));
+                    }
+                }
+                "chunk" => {
+                    if let Some(Token::IntLiteral(value)) = self.peek() {
+                        options.chunk = Some(*value as i32);
+                        self.advance();
+                    } else {
+                        return Err(self.error("Expected integer value for 'chunk'".into()));
+                    }
+                }
+                "simdWidth" => {
+                    if let Some(Token::IntLiteral(value)) = self.peek() {
+                        options.simd_width = Some(*value as i32);
+                        self.advance();
+                    } else {
+                        return Err(self.error("Expected integer value for 'simdWidth'".into()));
+                    }
+                }
+                "ordered" => {
+                    if self.match_token(&Token::True) {
+                        options.ordered = Some(true);
+                    } else if self.match_token(&Token::False) {
+                        options.ordered = Some(false);
+                    } else {
+                        return Err(self.error("Expected 'true' or 'false' for 'ordered'".into()));
+                    }
+                }
+                _ => {
+                    return Err(self.error(format!("Unknown adapter option: {}", option_name)));
+                }
+            }
+
+            // Check for comma or end of options
+            if !self.match_token(&Token::Comma) {
+                self.expect(Token::RBrace)?;
+                break;
+            }
+        }
+
+        Ok(options)
     }
 
     fn parse_args(&mut self) -> Result<Vec<Expr>> {
