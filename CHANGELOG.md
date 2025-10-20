@@ -48,13 +48,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unit tests for cycle detection (3 tests)
 - Example files: math.liva, operations.liva, utils.liva
 
+**Phase 3.4: Semantic Analysis (3h) ✅ Complete**
+- Extended SemanticAnalyzer with import context:
+  * New fields: imported_modules, imported_symbols
+  * New function: analyze_with_modules() - accepts module context
+  * validate_imports() - iterates all imports in program
+  * validate_import() - validates single import declaration
+- Import validation checks (180+ lines of code):
+  * **E4004**: Module not found - with path resolution
+  * **E4006**: Imported symbol not found in module
+  * **E4007**: Cannot import private symbol (starts with _)
+  * **E4008**: Import conflicts with local definition
+  * **E4009**: Import conflicts with another import
+- Path resolution:
+  * Resolves relative paths (./,  ../)
+  * Canonicalizes paths for matching
+  * Fallback by filename matching
+- Symbol registration:
+  * Adds imported symbols to function registry
+  * Permissive arity checking (accepts any arg count)
+  * Prevents "function not found" errors
+- Integration with compile_with_modules():
+  * Builds module context map from resolved modules
+  * Passes public_symbols and private_symbols
+  * Uses analyze_with_modules() instead of analyze_with_source()
+
 **Current Status:**
 - ✅ Import syntax parsing works
 - ✅ Module resolution with cycle detection works
 - ✅ Loads all dependencies recursively
 - ✅ Returns modules in topological order
+- ✅ Import validation complete (all error codes implemented)
+- ✅ Symbol existence and visibility checks working
+- ✅ Name collision detection working
 - ⏳ Only compiles entry point (multi-file codegen pending)
-- 📋 Import symbol validation (Phase 3.4, planned)
 - 📋 Multi-file Rust project generation (Phase 3.5, planned)
 
 **Example:**

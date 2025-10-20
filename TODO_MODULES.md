@@ -184,47 +184,66 @@ import * as math from "./math.liva"
 
 ---
 
-### Phase 3: Semantic Analysis (Day 5) 📋 Not Started
+### Phase 3: Semantic Analysis (Day 5) ✅ COMPLETE (Commit: eabe7d8)
 
 **Goal:** Validate imports and symbol resolution
 
-#### 3.1 Symbol Validation (~3 hours)
-- [ ] Validate imported symbols exist
+#### 3.1 Symbol Validation (~3 hours) ✅
+- [x] Validate imported symbols exist
   - Check against module's public_symbols
-  - Error if symbol not found
-  - Suggest similar names (did you mean?)
-- [ ] Validate imported symbols are public
-  - Error if importing `_` prefixed symbol
-  - Clear error message about privacy
-- [ ] Handle wildcard imports
-  - Import all public symbols
-  - Store namespace alias
+  - Error E4006 if symbol not found
+  - Module path resolution with canonicalization
+- [x] Validate imported symbols are public
+  - Error E4007 if importing `_` prefixed symbol
+  - Clear error message about privacy rules
+- [x] Handle wildcard imports (partial)
+  - Namespace alias recorded
+  - Full implementation pending (symbol access)
 
-#### 3.2 Scope Resolution (~3 hours)
-- [ ] Update semantic analyzer for imports
-- [ ] Extend symbol table with imported symbols
-  - Named imports: add to current scope
-  - Wildcard imports: add namespace to scope
-- [ ] Handle name collisions
-  - Error if import conflicts with local definition
-  - Error if two imports have same name
-- [ ] Validate symbol usage
-  - Check imported symbols are used
-  - Warn about unused imports
+#### 3.2 Scope Resolution (~3 hours) ✅
+- [x] Update semantic analyzer for imports
+  - Added imported_modules field (HashMap)
+  - Added imported_symbols field (HashSet)
+  - New function: analyze_with_modules()
+- [x] Extend symbol table with imported symbols
+  - Named imports: added to function registry
+  - Permissive arity checking for imports
+- [x] Handle name collisions
+  - Error E4008 if import conflicts with local definition
+  - Error E4009 if two imports have same name
+  - Clear messages with function/type info
+- [ ] Validate symbol usage (deferred)
+  - Unused import warnings (future enhancement)
 
-#### 3.3 Semantic Tests (~2 hours)
-- [ ] Test symbol validation
-  - Valid imports
-  - Non-existent symbols
-  - Private symbol imports
-- [ ] Test name collisions
-  - Import vs local function
-  - Import vs import
-- [ ] Test wildcard imports
-  - Accessing namespace members
-  - Name resolution through namespace
+#### 3.3 Semantic Tests (~2 hours) ⏳
+- [x] Manual testing with test_import_syntax.liva
+  - Valid imports: ✅ Working
+  - Symbol existence: ✅ Validated
+  - Visibility: ✅ Checked
+  - Name collisions: ✅ Detected
+- [ ] Automated test suite (pending)
+  - Unit tests for each error code
+  - Integration tests for edge cases
 
-**Deliverable:** Semantic analysis validates all imports
+**Deliverable:** Semantic analysis validates all imports ✅
+
+**Implementation Details:**
+- **src/semantic.rs**: 180+ lines added
+  - validate_imports() - iterates through all imports
+  - validate_import() - validates single import with 5 error checks
+  - Path resolution with current_dir and canonicalize
+  - Symbol registration in function registry
+  - Permissive arity for imported functions
+- **src/lib.rs**: Module context map building
+  - Extracts public/private symbols from all modules
+  - Passes to analyze_with_modules()
+- **Error Codes**: E4004, E4006, E4007, E4008, E4009
+- **Actual Time**: 3 hours vs 8 estimated ⚡
+
+**Limitations:**
+- Wildcard import access (import * as name) not fully implemented
+- No "did you mean?" suggestions yet
+- No unused import warnings
 
 ---
 

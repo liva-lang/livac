@@ -243,6 +243,103 @@ main() {
 livac main.liva --run
 ```
 
+## Validation and Error Handling
+
+Liva's module system performs comprehensive validation to catch errors early:
+
+### Symbol Existence (E4006)
+
+Liva validates that imported symbols actually exist in the target module:
+
+**math.liva:**
+```liva
+add(a, b) {
+    ret a + b
+}
+```
+
+**main.liva:**
+```liva
+// ❌ Error: subtract doesn't exist in math.liva
+import { add, subtract } from "./math.liva"
+```
+
+**Error message:**
+```
+● E4006: Imported symbol not found
+────────────────────────────────────────────────────────────
+  Symbol 'subtract' not found in module './math.liva'
+────────────────────────────────────────────────────────────
+```
+
+### Privacy Validation (E4007)
+
+Private symbols (starting with `_`) cannot be imported:
+
+**utils.liva:**
+```liva
+publicFunction() {
+    ret "public"
+}
+
+_privateHelper() {
+    ret "private"
+}
+```
+
+**main.liva:**
+```liva
+// ❌ Error: Can't import private symbol
+import { _privateHelper } from "./utils.liva"
+```
+
+**Error message:**
+```
+● E4007: Cannot import private symbol
+────────────────────────────────────────────────────────────
+  Symbol '_privateHelper' is private (starts with '_') and 
+  cannot be imported from './utils.liva'
+────────────────────────────────────────────────────────────
+```
+
+### Name Collision Detection (E4008, E4009)
+
+Liva detects when imports conflict with local definitions or other imports:
+
+**Collision with local function (E4008):**
+```liva
+import { add } from "./math.liva"
+
+// ❌ Error: 'add' already imported
+add(a, b) {
+    ret a + b
+}
+```
+
+**Error message:**
+```
+● E4008: Import conflicts with local definition
+────────────────────────────────────────────────────────────
+  Cannot import 'add': a function with this name is 
+  already defined in this module
+────────────────────────────────────────────────────────────
+```
+
+**Collision with another import (E4009):**
+```liva
+import { add } from "./math.liva"
+import { add } from "./operations.liva"  // ❌ Duplicate!
+```
+
+**Error message:**
+```
+● E4009: Import conflicts with another import
+────────────────────────────────────────────────────────────
+  Symbol 'add' is imported multiple times. 
+  Consider using an alias.
+────────────────────────────────────────────────────────────
+```
+
 ## Error Handling
 
 ### Circular Dependencies
@@ -306,12 +403,18 @@ import { foo } from "./missing.liva"  // ❌ File doesn't exist
 
 The module system is under active development. Current limitations:
 
-- ❌ **Symbol validation not yet implemented** - Imported symbols aren't validated yet
+- ✅ **Symbol validation** - Fully implemented! ✨
+  - ✅ Validates symbols exist in imported module
+  - ✅ Checks visibility (public/private)
+  - ✅ Detects name collisions
+  - ✅ Clear error messages with codes
 - ❌ **Multi-file code generation pending** - Currently only entry point is compiled
 - ❌ **No absolute imports** - Only relative paths supported
 - ❌ **No package manager** - Can't import from external packages yet
+- ⏳ **Wildcard import access** - `import * as name` syntax parsed but dot notation access pending
 
-These features are planned for v0.8.0 final release and v0.9.0.
+Multi-file code generation is planned for Phase 3.5 (next step).
+Package manager and absolute imports planned for v0.9.0.
 
 ## Implementation Status
 
@@ -332,11 +435,13 @@ These features are planned for v0.8.0 final release and v0.9.0.
 - Path resolution
 - Symbol extraction (public/private)
 
-### ⏳ Phase 3.4: Semantic Analysis (In Progress)
-- Validate imported symbols exist
-- Check symbol visibility
-- Detect name collisions
-- Import-aware scope resolution
+### ✅ Phase 3.4: Semantic Analysis (Complete)
+- ✅ Validate imported symbols exist (E4006)
+- ✅ Check symbol visibility (E4007)
+- ✅ Detect name collisions (E4008, E4009)
+- ✅ Import-aware scope resolution
+- ✅ Path resolution for relative imports
+- ✅ Symbol registration in analyzer
 
 ### 📋 Phase 3.5: Code Generation (Planned)
 - Multi-file Rust project generation

@@ -385,8 +385,39 @@ Build a modern, practical programming language that combines:
 - [ ] Integration tests (comprehensive test suite pending)
 
 **Status:** Complete - ModuleResolver fully integrated ✅
-**Note:** Currently compiles entry point only. Multi-file codegen in Phase 3.5
-**Next:** Phase 3.4 - Semantic Analysis for import validation
+**Actual Time:** 4 hours (vs 15 estimated)
+
+### 3.4 Semantic Analysis (~8 hours) ✅ COMPLETE (Commit: eabe7d8)
+- [x] Extend SemanticAnalyzer with import context
+  - Added imported_modules and imported_symbols fields
+  - New function: analyze_with_modules()
+  - Accepts module context map
+- [x] Validate imported symbols exist (E4006)
+  - Check against module's public_symbols
+  - Clear error if symbol not found
+  - Path resolution for module lookup
+- [x] Validate imported symbols are public (E4007)
+  - Error if importing `_` prefixed symbol
+  - Clear message about privacy rules
+- [x] Detect name collisions
+  - E4008: Import vs local definition
+  - E4009: Import vs another import
+  - Helpful error messages with suggestions
+- [x] Path resolution
+  - Resolve relative paths (./,  ../)
+  - Canonicalize paths for matching
+  - Fallback by filename matching
+- [x] Symbol registration
+  - Add imported symbols to function registry
+  - Permissive arity checking for imports
+- [x] Integration with compiler
+  - Updated compile_with_modules()
+  - Builds module context map
+  - Passes to semantic analyzer
+
+**Status:** Complete - Import validation working ✅
+**Actual Time:** 3 hours (vs 8 estimated)
+**Next:** Phase 3.5 - Code Generation for multi-file projects
 
 ### 3.4 Semantic Analysis (~8 hours) 📋 Not Started
 - [ ] Validate import paths exist

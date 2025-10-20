@@ -759,15 +759,23 @@ import { log } from "./logger.liva"
 
 ### Current Status
 
-**Phase 3.3 Complete:**
+**Phase 3.3 Complete:** Module Resolver
 - ✅ Parser handles all import syntax
 - ✅ Module resolution with caching
 - ✅ Circular dependency detection
 - ✅ Topological sort for compilation order
 
-**Coming Soon (Phase 3.4-3.5):**
-- ⏳ Import symbol validation
+**Phase 3.4 Complete:** Import Validation
+- ✅ Symbol existence validation (E4006)
+- ✅ Visibility checking - private symbol detection (E4007)
+- ✅ Name collision detection (E4008, E4009)
+- ✅ Path resolution for relative imports
+- ✅ Integration with semantic analyzer
+
+**Coming Soon (Phase 3.5):**
 - ⏳ Multi-file Rust project generation
+- ⏳ Generate mod declarations
+- ⏳ Convert imports to use statements
 - ⏳ Comprehensive test suite
 
 **Try it now:**
