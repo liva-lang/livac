@@ -79,22 +79,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Returns `i32` (-1 if not found), uses `.find(substring).map(|i| i as i32).unwrap_or(-1)`
   - Disambiguated from array `indexOf` by argument type detection
 
+#### Math Functions (9 functions)
+- **`Math.sqrt(x)`** - Square root
+  - Example: `Math.sqrt(16.0)` → `4.0`
+  - Uses `x.sqrt()` method on f64
+- **`Math.pow(base, exp)`** - Power/exponentiation
+  - Example: `Math.pow(5.0, 2.0)` → `25.0`
+  - Uses `base.powf(exp)` method on f64
+- **`Math.abs(x)`** - Absolute value
+  - Example: `Math.abs(-10.5)` → `10.5`
+  - Uses `x.abs()` method with parentheses for unary expressions
+- **`Math.floor(x)`** - Round down to integer
+  - Example: `Math.floor(3.7)` → `3`
+  - Returns `i32`, uses `x.floor() as i32`
+- **`Math.ceil(x)`** - Round up to integer
+  - Example: `Math.ceil(3.2)` → `4`
+  - Returns `i32`, uses `x.ceil() as i32`
+- **`Math.round(x)`** - Round to nearest integer
+  - Example: `Math.round(3.5)` → `4`, `Math.round(3.4)` → `3`
+  - Returns `i32`, uses `x.round() as i32`
+- **`Math.min(a, b)`** - Minimum of two values
+  - Example: `Math.min(10.5, 20.3)` → `10.5`
+  - Uses `a.min(b)` method on f64
+- **`Math.max(a, b)`** - Maximum of two values
+  - Example: `Math.max(10.5, 20.3)` → `20.3`
+  - Uses `a.max(b)` method on f64
+- **`Math.random()`** - Random float between 0.0 and 1.0
+  - Example: `Math.random()` → `0.8025414370953201` (varies)
+  - Uses `rand::random::<f64>()`, automatically adds `rand` crate dependency
+
 ### Changed
 - Extended `generate_method_call_expr()` in codegen.rs to handle string methods
 - Added `generate_string_method_call()` function for string-specific code generation
+- Added `generate_math_function_call()` function for Math namespace functions
 - Method call detection now differentiates between array and string methods
 - `indexOf` method now supports both arrays (numeric search) and strings (substring search)
+- Float literals now generate with `_f64` suffix for explicit typing
+- Added `has_random` flag to `DesugarContext` for dependency detection
+- Auto-detection of `Math.random()` usage in desugaring phase
+- Cargo.toml generation now includes `rand` crate when `Math.random()` is used
 
 ### Technical Details
 - Array methods use iterator patterns for efficient processing
 - String methods map directly to Rust standard library methods
+- Math functions use namespace style (`Math.*`) and map to Rust f64 methods
 - All methods tested with comprehensive test suites
 - Reused existing `MethodCall` AST node (no parser changes required)
+- Fixed precedence issue with `abs()` by wrapping unary expressions in parentheses
 
 ### Tests
 - Created 6 test files for array methods
 - Created 4 test files for string methods
-- All 20 methods (9 array + 11 string) verified working correctly
+- Created 2 test files for Math functions (basic and comprehensive)
+- All 29 methods (9 array + 11 string + 9 Math) verified working correctly
 
 ---
 

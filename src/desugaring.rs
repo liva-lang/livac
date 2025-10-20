@@ -7,6 +7,7 @@ pub struct DesugarContext {
     pub rust_crates: Vec<(String, Option<String>)>,
     pub has_async: bool,
     pub has_parallel: bool,
+    pub has_random: bool,  // true if Math.random() is used
 }
 
 impl DesugarContext {
@@ -15,6 +16,7 @@ impl DesugarContext {
             rust_crates: Vec::new(),
             has_async: false,
             has_parallel: false,
+            has_random: false,
         }
     }
 }
@@ -149,6 +151,19 @@ fn check_expr_concurrency(expr: &Expr, ctx: &mut DesugarContext) {
 
             check_expr_concurrency(&call.callee, ctx);
             for arg in &call.args {
+                check_expr_concurrency(arg, ctx);
+            }
+        }
+        Expr::MethodCall(method_call) => {
+            // Check if it's Math.random()
+            if let Expr::Identifier(name) = method_call.object.as_ref() {
+                if name == "Math" && method_call.method == "random" {
+                    ctx.has_random = true;
+                }
+            }
+            // Continue checking nested expressions
+            check_expr_concurrency(&method_call.object, ctx);
+            for arg in &method_call.args {
                 check_expr_concurrency(arg, ctx);
             }
         }

@@ -1,7 +1,7 @@
 # Liva Standard Library
 
 > **Status:** 🚧 In Development (v0.7.0)  
-> **Completion:** 52.6% (20/38 methods)
+> **Completion:** 76.3% (29/38 methods) - Arrays ✅ | Strings ✅ | Math ✅
 
 The Liva Standard Library provides built-in functions and methods for common programming tasks.
 
@@ -45,15 +45,15 @@ Methods for string manipulation and queries.
 ### 📋 [Math Functions](./math.md)
 Mathematical operations and constants.
 
-**Status:** Planned (0/9 functions)
+**Status:** ✅ Complete (9/9 functions)
 
-- `Math.sqrt(x)` - Square root
-- `Math.pow(base, exp)` - Power
-- `Math.abs(x)` - Absolute value
-- `Math.floor(x)`, `ceil(x)`, `round(x)` - Rounding
-- `Math.min(...)`, `max(...)` - Min/max values
-- `Math.random()` - Random number
-- `Math.PI`, `Math.E` - Constants
+- `Math.sqrt(x)` - Square root ✅
+- `Math.pow(base, exp)` - Power ✅
+- `Math.abs(x)` - Absolute value ✅
+- `Math.floor(x)`, `ceil(x)`, `round(x)` - Rounding ✅
+- `Math.min(a, b)`, `max(a, b)` - Min/max values ✅
+- `Math.random()` - Random number ✅
+- `Math.PI`, `Math.E` - Constants (planned)
 
 ### 📋 [Type Conversion](./conversions.md)
 Functions for converting between types.

@@ -221,17 +221,37 @@ Build a modern, practical programming language that combines:
 - Direct mapping to Rust string methods (no iterators)
 - indexOf disambiguation by argument type detection
 
-### 2.3 Math Functions (~2 hours)
-- [ ] Design Math namespace/module
-- [ ] Implement `Math.sqrt(x)` - Square root
-- [ ] Implement `Math.pow(base, exp)` - Power
-- [ ] Implement `Math.abs(x)` - Absolute value
-- [ ] Implement `Math.floor()` / `Math.ceil()` / `Math.round()`
-- [ ] Implement `Math.min(...)` / `Math.max(...)`
-- [ ] Implement `Math.random()` - Random number
-- [ ] Add constants: `Math.PI`, `Math.E`
-- [ ] Add tests for all math functions
-- [ ] Update documentation
+### 2.3 Math Functions ✅ COMPLETED (9/9 functions) 🎉
+- [x] Design Math namespace/module - **Namespace style `Math.*`** ✅
+- [x] Implement `Math.sqrt(x)` - Square root ✅ **WORKING!**
+  - Example: `Math.sqrt(16.0)` → `4.0` ✅
+- [x] Implement `Math.pow(base, exp)` - Power ✅ **WORKING!**
+  - Example: `Math.pow(5.0, 2.0)` → `25.0` ✅
+- [x] Implement `Math.abs(x)` - Absolute value ✅ **WORKING!**
+  - Example: `Math.abs(-10.5)` → `10.5` ✅
+- [x] Implement `Math.floor()` / `Math.ceil()` / `Math.round()` ✅ **WORKING!**
+  - floor: `Math.floor(3.7)` → `3` ✅
+  - ceil: `Math.ceil(3.2)` → `4` ✅
+  - round: `Math.round(3.5)` → `4` ✅
+- [x] Implement `Math.min()` / `Math.max()` ✅ **WORKING!**
+  - min: `Math.min(10.5, 20.3)` → `10.5` ✅
+  - max: `Math.max(10.5, 20.3)` → `20.3` ✅
+- [x] Implement `Math.random()` - Random number ✅ **WORKING!**
+  - Example: `Math.random()` → `0.8025414370953201` ✅
+  - Auto-adds `rand` crate dependency
+- [ ] Add constants: `Math.PI`, `Math.E` - **Future enhancement**
+- [x] Add tests for all math functions ✅
+  - Created `test_math_complete.liva` with all 9 functions
+- [x] Update documentation ✅
+  - CHANGELOG.md updated
+  - TODO_STDLIB.md updated
+  - math.md placeholder created
+
+**Implementation:**
+- Added `generate_math_function_call()` in codegen.rs
+- Auto-detection of `Math.random()` usage adds `rand` to Cargo.toml
+- Float literals now generate with `_f64` suffix for type clarity
+- Fixed precedence issue with `abs()` for unary expressions
 
 ### 2.4 Type Conversion (~1 hour)
 - [ ] Implement `parseInt(str)` - String to int

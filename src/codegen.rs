@@ -2230,6 +2230,13 @@ impl CodeGenerator {
     fn generate_method_call_expr(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
         use crate::ast::ArrayAdapter;
         
+        // Check if this is a Math function call (Math.sqrt, Math.pow, etc.)
+        if let Expr::Identifier(name) = method_call.object.as_ref() {
+            if name == "Math" {
+                return self.generate_math_function_call(method_call);
+            }
+        }
+        
         // Check if this is a string method (no adapter means it's not an array method)
         // Special case: indexOf can be both string and array method
         // We detect string indexOf if the argument is a string literal
@@ -2540,6 +2547,105 @@ impl CodeGenerator {
         Ok(())
     }
 
+    fn generate_math_function_call(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
+        // Math functions: sqrt, pow, abs, floor, ceil, round, min, max, random
+        match method_call.method.as_str() {
+            "sqrt" | "abs" => {
+                // sqrt(x) -> x.sqrt() or abs(x) -> x.abs()
+                if method_call.args.is_empty() {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            &format!("Math.{} requires 1 argument", method_call.method),
+                            &format!("Math.{} takes exactly one argument", method_call.method)
+                        )
+                    ));
+                }
+                
+                // Wrap argument in parentheses if it's a unary expression to avoid precedence issues
+                let needs_parens = matches!(&method_call.args[0], Expr::Unary { .. });
+                
+                if needs_parens {
+                    self.output.push('(');
+                }
+                self.generate_expr(&method_call.args[0])?;
+                if needs_parens {
+                    self.output.push(')');
+                }
+                
+                self.output.push('.');
+                self.output.push_str(&method_call.method);
+                self.output.push_str("()");
+            }
+            "pow" => {
+                // pow(base, exp) -> base.powf(exp)
+                if method_call.args.len() < 2 {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            "Math.pow requires 2 arguments",
+                            "Math.pow(base, exponent) takes exactly two arguments"
+                        )
+                    ));
+                }
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(".powf(");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push(')');
+            }
+            "floor" | "ceil" | "round" => {
+                // floor(x) -> x.floor() as i32
+                if method_call.args.is_empty() {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            &format!("Math.{} requires 1 argument", method_call.method),
+                            &format!("Math.{} takes exactly one argument", method_call.method)
+                        )
+                    ));
+                }
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push('.');
+                self.output.push_str(&method_call.method);
+                self.output.push_str("() as i32");
+            }
+            "min" | "max" => {
+                // min(a, b) -> a.min(b) or max(a, b) -> a.max(b)
+                if method_call.args.len() < 2 {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            &format!("Math.{} requires 2 arguments", method_call.method),
+                            &format!("Math.{} takes exactly two arguments", method_call.method)
+                        )
+                    ));
+                }
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push('.');
+                self.output.push_str(&method_call.method);
+                self.output.push('(');
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push(')');
+            }
+            "random" => {
+                // random() -> rand::random::<f64>()
+                // Note: requires use rand::Rng in the generated code
+                self.output.push_str("rand::random::<f64>()");
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(
+                    SemanticErrorInfo::new(
+                        "E3000",
+                        &format!("Unknown Math function: {}", method_call.method),
+                        "Available Math functions: sqrt, pow, abs, floor, ceil, round, min, max, random"
+                    )
+                ));
+            }
+        }
+        
+        Ok(())
+    }
+
     fn generate_async_call(&mut self, call: &CallExpr) -> Result<()> {
         // Phase 2: NO await here - just create the Task
         // The await will be inserted at first use of the variable
@@ -2816,7 +2922,10 @@ impl CodeGenerator {
     fn generate_literal(&mut self, lit: &Literal) -> Result<()> {
         match lit {
             Literal::Int(n) => write!(self.output, "{}", n).unwrap(),
-            Literal::Float(f) => write!(self.output, "{:?}", f).unwrap(),
+            Literal::Float(f) => {
+                // Always add _f64 suffix to avoid ambiguous numeric type errors
+                write!(self.output, "{}_f64", f).unwrap();
+            }
             Literal::String(s) => write!(self.output, "\"{}\"", s.escape_default()).unwrap(),
             Literal::Char(c) => write!(self.output, "'{}'", c.escape_default()).unwrap(),
             Literal::Bool(b) => write!(self.output, "{}", b).unwrap(),
@@ -5151,9 +5260,13 @@ fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
         cargo_toml.push_str("rayon = \"1.11\"\n");
     }
 
+    if ctx.has_random {
+        cargo_toml.push_str("rand = \"0.8\"\n");
+    }
+
     // Add user-specified crates
     for (crate_name, _) in &ctx.rust_crates {
-        if crate_name != "tokio" && crate_name != "serde_json" {
+        if crate_name != "tokio" && crate_name != "serde_json" && crate_name != "rand" {
             writeln!(cargo_toml, "{} = \"*\"", crate_name).unwrap();
         }
     }
