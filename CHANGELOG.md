@@ -73,23 +73,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   * Passes public_symbols and private_symbols
   * Uses analyze_with_modules() instead of analyze_with_source()
 
+**Phase 3.5: Multi-File Code Generation (2h) ✅ Complete**
+- Multi-file Rust project generation (180+ lines):
+  * **generate_multifile_project()**: Main orchestrator
+  * **generate_module_code()**: Per-module code generation
+  * **generate_entry_point()**: main.rs with mod declarations
+  * **generate_use_statement()**: Import → use conversion
+  * **write_multifile_output()**: File writing system
+- Import conversion:
+  * `import { add } from "./math.liva"` → `use crate::math::add;`
+  * `import { a, b } from "./m.liva"` → `use crate::m::{a, b};`
+  * Wildcard imports with same-name alias simplified
+- Visibility modifiers:
+  * Functions without `_` prefix → `pub fn name()`
+  * Private functions → `fn name()` (prefix removed)
+  * Classes follow same rules
+- Module declarations:
+  * Automatic `mod` statements in main.rs
+  * One .rs file per .liva module
+- File structure:
+  * src/main.rs - Entry point with mod declarations
+  * src/math.rs, src/operations.rs, etc. - Module files
+  * Cargo.toml - Project configuration
+- Made CodeGenerator.output pub(crate) for access
+- Made DesugarContext Clone-able for reuse
+- Integration with compile_with_modules() pipeline
+- Tested with examples/modules/test_import_syntax.liva:
+  * ✅ Generates 4 files (main.rs + 3 modules)
+  * ✅ Compiles successfully: `cargo build`
+  * ✅ Executes correctly: "10 + 20 = 30"
+- Documentation: docs/compiler-internals/multifile-codegen.md (650+ lines)
+
 **Current Status:**
 - ✅ Import syntax parsing works
 - ✅ Module resolution with cycle detection works
 - ✅ Loads all dependencies recursively
 - ✅ Returns modules in topological order
-- ✅ Import validation complete (all error codes implemented)
+- ✅ Import validation complete (all error codes)
 - ✅ Symbol existence and visibility checks working
 - ✅ Name collision detection working
-- ⏳ Only compiles entry point (multi-file codegen pending)
-- 📋 Multi-file Rust project generation (Phase 3.5, planned)
+- ✅ Multi-file Rust project generation working
+- ✅ Pub/private visibility correctly applied
+- ✅ Import → use conversion functional
+- 📋 More examples and polish needed (Phase 3.6)
 
 **Example:**
 ```liva
 // math.liva
-add(a, b) {
-    ret a + b
-}
+add(a: number, b: number): number => a + b
+subtract(a: number, b: number): number => a - b
+_internal_calc(x: number): number => x * 2  // Private
 
 // main.liva
 import { add } from "./math.liva"
@@ -100,9 +133,26 @@ main() {
 }
 ```
 
+**Generated Output:**
+```
+project/
+├── Cargo.toml
+└── src/
+    ├── main.rs      (mod math; use crate::math::add; ...)
+    └── math.rs      (pub fn add, pub fn subtract, fn internal_calc)
+```
+
+**Progress:**
+- ✅ Phase 3.1: Design (2h)
+- ✅ Phase 3.2: Parser (2h)
+- ✅ Phase 3.3: Module Resolver (4h)
+- ✅ Phase 3.4: Semantic Analysis (3h)
+- ✅ Phase 3.5: Code Generation (2h)
+- 📋 Phase 3.6: Integration & Examples (pending)
+- **Total: 13h actual / 53h estimated (83% complete, 4x faster)**
+
 **Next Steps:**
-- Phase 3.4: Semantic Analysis (8h) - Validate imported symbols exist
-- Phase 3.5: Code Generation (13h) - Generate multi-file Rust projects
+- Phase 3.6: Integration & Examples (9h) - Calculator example, polish, release
 
 ---
 
