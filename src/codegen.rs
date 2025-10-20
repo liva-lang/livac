@@ -2301,6 +2301,8 @@ impl CodeGenerator {
             "indexOf" => "position",
             "includes" => "any",
             "reduce" => "fold",  // Rust uses fold instead of reduce
+            "some" => "any",      // Liva: some, Rust: any
+            "every" => "all",     // Liva: every, Rust: all
             method_name => method_name,
         };
         
@@ -2328,9 +2330,9 @@ impl CodeGenerator {
                 continue;
             }
             
-            // For map/filter/reduce/forEach with .iter(), we need to dereference in the lambda
-            // map: |&x| - filter: |&&x| - reduce: |acc, &x| - forEach: |&x|
-            if (method_call.method == "map" || method_call.method == "filter" || method_call.method == "reduce" || method_call.method == "forEach") 
+            // For map/filter/reduce/forEach/find/some/every with .iter(), we need to dereference in the lambda
+            // map: |&x| - filter: |&&x| - reduce: |acc, &x| - forEach: |&x| - find: |&&x| - some: |&&x| - every: |&&x|
+            if (method_call.method == "map" || method_call.method == "filter" || method_call.method == "reduce" || method_call.method == "forEach" || method_call.method == "find" || method_call.method == "some" || method_call.method == "every") 
                 && matches!(method_call.adapter, ArrayAdapter::Seq) {
                 if let Expr::Lambda(lambda) = arg {
                     // Generate lambda with pattern |&x| or |&&x| or |acc, &x|
@@ -2353,8 +2355,9 @@ impl CodeGenerator {
                                 self.output.push_str(&self.sanitize_name(&param.name));
                             }
                         } else {
-                            // filter needs && (closure takes &&T), map/forEach need & (closure takes &T)
-                            if method_call.method == "filter" {
+                            // filter/find need && (closure takes &&T for filter/find)
+                            // map/forEach/some/every need & (closure takes &T)
+                            if method_call.method == "filter" || method_call.method == "find" {
                                 self.output.push_str("&&");
                             } else {
                                 self.output.push('&');
