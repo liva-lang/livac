@@ -65,25 +65,40 @@ Implement a comprehensive standard library with:
   - Tested: Sum(15), Product(120), Max(5), Count(5) ✅
   - Parallel: `[1,2,3].par().reduce((acc, x) => acc + x, 0)` (TODO)
 
-#### 1.3 Implement Utility Methods (IN PROGRESS - 1/6 DONE)
+#### 1.3 Implement Utility Methods ✅ COMPLETED (6/6)
 - [x] `forEach(fn)` - Iterate with side effects ✅ **WORKING!**
   - Sequential: `[1,2,3].forEach(x => print(x))` ✅
   - Uses `.iter().for_each(|&x| { ... })`
   - Tested: prints, squares, sum accumulation ✅
   - Parallel: `arr.par().forEach(x => print(x))` (TODO)
-- [ ] `find(fn)` - Find first element matching predicate
-  - Sequential only: `arr.find(x => x > 5)`
-- [ ] `some(fn)` - Check if any element matches
-  - Sequential: `arr.some(x => x > 5)`
-  - Parallel: `arr.par().some(x => x > 5)`
-- [ ] `every(fn)` - Check if all elements match
-  - Sequential: `arr.every(x => x > 0)`
-  - Parallel: `arr.par().every(x => x > 0)`
-- [ ] `indexOf(value)` - Find index of value
-  - Sequential only: `arr.indexOf(42)`
-- [ ] `includes(value)` - Check if array contains value
-  - Sequential: `arr.includes(42)`
-  - Parallel: `arr.par().includes(42)`
+- [x] `find(fn)` - Find first element matching predicate ✅ **WORKING!**
+  - Sequential: `[1,5,10,15].find(x => x > 10)` → `Some(15)` ✅
+  - Uses `.iter().find(|&&x| pred).copied()`
+  - Returns Option<T> (Some/None)
+  - Tested: Some(15), None, Some(10), Some(1) ✅
+- [x] `some(fn)` - Check if any element matches ✅ **WORKING!**
+  - Sequential: `[2,4,6].some(x => x % 2 == 0)` → `true` ✅
+  - Uses `.iter().any(|&x| pred)`
+  - Returns bool
+  - Tested: all boolean checks passing ✅
+  - Parallel: `arr.par().some(x => x > 5)` (TODO)
+- [x] `every(fn)` - Check if all elements match ✅ **WORKING!**
+  - Sequential: `[2,4,6].every(x => x % 2 == 0)` → `true` ✅
+  - Uses `.iter().all(|&x| pred)`
+  - Returns bool
+  - Tested: all boolean checks passing ✅
+  - Parallel: `arr.par().every(x => x > 0)` (TODO)
+- [x] `indexOf(value)` - Find index of value ✅ **WORKING!**
+  - Sequential: `[10,20,30].indexOf(30)` → `2` ✅
+  - Uses `.iter().position(|&x| x == value)`
+  - Returns i32 (-1 if not found)
+  - Tested: 2, 0, 4, -1 (not found) ✅
+- [x] `includes(value)` - Check if array contains value ✅ **WORKING!**
+  - Sequential: `[10,20,30].includes(20)` → `true` ✅
+  - Uses `.iter().any(|&x| x == value)`
+  - Returns bool
+  - Tested: true/false with numbers and strings ✅
+  - Parallel: `arr.par().includes(42)` (TODO)
 
 #### 1.4 Testing & Documentation
 - [ ] Add unit tests for each method in `tests/stdlib_tests.rs`

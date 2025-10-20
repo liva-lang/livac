@@ -1,0 +1,39 @@
+// Test indexOf() and includes() methods
+
+main() {
+    let numbers = [10, 20, 30, 40, 50]
+    let fruits = ["apple", "banana", "orange"]
+    
+    // Test indexOf() with numbers
+    print("Testing indexOf():")
+    print("Index of 30:")
+    let idx1 = numbers.indexOf(30)
+    print(idx1)
+    
+    print("Index of 10 (first):")
+    let idx2 = numbers.indexOf(10)
+    print(idx2)
+    
+    print("Index of 50 (last):")
+    let idx3 = numbers.indexOf(50)
+    print(idx3)
+    
+    print("Index of 99 (not found):")
+    let idx4 = numbers.indexOf(99)
+    print(idx4)
+    
+    // Test includes() with numbers
+    print("\nTesting includes():")
+    let has30 = numbers.includes(30)
+    print($"Has 30? {has30}")
+    
+    let has99 = numbers.includes(99)
+    print($"Has 99? {has99}")
+    
+    // Test with strings
+    let hasApple = fruits.includes("apple")
+    print($"Has apple? {hasApple}")
+    
+    let hasGrape = fruits.includes("grape")
+    print($"Has grape? {hasGrape}")
+}

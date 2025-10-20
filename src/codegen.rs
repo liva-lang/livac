@@ -2323,8 +2323,8 @@ impl CodeGenerator {
                 self.output.push_str(", ");
             }
             
-            // Special handling for includes: wrap value in closure
-            if method_call.method == "includes" {
+            // Special handling for includes/indexOf: wrap value in closure
+            if method_call.method == "includes" || method_call.method == "indexOf" {
                 self.output.push_str("|&x| x == ");
                 self.generate_expr(arg)?;
                 continue;

@@ -131,11 +131,12 @@ Build a modern, practical programming language that combines:
 
 **Goal:** Built-in functions and methods for common operations
 
-**Status:** 🚧 IN PROGRESS (60% complete)  
+**Status:** ✅ ARRAY METHODS COMPLETE! (100% of core array methods)  
 **Branch:** `feature/stdlib-v0.7.0`  
 **Started:** 2025-10-20  
-**Progress:** map() ✅ | filter() ✅ | reduce() ✅ | forEach() ✅ | find() 🚧  
-**ETA:** 2-4 hours remaining
+**Completed:** 2025-10-20 (same day!)  
+**Progress:** All 9 core array methods ✅  
+**Next:** String methods, Math functions, Type conversion
 
 ### 2.1 Array Methods (~3 hours) - 🚧 IN PROGRESS
 - [x] Design API for array methods ✅
@@ -156,8 +157,19 @@ Build a modern, practical programming language that combines:
 - [x] Implement `forEach(fn)` - Iterate with side effects ✅ **WORKING!**
   - [x] Uses `.iter().for_each(|&x| { ... })`
   - [x] Tested: print, squares, sum accumulation
-- [ ] Implement `find(fn)` - Find first match
-- [ ] Implement `some(fn)` / `every(fn)` - Boolean checks
+- [x] Implement `find(fn)` - Find first match ✅ **WORKING!**
+  - [x] Uses `.iter().find(|&&x| pred).copied()`
+  - [x] Returns Option<T> (Some/None)
+  - [x] Tested: Some(15), None, Some(10), Some(1)
+- [x] Implement `some(fn)` / `every(fn)` - Boolean checks ✅ **WORKING!**
+  - [x] some: `.iter().any(|&x| pred)` → bool
+  - [x] every: `.iter().all(|&x| pred)` → bool
+  - [x] Tested: all boolean checks passing
+- [x] Implement `indexOf(value)` / `includes(value)` - Search ✅ **WORKING!**
+  - [x] indexOf: `.iter().position(|&x| x == value)` → i32
+  - [x] includes: `.iter().any(|&x| x == value)` → bool
+  - [x] Tested: indexOf(2, 0, 4, -1), includes(true/false)
+- [x] All 9 core array methods complete! 🎉
 - [ ] Add comprehensive tests for all array methods
 - [ ] Update documentation with working examples
 
