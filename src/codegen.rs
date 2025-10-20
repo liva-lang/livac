@@ -1926,29 +1926,9 @@ impl CodeGenerator {
                     self.output.push_str("println!()");
                 } else {
                     self.output.push_str("println!(\"");
-                    for arg in call.args.iter() {
-                        match arg {
-                            // Use {:?} for arrays, objects, and complex types
-                            Expr::ArrayLiteral(_) | Expr::ObjectLiteral(_) => {
-                                self.output.push_str("{:?}");
-                            }
-                            // MethodCall on arrays (map, filter, etc.) should use {:?}
-                            Expr::MethodCall(method_call) => {
-                                match method_call.method.as_str() {
-                                    "map" | "filter" => {
-                                        self.output.push_str("{:?}");
-                                    }
-                                    _ => {
-                                        self.output.push_str("{:?}");
-                                    }
-                                }
-                            }
-                            // For now, use {:?} for everything to be safe
-                            // TODO: Phase 2 - implement proper type inference to use {} vs {:?}
-                            _ => {
-                                self.output.push_str("{:?}");
-                            }
-                        }
+                    for _arg in call.args.iter() {
+                        // print() uses Display format {} for clean, user-facing output
+                        self.output.push_str("{}");
                     }
                     self.output.push_str("\", ");
                     for (i, arg) in call.args.iter().enumerate() {
@@ -2759,13 +2739,13 @@ impl CodeGenerator {
                 }
             }
             "error" => {
-                // console.error(...) -> eprintln!(...)
+                // console.error(...) -> eprintln!(...) with Display format {} for user-friendly messages
                 if method_call.args.is_empty() {
                     self.output.push_str("eprintln!()");
                 } else {
                     self.output.push_str("eprintln!(\"");
                     for _ in method_call.args.iter() {
-                        self.output.push_str("{:?}");
+                        self.output.push_str("{}");
                     }
                     self.output.push_str("\", ");
                     for (i, arg) in method_call.args.iter().enumerate() {
@@ -2778,13 +2758,13 @@ impl CodeGenerator {
                 }
             }
             "warn" => {
-                // console.warn(...) -> eprintln!("Warning: ...", ...)
+                // console.warn(...) -> eprintln!("Warning: ...", ...) with Display format {} for user-friendly messages
                 if method_call.args.is_empty() {
                     self.output.push_str("eprintln!(\"Warning:\")");
                 } else {
                     self.output.push_str("eprintln!(\"Warning: ");
                     for _ in method_call.args.iter() {
-                        self.output.push_str("{:?}");
+                        self.output.push_str("{}");
                     }
                     self.output.push_str("\", ");
                     for (i, arg) in method_call.args.iter().enumerate() {
