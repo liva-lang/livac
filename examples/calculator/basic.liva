@@ -1,0 +1,13 @@
+// operations/basic.liva - Basic arithmetic operations
+
+// Public functions (no _ prefix)
+add(a: number, b: number): number => a + b
+
+subtract(a: number, b: number): number => a - b
+
+multiply(a: number, b: number): number => a * b
+
+divide(a: number, b: number): number => a / b
+
+// Private helper function
+_validateNonZero(x: number): bool => x != 0

@@ -1,0 +1,42 @@
+// calculator.liva - Main calculator entry point
+
+// Import basic operations
+import { add, subtract, multiply, divide } from "./basic.liva"
+
+// Import advanced operations
+import { double, triple, percentage } from "./advanced.liva"
+
+main() {
+    print("=== Liva Calculator Demo ===")
+    print("")
+    
+    // Basic operations
+    print("--- Basic Operations ---")
+    let sum = add(10, 5)
+    print($"10 + 5 = {sum}")
+    
+    let diff = subtract(10, 5)
+    print($"10 - 5 = {diff}")
+    
+    let product = multiply(10, 5)
+    print($"10 * 5 = {product}")
+    
+    let quotient = divide(10, 5)
+    print($"10 / 5 = {quotient}")
+    
+    print("")
+    
+    // Advanced operations
+    print("--- Advanced Operations ---")
+    let doubled = double(7)
+    print($"7 * 2 = {doubled}")
+    
+    let tripled = triple(8)
+    print($"8 * 3 = {tripled}")
+    
+    let percent = percentage(200, 15)
+    print($"15% of 200 = {percent}")
+    
+    print("")
+    print("Calculator demo complete!")
+}
