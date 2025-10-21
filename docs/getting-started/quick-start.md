@@ -427,26 +427,56 @@ main() {
 }
 ```
 
-### File Operations
+### Working with Modules (v0.8.0+)
 
+Organize code across multiple files:
+
+**math.liva:**
 ```liva
+// Public functions (no _ prefix)
+add(a: number, b: number): number => a + b
+subtract(a: number, b: number): number => a - b
+
+// Private function (with _ prefix)
+_internal_helper(x: number): number => x * 2
+```
+
+**main.liva:**
+```liva
+// Import specific functions
+import { add, subtract } from "./math.liva"
+
 main() {
-  // Write file
-  writeFile("output.txt", "Hello, file!")
+  let sum = add(10, 5)
+  let diff = subtract(10, 5)
   
-  // Read file
-  let content = readFile("output.txt")
-  print($"Content: {content}")
+  print($"Sum: {sum}, Difference: {diff}")
 }
 ```
+
+**Compile multi-file project:**
+```bash
+livac main.liva --output my_project
+cd my_project
+cargo run
+```
+
+**Key features:**
+- Public by default (no `_` prefix) - automatically exported
+- Private with `_` prefix - not accessible from other modules
+- JavaScript-style imports: `import { name } from "./path.liva"`
+- Wildcard imports: `import * as math from "./math.liva"`
+
+See [Module System](../language-reference/modules.md) for full documentation.
 
 ## Tips for Success
 
 1. **Start Simple** - Begin with basic programs and gradually add complexity
 2. **Use Type Annotations** - When you need clarity or precision
-3. **Embrace Concurrency** - Liva makes async/parallel easy
-4. **Handle Errors** - Use error binding for robust programs
-5. **Check the Docs** - Reference documentation when stuck
+3. **Use Modules** - Organize larger projects across multiple files
+4. **Embrace Concurrency** - Liva makes async/parallel easy
+5. **Handle Errors** - Use error binding for robust programs
+6. **Check the Docs** - Reference documentation when stuck
 
 ## Getting Help
 
