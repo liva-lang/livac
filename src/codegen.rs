@@ -226,6 +226,83 @@ impl CodeGenerator {
         self.writeln("std::thread::spawn(f);");
         self.dedent();
         self.writeln("}");
+        self.writeln("");
+
+        // String multiplication helper
+        self.writeln("/// String multiplication helper");
+        self.writeln("/// Supports both String*int and int*String patterns");
+        self.writeln("pub fn string_mul<L: StringOrInt, R: StringOrInt>(left: L, right: R) -> String {");
+        self.indent();
+        self.writeln("match (left.as_string_or_int(), right.as_string_or_int()) {");
+        self.indent();
+        self.writeln("(StringOrIntValue::String(s), StringOrIntValue::Int(n)) => {");
+        self.indent();
+        self.writeln("if n <= 0 { String::new() } else { s.repeat(n as usize) }");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("(StringOrIntValue::Int(n), StringOrIntValue::String(s)) => {");
+        self.indent();
+        self.writeln("if n <= 0 { String::new() } else { s.repeat(n as usize) }");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("(StringOrIntValue::Int(a), StringOrIntValue::Int(b)) => {");
+        self.indent();
+        self.writeln("(a * b).to_string()");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("(StringOrIntValue::String(_), StringOrIntValue::String(_)) => {");
+        self.indent();
+        self.writeln("panic!(\"Cannot multiply two strings\")");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("pub enum StringOrIntValue {");
+        self.indent();
+        self.writeln("String(String),");
+        self.writeln("Int(i64),");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("pub trait StringOrInt {");
+        self.indent();
+        self.writeln("fn as_string_or_int(self) -> StringOrIntValue;");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("impl StringOrInt for String {");
+        self.indent();
+        self.writeln("fn as_string_or_int(self) -> StringOrIntValue { StringOrIntValue::String(self) }");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("impl StringOrInt for &str {");
+        self.indent();
+        self.writeln("fn as_string_or_int(self) -> StringOrIntValue { StringOrIntValue::String(self.to_string()) }");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("impl StringOrInt for i32 {");
+        self.indent();
+        self.writeln("fn as_string_or_int(self) -> StringOrIntValue { StringOrIntValue::Int(self as i64) }");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("impl StringOrInt for i64 {");
+        self.indent();
+        self.writeln("fn as_string_or_int(self) -> StringOrIntValue { StringOrIntValue::Int(self) }");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("impl StringOrInt for f64 {");
+        self.indent();
+        self.writeln("fn as_string_or_int(self) -> StringOrIntValue { StringOrIntValue::Int(self as i64) }");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("impl StringOrInt for usize {");
+        self.indent();
+        self.writeln("fn as_string_or_int(self) -> StringOrIntValue { StringOrIntValue::Int(self as i64) }");
+        self.dedent();
+        self.writeln("}");
 
         self.dedent();
         self.writeln("}");
@@ -1218,7 +1295,7 @@ impl CodeGenerator {
             Stmt::If(if_stmt) => {
                 self.write_indent();
                 self.output.push_str("if ");
-                self.generate_expr(&if_stmt.condition)?;
+                self.generate_condition_expr(&if_stmt.condition)?;
                 self.output.push_str(" {\n");
                 self.indent();
                 self.generate_if_body(&if_stmt.then_branch)?;
@@ -1393,6 +1470,18 @@ impl CodeGenerator {
                 crate::ast::UnOp::Await => {
                     self.generate_expr(operand)?;
                     self.output.push_str(".await");
+                }
+                crate::ast::UnOp::Not => {
+                    // Special handling for !error_var -> error_var.is_none()
+                    if let Expr::Identifier(name) = operand.as_ref() {
+                        let sanitized = self.sanitize_name(name);
+                        if self.error_binding_vars.contains(&sanitized) {
+                            write!(self.output, "{}.is_none()", sanitized).unwrap();
+                            return Ok(());
+                        }
+                    }
+                    write!(self.output, "{}", op).unwrap();
+                    self.generate_expr(operand)?;
                 }
                 _ => {
                     write!(self.output, "{}", op).unwrap();
@@ -2776,12 +2865,34 @@ impl CodeGenerator {
                     self.output.push(')');
                 }
             }
+            "prompt" => {
+                // console.prompt(message) -> reads user input from stdin
+                // Returns a string with the user input
+                self.output.push_str("{\n");
+                self.output.push_str("use std::io::{self, Write};\n");
+                
+                // Print the prompt message
+                if !method_call.args.is_empty() {
+                    self.output.push_str("print!(");
+                    self.generate_expr(&method_call.args[0])?;
+                    self.output.push_str(");\n");
+                }
+                
+                // Flush to ensure prompt is displayed before reading
+                self.output.push_str("io::stdout().flush().unwrap();\n");
+                
+                // Read user input
+                self.output.push_str("let mut input = String::new();\n");
+                self.output.push_str("io::stdin().read_line(&mut input).unwrap();\n");
+                self.output.push_str("input.trim().to_string()\n");
+                self.output.push_str("}");
+            }
             _ => {
                 return Err(CompilerError::CodegenError(
                     SemanticErrorInfo::new(
                         "E3000",
                         &format!("Unknown console function: {}", method_call.method),
-                        "Available console functions: log, error, warn"
+                        "Available console functions: log, error, warn, prompt"
                     )
                 ));
             }
@@ -2917,6 +3028,22 @@ impl CodeGenerator {
         Ok(())
     }
 
+    fn generate_condition_expr(&mut self, expr: &Expr) -> Result<()> {
+        // Special handling for error variables in conditions
+        // if error_var -> error_var.is_some()
+        // if !error_var -> error_var.is_none() (handled in Unary)
+        if let Expr::Identifier(name) = expr {
+            let sanitized = self.sanitize_name(name);
+            if self.error_binding_vars.contains(&sanitized) {
+                write!(self.output, "{}.is_some()", sanitized).unwrap();
+                return Ok(());
+            }
+        }
+        
+        // Otherwise, generate normally
+        self.generate_expr(expr)
+    }
+
     fn generate_binary_operation(&mut self, op: &BinOp, left: &Expr, right: &Expr) -> Result<()> {
         // Phase 3: Special handling for error binding variable comparisons with ""
         // Transform: err != "" to err.is_some()
@@ -2947,6 +3074,22 @@ impl CodeGenerator {
                 } else {
                     self.output.push_str(".is_none()");
                 }
+                return Ok(());
+            }
+        }
+
+        // Special handling for string multiplication (String * int or int * String)
+        if matches!(op, BinOp::Mul) {
+            let has_string_literal = matches!(left, Expr::Literal(Literal::String(_)))
+                || matches!(right, Expr::Literal(Literal::String(_)));
+            
+            if has_string_literal {
+                // Use string_mul helper only when we have a string literal
+                self.output.push_str("liva_rt::string_mul(");
+                self.generate_expr(left)?;
+                self.output.push_str(", ");
+                self.generate_expr(right)?;
+                self.output.push(')');
                 return Ok(());
             }
         }
@@ -4560,11 +4703,35 @@ impl<'a> IrCodeGenerator<'a> {
                     if needs_paren {
                         self.output.push('(');
                     }
-                    if matches!(
+                    
+                    // Special handling for string multiplication
+                    if matches!(op, ir::BinaryOp::Mul) {
+                        // Check if at least one operand is a string literal or template
+                        let has_string_literal = matches!(
+                            left.as_ref(),
+                            ir::Expr::Literal(ir::Literal::String(_)) | ir::Expr::StringTemplate(_)
+                        ) || matches!(
+                            right.as_ref(),
+                            ir::Expr::Literal(ir::Literal::String(_)) | ir::Expr::StringTemplate(_)
+                        );
+                        
+                        if has_string_literal {
+                            // Use string_mul helper that handles both String*int and int*String
+                            self.output.push_str("liva_rt::string_mul(");
+                            self.generate_expr(left)?;
+                            self.output.push_str(", ");
+                            self.generate_expr(right)?;
+                            self.output.push(')');
+                        } else {
+                            // Pure numeric multiplication
+                            self.generate_numeric_operand(left)?;
+                            write!(self.output, " {} ", binary_op_str(op)).unwrap();
+                            self.generate_numeric_operand(right)?;
+                        }
+                    } else if matches!(
                         op,
                         ir::BinaryOp::Add
                             | ir::BinaryOp::Sub
-                            | ir::BinaryOp::Mul
                             | ir::BinaryOp::Div
                             | ir::BinaryOp::Mod
                     ) {

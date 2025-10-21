@@ -139,3 +139,81 @@ impl std::fmt::Display for Error {
 }
 
 impl std::error::Error for Error {}
+
+/// String multiplication helper
+/// Supports both String*int and int*String patterns
+pub fn string_mul<L, R>(left: L, right: R) -> String
+where
+    L: StringOrInt,
+    R: StringOrInt,
+{
+    match (left.as_string_or_int(), right.as_string_or_int()) {
+        (StringOrIntValue::String(s), StringOrIntValue::Int(n)) => {
+            if n <= 0 {
+                String::new()
+            } else {
+                s.repeat(n as usize)
+            }
+        }
+        (StringOrIntValue::Int(n), StringOrIntValue::String(s)) => {
+            if n <= 0 {
+                String::new()
+            } else {
+                s.repeat(n as usize)
+            }
+        }
+        (StringOrIntValue::Int(a), StringOrIntValue::Int(b)) => {
+            // Fallback to numeric multiplication
+            (a * b).to_string()
+        }
+        (StringOrIntValue::String(_), StringOrIntValue::String(_)) => {
+            // String * String is not supported
+            panic!("Cannot multiply two strings")
+        }
+    }
+}
+
+pub enum StringOrIntValue {
+    String(String),
+    Int(i64),
+}
+
+pub trait StringOrInt {
+    fn as_string_or_int(self) -> StringOrIntValue;
+}
+
+impl StringOrInt for String {
+    fn as_string_or_int(self) -> StringOrIntValue {
+        StringOrIntValue::String(self)
+    }
+}
+
+impl StringOrInt for &str {
+    fn as_string_or_int(self) -> StringOrIntValue {
+        StringOrIntValue::String(self.to_string())
+    }
+}
+
+impl StringOrInt for i32 {
+    fn as_string_or_int(self) -> StringOrIntValue {
+        StringOrIntValue::Int(self as i64)
+    }
+}
+
+impl StringOrInt for i64 {
+    fn as_string_or_int(self) -> StringOrIntValue {
+        StringOrIntValue::Int(self)
+    }
+}
+
+impl StringOrInt for f64 {
+    fn as_string_or_int(self) -> StringOrIntValue {
+        StringOrIntValue::Int(self as i64)
+    }
+}
+
+impl StringOrInt for usize {
+    fn as_string_or_int(self) -> StringOrIntValue {
+        StringOrIntValue::Int(self as i64)
+    }
+}

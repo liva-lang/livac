@@ -146,13 +146,35 @@ fn compile(cli: &Cli) -> Result<(), CompilerError> {
         );
     } else {
         println!("  {} Running cargo build...", "→".blue());
-        let status = Command::new("cargo")
+        let output = Command::new("cargo")
             .arg("build")
+            .arg("--color=always")
             .current_dir(&output_dir)
-            .status()
+            .output()
             .map_err(|e| CompilerError::IoError(e.to_string()))?;
 
-        if !status.success() {
+        if !output.status.success() {
+            // Show the actual Rust compiler error
+            eprintln!("\n{}", "Rust Compilation Error:".red().bold());
+            eprintln!("{}", "=".repeat(80));
+            
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            
+            // Print stdout (cargo messages)
+            if !stdout.is_empty() {
+                eprint!("{}", stdout);
+            }
+            
+            // Print stderr (error messages)
+            if !stderr.is_empty() {
+                eprint!("{}", stderr);
+            }
+            
+            eprintln!("{}", "=".repeat(80));
+            eprintln!("\n{}", "💡 Tip: This is a Rust type error in the generated code.".yellow());
+            eprintln!("   Check the Liva code for type mismatches or incompatible operations.\n");
+            
             return Err(CompilerError::CodegenError("Cargo build failed".into()));
         }
     }
