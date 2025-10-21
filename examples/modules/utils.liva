@@ -1,0 +1,8 @@
+// utils.liva - Utility functions
+
+square(x: number): number => x * x
+
+cube(x: number): number => x * x * x
+
+// For now, abs without if/else (codegen bug with if-expr blocks)
+double(x: number): number => x * 2

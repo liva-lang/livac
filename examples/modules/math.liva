@@ -1,0 +1,8 @@
+// math.liva - Public mathematical functions
+
+add(a: number, b: number): number => a + b
+
+subtract(a: number, b: number): number => a - b
+
+// Private helper function
+_internal_calc(x: number): number => x * 2

@@ -22,6 +22,10 @@ pub struct SemanticAnalyzer {
     source_code: String,
     // Source map for precise line/column tracking
     source_map: Option<crate::span::SourceMap>,
+    // Imported symbols: map from module path to (public_symbols, private_symbols)
+    imported_modules: HashMap<std::path::PathBuf, (HashSet<String>, HashSet<String>)>,
+    // Imported symbol names in current module (for collision detection)
+    imported_symbols: HashSet<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -78,6 +82,8 @@ impl SemanticAnalyzer {
             source_file,
             source_code,
             source_map,
+            imported_modules: HashMap::new(),
+            imported_symbols: HashSet::new(),
         }
     }
 
@@ -108,6 +114,11 @@ impl SemanticAnalyzer {
     }
 
     fn analyze_program(&mut self, mut program: Program) -> Result<Program> {
+        // Phase 0: Validate imports if module context is available
+        if !self.imported_modules.is_empty() {
+            self.validate_imports(&program)?;
+        }
+        
         // First pass: collect type definitions and function signatures
         self.collect_definitions(&program)?;
 
@@ -131,6 +142,144 @@ impl SemanticAnalyzer {
         }
 
         Ok(program)
+    }
+
+    /// Validate all import statements in the program
+    fn validate_imports(&mut self, program: &Program) -> Result<()> {
+        use crate::ast::TopLevel;
+        
+        for item in &program.items {
+            if let TopLevel::Import(import) = item {
+                self.validate_import(import)?;
+            }
+        }
+        
+        Ok(())
+    }
+    
+    /// Validate a single import declaration
+    fn validate_import(&mut self, import: &crate::ast::ImportDecl) -> Result<()> {
+        use std::path::{Path, PathBuf};
+        
+        // Resolve the import path relative to the current file
+        let current_file = Path::new(&self.source_file);
+        let current_dir = current_file.parent().unwrap_or_else(|| Path::new("."));
+        let import_path = current_dir.join(&import.source);
+        
+        // Canonicalize to match how modules are stored
+        let canonical_path = import_path.canonicalize().ok();
+        
+        // Try to find the module by matching against all known modules
+        let module_info = canonical_path
+            .as_ref()
+            .and_then(|p| self.imported_modules.get(p))
+            .or_else(|| {
+                // Fallback: try to find by comparing file names
+                self.imported_modules.iter()
+                    .find(|(path, _)| {
+                        path.file_name() == import_path.file_name()
+                    })
+                    .map(|(_, info)| info)
+            });
+        
+        // Check if we have information about this module
+        let (public_symbols, private_symbols) = module_info
+            .ok_or_else(|| {
+                CompilerError::SemanticError(SemanticErrorInfo::new(
+                    "E4004",
+                    "Cannot find module",
+                    &format!("Module not found: {}\nHint: Make sure the module file exists in the same directory or provide the correct relative path.", import.source),
+                ))
+            })?;
+        
+        if import.is_wildcard {
+            // Wildcard import: import * as name
+            if let Some(alias) = &import.alias {
+                // All public symbols are available via alias.symbol
+                // We'll handle this in expression validation
+                // For now, just record that we have this namespace
+                self.imported_symbols.insert(alias.clone());
+            }
+        } else {
+            // Named imports: validate each symbol
+            for symbol in &import.imports {
+                // Check if symbol exists in module
+                if !public_symbols.contains(symbol) && !private_symbols.contains(symbol) {
+                    return Err(CompilerError::SemanticError(
+                        SemanticErrorInfo::new(
+                            "E4006",
+                            "Imported symbol not found",
+                            &format!(
+                                "Symbol '{}' not found in module '{}'.\nHint: Check the spelling and make sure the symbol is defined in the module.",
+                                symbol, import.source
+                            ),
+                        )
+                    ));
+                }
+                
+                // Check if symbol is private (starts with _)
+                if private_symbols.contains(symbol) {
+                    return Err(CompilerError::SemanticError(
+                        SemanticErrorInfo::new(
+                            "E4007",
+                            "Cannot import private symbol",
+                            &format!(
+                                "Symbol '{}' is private (starts with '_') and cannot be imported from '{}'.\nHint: Only symbols without '_' prefix can be imported. Either remove the import or make the symbol public by removing the '_' prefix.",
+                                symbol, import.source
+                            ),
+                        )
+                    ));
+                }
+                
+                // Check for name collision with existing symbols
+                if self.functions.contains_key(symbol) || self.types.contains_key(symbol) {
+                    return Err(CompilerError::SemanticError(
+                        SemanticErrorInfo::new(
+                            "E4008",
+                            "Import conflicts with local definition",
+                            &format!(
+                                "Cannot import '{}': a {} with this name is already defined in this module.\nHint: Use an alias for the import: 'import {{ {} as new_name }} from \"{}\"'",
+                                symbol,
+                                if self.functions.contains_key(symbol) { "function" } else { "type" },
+                                symbol,
+                                import.source
+                            ),
+                        )
+                    ));
+                }
+                
+                // Check for collision with another import
+                if self.imported_symbols.contains(symbol) {
+                    return Err(CompilerError::SemanticError(
+                        SemanticErrorInfo::new(
+                            "E4009",
+                            "Import conflicts with another import",
+                            &format!(
+                                "Symbol '{}' is imported multiple times.\nHint: Use aliases to distinguish between them: 'import {{ {} as name1 }} from \"module1\"' and 'import {{ {} as name2 }} from \"module2\"'",
+                                symbol, symbol, symbol
+                            ),
+                        )
+                    ));
+                }
+                
+                // Record this symbol as imported
+                self.imported_symbols.insert(symbol.clone());
+                
+                // Add to function registry so it can be called
+                // (We don't know the signature, so we'll be permissive)
+                self.functions.insert(
+                    symbol.clone(),
+                    FunctionSignature {
+                        params: vec![],  // Unknown params
+                        return_type: None,  // Unknown return type
+                        is_async: false,  // Assume sync
+                        defaults: vec![],
+                    },
+                );
+            }
+        }
+        
+        Ok(())
     }
 
     fn collect_definitions(&mut self, program: &Program) -> Result<()> {
@@ -1499,6 +1648,15 @@ impl SemanticAnalyzer {
     fn validate_known_function(&self, name: &str, arity: usize) -> Result<()> {
         if let Some(signature) = self.functions.get(name) {
             let total = signature.params.len();
+            
+            // Skip validation for imported functions (they have empty params)
+            // This is indicated by params being empty AND not being in async/fallible sets
+            // (local functions with no params would still be in those sets)
+            if total == 0 && self.imported_symbols.contains(name) {
+                // Imported function - skip arity validation
+                return Ok(());
+            }
+            
             let optional = signature
                 .defaults
                 .iter()
@@ -1818,5 +1976,17 @@ pub fn analyze_with_source(
     source_code: String,
 ) -> Result<Program> {
     let mut analyzer = SemanticAnalyzer::new(source_file, source_code);
+    analyzer.analyze_program(program)
+}
+
+/// Analyze a program with import context from resolved modules
+pub fn analyze_with_modules(
+    program: Program,
+    source_file: String,
+    source_code: String,
+    modules: &HashMap<std::path::PathBuf, (HashSet<String>, HashSet<String>)>,
+) -> Result<Program> {
+    let mut analyzer = SemanticAnalyzer::new(source_file, source_code);
+    analyzer.imported_modules = modules.clone();
     analyzer.analyze_program(program)
 }

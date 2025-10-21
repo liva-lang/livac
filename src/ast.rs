@@ -18,8 +18,10 @@ pub enum TopLevel {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ImportDecl {
-    pub name: String,
-    pub alias: Option<String>,
+    pub imports: Vec<String>,      // List of imported symbols: ["add", "multiply"]
+    pub source: String,             // Path to file: "./math.liva"
+    pub is_wildcard: bool,          // true for `import *`
+    pub alias: Option<String>,      // For wildcard: `import * as name`
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -593,6 +595,20 @@ impl fmt::Display for UnOp {
             UnOp::Neg => write!(f, "-"),
             UnOp::Not => write!(f, "!"),
             UnOp::Await => write!(f, "await"),
+        }
+    }
+}
+
+impl fmt::Display for ImportDecl {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.is_wildcard {
+            if let Some(alias) = &self.alias {
+                write!(f, "import * as {} from \"{}\"", alias, self.source)
+            } else {
+                write!(f, "import * from \"{}\"", self.source)
+            }
+        } else {
+            write!(f, "import {{ {} }} from \"{}\"", self.imports.join(", "), self.source)
         }
     }
 }

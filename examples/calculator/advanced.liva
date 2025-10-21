@@ -1,0 +1,10 @@
+// advanced.liva - Advanced mathematical operations
+
+// Simple doubling (demo of module system)
+double(x: number): number => x * 2
+
+// Triple
+triple(x: number): number => x * 3
+
+// Percentage calculation
+percentage(value: number, percent: number): number => (value * percent) / 100

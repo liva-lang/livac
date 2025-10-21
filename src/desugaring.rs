@@ -3,6 +3,7 @@ use crate::error::Result;
 use serde::Serialize;
 
 #[derive(Serialize)]
+#[derive(Clone)]
 pub struct DesugarContext {
     pub rust_crates: Vec<(String, Option<String>)>,
     pub has_async: bool,

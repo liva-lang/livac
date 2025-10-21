@@ -34,7 +34,7 @@ cargo install --path .
 livac --version
 ```
 
-You should see: `livac 0.6.0`
+You should see: `livac 0.7.0` (or `0.8.0-dev` if on feature branch)
 
 ## 👋 Your First Liva Program
 
@@ -698,6 +698,93 @@ Now that you know the basics, you can:
    - Parallel computation
    - Custom types and generics (coming soon)
 
+```
+
+## 📦 Module System (v0.8.0 - In Development)
+
+Liva now supports multi-file projects with a simple import/export system:
+
+### Basic Usage
+
+**math.liva** - Public functions (exported by default):
+```liva
+// Public function - no prefix
+add(a, b) {
+    ret a + b
+}
+
+subtract(a, b) {
+    ret a - b
+}
+
+// Private function - with _ prefix
+_internal_helper(x) {
+    ret x * 2
+}
+```
+
+**main.liva** - Import and use:
+```liva
+import { add, subtract } from "./math.liva"
+
+main() {
+    let result = add(10, 20)
+    print($"10 + 20 = {result}")
+}
+```
+
+### Import Syntax
+
+```liva
+// Named imports
+import { add, multiply } from "./math.liva"
+
+// Wildcard imports (namespace)
+import * as utils from "./utils.liva"
+let x = utils.square(5)
+
+// Multiple imports
+import { add } from "./math.liva"
+import { log } from "./logger.liva"
+```
+
+### Key Features
+
+- ✅ **Public by default** - All functions without `_` prefix are exported
+- ✅ **Private with `_`** - Consistent with Liva's naming convention
+- ✅ **JavaScript-style syntax** - Familiar and intuitive
+- ✅ **Cycle detection** - Prevents circular dependencies
+- ✅ **Relative paths** - `./`, `../` for easy navigation
+- ⏳ **Symbol validation** - Coming in v0.8.0 final release
+
+### Current Status
+
+**Phase 3.3 Complete:** Module Resolver
+- ✅ Parser handles all import syntax
+- ✅ Module resolution with caching
+- ✅ Circular dependency detection
+- ✅ Topological sort for compilation order
+
+**Phase 3.4 Complete:** Import Validation
+- ✅ Symbol existence validation (E4006)
+- ✅ Visibility checking - private symbol detection (E4007)
+- ✅ Name collision detection (E4008, E4009)
+- ✅ Path resolution for relative imports
+- ✅ Integration with semantic analyzer
+
+**Coming Soon (Phase 3.5):**
+- ⏳ Multi-file Rust project generation
+- ⏳ Generate mod declarations
+- ⏳ Convert imports to use statements
+- ⏳ Comprehensive test suite
+
+**Try it now:**
+```bash
+git checkout feature/modules-v0.8.0
+cargo build --release
+./target/release/livac examples/modules/test_import_syntax.liva
+```
+
 ## 📖 Full Documentation
 
 Want to learn more? Check out the complete documentation:
@@ -819,7 +906,7 @@ cargo install --path .
 ### Verify Installation
 
 ```bash
-livac --version  # Should output: livac 0.6.0
+livac --version  # Should output: livac 0.7.0
 ```
 
 ## 📖 Usage
@@ -1152,8 +1239,8 @@ livac/
 
 ## 🎯 Current Status
 
-**Version:** 0.6.0  
-**Status:** Alpha - Feature-complete for core language
+**Version:** 0.7.0 (0.8.0-dev on feature branches)  
+**Status:** Alpha - Core language complete, stdlib released, modules in development
 
 ### ✅ Fully Implemented
 
@@ -1196,25 +1283,44 @@ livac/
 
 ### 🚧 In Development
 
-- 🔄 Strict type checking (currently permissive)
+- � **Module System (v0.8.0)** - Currently in development!
+  - ✅ Import/export syntax (JavaScript-style)
+  - ✅ Module resolution with cycle detection
+  - ✅ Public by default, private with `_` prefix
+  - ⏳ Semantic validation (in progress)
+  - 📋 Multi-file code generation (planned)
+- �🔄 Strict type checking (currently permissive)
 - 🔄 Generic types and functions
-- 🔄 Module system with imports
 - 🔄 Pattern matching
 - 🔄 Trait system refinements
 
 ### 📋 Roadmap
 
-**v0.7 - Type System Enhancement** (Q1 2026)
+**v0.7.0 - Standard Library** ✅ RELEASED (Oct 2025)
+- ✅ String manipulation (37 functions)
+- ✅ Math operations (sqrt, sin, cos, abs, etc.)
+- ✅ Type conversions (parseInt, parseFloat, toString)
+- ✅ Console I/O (console.log, console.readLine, etc.)
+- ✅ Array/collection utilities
+
+**v0.8.0 - Module System** 🚧 IN PROGRESS (Oct 2025)
+- ✅ Import/export statements (Phase 3.2 complete)
+- ✅ Module resolution with cycle detection (Phase 3.3 complete)
+- ⏳ Import validation (Phase 3.4 in progress)
+- 📋 Multi-file Rust project generation (Phase 3.5 planned)
+- **ETA:** 2-3 weeks
+
+**v0.9.0 - Type System Enhancement** (Q1 2026)
 - Strict type checking with inference
 - Generic functions and classes
 - Type aliases and unions
 - Better error messages for type mismatches
 
-**v0.8 - Module System** (Q2 2026)
-- Import/export statements
-- Module resolution
+**v1.0.0 - Advanced Features** (Q2 2026)
+- Pattern matching (`match` expressions)
+- Trait refinements
 - Package manager integration
-- Standard library foundation
+- Standard library expansion
 
 **v0.9 - Advanced Features** (Q3 2026)
 - Pattern matching (`match` expressions)

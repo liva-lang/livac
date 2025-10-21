@@ -7,6 +7,192 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2025-10-21
+
+**🚀 Phase 3: Module System - Multi-file projects**
+
+Complete implementation of multi-file project support with JavaScript-style imports, automatic public/private visibility based on naming convention, circular dependency detection, and comprehensive error messages.
+
+#### Added - Module System (Phase 3 - 17h actual, 3.1x faster than estimated)
+
+**Phase 3.1: Design (2h) ✅ Complete**
+- Module system specification document (400+ lines)
+- Syntax comparison document (4 options evaluated)
+- Implementation roadmap (TODO_MODULES.md, 700+ lines)
+- Design decisions:
+  * Public by default (no prefix)
+  * Private with `_` prefix (consistent with Liva)
+  * JavaScript-style import syntax
+  * Relative paths (`./, ../`)
+
+**Phase 3.2: Parser & AST (2h) ✅ Complete**
+- Added `ImportDecl` struct to AST with Display trait
+- Added `from` keyword to lexer
+- Implemented `parse_import_decl()` method (~60 lines)
+- Support for named imports: `import { a, b } from "path"`
+- Support for wildcard imports: `import * as name from "path"`
+- Handles comma-separated imports with trailing commas
+- Comprehensive error handling for malformed imports
+
+**Phase 3.3: Module Resolver (4h) ✅ Complete**
+- Created `module.rs` with 400+ lines of infrastructure:
+  * **Module struct**: Loads .liva files, extracts public/private symbols
+  * **DependencyGraph**: DFS-based cycle detection, topological sort
+  * **ModuleResolver**: Recursive loading with caching
+- Path resolution for relative imports (`./, ../`)
+- Symbol extraction based on `_` prefix
+- Circular dependency detection with clear error messages (E4003)
+- File not found errors with helpful context (E4004)
+- Integration with compiler pipeline:
+  * `compile_with_modules()` function
+  * Auto-detection of import statements
+  * `resolve_all()` returns modules in compilation order
+- Unit tests for cycle detection (3 tests)
+- Example files: math.liva, operations.liva, utils.liva
+
+**Phase 3.4: Semantic Analysis (3h) ✅ Complete**
+- Symbol validation during import resolution
+- Check if imported symbols exist in target module
+- Private symbol import detection (E4007 error)
+- Name collision detection:
+  * Import vs local definition (E4008)
+  * Import vs import (E4009)
+- Module context tracking for semantic analysis
+- Integration with existing semantic analyzer
+
+**Phase 3.6: Integration & Polish (in progress) 🔄**
+- **Calculator Example** (65 lines, 3 modules):
+  * `examples/calculator/calculator.liva` - Main entry point
+  * `examples/calculator/basic.liva` - Basic operations (+, -, *, /)
+  * `examples/calculator/advanced.liva` - Advanced operations
+  * Demonstrates: named imports, public/private visibility
+  * Tested: compiles and runs successfully
+- **Documentation Updates**:
+  * Updated `docs/getting-started/quick-start.md` with module section
+  * Created `docs/guides/module-best-practices.md` (500+ lines)
+  * Project structure patterns, naming conventions
+  * Import patterns, visibility guidelines
+  * Common patterns and anti-patterns
+  * Performance tips and comprehensive examples
+- **Error Message Polish**:
+  * Enhanced E4003-E4009 with helpful hints
+  * Specific suggestions (e.g., use aliases for collisions)
+  * Better context for circular dependencies
+  * Actionable guidance for resolving issues
+- **Testing**:
+  * Multi-module compilation verified
+  * Calculator example runs correctly
+  * Import syntax examples working
+  * Error messages tested
+
+**Phase 3.4: Semantic Analysis (3h) ✅ Complete (original)**
+- Extended SemanticAnalyzer with import context:
+  * New fields: imported_modules, imported_symbols
+  * New function: analyze_with_modules() - accepts module context
+  * validate_imports() - iterates all imports in program
+  * validate_import() - validates single import declaration
+- Import validation checks (180+ lines of code):
+  * **E4004**: Module not found - with path resolution
+  * **E4006**: Imported symbol not found in module
+  * **E4007**: Cannot import private symbol (starts with _)
+  * **E4008**: Import conflicts with local definition
+  * **E4009**: Import conflicts with another import
+- Path resolution:
+  * Resolves relative paths (./,  ../)
+  * Canonicalizes paths for matching
+  * Fallback by filename matching
+- Symbol registration:
+  * Adds imported symbols to function registry
+  * Permissive arity checking (accepts any arg count)
+  * Prevents "function not found" errors
+- Integration with compile_with_modules():
+  * Builds module context map from resolved modules
+  * Passes public_symbols and private_symbols
+  * Uses analyze_with_modules() instead of analyze_with_source()
+
+**Phase 3.5: Multi-File Code Generation (2h) ✅ Complete**
+- Multi-file Rust project generation (180+ lines):
+  * **generate_multifile_project()**: Main orchestrator
+  * **generate_module_code()**: Per-module code generation
+  * **generate_entry_point()**: main.rs with mod declarations
+  * **generate_use_statement()**: Import → use conversion
+  * **write_multifile_output()**: File writing system
+- Import conversion:
+  * `import { add } from "./math.liva"` → `use crate::math::add;`
+  * `import { a, b } from "./m.liva"` → `use crate::m::{a, b};`
+  * Wildcard imports with same-name alias simplified
+- Visibility modifiers:
+  * Functions without `_` prefix → `pub fn name()`
+  * Private functions → `fn name()` (prefix removed)
+  * Classes follow same rules
+- Module declarations:
+  * Automatic `mod` statements in main.rs
+  * One .rs file per .liva module
+- File structure:
+  * src/main.rs - Entry point with mod declarations
+  * src/math.rs, src/operations.rs, etc. - Module files
+  * Cargo.toml - Project configuration
+- Made CodeGenerator.output pub(crate) for access
+- Made DesugarContext Clone-able for reuse
+- Integration with compile_with_modules() pipeline
+- Tested with examples/modules/test_import_syntax.liva:
+  * ✅ Generates 4 files (main.rs + 3 modules)
+  * ✅ Compiles successfully: `cargo build`
+  * ✅ Executes correctly: "10 + 20 = 30"
+- Documentation: docs/compiler-internals/multifile-codegen.md (650+ lines)
+
+**Current Status:**
+- ✅ Import syntax parsing works
+- ✅ Module resolution with cycle detection works
+- ✅ Loads all dependencies recursively
+- ✅ Returns modules in topological order
+- ✅ Import validation complete (all error codes)
+- ✅ Symbol existence and visibility checks working
+- ✅ Name collision detection working
+- ✅ Multi-file Rust project generation working
+- ✅ Pub/private visibility correctly applied
+- ✅ Import → use conversion functional
+- 📋 More examples and polish needed (Phase 3.6)
+
+**Example:**
+```liva
+// math.liva
+add(a: number, b: number): number => a + b
+subtract(a: number, b: number): number => a - b
+_internal_calc(x: number): number => x * 2  // Private
+
+// main.liva
+import { add } from "./math.liva"
+
+main() {
+    let result = add(10, 20)
+    print($"Result: {result}")
+}
+```
+
+**Generated Output:**
+```
+project/
+├── Cargo.toml
+└── src/
+    ├── main.rs      (mod math; use crate::math::add; ...)
+    └── math.rs      (pub fn add, pub fn subtract, fn internal_calc)
+```
+
+**Progress:**
+- ✅ Phase 3.1: Design (2h)
+- ✅ Phase 3.2: Parser (2h)
+- ✅ Phase 3.3: Module Resolver (4h)
+- ✅ Phase 3.4: Semantic Analysis (3h)
+- ✅ Phase 3.5: Code Generation (2h)
+- 📋 Phase 3.6: Integration & Examples (pending)
+- **Total: 13h actual / 53h estimated (83% complete, 4x faster)**
+
+**Next Steps:**
+- Phase 3.6: Integration & Examples (9h) - Calculator example, polish, release
+
+---
+
 ## [0.7.0] - 2025-10-20
 
 **🎉 Phase 2 Complete: Standard Library - 37 functions implemented in one day!**

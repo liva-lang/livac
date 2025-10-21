@@ -58,7 +58,9 @@ Start here if you're new to Liva.- **[EXECUTION_MODES.md](concurrency/EXECUTION_
 
 - **[String Templates](language-reference/string-templates.md)** - String interpolation
 
-- **[Collections](language-reference/collections.md)** - Arrays, vectors, and data structures- **[INICIO_RAMA.md](concurrency/INICIO_RAMA.md)** - Quick start para desarrollo
+- **[Collections](language-reference/collections.md)** - Arrays, vectors, and data structures
+
+- **[Modules](language-reference/modules.md)** - 🚧 Multi-file projects and imports (v0.8.0-dev)- **[INICIO_RAMA.md](concurrency/INICIO_RAMA.md)** - Quick start para desarrollo
 
 
 

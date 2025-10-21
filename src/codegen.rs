@@ -19,7 +19,7 @@ struct TaskInfo {
 }
 
 pub struct CodeGenerator {
-    output: String,
+    pub(crate) output: String,
     indent_level: usize,
     ctx: DesugarContext,
     in_method: bool,
@@ -5380,6 +5380,234 @@ pub fn generate_from_ir(
     return generate_with_ast(program, ctx);
 }
 
+/// Generate a multi-file Rust project from multiple Liva modules
+pub fn generate_multifile_project(
+    modules: &[&crate::module::Module],
+    entry_module: &crate::module::Module,
+    ctx: DesugarContext,
+) -> Result<std::collections::HashMap<std::path::PathBuf, String>> {
+    use std::collections::HashMap;
+    use std::path::PathBuf;
+    
+    let mut files = HashMap::new();
+    let mut mod_declarations = Vec::new();
+    
+    // Generate code for each module
+    for module in modules {
+        let module_name = module.path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("module");
+        
+        // Skip main/entry module - it will be handled separately
+        if module.path == entry_module.path {
+            continue;
+        }
+        
+        // Generate Rust code for this module
+        let rust_code = generate_module_code(module, &ctx)?;
+        
+        // Determine output path: src/module_name.rs
+        let output_path = PathBuf::from("src").join(format!("{}.rs", module_name));
+        files.insert(output_path, rust_code);
+        
+        // Add mod declaration
+        mod_declarations.push(format!("mod {};", module_name));
+    }
+    
+    // Generate main.rs (entry point)
+    let main_code = generate_entry_point(entry_module, &mod_declarations, &ctx)?;
+    files.insert(PathBuf::from("src/main.rs"), main_code);
+    
+    Ok(files)
+}
+
+/// Generate Rust code for a single Liva module
+fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext) -> Result<String> {
+    let mut codegen = CodeGenerator::new(ctx.clone());
+    let mut output = String::new();
+    
+    // Generate use statements from imports
+    for import_decl in &module.imports {
+        let use_stmt = generate_use_statement(import_decl, &module.path)?;
+        output.push_str(&use_stmt);
+        output.push('\n');
+    }
+    
+    if !module.imports.is_empty() {
+        output.push('\n'); // Blank line after imports
+    }
+    
+    // Generate code for each top-level item
+    for item in &module.ast.items {
+        match item {
+            TopLevel::Import(_) => {
+                // Already handled above
+                continue;
+            }
+            TopLevel::Function(func) => {
+                let is_public = !func.name.starts_with('_');
+                
+                // Reset codegen output for this item
+                codegen.output.clear();
+                codegen.generate_function(func)?;
+                let func_code = codegen.output.clone();
+                
+                if is_public {
+                    output.push_str("pub ");
+                }
+                output.push_str(&func_code);
+                output.push('\n');
+            }
+            TopLevel::Class(class) => {
+                let is_public = !class.name.starts_with('_');
+                
+                // Reset codegen output for this item
+                codegen.output.clear();
+                codegen.generate_class(class)?;
+                let class_code = codegen.output.clone();
+                
+                if is_public {
+                    // Add pub to struct definition
+                    let lines: Vec<&str> = class_code.lines().collect();
+                    if let Some(first_line) = lines.first() {
+                        if first_line.starts_with("struct") {
+                            output.push_str("pub ");
+                        }
+                    }
+                }
+                output.push_str(&class_code);
+                output.push('\n');
+            }
+            TopLevel::Type(type_decl) => {
+                let is_public = !type_decl.name.starts_with('_');
+                
+                // Reset codegen output for this item
+                codegen.output.clear();
+                codegen.generate_type_decl(type_decl)?;
+                let type_code = codegen.output.clone();
+                
+                if is_public {
+                    output.push_str("pub ");
+                }
+                output.push_str(&type_code);
+                output.push('\n');
+            }
+            TopLevel::UseRust(_) | TopLevel::Test(_) => {
+                // Reset codegen output for this item
+                codegen.output.clear();
+                codegen.generate_top_level(item)?;
+                let code = codegen.output.clone();
+                
+                output.push_str(&code);
+                output.push('\n');
+            }
+        }
+    }
+    
+    Ok(output)
+}
+
+/// Convert a Liva import to a Rust use statement
+/// Examples:
+/// - `import { add } from "./math.liva"` → `use crate::math::add;`
+/// - `import * as math from "./math.liva"` → `use crate::math;`
+fn generate_use_statement(import_decl: &ImportDecl, _current_module_path: &std::path::Path) -> Result<String> {
+    use std::path::Path;
+    
+    // Parse the source path and resolve relative to current module
+    let source_path = Path::new(&import_decl.source);
+    
+    // Remove .liva extension if present
+    let module_name = source_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| {
+            crate::CompilerError::CodegenError(crate::error::SemanticErrorInfo::new(
+                "E9001",
+                &format!("Invalid module path: {}", import_decl.source),
+                "",
+            ))
+        })?;
+    
+    // Convert relative path to Rust module path
+    let rust_module_path = if import_decl.source.starts_with("./") {
+        // Same directory: ./math.liva → crate::math
+        format!("crate::{}", module_name)
+    } else if import_decl.source.starts_with("../") {
+        // Parent directory: ../utils/math.liva → crate::utils::math
+        // For now, simplify to crate::module_name
+        format!("crate::{}", module_name)
+    } else {
+        // Absolute or other: treat as crate::module_name
+        format!("crate::{}", module_name)
+    };
+    
+    if import_decl.is_wildcard {
+        // Wildcard import: import * as alias from "..."
+        if let Some(alias) = &import_decl.alias {
+            // Only use 'as' if alias is different from module name
+            if alias != module_name {
+                Ok(format!("use {} as {};", rust_module_path, alias))
+            } else {
+                // If alias == module_name, just import the module itself
+                Ok(format!("use {};", rust_module_path))
+            }
+        } else {
+            Ok(format!("use {}::*;", rust_module_path))
+        }
+    } else if import_decl.imports.len() == 1 {
+        // Single import
+        let symbol = &import_decl.imports[0];
+        Ok(format!("use {}::{};", rust_module_path, symbol))
+    } else {
+        // Multiple imports: use crate::math::{add, subtract};
+        let symbols = import_decl.imports.join(", ");
+        Ok(format!("use {}::{{{}}};", rust_module_path, symbols))
+    }
+}
+
+/// Generate the entry point (main.rs) with mod declarations and main function
+fn generate_entry_point(
+    entry_module: &crate::module::Module,
+    mod_declarations: &[String],
+    ctx: &DesugarContext,
+) -> Result<String> {
+    let mut codegen = CodeGenerator::new(ctx.clone());
+    
+    // Add mod declarations for all other modules
+    for mod_decl in mod_declarations {
+        codegen.writeln(mod_decl);
+    }
+    
+    if !mod_declarations.is_empty() {
+        codegen.output.push('\n'); // Blank line after mod declarations
+    }
+    
+    // Generate use statements from entry module's imports
+    // Skip wildcard imports that just reference the whole module (they're already available via mod)
+    for import_decl in &entry_module.imports {
+        if import_decl.is_wildcard && import_decl.alias.is_some() {
+            // Wildcard import with alias like `import * as utils from "./utils.liva"`
+            // The module is already available via `mod utils;`, skip the use statement
+            continue;
+        }
+        
+        let use_stmt = generate_use_statement(import_decl, &entry_module.path)?;
+        codegen.output.push_str(&use_stmt);
+        codegen.output.push('\n');
+    }
+    
+    if !entry_module.imports.is_empty() {
+        codegen.output.push('\n');
+    }
+    
+    // Generate the entry module using generate_program logic
+    codegen.generate_program(&entry_module.ast)?;
+    
+    Ok(codegen.output.clone())
+}
+
 pub fn generate_with_ast(program: &Program, ctx: DesugarContext) -> Result<(String, String)> {
     let mut generator = CodeGenerator::new(ctx);
 
@@ -5399,7 +5627,7 @@ pub fn generate_with_ast(program: &Program, ctx: DesugarContext) -> Result<(Stri
     Ok((generator.output, cargo_toml))
 }
 
-fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
+pub fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
     let mut cargo_toml = String::from(
         "[package]\n\
          name = \"liva_project\"\n\
@@ -5442,6 +5670,7 @@ mod tests {
             rust_crates: vec![],
             has_async: false,
             has_parallel: false,
+            has_random: false,
         });
 
         assert_eq!(gen.to_snake_case("CamelCase"), "camel_case");

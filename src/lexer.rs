@@ -14,6 +14,8 @@ pub enum Token {
     Const,
     #[token("import")]
     Import,
+    #[token("from")]
+    From,
     #[token("use")]
     Use,
     #[token("rust")]
