@@ -49,6 +49,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example files: math.liva, operations.liva, utils.liva
 
 **Phase 3.4: Semantic Analysis (3h) ✅ Complete**
+- Symbol validation during import resolution
+- Check if imported symbols exist in target module
+- Private symbol import detection (E4007 error)
+- Name collision detection:
+  * Import vs local definition (E4008)
+  * Import vs import (E4009)
+- Module context tracking for semantic analysis
+- Integration with existing semantic analyzer
+
+**Phase 3.6: Integration & Polish (in progress) 🔄**
+- **Calculator Example** (65 lines, 3 modules):
+  * `examples/calculator/calculator.liva` - Main entry point
+  * `examples/calculator/basic.liva` - Basic operations (+, -, *, /)
+  * `examples/calculator/advanced.liva` - Advanced operations
+  * Demonstrates: named imports, public/private visibility
+  * Tested: compiles and runs successfully
+- **Documentation Updates**:
+  * Updated `docs/getting-started/quick-start.md` with module section
+  * Created `docs/guides/module-best-practices.md` (500+ lines)
+  * Project structure patterns, naming conventions
+  * Import patterns, visibility guidelines
+  * Common patterns and anti-patterns
+  * Performance tips and comprehensive examples
+- **Error Message Polish**:
+  * Enhanced E4003-E4009 with helpful hints
+  * Specific suggestions (e.g., use aliases for collisions)
+  * Better context for circular dependencies
+  * Actionable guidance for resolving issues
+- **Testing**:
+  * Multi-module compilation verified
+  * Calculator example runs correctly
+  * Import syntax examples working
+  * Error messages tested
+
+**Phase 3.4: Semantic Analysis (3h) ✅ Complete (original)**
 - Extended SemanticAnalyzer with import context:
   * New fields: imported_modules, imported_symbols
   * New function: analyze_with_modules() - accepts module context
