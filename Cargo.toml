@@ -1,6 +1,6 @@
 [package]
 name = "livac"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2021"
 authors = ["Fran Nadal"]
 description = "Liva to Rust compiler - combining TypeScript simplicity, Python expressiveness, and Rust safety"

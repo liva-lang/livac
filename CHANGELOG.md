@@ -7,11 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### [0.8.0-dev] - In Development
+## [0.8.0] - 2025-10-21
 
 **🚀 Phase 3: Module System - Multi-file projects**
 
-#### Added - Module System (Phase 3, ongoing)
+Complete implementation of multi-file project support with JavaScript-style imports, automatic public/private visibility based on naming convention, circular dependency detection, and comprehensive error messages.
+
+#### Added - Module System (Phase 3 - 17h actual, 3.1x faster than estimated)
 
 **Phase 3.1: Design (2h) ✅ Complete**
 - Module system specification document (400+ lines)

@@ -1,0 +1,161 @@
+---
+source: tests/semantics_tests.rs
+assertion_line: 16
+expression: json
+---
+{
+  "items": [
+    {
+      "Class": {
+        "name": "Persona",
+        "base": null,
+        "members": [
+          {
+            "Field": {
+              "name": "nombre",
+              "visibility": "Public",
+              "type_ref": {
+                "Simple": "string"
+              },
+              "init": null
+            }
+          },
+          {
+            "Field": {
+              "name": "_dni",
+              "visibility": "Private",
+              "type_ref": {
+                "Simple": "string"
+              },
+              "init": null
+            }
+          },
+          {
+            "Method": {
+              "name": "getNombre",
+              "visibility": "Public",
+              "type_params": [],
+              "params": [],
+              "return_type": {
+                "Simple": "string"
+              },
+              "body": {
+                "stmts": [
+                  {
+                    "Return": {
+                      "expr": {
+                        "Member": {
+                          "object": {
+                            "Identifier": "this"
+                          },
+                          "property": "nombre"
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "expr_body": {
+                "Member": {
+                  "object": {
+                    "Identifier": "this"
+                  },
+                  "property": "nombre"
+                }
+              },
+              "is_async_inferred": false,
+              "contains_fail": false
+            }
+          },
+          {
+            "Method": {
+              "name": "_getDni",
+              "visibility": "Private",
+              "type_params": [],
+              "params": [],
+              "return_type": {
+                "Simple": "string"
+              },
+              "body": {
+                "stmts": [
+                  {
+                    "Return": {
+                      "expr": {
+                        "Member": {
+                          "object": {
+                            "Identifier": "this"
+                          },
+                          "property": "_dni"
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "expr_body": null,
+              "is_async_inferred": false,
+              "contains_fail": false
+            }
+          }
+        ]
+      }
+    },
+    {
+      "Function": {
+        "name": "main",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "name": "p",
+                    "type_ref": null
+                  }
+                ],
+                "init": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "Persona"
+                    },
+                    "args": [],
+                    "exec_policy": "normal"
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "name": "nombre",
+                    "type_ref": null
+                  }
+                ],
+                "init": {
+                  "MethodCall": {
+                    "object": {
+                      "Identifier": "p"
+                    },
+                    "method": "getNombre",
+                    "args": [],
+                    "adapter": "seq",
+                    "adapter_options": {}
+                  }
+                },
+                "is_fallible": false
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    }
+  ]
+}
