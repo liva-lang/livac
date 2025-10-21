@@ -1,0 +1,48 @@
+// ============================================================================
+// CONSOLE COLOR TEST
+// ============================================================================
+// Tests console.error (red), console.warn (yellow), and console.success (green)
+
+main() {
+  console.log("=== Console Color Test ===\n")
+  
+  // Normal log (no color)
+  console.log("This is a normal log message")
+  
+  // Success in green
+  console.success("This is a success message - should appear in green")
+  
+  // Warning in yellow/amber
+  console.warn("This is a warning message - should appear in yellow/amber")
+  
+  // Error in red
+  console.error("This is an error message - should appear in red")
+  
+  console.log("\n=== Testing with multiple arguments ===")
+  
+  let value = 42
+  console.success("Operation completed successfully with value", value)
+  console.warn("Warning: Value is", value)
+  console.error("Error: Invalid value", value, "is out of range")
+  
+  console.log("\n=== Real-world example ===")
+  
+  let age = 25
+  if age >= 18 {
+    console.success("Access granted - User is", age, "years old")
+  } else {
+    console.error("Access denied: User must be 18 or older")
+  }
+  
+  let memUsage = 85
+  if memUsage > 80 {
+    console.warn("Memory usage is high:", memUsage, "%")
+  }
+  
+  let taskCompleted = true
+  if taskCompleted {
+    console.success("✓ Task completed successfully!")
+  }
+  
+  console.log("\n✅ Color test completed!")
+}

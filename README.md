@@ -570,11 +570,12 @@ if !err {
 }
 ```
 
-**Error output:**
+**Colored output:**
 
 ```liva
-console.error("Something went wrong!")  // → stderr
-console.warn("Be careful!")             // → stderr with Warning:
+console.success("User created successfully!")  // → Green (stdout)
+console.warn("Be careful!")                     // → Yellow (stderr)
+console.error("Something went wrong!")          // → Red (stderr)
 ```
 
 ### 📊 Arrays

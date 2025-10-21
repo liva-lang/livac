@@ -383,5 +383,6 @@ main() {
   
   // Test with empty message (no prompt, just read)
   let empty = console.input("")
-  console.log($"Entrada: '{empty}'")
+  console.warn($"Entrada: '{empty}'")
+  console.error("✅ console.input() tests completed successfully!")
 }

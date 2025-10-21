@@ -2809,13 +2809,16 @@ impl CodeGenerator {
         // Console functions: log, error, warn
         match method_call.method.as_str() {
             "log" => {
-                // console.log(...) -> println!(...)
+                // console.log(...) -> println!(...) with Display format for clean output
                 if method_call.args.is_empty() {
                     self.output.push_str("println!()");
                 } else {
                     self.output.push_str("println!(\"");
-                    for _ in method_call.args.iter() {
-                        self.output.push_str("{:?}");
+                    for (i, _) in method_call.args.iter().enumerate() {
+                        if i > 0 {
+                            self.output.push(' ');  // Space between arguments
+                        }
+                        self.output.push_str("{}");
                     }
                     self.output.push_str("\", ");
                     for (i, arg) in method_call.args.iter().enumerate() {
@@ -2828,15 +2831,19 @@ impl CodeGenerator {
                 }
             }
             "error" => {
-                // console.error(...) -> eprintln!(...) with Display format {} for user-friendly messages
+                // console.error(...) -> eprintln!(...) in red color (ANSI escape codes)
+                // Red: \x1b[31m ... \x1b[0m
                 if method_call.args.is_empty() {
                     self.output.push_str("eprintln!()");
                 } else {
-                    self.output.push_str("eprintln!(\"");
-                    for _ in method_call.args.iter() {
+                    self.output.push_str("eprintln!(\"\\x1b[31m");  // Red color
+                    for (i, _) in method_call.args.iter().enumerate() {
+                        if i > 0 {
+                            self.output.push(' ');  // Space between arguments
+                        }
                         self.output.push_str("{}");
                     }
-                    self.output.push_str("\", ");
+                    self.output.push_str("\\x1b[0m\", ");  // Reset color
                     for (i, arg) in method_call.args.iter().enumerate() {
                         if i > 0 {
                             self.output.push_str(", ");
@@ -2847,15 +2854,42 @@ impl CodeGenerator {
                 }
             }
             "warn" => {
-                // console.warn(...) -> eprintln!("Warning: ...", ...) with Display format {} for user-friendly messages
+                // console.warn(...) -> eprintln!(...) in amber/yellow color (ANSI escape codes)
+                // Yellow: \x1b[33m ... \x1b[0m
                 if method_call.args.is_empty() {
-                    self.output.push_str("eprintln!(\"Warning:\")");
+                    self.output.push_str("eprintln!()");
                 } else {
-                    self.output.push_str("eprintln!(\"Warning: ");
-                    for _ in method_call.args.iter() {
+                    self.output.push_str("eprintln!(\"\\x1b[33m");  // Yellow color
+                    for (i, _) in method_call.args.iter().enumerate() {
+                        if i > 0 {
+                            self.output.push(' ');  // Space between arguments
+                        }
                         self.output.push_str("{}");
                     }
-                    self.output.push_str("\", ");
+                    self.output.push_str("\\x1b[0m\", ");  // Reset color
+                    for (i, arg) in method_call.args.iter().enumerate() {
+                        if i > 0 {
+                            self.output.push_str(", ");
+                        }
+                        self.generate_expr(arg)?;
+                    }
+                    self.output.push(')');
+                }
+            }
+            "success" => {
+                // console.success(...) -> println!(...) in green color (ANSI escape codes)
+                // Green: \x1b[32m ... \x1b[0m
+                if method_call.args.is_empty() {
+                    self.output.push_str("println!()");
+                } else {
+                    self.output.push_str("println!(\"\\x1b[32m");  // Green color
+                    for (i, _) in method_call.args.iter().enumerate() {
+                        if i > 0 {
+                            self.output.push(' ');  // Space between arguments
+                        }
+                        self.output.push_str("{}");
+                    }
+                    self.output.push_str("\\x1b[0m\", ");  // Reset color
                     for (i, arg) in method_call.args.iter().enumerate() {
                         if i > 0 {
                             self.output.push_str(", ");
@@ -2893,7 +2927,7 @@ impl CodeGenerator {
                     SemanticErrorInfo::new(
                         "E3000",
                         &format!("Unknown console function: {}", method_call.method),
-                        "Available console functions: log, error, warn, input"
+                        "Available console functions: log, error, warn, success, input"
                     )
                 ));
             }
@@ -3228,7 +3262,13 @@ impl CodeGenerator {
                 // Always add _f64 suffix to avoid ambiguous numeric type errors
                 write!(self.output, "{}_f64", f).unwrap();
             }
-            Literal::String(s) => write!(self.output, "\"{}\"", s.escape_default()).unwrap(),
+            Literal::String(s) => {
+                // Write string with proper escape sequences interpreted
+                // Don't use escape_default() as it would escape the escapes (\\n instead of \n)
+                self.output.push('"');
+                self.output.push_str(s);
+                self.output.push('"');
+            }
             Literal::Char(c) => write!(self.output, "'{}'", c.escape_default()).unwrap(),
             Literal::Bool(b) => write!(self.output, "{}", b).unwrap(),
         }
@@ -5011,7 +5051,13 @@ impl<'a> IrCodeGenerator<'a> {
             ir::Literal::Int(v) => write!(self.output, "{}", v).unwrap(),
             ir::Literal::Float(v) => write!(self.output, "{:?}", v).unwrap(),
             ir::Literal::Bool(v) => write!(self.output, "{}", v).unwrap(),
-            ir::Literal::String(s) => write!(self.output, "\"{}\"", s.escape_default()).unwrap(),
+            ir::Literal::String(s) => {
+                // Write string with proper escape sequences interpreted
+                // Don't use escape_default() as it would escape the escapes (\\n instead of \n)
+                self.output.push('"');
+                self.output.push_str(s);
+                self.output.push('"');
+            }
             ir::Literal::Char(c) => write!(self.output, "'{}'", c.escape_default()).unwrap(),
             ir::Literal::Null => self.output.push_str("()"),
         }

@@ -22,6 +22,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   * Made prompt message optional for flexibility
   * Updated all examples and documentation
 
+- **Console Colors**: Added ANSI color support for error and warning messages
+  * `console.error()` - Now displays in **red color**
+  * `console.warn()` - Now displays in **yellow/amber color**
+  * `console.success()` - **NEW**: Displays in **green color** for confirmations
+  * Removed "Warning:" prefix from `console.warn()` (color indicates warning)
+  * Colors automatically reset after each message
+  * Test suite: `examples/manual-tests/test_console_colors.liva`
+  * Made prompt message optional for flexibility
+  * Updated all examples and documentation
+
 ## [0.8.0] - 2025-10-21
 
 **🚀 Phase 3: Module System - Multi-file projects**

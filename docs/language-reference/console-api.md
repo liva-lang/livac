@@ -41,7 +41,7 @@ console.log(42, 3.14, true)
 
 ### `console.error(...)`
 
-Prints error messages to standard error with user-friendly formatting.
+Prints error messages to standard error in **red color**.
 
 **Syntax:**
 ```liva
@@ -61,14 +61,15 @@ console.error("Invalid input:", userInput)
 
 **Notes:**
 - Uses Rust's display formatting (`{}`)
-- Prints to stderr (not stdout)
-- Useful for error messages that should appear even when stdout is redirected
+- Prints to stderr (not stdout) in **red color** using ANSI escape codes
+- Color automatically resets after the message
+- Useful for error messages that should stand out visually
 
 ---
 
 ### `console.warn(...)`
 
-Prints warning messages to standard error with "Warning:" prefix.
+Prints warning messages to standard error in **yellow/amber color**.
 
 **Syntax:**
 ```liva
@@ -87,8 +88,37 @@ console.warn("Memory usage high:", memUsage, "MB")
 ```
 
 **Notes:**
-- Automatically prefixes messages with "Warning: "
-- Prints to stderr
+- Prints to stderr in **yellow/amber color** using ANSI escape codes
+- No "Warning:" prefix - just colored output
+- Color automatically resets after the message
+- Uses display formatting for user-friendly output
+
+---
+
+### `console.success(...)`
+
+Prints success messages to standard output in **green color**.
+
+**Syntax:**
+```liva
+console.success(value1, value2, ...)
+```
+
+**Parameters:**
+- `value1, value2, ...` - Any number of values to print
+
+**Returns:** Nothing (void)
+
+**Examples:**
+```liva
+console.success("User created successfully!")
+console.success("✓ All tests passed:", testCount, "tests")
+```
+
+**Notes:**
+- Prints to stdout in **green color** using ANSI escape codes
+- Color automatically resets after the message
+- Perfect for confirmations, completions, and positive feedback
 - Uses display formatting for user-friendly output
 
 ---
