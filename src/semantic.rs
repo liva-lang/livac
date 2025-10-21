@@ -188,7 +188,7 @@ impl SemanticAnalyzer {
                 CompilerError::SemanticError(SemanticErrorInfo::new(
                     "E4004",
                     "Cannot find module",
-                    &format!("Module not found: {}", import.source),
+                    &format!("Module not found: {}\nHint: Make sure the module file exists in the same directory or provide the correct relative path.", import.source),
                 ))
             })?;
         
@@ -210,7 +210,7 @@ impl SemanticAnalyzer {
                             "E4006",
                             "Imported symbol not found",
                             &format!(
-                                "Symbol '{}' not found in module '{}'",
+                                "Symbol '{}' not found in module '{}'.\nHint: Check the spelling and make sure the symbol is defined in the module.",
                                 symbol, import.source
                             ),
                         )
@@ -224,7 +224,7 @@ impl SemanticAnalyzer {
                             "E4007",
                             "Cannot import private symbol",
                             &format!(
-                                "Symbol '{}' is private (starts with '_') and cannot be imported from '{}'",
+                                "Symbol '{}' is private (starts with '_') and cannot be imported from '{}'.\nHint: Only symbols without '_' prefix can be imported. Either remove the import or make the symbol public by removing the '_' prefix.",
                                 symbol, import.source
                             ),
                         )
@@ -238,9 +238,11 @@ impl SemanticAnalyzer {
                             "E4008",
                             "Import conflicts with local definition",
                             &format!(
-                                "Cannot import '{}': a {} with this name is already defined in this module",
+                                "Cannot import '{}': a {} with this name is already defined in this module.\nHint: Use an alias for the import: 'import {{ {} as new_name }} from \"{}\"'",
                                 symbol,
-                                if self.functions.contains_key(symbol) { "function" } else { "type" }
+                                if self.functions.contains_key(symbol) { "function" } else { "type" },
+                                symbol,
+                                import.source
                             ),
                         )
                     ));
@@ -253,8 +255,8 @@ impl SemanticAnalyzer {
                             "E4009",
                             "Import conflicts with another import",
                             &format!(
-                                "Symbol '{}' is imported multiple times. Consider using an alias.",
-                                symbol
+                                "Symbol '{}' is imported multiple times.\nHint: Use aliases to distinguish between them: 'import {{ {} as name1 }} from \"module1\"' and 'import {{ {} as name2 }} from \"module2\"'",
+                                symbol, symbol, symbol
                             ),
                         )
                     ));

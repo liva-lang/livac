@@ -39,8 +39,8 @@ impl Module {
         let source = fs::read_to_string(path).map_err(|e| {
             CompilerError::CodegenError(SemanticErrorInfo::new(
                 "E4004",
-                &format!("Cannot read file: {}", path.display()),
-                &e.to_string(),
+                &format!("Cannot read module file: {}", path.display()),
+                &format!("{}\nHint: Check that the file exists and you have read permissions.", e.to_string()),
             ))
         })?;
         
@@ -199,7 +199,7 @@ impl DependencyGraph {
             return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
                 "E4003",
                 "Circular dependency detected",
-                "Cannot compile modules with circular dependencies",
+                "Cannot compile modules with circular dependencies.\nHint: Check your import statements to find the circular reference chain.",
             )));
         }
         
@@ -230,7 +230,7 @@ impl ModuleResolver {
             CompilerError::CodegenError(SemanticErrorInfo::new(
                 "E4004",
                 &format!("Cannot find entry point: {}", entry_point.display()),
-                &e.to_string(),
+                &format!("{}\nHint: Verify the file path is correct.", e.to_string()),
             ))
         })?;
         
@@ -239,8 +239,8 @@ impl ModuleResolver {
             .ok_or_else(|| {
                 CompilerError::CodegenError(SemanticErrorInfo::new(
                     "E4004",
-                    "Cannot determine project root",
-                    "Entry point has no parent directory",
+                    "Cannot determine project root directory",
+                    "Entry point file has no parent directory.",
                 ))
             })?
             .to_path_buf();
@@ -269,7 +269,7 @@ impl ModuleResolver {
             return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
                 "E4003",
                 "Circular dependency detected",
-                &format!("Import chain:\n  {}", cycle_str),
+                &format!("Import chain forms a cycle:\n  {}\n\nHint: Remove one of the imports in this chain to break the circular dependency.", cycle_str),
             )));
         }
         
@@ -292,7 +292,7 @@ impl ModuleResolver {
             CompilerError::CodegenError(SemanticErrorInfo::new(
                 "E4004",
                 &format!("Cannot find module: {}", path.display()),
-                &e.to_string(),
+                &format!("{}\nHint: Check that the import path is correct and the file exists.", e.to_string()),
             ))
         })?;
         
@@ -329,7 +329,7 @@ impl ModuleResolver {
             CompilerError::CodegenError(SemanticErrorInfo::new(
                 "E4004",
                 "Cannot resolve import path",
-                &format!("Current file has no parent: {}", current_file.display()),
+                &format!("Current file has no parent directory: {}", current_file.display()),
             ))
         })?;
         
@@ -346,8 +346,8 @@ impl ModuleResolver {
         if !resolved.exists() {
             return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
                 "E4004",
-                &format!("Cannot find module '{}'", import_path),
-                &format!("File does not exist: {}", resolved.display()),
+                &format!("Module not found: '{}'", import_path),
+                &format!("File does not exist: {}\nHint: Check the import path. Relative paths should start with './' or '../'.", resolved.display()),
             )));
         }
         

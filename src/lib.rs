@@ -196,7 +196,7 @@ fn compile_with_modules(
             CompilerError::CodegenError(error::SemanticErrorInfo::new(
                 "E4005",
                 "Entry point not found in resolved modules",
-                "",
+                "The entry point file could not be found in the list of resolved modules.\nHint: This is likely an internal compiler error. Please report this issue.",
             ))
         })?;
     

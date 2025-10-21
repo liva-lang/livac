@@ -5670,6 +5670,7 @@ mod tests {
             rust_crates: vec![],
             has_async: false,
             has_parallel: false,
+            has_random: false,
         });
 
         assert_eq!(gen.to_snake_case("CamelCase"), "camel_case");
