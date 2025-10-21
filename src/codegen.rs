@@ -2,7 +2,7 @@ use crate::ast::*;
 use crate::desugaring::DesugarContext;
 use crate::error::{CompilerError, Result, SemanticErrorInfo};
 use crate::ir;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 
 /// Information about a pending Task (async/par) that hasn't been awaited yet
@@ -128,8 +128,8 @@ impl CodeGenerator {
             }
         }
 
-        // Always include concurrency runtime for now
-        println!("DEBUG: Including liva_rt module");
+    // Always include concurrency runtime for now
+    if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: Including liva_rt module"); }
         self.writeln("mod liva_rt {");
         self.indent();
         self.writeln("use std::future::Future;");
@@ -310,11 +310,11 @@ impl CodeGenerator {
 
         // Generate top-level items
         for item in &program.items {
-            println!("DEBUG: Processing top-level item: {:?}", item);
+            if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: Processing top-level item: {:?}", item); }
             match item {
-                TopLevel::Class(cls) => println!("DEBUG: Found class: {}", cls.name),
-                TopLevel::Function(func) => println!("DEBUG: Found function: {}", func.name),
-                _ => println!("DEBUG: Found other item: {:?}", item),
+                TopLevel::Class(cls) => if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: Found class: {}", cls.name) },
+                TopLevel::Function(func) => if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: Found function: {}", func.name) },
+                _ => if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: Found other item: {:?}", item) },
             }
             self.generate_top_level(item)?;
             self.output.push('\n');
@@ -335,8 +335,8 @@ impl CodeGenerator {
                 Ok(())
             }
             TopLevel::Type(type_decl) => self.generate_type_decl(type_decl),
-            TopLevel::Class(class) => {
-                println!("DEBUG: Generating class {}", class.name);
+                TopLevel::Class(class) => {
+                if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: Generating class {}", class.name); }
                 self.generate_class(class)
             }
             TopLevel::Function(func) => self.generate_function(func),
@@ -1458,9 +1458,9 @@ impl CodeGenerator {
                     && (self.expr_is_stringy(left) || self.expr_is_stringy(right))
                 {
                     self.output.push_str("format!(\"{}{}\", ");
-                    self.generate_expr(left)?;
+                    self.generate_expr_for_string_concat(left)?;
                     self.output.push_str(", ");
-                    self.generate_expr(right)?;
+                    self.generate_expr_for_string_concat(right)?;
                     self.output.push(')');
                 } else {
                     self.generate_binary_operation(op, left, right)?;
@@ -2516,6 +2516,22 @@ impl CodeGenerator {
                 continue;
             }
             
+            // Convert string literals to String for methods/functions
+            // This avoids "expected String, found &str" errors
+            if matches!(arg, Expr::Literal(Literal::String(_))) {
+                // For array methods (map/filter/etc), don't convert
+                let is_array_method = matches!(
+                    method_call.method.as_str(),
+                    "map" | "filter" | "reduce" | "forEach" | "find" | "some" | "every" | "indexOf" | "includes"
+                );
+                
+                if !is_array_method {
+                    self.generate_expr(arg)?;
+                    self.output.push_str(".to_string()");
+                    continue;
+                }
+            }
+            
             // For map/filter/reduce/forEach/find/some/every with .iter(), we need to dereference in the lambda
             // map: |&x| - filter: |&&x| - reduce: |acc, &x| - forEach: |&x| - find: |&&x| - some: |&&x| - every: |&&x|
             if (method_call.method == "map" || method_call.method == "filter" || method_call.method == "reduce" || method_call.method == "forEach" || method_call.method == "find" || method_call.method == "some" || method_call.method == "every") 
@@ -3255,6 +3271,25 @@ impl CodeGenerator {
         }
     }
 
+    /// Generate an expression with special handling for error binding variables in string context
+    fn generate_expr_for_string_concat(&mut self, expr: &Expr) -> Result<()> {
+        // Check if this is an error binding variable
+        if let Expr::Identifier(name) = expr {
+            let sanitized = self.sanitize_name(name);
+            if self.error_binding_vars.contains(&sanitized) {
+                // For error variables, extract the message: err.as_ref().map(|e| e.message.as_str()).unwrap_or("")
+                write!(
+                    self.output,
+                    "{}.as_ref().map(|e| e.message.as_str()).unwrap_or(\"\")",
+                    sanitized
+                ).unwrap();
+                return Ok(());
+            }
+        }
+        // Otherwise, generate normally
+        self.generate_expr(expr)
+    }
+
     fn generate_literal(&mut self, lit: &Literal) -> Result<()> {
         match lit {
             Literal::Int(n) => write!(self.output, "{}", n).unwrap(),
@@ -3326,6 +3361,8 @@ struct IrCodeGenerator<'a> {
     scope_formats: Vec<HashMap<String, FormatKind>>,
     #[allow(dead_code)]
     in_method: bool,
+    #[allow(dead_code)]
+    error_binding_vars: HashSet<String>,
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -3354,6 +3391,7 @@ impl<'a> IrCodeGenerator<'a> {
             ctx,
             scope_formats: vec![HashMap::new()],
             in_method: false,
+            error_binding_vars: HashSet::new(),
         }
     }
 
@@ -3505,8 +3543,8 @@ impl<'a> IrCodeGenerator<'a> {
     fn generate(mut self, module: &ir::Module) -> Result<String> {
         self.emit_use_statements(module);
 
-        // Always include runtime for now
-        println!("DEBUG: IR generator including liva_rt module");
+    // Always include runtime for now
+    if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: IR generator including liva_rt module"); }
         self.writeln("mod liva_rt {");
         self.indent();
         self.writeln("use std::future::Future;");
@@ -4729,9 +4767,9 @@ impl<'a> IrCodeGenerator<'a> {
                     && (self.expr_is_stringy(left) || self.expr_is_stringy(right))
                 {
                     self.output.push_str("format!(\"{}{}\", ");
-                    self.generate_expr(left)?;
+                    self.generate_expr_for_string_concat(left)?;
                     self.output.push_str(", ");
-                    self.generate_expr(right)?;
+                    self.generate_expr_for_string_concat(right)?;
                     self.output.push(')');
                 } else {
                     let needs_paren = !matches!(
@@ -5075,6 +5113,25 @@ impl<'a> IrCodeGenerator<'a> {
             } => self.expr_is_stringy(left) || self.expr_is_stringy(right),
             _ => false,
         }
+    }
+
+    /// Generate an expression with special handling for error binding variables in string context
+    fn generate_expr_for_string_concat(&mut self, expr: &ir::Expr) -> Result<()> {
+        // Check if this is an error binding variable
+        if let ir::Expr::Identifier(name) = expr {
+            let sanitized = self.sanitize_name(name);
+            if self.error_binding_vars.contains(&sanitized) {
+                // For error variables, extract the message: err.as_ref().map(|e| e.message.as_str()).unwrap_or("")
+                write!(
+                    self.output,
+                    "{}.as_ref().map(|e| e.message.as_str()).unwrap_or(\"\")",
+                    sanitized
+                ).unwrap();
+                return Ok(());
+            }
+        }
+        // Otherwise, generate normally
+        self.generate_expr(expr)
     }
 
     fn type_to_rust(&self, ty: &ir::Type) -> String {
@@ -5583,14 +5640,14 @@ pub fn generate_from_ir(
     program: &Program,
     ctx: DesugarContext,
 ) -> Result<(String, String)> {
-    println!("DEBUG: Checking if module has unsupported items...");
+    if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: Checking if module has unsupported items..."); }
     if module_has_unsupported(module) {
-        println!("DEBUG: Module has unsupported items, using AST generator");
+        if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: Module has unsupported items, using AST generator"); }
         return generate_with_ast(program, ctx);
     }
 
     // For now, always use AST generator since it handles classes and inheritance correctly
-    println!("DEBUG: Using AST generator for full compatibility");
+    if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: Using AST generator for full compatibility"); }
     return generate_with_ast(program, ctx);
 }
 

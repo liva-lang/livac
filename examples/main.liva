@@ -385,4 +385,12 @@ main() {
   let empty = console.input("")
   console.warn($"Entrada: '{empty}'")
   console.error("✅ console.input() tests completed successfully!")
+
+  let x, e = divide2(10.0, 0.0)
+  console.log($"Result: {x}, Error: {e}")
+}
+
+divide2(a: float, b: float) : float {
+  if b == 0.0 fail "Division by zero"     // inline
+  return a / b
 }
