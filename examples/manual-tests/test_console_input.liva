@@ -1,0 +1,61 @@
+// ============================================================================
+// CONSOLE.INPUT() TEST
+// ============================================================================
+// Tests the console.input() function with and without messages
+// Similar to Python's input() and input("prompt")
+
+main() {
+  console.log("=== Test 1: console.input() with prompt message ===")
+  let name = console.input("¿Cómo te llamas? ")
+  console.log($"Hola, {name}!")
+  
+  console.log("\n=== Test 2: console.input() without message ===")
+  console.log("Ingrese su edad:")
+  let ageStr = console.input()
+  let age, err = parseInt(ageStr)
+  
+  if !err {
+    console.log($"Tienes {age} años")
+    if age >= 18 {
+      console.log("Eres mayor de edad ✅")
+    } else {
+      console.log("Eres menor de edad")
+    }
+  } else {
+    console.error($"Error: {err}")
+  }
+  
+  console.log("\n=== Test 3: console.input() with empty string (no prompt) ===")
+  let raw = console.input("")
+  console.log($"Entrada recibida: '{raw}'")
+  
+  console.log("\n=== Test 4: Multiple inputs in sequence ===")
+  let firstName = console.input("Nombre: ")
+  let lastName = console.input("Apellido: ")
+  let city = console.input("Ciudad: ")
+  
+  console.log($"\nDatos ingresados:")
+  console.log($"  Nombre completo: {firstName} {lastName}")
+  console.log($"  Ciudad: {city}")
+  
+  console.log("\n=== Test 5: Input with calculation ===")
+  let num1, err1 = parseInt(console.input("Primer número: "))
+  let num2, err2 = parseInt(console.input("Segundo número: "))
+  
+  if !err1 and !err2 {
+    let sum = num1 + num2
+    let product = num1 * num2
+    console.log($"\nResultados:")
+    console.log($"  {num1} + {num2} = {sum}")
+    console.log($"  {num1} * {num2} = {product}")
+  } else {
+    if err1 != "" {
+      console.error($"Error en primer número: {err1}")
+    }
+    if err2 != "" {
+      console.error($"Error en segundo número: {err2}")
+    }
+  }
+  
+  console.log("\n✅ All console.input() tests completed!")
+}

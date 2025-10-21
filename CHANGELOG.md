@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Console API Enhancement**: `console.input()` function
+  * `console.input()` - Read user input without prompt (like Python's `input()`)
+  * `console.input(message)` - Read with prompt message (like Python's `input("msg")`)
+  * Returns trimmed string from stdin
+  * Replaces previous `console.prompt()` implementation
+  * Comprehensive documentation in `docs/language-reference/console-api.md`
+  * Test suite: `examples/manual-tests/test_console_input.liva`
+
+### Changed
+- **Console API**: Renamed `console.prompt()` to `console.input()`
+  * More intuitive naming (familiar from Python)
+  * Made prompt message optional for flexibility
+  * Updated all examples and documentation
+
 ## [0.8.0] - 2025-10-21
 
 **🚀 Phase 3: Module System - Multi-file projects**

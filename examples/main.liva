@@ -363,11 +363,25 @@ main() {
   print("🛡️ Fallibility system implemented and tested!")
   console.log("Liva syntax demonstration finished.")
 
-  // Test console.prompt with parseInt
-  let num, parseErr = parseInt(console.prompt("Dame un número y te lo multiplico por 3: "))
+  // ============================================================================
+  // 13. CONSOLE.INPUT() DEMO ✅
+  // ============================================================================
+  print("\n📖 Testing console.input():")
+  
+  // Test with message (prompt) - similar to Python's input("prompt")
+  let num, parseErr = parseInt(console.input("Dame un número y te lo multiplico por 3: "))
   if !parseErr {
     console.log(num * 3)
   } else {
     console.error($"Error: {parseErr}")
   }
+  
+  // Test without message (just read stdin) - similar to Python's input()
+  print("\nIngrese su nombre (sin prompt):")
+  let username = console.input()
+  console.log($"Hola, {username}!")
+  
+  // Test with empty message (no prompt, just read)
+  let empty = console.input("")
+  console.log($"Entrada: '{empty}'")
 }

@@ -556,11 +556,18 @@ console.log(data)                // → Shows full structure
 **Interactive input:**
 
 ```liva
-// Read user input
-let name = console.prompt("Enter your name: ")
-let age = console.prompt("Enter your age: ")
+// Read user input (similar to Python's input())
+let name = console.input("Enter your name: ")   // With prompt
+let age = console.input()                        // Without prompt
 
-print($"Hello, {name}! You are {age} years old.")
+// With error handling
+let numStr = console.input("Enter a number: ")
+let num, err = parseInt(numStr)
+if !err {
+  print($"You entered: {num}")
+} else {
+  console.error($"Invalid number: {err}")
+}
 ```
 
 **Error output:**
@@ -1288,7 +1295,7 @@ livac/
 - ✅ String manipulation (37 functions)
 - ✅ Math operations (sqrt, sin, cos, abs, etc.)
 - ✅ Type conversions (parseInt, parseFloat, toString)
-- ✅ Console I/O (console.log, console.readLine, etc.)
+- ✅ Console I/O (console.log, console.error, console.warn, console.input)
 - ✅ Array/collection utilities
 
 **v0.8.0 - Module System** ✅ RELEASED (Oct 21, 2025)

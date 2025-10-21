@@ -2865,21 +2865,22 @@ impl CodeGenerator {
                     self.output.push(')');
                 }
             }
-            "prompt" => {
-                // console.prompt(message) -> reads user input from stdin
-                // Returns a string with the user input
+            "input" => {
+                // console.input() -> reads user input from stdin without prompt
+                // console.input(message) -> prints message, then reads input
+                // Returns a string with the user input (trimmed)
+                // Similar to Python's input() and input("prompt")
                 self.output.push_str("{\n");
                 self.output.push_str("use std::io::{self, Write};\n");
                 
-                // Print the prompt message
+                // Print the prompt message if provided
                 if !method_call.args.is_empty() {
                     self.output.push_str("print!(");
                     self.generate_expr(&method_call.args[0])?;
                     self.output.push_str(");\n");
+                    // Flush to ensure prompt is displayed before reading
+                    self.output.push_str("io::stdout().flush().unwrap();\n");
                 }
-                
-                // Flush to ensure prompt is displayed before reading
-                self.output.push_str("io::stdout().flush().unwrap();\n");
                 
                 // Read user input
                 self.output.push_str("let mut input = String::new();\n");
@@ -2892,7 +2893,7 @@ impl CodeGenerator {
                     SemanticErrorInfo::new(
                         "E3000",
                         &format!("Unknown console function: {}", method_call.method),
-                        "Available console functions: log, error, warn, prompt"
+                        "Available console functions: log, error, warn, input"
                     )
                 ));
             }
