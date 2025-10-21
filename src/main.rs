@@ -91,11 +91,19 @@ fn compile(cli: &Cli) -> Result<(), CompilerError> {
         ))
     })?;
 
-    // 7. Write output
-    let output_dir = cli
-        .output
-        .clone()
-        .unwrap_or_else(|| PathBuf::from("./target/liva_build"));
+    // Determine output directory
+    let output_dir = if let Some(output) = &cli.output {
+        // User specified --output, use that
+        output.clone()
+    } else if cli.run && result.has_imports {
+        // --run with imports: use .liva_build/ next to source file
+        let input_dir = cli.input.parent().unwrap_or_else(|| std::path::Path::new("."));
+        input_dir.join(".liva_build")
+    } else {
+        // Default: ./target/liva_build
+        PathBuf::from("./target/liva_build")
+    };
+    
     std::fs::create_dir_all(&output_dir).map_err(|e| CompilerError::IoError(e.to_string()))?;
 
     let src_dir = output_dir.join("src");
@@ -103,6 +111,20 @@ fn compile(cli: &Cli) -> Result<(), CompilerError> {
 
     std::fs::write(src_dir.join("main.rs"), &main_rs)
         .map_err(|e| CompilerError::IoError(e.to_string()))?;
+
+    // Write module files if present
+    if let Some(module_files) = &result.module_files {
+        for (rel_path, content) in module_files {
+            let file_path = output_dir.join(rel_path);
+            // Create parent directories if needed
+            if let Some(parent) = file_path.parent() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| CompilerError::IoError(e.to_string()))?;
+            }
+            std::fs::write(&file_path, content)
+                .map_err(|e| CompilerError::IoError(e.to_string()))?;
+        }
+    }
 
     std::fs::write(output_dir.join("Cargo.toml"), &cargo_toml)
         .map_err(|e| CompilerError::IoError(e.to_string()))?;

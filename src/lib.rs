@@ -142,6 +142,8 @@ fn compile_source_with_filename(
             rust_code: None,
             cargo_toml: None,
             output_dir: None,
+            has_imports: false,
+            module_files: None,
         });
     }
 
@@ -165,6 +167,8 @@ fn compile_source_with_filename(
         rust_code: Some(rust_code),
         cargo_toml: Some(cargo_toml),
         output_dir,
+        has_imports: false,
+        module_files: None,
     })
 }
 
@@ -225,6 +229,8 @@ fn compile_with_modules(
             rust_code: None,
             cargo_toml: None,
             output_dir: None,
+            has_imports: true,
+            module_files: None,
         });
     }
     
@@ -254,10 +260,25 @@ fn compile_with_modules(
         .get(&std::path::PathBuf::from("src/main.rs"))
         .cloned();
     
+    // Extract module files (all files except main.rs)
+    let module_files: std::collections::HashMap<PathBuf, String> = files
+        .iter()
+        .filter(|(path, _)| *path != &std::path::PathBuf::from("src/main.rs"))
+        .map(|(path, content)| (path.clone(), content.clone()))
+        .collect();
+    
+    let module_files_opt = if module_files.is_empty() {
+        None
+    } else {
+        Some(module_files)
+    };
+    
     Ok(CompilationResult {
         rust_code: main_rs_content,
         cargo_toml: Some(cargo_toml),
         output_dir,
+        has_imports: true,
+        module_files: module_files_opt,
     })
 }
 
@@ -333,6 +354,12 @@ pub struct CompilationResult {
 
     /// Output directory where files were written
     pub output_dir: Option<PathBuf>,
+    
+    /// Whether the source file contains import statements
+    pub has_imports: bool,
+    
+    /// Additional module files (relative path -> content)
+    pub module_files: Option<std::collections::HashMap<PathBuf, String>>,
 }
 
 /// Write generated code to the filesystem

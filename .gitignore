@@ -19,6 +19,7 @@ Cargo.lock
 
 # Liva compilation outputs
 **/liva_build/
+**/.liva_build/
 *.liva.rs
 
 # Testing
