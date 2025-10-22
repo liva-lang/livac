@@ -26,6 +26,8 @@ pub struct SemanticAnalyzer {
     imported_modules: HashMap<std::path::PathBuf, (HashSet<String>, HashSet<String>)>,
     // Imported symbol names in current module (for collision detection)
     imported_symbols: HashSet<String>,
+    // Track if we're currently in an error binding context (allows fallible calls)
+    in_error_binding: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -84,6 +86,7 @@ impl SemanticAnalyzer {
             source_map,
             imported_modules: HashMap::new(),
             imported_symbols: HashSet::new(),
+            in_error_binding: false,
         }
     }
 
@@ -705,19 +708,6 @@ impl SemanticAnalyzer {
     }
 
     /// Check if an expression is a direct call to a fallible function
-    fn is_expr_fallible(&self, expr: &Expr) -> bool {
-        match expr {
-            Expr::Call(call) => {
-                if let Expr::Identifier(name) = &*call.callee {
-                    self.fallible_functions.contains(name)
-                } else {
-                    false
-                }
-            }
-            _ => false,
-        }
-    }
-
     /// Get a specific line from the source code
     fn get_source_line(&self, line_num: usize) -> Option<String> {
         self.source_code
@@ -744,9 +734,16 @@ impl SemanticAnalyzer {
                 continue;
             }
 
-            // Skip if it's a function declaration (has parameter types or return type declaration)
-            // Pattern: "functionName(param: type" or "functionName(...): returnType"
+            // Skip if it's a function declaration
+            // In Liva, function declarations look like: "funcname(params) {" at the start of a line
+            // or "funcname(params): returnType {" for typed functions
             if trimmed.contains(&format!("{}(", func_name)) {
+                // Check if it looks like a declaration (line starts with function name)
+                if trimmed.starts_with(&format!("{}(", func_name)) {
+                    // This is a function declaration, skip it
+                    continue;
+                }
+
                 // Check if it looks like a declaration
                 let after_func = trimmed
                     .split(&format!("{}(", func_name))
@@ -963,36 +960,14 @@ impl SemanticAnalyzer {
 
         match stmt {
             Stmt::VarDecl(var) => {
-                // Validate the init expression
-                self.validate_expr(&var.init)?;
-
-                // Check fallibility: if init expression calls a fallible function, var must have is_fallible=true
-                if !var.is_fallible && self.is_expr_fallible(&var.init) {
-                    if let Expr::Call(call) = &var.init {
-                        if let Expr::Identifier(func_name) = &*call.callee {
-                            let line = self.find_line_for_function_call(func_name).unwrap_or(0);
-                            let source_line = self.get_source_line(line);
-
-                            let error = SemanticErrorInfo {
-                                location: Some(ErrorLocation {
-                                    file: self.source_file.clone(),
-                                    line,
-                                    column: None,
-                                    source_line,
-                                }),
-                                code: "E0701".to_string(),
-                                title: "Fallible function must be called with error binding".to_string(),
-                                message: format!(
-                                    "Function '{}' can fail but is not being called with error binding.\n       The function contains 'fail' statements and must be handled properly.",
-                                    func_name
-                                ),
-                                help: Some(format!("Change to: let result, err = {}(...)", func_name)),
-                            };
-
-                            return Err(CompilerError::SemanticError(error));
-                        }
-                    }
+                // Validate the init expression (will check fallibility in validate_call_expr)
+                // Note: is_fallible=true means error binding pattern is used, so fallible calls are allowed
+                let previous_error_binding = self.in_error_binding;
+                if var.is_fallible {
+                    self.in_error_binding = true;
                 }
+                self.validate_expr(&var.init)?;
+                self.in_error_binding = previous_error_binding;
 
                 for binding in &var.bindings {
                     if let Some(type_ref) = &binding.type_ref {
@@ -1121,33 +1096,8 @@ impl SemanticAnalyzer {
             Stmt::Expr(expr_stmt) => {
                 self.validate_expr(&expr_stmt.expr)?;
 
-                // Check if expression is a fallible function call without error binding
-                if self.is_expr_fallible(&expr_stmt.expr) {
-                    if let Expr::Call(call) = &expr_stmt.expr {
-                        if let Expr::Identifier(func_name) = &*call.callee {
-                            let line = self.find_line_for_function_call(func_name).unwrap_or(0);
-                            let source_line = self.get_source_line(line);
-
-                            let error = SemanticErrorInfo {
-                                location: Some(ErrorLocation {
-                                    file: self.source_file.clone(),
-                                    line,
-                                    column: None,
-                                    source_line,
-                                }),
-                                code: "E0701".to_string(),
-                                title: "Fallible function must be called with error binding".to_string(),
-                                message: format!(
-                                    "Function '{}' can fail but is not being called with error binding.\n       The function contains 'fail' statements and must be handled properly.",
-                                    func_name
-                                ),
-                                help: Some(format!("Change to: let result, err = {}(...)", func_name)),
-                            };
-
-                            return Err(CompilerError::SemanticError(error));
-                        }
-                    }
-                }
+                // Fallible function call validation is now done in validate_call_expr
+                // which is called from validate_expr
 
                 if let Expr::Call(call) = &expr_stmt.expr {
                     if matches!(
@@ -1265,6 +1215,36 @@ impl SemanticAnalyzer {
                 )
                 .into(),
             ));
+        }
+
+        // E0701: Check if calling fallible function without error binding
+        // This validation applies to ALL call expressions, including those nested in other expressions
+        // Exception: if we're in an error binding context (let result, err = ...), allow fallible calls
+        if !self.in_error_binding {
+            if let Expr::Identifier(func_name) = &*call.callee {
+                if self.fallible_functions.contains(func_name) {
+                    let line = self.find_line_for_function_call(func_name).unwrap_or(0);
+                    let source_line = self.get_source_line(line);
+
+                    let error = SemanticErrorInfo {
+                        location: Some(ErrorLocation {
+                            file: self.source_file.clone(),
+                            line,
+                            column: None,
+                            source_line,
+                        }),
+                        code: "E0701".to_string(),
+                        title: "Fallible function must be called with error binding".to_string(),
+                        message: format!(
+                            "Function '{}' can fail but is not being called with error binding.\n       The function contains 'fail' statements and must be handled properly.",
+                            func_name
+                        ),
+                        help: Some(format!("Change to: let result, err = {}(...)", func_name)),
+                    };
+
+                    return Err(CompilerError::SemanticError(error));
+                }
+            }
         }
 
         // E0401: Check for invalid concurrent execution combinations

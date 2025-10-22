@@ -1,0 +1,18 @@
+// Test: fallible function with error binding
+
+divide(a, b) {
+    if b == 0.0 {
+        fail "Division by zero"
+    }
+    return a / b
+}
+
+main() {
+    // This should WORK - using error binding
+    let result, err = divide(10.0, 2.0)
+    if err != null {
+        console.error($"Error: {err}")
+    } else {
+        console.log($"Result: {result}")
+    }
+}

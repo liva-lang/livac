@@ -1,0 +1,27 @@
+// Test: fallible function validation
+
+divide(a, b) {
+    if b == 0.0 {
+        fail "Division by zero"
+    }
+    return a / b
+}
+
+main() {
+    // Test 1: Should ERROR - direct call without error binding
+    console.log($"Test 1: {divide(10.0, 2.0)}")
+    
+    // Test 2: Should ERROR - call in expression without error binding
+    let x = divide(10.0, 2.0)
+    
+    // Test 3: Should ERROR - call as standalone statement
+    divide(10.0, 2.0)
+    
+    // Test 4: Should WORK - call with error binding
+    let result, err = divide(10.0, 2.0)
+    if err != null {
+        console.error($"Error: {err}")
+    } else {
+        console.log($"Result: {result}")
+    }
+}

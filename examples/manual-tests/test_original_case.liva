@@ -1,0 +1,13 @@
+// Test the original user case
+
+divide(a, b) {
+    if b == 0.0 {
+        fail "Division by zero"
+    }
+    return a / b
+}
+
+main() {
+    // This should ERROR - fallible call in string template
+    console.error($"eeeee {divide(10.0, 2.0)}")
+}
