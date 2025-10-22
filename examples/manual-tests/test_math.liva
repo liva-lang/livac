@@ -1,0 +1,6 @@
+// Test Math functions
+main() {
+    let n = 16.0
+    let result = Math.sqrt(n)
+    print(result)
+}

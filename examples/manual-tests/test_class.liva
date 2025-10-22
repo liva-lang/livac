@@ -1,0 +1,21 @@
+Person {
+  constructor(name, age) {
+    this.name = name
+    this.age = age
+  }
+
+  name: string
+  age: int
+
+  isAdult() => this.age >= 18
+
+  toString(): string => "Person info".toString()
+}
+
+main() {
+  let person1 = Person("Alice", 30)
+  print($"Constructor: {person1.toString()}, adult: {person1.isAdult()}")
+
+  let person2 = Person { name: "Bob", age: 15 }
+  print($"Struct literal: {person2.toString()}, adult: {person2.isAdult()}")
+}

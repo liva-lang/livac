@@ -1,0 +1,40 @@
+// Comprehensive Math functions test
+main() {
+    // Test sqrt
+    let sqrt_result = Math.sqrt(16.0)
+    print($"sqrt(16.0) = {sqrt_result}")
+    
+    // Test pow
+    let pow_result = Math.pow(5.0, 2.0)
+    print($"pow(5.0, 2.0) = {pow_result}")
+    
+    // Test abs
+    let abs_result = Math.abs(-10.5)
+    print($"abs(-10.5) = {abs_result}")
+    
+    // Test floor
+    let floor_result = Math.floor(3.7)
+    print($"floor(3.7) = {floor_result}")
+    
+    // Test ceil
+    let ceil_result = Math.ceil(3.2)
+    print($"ceil(3.2) = {ceil_result}")
+    
+    // Test round
+    let round_result1 = Math.round(3.5)
+    let round_result2 = Math.round(3.4)
+    print($"round(3.5) = {round_result1}")
+    print($"round(3.4) = {round_result2}")
+    
+    // Test min
+    let min_result = Math.min(10.5, 20.3)
+    print($"min(10.5, 20.3) = {min_result}")
+    
+    // Test max
+    let max_result = Math.max(10.5, 20.3)
+    print($"max(10.5, 20.3) = {max_result}")
+    
+    // Test random (just check it runs)
+    let random_result = Math.random()
+    print($"random() = {random_result}")
+}

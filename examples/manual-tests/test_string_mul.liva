@@ -1,0 +1,23 @@
+// Test string multiplication
+main() {
+  // Test 1: String literal * Number - works directly!
+  let str1 = "ab" * 3
+  console.log(str1)  // Should print: "ababab"
+  
+  // Test 2: Number * String literal - works directly!
+  let str2 = 2 * "xy"
+  console.log(str2)  // Should print: "xyxy"
+  
+  // Test 3: console.prompt with parseInt
+  let input = console.prompt("Dame un número: ")
+  console.log($"Entrada: {input}")
+  
+  let num, err = parseInt(input)
+  if err != "" {
+    console.error($"Error: {err}")
+  } else {
+    console.log($"El número multiplicado por 3 es: {num * 3}")
+  }
+  
+  console.log("\n✅ String multiplication with literals works perfectly!")
+}

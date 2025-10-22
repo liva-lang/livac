@@ -1,0 +1,31 @@
+Person {
+  constructor(name, age) {
+    this.name = name
+    this.age = age
+  }
+
+  name: string
+  age: int
+  _dni: string
+
+  isAdult() => this.age >= 18
+  getDni() => this._dni
+  setDni(dni)  {this._dni = dni}
+}
+
+main() {
+  // ✅ Constructor personalizado funciona
+  let p = Person("Fran", 40)
+
+  // ✅ Sin necesidad de .toString() manual
+  p.setDni("123456789")
+
+  print(p.name)      // "Fran"
+  print(p.age)       // 40
+  print(p.getDni())  // "123456789"
+  print(p.isAdult()) // true
+}
+
+
+
+

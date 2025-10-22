@@ -1,0 +1,95 @@
+// Demo de Validación de Interfaces en Tiempo Real
+// Abre este archivo en VSCode para ver la validación funcionando
+
+// Define una interface simple
+Greetable {
+    greet(): string
+    introduce(): string
+}
+
+// ✅ CORRECTO: Implementa todos los métodos
+Person : Greetable {
+    constructor(name: string, age: int) {
+        this.name = name
+        this.age = age
+    }
+    
+    name: string
+    age: int
+    
+    greet() => "Hello!"
+    introduce() => $"I'm {this.name}, {this.age} years old"
+}
+
+// ❌ ERROR: Falta el método introduce()
+// Deberías ver una línea roja ondulada aquí ↓
+Robot : Greetable {
+    constructor(id: int) {
+        this.id = id
+    }
+    
+    id: int
+    
+    greet() => "Beep boop"
+    // Falta: introduce()
+}
+
+// Define múltiples interfaces
+Drawable {
+    draw(): void
+    getBounds(): string
+}
+
+Comparable {
+    compareTo(other: Self): int
+}
+
+// ❌ ERROR: Falta compareTo() de Comparable
+// Deberías ver una línea roja ondulada aquí ↓
+Circle : Drawable, Comparable {
+    constructor(radius: float) {
+        this.radius = radius
+    }
+    
+    radius: float
+    
+    draw() {
+        print($"Drawing circle with radius {this.radius}")
+    }
+    
+    getBounds() => $"Circle(r={this.radius})"
+    
+    // Falta: compareTo(other: Self): int
+}
+
+// ✅ CORRECTO: Implementa todas las interfaces
+Rectangle : Drawable, Comparable {
+    constructor(width: float, height: float) {
+        this.width = width
+        this.height = height
+    }
+    
+    width: float
+    height: float
+    
+    draw() {
+        print($"Drawing rectangle {this.width}x{this.height}")
+    }
+    
+    getBounds() => $"Rectangle({this.width}, {this.height})"
+    
+    compareTo(other: Rectangle) => (this.width * this.height - other.width * other.height) as int
+}
+
+// Instrucciones:
+// 1. Abre este archivo en VSCode
+// 2. Verás líneas rojas en Robot y Circle (clases con métodos faltantes)
+// 3. Pasa el mouse sobre las líneas rojas para ver el mensaje de error
+// 4. El mensaje te dice qué método falta y su firma
+// 5. Agrega los métodos faltantes y verás que el error desaparece en ~300ms
+
+main() {
+    let p = Person("Alice", 30)
+    print(p.greet())
+    print(p.introduce())
+}

@@ -1,7 +1,10 @@
 // Simple test for fail system
-testFail() => fail "Test error"
+divide(a: number, b: number) => b == 0 ? fail "Division by zero" : a / b
 
 main() {
-    let result, err = testFail()
-    print($"Error: {err}")
+    let result, err = divide(10, 2)
+    print($"Success: {result}, Error: {err}")
+
+    let result2, err2 = divide(10, 0)
+    print($"Error case: {result2}, Error: {err2}")
 }

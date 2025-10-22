@@ -1,0 +1,25 @@
+// Test Console/IO Functions
+main() {
+    // Test console.log (stdout)
+    console.log($"This is a log message")
+    console.log($"Number: {42}")
+    console.log($"Multiple values", 123, true)
+    
+    // Test console.error (stderr)
+    console.error($"This is an error message")
+    console.error($"Error code: {500}")
+    
+    // Test console.warn (stderr with prefix)
+    console.warn($"This is a warning")
+    console.warn($"Warning: File not found")
+    
+    // Note: readLine() and prompt() require interactive input
+    // Cannot be tested in automated tests
+    // Commented out for now:
+    
+    // let input = readLine()
+    // print($"You entered: {input}")
+    
+    // let name = prompt("Enter your name: ")
+    // print($"Hello, {name}!")
+}

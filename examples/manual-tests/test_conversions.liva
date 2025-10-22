@@ -1,0 +1,40 @@
+// Test Type Conversion functions
+main() {
+    // Test parseInt - valid cases
+    let num1, err1 = parseInt("42")
+    print($"parseInt('42') = {num1}, err = {err1}")
+    
+    let num2, err2 = parseInt("123")
+    print($"parseInt('123') = {num2}, err = {err2}")
+    
+    // Test parseInt - invalid cases
+    let num3, err3 = parseInt("abc")
+    print($"parseInt('abc') = {num3}, err = {err3}")
+    
+    let num4, err4 = parseInt("12.5")
+    print($"parseInt('12.5') = {num4}, err = {err4}")
+    
+    // Test parseFloat - valid cases
+    let float1, ferr1 = parseFloat("3.14")
+    print($"parseFloat('3.14') = {float1}, err = {ferr1}")
+    
+    let float2, ferr2 = parseFloat("42")
+    print($"parseFloat('42') = {float2}, err = {ferr2}")
+    
+    // Test parseFloat - invalid cases
+    let float3, ferr3 = parseFloat("abc")
+    print($"parseFloat('abc') = {float3}, err = {ferr3}")
+    
+    // Test toString - various types
+    let str1 = toString(42)
+    print($"toString(42) = '{str1}'")
+    
+    let str2 = toString(3.14)
+    print($"toString(3.14) = '{str2}'")
+    
+    let str3 = toString(true)
+    print($"toString(true) = '{str3}'")
+    
+    let str4 = toString(false)
+    print($"toString(false) = '{str4}'")
+}

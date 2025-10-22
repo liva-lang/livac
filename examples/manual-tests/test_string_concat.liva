@@ -1,0 +1,48 @@
+Person {
+  constructor(name, age) {
+    this.name = name
+    this.age = age
+  }
+
+  name: string
+  age: number
+  _dni: string
+
+  isAdult() => this.age >= 18
+  getDni() => this._dni
+  setDni(dni)  {this._dni = dni}
+}
+
+
+divide(a: float, b: float) : float {
+  if b == 0.0 fail "Division by zero"
+  return a / b
+}
+
+main() {
+  let p = Person("Fran", 40)
+
+  let p2 = Person {
+    name: "Ana",
+    age: 3
+  }
+  p2.setDni("123456789")
+  p.setDni("123456789")
+
+  print(p.name)
+  print(p.age)
+  print(p.getDni())
+  print(p.isAdult())
+
+  print(p2.name)
+  print(p2.age)
+  print(p2.getDni())
+  print(p2.isAdult())
+
+  let res, err = divide(10.0, 0.0)
+  if err {
+    console.log("Error: " + err)
+  } else {
+    print("Result: " + res)
+  }
+}
