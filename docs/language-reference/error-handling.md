@@ -608,6 +608,118 @@ try {
 - ❌ Complicates concurrency
 - ❌ Runtime overhead
 
+## Compile-Time Validation
+
+### E0701: Fallible Function Must Use Error Binding
+
+Starting in **Liva v0.8.0**, the compiler enforces that all calls to fallible functions (those containing `fail` statements) **must use error binding**.
+
+#### ❌ Compile Error
+
+```liva
+divide(a, b) {
+  if b == 0.0 fail "Division by zero"
+  return a / b
+}
+
+main() {
+  // ERROR E0701: Missing error binding
+  console.log($"Result: {divide(10.0, 2.0)}")
+  
+  // ERROR E0701: Missing error binding
+  let x = divide(20.0, 4.0)
+  
+  // ERROR E0701: Missing error binding
+  divide(30.0, 5.0)
+}
+```
+
+**Compiler output:**
+```
+● E0701: Fallible function must be called with error binding
+────────────────────────────────────────────────────────────
+  → main.liva:8
+
+     8 │
+       │   console.log($"Result: {divide(10.0, 2.0)}")
+       │
+
+  ⓘ Function 'divide' can fail but is not being called with error binding.
+       The function contains 'fail' statements and must be handled properly.
+
+  💡 Change to: let result, err = divide(...)
+```
+
+#### ✅ Correct Usage
+
+```liva
+main() {
+  // Proper error binding
+  let result, err = divide(10.0, 2.0)
+  
+  if err != "" {
+    console.error($"Error: {err}")
+  } else {
+    console.log($"Result: {result}")
+  }
+}
+```
+
+#### Why This Validation?
+
+This compile-time check prevents a common mistake where fallible function calls would return a raw `Result` type:
+
+```liva
+// Before validation (would compile but produce wrong output)
+console.log($"Result: {divide(10.0, 2.0)}")
+// Output: "Result: Ok(5.0)"  ← Shows internal Result type! ❌
+```
+
+With the validation, the compiler **forces** you to handle errors properly, preventing this type leakage.
+
+#### Detection Rules
+
+The compiler automatically detects fallible functions by scanning for `fail` statements:
+
+```liva
+// Fallible: Contains 'fail'
+checkAge(age) {
+  if age < 0 fail "Age cannot be negative"
+  return age
+}
+
+// Not fallible: No 'fail' statements
+multiply(a, b) {
+  return a * b
+}
+
+main() {
+  // ERROR: checkAge is fallible
+  let x = checkAge(25)
+  
+  // OK: multiply is not fallible
+  let y = multiply(5, 3)
+}
+```
+
+#### Validation Coverage
+
+The validation applies to **all contexts** where a fallible function is called:
+
+- ✅ Variable assignments: `let x = fallibleFunc()`
+- ✅ String templates: `$"Value: {fallibleFunc()}"`
+- ✅ Expression statements: `fallibleFunc()`
+- ✅ Binary operations: `result + fallibleFunc()`
+- ✅ Function arguments: `process(fallibleFunc())`
+
+#### IDE Support
+
+The VS Code extension (v0.3.2+) provides **real-time validation**:
+- Red squiggly lines appear immediately
+- No compilation needed
+- Same error message and suggestions as compiler
+- 300ms debounce for smooth typing
+
 ## Compilation to Rust
 
 Liva's fallibility system compiles to Rust's `Result<T, String>`:
