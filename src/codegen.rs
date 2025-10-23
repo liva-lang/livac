@@ -2,6 +2,7 @@ use crate::ast::*;
 use crate::desugaring::DesugarContext;
 use crate::error::{CompilerError, Result, SemanticErrorInfo};
 use crate::ir;
+use crate::traits::TraitRegistry;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 
@@ -41,6 +42,8 @@ pub struct CodeGenerator {
     // --- Phase 4: Join combining optimization
     #[allow(dead_code)]
     awaitable_tasks: Vec<String>, // Tasks that can be combined with tokio::join!
+    // --- Phase 5: Generic constraints
+    trait_registry: TraitRegistry, // Trait registry for constraint validation
 }
 
 impl CodeGenerator {
@@ -63,6 +66,7 @@ impl CodeGenerator {
             pending_tasks: std::collections::HashMap::new(),
             error_binding_vars: std::collections::HashSet::new(),
             awaitable_tasks: Vec::new(),
+            trait_registry: TraitRegistry::new(),
         }
     }
 
@@ -388,7 +392,9 @@ impl CodeGenerator {
         let type_params_str = if !class.type_params.is_empty() {
             let params: Vec<String> = class.type_params.iter().map(|tp| {
                 if let Some(constraint) = &tp.constraint {
-                    format!("{}: {}", tp.name, constraint)
+                    // Use trait registry to get complete Rust trait bounds
+                    let rust_bounds = self.trait_registry.generate_rust_bounds(&vec![constraint.clone()]);
+                    format!("{}{}", tp.name, rust_bounds)
                 } else {
                     tp.name.clone()
                 }
@@ -442,7 +448,9 @@ impl CodeGenerator {
         let impl_type_params = if !class.type_params.is_empty() {
             let params: Vec<String> = class.type_params.iter().map(|tp| {
                 if let Some(constraint) = &tp.constraint {
-                    format!("{}: {}", tp.name, constraint)
+                    // Use trait registry to get complete Rust trait bounds
+                    let rust_bounds = self.trait_registry.generate_rust_bounds(&vec![constraint.clone()]);
+                    format!("{}{}", tp.name, rust_bounds)
                 } else {
                     tp.name.clone()
                 }
@@ -920,7 +928,9 @@ impl CodeGenerator {
                 .iter()
                 .map(|param| {
                     if let Some(constraint) = &param.constraint {
-                        format!("{}: {}", param.name, constraint)
+                        // Use trait registry to get complete Rust trait bounds
+                        let rust_bounds = self.trait_registry.generate_rust_bounds(&vec![constraint.clone()]);
+                        format!("{}{}", param.name, rust_bounds)
                     } else {
                         param.name.clone()
                     }

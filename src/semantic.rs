@@ -1,6 +1,7 @@
 use crate::ast::*;
 use crate::error::{CompilerError, ErrorLocation, Result, SemanticErrorInfo};
 use crate::suggestions;
+use crate::traits::TraitRegistry;
 use std::collections::{HashMap, HashSet};
 
 pub struct SemanticAnalyzer {
@@ -31,6 +32,10 @@ pub struct SemanticAnalyzer {
     in_error_binding: bool,
     // Track type parameters in current scope (for generics)
     type_parameters: Vec<HashSet<String>>,
+    // Track type parameter constraints (T -> [Add, Sub, ...])
+    type_constraints: Vec<HashMap<String, Vec<String>>>,
+    // Trait registry for constraint validation
+    trait_registry: TraitRegistry,
 }
 
 #[derive(Debug, Clone)]
@@ -91,6 +96,8 @@ impl SemanticAnalyzer {
             imported_symbols: HashSet::new(),
             in_error_binding: false,
             type_parameters: vec![HashSet::new()],
+            type_constraints: vec![HashMap::new()],
+            trait_registry: TraitRegistry::new(),
         }
     }
 
@@ -861,6 +868,37 @@ impl SemanticAnalyzer {
     }
 
     fn validate_function(&mut self, func: &FunctionDecl) -> Result<()> {
+        // Enter type parameter scope and register type parameters with constraints
+        self.enter_type_param_scope();
+        
+        for param in &func.type_params {
+            if let Some(constraint) = &param.constraint {
+                // Validate that the constraint is a known trait
+                if !self.trait_registry.is_valid_constraint(constraint) {
+                    let suggestions = self.trait_registry.all_trait_names();
+                    let similar = suggestions::find_multiple_suggestions(&constraint, &suggestions, 3, 3);
+                    
+                    self.exit_type_param_scope();
+                    return Err(CompilerError::SemanticError(
+                        format!(
+                            "E5001: Unknown trait constraint '{}'. {}Available traits: {}",
+                            constraint,
+                            if !similar.is_empty() {
+                                format!("Did you mean '{}'? ", similar.join("', '"))
+                            } else {
+                                String::new()
+                            },
+                            suggestions.join(", ")
+                        ).into(),
+                    ));
+                }
+                
+                self.declare_type_param_with_constraint(&param.name, constraint);
+            } else {
+                self.declare_type_param(&param.name);
+            }
+        }
+        
         let type_params: HashSet<String> = func.type_params.iter().map(|tp| tp.name.clone()).collect();
 
         // Check parameter types
@@ -898,10 +936,42 @@ impl SemanticAnalyzer {
         }
 
         self.exit_scope()?;
+        self.exit_type_param_scope();
         Ok(())
     }
 
     fn validate_class(&mut self, class: &ClassDecl) -> Result<()> {
+        // Enter type parameter scope and register class type parameters with constraints
+        self.enter_type_param_scope();
+        
+        for param in &class.type_params {
+            if let Some(constraint) = &param.constraint {
+                // Validate that the constraint is a known trait
+                if !self.trait_registry.is_valid_constraint(constraint) {
+                    let suggestions = self.trait_registry.all_trait_names();
+                    let similar = suggestions::find_multiple_suggestions(&constraint, &suggestions, 3, 3);
+                    
+                    self.exit_type_param_scope();
+                    return Err(CompilerError::SemanticError(
+                        format!(
+                            "E5001: Unknown trait constraint '{}'. {}Available traits: {}",
+                            constraint,
+                            if !similar.is_empty() {
+                                format!("Did you mean '{}'? ", similar.join("', '"))
+                            } else {
+                                String::new()
+                            },
+                            suggestions.join(", ")
+                        ).into(),
+                    ));
+                }
+                
+                self.declare_type_param_with_constraint(&param.name, constraint);
+            } else {
+                self.declare_type_param(&param.name);
+            }
+        }
+        
         // Collect type parameters from class declaration
         let type_params: HashSet<String> = class
             .type_params
@@ -939,10 +1009,12 @@ impl SemanticAnalyzer {
                     error = error.with_suggestion(&format!("Did you mean '{}'?", suggested));
                 }
                 
+                self.exit_type_param_scope();
                 return Err(CompilerError::SemanticError(error));
             }
         }
 
+        self.exit_type_param_scope();
         Ok(())
     }
 
@@ -976,6 +1048,35 @@ impl SemanticAnalyzer {
         owner: &str,
         class_type_params: &HashSet<String>,
     ) -> Result<()> {
+        // Register method's own type parameters with constraints
+        // Note: Class type parameters are already in scope from validate_class
+        for param in &method.type_params {
+            if let Some(constraint) = &param.constraint {
+                // Validate that the constraint is a known trait
+                if !self.trait_registry.is_valid_constraint(constraint) {
+                    let suggestions = self.trait_registry.all_trait_names();
+                    let similar = suggestions::find_multiple_suggestions(&constraint, &suggestions, 3, 3);
+                    
+                    return Err(CompilerError::SemanticError(
+                        format!(
+                            "E5001: Unknown trait constraint '{}'. {}Available traits: {}",
+                            constraint,
+                            if !similar.is_empty() {
+                                format!("Did you mean '{}'? ", similar.join("', '"))
+                            } else {
+                                String::new()
+                            },
+                            suggestions.join(", ")
+                        ).into(),
+                    ));
+                }
+                
+                self.declare_type_param_with_constraint(&param.name, constraint);
+            } else {
+                self.declare_type_param(&param.name);
+            }
+        }
+        
         // Combine class type parameters with method's own type parameters
         let mut all_type_params = class_type_params.clone();
         for tp in &method.type_params {
@@ -1212,15 +1313,21 @@ impl SemanticAnalyzer {
             Expr::Literal(_) => Ok(()),
             Expr::Identifier(_name) => Ok(()),
             Expr::Fail(expr) => self.validate_expr(expr),
-            Expr::Binary { left, right, .. } => {
+            Expr::Binary { left, right, op } => {
                 self.validate_expr(left)?;
-                self.validate_expr(right)
+                self.validate_expr(right)?;
+                
+                // Check constraints for binary operators on generic types
+                self.validate_binary_op_constraints(left, right, op)
             }
             Expr::Unary { op, operand } => {
+                self.validate_expr(operand)?;
+                
                 if *op == UnOp::Await {
                     self.validate_await_expr(operand)
                 } else {
-                    self.validate_expr(operand)
+                    // Check constraints for unary operators on generic types
+                    self.validate_unary_op_constraints(operand, op)
                 }
             }
             Expr::Ternary {
@@ -1822,10 +1929,12 @@ impl SemanticAnalyzer {
     // Type parameter scope management for generics
     fn enter_type_param_scope(&mut self) {
         self.type_parameters.push(HashSet::new());
+        self.type_constraints.push(HashMap::new());
     }
 
     fn exit_type_param_scope(&mut self) {
         self.type_parameters.pop();
+        self.type_constraints.pop();
     }
 
     fn declare_type_param(&mut self, name: &str) {
@@ -1834,10 +1943,50 @@ impl SemanticAnalyzer {
         }
     }
 
+    fn declare_type_param_with_constraint(&mut self, name: &str, constraint: &str) {
+        self.declare_type_param(name);
+        
+        if let Some(scope) = self.type_constraints.last_mut() {
+            let constraints = scope.entry(name.to_string()).or_insert_with(Vec::new);
+            if !constraints.contains(&constraint.to_string()) {
+                constraints.push(constraint.to_string());
+            }
+        }
+    }
+
     fn is_type_param(&self, name: &str) -> bool {
         self.type_parameters
             .iter()
             .any(|scope| scope.contains(name))
+    }
+
+    fn get_type_param_constraints(&self, name: &str) -> Vec<String> {
+        for scope in self.type_constraints.iter().rev() {
+            if let Some(constraints) = scope.get(name) {
+                return constraints.clone();
+            }
+        }
+        vec![]
+    }
+
+    /// Check if a type parameter has a specific constraint
+    fn has_constraint(&self, type_param: &str, required_trait: &str) -> bool {
+        let constraints = self.get_type_param_constraints(type_param);
+        
+        // Check if the constraint is directly present
+        if constraints.contains(&required_trait.to_string()) {
+            return true;
+        }
+        
+        // Check if any constraint implies the required trait (e.g., Ord implies Eq)
+        for constraint in &constraints {
+            let required_traits = self.trait_registry.get_required_traits(constraint);
+            if required_traits.contains(required_trait) {
+                return true;
+            }
+        }
+        
+        false
     }
 
     fn declare_symbol(&mut self, name: &str, ty: Option<TypeRef>) -> bool {
@@ -2071,6 +2220,127 @@ impl SemanticAnalyzer {
             TypeRef::Generic { base, .. } => matches!(base.as_str(), "Vec" | "Array"),
             TypeRef::Optional(inner) => self.type_supports_length(inner),
             TypeRef::Fallible(_) => false,
+        }
+    }
+
+    /// Validate that a binary operator can be used with the given operands
+    fn validate_binary_op_constraints(&self, left: &Expr, right: &Expr, op: &BinOp) -> Result<()> {
+        // Get the operator string for trait lookup
+        let op_str = match op {
+            BinOp::Add => "+",
+            BinOp::Sub => "-",
+            BinOp::Mul => "*",
+            BinOp::Div => "/",
+            BinOp::Mod => "%",
+            BinOp::Eq => "==",
+            BinOp::Ne => "!=",
+            BinOp::Lt => "<",
+            BinOp::Le => "<=",
+            BinOp::Gt => ">",
+            BinOp::Ge => ">=",
+            _ => return Ok(()), // Logical operators (&&, ||) don't need constraints
+        };
+        
+        // Find required trait for this operator
+        let required_trait = self.trait_registry.trait_for_operator(op_str);
+        if required_trait.is_none() {
+            return Ok(()); // No trait constraint needed
+        }
+        
+        let trait_name = &required_trait.unwrap().name;
+        
+        // Check if left operand is a type parameter
+        if let Some(type_param) = self.extract_type_parameter(left) {
+            if !self.has_constraint(&type_param, trait_name) {
+                let mut error = SemanticErrorInfo::new(
+                    "E5002",
+                    "Missing trait constraint",
+                    &format!("Cannot use operator '{}' with generic type '{}'", op_str, type_param)
+                );
+                error = error.with_hint(&format!("The type parameter '{}' must implement the '{}' trait to use this operator", type_param, trait_name));
+                error = error.with_suggestion(&format!("Add constraint: <{}: {}>", type_param, trait_name));
+                return Err(CompilerError::SemanticError(error));
+            }
+        }
+        
+        // Check if right operand is a type parameter
+        if let Some(type_param) = self.extract_type_parameter(right) {
+            if !self.has_constraint(&type_param, trait_name) {
+                let mut error = SemanticErrorInfo::new(
+                    "E5002",
+                    "Missing trait constraint",
+                    &format!("Cannot use operator '{}' with generic type '{}'", op_str, type_param)
+                );
+                error = error.with_hint(&format!("The type parameter '{}' must implement the '{}' trait to use this operator", type_param, trait_name));
+                error = error.with_suggestion(&format!("Add constraint: <{}: {}>", type_param, trait_name));
+                return Err(CompilerError::SemanticError(error));
+            }
+        }
+        
+        Ok(())
+    }
+    
+    /// Validate that a unary operator can be used with the given operand
+    fn validate_unary_op_constraints(&self, operand: &Expr, op: &UnOp) -> Result<()> {
+        // Get the operator string for trait lookup
+        let op_str = match op {
+            UnOp::Neg => "unary-",
+            UnOp::Not => "!",
+            _ => return Ok(()), // Await doesn't need trait constraints
+        };
+        
+        // Find required trait for this operator
+        let required_trait = self.trait_registry.trait_for_operator(op_str);
+        if required_trait.is_none() {
+            return Ok(()); // No trait constraint needed
+        }
+        
+        let trait_name = &required_trait.unwrap().name;
+        
+        // Check if operand is a type parameter
+        if let Some(type_param) = self.extract_type_parameter(operand) {
+            if !self.has_constraint(&type_param, trait_name) {
+                let mut error = SemanticErrorInfo::new(
+                    "E5002",
+                    "Missing trait constraint",
+                    &format!("Cannot use operator '{}' with generic type '{}'", op_str, type_param)
+                );
+                error = error.with_hint(&format!("The type parameter '{}' must implement the '{}' trait to use this operator", type_param, trait_name));
+                error = error.with_suggestion(&format!("Add constraint: <{}: {}>", type_param, trait_name));
+                return Err(CompilerError::SemanticError(error));
+            }
+        }
+        
+        Ok(())
+    }
+    
+    /// Extract type parameter name from an expression, if it's a type parameter
+    fn extract_type_parameter(&self, expr: &Expr) -> Option<String> {
+        match expr {
+            Expr::Identifier(name) => {
+                // Check if this identifier is a type parameter
+                if self.is_type_param(name) {
+                    Some(name.clone())
+                } else {
+                    // Check if the identifier has a type annotation that's a type parameter
+                    if let Some(Some(type_ref)) = self.lookup_symbol(name) {
+                        self.extract_type_param_from_type_ref(type_ref)
+                    } else {
+                        None
+                    }
+                }
+            }
+            _ => None,
+        }
+    }
+    
+    /// Extract type parameter name from a TypeRef
+    fn extract_type_param_from_type_ref(&self, type_ref: &TypeRef) -> Option<String> {
+        match type_ref {
+            TypeRef::Simple(name) if self.is_type_param(name) => Some(name.clone()),
+            TypeRef::Optional(inner) => self.extract_type_param_from_type_ref(inner),
+            TypeRef::Fallible(inner) => self.extract_type_param_from_type_ref(inner),
+            _ => None,
         }
     }
 
