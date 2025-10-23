@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - Generics System (Phase 5 - In Progress)
+
+**Phase 5.1: Generic Syntax Design (2h) ✅**
+- Complete specification in docs/language-reference/generics.md (785 lines)
+- Syntax: `<T>`, `<T: Constraint>`, `<T, U>` for multiple parameters
+- Monomorphization strategy (compile-time specialization like Rust)
+- Standard library integration plan (Array<T>, Result<T,E>, Option<T>, Map<K,V>, Set<T>)
+- Comprehensive examples and edge cases
+
+**Phase 5.2: Parser & AST Extensions (3h) ✅**
+- New `TypeParameter` struct with name and optional constraint
+- Updated AST nodes: ClassDecl, TypeDecl, FunctionDecl, MethodDecl
+- Implemented `parse_type_parameters()` function
+- Parser handles `<T>`, `<T: Constraint>`, `<T, U>` syntax
+- **Discovery:** Liva has no `class` keyword - classes are `Name<T> { }`
+- Fixed codegen to emit proper generic Rust code:
+  * `pub struct Name<T: Constraint>`
+  * `impl<T: Constraint> Name<T> { }`
+- 11 parser test files with full insta snapshot coverage
+- All tests passing (11/11)
+
+**Commits:** 8ee5bc1 (specification), ae39b05 (parser tests)
+
 ## [0.8.1] - 2025-10-23
 
 **🎉 Phase 5: Enhanced Error Messages - Developer-friendly diagnostics**

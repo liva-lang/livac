@@ -601,29 +601,75 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 
 **Goal:** Type-safe generic programming with parametric polymorphism
 
-**Status:** 📋 Planned  
+**Status:** � In Progress (Parser Complete)  
 **Branch:** `feature/generics-v0.9.0`  
-**ETA:** 10-15 hours
+**Started:** 2025-10-23  
+**Progress:** 5h / 15h estimated  
+**Commits:** 2 (specification + parser tests)
 
-### 5.1 Generic Syntax Design
-- [ ] Design generic type parameter syntax `<T>`, `<T, U>`
-- [ ] Design constraint syntax `<T: Trait>`
-- [ ] Design where clauses for complex constraints
-- [ ] Write language spec for generics
-- [ ] Create syntax examples and edge cases
+### 5.1 Generic Syntax Design ✅ COMPLETE (2 hours)
+- [x] Design generic type parameter syntax `<T>`, `<T, U>` ✅
+- [x] Design constraint syntax `<T: Trait>` ✅
+- [x] Design where clauses for complex constraints ✅
+- [x] Write language spec for generics ✅
+  - **File:** docs/language-reference/generics.md (785 lines)
+  - Syntax design, type constraints, standard library integration
+  - Monomorphization strategy (compile-time specialization)
+  - Comprehensive examples and edge cases
+- [x] Create syntax examples and edge cases ✅
 
-**Estimated:** 2 hours
+**Completed:** 2025-10-23  
+**Commit:** 8ee5bc1
 
-### 5.2 Parser & AST Extensions
-- [ ] Extend lexer for `<`, `>` in type contexts
-- [ ] Parse generic type parameters on functions
-- [ ] Parse generic type parameters on classes
-- [ ] Parse generic type parameters on interfaces
-- [ ] Parse type arguments in type expressions
-- [ ] Update AST nodes for generic declarations
-- [ ] Add parser tests for generic syntax
+### 5.2 Parser & AST Extensions ✅ COMPLETE (3 hours)
+- [x] Extend lexer for `<`, `>` in type contexts ✅
+  - Tokens `Lt` and `Gt` already existed
+  - No changes needed - lexer was ready
+- [x] Parse generic type parameters on functions ✅
+  - Implemented `parse_type_parameters()` function
+  - Parses `<T>`, `<T: Constraint>`, `<T, U>`
+  - Works for both functions and classes
+- [x] Parse generic type parameters on classes ✅
+  - **Discovery:** Liva has NO `class` keyword!
+  - Classes declared as `ClassName<T> { }` directly
+  - Parser distinguishes class vs function by `{` vs `(`
+- [x] Parse generic type parameters on interfaces ✅
+  - Same parsing logic applies
+- [x] Parse type arguments in type expressions ✅
+  - Tested with `Box<int>`, nested generics
+- [x] Update AST nodes for generic declarations ✅
+  - **New struct:** `TypeParameter { name: String, constraint: Option<String> }`
+  - Updated: `ClassDecl`, `TypeDecl`, `FunctionDecl`, `MethodDecl`
+  - Implemented `Display` trait for TypeParameter
+- [x] Add parser tests for generic syntax ✅
+  - **11 test files** in tests/parser/generics/
+  - All tests passing with insta snapshots
+  - Coverage: functions, classes, constraints, multiple params, nested generics
 
-**Estimated:** 3 hours
+**Bug Fixed:** Parser was trying to parse non-existent `class` keyword  
+**Solution:** Removed `class` from test files - Liva syntax is just `Name<T> { }`  
+**Completed:** 2025-10-23  
+**Commit:** ae39b05
+
+**Files Created:**
+- tests/parser/generics/ok_generic_function_simple.liva
+- tests/parser/generics/ok_generic_function_multiple.liva
+- tests/parser/generics/ok_generic_function_constraint.liva
+- tests/parser/generics/ok_generic_function_multiple_constraints.liva
+- tests/parser/generics/ok_generic_class_simple.liva
+- tests/parser/generics/ok_generic_class_multiple.liva
+- tests/parser/generics/ok_generic_class_with_constraint.liva
+- tests/parser/generics/ok_generic_method.liva
+- tests/parser/generics/ok_identity_oneliner.liva
+- tests/parser/generics/ok_generic_type_arguments.liva
+- tests/parser/generics/ok_nested_generics.liva
+- tests/generics_parser_tests.rs (test suite)
+- 11 snapshot files
+
+**Codegen Updates:**
+- Fixed `generate_class()` to emit `pub struct Name<T: Constraint>`
+- Fixed impl blocks to emit `impl<T: Constraint> Name<T> { }`
+- Type parameters properly formatted with constraints
 
 ### 5.3 Type System Implementation
 - [ ] Implement type parameter representation in IR
