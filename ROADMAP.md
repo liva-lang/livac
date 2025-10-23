@@ -1,7 +1,7 @@
 # 🗺️ Liva Language Roadmap
 
-> **Current Version:** v0.8.0  
-> **Status:** Alpha - Module system complete, working on enhanced errors  
+> **Current Version:** v0.8.1  
+> **Status:** Alpha - Enhanced error messages complete  
 > **Last Updated:** 2025-10-23
 
 ---
@@ -615,7 +615,26 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 - [x] Add IDE integration documentation
 - [x] Add contributing guidelines for errors
 
-**Deliverable:** Liva v0.8.1 - Best-in-class error messages ✅
+### 5.6 VS Code Extension Integration (v0.4.0) ✅ COMPLETE
+- [x] Extend LivaErrorJson interface with Phase 5 fields
+- [x] Implement LivaCodeActionProvider for "Did you mean?" quick fixes
+- [x] Implement LivaErrorHoverProvider for documentation links
+- [x] Enhance createDiagnosticFromJson() for precise highlighting
+- [x] Auto-populate category, hint, example, doc_link in JSON output
+- [x] Update compiler to use builder pattern for errors
+- [x] Create comprehensive integration documentation
+- [x] Update VS Code extension to v0.4.0
+
+**Deliverable:** Liva v0.8.1 - Best-in-class error messages ✅  
+**VS Code Extension:** v0.4.0 - Full Phase 5 integration ✅
+
+**Statistics:**
+- **Compiler**: 21 files changed, +2,509/-60 lines
+- **Extension**: 8 files changed, +659/-42 lines
+- **Documentation**: 4 new docs (1,500+ lines)
+- **Total commits**: 13 (10 compiler + 3 extension)
+
+**Released:** October 23, 2025
 
 ---
 
