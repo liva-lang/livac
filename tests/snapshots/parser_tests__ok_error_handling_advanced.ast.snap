@@ -271,17 +271,14 @@ expression: json
                     {
                       "If": {
                         "condition": {
-                          "Call": {
-                            "callee": {
-                              "Member": {
-                                "object": {
-                                  "Identifier": "result"
-                                },
-                                "property": "isOk"
-                              }
+                          "MethodCall": {
+                            "object": {
+                              "Identifier": "result"
                             },
+                            "method": "isOk",
                             "args": [],
-                            "exec_policy": "normal"
+                            "adapter": "seq",
+                            "adapter_options": {}
                           }
                         },
                         "then_branch": {
@@ -297,17 +294,14 @@ expression: json
                                         },
                                         {
                                           "Expr": {
-                                            "Call": {
-                                              "callee": {
-                                                "Member": {
-                                                  "object": {
-                                                    "Identifier": "result"
-                                                  },
-                                                  "property": "unwrap"
-                                                }
+                                            "MethodCall": {
+                                              "object": {
+                                                "Identifier": "result"
                                               },
+                                              "method": "unwrap",
                                               "args": [],
-                                              "exec_policy": "normal"
+                                              "adapter": "seq",
+                                              "adapter_options": {}
                                             }
                                           }
                                         }
@@ -332,17 +326,14 @@ expression: json
                                         },
                                         {
                                           "Expr": {
-                                            "Call": {
-                                              "callee": {
-                                                "Member": {
-                                                  "object": {
-                                                    "Identifier": "result"
-                                                  },
-                                                  "property": "unwrapErr"
-                                                }
+                                            "MethodCall": {
+                                              "object": {
+                                                "Identifier": "result"
                                               },
+                                              "method": "unwrapErr",
                                               "args": [],
-                                              "exec_policy": "normal"
+                                              "adapter": "seq",
+                                              "adapter_options": {}
                                             }
                                           }
                                         }
@@ -669,15 +660,11 @@ expression: json
                     {
                       "If": {
                         "condition": {
-                          "Call": {
-                            "callee": {
-                              "Member": {
-                                "object": {
-                                  "Identifier": "e"
-                                },
-                                "property": "contains"
-                              }
+                          "MethodCall": {
+                            "object": {
+                              "Identifier": "e"
                             },
+                            "method": "contains",
                             "args": [
                               {
                                 "Literal": {
@@ -685,7 +672,8 @@ expression: json
                                 }
                               }
                             ],
-                            "exec_policy": "normal"
+                            "adapter": "seq",
+                            "adapter_options": {}
                           }
                         },
                         "then_branch": {
@@ -726,15 +714,11 @@ expression: json
                           "Stmt": {
                             "If": {
                               "condition": {
-                                "Call": {
-                                  "callee": {
-                                    "Member": {
-                                      "object": {
-                                        "Identifier": "e"
-                                      },
-                                      "property": "contains"
-                                    }
+                                "MethodCall": {
+                                  "object": {
+                                    "Identifier": "e"
                                   },
+                                  "method": "contains",
                                   "args": [
                                     {
                                       "Literal": {
@@ -742,7 +726,8 @@ expression: json
                                       }
                                     }
                                   ],
-                                  "exec_policy": "normal"
+                                  "adapter": "seq",
+                                  "adapter_options": {}
                                 }
                               },
                               "then_branch": {

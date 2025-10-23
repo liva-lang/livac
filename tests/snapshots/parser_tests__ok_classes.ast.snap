@@ -215,17 +215,14 @@ expression: json
                           "parts": [
                             {
                               "Expr": {
-                                "Call": {
-                                  "callee": {
-                                    "Member": {
-                                      "object": {
-                                        "Identifier": "this"
-                                      },
-                                      "property": "_getEdad"
-                                    }
+                                "MethodCall": {
+                                  "object": {
+                                    "Identifier": "this"
                                   },
+                                  "method": "_getEdad",
                                   "args": [],
-                                  "exec_policy": "normal"
+                                  "adapter": "seq",
+                                  "adapter_options": {}
                                 }
                               }
                             },
@@ -234,17 +231,14 @@ expression: json
                             },
                             {
                               "Expr": {
-                                "Call": {
-                                  "callee": {
-                                    "Member": {
-                                      "object": {
-                                        "Identifier": "this"
-                                      },
-                                      "property": "__getDni"
-                                    }
+                                "MethodCall": {
+                                  "object": {
+                                    "Identifier": "this"
                                   },
+                                  "method": "__getDni",
                                   "args": [],
-                                  "exec_policy": "normal"
+                                  "adapter": "seq",
+                                  "adapter_options": {}
                                 }
                               }
                             }
@@ -260,17 +254,14 @@ expression: json
                   "parts": [
                     {
                       "Expr": {
-                        "Call": {
-                          "callee": {
-                            "Member": {
-                              "object": {
-                                "Identifier": "this"
-                              },
-                              "property": "_getEdad"
-                            }
+                        "MethodCall": {
+                          "object": {
+                            "Identifier": "this"
                           },
+                          "method": "_getEdad",
                           "args": [],
-                          "exec_policy": "normal"
+                          "adapter": "seq",
+                          "adapter_options": {}
                         }
                       }
                     },
@@ -279,17 +270,14 @@ expression: json
                     },
                     {
                       "Expr": {
-                        "Call": {
-                          "callee": {
-                            "Member": {
-                              "object": {
-                                "Identifier": "this"
-                              },
-                              "property": "__getDni"
-                            }
+                        "MethodCall": {
+                          "object": {
+                            "Identifier": "this"
                           },
+                          "method": "__getDni",
                           "args": [],
-                          "exec_policy": "normal"
+                          "adapter": "seq",
+                          "adapter_options": {}
                         }
                       }
                     }

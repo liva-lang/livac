@@ -2,14 +2,22 @@
 source: tests/parser_tests.rs
 expression: error_msg
 ---
-● E2000: Parse Error
+● E2000: Parse Error [Parser]
 ────────────────────────────────────────────────────────────
   → <input>:7:5
 
+     5 │ 
+     6 │     // Error: asignación sin variable
      7 │
        │ = 42
-       │ ^^^
+       │ ^
+     8 │ 
+     9 │     // Error: función sin nombre
        │
 
   ⓘ Expected expression
+
+  💡 Check for missing semicolons, parentheses, or keywords
+
+  📚 Learn more: https://liva-lang.org/docs/errors/parser#e2000
 ────────────────────────────────────────────────────────────

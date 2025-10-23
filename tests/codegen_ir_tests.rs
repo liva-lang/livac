@@ -176,8 +176,8 @@ fn ir_codegen_array_param_inference_and_numeric_coercion() {
         rust_code
     );
     assert!(
-        rust_code.contains("let mut total = 0.0;"),
-        "expected float literal to remain 0.0 and variable to be mutable:\n{}",
+        rust_code.contains("let mut total = 0.0;") || rust_code.contains("let mut total = 0_f64;"),
+        "expected float literal (0.0 or 0_f64) and variable to be mutable:\n{}",
         rust_code
     );
 }

@@ -136,17 +136,14 @@ expression: json
                   }
                 ],
                 "init": {
-                  "Call": {
-                    "callee": {
-                      "Member": {
-                        "object": {
-                          "Identifier": "p"
-                        },
-                        "property": "getNombre"
-                      }
+                  "MethodCall": {
+                    "object": {
+                      "Identifier": "p"
                     },
+                    "method": "getNombre",
                     "args": [],
-                    "exec_policy": "normal"
+                    "adapter": "seq",
+                    "adapter_options": {}
                   }
                 },
                 "is_fallible": false

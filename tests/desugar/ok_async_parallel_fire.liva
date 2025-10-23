@@ -1,13 +1,22 @@
 // Concurrencia: async, parallel, fire
+fetchData() {
+    return "data"
+}
+
+processData() {
+    return "processed"
+}
+
 fetch() {
-    let r = async http.get("url")
-    return r.text()
+    let r = async fetchData()
+    let text = async processData()
+    return text
 }
 
 main() {
     let a = fetch()
     let b = async fetch()
-    fire async logEvent("done")
+    fire async fetchData()
     print(a)
     print(b)
 }
