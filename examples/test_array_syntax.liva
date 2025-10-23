@@ -1,0 +1,56 @@
+// Test arrays with generic types
+// Testing [T] syntax and array operations
+
+// Get first element of array (returns -1 for empty)
+firstInt(arr: [int]): int {
+    if arr.length == 0 {
+        return -1
+    }
+    return arr[0]
+}
+
+// Get last element of array (returns -1 for empty)
+lastInt(arr: [int]): int {
+    if arr.length == 0 {
+        return -1
+    }
+    return arr[arr.length - 1]
+}
+
+// Sum all elements
+sum(arr: [int]): int {
+    let total = 0
+    for num in arr {
+        total = total + num
+    }
+    return total
+}
+
+main() {
+    let numbers = [1, 2, 3, 4, 5]
+    
+    print("Array length:")
+    print(numbers.length)
+    
+    // Create copies for each function call
+    let nums1 = [1, 2, 3, 4, 5]
+    let f = firstInt(nums1)
+    print("First:")
+    print(f)
+    
+    let nums2 = [1, 2, 3, 4, 5]
+    let l = lastInt(nums2)
+    print("Last:")
+    print(l)
+    
+    let nums3 = [1, 2, 3, 4, 5]
+    let s = sum(nums3)
+    print("Sum:")
+    print(s)
+    
+    // Test with empty array
+    let empty = []
+    let ef = firstInt(empty)
+    print("Empty first:")
+    print(ef)
+}
