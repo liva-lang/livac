@@ -265,10 +265,11 @@ impl Parser {
 
         if self.match_token(&Token::Type) {
             let name = self.parse_identifier()?;
+            let type_params = vec![];  // TODO: Parse type parameters for type declarations
             self.expect(Token::LBrace)?;
             let members = self.parse_members()?;
             self.expect(Token::RBrace)?;
-            return Ok(TopLevel::Type(TypeDecl { name, members }));
+            return Ok(TopLevel::Type(TypeDecl { name, type_params, members }));
         }
 
         if self.match_token(&Token::Test) {
@@ -313,6 +314,14 @@ impl Parser {
         }
         let name = self.parse_identifier()?;
 
+        // Check for type parameters
+        let type_params = if self.check(&Token::Lt) {
+            self.advance(); // consume '<'
+            self.parse_type_parameters()?
+        } else {
+            vec![]
+        };
+
         // Check for inheritance
         let base = if self.match_token(&Token::Colon) {
             Some(self.parse_identifier()?)
@@ -326,19 +335,14 @@ impl Parser {
             self.expect(Token::RBrace)?;
             return Ok(TopLevel::Class(ClassDecl {
                 name,
+                type_params,
                 base,
                 members,
             }));
         }
 
         // Otherwise it's a function
-        let type_params = if self.check(&Token::Lt) {
-            // Parse type parameters first
-            self.advance(); // consume '<'
-            self.parse_type_params()?
-        } else {
-            vec![]
-        };
+        // type_params already parsed above
 
         self.expect(Token::LParen)?;
         let params = self.parse_params()?;
@@ -554,12 +558,24 @@ impl Parser {
         }
     }
 
-    fn parse_type_params(&mut self) -> Result<Vec<String>> {
+    fn parse_type_parameters(&mut self) -> Result<Vec<TypeParameter>> {
         let mut type_params = Vec::new();
 
         while !self.is_at_end() && !self.check(&Token::Gt) {
             let param_name = self.parse_identifier()?;
-            type_params.push(param_name);
+            
+            // Check for constraint: T: Comparable
+            let constraint = if self.match_token(&Token::Colon) {
+                Some(self.parse_identifier()?)
+            } else {
+                None
+            };
+
+            type_params.push(if let Some(c) = constraint {
+                TypeParameter::with_constraint(param_name, c)
+            } else {
+                TypeParameter::new(param_name)
+            });
 
             if !self.match_token(&Token::Comma) {
                 break;
@@ -590,7 +606,7 @@ impl Parser {
                 let type_params = if self.check(&Token::Lt) {
                     // Parse type parameters first
                     self.advance(); // consume '<'
-                    self.parse_type_params()?
+                    self.parse_type_parameters()?
                 } else {
                     vec![]
                 };

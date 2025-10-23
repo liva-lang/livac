@@ -814,7 +814,13 @@ impl CodeGenerator {
             let bounded: Vec<String> = method
                 .type_params
                 .iter()
-                .map(|param| format!("{}: std::cmp::PartialOrd", param))
+                .map(|param| {
+                    if let Some(constraint) = &param.constraint {
+                        format!("{}: {}", param.name, constraint)
+                    } else {
+                        param.name.clone()
+                    }
+                })
                 .collect();
             format!("<{}>", bounded.join(", "))
         } else {
@@ -877,7 +883,13 @@ impl CodeGenerator {
             let bounded: Vec<String> = func
                 .type_params
                 .iter()
-                .map(|param| format!("{}: std::cmp::PartialOrd", param))
+                .map(|param| {
+                    if let Some(constraint) = &param.constraint {
+                        format!("{}: {}", param.name, constraint)
+                    } else {
+                        param.name.clone()
+                    }
+                })
                 .collect();
             format!("<{}>", bounded.join(", "))
         } else {

@@ -1,9 +1,43 @@
-/// Abstract Syntax Tree for Liva language v0.6
+/// Abstract Syntax Tree for Liva language v0.9
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Program {
     pub items: Vec<TopLevel>,
+}
+
+/// Type parameter with optional constraint
+/// Example: `T`, `T: Comparable`, `K: Hashable`
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct TypeParameter {
+    pub name: String,
+    pub constraint: Option<String>,  // Interface name that T must implement
+}
+
+impl TypeParameter {
+    pub fn new(name: String) -> Self {
+        TypeParameter {
+            name,
+            constraint: None,
+        }
+    }
+
+    pub fn with_constraint(name: String, constraint: String) -> Self {
+        TypeParameter {
+            name,
+            constraint: Some(constraint),
+        }
+    }
+}
+
+impl fmt::Display for TypeParameter {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.name)?;
+        if let Some(constraint) = &self.constraint {
+            write!(f, ": {}", constraint)?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -33,12 +67,14 @@ pub struct UseRustDecl {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TypeDecl {
     pub name: String,
+    pub type_params: Vec<TypeParameter>,  // Generic type parameters
     pub members: Vec<Member>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ClassDecl {
     pub name: String,
+    pub type_params: Vec<TypeParameter>,  // Generic type parameters
     pub base: Option<String>,
     pub members: Vec<Member>,
 }
@@ -61,7 +97,7 @@ pub struct FieldDecl {
 pub struct MethodDecl {
     pub name: String,
     pub visibility: Visibility,
-    pub type_params: Vec<String>,
+    pub type_params: Vec<TypeParameter>,  // Generic type parameters with constraints
     pub params: Vec<Param>,
     pub return_type: Option<TypeRef>,
     pub body: Option<BlockStmt>,
@@ -73,7 +109,7 @@ pub struct MethodDecl {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct FunctionDecl {
     pub name: String,
-    pub type_params: Vec<String>,
+    pub type_params: Vec<TypeParameter>,  // Generic type parameters with constraints
     pub params: Vec<Param>,
     pub return_type: Option<TypeRef>,
     pub body: Option<BlockStmt>,

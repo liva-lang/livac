@@ -858,7 +858,7 @@ impl SemanticAnalyzer {
     }
 
     fn validate_function(&mut self, func: &FunctionDecl) -> Result<()> {
-        let type_params: HashSet<String> = func.type_params.iter().cloned().collect();
+        let type_params: HashSet<String> = func.type_params.iter().map(|tp| tp.name.clone()).collect();
 
         // Check parameter types
         for param in &func.params {
@@ -958,7 +958,7 @@ impl SemanticAnalyzer {
     }
 
     fn validate_method(&mut self, method: &MethodDecl, owner: &str) -> Result<()> {
-        let type_params: HashSet<String> = method.type_params.iter().cloned().collect();
+        let type_params: HashSet<String> = method.type_params.iter().map(|tp| tp.name.clone()).collect();
 
         for param in &method.params {
             if let Some(type_ref) = &param.type_ref {
