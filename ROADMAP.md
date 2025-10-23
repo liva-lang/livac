@@ -599,13 +599,13 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 
 ## 🧬 Phase 5: Generics System (v0.9.0)
 
-**Goal:** Type-safe generic programming with parametric polymorphism
-**Status:** 🔄 In Progress (Core Features Working!)  
-**Status:** � In Progress (Parser Complete)  
+**Goal:** Type-safe generic programming with parametric polymorphism  
+**Status:** 🔄 In Progress (Stdlib Validation Complete!)  
 **Branch:** `feature/generics-v0.9.0`  
 **Started:** 2025-10-23  
-**Progress:** 8h / 15h estimated  
-**Commits:** 7 (spec, parser, codegen, classes, multiple params, arrays, docs)
+**Progress:** 10h / 15h estimated (67%)  
+**Commits:** 12 (spec, parser, codegen, classes, arrays, Option<T>, Result<T,E>, docs)
+
 
 ### 5.1 Generic Syntax Design ✅ COMPLETE (2 hours)
 - [x] Design generic type parameter syntax `<T>`, `<T, U>` ✅
@@ -768,36 +768,112 @@ fn first_int(arr: Vec<i32>) -> i32 { ... }
 - Generic methods with their own type parameters
 - Type inference for generic calls (currently explicit)
 - Generic array operations (map, filter with type preservation)
-- Option<T> and Result<T,E> in generic contexts
 
-### 5.4 Type System Implementation
+### 5.4 Standard Library Validation ✅ COMPLETE (~2 hours)
+- [x] Test `Option<T>` with generics ✅
+  - Created Option<T> class with isSome(), isNone() methods
+  - **Works with:** int, string, bool
+  - **File:** examples/test_option_generic.liva
+  - **Status:** Compiles and runs correctly
+- [x] Test `Result<T, E>` with generics ✅
+  - Created Result<T,E> class with isSuccess(), isError() methods
+  - **Works with:** Result<int,string>, Result<bool,int>
+  - **File:** examples/test_result_generic.liva
+  - **Status:** Compiles and runs correctly
+
+**Completed:** 2025-10-23  
+**Commits:** 1594d4d, 17bbef2  
+**Progress:** 10h / 15h estimated
+
+**Important Findings:**
+
+**✅ What Works:**
+- Generic classes instantiate correctly with different types
+- Multiple type parameters work (`Result<T, E>`)
+- Type safety is enforced by Rust's type system
+- Methods with `&self` work for predicates (bool returns)
+
+**⚠️ Limitations Discovered:**
+
+1. **Ownership Issue:**
+   - Methods with `&self` cannot return `T` by value
+   - Rust error: "cannot move out of `self.value` which is behind a shared reference"
+   - **Workaround:** Access fields directly instead of getter methods
+   - **Future solution:** Add Clone constraint or make methods consume self
+
+2. **Semantic Analyzer Interference:**
+   - Function names like `parseInt` trigger fallible builtin detection
+   - Compiler tries to parse string literals instead of calling the function
+   - **Workaround:** Use different names (`parseNumber` instead of `parseInt`)
+   - **Future solution:** Improve semantic analysis to distinguish user functions
+
+3. **VSCode Language Server Bug:**
+   - LSP shows parse error on generic class declarations (`Option<T> {`)
+   - Actual compiler works fine - error is only in IDE
+   - Error message: "Expected LParen" (false positive)
+   - **Impact:** Cosmetic only - doesn't affect compilation
+
+**Example: Option<T>**
+```liva
+Option<T> {
+    value: T
+    hasValue: bool
+    constructor(value: T, hasValue: bool) { ... }
+    isSome(): bool { return this.hasValue }
+}
+// Works: Option(42), Option("hello"), Option(true)
+```
+
+**Example: Result<T, E>**
+```liva
+Result<T, E> {
+    value: T
+    error: E
+    isOk: bool
+    constructor(value: T, error: E, isOk: bool) { ... }
+    isSuccess(): bool { return this.isOk }
+}
+// Works: Result<int,string>, Result<bool,int>
+```
+
+**Next Steps:**
+- Implement full type system with constraints (Phase 5.5)
+- Use these findings to guide implementation priorities
+
+### 5.5 Type System Implementation
 - [ ] Implement type parameter validation
 - [ ] Implement type substitution algorithm
 - [ ] Implement type inference for generic calls
-- [ ] Implement constraint checking
+- [ ] Implement constraint checking (`T: Clone`, `T: Display`)
 - [ ] Handle generic type bounds
 - [ ] Add semantic analysis tests
+- [ ] Fix semantic analyzer to not interfere with user function names
 
-**Estimated:** 3-4 hours (reduced from original, much works already)
+**Priority Issues (from stdlib validation):**
+- Ownership constraints for methods returning T by value
+- Generic method calls with type inference
+- Clone/Copy trait constraints
 
-### 5.5 Standard Library Updates
-- [ ] Convert `Array` to `Array<T>`
-- [ ] Convert `Result` to `Result<T, E>`
-- [ ] Convert `Option` to `Option<T>`
+**Estimated:** 3 hours (reduced - core infrastructure works)
+
+### 5.6 Standard Library Integration (Optional)
+- [ ] Convert stdlib `Array` to `Array<T>`  
 - [ ] Add `Map<K, V>` generic collection
 - [ ] Add `Set<T>` generic collection
-- [ ] Update all stdlib to use generics
-- [ ] Add generic utility functions
+- [ ] Add generic utility functions (map, filter, reduce)
 
-**Estimated:** 2 hours
+**Note:** Option<T> and Result<T,E> already validated as working  
+**Estimated:** 1 hour (optional - can be deferred to v0.9.1)
 
-### 5.6 Documentation & Examples
-- [ ] Write generics language reference
-- [ ] Write generics tutorial
-- [ ] Create real-world generic examples
+### 5.7 Documentation & Examples
+- [ ] Update generics language reference with findings
+- [ ] Write generics tutorial with examples
+- [ ] Document known limitations and workarounds
 - [ ] Document best practices
-- [ ] Update CHANGELOG.md
+- [ ] Update CHANGELOG.md with v0.9.0 changes
 - [ ] Create migration guide for v0.9.0
+
+**Estimated:** 1 hour
 
 **Estimated:** 1.5 hours
 

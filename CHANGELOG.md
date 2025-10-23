@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added - Generics System (Phase 5 - In Progress, 8h)
+### Added - Generics System (Phase 5 - In Progress, 10h / 15h - 67%)
 
 **Phase 5.1: Generic Syntax Design (2h) ✅**
 - Complete specification in docs/language-reference/generics.md (785 lines)
@@ -62,6 +62,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `examples/test_array_syntax.liva` - Array type annotations
 
 **Commits:** 8ee5bc1 (specification), ae39b05 (parser tests), d4dc6d2 (array syntax), 72c3878 (working generics!), 677c552 (generic classes), 5669a17 (multiple type params), 2d8c6d3 (docs update), 4b7d0fd (array types)
+
+**Phase 5.4: Standard Library Validation (2h) ✅**
+- Test `Option<T>` with generics working! 🎉
+  * Created Option<T> class with isSome(), isNone() methods
+  * Works with: int, string, bool types
+  * File: `examples/test_option_generic.liva`
+  * Compiles and executes correctly
+- Test `Result<T, E>` with generics working! 🎉
+  * Created Result<T,E> class with isSuccess(), isError() methods
+  * Works with: Result<int,string>, Result<bool,int>
+  * File: `examples/test_result_generic.liva`
+  * Compiles and executes correctly
+
+**Important Findings:**
+
+✅ **What Works:**
+- Generic classes instantiate correctly with different types
+- Multiple type parameters work (`Result<T, E>`)
+- Type safety enforced by Rust's type system
+- Methods with `&self` work for predicates (bool returns)
+
+⚠️ **Limitations Discovered:**
+
+1. **Ownership Issue:**
+   - Methods with `&self` cannot return `T` by value
+   - Rust error: "cannot move out of `self.value` which is behind a shared reference"
+   - Workaround: Access fields directly instead of getter methods
+   - Future solution: Add Clone constraint or make methods consume self
+
+2. **Semantic Analyzer Interference:**
+   - Function names like `parseInt` trigger fallible builtin detection
+   - Compiler tries to parse string literals instead of calling the function
+   - Workaround: Use different names (`parseNumber` instead of `parseInt`)
+   - Future solution: Improve semantic analysis to distinguish user functions
+
+3. **VSCode Language Server Bug:**
+   - LSP shows parse error on generic class declarations (`Option<T> {`)
+   - Actual compiler works fine - error is only in IDE
+   - Error message: "Expected LParen" (false positive)
+   - Impact: Cosmetic only - doesn't affect compilation
+
+**Commits:** 1594d4d (Option<T>), 17bbef2 (Result<T,E>)
 
 ## [0.8.1] - 2025-10-23
 
