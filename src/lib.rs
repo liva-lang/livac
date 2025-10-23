@@ -43,6 +43,7 @@ pub mod module;
 pub mod parser;
 pub mod semantic;
 pub mod span;
+pub mod suggestions;
 
 pub use error::{CompilerError, ErrorLocation, Result, SemanticErrorInfo};
 

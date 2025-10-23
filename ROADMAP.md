@@ -1,8 +1,8 @@
 # 🗺️ Liva Language Roadmap
 
-> **Current Version:** v0.6.1  
-> **Status:** Alpha - Feature-complete for core language  
-> **Last Updated:** 2025-10-20
+> **Current Version:** v0.8.0  
+> **Status:** Alpha - Module system complete, working on enhanced errors  
+> **Last Updated:** 2025-10-23
 
 ---
 
@@ -540,15 +540,16 @@ Build a modern, practical programming language that combines:
 
 ---
 
-## 🎯 Phase 5: Enhanced Error Messages (v0.9.5)
+## 🎯 Phase 5: Enhanced Error Messages (v0.8.1)
 
-**Goal:** Developer-friendly error messages
+**Goal:** Developer-friendly error messages with suggestions and better context
 
-**Status:** 📋 Planned  
-**Branch:** `feature/better-errors-v0.9.5`  
+**Status:** � In Progress  
+**Branch:** `feature/better-errors-v0.8.1`  
+**Started:** 2025-10-23  
 **ETA:** 5-8 hours
 
-### 5.1 "Did You Mean?" Suggestions (~2 hours)
+### 5.1 "Did You Mean?" Suggestions (~2 hours) 🚧 IN PROGRESS
 - [ ] Implement Levenshtein distance algorithm
 - [ ] Suggest similar variable names
 - [ ] Suggest similar function names
