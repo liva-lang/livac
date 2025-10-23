@@ -1,0 +1,34 @@
+// Test type parameter validation
+// Should compile successfully - all type parameters are valid
+
+identity<T>(value: T): T => value
+
+Box<T> {
+    value: T
+    constructor(value: T) { this.value = value }
+}
+
+// Using T in method parameters - access fields directly to avoid ownership issues
+Container<T> {
+    item: T
+    
+    constructor(item: T) {
+        this.item = item
+    }
+    
+    hasItem(): bool {
+        return true
+    }
+}
+
+main() {
+    let x = identity(42)
+    print(x)
+    
+    let myBox = Box(100)
+    print(myBox.value)
+    
+    let container = Container("hello")
+    print(container.item)
+    print(container.hasItem())
+}

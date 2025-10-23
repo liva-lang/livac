@@ -29,6 +29,8 @@ pub struct SemanticAnalyzer {
     imported_symbols: HashSet<String>,
     // Track if we're currently in an error binding context (allows fallible calls)
     in_error_binding: bool,
+    // Track type parameters in current scope (for generics)
+    type_parameters: Vec<HashSet<String>>,
 }
 
 #[derive(Debug, Clone)]
@@ -88,6 +90,7 @@ impl SemanticAnalyzer {
             imported_modules: HashMap::new(),
             imported_symbols: HashSet::new(),
             in_error_binding: false,
+            type_parameters: vec![HashSet::new()],
         }
     }
 
@@ -899,17 +902,22 @@ impl SemanticAnalyzer {
     }
 
     fn validate_class(&mut self, class: &ClassDecl) -> Result<()> {
-        let empty: HashSet<String> = HashSet::new();
+        // Collect type parameters from class declaration
+        let type_params: HashSet<String> = class
+            .type_params
+            .iter()
+            .map(|tp| tp.name.clone())
+            .collect();
 
         for member in &class.members {
             match member {
                 Member::Field(field) => {
                     if let Some(type_ref) = &field.type_ref {
-                        self.validate_type_ref(type_ref, &empty)?;
+                        self.validate_type_ref(type_ref, &type_params)?;
                     }
                 }
                 Member::Method(method) => {
-                    self.validate_method(method, &class.name)?;
+                    self.validate_method_with_params(method, &class.name, &type_params)?;
                 }
             }
         }
@@ -958,16 +966,30 @@ impl SemanticAnalyzer {
     }
 
     fn validate_method(&mut self, method: &MethodDecl, owner: &str) -> Result<()> {
-        let type_params: HashSet<String> = method.type_params.iter().map(|tp| tp.name.clone()).collect();
+        let empty = HashSet::new();
+        self.validate_method_with_params(method, owner, &empty)
+    }
+
+    fn validate_method_with_params(
+        &mut self,
+        method: &MethodDecl,
+        owner: &str,
+        class_type_params: &HashSet<String>,
+    ) -> Result<()> {
+        // Combine class type parameters with method's own type parameters
+        let mut all_type_params = class_type_params.clone();
+        for tp in &method.type_params {
+            all_type_params.insert(tp.name.clone());
+        }
 
         for param in &method.params {
             if let Some(type_ref) = &param.type_ref {
-                self.validate_type_ref(type_ref, &type_params)?;
+                self.validate_type_ref(type_ref, &all_type_params)?;
             }
         }
 
         if let Some(return_type) = &method.return_type {
-            self.validate_type_ref(return_type, &type_params)?;
+            self.validate_type_ref(return_type, &all_type_params)?;
         }
 
         self.enter_scope();
@@ -1797,6 +1819,27 @@ impl SemanticAnalyzer {
         Ok(())
     }
 
+    // Type parameter scope management for generics
+    fn enter_type_param_scope(&mut self) {
+        self.type_parameters.push(HashSet::new());
+    }
+
+    fn exit_type_param_scope(&mut self) {
+        self.type_parameters.pop();
+    }
+
+    fn declare_type_param(&mut self, name: &str) {
+        if let Some(scope) = self.type_parameters.last_mut() {
+            scope.insert(name.to_string());
+        }
+    }
+
+    fn is_type_param(&self, name: &str) -> bool {
+        self.type_parameters
+            .iter()
+            .any(|scope| scope.contains(name))
+    }
+
     fn declare_symbol(&mut self, name: &str, ty: Option<TypeRef>) -> bool {
         if let Some(scope) = self.current_scope.last_mut() {
             let existed = scope.contains_key(name);
@@ -2037,8 +2080,28 @@ impl SemanticAnalyzer {
         available_type_params: &std::collections::HashSet<String>,
     ) -> Result<()> {
         match type_ref {
-            TypeRef::Simple(_name) => Ok(()),
-            TypeRef::Generic { args, .. } => {
+            TypeRef::Simple(name) => {
+                // Check if it's a type parameter
+                if available_type_params.contains(name) {
+                    return Ok(());
+                }
+                
+                // Check if it's a known type (class, interface, primitive)
+                let primitives = ["int", "float", "bool", "string"];
+                if primitives.contains(&name.as_str()) || self.types.contains_key(name) {
+                    return Ok(());
+                }
+                
+                // If not found, it might be undefined
+                // For now we allow it (could be from external module or stdlib)
+                Ok(())
+            }
+            TypeRef::Generic { base, args } => {
+                // Validate base type (it's a String, so wrap it as Simple TypeRef)
+                let base_ref = TypeRef::Simple(base.clone());
+                self.validate_type_ref(&base_ref, available_type_params)?;
+                
+                // Validate all type arguments
                 for arg in args {
                     self.validate_type_ref(arg, available_type_params)?;
                 }
