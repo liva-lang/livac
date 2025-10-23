@@ -7,6 +7,12 @@ pub struct ErrorLocation {
     pub line: usize,
     pub column: Option<usize>,
     pub source_line: Option<String>,
+    /// Length of the token/text to highlight (for underlining)
+    pub length: Option<usize>,
+    /// Lines before the error for context (up to 2)
+    pub context_before: Option<Vec<String>>,
+    /// Lines after the error for context (up to 2)
+    pub context_after: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -45,6 +51,9 @@ impl SemanticErrorInfo {
             line,
             column: None,
             source_line: None,
+            length: None,
+            context_before: None,
+            context_after: None,
         });
         self
     }
@@ -59,6 +68,21 @@ impl SemanticErrorInfo {
     pub fn with_source_line(mut self, source_line: String) -> Self {
         if let Some(loc) = &mut self.location {
             loc.source_line = Some(source_line);
+        }
+        self
+    }
+
+    pub fn with_length(mut self, length: usize) -> Self {
+        if let Some(loc) = &mut self.location {
+            loc.length = Some(length);
+        }
+        self
+    }
+
+    pub fn with_context(mut self, before: Vec<String>, after: Vec<String>) -> Self {
+        if let Some(loc) = &mut self.location {
+            loc.context_before = Some(before);
+            loc.context_after = Some(after);
         }
         self
     }
@@ -89,12 +113,31 @@ impl SemanticErrorInfo {
             }
             output.push_str("\n");
 
-            // Línea de código fuente si está disponible
+            // Mostrar contexto extendido si está disponible
             if let Some(source) = &loc.source_line {
+                output.push_str("\n");
+
+                let start_line = loc.line.saturating_sub(
+                    loc.context_before.as_ref().map(|v| v.len()).unwrap_or(0)
+                );
+
+                // Líneas antes del error
+                if let Some(before) = &loc.context_before {
+                    for (idx, line) in before.iter().enumerate() {
+                        let line_num = start_line + idx;
+                        output.push_str(&format!(
+                            "  {} {} {}\n",
+                            format!("{:>4}", line_num).bright_black(),
+                            "│".bright_black(),
+                            line
+                        ));
+                    }
+                }
+
+                // Línea del error
                 let trimmed = source.trim_start();
                 let leading_spaces = source.len() - trimmed.len();
 
-                output.push_str("\n");
                 output.push_str(&format!(
                     "  {} {}\n",
                     format!("{:>4}", loc.line).bright_black(),
@@ -107,17 +150,32 @@ impl SemanticErrorInfo {
                     trimmed
                 ));
 
-                // Indicador visual si tenemos la columna
+                // Indicador visual con longitud precisa si está disponible
                 if let Some(col) = loc.column {
                     let adjusted_col = col.saturating_sub(leading_spaces + 1);
+                    let underline_len = loc.length.unwrap_or(3).max(1);
                     output.push_str(&format!(
                         "  {} {} {}{}\n",
                         format!("{:>4}", " ").bright_black(),
                         "│".bright_black(),
                         " ".repeat(adjusted_col),
-                        "^".repeat(3).red().bold()
+                        "^".repeat(underline_len).red().bold()
                     ));
                 }
+
+                // Líneas después del error
+                if let Some(after) = &loc.context_after {
+                    for (idx, line) in after.iter().enumerate() {
+                        let line_num = loc.line + idx + 1;
+                        output.push_str(&format!(
+                            "  {} {} {}\n",
+                            format!("{:>4}", line_num).bright_black(),
+                            "│".bright_black(),
+                            line
+                        ));
+                    }
+                }
+
                 output.push_str(&format!(
                     "  {} {}\n",
                     format!("{:>4}", " ").bright_black(),

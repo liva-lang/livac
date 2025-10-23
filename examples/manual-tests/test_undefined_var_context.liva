@@ -1,0 +1,12 @@
+// Test para demostrar el contexto mejorado en diferentes tipos de error
+
+main() {
+  let userName = "Alice"
+  let userAge = 25
+  let userEmail = "alice@example.com"
+  
+  // Error de variable no definida (debería sugerir userName)
+  usrName = "Bob"
+  
+  print(userName)
+}

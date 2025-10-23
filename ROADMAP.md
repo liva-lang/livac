@@ -549,19 +549,21 @@ Build a modern, practical programming language that combines:
 **Started:** 2025-10-23  
 **ETA:** 5-8 hours
 
-### 5.1 "Did You Mean?" Suggestions (~2 hours) 🚧 IN PROGRESS
-- [ ] Implement Levenshtein distance algorithm
-- [ ] Suggest similar variable names
-- [ ] Suggest similar function names
-- [ ] Suggest similar type names
-- [ ] Add tests
+### 5.1 "Did You Mean?" Suggestions (~2 hours) ✅ COMPLETE
+- [x] Implement Levenshtein distance algorithm
+- [x] Suggest similar variable names
+- [x] Suggest similar function names
+- [x] Suggest similar type names
+- [x] Add tests
 
-### 5.2 Enhanced Error Context (~2 hours)
-- [ ] Show more context lines in errors
-- [ ] Highlight specific tokens in red
-- [ ] Show related code locations
-- [ ] Add caret (^) under error position
-- [ ] Add tests
+### 5.2 Enhanced Error Context (~2 hours) ✅ COMPLETE
+- [x] Show more context lines in errors (2 before, 2 after)
+- [x] Show precise token length in underline
+- [x] Add caret (^) under error position with exact length
+- [x] Update ErrorLocation structure with context fields
+- [x] Implement get_context_lines() in semantic analyzer
+- [x] Update parser error formatting
+- [x] Add tests (test_parse_context.liva)
 
 ### 5.3 Error Categories & Codes (~1 hour)
 - [ ] Organize errors by category

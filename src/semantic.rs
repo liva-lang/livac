@@ -104,10 +104,16 @@ impl SemanticAnalyzer {
         if let (Some(span), Some(source_map)) = (span, &self.source_map) {
             let (line, column) = span.start_position(source_map);
             let source_line = self.get_source_line(line);
+            let token_length = span.len();
+
+            // Get context lines (2 before and 2 after)
+            let (context_before, context_after) = self.get_context_lines(line, 2);
 
             error = error
                 .with_location(&self.source_file, line)
-                .with_column(column);
+                .with_column(column)
+                .with_length(token_length)
+                .with_context(context_before, context_after);
 
             if let Some(source_line) = source_line {
                 error = error.with_source_line(source_line);
@@ -733,6 +739,38 @@ impl SemanticAnalyzer {
             .map(|s| s.to_string())
     }
 
+    /// Get context lines before and after a specific line
+    fn get_context_lines(&self, line_num: usize, context_size: usize) -> (Vec<String>, Vec<String>) {
+        let lines: Vec<&str> = self.source_code.lines().collect();
+        let total_lines = lines.len();
+
+        // Lines before (up to context_size)
+        let start_before = line_num.saturating_sub(context_size + 1);
+        let end_before = line_num.saturating_sub(1);
+        let before: Vec<String> = if start_before < end_before && end_before <= total_lines {
+            lines[start_before..end_before]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        // Lines after (up to context_size)
+        let start_after = line_num; // line_num is 1-indexed, array is 0-indexed
+        let end_after = (line_num + context_size).min(total_lines);
+        let after: Vec<String> = if start_after < end_after {
+            lines[start_after..end_after]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        (before, after)
+    }
+
     /// Find the line number where a function is called WITHOUT error binding (heuristic)
     /// Tries to find calls that don't use the pattern "let result, err = func(...)"
     fn find_line_for_function_call(&self, func_name: &str) -> Option<usize> {
@@ -1256,6 +1294,9 @@ impl SemanticAnalyzer {
                             line,
                             column: None,
                             source_line,
+                            length: None,
+                            context_before: None,
+                            context_after: None,
                         }),
                         code: "E0701".to_string(),
                         title: "Fallible function must be called with error binding".to_string(),

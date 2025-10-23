@@ -1,0 +1,17 @@
+// Test para mostrar el contexto mejorado de errores
+
+addOne(x) => x + 1
+
+main() {
+  let x = 5
+  let y = "hello"
+  let z = 10
+
+  // Este error debería mostrar contexto antes y después  
+  let result = addOne(y)  // Type error: cannot add number and string
+
+  let a = 20
+  let b = 30
+  
+  print(result)
+}
