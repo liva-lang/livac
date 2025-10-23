@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added - Generics System (Phase 5 - In Progress)
+### Added - Generics System (Phase 5 - In Progress, 6h)
 
 **Phase 5.1: Generic Syntax Design (2h) ✅**
 - Complete specification in docs/language-reference/generics.md (785 lines)
@@ -25,10 +25,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed codegen to emit proper generic Rust code:
   * `pub struct Name<T: Constraint>`
   * `impl<T: Constraint> Name<T> { }`
+- Added `[T]` array type syntax support
+- Parser handles type parameters in type annotations (T, U, etc.)
+- Added `?` and `!` suffix parsing for Optional and Fallible types
 - 11 parser test files with full insta snapshot coverage
 - All tests passing (11/11)
 
-**Commits:** 8ee5bc1 (specification), ae39b05 (parser tests)
+**Phase 5.3: Basic Code Generation (1h) ✅**
+- Generic functions compile and execute correctly! 🎉
+- Example: `identity<T>(value: T): T => value`
+- Test output: Works with int, string, bool types
+- Generated Rust: `fn identity<T>(value: T) -> T { value }`
+- **No codegen changes needed** - infrastructure already supported it!
+- Monomorphization delegated to Rust compiler (optimal)
+
+**Commits:** 8ee5bc1 (specification), ae39b05 (parser tests), d4dc6d2 (array syntax), 72c3878 (working generics!)
 
 ## [0.8.1] - 2025-10-23
 
