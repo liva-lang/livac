@@ -565,11 +565,14 @@ Build a modern, practical programming language that combines:
 - [x] Update parser error formatting
 - [x] Add tests (test_parse_context.liva)
 
-### 5.3 Error Categories & Codes (~1 hour)
-- [ ] Organize errors by category
-- [ ] Assign unique error codes (E1001, etc.)
-- [ ] Create error code documentation
-- [ ] Link errors to docs
+### 5.3 Error Categories & Codes (~1 hour) ✅ COMPLETE
+- [x] Organize errors by category (E0xxx-E7xxx)
+- [x] Create error_codes module with constants
+- [x] Implement ErrorCategory enum
+- [x] Display category in error messages
+- [x] Document all error codes in ERROR_CODES.md
+- [x] Add category detection from error code
+- [x] Add tests for error categories
 
 ### 5.4 Hints & Help (~2 hours)
 - [ ] Add helpful hints to common errors

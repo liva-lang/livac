@@ -1,6 +1,8 @@
 use colored::Colorize;
 use thiserror::Error;
 
+use crate::error_codes::ErrorCategory;
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ErrorLocation {
     pub file: String,
@@ -92,13 +94,25 @@ impl SemanticErrorInfo {
         self
     }
 
+    /// Get the error category from the error code
+    pub fn category(&self) -> Option<ErrorCategory> {
+        ErrorCategory::from_code(&self.code)
+    }
+
     pub fn format(&self) -> String {
         let mut output = String::new();
 
-        // Header con icono y código de error
+        // Header con icono, código de error y categoría
         output.push_str(&format!("\n{} ", "●".red().bold()));
         output.push_str(&format!("{}: ", self.code.red().bold()));
-        output.push_str(&format!("{}\n", self.title.bold()));
+        output.push_str(&format!("{}", self.title.bold()));
+        
+        // Mostrar categoría si está disponible
+        if let Some(category) = self.category() {
+            output.push_str(&format!(" {}\n", format!("[{}]", category.name()).bright_black()));
+        } else {
+            output.push_str("\n");
+        }
 
         // Separador
         output.push_str(&format!("{}\n", "─".repeat(60).bright_black()));
