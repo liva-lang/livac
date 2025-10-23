@@ -1,7 +1,7 @@
 # 🗺️ Liva Language Roadmap
 
-> **Current Version:** v0.8.1  
-> **Status:** Alpha - Enhanced error messages complete  
+> **Current Version:** v0.9.2  
+> **Status:** Alpha - Generics with trait aliases complete  
 > **Last Updated:** 2025-10-23
 
 ---
@@ -970,6 +970,69 @@ negate<T: Neg>(value: T): T => -value
 **Commits:** 240b814
 
 **Deliverable:** Liva v0.9.0 - Production-ready generics with full constraint checking ✅ COMPLETE!
+
+### 5.9 Type Arguments in Function Calls & Multiple Constraints ✅ COMPLETE (~3 hours)
+- [x] Add type_args field to CallExpr AST ✅
+- [x] Implement type argument parsing (identifier<Type>(args)) ✅
+- [x] Handle keyword tokens (float, bool, string) vs identifiers ✅
+- [x] Add turbofish code generation (::< Type >) ✅
+- [x] Parse multiple constraints with + operator ✅
+- [x] Update AST TypeParameter to use Vec<String> ✅
+- [x] Update semantic analyzer for multi-constraint validation ✅
+- [x] Update code generation for multiple trait bounds ✅
+- [x] Test arithmetic + comparison combinations ✅
+- [x] Update documentation with new syntax ✅
+
+**Working Examples:**
+```liva
+// Type arguments in function calls
+identity<int>(42)
+sum<float>(3.5, 2.5)
+
+// Multiple constraints
+clamp<T: Ord + Add + Sub>(value: T, min: T, max: T): T { ... }
+printIfEqual<T: Eq + Display>(a: T, b: T) { ... }
+```
+
+**Completed:** 2025-10-23  
+**Commit:** Multiple (type args + multi-constraints)
+
+**Deliverable:** Liva v0.9.1 - Type arguments and composable constraints ✅
+
+### 5.10 Trait Aliases ✅ COMPLETE (~2 hours)
+- [x] Add aliases HashMap to TraitRegistry ✅
+- [x] Define 4 built-in aliases (Numeric, Comparable, Number, Printable) ✅
+- [x] Implement is_alias() and expand_alias() methods ✅
+- [x] Update semantic analyzer to expand aliases during registration ✅
+- [x] Update code generation (automatic expansion in generate_rust_bounds) ✅
+- [x] Create comprehensive test (test_trait_aliases.liva) ✅
+- [x] Update documentation with aliases-first approach ✅
+- [x] Add best practices guide ✅
+
+**Built-in Aliases:**
+- `Numeric` = Add + Sub + Mul + Div + Rem + Neg
+- `Comparable` = Ord + Eq
+- `Number` = Numeric + Comparable
+- `Printable` = Display + Debug
+
+**Working Examples:**
+```liva
+// Intuitive aliases (recommended for beginners)
+sum<T: Numeric>(a: T, b: T): T => a + b
+max<T: Comparable>(a: T, b: T): T { ... }
+clamp<T: Number>(value: T, min: T, max: T): T { ... }
+
+// Granular control (for advanced use)
+addOnly<T: Add>(a: T, b: T): T => a + b
+
+// Mix both approaches
+formatAndCompare<T: Comparable + Display>(a: T, b: T) { ... }
+```
+
+**Completed:** 2025-10-23  
+**Commit:** Multiple (aliases implementation)
+
+**Deliverable:** Liva v0.9.2 - Best of both worlds (aliases + granular traits) ✅
 
 ---
 

@@ -872,28 +872,38 @@ impl SemanticAnalyzer {
         self.enter_type_param_scope();
         
         for param in &func.type_params {
-            if let Some(constraint) = &param.constraint {
-                // Validate that the constraint is a known trait
-                if !self.trait_registry.is_valid_constraint(constraint) {
-                    let suggestions = self.trait_registry.all_trait_names();
-                    let similar = suggestions::find_multiple_suggestions(&constraint, &suggestions, 3, 3);
+            if !param.constraints.is_empty() {
+                // Validate that all constraints are known traits or aliases
+                for constraint in &param.constraints {
+                    if !self.trait_registry.is_valid_constraint(constraint) {
+                        let suggestions = self.trait_registry.all_trait_names();
+                        let similar = suggestions::find_multiple_suggestions(&constraint, &suggestions, 3, 3);
+                        
+                        self.exit_type_param_scope();
+                        return Err(CompilerError::SemanticError(
+                            format!(
+                                "E5001: Unknown trait constraint '{}'. {}Available traits: {}",
+                                constraint,
+                                if !similar.is_empty() {
+                                    format!("Did you mean '{}'? ", similar.join("', '"))
+                                } else {
+                                    String::new()
+                                },
+                                suggestions.join(", ")
+                            ).into(),
+                        ));
+                    }
                     
-                    self.exit_type_param_scope();
-                    return Err(CompilerError::SemanticError(
-                        format!(
-                            "E5001: Unknown trait constraint '{}'. {}Available traits: {}",
-                            constraint,
-                            if !similar.is_empty() {
-                                format!("Did you mean '{}'? ", similar.join("', '"))
-                            } else {
-                                String::new()
-                            },
-                            suggestions.join(", ")
-                        ).into(),
-                    ));
+                    // Expand aliases to underlying traits
+                    if self.trait_registry.is_alias(constraint) {
+                        let underlying = self.trait_registry.expand_alias(constraint);
+                        for trait_name in underlying {
+                            self.declare_type_param_with_constraint(&param.name, &trait_name);
+                        }
+                    } else {
+                        self.declare_type_param_with_constraint(&param.name, constraint);
+                    }
                 }
-                
-                self.declare_type_param_with_constraint(&param.name, constraint);
             } else {
                 self.declare_type_param(&param.name);
             }
@@ -945,28 +955,38 @@ impl SemanticAnalyzer {
         self.enter_type_param_scope();
         
         for param in &class.type_params {
-            if let Some(constraint) = &param.constraint {
-                // Validate that the constraint is a known trait
-                if !self.trait_registry.is_valid_constraint(constraint) {
-                    let suggestions = self.trait_registry.all_trait_names();
-                    let similar = suggestions::find_multiple_suggestions(&constraint, &suggestions, 3, 3);
+            if !param.constraints.is_empty() {
+                // Validate that all constraints are known traits or aliases
+                for constraint in &param.constraints {
+                    if !self.trait_registry.is_valid_constraint(constraint) {
+                        let suggestions = self.trait_registry.all_trait_names();
+                        let similar = suggestions::find_multiple_suggestions(&constraint, &suggestions, 3, 3);
+                        
+                        self.exit_type_param_scope();
+                        return Err(CompilerError::SemanticError(
+                            format!(
+                                "E5001: Unknown trait constraint '{}'. {}Available traits: {}",
+                                constraint,
+                                if !similar.is_empty() {
+                                    format!("Did you mean '{}'? ", similar.join("', '"))
+                                } else {
+                                    String::new()
+                                },
+                                suggestions.join(", ")
+                            ).into(),
+                        ));
+                    }
                     
-                    self.exit_type_param_scope();
-                    return Err(CompilerError::SemanticError(
-                        format!(
-                            "E5001: Unknown trait constraint '{}'. {}Available traits: {}",
-                            constraint,
-                            if !similar.is_empty() {
-                                format!("Did you mean '{}'? ", similar.join("', '"))
-                            } else {
-                                String::new()
-                            },
-                            suggestions.join(", ")
-                        ).into(),
-                    ));
+                    // Expand aliases to underlying traits
+                    if self.trait_registry.is_alias(constraint) {
+                        let underlying = self.trait_registry.expand_alias(constraint);
+                        for trait_name in underlying {
+                            self.declare_type_param_with_constraint(&param.name, &trait_name);
+                        }
+                    } else {
+                        self.declare_type_param_with_constraint(&param.name, constraint);
+                    }
                 }
-                
-                self.declare_type_param_with_constraint(&param.name, constraint);
             } else {
                 self.declare_type_param(&param.name);
             }
@@ -1051,27 +1071,37 @@ impl SemanticAnalyzer {
         // Register method's own type parameters with constraints
         // Note: Class type parameters are already in scope from validate_class
         for param in &method.type_params {
-            if let Some(constraint) = &param.constraint {
-                // Validate that the constraint is a known trait
-                if !self.trait_registry.is_valid_constraint(constraint) {
-                    let suggestions = self.trait_registry.all_trait_names();
-                    let similar = suggestions::find_multiple_suggestions(&constraint, &suggestions, 3, 3);
+            if !param.constraints.is_empty() {
+                // Validate that all constraints are known traits or aliases
+                for constraint in &param.constraints {
+                    if !self.trait_registry.is_valid_constraint(constraint) {
+                        let suggestions = self.trait_registry.all_trait_names();
+                        let similar = suggestions::find_multiple_suggestions(&constraint, &suggestions, 3, 3);
+                        
+                        return Err(CompilerError::SemanticError(
+                            format!(
+                                "E5001: Unknown trait constraint '{}'. {}Available traits: {}",
+                                constraint,
+                                if !similar.is_empty() {
+                                    format!("Did you mean '{}'? ", similar.join("', '"))
+                                } else {
+                                    String::new()
+                                },
+                                suggestions.join(", ")
+                            ).into(),
+                        ));
+                    }
                     
-                    return Err(CompilerError::SemanticError(
-                        format!(
-                            "E5001: Unknown trait constraint '{}'. {}Available traits: {}",
-                            constraint,
-                            if !similar.is_empty() {
-                                format!("Did you mean '{}'? ", similar.join("', '"))
-                            } else {
-                                String::new()
-                            },
-                            suggestions.join(", ")
-                        ).into(),
-                    ));
+                    // Expand aliases to underlying traits
+                    if self.trait_registry.is_alias(constraint) {
+                        let underlying = self.trait_registry.expand_alias(constraint);
+                        for trait_name in underlying {
+                            self.declare_type_param_with_constraint(&param.name, &trait_name);
+                        }
+                    } else {
+                        self.declare_type_param_with_constraint(&param.name, constraint);
+                    }
                 }
-                
-                self.declare_type_param_with_constraint(&param.name, constraint);
             } else {
                 self.declare_type_param(&param.name);
             }

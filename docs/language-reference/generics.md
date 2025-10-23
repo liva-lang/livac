@@ -247,36 +247,114 @@ class StringToInt : Mapper<string, int> {
 
 ## Type Constraints
 
-### Single Constraint
+### Trait Aliases (Recommended - Simple and Intuitive) ✨ New in v0.9.1
 
-Use `:` to specify a constraint (interface the type must implement):
+For common use cases, use **trait aliases** that group related traits:
 
 ```liva
-fn max<T: Comparable<T>>(a: T, b: T): T {
-    if a.compareTo(b) > 0 {
-        return a
-    }
+// Numeric: All arithmetic operations
+sum<T: Numeric>(a: T, b: T): T => a + b
+multiply<T: Numeric>(a: T, b: T): T => a * b
+negate<T: Numeric>(value: T): T => -value
+
+// Comparable: Equality and ordering  
+max<T: Comparable>(a: T, b: T): T {
+    if a > b { return a }
     return b
 }
-```
 
-### Multiple Constraints (Future)
+// Number: Numeric + Comparable (complete number operations)
+clamp<T: Number>(value: T, min_val: T, max_val: T): T {
+    if value < min_val { return min_val }
+    if value > max_val { return max_val }
+    return value
+}
 
-```liva
-// Future syntax - not in v0.9.0
-fn process<T: Comparable<T> & Serializable>(value: T) {
-    // T must implement both Comparable and Serializable
+// Printable: Display + Debug
+showValue<T: Printable>(value: T) {
+    console.log(value)
 }
 ```
+
+**Built-in Trait Aliases:**
+
+| Alias | Expands To | Use Case |
+|-------|-----------|----------|
+| `Numeric` | `Add + Sub + Mul + Div + Rem + Neg` | Arithmetic operations |
+| `Comparable` | `Ord + Eq` | Comparisons and equality |
+| `Number` | `Numeric + Comparable` | Complete number operations |
+| `Printable` | `Display + Debug` | Formatting and debugging |
+
+### Granular Traits (For Fine Control)
+
+When you need precise control, use individual traits:
+
+```liva
+// Only addition (more restrictive than Numeric)
+addOnly<T: Add>(a: T, b: T): T => a + b
+
+// Only ordering (more restrictive than Comparable)
+lessThan<T: Ord>(a: T, b: T): bool => a < b
+
+// Specific combination
+sumAndCompare<T: Add + Ord>(a: T, b: T): T {
+    let sum_val = a + b
+    if sum_val > a { return sum_val }
+    return a
+}
+```
+
+**Available Individual Traits:**
+- **Arithmetic:** `Add`, `Sub`, `Mul`, `Div`, `Rem`, `Neg`
+- **Comparison:** `Eq`, `Ord`
+- **Utilities:** `Clone`, `Copy`, `Display`, `Debug`
+- **Logical:** `Not`
+
+### Mixing Aliases and Granular Traits
+
+You can combine trait aliases with individual traits:
+
+```liva
+// Comparable + Display (alias + granular)
+formatAndCompare<T: Comparable + Display>(a: T, b: T): string {
+    if a == b { return $"Equal: {a}" }
+    if a > b { return $"{a} > {b}" }
+    return $"{a} < {b}"
+}
+
+// Numeric + Printable (two aliases)
+debugCalculation<T: Numeric + Printable>(a: T, b: T): T {
+    console.log($"Calculating {a} + {b}")
+    return a + b
+}
+
+// Number + Display (alias + granular)
+formatNumber<T: Number + Display>(value: T): string {
+    return $"Number: {value}"
+}
+```
+
+### Best Practices
+
+**✅ Do:**
+- Use `Numeric` for general arithmetic
+- Use `Comparable` for general comparisons
+- Use `Number` when you need both arithmetic and comparison
+- Use granular traits when you need precise control
+- Mix aliases and granular traits for complex requirements
+
+**❌ Don't:**
+- Use granular traits when an alias suffices (less intuitive)
+- Over-constrain (only require what you actually use)
 
 ### Where Clauses (Future)
 
 ```liva
-// Future syntax - not in v0.9.0
+// Future syntax - not in v0.9.1
 fn complexFunction<T, U>(t: T, u: U)
-    where T: Comparable<T>,
-          U: Mapper<T, string> {
-    // Complex constraints
+    where T: Ord + Display,
+          U: Add + Clone {
+    // Complex constraints with where clause
 }
 ```
 

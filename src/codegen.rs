@@ -391,9 +391,9 @@ impl CodeGenerator {
         // Format type parameters
         let type_params_str = if !class.type_params.is_empty() {
             let params: Vec<String> = class.type_params.iter().map(|tp| {
-                if let Some(constraint) = &tp.constraint {
+                if !tp.constraints.is_empty() {
                     // Use trait registry to get complete Rust trait bounds
-                    let rust_bounds = self.trait_registry.generate_rust_bounds(&vec![constraint.clone()]);
+                    let rust_bounds = self.trait_registry.generate_rust_bounds(&tp.constraints);
                     format!("{}{}", tp.name, rust_bounds)
                 } else {
                     tp.name.clone()
@@ -447,9 +447,9 @@ impl CodeGenerator {
         // Format type parameters for impl block
         let impl_type_params = if !class.type_params.is_empty() {
             let params: Vec<String> = class.type_params.iter().map(|tp| {
-                if let Some(constraint) = &tp.constraint {
+                if !tp.constraints.is_empty() {
                     // Use trait registry to get complete Rust trait bounds
-                    let rust_bounds = self.trait_registry.generate_rust_bounds(&vec![constraint.clone()]);
+                    let rust_bounds = self.trait_registry.generate_rust_bounds(&tp.constraints);
                     format!("{}{}", tp.name, rust_bounds)
                 } else {
                     tp.name.clone()
@@ -858,8 +858,10 @@ impl CodeGenerator {
                 .type_params
                 .iter()
                 .map(|param| {
-                    if let Some(constraint) = &param.constraint {
-                        format!("{}: {}", param.name, constraint)
+                    if !param.constraints.is_empty() {
+                        // Use trait registry to get complete Rust trait bounds
+                        let rust_bounds = self.trait_registry.generate_rust_bounds(&param.constraints);
+                        format!("{}{}", param.name, rust_bounds)
                     } else {
                         param.name.clone()
                     }
@@ -927,9 +929,9 @@ impl CodeGenerator {
                 .type_params
                 .iter()
                 .map(|param| {
-                    if let Some(constraint) = &param.constraint {
+                    if !param.constraints.is_empty() {
                         // Use trait registry to get complete Rust trait bounds
-                        let rust_bounds = self.trait_registry.generate_rust_bounds(&vec![constraint.clone()]);
+                        let rust_bounds = self.trait_registry.generate_rust_bounds(&param.constraints);
                         format!("{}{}", param.name, rust_bounds)
                     } else {
                         param.name.clone()
@@ -2123,6 +2125,19 @@ impl CodeGenerator {
         }
 
         self.generate_expr(&call.callee)?;
+        
+        // Add type arguments if present (turbofish syntax)
+        if !call.type_args.is_empty() {
+            self.output.push_str("::<");
+            for (i, type_arg) in call.type_args.iter().enumerate() {
+                if i > 0 {
+                    self.output.push_str(", ");
+                }
+                write!(self.output, "{}", type_arg.to_rust_type()).unwrap();
+            }
+            self.output.push('>');
+        }
+        
         self.output.push('(');
         for (i, arg) in call.args.iter().enumerate() {
             if i > 0 {

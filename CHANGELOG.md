@@ -7,7 +7,103 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added - Generics System (Phase 5 - CORE COMPLETE, 11h - Ready for Release! 🎉)
+## [0.9.2] - 2025-10-23
+
+### Added - Trait Aliases (Phase 5.10 - 2h)
+
+**Intuitive Trait Aliases:**
+- `Numeric` = Add + Sub + Mul + Div + Rem + Neg (all arithmetic)
+- `Comparable` = Ord + Eq (equality and ordering)
+- `Number` = Numeric + Comparable (complete number operations)
+- `Printable` = Display + Debug (formatting)
+
+**Implementation:**
+- Added `aliases` HashMap to TraitRegistry
+- `register_trait_aliases()` defines 4 built-in aliases
+- `is_alias()` checks if constraint is an alias
+- `expand_alias()` returns underlying traits
+- `expand_constraints()` expands all aliases in a list
+- Semantic analyzer expands aliases before registering constraints
+- Code generation automatically expands aliases to Rust traits
+
+**Examples:**
+```liva
+// Simple and intuitive
+sum<T: Numeric>(a: T, b: T): T => a + b
+max<T: Comparable>(a: T, b: T): T { ... }
+clamp<T: Number>(value: T, min: T, max: T): T { ... }
+
+// Mix with granular traits
+formatAndCompare<T: Comparable + Display>(a: T, b: T) { ... }
+debugCalc<T: Numeric + Printable>(a: T, b: T) { ... }
+
+// Still can use granular for precise control
+addOnly<T: Add>(a: T, b: T): T => a + b
+```
+
+**Test Coverage:**
+- test_trait_aliases.liva (comprehensive test of all aliases)
+- Tests mixing aliases with granular traits
+- Verifies expansion to correct Rust bounds
+
+**Documentation:**
+- Updated generics.md with trait aliases section
+- Added comparison table (aliases vs granular)
+- Best practices guide
+- Examples of mixing approaches
+
+### Philosophy
+Liva now offers **the best of both worlds**:
+- **Beginners:** Use intuitive aliases (`Numeric`, `Comparable`, `Number`)
+- **Advanced:** Use granular traits for precise control (`Add`, `Ord`, etc.)
+- **Flexible:** Mix both approaches as needed
+
+## [0.9.1] - 2025-10-23
+
+### Added - Multiple Constraints & Type Arguments (Phase 5.9 - 3h)
+
+**Type Arguments in Function Calls:**
+- Added `type_args` field to CallExpr AST
+- Parser recognizes `function<Type>(args)` syntax
+- Handles both type keywords (float, bool, string) and identifiers
+- Lookahead logic to distinguish `<` as type arg vs comparison
+- Code generation with Rust turbofish operator `::< Type >`
+- Examples: `identity<int>(42)`, `sum<float>(3.5, 2.5)`
+
+**Multiple Constraints with + Operator:**
+- Updated `TypeParameter` to use `Vec<String>` for constraints
+- Parser supports `<T: Trait1 + Trait2 + Trait3>` syntax
+- Semantic analyzer validates ALL constraints in vector
+- Code generation emits `<T: Trait1 + Trait2>` format
+- Composable constraint system (like Rust/Swift/C#)
+- Examples:
+  * `clamp<T: Ord + Add + Sub>(value, min, max)`
+  * `printIfEqual<T: Eq + Display>(a, b)`
+  * `average<T: Add + Div>(a, b, divisor)`
+
+**Available Traits:**
+- Arithmetic: Add, Sub, Mul, Div, Rem, Neg
+- Comparison: Eq, Ord
+- Utilities: Clone, Copy, Display, Debug
+- Logical: Not
+
+**Test Coverage:**
+- test_multi_constraints.liva (comprehensive multi-trait tests)
+- All arithmetic + comparison combinations validated
+- Generates correct Rust trait bounds
+
+**Documentation:**
+- Updated generics.md with multiple constraints section
+- Updated ROADMAP.md with Phase 5.9 completion
+- All examples working end-to-end
+
+### Changed
+- TypeParameter AST now uses `constraints: Vec<String>` instead of `constraint: Option<String>`
+- Display trait for TypeParameter now joins constraints with " + "
+
+## [0.9.0] - 2025-10-23
+
+### Added - Generics System (Phase 5 - CORE COMPLETE, 16.5h - Released! 🎉)
 
 **Phase 5.1: Generic Syntax Design (2h) ✅**
 - Complete specification in docs/language-reference/generics.md (785 lines)

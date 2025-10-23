@@ -15,14 +15,17 @@ pub struct TraitDef {
 /// Built-in traits supported by Liva generics
 pub struct TraitRegistry {
     traits: HashMap<String, TraitDef>,
+    aliases: HashMap<String, Vec<String>>,  // Trait aliases: name -> underlying traits
 }
 
 impl TraitRegistry {
     pub fn new() -> Self {
         let mut registry = TraitRegistry {
             traits: HashMap::new(),
+            aliases: HashMap::new(),
         };
         registry.register_builtin_traits();
+        registry.register_trait_aliases();
         registry
     }
 
@@ -131,6 +134,54 @@ impl TraitRegistry {
         });
     }
 
+    fn register_trait_aliases(&mut self) {
+        // Numeric: All arithmetic operations
+        self.aliases.insert(
+            "Numeric".to_string(),
+            vec![
+                "Add".to_string(),
+                "Sub".to_string(),
+                "Mul".to_string(),
+                "Div".to_string(),
+                "Rem".to_string(),
+                "Neg".to_string(),
+            ],
+        );
+
+        // Comparable: Equality and ordering
+        self.aliases.insert(
+            "Comparable".to_string(),
+            vec![
+                "Ord".to_string(),
+                "Eq".to_string(),
+            ],
+        );
+
+        // Number: Numeric + Comparable (all operations on numbers)
+        self.aliases.insert(
+            "Number".to_string(),
+            vec![
+                "Add".to_string(),
+                "Sub".to_string(),
+                "Mul".to_string(),
+                "Div".to_string(),
+                "Rem".to_string(),
+                "Neg".to_string(),
+                "Ord".to_string(),
+                "Eq".to_string(),
+            ],
+        );
+
+        // Printable: Display + Debug
+        self.aliases.insert(
+            "Printable".to_string(),
+            vec![
+                "Display".to_string(),
+                "Debug".to_string(),
+            ],
+        );
+    }
+
     fn register(&mut self, trait_def: TraitDef) {
         self.traits.insert(trait_def.name.clone(), trait_def);
     }
@@ -166,14 +217,38 @@ impl TraitRegistry {
         required
     }
 
-    /// Check if a constraint is valid
+    /// Check if a constraint is valid (trait or alias)
     pub fn is_valid_constraint(&self, constraint: &str) -> bool {
-        self.traits.contains_key(constraint)
+        self.traits.contains_key(constraint) || self.aliases.contains_key(constraint)
     }
 
-    /// Get all trait names
+    /// Check if a name is a trait alias
+    pub fn is_alias(&self, name: &str) -> bool {
+        self.aliases.contains_key(name)
+    }
+
+    /// Expand an alias to its underlying traits
+    pub fn expand_alias(&self, alias: &str) -> Vec<String> {
+        self.aliases.get(alias).cloned().unwrap_or_default()
+    }
+
+    /// Expand a list of constraints (traits and aliases) to just traits
+    pub fn expand_constraints(&self, constraints: &[String]) -> Vec<String> {
+        let mut expanded = Vec::new();
+        for constraint in constraints {
+            if self.is_alias(constraint) {
+                expanded.extend(self.expand_alias(constraint));
+            } else {
+                expanded.push(constraint.clone());
+            }
+        }
+        expanded
+    }
+
+    /// Get all trait names (including aliases)
     pub fn all_trait_names(&self) -> Vec<String> {
         let mut names: Vec<_> = self.traits.keys().cloned().collect();
+        names.extend(self.aliases.keys().cloned());
         names.sort();
         names
     }
@@ -184,10 +259,13 @@ impl TraitRegistry {
             return String::new();
         }
 
-        // Expand constraints to include required traits
+        // First, expand any aliases to their underlying traits
+        let expanded_constraints = self.expand_constraints(constraints);
+
+        // Then expand to include required traits
         let mut all_traits = HashSet::new();
-        for constraint in constraints {
-            all_traits.extend(self.get_required_traits(constraint));
+        for constraint in expanded_constraints {
+            all_traits.extend(self.get_required_traits(&constraint));
         }
 
         // Remove redundant traits (if Ord is present, remove Eq)
@@ -256,18 +334,26 @@ mod tests {
     fn test_rust_bounds_generation() {
         let registry = TraitRegistry::new();
         
-        // Single constraint
+        // Single arithmetic constraint (includes Copy)
         let bounds = registry.generate_rust_bounds(&["Add".to_string()]);
-        assert_eq!(bounds, ": std::ops::Add<Output=Self>");
+        assert!(bounds.contains("std::ops::Add<Output=T>"));
+        assert!(bounds.contains("Copy"));
         
-        // Multiple constraints
+        // Multiple arithmetic constraints
         let bounds = registry.generate_rust_bounds(&["Add".to_string(), "Sub".to_string()]);
-        assert!(bounds.contains("Add"));
-        assert!(bounds.contains("Sub"));
+        assert!(bounds.contains("Add<Output=T>"));
+        assert!(bounds.contains("Sub<Output=T>"));
+        assert!(bounds.contains("Copy"));
         
-        // Ord automatically includes Eq
+        // Ord automatically includes PartialEq and Copy
         let bounds = registry.generate_rust_bounds(&["Ord".to_string()]);
+        assert!(bounds.contains("std::cmp::PartialOrd"));
+        assert!(bounds.contains("Copy"));
+        
+        // Multiple constraints with + operator
+        let bounds = registry.generate_rust_bounds(&vec!["Add".to_string(), "Ord".to_string()]);
+        assert!(bounds.contains("Add"));
         assert!(bounds.contains("PartialOrd"));
-        assert!(bounds.contains("PartialEq"));
+        assert!(bounds.contains("Copy"));
     }
 }

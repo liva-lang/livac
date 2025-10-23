@@ -564,17 +564,27 @@ impl Parser {
         while !self.is_at_end() && !self.check(&Token::Gt) {
             let param_name = self.parse_identifier()?;
             
-            // Check for constraint: T: Comparable
-            let constraint = if self.match_token(&Token::Colon) {
-                Some(self.parse_identifier()?)
+            // Check for constraints: T: Add or T: Add + Sub + Mul
+            let constraints = if self.match_token(&Token::Colon) {
+                let mut constraint_list = Vec::new();
+                
+                // Parse first constraint
+                constraint_list.push(self.parse_identifier()?);
+                
+                // Parse additional constraints with + operator
+                while self.match_token(&Token::Plus) {
+                    constraint_list.push(self.parse_identifier()?);
+                }
+                
+                constraint_list
             } else {
-                None
+                Vec::new()
             };
 
-            type_params.push(if let Some(c) = constraint {
-                TypeParameter::with_constraint(param_name, c)
-            } else {
+            type_params.push(if constraints.is_empty() {
                 TypeParameter::new(param_name)
+            } else {
+                TypeParameter::with_constraints(param_name, constraints)
             });
 
             if !self.match_token(&Token::Comma) {
@@ -1497,7 +1507,19 @@ impl Parser {
         let mut expr = self.parse_primary()?;
 
         loop {
-            if self.match_token(&Token::LParen) {
+            // Check for type arguments like sum<float>
+            if self.check(&Token::Lt) && self.is_type_argument_list() {
+                let type_args = self.parse_type_arguments()?;
+                
+                // After type arguments, we must have a function call
+                if self.match_token(&Token::LParen) {
+                    let args = self.parse_args()?;
+                    self.expect(Token::RParen)?;
+                    expr = Expr::Call(CallExpr::with_type_args(expr, type_args, args));
+                } else {
+                    return Err(self.error("Expected '(' after type arguments".to_string()));
+                }
+            } else if self.match_token(&Token::LParen) {
                 expr = self.finish_call(expr)?;
             } else if self.check(&Token::LBrace) {
                 // Check if this is a struct literal like TypeName { field: value }
@@ -1677,6 +1699,98 @@ impl Parser {
         }
 
         Ok(args)
+    }
+
+    /// Check if we're looking at a type argument list like <float> or <int, string>
+    /// This distinguishes from < as a comparison operator
+    fn is_type_argument_list(&self) -> bool {
+        // We need a mutable reference to look ahead, so we'll use a simple heuristic:
+        // After <, we expect:
+        // 1. An identifier (type name) or type keyword (float, bool, string, etc.)
+        // 2. Optional comma and more types
+        // 3. A > followed by (
+        
+        // Look for the pattern: < identifier (possibly with more types) > (
+        let mut offset = 1; // Start after <
+        
+        // Must have an identifier or type keyword after <
+        let is_type_token = matches!(
+            self.peek_token(offset),
+            Some(Token::Ident(_)) |
+            Some(Token::Number) |
+            Some(Token::Float) |
+            Some(Token::Bool) |
+            Some(Token::String) |
+            Some(Token::CharType) |
+            Some(Token::Bytes)
+        );
+        
+        if !is_type_token {
+            return false;
+        }
+        offset += 1;
+        
+        // Skip through type parameters (identifiers and commas)
+        loop {
+            match self.peek_token(offset) {
+                Some(Token::Comma) => {
+                    offset += 1;
+                    // After comma, expect another identifier or type keyword
+                    let is_type_token = matches!(
+                        self.peek_token(offset),
+                        Some(Token::Ident(_)) |
+                        Some(Token::Number) |
+                        Some(Token::Float) |
+                        Some(Token::Bool) |
+                        Some(Token::String) |
+                        Some(Token::CharType) |
+                        Some(Token::Bytes)
+                    );
+                    
+                    if !is_type_token {
+                        return false;
+                    }
+                    offset += 1;
+                }
+                Some(Token::Gt) => {
+                    // Found closing >, check if followed by (
+                    offset += 1;
+                    return matches!(self.peek_token(offset), Some(Token::LParen));
+                }
+                Some(Token::LBracket) => {
+                    // Array type like [int]
+                    offset += 1;
+                    if !matches!(self.peek_token(offset), Some(Token::Ident(_))) {
+                        return false;
+                    }
+                    offset += 1;
+                    if !matches!(self.peek_token(offset), Some(Token::RBracket)) {
+                        return false;
+                    }
+                    offset += 1;
+                }
+                _ => return false,
+            }
+        }
+    }
+
+    /// Parse type arguments like <float> or <int, string>
+    fn parse_type_arguments(&mut self) -> Result<Vec<TypeRef>> {
+        self.expect(Token::Lt)?;
+        
+        let mut type_args = Vec::new();
+        
+        loop {
+            let ty = self.parse_type()?;
+            type_args.push(ty);
+            
+            if !self.match_token(&Token::Comma) {
+                break;
+            }
+        }
+        
+        self.expect(Token::Gt)?;
+        Ok(type_args)
     }
 
     fn finish_call(&mut self, callee: Expr) -> Result<Expr> {

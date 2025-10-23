@@ -6,26 +6,33 @@ pub struct Program {
     pub items: Vec<TopLevel>,
 }
 
-/// Type parameter with optional constraint
-/// Example: `T`, `T: Comparable`, `K: Hashable`
+/// Type parameter with optional constraints
+/// Example: `T`, `T: Comparable`, `T: Add + Sub`, `K: Hashable + Display`
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TypeParameter {
     pub name: String,
-    pub constraint: Option<String>,  // Interface name that T must implement
+    pub constraints: Vec<String>,  // Trait names that T must implement
 }
 
 impl TypeParameter {
     pub fn new(name: String) -> Self {
         TypeParameter {
             name,
-            constraint: None,
+            constraints: Vec::new(),
         }
     }
 
     pub fn with_constraint(name: String, constraint: String) -> Self {
         TypeParameter {
             name,
-            constraint: Some(constraint),
+            constraints: vec![constraint],
+        }
+    }
+
+    pub fn with_constraints(name: String, constraints: Vec<String>) -> Self {
+        TypeParameter {
+            name,
+            constraints,
         }
     }
 }
@@ -33,8 +40,8 @@ impl TypeParameter {
 impl fmt::Display for TypeParameter {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.name)?;
-        if let Some(constraint) = &self.constraint {
-            write!(f, ": {}", constraint)?;
+        if !self.constraints.is_empty() {
+            write!(f, ": {}", self.constraints.join(" + "))?;
         }
         Ok(())
     }
@@ -442,6 +449,9 @@ pub struct CallExpr {
     pub args: Vec<Expr>,
     #[serde(default)]
     pub exec_policy: ExecPolicy,
+    /// Optional type arguments for generic function calls (e.g., sum<int>(1, 2))
+    #[serde(default)]
+    pub type_args: Vec<TypeRef>,
 }
 
 impl CallExpr {
@@ -450,6 +460,16 @@ impl CallExpr {
             callee: Box::new(callee),
             args,
             exec_policy: ExecPolicy::Normal,
+            type_args: Vec::new(),
+        }
+    }
+
+    pub fn with_type_args(callee: Expr, type_args: Vec<TypeRef>, args: Vec<Expr>) -> Self {
+        Self {
+            callee: Box::new(callee),
+            args,
+            exec_policy: ExecPolicy::Normal,
+            type_args,
         }
     }
 }
