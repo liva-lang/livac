@@ -169,7 +169,7 @@ impl SemanticAnalyzer {
     
     /// Validate a single import declaration
     fn validate_import(&mut self, import: &crate::ast::ImportDecl) -> Result<()> {
-        use std::path::{Path, PathBuf};
+        use std::path::Path;
         
         // Resolve the import path relative to the current file
         let current_file = Path::new(&self.source_file);
@@ -1305,6 +1305,11 @@ impl SemanticAnalyzer {
                             func_name
                         ),
                         help: Some(format!("Change to: let result, err = {}(...)", func_name)),
+                        suggestion: None,
+                        hint: None,
+                        example: None,
+                        doc_link: None,
+                        category: None,
                     };
 
                     return Err(CompilerError::SemanticError(error));

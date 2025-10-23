@@ -24,6 +24,21 @@ pub struct SemanticErrorInfo {
     pub title: String,
     pub message: String,
     pub help: Option<String>,
+    /// Phase 5.1: "Did you mean?" suggestion
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suggestion: Option<String>,
+    /// Phase 5.4: Intelligent hint
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hint: Option<String>,
+    /// Phase 5.4: Code example
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub example: Option<String>,
+    /// Phase 5.4: Documentation link
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub doc_link: Option<String>,
+    /// Phase 5.3: Error category name
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
 }
 
 impl SemanticErrorInfo {
@@ -34,6 +49,11 @@ impl SemanticErrorInfo {
             title: title.to_string(),
             message: message.to_string(),
             help: None,
+            suggestion: None,
+            hint: None,
+            example: None,
+            doc_link: None,
+            category: None,
         }
     }
 
@@ -44,6 +64,11 @@ impl SemanticErrorInfo {
             title: "Error".to_string(),
             message: msg,
             help: None,
+            suggestion: None,
+            hint: None,
+            example: None,
+            doc_link: None,
+            category: None,
         }
     }
 
@@ -91,6 +116,36 @@ impl SemanticErrorInfo {
 
     pub fn with_help(mut self, help: &str) -> Self {
         self.help = Some(help.to_string());
+        self
+    }
+
+    /// Phase 5.1: Add a "Did you mean?" suggestion
+    pub fn with_suggestion(mut self, suggestion: &str) -> Self {
+        self.suggestion = Some(suggestion.to_string());
+        self
+    }
+
+    /// Phase 5.4: Add an intelligent hint
+    pub fn with_hint(mut self, hint: &str) -> Self {
+        self.hint = Some(hint.to_string());
+        self
+    }
+
+    /// Phase 5.4: Add a code example
+    pub fn with_example(mut self, example: &str) -> Self {
+        self.example = Some(example.to_string());
+        self
+    }
+
+    /// Phase 5.4: Add a documentation link
+    pub fn with_doc_link(mut self, doc_link: &str) -> Self {
+        self.doc_link = Some(doc_link.to_string());
+        self
+    }
+
+    /// Phase 5.3: Add error category
+    pub fn with_category(mut self, category: &str) -> Self {
+        self.category = Some(category.to_string());
         self
     }
 
@@ -201,6 +256,11 @@ impl SemanticErrorInfo {
         // Mensaje principal
         output.push_str(&format!("\n  {} {}\n", "ⓘ".blue().bold(), self.message));
 
+        // Phase 5.1: Mostrar sugerencia "Did you mean?" si está disponible
+        if let Some(suggestion) = &self.suggestion {
+            output.push_str(&format!("\n  {} {}\n", "💡".yellow(), suggestion.bright_white()));
+        }
+
         // Ayuda si está disponible (manual o automática)
         let help_text = if let Some(help) = &self.help {
             Some(help.clone())
@@ -253,6 +313,11 @@ impl SemanticErrorInfo {
             title: msg.clone(),
             message: msg,
             help: None,
+            suggestion: None,
+            hint: None,
+            example: None,
+            doc_link: None,
+            category: None,
         }
     }
 }
