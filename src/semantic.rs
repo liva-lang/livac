@@ -1,5 +1,6 @@
 use crate::ast::*;
 use crate::error::{CompilerError, ErrorLocation, Result, SemanticErrorInfo};
+use crate::suggestions;
 use std::collections::{HashMap, HashSet};
 
 pub struct SemanticAnalyzer {
@@ -208,14 +209,30 @@ impl SemanticAnalyzer {
             for symbol in &import.imports {
                 // Check if symbol exists in module
                 if !public_symbols.contains(symbol) && !private_symbols.contains(symbol) {
+                    // Generate suggestion for similar symbol names
+                    let all_symbols: Vec<String> = public_symbols
+                        .iter()
+                        .chain(private_symbols.iter())
+                        .cloned()
+                        .collect();
+                    let suggestion = suggestions::find_suggestion(symbol, &all_symbols, 2);
+                    
+                    let mut message = format!(
+                        "Symbol '{}' not found in module '{}'.",
+                        symbol, import.source
+                    );
+                    
+                    if let Some(suggested) = suggestion {
+                        message.push_str(&format!("\n\n💡 Did you mean '{}'?", suggested));
+                    } else {
+                        message.push_str("\n\nHint: Check the spelling and make sure the symbol is defined in the module.");
+                    }
+                    
                     return Err(CompilerError::SemanticError(
                         SemanticErrorInfo::new(
                             "E4006",
                             "Imported symbol not found",
-                            &format!(
-                                "Symbol '{}' not found in module '{}'.\nHint: Check the spelling and make sure the symbol is defined in the module.",
-                                symbol, import.source
-                            ),
+                            &message,
                         )
                     ));
                 }
@@ -862,9 +879,16 @@ impl SemanticAnalyzer {
         // Check base class exists if specified
         if let Some(base) = &class.base {
             if !self.types.contains_key(base) {
-                return Err(CompilerError::SemanticError(
-                    format!("Base class '{}' not found", base).into(),
-                ));
+                // Generate suggestion for similar type names
+                let available_types = self.get_all_types();
+                let suggestion = suggestions::find_suggestion(base, &available_types, 2);
+                
+                let mut error_msg = format!("Base class '{}' not found", base);
+                if let Some(suggested) = suggestion {
+                    error_msg.push_str(&format!("\n\n💡 Did you mean '{}'?", suggested));
+                }
+                
+                return Err(CompilerError::SemanticError(error_msg.into()));
             }
         }
 
@@ -1662,9 +1686,16 @@ impl SemanticAnalyzer {
         match target {
             Expr::Identifier(name) => {
                 if self.lookup_symbol(name).is_none() {
-                    return Err(CompilerError::SemanticError(
-                        format!("Cannot assign to undefined variable '{}'", name).into(),
-                    ));
+                    // Generate suggestion for similar variable names
+                    let available_vars = self.get_all_variables();
+                    let suggestion = suggestions::find_suggestion(name, &available_vars, 2);
+                    
+                    let mut error_msg = format!("Cannot assign to undefined variable '{}'", name);
+                    if let Some(suggested) = suggestion {
+                        error_msg.push_str(&format!("\n\n💡 Did you mean '{}'?", suggested));
+                    }
+                    
+                    return Err(CompilerError::SemanticError(error_msg.into()));
                 }
             }
             Expr::Member { object, .. } => {
@@ -1736,6 +1767,25 @@ impl SemanticAnalyzer {
             }
         }
         None
+    }
+
+    /// Get all variable names currently in scope (for suggestions)
+    fn get_all_variables(&self) -> Vec<String> {
+        let mut vars = Vec::new();
+        for scope in &self.current_scope {
+            vars.extend(scope.keys().cloned());
+        }
+        vars
+    }
+
+    /// Get all function names currently defined (for suggestions)
+    fn get_all_functions(&self) -> Vec<String> {
+        self.functions.keys().cloned().collect()
+    }
+
+    /// Get all type names currently defined (for suggestions)
+    fn get_all_types(&self) -> Vec<String> {
+        self.types.keys().cloned().collect()
     }
 
     fn set_awaitable(&mut self, name: &str, info: AwaitableInfo) {

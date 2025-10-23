@@ -1,0 +1,7 @@
+// Test: Did you mean? for import typos
+
+import { ad } from "./test_module_math.liva"
+
+main() {
+    console.log(ad(5, 3))
+}
