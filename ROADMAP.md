@@ -604,8 +604,8 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 **Status:** � In Progress (Parser Complete)  
 **Branch:** `feature/generics-v0.9.0`  
 **Started:** 2025-10-23  
-**Progress:** 7h / 15h estimated  
-**Commits:** 5 (spec, parser, codegen, classes, multiple params)
+**Progress:** 8h / 15h estimated  
+**Commits:** 7 (spec, parser, codegen, classes, multiple params, arrays, docs)
 
 ### 5.1 Generic Syntax Design ✅ COMPLETE (2 hours)
 - [x] Design generic type parameter syntax `<T>`, `<T, U>` ✅
@@ -697,11 +697,15 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
   - `Pair<T, U>` works correctly with two type parameters
   - All combinations tested (int/string, bool/float, string/int)
 - [x] Add comprehensive codegen tests ✅
-  - 3 working examples: identity<T>, Box<T>, Pair<T,U>
+  - 4 working examples: identity<T>, Box<T>, Pair<T,U>, array functions
+- [x] Array type annotations working ✅
+  - `[int]` syntax translates to `Vec<i32>`
+  - Functions can take typed arrays as parameters
+  - Tested with firstInt, lastInt, sum functions
 
-**Status:** ✅ Generic functions and classes working!  
+**Status:** ✅ Generic functions, classes, and array types working!  
 **Completed:** 2025-10-23  
-**Commits:** 72c3878, 677c552, 5669a17
+**Commits:** 72c3878, 677c552, 5669a17, 4b7d0fd
 
 **Working Examples:**
 
@@ -730,6 +734,15 @@ Pair<T, U> {
 // Works: Pair(42, "hello"), Pair(true, 3.14)
 ```
 
+4. **Array Type Annotations:**
+```liva
+firstInt(arr: [int]): int {
+    if arr.length == 0 { return -1 }
+    return arr[0]
+}
+// Works: [int] → Vec<i32>
+```
+
 **Generated Rust:**
 ```rust
 // Generic function
@@ -742,6 +755,9 @@ impl<T> Box<T> { pub fn new(value: T) -> Self { ... } }
 // Multiple type parameters
 pub struct Pair<T, U> { pub first: T, pub second: U }
 impl<T, U> Pair<T, U> { pub fn new(first: T, second: U) -> Self { ... } }
+
+// Array type annotations
+fn first_int(arr: Vec<i32>) -> i32 { ... }
 ```
 
 **Known Issue:**
@@ -751,7 +767,7 @@ impl<T, U> Pair<T, U> { pub fn new(first: T, second: U) -> Self { ... } }
 **Remaining Work:**
 - Generic methods with their own type parameters
 - Type inference for generic calls (currently explicit)
-- Array operations with generics `[T]`
+- Generic array operations (map, filter with type preservation)
 - Option<T> and Result<T,E> in generic contexts
 
 ### 5.4 Type System Implementation
