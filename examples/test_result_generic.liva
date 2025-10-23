@@ -1,0 +1,85 @@
+// Test Result<T, E> - Generic error handling with two type parameters
+// Tests multiple type parameter combinations
+
+Result<T, E> {
+    value: T
+    error: E
+    isOk: bool
+    
+    constructor(value: T, error: E, isOk: bool) {
+        this.value = value
+        this.error = error
+        this.isOk = isOk
+    }
+    
+    isSuccess(): bool {
+        return this.isOk
+    }
+    
+    isError(): bool {
+        return !this.isOk
+    }
+}
+
+// Factory functions
+ok<T, E>(value: T, defaultError: E): Result<T, E> {
+    return Result(value, defaultError, true)
+}
+
+err<T, E>(defaultValue: T, error: E): Result<T, E> {
+    return Result(defaultValue, error, false)
+}
+
+// Helper functions that return Results
+divide(a: int, b: int): Result<int, string> {
+    if b == 0 {
+        return err(0, "Division by zero")
+    }
+    return ok(a / b, "")
+}
+
+parseNumber(text: string): Result<int, string> {
+    // Simplified: just check if empty
+    if text == "" {
+        return err(0, "Empty string")
+    }
+    // In real impl would parse - here we fake it
+    return ok(42, "")
+}
+
+main() {
+    print("=== Testing Result<int, string> ===")
+    let successDiv = divide(10, 2)
+    print($"Division 10/2 - Success: {successDiv.isSuccess()}")
+    if successDiv.isOk {
+        print($"Result: {successDiv.value}")
+    }
+    
+    let failDiv = divide(10, 0)
+    print($"Division 10/0 - Error: {failDiv.isError()}")
+    if !failDiv.isOk {
+        print($"Error: {failDiv.error}")
+    }
+    
+    print("\n=== Testing Result<int, string> with parsing ===")
+    let successParse = parseNumber("42")
+    print($"Parse '42' - Success: {successParse.isSuccess()}")
+    if successParse.isOk {
+        print($"Parsed value: {successParse.value}")
+    }
+    
+    let failParse = parseNumber("")
+    print($"Parse '' - Error: {failParse.isError()}")
+    if !failParse.isOk {
+        print($"Error: {failParse.error}")
+    }
+    
+    print("\n=== Testing Result<bool, int> (different types) ===")
+    let boolOk = ok(true, 0)
+    print($"Bool result success: {boolOk.isSuccess()}")
+    print($"Value: {boolOk.value}")
+    
+    let boolErr = err(false, 404)
+    print($"Bool result error: {boolErr.isError()}")
+    print($"Error code: {boolErr.error}")
+}
