@@ -733,6 +733,14 @@ impl Parser {
     }
 
     fn parse_type(&mut self) -> Result<TypeRef> {
+        // Check for array type syntax: [T]
+        if self.check(&Token::LBracket) {
+            self.advance(); // consume '['
+            let inner = Box::new(self.parse_type()?);
+            self.expect(Token::RBracket)?;
+            return Ok(TypeRef::Array(inner));
+        }
+        
         let base = match self.advance() {
             Some(Token::Ident(s)) => s.clone(),
             Some(Token::Number) => "number".to_string(),
@@ -757,9 +765,29 @@ impl Parser {
             }
 
             self.expect(Token::Gt)?;
-            Ok(TypeRef::Generic { base, args })
+            
+            // After generic, check for optional/fallible
+            let mut result = TypeRef::Generic { base, args };
+            
+            // Check for ? or ! suffix
+            if self.match_token(&Token::Question) {
+                result = TypeRef::Optional(Box::new(result));
+            } else if self.match_token(&Token::Bang) {
+                result = TypeRef::Fallible(Box::new(result));
+            }
+            
+            Ok(result)
         } else {
-            Ok(TypeRef::Simple(base))
+            let mut result = TypeRef::Simple(base);
+            
+            // Check for ? or ! suffix
+            if self.match_token(&Token::Question) {
+                result = TypeRef::Optional(Box::new(result));
+            } else if self.match_token(&Token::Bang) {
+                result = TypeRef::Fallible(Box::new(result));
+            }
+            
+            Ok(result)
         }
     }
 

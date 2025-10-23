@@ -1,0 +1,20 @@
+// Test: Array generics
+// This should work once we implement generics properly
+
+// Generic function that works with any array type
+first<T>(arr: [T]): T? {
+    if arr.length > 0 {
+        return arr[0]
+    }
+    return null
+}
+
+main() {
+    let numbers = [1, 2, 3]
+    let firstNum = first(numbers)
+    print($"First number: {firstNum}")
+    
+    let names = ["Alice", "Bob"]
+    let firstName = first(names)
+    print($"First name: {firstName}")
+}
