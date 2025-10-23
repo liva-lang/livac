@@ -1,0 +1,32 @@
+// Test generic class with multiple type parameters
+// Demonstrating Pair<T, U>
+
+Pair<T, U> {
+    first: T
+    second: U
+    
+    constructor(first: T, second: U) {
+        this.first = first
+        this.second = second
+    }
+}
+
+main() {
+    // Create Pair<int, string>
+    let intStrPair = Pair(42, "hello")
+    print("Pair<int, string>:")
+    print(intStrPair.first)
+    print(intStrPair.second)
+    
+    // Create Pair<bool, float>
+    let boolFloatPair = Pair(true, 3.14)
+    print("Pair<bool, float>:")
+    print(boolFloatPair.first)
+    print(boolFloatPair.second)
+    
+    // Create Pair<string, int>
+    let strIntPair = Pair("world", 100)
+    print("Pair<string, int>:")
+    print(strIntPair.first)
+    print(strIntPair.second)
+}
