@@ -35,6 +35,8 @@ pub mod ast;
 pub mod codegen;
 pub mod desugaring;
 pub mod error;
+pub mod error_codes;
+pub mod hints;
 pub mod ir;
 pub mod lexer;
 pub mod liva_rt;
@@ -43,6 +45,7 @@ pub mod module;
 pub mod parser;
 pub mod semantic;
 pub mod span;
+pub mod suggestions;
 
 pub use error::{CompilerError, ErrorLocation, Result, SemanticErrorInfo};
 

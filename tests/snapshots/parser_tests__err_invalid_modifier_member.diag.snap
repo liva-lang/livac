@@ -2,14 +2,21 @@
 source: tests/parser_tests.rs
 expression: error_msg
 ---
-● E2000: Parse Error
+● E2000: Parse Error [Parser]
 ────────────────────────────────────────────────────────────
   → <input>:2:5
 
+     1 │ Worker {
      2 │
        │ async process() {
-       │ ^^^
+       │ ^^^^^
+     3 │         return 1
+     4 │     }
        │
 
   ⓘ Modifier 'async' cannot be applied to class members
+
+  💡 Check for missing semicolons, parentheses, or keywords
+
+  📚 Learn more: https://liva-lang.org/docs/errors/parser#e2000
 ────────────────────────────────────────────────────────────

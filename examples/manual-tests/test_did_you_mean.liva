@@ -1,0 +1,9 @@
+// Test: Did you mean? suggestions for undefined symbols
+
+main() {
+    let userName = "John"
+    let userAge = 25
+    
+    // Typo: should suggest 'userName'
+    usrName = "Jane"
+}

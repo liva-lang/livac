@@ -2,14 +2,22 @@
 source: tests/parser_tests.rs
 expression: error_msg
 ---
-● E2000: Parse Error
+● E2000: Parse Error [Parser]
 ────────────────────────────────────────────────────────────
   → <input>:6:9
 
+     4 │         case 1: print("one")
+     5 │         default: print("first default")
      6 │
        │ default: print("second default")
-       │ ^^^
+       │ ^^^^^^^
+     7 │     }
+     8 │ }
        │
 
   ⓘ Expected expression
+
+  💡 Check for missing semicolons, parentheses, or keywords
+
+  📚 Learn more: https://liva-lang.org/docs/errors/parser#e2000
 ────────────────────────────────────────────────────────────

@@ -182,10 +182,45 @@ impl Parser {
             .unwrap_or("")
             .to_string();
 
+        // Get context lines (2 before and 2 after)
+        let lines: Vec<&str> = self.source.lines().collect();
+        let total_lines = lines.len();
+        
+        let start_before = line.saturating_sub(3);
+        let end_before = line.saturating_sub(1);
+        let context_before: Vec<String> = if start_before < end_before && end_before <= total_lines {
+            lines[start_before..end_before]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        let start_after = line;
+        let end_after = (line + 2).min(total_lines);
+        let context_after: Vec<String> = if start_after < end_after {
+            lines[start_after..end_after]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        // Get token length from span
+        let token_length = if token_index < self.tokens.len() {
+            self.tokens[token_index].span.len()
+        } else {
+            3 // default length
+        };
+
         let mut error = SemanticErrorInfo::new("E2000", "Parse Error", &message)
             .with_location("<input>", line)
             .with_column(col)
-            .with_source_line(source_line);
+            .with_source_line(source_line)
+            .with_length(token_length)
+            .with_context(context_before, context_after);
 
         if let Some(help_text) = help {
             error = error.with_help(&help_text);

@@ -7,30 +7,146 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- **Console API Enhancement**: `console.input()` function
-  * `console.input()` - Read user input without prompt (like Python's `input()`)
-  * `console.input(message)` - Read with prompt message (like Python's `input("msg")`)
-  * Returns trimmed string from stdin
-  * Replaces previous `console.prompt()` implementation
-  * Comprehensive documentation in `docs/language-reference/console-api.md`
-  * Test suite: `examples/manual-tests/test_console_input.liva`
+## [0.8.1] - 2025-10-23
+
+**🎉 Phase 5: Enhanced Error Messages - Developer-friendly diagnostics**
+
+Comprehensive error system with "Did you mean?" suggestions, enhanced context, error categorization, intelligent hints, code examples, and documentation links. Quality comparable to Rust and Elm.
+
+### Added - Enhanced Error Messages (Phase 5 - 8h, 100% complete)
+
+**Phase 5.1: "Did You Mean?" Suggestions (~2h) ✅**
+- Levenshtein distance algorithm for typo detection
+- Smart suggestions for:
+  * Undefined variables (max 2 character edits)
+  * Undefined functions
+  * Undefined types/classes
+  * Module import symbols
+- `suggestions.rs` module (265 lines)
+- Comprehensive test suite (test_suggestions.liva)
+
+**Phase 5.2: Enhanced Error Context (~2h) ✅**
+- Show 2 lines before and 2 lines after error location
+- Precise token underlining using actual token length (not fixed 3 chars)
+- Line numbers for all context lines
+- Extended ErrorLocation structure:
+  * `length: Option<usize>` - Token length for precise highlighting
+  * `context_before: Option<Vec<String>>` - Lines before error
+  * `context_after: Option<Vec<String>>` - Lines after error
+- get_context_lines() function in semantic analyzer
+- Visual improvements with exact caret positioning
+
+**Phase 5.3: Error Categories & Codes (~1h) ✅**
+- Organized error codes by category (E0xxx-E7xxx):
+  * E0xxx: Lexical errors (invalid tokens, unclosed strings)
+  * E1xxx: Syntax errors (grammar violations, unexpected tokens)
+  * E2xxx: Semantic errors (undefined symbols, type errors)
+  * E3xxx: Control flow errors (invalid return, break, continue)
+  * E4xxx: Module errors (import failures, circular dependencies)
+  * E5xxx: Concurrency errors (async/parallel misuse)
+  * E6xxx: Standard library errors
+  * E7xxx: I/O errors
+- `error_codes.rs` module (190 lines) with ErrorCategory enum
+- Category displayed in error messages: `[Semantic] E2001: ...`
+- Complete error reference (ERROR_CODES.md, 316 lines)
+
+**Phase 5.4: Intelligent Hints & Help (~2h) ✅**
+- `hints.rs` module (176 lines) with automatic contextual help
+- Functions for each error code:
+  * `get_hint()` - Actionable advice
+  * `get_example()` - Code examples showing correct vs incorrect
+  * `get_doc_link()` - Links to documentation
+  * `get_common_fixes()` - Common solutions by category
+  * `get_tip()` - Additional improvement tips
+- Automatic hint injection when manual help not provided
+- Coverage for 15+ error codes with plans for more
+
+**Phase 5.5: Documentation (~1h) ✅**
+- ERROR_CODES.md (316 lines) - Complete error reference
+- ERROR_HANDLING_GUIDE.md (522 lines) - Comprehensive guide
+- TROUBLESHOOTING.md (493 lines) - Quick reference
+- compiler-internals/enhanced-error-context.md (125 lines)
+- Updated README.md with error system showcase
+- Best practices and contributing guidelines
+
+**Phase 5.6: VS Code Extension Integration (v0.4.0) ✅**
+- Extended JSON error format with Phase 5 fields:
+  * `suggestion`, `hint`, `example`, `doc_link`, `category`
+- Auto-population of fields in `to_json()` methods
+- Builder pattern for error creation:
+  * `.with_suggestion()`, `.with_hint()`, `.with_example()`
+  * `.with_doc_link()`, `.with_category()`
+- Refactored semantic.rs to use builder pattern
+- Cleaner, more maintainable error creation
 
 ### Changed
-- **Console API**: Renamed `console.prompt()` to `console.input()`
-  * More intuitive naming (familiar from Python)
-  * Made prompt message optional for flexibility
-  * Updated all examples and documentation
+- Error message format now includes category badges
+- ErrorLocation structure extended with context and length fields
+- Error display shows more context (5 lines total vs 1 line)
+- Float literals now use `_f64` suffix for type clarity
+- Improved error messages with automatic suggestions
 
-- **Console Colors**: Added ANSI color support for error and warning messages
-  * `console.error()` - Now displays in **red color**
-  * `console.warn()` - Now displays in **yellow/amber color**
-  * `console.success()` - **NEW**: Displays in **green color** for confirmations
-  * Removed "Warning:" prefix from `console.warn()` (color indicates warning)
-  * Colors automatically reset after each message
-  * Test suite: `examples/manual-tests/test_console_colors.liva`
-  * Made prompt message optional for flexibility
-  * Updated all examples and documentation
+### Fixed
+- Integration test float literal format (accept both 0.0 and 0_f64)
+- async/parallel test with proper function calls
+
+### Statistics
+- **21 files changed**: +2,509 insertions, -60 deletions
+- **3 new modules**: suggestions.rs, error_codes.rs, hints.rs
+- **4 new documentation files**: 1,500+ lines total
+- **8 test files**: Comprehensive coverage
+- **10 commits**: Feature development complete
+
+### Developer Experience Improvements
+**Before:**
+- Generic error messages
+- No suggestions for typos
+- Single line context
+- Fixed 3-character underlines
+
+**After:**
+- Categorized errors with codes
+- "Did you mean?" suggestions
+- 5 lines of context (2 before, error, 2 after)
+- Precise token-length underlining
+- Automatic hints and examples
+- Documentation links
+- One-click fixes in VS Code
+
+**Example Error:**
+```
+● E2001: Undefined variable [Semantic]
+────────────────────────────────────────────────────────────
+  → test.liva:5:12
+
+   3 │     let userName = "Alice"
+   4 │     
+   5 │     console.log(usrName)
+     │                 ^^^^^^^
+
+  ⓘ Cannot find variable 'usrName' in current scope
+
+  💡 Did you mean 'userName'?
+
+  💡 Hint: Check spelling or declare the variable before use
+
+  📝 Example:
+     let userName = "value"
+     console.log(userName)  // Correct
+
+  📚 https://liva-lang.org/docs/errors/semantic#e2001
+────────────────────────────────────────────────────────────
+```
+
+### Console API Enhancement
+- `console.input()` function for user input
+  * `console.input()` - Read without prompt
+  * `console.input(message)` - Read with prompt
+- ANSI color support:
+  * `console.error()` - Red color
+  * `console.warn()` - Yellow/amber color  
+  * `console.success()` - Green color (NEW)
+- Updated documentation and test suite
 
 ## [0.8.0] - 2025-10-21
 

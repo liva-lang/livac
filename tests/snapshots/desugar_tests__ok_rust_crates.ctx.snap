@@ -18,5 +18,6 @@ expression: json
     ]
   ],
   "has_async": false,
-  "has_parallel": false
+  "has_parallel": false,
+  "has_random": false
 }

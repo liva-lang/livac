@@ -2,7 +2,7 @@
 source: tests/lexer_tests.rs
 expression: error_msg
 ---
-● E1000: Invalid token
+● E1000: Invalid token [Lexer]
 ────────────────────────────────────────────────────────────
   → <input>:2:9
 
@@ -14,4 +14,6 @@ expression: error_msg
   ⓘ Encountered an invalid token: '@'
 
   💡 Check for unexpected characters or typos in your code
+
+  📚 Learn more: https://liva-lang.org/docs/errors/lexer#e1000
 ────────────────────────────────────────────────────────────

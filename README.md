@@ -793,7 +793,51 @@ Want to learn more? Check out the complete documentation:
 
 - **[Language Reference](docs/language-reference/)** - Complete guide to all features
 - **[Getting Started](docs/getting-started/)** - Detailed tutorials
+- **[Error Handling Guide](docs/ERROR_HANDLING_GUIDE.md)** - Understanding error messages
+- **[Error Codes Reference](docs/ERROR_CODES.md)** - Complete list of all error codes
+- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Quick fixes for common errors
 - **[Compiler Internals](docs/compiler-internals/)** - How Liva works under the hood
+
+## 💡 Developer-Friendly Error Messages
+
+Liva provides best-in-class error messages to help you code faster:
+
+```
+● E0701: Fallible function must be called with error binding [Semantic]
+────────────────────────────────────────────────────────────
+  → test.liva:7:16
+
+     5 │ divide(a, b) => b == 0 ? fail "Division by zero" : a / b
+     6 │ 
+     7 │
+       │ let result = divide(10, 2)
+       │              ^^^^^^
+     8 │   
+     9 │ print(result)
+
+  ⓘ Function 'divide' can fail but is not being called with error binding.
+
+  💡 Use error binding: let result, err = fallibleFunc(...)
+
+  📝 Example:
+     // Correct:
+     let result, err = divide(10, 2)
+     if err == "" {
+       print(result)
+     }
+
+  📚 Learn more: https://liva-lang.org/docs/errors/semantic#e0701
+────────────────────────────────────────────────────────────
+```
+
+**Features:**
+- 🎯 Precise error location with context (2 lines before/after)
+- 💡 Smart suggestions ("Did you mean 'userName'?")
+- 📝 Code examples showing correct usage
+- 📚 Links to documentation for each error
+- 🏷️ Error categories (Parser, Semantic, Modules, etc.)
+
+**Learn more:** [Error Handling Guide](docs/ERROR_HANDLING_GUIDE.md)
 
 ## ⚡ Quick Reference
 

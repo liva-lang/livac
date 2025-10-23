@@ -1,0 +1,17 @@
+// Test para mostrar el contexto de error de parsing
+
+add(a, b) => a + b
+
+main() {
+  let x = 5
+  let y = 10
+  let z = 15
+  
+  // Este error debería mostrar contexto mejorado
+  let resultado x + y  // Falta el '=' 
+  
+  let a = 20
+  let b = 30
+  
+  print(resultado)
+}

@@ -1,5 +1,6 @@
 use crate::ast::*;
 use crate::error::{CompilerError, ErrorLocation, Result, SemanticErrorInfo};
+use crate::suggestions;
 use std::collections::{HashMap, HashSet};
 
 pub struct SemanticAnalyzer {
@@ -103,10 +104,16 @@ impl SemanticAnalyzer {
         if let (Some(span), Some(source_map)) = (span, &self.source_map) {
             let (line, column) = span.start_position(source_map);
             let source_line = self.get_source_line(line);
+            let token_length = span.len();
+
+            // Get context lines (2 before and 2 after)
+            let (context_before, context_after) = self.get_context_lines(line, 2);
 
             error = error
                 .with_location(&self.source_file, line)
-                .with_column(column);
+                .with_column(column)
+                .with_length(token_length)
+                .with_context(context_before, context_after);
 
             if let Some(source_line) = source_line {
                 error = error.with_source_line(source_line);
@@ -162,7 +169,7 @@ impl SemanticAnalyzer {
     
     /// Validate a single import declaration
     fn validate_import(&mut self, import: &crate::ast::ImportDecl) -> Result<()> {
-        use std::path::{Path, PathBuf};
+        use std::path::Path;
         
         // Resolve the import path relative to the current file
         let current_file = Path::new(&self.source_file);
@@ -208,16 +215,32 @@ impl SemanticAnalyzer {
             for symbol in &import.imports {
                 // Check if symbol exists in module
                 if !public_symbols.contains(symbol) && !private_symbols.contains(symbol) {
-                    return Err(CompilerError::SemanticError(
-                        SemanticErrorInfo::new(
-                            "E4006",
-                            "Imported symbol not found",
-                            &format!(
-                                "Symbol '{}' not found in module '{}'.\nHint: Check the spelling and make sure the symbol is defined in the module.",
-                                symbol, import.source
-                            ),
-                        )
-                    ));
+                    // Generate suggestion for similar symbol names
+                    let all_symbols: Vec<String> = public_symbols
+                        .iter()
+                        .chain(private_symbols.iter())
+                        .cloned()
+                        .collect();
+                    let suggestion = suggestions::find_suggestion(symbol, &all_symbols, 2);
+                    
+                    let message = format!(
+                        "Symbol '{}' not found in module '{}'.",
+                        symbol, import.source
+                    );
+                    
+                    let mut error = SemanticErrorInfo::new(
+                        "E4006",
+                        "Imported symbol not found",
+                        &message,
+                    );
+                    
+                    if let Some(suggested) = suggestion {
+                        error = error.with_suggestion(&format!("Did you mean '{}'?", suggested));
+                    } else {
+                        error = error.with_hint("Check the spelling and make sure the symbol is defined in the module.");
+                    }
+                    
+                    return Err(CompilerError::SemanticError(error));
                 }
                 
                 // Check if symbol is private (starts with _)
@@ -716,6 +739,38 @@ impl SemanticAnalyzer {
             .map(|s| s.to_string())
     }
 
+    /// Get context lines before and after a specific line
+    fn get_context_lines(&self, line_num: usize, context_size: usize) -> (Vec<String>, Vec<String>) {
+        let lines: Vec<&str> = self.source_code.lines().collect();
+        let total_lines = lines.len();
+
+        // Lines before (up to context_size)
+        let start_before = line_num.saturating_sub(context_size + 1);
+        let end_before = line_num.saturating_sub(1);
+        let before: Vec<String> = if start_before < end_before && end_before <= total_lines {
+            lines[start_before..end_before]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        // Lines after (up to context_size)
+        let start_after = line_num; // line_num is 1-indexed, array is 0-indexed
+        let end_after = (line_num + context_size).min(total_lines);
+        let after: Vec<String> = if start_after < end_after {
+            lines[start_after..end_after]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        (before, after)
+    }
+
     /// Find the line number where a function is called WITHOUT error binding (heuristic)
     /// Tries to find calls that don't use the pattern "let result, err = func(...)"
     fn find_line_for_function_call(&self, func_name: &str) -> Option<usize> {
@@ -862,9 +917,21 @@ impl SemanticAnalyzer {
         // Check base class exists if specified
         if let Some(base) = &class.base {
             if !self.types.contains_key(base) {
-                return Err(CompilerError::SemanticError(
-                    format!("Base class '{}' not found", base).into(),
-                ));
+                // Generate suggestion for similar type names
+                let available_types = self.get_all_types();
+                let suggestion = suggestions::find_suggestion(base, &available_types, 2);
+                
+                let mut error = SemanticErrorInfo::new(
+                    "E2004",
+                    "Undefined base class",
+                    &format!("Base class '{}' not found", base)
+                );
+                
+                if let Some(suggested) = suggestion {
+                    error = error.with_suggestion(&format!("Did you mean '{}'?", suggested));
+                }
+                
+                return Err(CompilerError::SemanticError(error));
             }
         }
 
@@ -1232,6 +1299,9 @@ impl SemanticAnalyzer {
                             line,
                             column: None,
                             source_line,
+                            length: None,
+                            context_before: None,
+                            context_after: None,
                         }),
                         code: "E0701".to_string(),
                         title: "Fallible function must be called with error binding".to_string(),
@@ -1240,6 +1310,11 @@ impl SemanticAnalyzer {
                             func_name
                         ),
                         help: Some(format!("Change to: let result, err = {}(...)", func_name)),
+                        suggestion: None,
+                        hint: None,
+                        example: None,
+                        doc_link: None,
+                        category: None,
                     };
 
                     return Err(CompilerError::SemanticError(error));
@@ -1662,9 +1737,21 @@ impl SemanticAnalyzer {
         match target {
             Expr::Identifier(name) => {
                 if self.lookup_symbol(name).is_none() {
-                    return Err(CompilerError::SemanticError(
-                        format!("Cannot assign to undefined variable '{}'", name).into(),
-                    ));
+                    // Generate suggestion for similar variable names
+                    let available_vars = self.get_all_variables();
+                    let suggestion = suggestions::find_suggestion(name, &available_vars, 2);
+                    
+                    let mut error = SemanticErrorInfo::new(
+                        "E2003",
+                        "Undefined variable",
+                        &format!("Cannot assign to undefined variable '{}'", name)
+                    );
+                    
+                    if let Some(suggested) = suggestion {
+                        error = error.with_suggestion(&format!("Did you mean '{}'?", suggested));
+                    }
+                    
+                    return Err(CompilerError::SemanticError(error));
                 }
             }
             Expr::Member { object, .. } => {
@@ -1736,6 +1823,25 @@ impl SemanticAnalyzer {
             }
         }
         None
+    }
+
+    /// Get all variable names currently in scope (for suggestions)
+    fn get_all_variables(&self) -> Vec<String> {
+        let mut vars = Vec::new();
+        for scope in &self.current_scope {
+            vars.extend(scope.keys().cloned());
+        }
+        vars
+    }
+
+    /// Get all function names currently defined (for suggestions)
+    fn get_all_functions(&self) -> Vec<String> {
+        self.functions.keys().cloned().collect()
+    }
+
+    /// Get all type names currently defined (for suggestions)
+    fn get_all_types(&self) -> Vec<String> {
+        self.types.keys().cloned().collect()
     }
 
     fn set_awaitable(&mut self, name: &str, info: AwaitableInfo) {
