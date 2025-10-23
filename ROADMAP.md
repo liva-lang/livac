@@ -16,15 +16,15 @@ Build a modern, practical programming language that combines:
 
 ---
 
-## �️ Roadmap Structure
+## 🗺️ Roadmap Structure
 
 The roadmap is organized into focused phases:
 
-- **Phase 1-5:** ✅ Core language features (completed)
-- **Phase 6:** 🧬 Generics - Type-safe generic programming (v0.9.0)
-- **Phase 7:** 🔧 Incremental improvements - High-value productivity features (v0.9.x)
-- **Phase 8:** ⚡ Optimizations - Performance and code quality (v0.10.0)
-- **Phase 9:** 🚢 Production release - LSP, debugging, stability (v1.0.0)
+- **Phase 1-4:** ✅ Core language features (completed)
+- **Phase 5:** 🧬 Generics - Type-safe generic programming (v0.9.0)
+- **Phase 6:** 🔧 Incremental improvements - High-value productivity features (v0.9.x)
+- **Phase 7:** ⚡ Optimizations - Performance and code quality (v0.10.0)
+- **Phase 8:** 🚢 Production release - LSP, debugging, stability (v1.0.0)
 
 Each phase is broken into sub-tasks with time estimates and clear deliverables.
 
@@ -499,62 +499,7 @@ Each phase is broken into sub-tasks with time estimates and clear deliverables.
 
 ---
 
-## 🔧 Phase 4: Generics (v0.9.0)
-
-**Goal:** Generic types and functions for code reuse
-
-**Status:** 📋 Planned  
-**Branch:** `feature/generics-v0.9`  
-**ETA:** 10-15 hours
-
-### 4.1 Design (~2 hours)
-- [ ] Define generic syntax `<T>`
-- [ ] Plan type parameter bounds
-- [ ] Design constraint system
-- [ ] Handle variance (covariance/contravariance)
-- [ ] Write generics spec
-
-### 4.2 Parser & AST (~3 hours)
-- [ ] Add type parameters to function declarations
-- [ ] Add type parameters to class declarations
-- [ ] Parse type arguments `Box<T>`
-- [ ] Parse constraints `<T: Comparable>`
-- [ ] Handle multiple type parameters
-- [ ] Add tests
-
-### 4.3 Type System (~4 hours)
-- [ ] Implement type parameter substitution
-- [ ] Implement type inference for generics
-- [ ] Check type parameter constraints
-- [ ] Handle generic method calls
-- [ ] Implement monomorphization strategy
-- [ ] Add tests
-
-### 4.4 Code Generation (~3 hours)
-- [ ] Generate Rust generic code
-- [ ] Handle type parameter mapping
-- [ ] Generate trait bounds
-- [ ] Handle generic instantiation
-- [ ] Add tests
-
-### 4.5 Standard Library Updates (~2 hours)
-- [ ] Make array generic: `Array<T>`
-- [ ] Make Result generic: `Result<T, E>`
-- [ ] Make Option generic: `Option<T>`
-- [ ] Update existing stdlib with generics
-- [ ] Add tests
-
-### 4.6 Documentation & Examples (~1 hour)
-- [ ] Write generics documentation
-- [ ] Create examples (generic functions, classes)
-- [ ] Update language reference
-- [ ] Add best practices guide
-
-**Deliverable:** Liva v0.9.0 - Generic programming support
-
----
-
-## 🎯 Phase 5: Enhanced Error Messages (v0.8.1)
+## 🎯 Phase 4: Enhanced Error Messages (v0.8.1)
 
 **Goal:** Developer-friendly error messages with suggestions and better context
 
@@ -584,14 +529,14 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 - 8 test files created
 - 3 new modules (suggestions, error_codes, hints)
 
-### 5.1 "Did You Mean?" Suggestions (~2 hours) ✅ COMPLETE
+### 4.1 "Did You Mean?" Suggestions (~2 hours) ✅ COMPLETE
 - [x] Implement Levenshtein distance algorithm
 - [x] Suggest similar variable names
 - [x] Suggest similar function names
 - [x] Suggest similar type names
 - [x] Add tests
 
-### 5.2 Enhanced Error Context (~2 hours) ✅ COMPLETE
+### 4.2 Enhanced Error Context (~2 hours) ✅ COMPLETE
 - [x] Show more context lines in errors (2 before, 2 after)
 - [x] Show precise token length in underline
 - [x] Add caret (^) under error position with exact length
@@ -600,7 +545,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 - [x] Update parser error formatting
 - [x] Add tests (test_parse_context.liva)
 
-### 5.3 Error Categories & Codes (~1 hour) ✅ COMPLETE
+### 4.3 Error Categories & Codes (~1 hour) ✅ COMPLETE
 - [x] Organize errors by category (E0xxx-E7xxx)
 - [x] Create error_codes module with constants
 - [x] Implement ErrorCategory enum
@@ -609,7 +554,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 - [x] Add category detection from error code
 - [x] Add tests for error categories
 
-### 5.4 Hints & Help (~2 hours) ✅ COMPLETE
+### 4.4 Hints & Help (~2 hours) ✅ COMPLETE
 - [x] Create hints module with contextual help
 - [x] Add automatic hints based on error codes
 - [x] Add code examples for common errors
@@ -619,7 +564,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 - [x] Add get_tip() for improvement suggestions
 - [x] Add tests for all hint functions
 
-### 5.5 Documentation (~1 hour) ✅ COMPLETE
+### 4.5 Documentation (~1 hour) ✅ COMPLETE
 - [x] Create ERROR_HANDLING_GUIDE.md (comprehensive guide)
 - [x] Create TROUBLESHOOTING.md (quick reference)
 - [x] Update README.md with error system showcase
@@ -629,7 +574,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 - [x] Add IDE integration documentation
 - [x] Add contributing guidelines for errors
 
-### 5.6 VS Code Extension Integration (v0.4.0) ✅ COMPLETE
+### 4.6 VS Code Extension Integration (v0.4.0) ✅ COMPLETE
 - [x] Extend LivaErrorJson interface with Phase 5 fields
 - [x] Implement LivaCodeActionProvider for "Did you mean?" quick fixes
 - [x] Implement LivaErrorHoverProvider for documentation links
@@ -652,7 +597,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 
 ---
 
-## 🧬 Phase 6: Generics System (v0.9.0)
+## 🧬 Phase 5: Generics System (v0.9.0)
 
 **Goal:** Type-safe generic programming with parametric polymorphism
 
@@ -660,7 +605,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 **Branch:** `feature/generics-v0.9.0`  
 **ETA:** 10-15 hours
 
-### 6.1 Generic Syntax Design
+### 5.1 Generic Syntax Design
 - [ ] Design generic type parameter syntax `<T>`, `<T, U>`
 - [ ] Design constraint syntax `<T: Trait>`
 - [ ] Design where clauses for complex constraints
@@ -669,7 +614,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 
 **Estimated:** 2 hours
 
-### 6.2 Parser & AST Extensions
+### 5.2 Parser & AST Extensions
 - [ ] Extend lexer for `<`, `>` in type contexts
 - [ ] Parse generic type parameters on functions
 - [ ] Parse generic type parameters on classes
@@ -680,7 +625,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 
 **Estimated:** 3 hours
 
-### 6.3 Type System Implementation
+### 5.3 Type System Implementation
 - [ ] Implement type parameter representation in IR
 - [ ] Implement type substitution algorithm
 - [ ] Implement type inference for generics
@@ -691,7 +636,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 
 **Estimated:** 4 hours
 
-### 6.4 Code Generation
+### 5.4 Code Generation
 - [ ] Map Liva generics to Rust generics
 - [ ] Generate generic function definitions
 - [ ] Generate generic class definitions
@@ -702,7 +647,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 
 **Estimated:** 3 hours
 
-### 6.5 Standard Library Updates
+### 5.5 Standard Library Updates
 - [ ] Convert `Array` to `Array<T>`
 - [ ] Convert `Result` to `Result<T, E>`
 - [ ] Convert `Option` to `Option<T>`
@@ -713,7 +658,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 
 **Estimated:** 2 hours
 
-### 6.6 Documentation & Examples
+### 5.6 Documentation & Examples
 - [ ] Write generics language reference
 - [ ] Write generics tutorial
 - [ ] Create real-world generic examples
@@ -727,7 +672,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 
 ---
 
-## 🔧 Phase 7: Incremental Improvements (v0.9.x series)
+## 🔧 Phase 6: Incremental Improvements (v0.9.x series)
 
 **Goal:** Small, high-value features to improve developer productivity
 
@@ -735,7 +680,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 **Branch:** Multiple feature branches  
 **ETA:** 2-4 hours each
 
-### 7.1 JSON Parsing & Serialization
+### 6.1 JSON Parsing & Serialization
 - [ ] Design JSON API (parse, stringify)
 - [ ] Implement JSON lexer and parser
 - [ ] Add JSON error handling
@@ -747,7 +692,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 
 **Estimated:** 4 hours
 
-### 7.2 File I/O Operations
+### 6.2 File I/O Operations
 - [ ] Design File API (read, write, append)
 - [ ] Implement file reading (text & binary)
 - [ ] Implement file writing
@@ -759,7 +704,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 
 **Estimated:** 3 hours
 
-### 7.3 HTTP Client
+### 6.3 HTTP Client
 - [ ] Design HTTP API (get, post, put, delete)
 - [ ] Implement HTTP request builder
 - [ ] Add headers and body support
@@ -771,7 +716,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 
 **Estimated:** 4 hours
 
-### 7.4 Enhanced Pattern Matching
+### 6.4 Enhanced Pattern Matching
 - [ ] Design switch expression syntax
 - [ ] Add exhaustiveness checking
 - [ ] Support pattern guards
@@ -783,7 +728,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 
 **Estimated:** 3 hours
 
-### 7.5 Destructuring Syntax
+### 6.5 Destructuring Syntax
 - [ ] Design destructuring syntax for objects
 - [ ] Design destructuring syntax for arrays
 - [ ] Parse destructuring in let bindings
@@ -795,7 +740,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 
 **Estimated:** 3 hours
 
-### 7.6 Spread Operators
+### 6.6 Spread Operators
 - [ ] Design spread syntax `...array`, `...object`
 - [ ] Parse spread in array literals
 - [ ] Parse spread in object literals
@@ -811,7 +756,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 
 ---
 
-## ⚡ Phase 8: Compiler Optimizations (v0.10.0)
+## ⚡ Phase 7: Compiler Optimizations (v0.10.0)
 
 **Goal:** Improve compilation speed and generated code quality
 
@@ -819,7 +764,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 **Branch:** `feature/optimizations-v0.10.0`  
 **ETA:** Variable (10-15 hours estimated)
 
-### 8.1 Benchmark Suite
+### 7.1 Benchmark Suite
 - [ ] Design benchmark framework
 - [ ] Create compilation speed benchmarks
 - [ ] Create runtime performance benchmarks
@@ -831,7 +776,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 
 **Estimated:** 3 hours
 
-### 8.2 Compilation Speed Optimization
+### 7.2 Compilation Speed Optimization
 - [ ] Profile compiler with `perf` or `flamegraph`
 - [ ] Identify parsing bottlenecks
 - [ ] Optimize lexer performance
@@ -843,7 +788,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 
 **Estimated:** 4 hours
 
-### 8.3 Code Generation Quality
+### 7.3 Code Generation Quality
 - [ ] Analyze generated Rust code quality
 - [ ] Reduce unnecessary clones
 - [ ] Optimize string operations
@@ -855,7 +800,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 
 **Estimated:** 4 hours
 
-### 8.4 Memory Management
+### 7.4 Memory Management
 - [ ] Profile memory usage during compilation
 - [ ] Reduce AST memory footprint
 - [ ] Optimize IR representation
@@ -867,7 +812,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 
 **Estimated:** 3 hours
 
-### 8.5 Documentation
+### 7.5 Documentation
 - [ ] Write optimization guide
 - [ ] Document benchmark results
 - [ ] Create performance tuning guide
@@ -880,7 +825,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 
 ---
 
-## 🚢 Phase 9: Production Release (v1.0.0)
+## 🚢 Phase 8: Production Release (v1.0.0)
 
 **Goal:** Stable, production-ready language
 
@@ -888,7 +833,7 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 **Branch:** `release/v1.0`  
 **ETA:** TBD
 
-### 9.1 Language Server Protocol (LSP)
+### 8.1 Language Server Protocol (LSP)
 - [ ] Implement LSP server
 - [ ] Auto-completion
 - [ ] Go to definition
@@ -897,35 +842,35 @@ Phase 5 delivered a comprehensive error system that rivals Rust and Elm in quali
 - [ ] Hover documentation
 - [ ] Signature help
 
-### 9.2 Debugger Support
+### 8.2 Debugger Support
 - [ ] Debug adapter protocol
 - [ ] Breakpoint support
 - [ ] Step through code
 - [ ] Variable inspection
 - [ ] Call stack
 
-### 9.3 Performance Optimizations
+### 8.3 Performance Optimizations
 - [ ] Profile compiler performance
 - [ ] Optimize parsing
 - [ ] Optimize type checking
 - [ ] Optimize code generation
 - [ ] Benchmark suite
 
-### 9.4 Stability & Polish
+### 8.4 Stability & Polish
 - [ ] Comprehensive test suite (>90% coverage)
 - [ ] Stress testing
 - [ ] Memory leak detection
 - [ ] Security audit
 - [ ] Performance benchmarks
 
-### 9.5 Documentation
+### 8.5 Documentation
 - [ ] Complete language specification
 - [ ] Tutorial series
 - [ ] API reference
 - [ ] Migration guides
 - [ ] Best practices
 
-### 9.6 Package Manager (Optional)
+### 8.6 Package Manager (Optional)
 - [ ] Design package format
 - [ ] Implement package registry
 - [ ] Package discovery
