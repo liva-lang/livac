@@ -1,0 +1,57 @@
+// Test Option<T> - Generic optional type
+// Tests type safety with different types
+
+Option<T> {
+    value: T
+    hasValue: bool
+    
+    constructor(value: T, hasValue: bool) {
+        this.value = value
+        this.hasValue = hasValue
+    }
+    
+    isSome(): bool {
+        return this.hasValue
+    }
+    
+    isNone(): bool {
+        return !this.hasValue
+    }
+}
+
+// Factory functions
+some<T>(value: T): Option<T> {
+    return Option(value, true)
+}
+
+none<T>(defaultValue: T): Option<T> {
+    return Option(defaultValue, false)
+}
+
+main() {
+    print("=== Testing Option<int> ===")
+    let someInt = some(42)
+    print($"Has value: {someInt.isSome()}")
+    if someInt.hasValue {
+        print($"Value: {someInt.value}")
+    }
+    
+    let noneInt = none(0)
+    print($"Has value: {noneInt.isSome()}")
+    print($"Is none: {noneInt.isNone()}")
+    
+    print("\n=== Testing Option<string> ===")
+    let someStr = some("Hello Liva")
+    print($"Has value: {someStr.isSome()}")
+    if someStr.hasValue {
+        print($"Value: {someStr.value}")
+    }
+    
+    let noneStr = none("")
+    print($"Is none: {noneStr.isNone()}")
+    
+    print("\n=== Testing Option<bool> ===")
+    let someBool = some(true)
+    print($"Has value: {someBool.isSome()}")
+    print($"Value: {someBool.value}")
+}
