@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added - Generics System (Phase 5 - In Progress, 6h)
+### Added - Generics System (Phase 5 - In Progress, 7h)
 
 **Phase 5.1: Generic Syntax Design (2h) ✅**
 - Complete specification in docs/language-reference/generics.md (785 lines)
@@ -31,15 +31,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 11 parser test files with full insta snapshot coverage
 - All tests passing (11/11)
 
-**Phase 5.3: Basic Code Generation (1h) ✅**
+**Phase 5.3: Code Generation (2h) ✅**
 - Generic functions compile and execute correctly! 🎉
-- Example: `identity<T>(value: T): T => value`
-- Test output: Works with int, string, bool types
-- Generated Rust: `fn identity<T>(value: T) -> T { value }`
+  * Example: `identity<T>(value: T): T => value`
+  * Test output: Works with int, string, bool types
+  * Generated Rust: `fn identity<T>(value: T) -> T { value }`
+- Generic classes with single type parameter working! 🎉
+  * Example: `Box<T> { value: T }`
+  * Generates: `pub struct Box<T> { pub value: T }`
+  * Impl blocks: `impl<T> Box<T> { pub fn new(value: T) -> Self { ... } }`
+- Generic classes with multiple type parameters working! 🎉
+  * Example: `Pair<T, U> { first: T, second: U }`
+  * Generates: `pub struct Pair<T, U> { ... }`
+  * All combinations tested: int/string, bool/float, string/int
 - **No codegen changes needed** - infrastructure already supported it!
 - Monomorphization delegated to Rust compiler (optimal)
 
-**Commits:** 8ee5bc1 (specification), ae39b05 (parser tests), d4dc6d2 (array syntax), 72c3878 (working generics!)
+**Known Issue:**
+- Field access on method return values generates `["field"]` instead of `.field`
+- Workaround: Assign to intermediate variable first
+
+**Working Examples:**
+- `examples/test_array_generic.liva` - identity<T> function
+- `examples/test_generic_class.liva` - Box<T> class
+- `examples/test_generic_methods.liva` - Pair<T,U> class
+
+**Commits:** 8ee5bc1 (specification), ae39b05 (parser tests), d4dc6d2 (array syntax), 72c3878 (working generics!), 677c552 (generic classes), 5669a17 (multiple type params)
 
 ## [0.8.1] - 2025-10-23
 
