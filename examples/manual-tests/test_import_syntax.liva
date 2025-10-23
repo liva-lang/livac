@@ -1,0 +1,8 @@
+// Test para mostrar hint de sintaxis de import
+
+import add from './test_module_math'
+
+main() {
+  let result = add(5, 3)
+  print(result)
+}

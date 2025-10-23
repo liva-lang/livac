@@ -36,6 +36,7 @@ pub mod codegen;
 pub mod desugaring;
 pub mod error;
 pub mod error_codes;
+pub mod hints;
 pub mod ir;
 pub mod lexer;
 pub mod liva_rt;

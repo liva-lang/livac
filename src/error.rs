@@ -201,9 +201,29 @@ impl SemanticErrorInfo {
         // Mensaje principal
         output.push_str(&format!("\n  {} {}\n", "ⓘ".blue().bold(), self.message));
 
-        // Ayuda si está disponible
-        if let Some(help) = &self.help {
+        // Ayuda si está disponible (manual o automática)
+        let help_text = if let Some(help) = &self.help {
+            Some(help.clone())
+        } else {
+            // Intentar obtener hint automático basado en el código de error
+            crate::hints::get_hint(&self.code).map(|h| h.to_string())
+        };
+
+        if let Some(help) = help_text {
             output.push_str(&format!("\n  {} {}\n", "💡".yellow(), help.bright_white()));
+        }
+
+        // Mostrar ejemplo si está disponible
+        if let Some(example) = crate::hints::get_example(&self.code) {
+            output.push_str(&format!("\n  {} Example:\n", "📝".cyan()));
+            for line in example.lines() {
+                output.push_str(&format!("     {}\n", line.bright_black()));
+            }
+        }
+
+        // Mostrar enlace a documentación
+        if let Some(doc_link) = crate::hints::get_doc_link(&self.code) {
+            output.push_str(&format!("\n  {} Learn more: {}\n", "📚".blue(), doc_link.cyan()));
         }
 
         // Separador final

@@ -1,0 +1,10 @@
+// Test para mostrar hints y ejemplos automáticos
+
+divide(a: number, b: number) => b == 0 ? fail "Division by zero" : a / b
+
+main() {
+  // Error: función fallible sin error binding
+  let result = divide(10, 2)
+  
+  print(result)
+}

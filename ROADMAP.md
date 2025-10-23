@@ -574,12 +574,15 @@ Build a modern, practical programming language that combines:
 - [x] Add category detection from error code
 - [x] Add tests for error categories
 
-### 5.4 Hints & Help (~2 hours)
-- [ ] Add helpful hints to common errors
-- [ ] Suggest fixes for common mistakes
-- [ ] Link to relevant documentation
-- [ ] Add examples of correct usage
-- [ ] Add tests
+### 5.4 Hints & Help (~2 hours) ✅ COMPLETE
+- [x] Create hints module with contextual help
+- [x] Add automatic hints based on error codes
+- [x] Add code examples for common errors
+- [x] Add documentation links for each error
+- [x] Integrate hints into error display
+- [x] Add get_common_fixes() for error categories
+- [x] Add get_tip() for improvement suggestions
+- [x] Add tests for all hint functions
 
 ### 5.5 Documentation (~1 hour)
 - [ ] Document error message format
