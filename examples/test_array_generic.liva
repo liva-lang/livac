@@ -1,20 +1,19 @@
-// Test: Array generics
-// This should work once we implement generics properly
+// Test: Basic generics - identity function
+// The simplest possible generic function
 
-// Generic function that works with any array type
-first<T>(arr: [T]): T? {
-    if arr.length > 0 {
-        return arr[0]
-    }
-    return null
-}
+// Identity function - returns whatever you give it
+identity<T>(value: T): T => value
 
 main() {
-    let numbers = [1, 2, 3]
-    let firstNum = first(numbers)
-    print($"First number: {firstNum}")
+    // Test with number
+    let num = identity(42)
+    print($"Identity of 42: {num}")
     
-    let names = ["Alice", "Bob"]
-    let firstName = first(names)
-    print($"First name: {firstName}")
+    // Test with string  
+    let str = identity("Hello")
+    print($"Identity of Hello: {str}")
+    
+    // Test with boolean
+    let flag = identity(true)
+    print($"Identity of true: {flag}")
 }
