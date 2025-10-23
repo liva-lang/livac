@@ -223,24 +223,24 @@ impl SemanticAnalyzer {
                         .collect();
                     let suggestion = suggestions::find_suggestion(symbol, &all_symbols, 2);
                     
-                    let mut message = format!(
+                    let message = format!(
                         "Symbol '{}' not found in module '{}'.",
                         symbol, import.source
                     );
                     
+                    let mut error = SemanticErrorInfo::new(
+                        "E4006",
+                        "Imported symbol not found",
+                        &message,
+                    );
+                    
                     if let Some(suggested) = suggestion {
-                        message.push_str(&format!("\n\n💡 Did you mean '{}'?", suggested));
+                        error = error.with_suggestion(&format!("Did you mean '{}'?", suggested));
                     } else {
-                        message.push_str("\n\nHint: Check the spelling and make sure the symbol is defined in the module.");
+                        error = error.with_hint("Check the spelling and make sure the symbol is defined in the module.");
                     }
                     
-                    return Err(CompilerError::SemanticError(
-                        SemanticErrorInfo::new(
-                            "E4006",
-                            "Imported symbol not found",
-                            &message,
-                        )
-                    ));
+                    return Err(CompilerError::SemanticError(error));
                 }
                 
                 // Check if symbol is private (starts with _)
@@ -921,12 +921,17 @@ impl SemanticAnalyzer {
                 let available_types = self.get_all_types();
                 let suggestion = suggestions::find_suggestion(base, &available_types, 2);
                 
-                let mut error_msg = format!("Base class '{}' not found", base);
+                let mut error = SemanticErrorInfo::new(
+                    "E2004",
+                    "Undefined base class",
+                    &format!("Base class '{}' not found", base)
+                );
+                
                 if let Some(suggested) = suggestion {
-                    error_msg.push_str(&format!("\n\n💡 Did you mean '{}'?", suggested));
+                    error = error.with_suggestion(&format!("Did you mean '{}'?", suggested));
                 }
                 
-                return Err(CompilerError::SemanticError(error_msg.into()));
+                return Err(CompilerError::SemanticError(error));
             }
         }
 
@@ -1736,12 +1741,17 @@ impl SemanticAnalyzer {
                     let available_vars = self.get_all_variables();
                     let suggestion = suggestions::find_suggestion(name, &available_vars, 2);
                     
-                    let mut error_msg = format!("Cannot assign to undefined variable '{}'", name);
+                    let mut error = SemanticErrorInfo::new(
+                        "E2003",
+                        "Undefined variable",
+                        &format!("Cannot assign to undefined variable '{}'", name)
+                    );
+                    
                     if let Some(suggested) = suggestion {
-                        error_msg.push_str(&format!("\n\n💡 Did you mean '{}'?", suggested));
+                        error = error.with_suggestion(&format!("Did you mean '{}'?", suggested));
                     }
                     
-                    return Err(CompilerError::SemanticError(error_msg.into()));
+                    return Err(CompilerError::SemanticError(error));
                 }
             }
             Expr::Member { object, .. } => {
