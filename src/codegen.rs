@@ -384,16 +384,30 @@ impl CodeGenerator {
     }
 
     fn generate_class(&mut self, class: &ClassDecl) -> Result<()> {
+        // Format type parameters
+        let type_params_str = if !class.type_params.is_empty() {
+            let params: Vec<String> = class.type_params.iter().map(|tp| {
+                if let Some(constraint) = &tp.constraint {
+                    format!("{}: {}", tp.name, constraint)
+                } else {
+                    tp.name.clone()
+                }
+            }).collect();
+            format!("<{}>", params.join(", "))
+        } else {
+            String::new()
+        };
+        
         // Handle inheritance with composition
         if let Some(base) = &class.base {
             self.writeln(&format!("// Class {} extends {}", class.name, base));
             self.writeln("#[derive(Debug, Clone, Default)]");
-            self.writeln(&format!("pub struct {} {{", class.name));
+            self.writeln(&format!("pub struct {}{} {{", class.name, type_params_str));
             self.indent();
             self.writeln(&format!("pub base: {},", base));
         } else {
             self.writeln("#[derive(Debug, Clone, Default)]");
-            self.writeln(&format!("pub struct {} {{", class.name));
+            self.writeln(&format!("pub struct {}{} {{", class.name, type_params_str));
             self.indent();
         }
 
@@ -424,7 +438,28 @@ impl CodeGenerator {
             }
         });
 
-        self.writeln(&format!("impl {} {{", class.name));
+        // Format type parameters for impl block
+        let impl_type_params = if !class.type_params.is_empty() {
+            let params: Vec<String> = class.type_params.iter().map(|tp| {
+                if let Some(constraint) = &tp.constraint {
+                    format!("{}: {}", tp.name, constraint)
+                } else {
+                    tp.name.clone()
+                }
+            }).collect();
+            format!("<{}>", params.join(", "))
+        } else {
+            String::new()
+        };
+        
+        let impl_type_args = if !class.type_params.is_empty() {
+            let args: Vec<String> = class.type_params.iter().map(|tp| tp.name.clone()).collect();
+            format!("<{}>", args.join(", "))
+        } else {
+            String::new()
+        };
+        
+        self.writeln(&format!("impl{} {}{} {{", impl_type_params, class.name, impl_type_args));
         self.indent();
 
         // Generate constructor

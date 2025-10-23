@@ -1,0 +1,6 @@
+// Test: Generic method in non-generic class
+Container {
+    wrap<T>(value: T): T {
+        return value
+    }
+}

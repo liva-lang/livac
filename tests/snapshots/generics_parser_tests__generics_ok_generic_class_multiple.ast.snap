@@ -1,0 +1,167 @@
+---
+source: tests/generics_parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Class": {
+        "name": "Pair",
+        "type_params": [
+          {
+            "name": "T",
+            "constraint": null
+          },
+          {
+            "name": "U",
+            "constraint": null
+          }
+        ],
+        "base": null,
+        "members": [
+          {
+            "Field": {
+              "name": "first",
+              "visibility": "Public",
+              "type_ref": {
+                "Simple": "T"
+              },
+              "init": null
+            }
+          },
+          {
+            "Field": {
+              "name": "second",
+              "visibility": "Public",
+              "type_ref": {
+                "Simple": "U"
+              },
+              "init": null
+            }
+          },
+          {
+            "Method": {
+              "name": "constructor",
+              "visibility": "Public",
+              "type_params": [],
+              "params": [
+                {
+                  "name": "first",
+                  "type_ref": {
+                    "Simple": "T"
+                  },
+                  "default": null
+                },
+                {
+                  "name": "second",
+                  "type_ref": {
+                    "Simple": "U"
+                  },
+                  "default": null
+                }
+              ],
+              "return_type": null,
+              "body": {
+                "stmts": [
+                  {
+                    "Assign": {
+                      "target": {
+                        "Member": {
+                          "object": {
+                            "Identifier": "this"
+                          },
+                          "property": "first"
+                        }
+                      },
+                      "value": {
+                        "Identifier": "first"
+                      }
+                    }
+                  },
+                  {
+                    "Assign": {
+                      "target": {
+                        "Member": {
+                          "object": {
+                            "Identifier": "this"
+                          },
+                          "property": "second"
+                        }
+                      },
+                      "value": {
+                        "Identifier": "second"
+                      }
+                    }
+                  }
+                ]
+              },
+              "expr_body": null,
+              "is_async_inferred": false,
+              "contains_fail": false
+            }
+          },
+          {
+            "Method": {
+              "name": "getFirst",
+              "visibility": "Public",
+              "type_params": [],
+              "params": [],
+              "return_type": {
+                "Simple": "T"
+              },
+              "body": {
+                "stmts": [
+                  {
+                    "Return": {
+                      "expr": {
+                        "Member": {
+                          "object": {
+                            "Identifier": "this"
+                          },
+                          "property": "first"
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "expr_body": null,
+              "is_async_inferred": false,
+              "contains_fail": false
+            }
+          },
+          {
+            "Method": {
+              "name": "getSecond",
+              "visibility": "Public",
+              "type_params": [],
+              "params": [],
+              "return_type": {
+                "Simple": "U"
+              },
+              "body": {
+                "stmts": [
+                  {
+                    "Return": {
+                      "expr": {
+                        "Member": {
+                          "object": {
+                            "Identifier": "this"
+                          },
+                          "property": "second"
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "expr_body": null,
+              "is_async_inferred": false,
+              "contains_fail": false
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

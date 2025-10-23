@@ -1,0 +1,12 @@
+// Test: Generic class with constraint
+ComparableBox<T: Comparable> {
+    value: T
+    
+    constructor(value: T) {
+        this.value = value
+    }
+    
+    isGreater(other: T): bool {
+        return this.value > other
+    }
+}

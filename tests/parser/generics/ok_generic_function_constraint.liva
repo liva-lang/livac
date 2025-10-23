@@ -1,0 +1,7 @@
+// Test: Generic function with type constraint
+max<T: Comparable>(a: T, b: T): T {
+    if a.compareTo(b) > 0 {
+        return a
+    }
+    return b
+}

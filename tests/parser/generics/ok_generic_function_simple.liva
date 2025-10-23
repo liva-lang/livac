@@ -1,0 +1,4 @@
+// Test: Simple generic function with one type parameter
+identity<T>(value: T): T {
+    return value
+}

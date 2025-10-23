@@ -1,0 +1,2 @@
+// Test: Identity function that actually compiles
+identity<T>(value: T): T => value

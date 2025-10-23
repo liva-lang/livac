@@ -1,0 +1,4 @@
+// Test: Generic function with multiple type parameters
+pair<T, U>(first: T, second: U) {
+    return [first, second]
+}

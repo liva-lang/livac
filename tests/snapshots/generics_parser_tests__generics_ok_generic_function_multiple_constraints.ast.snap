@@ -1,0 +1,56 @@
+---
+source: tests/generics_parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "process",
+        "type_params": [
+          {
+            "name": "T",
+            "constraint": "Comparable"
+          },
+          {
+            "name": "U",
+            "constraint": null
+          }
+        ],
+        "params": [
+          {
+            "name": "first",
+            "type_ref": {
+              "Simple": "T"
+            },
+            "default": null
+          },
+          {
+            "name": "second",
+            "type_ref": {
+              "Simple": "U"
+            },
+            "default": null
+          }
+        ],
+        "return_type": {
+          "Simple": "T"
+        },
+        "body": {
+          "stmts": [
+            {
+              "Return": {
+                "expr": {
+                  "Identifier": "first"
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    }
+  ]
+}

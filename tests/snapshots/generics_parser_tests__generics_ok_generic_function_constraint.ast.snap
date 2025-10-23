@@ -1,0 +1,95 @@
+---
+source: tests/generics_parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "max",
+        "type_params": [
+          {
+            "name": "T",
+            "constraint": "Comparable"
+          }
+        ],
+        "params": [
+          {
+            "name": "a",
+            "type_ref": {
+              "Simple": "T"
+            },
+            "default": null
+          },
+          {
+            "name": "b",
+            "type_ref": {
+              "Simple": "T"
+            },
+            "default": null
+          }
+        ],
+        "return_type": {
+          "Simple": "T"
+        },
+        "body": {
+          "stmts": [
+            {
+              "If": {
+                "condition": {
+                  "Binary": {
+                    "op": "Gt",
+                    "left": {
+                      "MethodCall": {
+                        "object": {
+                          "Identifier": "a"
+                        },
+                        "method": "compareTo",
+                        "args": [
+                          {
+                            "Identifier": "b"
+                          }
+                        ],
+                        "adapter": "seq",
+                        "adapter_options": {}
+                      }
+                    },
+                    "right": {
+                      "Literal": {
+                        "Int": 0
+                      }
+                    }
+                  }
+                },
+                "then_branch": {
+                  "Block": {
+                    "stmts": [
+                      {
+                        "Return": {
+                          "expr": {
+                            "Identifier": "a"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "else_branch": null
+              }
+            },
+            {
+              "Return": {
+                "expr": {
+                  "Identifier": "b"
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    }
+  ]
+}

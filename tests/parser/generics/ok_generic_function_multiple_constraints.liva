@@ -1,0 +1,4 @@
+// Test: Multiple type parameters with constraints
+process<T: Comparable, U>(first: T, second: U): T {
+    return first
+}

@@ -1,0 +1,117 @@
+---
+source: tests/generics_parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Class": {
+        "name": "ComparableBox",
+        "type_params": [
+          {
+            "name": "T",
+            "constraint": "Comparable"
+          }
+        ],
+        "base": null,
+        "members": [
+          {
+            "Field": {
+              "name": "value",
+              "visibility": "Public",
+              "type_ref": {
+                "Simple": "T"
+              },
+              "init": null
+            }
+          },
+          {
+            "Method": {
+              "name": "constructor",
+              "visibility": "Public",
+              "type_params": [],
+              "params": [
+                {
+                  "name": "value",
+                  "type_ref": {
+                    "Simple": "T"
+                  },
+                  "default": null
+                }
+              ],
+              "return_type": null,
+              "body": {
+                "stmts": [
+                  {
+                    "Assign": {
+                      "target": {
+                        "Member": {
+                          "object": {
+                            "Identifier": "this"
+                          },
+                          "property": "value"
+                        }
+                      },
+                      "value": {
+                        "Identifier": "value"
+                      }
+                    }
+                  }
+                ]
+              },
+              "expr_body": null,
+              "is_async_inferred": false,
+              "contains_fail": false
+            }
+          },
+          {
+            "Method": {
+              "name": "isGreater",
+              "visibility": "Public",
+              "type_params": [],
+              "params": [
+                {
+                  "name": "other",
+                  "type_ref": {
+                    "Simple": "T"
+                  },
+                  "default": null
+                }
+              ],
+              "return_type": {
+                "Simple": "bool"
+              },
+              "body": {
+                "stmts": [
+                  {
+                    "Return": {
+                      "expr": {
+                        "Binary": {
+                          "op": "Gt",
+                          "left": {
+                            "Member": {
+                              "object": {
+                                "Identifier": "this"
+                              },
+                              "property": "value"
+                            }
+                          },
+                          "right": {
+                            "Identifier": "other"
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "expr_body": null,
+              "is_async_inferred": false,
+              "contains_fail": false
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

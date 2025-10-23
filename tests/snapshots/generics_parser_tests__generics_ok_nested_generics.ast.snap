@@ -1,0 +1,189 @@
+---
+source: tests/generics_parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "createNestedBox",
+        "type_params": [],
+        "params": [],
+        "return_type": {
+          "Generic": {
+            "base": "Box",
+            "args": [
+              {
+                "Generic": {
+                  "base": "Box",
+                  "args": [
+                    {
+                      "Simple": "int"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "name": "inner",
+                    "type_ref": {
+                      "Generic": {
+                        "base": "Box",
+                        "args": [
+                          {
+                            "Simple": "int"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ],
+                "init": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "Box"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "Int": 42
+                        }
+                      }
+                    ],
+                    "exec_policy": "normal"
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "name": "outer",
+                    "type_ref": {
+                      "Generic": {
+                        "base": "Box",
+                        "args": [
+                          {
+                            "Generic": {
+                              "base": "Box",
+                              "args": [
+                                {
+                                  "Simple": "int"
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ],
+                "init": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "Box"
+                    },
+                    "args": [
+                      {
+                        "Identifier": "inner"
+                      }
+                    ],
+                    "exec_policy": "normal"
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "Return": {
+                "expr": {
+                  "Identifier": "outer"
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    },
+    {
+      "Function": {
+        "name": "createArrayOfBoxes",
+        "type_params": [],
+        "params": [],
+        "return_type": {
+          "Generic": {
+            "base": "Array",
+            "args": [
+              {
+                "Generic": {
+                  "base": "Box",
+                  "args": [
+                    {
+                      "Simple": "string"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "name": "arr",
+                    "type_ref": {
+                      "Generic": {
+                        "base": "Array",
+                        "args": [
+                          {
+                            "Generic": {
+                              "base": "Box",
+                              "args": [
+                                {
+                                  "Simple": "string"
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ],
+                "init": {
+                  "ArrayLiteral": []
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "Return": {
+                "expr": {
+                  "Identifier": "arr"
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    }
+  ]
+}

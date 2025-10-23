@@ -1,0 +1,140 @@
+---
+source: tests/generics_parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "createBox",
+        "type_params": [],
+        "params": [],
+        "return_type": {
+          "Generic": {
+            "base": "Box",
+            "args": [
+              {
+                "Simple": "int"
+              }
+            ]
+          }
+        },
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "name": "box",
+                    "type_ref": {
+                      "Generic": {
+                        "base": "Box",
+                        "args": [
+                          {
+                            "Simple": "int"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ],
+                "init": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "Box"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "Int": 42
+                        }
+                      }
+                    ],
+                    "exec_policy": "normal"
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "Return": {
+                "expr": {
+                  "Identifier": "box"
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    },
+    {
+      "Function": {
+        "name": "createMap",
+        "type_params": [],
+        "params": [],
+        "return_type": {
+          "Generic": {
+            "base": "Map",
+            "args": [
+              {
+                "Simple": "string"
+              },
+              {
+                "Simple": "int"
+              }
+            ]
+          }
+        },
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "name": "map",
+                    "type_ref": {
+                      "Generic": {
+                        "base": "Map",
+                        "args": [
+                          {
+                            "Simple": "string"
+                          },
+                          {
+                            "Simple": "int"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ],
+                "init": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "Map"
+                    },
+                    "args": [],
+                    "exec_policy": "normal"
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "Return": {
+                "expr": {
+                  "Identifier": "map"
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    }
+  ]
+}

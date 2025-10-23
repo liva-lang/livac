@@ -1,0 +1,18 @@
+// Test: Generic class with multiple type parameters
+Pair<T, U> {
+    first: T
+    second: U
+    
+    constructor(first: T, second: U) {
+        this.first = first
+        this.second = second
+    }
+    
+    getFirst(): T {
+        return this.first
+    }
+    
+    getSecond(): U {
+        return this.second
+    }
+}

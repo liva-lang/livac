@@ -1,0 +1,10 @@
+// Test: Using type arguments in type annotations
+createBox(): Box<int> {
+    let box: Box<int> = Box(42)
+    return box
+}
+
+createMap(): Map<string, int> {
+    let map: Map<string, int> = Map()
+    return map
+}

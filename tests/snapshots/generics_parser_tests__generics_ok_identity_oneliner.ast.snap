@@ -1,0 +1,37 @@
+---
+source: tests/generics_parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "identity",
+        "type_params": [
+          {
+            "name": "T",
+            "constraint": null
+          }
+        ],
+        "params": [
+          {
+            "name": "value",
+            "type_ref": {
+              "Simple": "T"
+            },
+            "default": null
+          }
+        ],
+        "return_type": {
+          "Simple": "T"
+        },
+        "body": null,
+        "expr_body": {
+          "Identifier": "value"
+        },
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    }
+  ]
+}
