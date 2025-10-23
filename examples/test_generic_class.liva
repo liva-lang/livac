@@ -1,0 +1,28 @@
+// Test generic class: Box<T>
+// A simple container that holds a value of any type
+
+Box<T> {
+    value: T
+    
+    constructor(value: T) {
+        this.value = value
+    }
+}
+
+main() {
+    // Create Box<int>
+    let intBox = Box(42)
+    print($"Int box value: {intBox.value}")
+    
+    // Create Box<string>
+    let strBox = Box("Hello")
+    print($"String box value: {strBox.value}")
+    
+    // Create Box<bool>
+    let boolBox = Box(true)
+    print($"Bool box value: {boolBox.value}")
+    
+    // Test set method - access field directly
+    intBox.value = 100
+    print($"Updated int box: {intBox.value}")
+}
