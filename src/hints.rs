@@ -61,6 +61,11 @@ pub fn get_example(error_code: &str) -> Option<&'static str> {
 
 /// Get related documentation URL for an error code
 pub fn get_doc_link(error_code: &str) -> Option<String> {
+    // Guard against empty error codes
+    if error_code.len() < 2 {
+        return None;
+    }
+    
     // Extract category from error code
     let category = match &error_code[1..2] {
         "0" => "semantic",

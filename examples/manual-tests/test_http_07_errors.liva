@@ -1,0 +1,32 @@
+// HTTP Test Suite - Level 7: Error handling
+// Tests: Invalid URL, network errors, 404
+
+main() {
+    print("=== Test 7: Error Handling ===\n")
+    
+    // Test 1: Invalid URL
+    print("Test 7.1: Invalid URL")
+    let resp1, err1 = async HTTP.get("not-a-valid-url")
+    if err1 != "" {
+        print($"  Expected error: {err1}\n")
+    }
+    
+    // Test 2: Non-existent domain
+    print("Test 7.2: Non-existent domain")
+    let resp2, err2 = async HTTP.get("https://this-domain-definitely-does-not-exist-12345.com")
+    if err2 != "" {
+        print($"  Expected error: {err2}\n")
+    }
+    
+    // Test 3: 404 Not Found
+    print("Test 7.3: 404 Not Found")
+    let resp3, err3 = async HTTP.get("https://jsonplaceholder.typicode.com/posts/999999")
+    if err3 != "" {
+        print($"  Error: {err3}")
+    } else {
+        print($"  Status: {resp3.status} {resp3.statusText}")
+        print($"  Body: {resp3.body}\n")
+    }
+    
+    print("All error handling tests complete")
+}

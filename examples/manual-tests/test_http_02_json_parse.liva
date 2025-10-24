@@ -1,0 +1,30 @@
+// HTTP Test Suite - Level 2: GET with JSON parsing
+// Tests: GET request + JSON.parse with error binding
+
+main() {
+    print("=== Test 2: GET with JSON Parsing ===\n")
+    
+    // Fetch a single post
+    let response, err = async HTTP.get("https://jsonplaceholder.typicode.com/posts/1")
+    
+    if err != "" {
+        console.error($"❌ HTTP Error: {err}")
+        return
+    }
+    
+    print($"✅ HTTP request successful (Status {response.status})")
+    
+    // Parse the JSON response
+    let post, jsonErr = JSON.parse(response.body)
+    
+    if jsonErr != "" {
+        console.error($"❌ JSON parsing failed: {jsonErr}")
+        return
+    }
+    
+    print($"✅ JSON parsed successfully")
+    print($"   Post ID: {post["id"]}")
+    print($"   User ID: {post["userId"]}")
+    print($"   Title: {post["title"]}")
+    print($"   Body: {post["body"]}")
+}

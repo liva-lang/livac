@@ -1,0 +1,78 @@
+// HTTP Test Suite - Level 10: Real-world API wrapper class
+// Tests: Encapsulation, reusability, error handling
+
+class PostsAPI {
+    baseUrl: string
+    
+    constructor() {
+        this.baseUrl = "https://jsonplaceholder.typicode.com"
+    }
+    
+    getAll(limit: i32) {
+        let url = $"{this.baseUrl}/posts?_limit={limit}"
+        let response, err = async HTTP.get(url)
+        
+        if err != "" {
+            console.error($"Failed to fetch posts: {err}")
+        }
+        
+        return (response, err)
+    }
+    
+    getById(id: i32) {
+        let url = $"{this.baseUrl}/posts/{id}"
+        let response, err = async HTTP.get(url)
+        
+        if err != "" {
+            console.error($"Failed to fetch post {id}: {err}")
+        }
+        
+        return (response, err)
+    }
+    
+    create(title: string, body: string, userId: i32) {
+        let data = $"{{ \"title\": \"{title}\", \"body\": \"{body}\", \"userId\": {userId} }}"
+        let response, err = async HTTP.post($"{this.baseUrl}/posts", data)
+        
+        if err != "" {
+            console.error($"Failed to create post: {err}")
+        }
+        
+        return (response, err)
+    }
+}
+
+main() {
+    print("=== Test 10: Real-World API Wrapper ===\n")
+    
+    let api = PostsAPI()
+    
+    // Test 1: Get all posts
+    print("1. Fetching 5 posts...")
+    let (allResp, allErr) = api.getAll(5)
+    if allErr == "" {
+        let posts, jsonErr = JSON.parse(allResp.body)
+        if jsonErr == "" {
+            print($"   Fetched {posts.length} posts\n")
+        }
+    }
+    
+    // Test 2: Get specific post
+    print("2. Fetching post 1...")
+    let (oneResp, oneErr) = api.getById(1)
+    if oneErr == "" {
+        let post, jsonErr = JSON.parse(oneResp.body)
+        if jsonErr == "" {
+            print($"   Title: {post["title"]}\n")
+        }
+    }
+    
+    // Test 3: Create post
+    print("3. Creating new post...")
+    let (createResp, createErr) = api.create("Liva API Test", "Testing wrapper class", 1)
+    if createErr == "" {
+        print($"   Created! Status: {createResp.status}\n")
+    }
+    
+    print("API wrapper tests complete!")
+}

@@ -1,0 +1,33 @@
+// HTTP Test Suite - Level 5: PUT request
+// Tests: PUT to update existing resource
+
+main() {
+    print("=== Test 5: PUT Request (Update) ===\n")
+    
+    // Update data for post ID 1
+    let updateData = "{ \"title\": \"Updated Post\", \"body\": \"Updated content\", \"userId\": 1 }"
+    
+    print("Sending PUT request to update post 1")
+    print("")
+    
+    let response, err = async HTTP.put("https://jsonplaceholder.typicode.com/posts/1", updateData)
+    
+    if err != "" {
+        console.error($"HTTP Error: {err}")
+    }
+    
+    print($"Status: {response.status} {response.statusText}")
+    
+    if response.status == 200 {
+        let updated, jsonErr = JSON.parse(response.body)
+        
+        if jsonErr != "" {
+            console.error($"JSON parse error: {jsonErr}")
+        }
+        
+        print("Updated post:")
+        print($"  ID: {updated["id"]}")
+        print($"  Title: {updated["title"]}")
+        print($"  Body: {updated["body"]}")
+    }
+}

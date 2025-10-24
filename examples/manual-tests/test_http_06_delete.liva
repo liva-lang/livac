@@ -1,0 +1,21 @@
+// HTTP Test Suite - Level 6: DELETE request
+// Tests: DELETE to remove resource
+
+main() {
+    print("=== Test 6: DELETE Request ===\n")
+    
+    print("Sending DELETE request for post 1")
+    
+    let response, err = async HTTP.delete("https://jsonplaceholder.typicode.com/posts/1")
+    
+    if err != "" {
+        console.error($"HTTP Error: {err}")
+    }
+    
+    print($"Status: {response.status} {response.statusText}")
+    
+    if response.status == 200 {
+        print("Successfully deleted post 1")
+        print($"Response: {response.body}")
+    }
+}

@@ -1772,7 +1772,13 @@ impl CodeGenerator {
                         );
                         
                         if is_struct_field {
-                            write!(self.output, "{}.unwrap().{}", sanitized, property).unwrap();
+                            // Convert camelCase to snake_case for Rust structs
+                            let rust_field = if property == "statusText" {
+                                "status_text"
+                            } else {
+                                property.as_str()
+                            };
+                            write!(self.output, "{}.as_ref().unwrap().{}", sanitized, rust_field).unwrap();
                             return Ok(());
                         }
                     }

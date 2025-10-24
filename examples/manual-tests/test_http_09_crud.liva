@@ -1,0 +1,56 @@
+// HTTP Test Suite - Level 9: Complete CRUD with JSONPlaceholder API
+// Tests: Full REST API workflow
+
+main() {
+    print("=== Test 9: Complete CRUD Workflow ===\n")
+    
+    // CREATE (POST)
+    print("Step 1: CREATE - Creating new post...")
+    let newPost = "{ \"title\": \"Liva Test\", \"body\": \"Testing CRUD\", \"userId\": 1 }"
+    let createResp, createErr = async HTTP.post("https://jsonplaceholder.typicode.com/posts", newPost)
+    
+    if createErr != "" {
+        console.error($"Create failed: {createErr}")
+    }
+    
+    let created, jsonErr1 = JSON.parse(createResp.body)
+    if jsonErr1 == "" {
+        print($"  Created post ID: {created["id"]}\n")
+    }
+    
+    // READ (GET)
+    print("Step 2: READ - Fetching post 1...")
+    let readResp, readErr = async HTTP.get("https://jsonplaceholder.typicode.com/posts/1")
+    
+    if readErr != "" {
+        console.error($"Read failed: {readErr}")
+    }
+    
+    let post, jsonErr2 = JSON.parse(readResp.body)
+    if jsonErr2 == "" {
+        print($"  Post title: {post["title"]}\n")
+    }
+    
+    // UPDATE (PUT)
+    print("Step 3: UPDATE - Updating post 1...")
+    let updateData = "{ \"title\": \"Updated\", \"body\": \"Modified\", \"userId\": 1 }"
+    let updateResp, updateErr = async HTTP.put("https://jsonplaceholder.typicode.com/posts/1", updateData)
+    
+    if updateErr != "" {
+        console.error($"Update failed: {updateErr}")
+    }
+    
+    print($"  Update status: {updateResp.status}\n")
+    
+    // DELETE
+    print("Step 4: DELETE - Deleting post 1...")
+    let deleteResp, deleteErr = async HTTP.delete("https://jsonplaceholder.typicode.com/posts/1")
+    
+    if deleteErr != "" {
+        console.error($"Delete failed: {deleteErr}")
+    }
+    
+    print($"  Delete status: {deleteResp.status}\n")
+    
+    print("CRUD workflow complete!")
+}
