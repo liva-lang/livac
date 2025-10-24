@@ -1849,6 +1849,10 @@ impl Parser {
             return Ok(Expr::Fail(Box::new(expr)));
         }
 
+        if self.match_token(&Token::Switch) {
+            return self.parse_switch_expr();
+        }
+
         if self.match_token(&Token::LParen) {
             let expr = self.parse_expression()?;
             self.expect(Token::RParen)?;
@@ -1888,6 +1892,118 @@ impl Parser {
 
         self.expect(Token::RBracket)?;
         Ok(Expr::ArrayLiteral(elements))
+    }
+
+    /// Parse switch expression: switch x { 1 => "one", 2 => "two", _ => "other" }
+    fn parse_switch_expr(&mut self) -> Result<Expr> {
+        let discriminant = Box::new(self.parse_expression()?);
+        self.expect(Token::LBrace)?;
+
+        let mut arms = Vec::new();
+
+        while !self.is_at_end() && !self.check(&Token::RBrace) {
+            // Parse pattern
+            let pattern = self.parse_pattern()?;
+
+            // Parse optional guard (if condition)
+            let guard = if self.match_token(&Token::If) {
+                Some(Box::new(self.parse_expression()?))
+            } else {
+                None
+            };
+
+            // Expect =>
+            self.expect(Token::Arrow)?;
+
+            // Parse body (expression or block)
+            let body = if self.check(&Token::LBrace) {
+                self.advance(); // consume {
+                let mut stmts = Vec::new();
+                while !self.is_at_end() && !self.check(&Token::RBrace) {
+                    stmts.push(self.parse_statement()?);
+                }
+                self.expect(Token::RBrace)?;
+                SwitchBody::Block(stmts)
+            } else {
+                let expr = self.parse_expression()?;
+                SwitchBody::Expr(Box::new(expr))
+            };
+
+            arms.push(SwitchArm {
+                pattern,
+                guard,
+                body,
+            });
+
+            // Optional comma between arms
+            self.match_token(&Token::Comma);
+        }
+
+        self.expect(Token::RBrace)?;
+
+        if arms.is_empty() {
+            return Err(self.error("Switch expression must have at least one arm".into()));
+        }
+
+        Ok(Expr::Switch(SwitchExpr { discriminant, arms }))
+    }
+
+    /// Parse a pattern for pattern matching
+    fn parse_pattern(&mut self) -> Result<Pattern> {
+        // Wildcard pattern: _
+        if self.match_token(&Token::Underscore) {
+            return Ok(Pattern::Wildcard);
+        }
+
+        // Check for range patterns
+        if self.check(&Token::DotDot) || self.check(&Token::DotDotEq) {
+            // Open start range: ..10 or ..=10
+            let inclusive = self.match_token(&Token::DotDotEq);
+            if !inclusive {
+                self.expect(Token::DotDot)?;
+            }
+            let end = Some(Box::new(self.parse_primary()?));
+            return Ok(Pattern::Range(RangePattern {
+                start: None,
+                end,
+                inclusive,
+            }));
+        }
+
+        // Parse first expression (could be literal, binding, or start of range)
+        let expr = self.parse_primary()?;
+
+        // Check if this is a range pattern
+        if self.check(&Token::DotDot) || self.check(&Token::DotDotEq) {
+            let inclusive = self.match_token(&Token::DotDotEq);
+            if !inclusive {
+                self.expect(Token::DotDot)?;
+            }
+
+            let end = if self.check(&Token::Arrow) || self.check(&Token::If) {
+                // Open end range: 10..
+                None
+            } else {
+                Some(Box::new(self.parse_primary()?))
+            };
+
+            return Ok(Pattern::Range(RangePattern {
+                start: Some(Box::new(expr)),
+                end,
+                inclusive,
+            }));
+        }
+
+        // Convert expression to pattern
+        match expr {
+            Expr::Literal(lit) => Ok(Pattern::Literal(lit)),
+            Expr::Identifier(name) => {
+                // Identifiers can be bindings (lowercase) or enum variants (capitalized)
+                // For now, treat all as bindings since we don't have enums yet
+                Ok(Pattern::Binding(name))
+            }
+            _ => Err(self.error("Invalid pattern".into())),
+        }
     }
 
     fn parse_object_fields(&mut self) -> Result<Vec<(String, Expr)>> {

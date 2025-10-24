@@ -178,8 +178,12 @@ pub enum Token {
     Colon,
     #[token(";")]
     Semicolon,
+    #[token("_")]
+    Underscore,
     #[token(".")]
     Dot,
+    #[token("..=")]
+    DotDotEq,
     #[token("..")]
     DotDot,
     #[token("?")]

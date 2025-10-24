@@ -369,6 +369,53 @@ pub struct CaseClause {
     pub body: Vec<Stmt>,
 }
 
+// ===== Enhanced Pattern Matching (v0.9.5) =====
+
+/// Switch expression for pattern matching that returns a value
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct SwitchExpr {
+    pub discriminant: Box<Expr>,
+    pub arms: Vec<SwitchArm>,
+}
+
+/// A single arm in a switch expression
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct SwitchArm {
+    pub pattern: Pattern,
+    pub guard: Option<Box<Expr>>,  // Optional if condition
+    pub body: SwitchBody,
+}
+
+/// Pattern for matching values
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum Pattern {
+    /// Literal value: 42, "hello", true
+    Literal(Literal),
+    /// Wildcard pattern: _
+    Wildcard,
+    /// Binding pattern: x (captures value)
+    Binding(String),
+    /// Range pattern: 1..10, 1..=10, ..10, 10..
+    Range(RangePattern),
+}
+
+/// Range pattern for numeric matching
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RangePattern {
+    pub start: Option<Box<Expr>>,
+    pub end: Option<Box<Expr>>,
+    pub inclusive: bool,  // true for ..=, false for ..
+}
+
+/// Body of a switch arm (can be expression or block)
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum SwitchBody {
+    /// Single expression: => expr
+    Expr(Box<Expr>),
+    /// Block of statements: => { ... }
+    Block(Vec<Stmt>),
+}
+
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TryCatchStmt {
     pub try_block: BlockStmt,
@@ -435,6 +482,7 @@ pub enum Expr {
     },
     Fail(Box<Expr>),
     MethodCall(MethodCallExpr),
+    Switch(SwitchExpr),  // Enhanced pattern matching (v0.9.5)
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -668,6 +716,31 @@ impl fmt::Display for ImportDecl {
         }
     }
 }
+
+impl fmt::Display for Pattern {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Pattern::Literal(lit) => write!(f, "{:?}", lit),
+            Pattern::Wildcard => write!(f, "_"),
+            Pattern::Binding(name) => write!(f, "{}", name),
+            Pattern::Range(range) => write!(f, "{}", range),
+        }
+    }
+}
+
+impl fmt::Display for RangePattern {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match (&self.start, &self.end, self.inclusive) {
+            (Some(start), Some(end), true) => write!(f, "{:?}..={:?}", start, end),
+            (Some(start), Some(end), false) => write!(f, "{:?}..{:?}", start, end),
+            (Some(start), None, _) => write!(f, "{:?}..", start),
+            (None, Some(end), true) => write!(f, "..={:?}", end),
+            (None, Some(end), false) => write!(f, "..{:?}", end),
+            (None, None, _) => write!(f, ".."),
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

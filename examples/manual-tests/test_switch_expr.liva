@@ -1,0 +1,51 @@
+// Test switch expressions (v0.9.5 Phase 6.4)
+
+main() {
+    // Test 1: Basic switch expression with literals
+    let x = 2;
+    let result = switch x {
+        1 => "one",
+        2 => "two",
+        3 => "three",
+        _ => "other"
+    };
+    print(result);  // Should print "two"
+
+    // Test 2: Switch with number results  
+    let score = 85;
+    let grade = switch score {
+        90..=100 => "A",
+        80..=89 => "B",
+        70..=79 => "C",
+        60..=69 => "D",
+        _ => "F"
+    };
+    print(grade);  // Should print "B"
+
+    // Test 3: Switch with guards
+    let age = 25;
+    let category = switch age {
+        x if x < 13 => "child",
+        x if x < 20 => "teenager",
+        x if x < 65 => "adult",
+        _ => "senior"
+    };
+    print(category);  // Should print "adult"
+
+    // Test 4: Boolean exhaustiveness
+    let is_valid = true;
+    let status = switch is_valid {
+        true => "valid",
+        false => "invalid"
+    };
+    print(status);  // Should print "valid"
+
+    // Test 5: Binding pattern
+    let num = 42;
+    let doubled = switch num {
+        0 => 0,
+        n => n * 2
+    };
+    print(doubled);  // Should print 84
+}
+

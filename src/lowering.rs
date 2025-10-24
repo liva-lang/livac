@@ -361,6 +361,11 @@ fn lower_expr(expr: &ast::Expr) -> ir::Expr {
                 args: method_call.args.iter().map(lower_expr).collect(),
             }
         }
+        ast::Expr::Switch(_) => {
+            // Switch expressions are passed through as unsupported for now
+            // They will be handled directly in codegen
+            ir::Expr::Unsupported(expr.clone())
+        }
     }
 }
 
