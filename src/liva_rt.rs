@@ -1,5 +1,6 @@
 use std::future::Future;
 use tokio::task::spawn as tokio_spawn;
+use std::time::Duration;
 
 // Placeholder types for advanced parallelism features
 pub enum ThreadOption {
@@ -216,4 +217,141 @@ impl StringOrInt for usize {
     fn as_string_or_int(self) -> StringOrIntValue {
         StringOrIntValue::Int(self as i64)
     }
+}
+
+// ============================================================================
+// HTTP Client
+// ============================================================================
+
+/// HTTP Response structure
+#[derive(Debug, Clone)]
+pub struct LivaHttpResponse {
+    pub status: i32,
+    pub status_text: String,
+    pub body: String,
+    pub headers: Vec<String>,
+}
+
+impl LivaHttpResponse {
+    pub fn empty() -> Self {
+        LivaHttpResponse {
+            status: 0,
+            status_text: String::new(),
+            body: String::new(),
+            headers: Vec::new(),
+        }
+    }
+}
+
+/// HTTP GET request
+pub async fn liva_http_get(url: String) -> (Option<LivaHttpResponse>, String) {
+    liva_http_request("GET", url, None).await
+}
+
+/// HTTP POST request
+pub async fn liva_http_post(url: String, body: String) -> (Option<LivaHttpResponse>, String) {
+    liva_http_request("POST", url, Some(body)).await
+}
+
+/// HTTP PUT request
+pub async fn liva_http_put(url: String, body: String) -> (Option<LivaHttpResponse>, String) {
+    liva_http_request("PUT", url, Some(body)).await
+}
+
+/// HTTP DELETE request
+pub async fn liva_http_delete(url: String) -> (Option<LivaHttpResponse>, String) {
+    liva_http_request("DELETE", url, None).await
+}
+
+/// Internal HTTP request implementation
+async fn liva_http_request(
+    method: &str,
+    url: String,
+    body: Option<String>,
+) -> (Option<LivaHttpResponse>, String) {
+    // Validate URL format
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return (None, format!("Invalid URL format: '{}'. URLs must start with http:// or https://", url));
+    }
+
+    // Create reqwest client with 30s timeout
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()
+    {
+        Ok(c) => c,
+        Err(e) => return (None, format!("Failed to create HTTP client: {}", e)),
+    };
+
+    // Build request
+    let request_builder = match method {
+        "GET" => client.get(&url),
+        "POST" => {
+            let mut builder = client.post(&url);
+            if let Some(body_content) = body {
+                builder = builder
+                    .header("Content-Type", "application/json")
+                    .body(body_content);
+            }
+            builder
+        }
+        "PUT" => {
+            let mut builder = client.put(&url);
+            if let Some(body_content) = body {
+                builder = builder
+                    .header("Content-Type", "application/json")
+                    .body(body_content);
+            }
+            builder
+        }
+        "DELETE" => client.delete(&url),
+        _ => return (None, format!("Unknown HTTP method: {}", method)),
+    };
+
+    // Execute request
+    let response = match request_builder.send().await {
+        Ok(resp) => resp,
+        Err(e) => {
+            // Handle different error types
+            let error_msg = if e.is_timeout() {
+                "Request timeout (30s)".to_string()
+            } else if e.is_connect() {
+                format!("Connection error: {}", e)
+            } else if e.is_request() {
+                format!("Request error: {}", e)
+            } else {
+                format!("Network error: {}", e)
+            };
+            return (None, error_msg);
+        }
+    };
+
+    // Extract status
+    let status = response.status();
+    let status_code = status.as_u16() as i32;
+    let status_text = status.canonical_reason().unwrap_or("Unknown").to_string();
+
+    // Extract headers
+    let mut headers = Vec::new();
+    for (key, value) in response.headers() {
+        if let Ok(value_str) = value.to_str() {
+            headers.push(format!("{}: {}", key.as_str(), value_str));
+        }
+    }
+
+    // Read body as text
+    let body = match response.text().await {
+        Ok(text) => text,
+        Err(e) => return (None, format!("Failed to read response body: {}", e)),
+    };
+
+    // Create response object
+    let liva_response = LivaHttpResponse {
+        status: status_code,
+        status_text,
+        body,
+        headers,
+    };
+
+    (Some(liva_response), String::new())
 }

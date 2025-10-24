@@ -1469,13 +1469,141 @@ impl SemanticAnalyzer {
             ));
         }
 
+        // Detect and mark HTTP.* calls as async and fallible
+        if let Expr::Member { object, property: member } = &*call.callee {
+            if let Expr::Identifier(name) = &**object {
+                if name == "HTTP" {
+                    match member.as_str() {
+                        "get" | "post" | "put" | "delete" => {
+                            // Mark as async and fallible
+                            let http_fn = format!("HTTP.{}", member);
+                            self.async_functions.insert(http_fn.clone());
+                            self.fallible_functions.insert(http_fn);
+                            
+                            // Validate arguments
+                            match member.as_str() {
+                                "get" | "delete" => {
+                                    // GET and DELETE: require 1 argument (url)
+                                    if call.args.len() != 1 {
+                                        let line = 0; // Placeholder for now
+                                        return Err(CompilerError::SemanticError(
+                                            SemanticErrorInfo {
+                                                location: Some(ErrorLocation {
+                                                    file: self.source_file.clone(),
+                                                    line,
+                                                    column: None,
+                                                    source_line: None,
+                                                    length: None,
+                                                    context_before: None,
+                                                    context_after: None,
+                                                }),
+                                                code: "E0902".to_string(),
+                                                title: format!("Invalid HTTP.{} call", member),
+                                                message: format!(
+                                                    "HTTP.{} requires exactly 1 argument (url: string), found {}",
+                                                    member, call.args.len()
+                                                ),
+                                                help: Some(format!("Usage: HTTP.{}(\"https://api.example.com\")", member)),
+                                                suggestion: None,
+                                                hint: None,
+                                                example: None,
+                                                doc_link: None,
+                                                category: None,
+                                            }
+                                        ));
+                                    }
+                                }
+                                "post" | "put" => {
+                                    // POST and PUT: require 2 arguments (url, body)
+                                    if call.args.len() != 2 {
+                                        let line = 0; // Placeholder for now
+                                        return Err(CompilerError::SemanticError(
+                                            SemanticErrorInfo {
+                                                location: Some(ErrorLocation {
+                                                    file: self.source_file.clone(),
+                                                    line,
+                                                    column: None,
+                                                    source_line: None,
+                                                    length: None,
+                                                    context_before: None,
+                                                    context_after: None,
+                                                }),
+                                                code: "E0902".to_string(),
+                                                title: format!("Invalid HTTP.{} call", member),
+                                                message: format!(
+                                                    "HTTP.{} requires exactly 2 arguments (url: string, body: string), found {}",
+                                                    member, call.args.len()
+                                                ),
+                                                help: Some(format!("Usage: HTTP.{}(\"https://api.example.com\", body)", member)),
+                                                suggestion: None,
+                                                hint: None,
+                                                example: None,
+                                                doc_link: None,
+                                                category: None,
+                                            }
+                                        ));
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                        _ => {
+                            // Unknown HTTP method
+                            let line = 0; // Placeholder for now
+                            return Err(CompilerError::SemanticError(
+                                SemanticErrorInfo {
+                                    location: Some(ErrorLocation {
+                                        file: self.source_file.clone(),
+                                        line,
+                                        column: None,
+                                        source_line: None,
+                                        length: None,
+                                        context_before: None,
+                                        context_after: None,
+                                    }),
+                                    code: "E0902".to_string(),
+                                    title: "Unknown HTTP method".to_string(),
+                                    message: format!(
+                                        "HTTP.{} is not a valid HTTP method. Available methods: get, post, put, delete",
+                                        member
+                                    ),
+                                    help: Some("Use one of: HTTP.get(), HTTP.post(), HTTP.put(), HTTP.delete()".to_string()),
+                                    suggestion: None,
+                                    hint: None,
+                                    example: None,
+                                    doc_link: None,
+                                    category: None,
+                                }
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+
         // E0701: Check if calling fallible function without error binding
         // This validation applies to ALL call expressions, including those nested in other expressions
         // Exception: if we're in an error binding context (let result, err = ...), allow fallible calls
         if !self.in_error_binding {
-            if let Expr::Identifier(func_name) = &*call.callee {
-                if self.fallible_functions.contains(func_name) {
-                    let line = self.find_line_for_function_call(func_name).unwrap_or(0);
+            let func_name = match &*call.callee {
+                Expr::Identifier(name) => Some(name.clone()),
+                Expr::Member { object, property: member } => {
+                    if let Expr::Identifier(name) = &**object {
+                        if name == "HTTP" {
+                            Some(format!("HTTP.{}", member))
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            };
+            
+            if let Some(func_name) = func_name {
+                if self.fallible_functions.contains(&func_name) {
+                    let line = self.find_line_for_function_call(&func_name).unwrap_or(0);
                     let source_line = self.get_source_line(line);
 
                     let error = SemanticErrorInfo {
@@ -1494,7 +1622,7 @@ impl SemanticAnalyzer {
                             "Function '{}' can fail but is not being called with error binding.\n       The function contains 'fail' statements and must be handled properly.",
                             func_name
                         ),
-                        help: Some(format!("Change to: let result, err = {}(...)", func_name)),
+                        help: Some(format!("Change to: let result, err = async {}(...)", func_name)),
                         suggestion: None,
                         hint: None,
                         example: None,

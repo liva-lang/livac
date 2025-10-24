@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.6] - 2025-01-25
+
+### Added - HTTP Client (Phase 6.3 - 5h)
+
+**HTTP Methods:**
+- `HTTP.get(url: string) -> (Option<Response>, string)` - GET request
+- `HTTP.post(url: string, body: string) -> (Option<Response>, string)` - POST request
+- `HTTP.put(url: string, body: string) -> (Option<Response>, string)` - PUT request
+- `HTTP.delete(url: string) -> (Option<Response>, string)` - DELETE request
+
+**Response Object:**
+- `status: i32` - HTTP status code (200, 404, etc.)
+- `statusText: string` - Status text ("OK", "Not Found", etc.)
+- `body: string` - Response body as string
+- `headers: [string]` - Response headers
+
+**Features:**
+- ✅ Async by default using Liva's lazy evaluation (`async HTTP.get()`)
+- ✅ Error binding pattern: `let response, err = async HTTP.get(url)`
+- ✅ Tuple return type: `(Option<Response>, String)` for success/error
+- ✅ 30-second timeout with reqwest
+- ✅ TLS support via rustls (no OpenSSL dependency)
+- ✅ Comprehensive error handling (network, DNS, timeout, HTTP errors)
+
+**Implementation:**
+- Runtime: 150+ lines in liva_rt with LivaHttpResponse struct
+- Semantic Analysis: 120+ lines detecting HTTP.*, validation, async/fallible marking
+- Parser: Enhanced parse_exec_call() to support `async HTTP.method()` syntax
+- Code Generation: 300+ lines across 4 locations for HTTP support
+- Dependencies: reqwest 0.11 with rustls-tls features
+
+**Bug Fixes:**
+- ✅ Fixed error binding code generation for tuple-returning functions
+- ✅ Added returns_tuple field to TaskInfo for correct await generation
+- ✅ Enhanced is_builtin_conversion_call() to detect Call wrapping MethodCall
+- ✅ Fixed Option<Struct> field access to generate `value.unwrap().field`
+- ✅ Prevented String error vars from being tracked as Option<Error>
+
+**Examples:**
+```liva
+// Simple GET request
+let response, err = async HTTP.get("https://api.example.com/data")
+if err != "" {
+    console.error($"Error: {err}")
+} else {
+    print($"Status: {response.status}")
+    print($"Body: {response.body}")
+}
+
+// POST with data
+let postResp, postErr = async HTTP.post("https://api.example.com/users", userData)
+if postErr == "" {
+    print($"Created! Status: {postResp.status}")
+}
+```
+
+**Time Breakdown:**
+- Design & Documentation: 30 min
+- Setup & Dependencies: 30 min
+- Runtime Implementation: 1.5 hours (all 4 methods)
+- Semantic Analysis: 30 min (detection, validation)
+- Parser Enhancement: 15 min (async MethodCall)
+- Code Generation: 1.5 hours (HTTP calls, embedding, deps)
+- Bug Fixes: 1 hour (error binding, tuple handling)
+- Testing: 30 min (all methods verified)
+
+**Tests:**
+- ✅ test_http_simple.liva - Basic GET with error handling
+- ✅ test_http_quick.liva - GET and DELETE
+- ✅ examples/manual-tests/test_http_all.liva - Comprehensive (all 4 methods)
+
 ## [0.9.5] - 2025-01-24
 
 ### Added - Enhanced Pattern Matching (Phase 6.4 - 3.5h)

@@ -17,6 +17,8 @@ struct TaskInfo {
     awaited: bool,
     /// The execution policy (Async or Par)
     exec_policy: ExecPolicy,
+    /// Whether the task returns a tuple directly (vs Result)
+    returns_tuple: bool,
 }
 
 pub struct CodeGenerator {
@@ -307,6 +309,133 @@ impl CodeGenerator {
         self.writeln("impl StringOrInt for usize {");
         self.indent();
         self.writeln("fn as_string_or_int(self) -> StringOrIntValue { StringOrIntValue::Int(self as i64) }");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+
+        // HTTP Client Runtime Functions
+        self.writeln("// HTTP Client");
+        self.writeln("#[derive(Debug, Clone)]");
+        self.writeln("pub struct LivaHttpResponse {");
+        self.indent();
+        self.writeln("pub status: i32,");
+        self.writeln("pub status_text: String,");
+        self.writeln("pub body: String,");
+        self.writeln("pub headers: Vec<String>,");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        
+        self.writeln("pub async fn liva_http_get(url: String) -> (Option<LivaHttpResponse>, String) {");
+        self.indent();
+        self.writeln("liva_http_request(\"GET\", url, None).await");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        
+        self.writeln("pub async fn liva_http_post(url: String, body: String) -> (Option<LivaHttpResponse>, String) {");
+        self.indent();
+        self.writeln("liva_http_request(\"POST\", url, Some(body)).await");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        
+        self.writeln("pub async fn liva_http_put(url: String, body: String) -> (Option<LivaHttpResponse>, String) {");
+        self.indent();
+        self.writeln("liva_http_request(\"PUT\", url, Some(body)).await");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        
+        self.writeln("pub async fn liva_http_delete(url: String) -> (Option<LivaHttpResponse>, String) {");
+        self.indent();
+        self.writeln("liva_http_request(\"DELETE\", url, None).await");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        
+        self.writeln("async fn liva_http_request(method: &str, url: String, body: Option<String>) -> (Option<LivaHttpResponse>, String) {");
+        self.indent();
+        self.writeln("if !url.starts_with(\"http://\") && !url.starts_with(\"https://\") {");
+        self.indent();
+        self.writeln("return (None, format!(\"Invalid URL format: '{}'. URLs must start with http:// or https://\", url));");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("let client = match reqwest::Client::builder().timeout(std::time::Duration::from_secs(30)).build() {");
+        self.indent();
+        self.writeln("Ok(c) => c,");
+        self.writeln("Err(e) => return (None, format!(\"Failed to create HTTP client: {}\", e)),");
+        self.dedent();
+        self.writeln("};");
+        self.writeln("");
+        self.writeln("let request_builder = match method {");
+        self.indent();
+        self.writeln("\"GET\" => client.get(&url),");
+        self.writeln("\"POST\" => {");
+        self.indent();
+        self.writeln("let mut builder = client.post(&url);");
+        self.writeln("if let Some(body_content) = body {");
+        self.indent();
+        self.writeln("builder = builder.header(\"Content-Type\", \"application/json\").body(body_content);");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("builder");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("\"PUT\" => {");
+        self.indent();
+        self.writeln("let mut builder = client.put(&url);");
+        self.writeln("if let Some(body_content) = body {");
+        self.indent();
+        self.writeln("builder = builder.header(\"Content-Type\", \"application/json\").body(body_content);");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("builder");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("\"DELETE\" => client.delete(&url),");
+        self.writeln("_ => return (None, format!(\"Unknown HTTP method: {}\", method)),");
+        self.dedent();
+        self.writeln("};");
+        self.writeln("");
+        self.writeln("let response = match request_builder.send().await {");
+        self.indent();
+        self.writeln("Ok(resp) => resp,");
+        self.writeln("Err(e) => {");
+        self.indent();
+        self.writeln("let error_msg = if e.is_timeout() { \"Request timeout (30s)\".to_string() }");
+        self.writeln("else if e.is_connect() { format!(\"Connection error: {}\", e) }");
+        self.writeln("else { format!(\"Network error: {}\", e) };");
+        self.writeln("return (None, error_msg);");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("};");
+        self.writeln("");
+        self.writeln("let status = response.status();");
+        self.writeln("let status_code = status.as_u16() as i32;");
+        self.writeln("let status_text = status.canonical_reason().unwrap_or(\"Unknown\").to_string();");
+        self.writeln("");
+        self.writeln("let mut headers = Vec::new();");
+        self.writeln("for (key, value) in response.headers() {");
+        self.indent();
+        self.writeln("if let Ok(value_str) = value.to_str() {");
+        self.indent();
+        self.writeln("headers.push(format!(\"{}: {}\", key.as_str(), value_str));");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("let body = match response.text().await {");
+        self.indent();
+        self.writeln("Ok(text) => text,");
+        self.writeln("Err(e) => return (None, format!(\"Failed to read response body: {}\", e)),");
+        self.dedent();
+        self.writeln("};");
+        self.writeln("");
+        self.writeln("(Some(LivaHttpResponse { status: status_code, status_text, body, headers }), String::new())");
         self.dedent();
         self.writeln("}");
 
@@ -1173,10 +1302,19 @@ impl CodeGenerator {
                         .map(|b| self.sanitize_name(&b.name))
                         .collect();
 
+                    // Check if the init expression returns a tuple directly (before tracking)
+                    let returns_tuple = self.is_builtin_conversion_call(&var.init);
+
                     // Phase 3: Track the error variable (second binding) as Option<String>
-                    if binding_names.len() == 2 {
+                    // BUT: Only track as Option if NOT a tuple-returning function
+                    // Tuple functions return (Option<T>, String) - err is String, not Option
+                    if binding_names.len() == 2 && !returns_tuple {
                         self.error_binding_vars.insert(binding_names[1].clone());
                         self.option_value_vars.insert(binding_names[0].clone()); // Also track the value (first binding)
+                    } else if binding_names.len() == 2 && returns_tuple {
+                        // For tuple-returning functions: response is Option<T>, err is String
+                        self.option_value_vars.insert(binding_names[0].clone()); // response is Option<T>
+                        // err is String - don't add to error_binding_vars
                     }
 
                     if let Some(exec_policy) = task_exec_policy {
@@ -1195,6 +1333,7 @@ impl CodeGenerator {
                                 binding_names: binding_names.clone(),
                                 awaited: false,
                                 exec_policy,
+                                returns_tuple,
                             },
                         );
                     } else {
@@ -1263,6 +1402,7 @@ impl CodeGenerator {
                                 binding_names: vec![var_name.clone()],
                                 awaited: false,
                                 exec_policy,
+                                returns_tuple: false, // Simple binding, no tuple destructuring
                             },
                         );
                     } else {
@@ -1619,6 +1759,22 @@ impl CodeGenerator {
                         )
                         .unwrap();
                         return Ok(());
+                    }
+                    
+                    // Special handling for Option<Struct> from tuple-returning functions
+                    // For HTTP responses, File contents, etc. - unwrap before accessing field
+                    if self.option_value_vars.contains(&sanitized) && property != "length" {
+                        // Check if this is a struct field access (not JSON)
+                        // Common struct fields: status, statusText, body, headers, content, etc.
+                        let is_struct_field = matches!(
+                            property.as_str(),
+                            "status" | "statusText" | "body" | "headers" | "content" | "data"
+                        );
+                        
+                        if is_struct_field {
+                            write!(self.output, "{}.unwrap().{}", sanitized, property).unwrap();
+                            return Ok(());
+                        }
                     }
                 }
 
@@ -2527,7 +2683,7 @@ impl CodeGenerator {
         self.write_indent();
 
         if task_info.is_error_binding {
-            // Error binding: let (value, err) = match task.await.unwrap() { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };
+            // Error binding: Check if the function returns a tuple directly or Result
             write!(self.output, "let (").unwrap();
             for (i, binding_name) in task_info.binding_names.iter().enumerate() {
                 if i > 0 {
@@ -2535,10 +2691,18 @@ impl CodeGenerator {
                 }
                 write!(self.output, "{}", binding_name).unwrap();
             }
-            self.output.push_str(") = match ");
-            write!(self.output, "{}.await.unwrap()", task_var_name).unwrap();
-            self.output
-                .push_str(" { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };\n");
+            
+            if task_info.returns_tuple {
+                // Function returns (Option<T>, String) directly - just destructure
+                self.output.push_str(") = ");
+                write!(self.output, "{}.await.unwrap();\n", task_var_name).unwrap();
+            } else {
+                // Function returns Result - match and convert
+                self.output.push_str(") = match ");
+                write!(self.output, "{}.await.unwrap()", task_var_name).unwrap();
+                self.output
+                    .push_str(" { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };\n");
+            }
         } else {
             // Simple binding: let var_name = var_name_task.await.unwrap();
             write!(
@@ -2578,6 +2742,11 @@ impl CodeGenerator {
             // Check if this is a File function call (File.read, File.write, etc.)
             if name == "File" {
                 return self.generate_file_function_call(method_call);
+            }
+            
+            // Check if this is an HTTP function call (HTTP.get, HTTP.post, etc.)
+            if name == "HTTP" {
+                return self.generate_http_function_call(method_call);
             }
         }
         
@@ -3289,25 +3458,122 @@ impl CodeGenerator {
         Ok(())
     }
 
+    fn generate_http_function_call(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
+        // HTTP functions: get, post, put, delete
+        // All return (Option<LivaHttpResponse>, Option<String>)
+        match method_call.method.as_str() {
+            "get" => {
+                // HTTP.get(url) returns (Option<LivaHttpResponse>, Option<String>)
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            "HTTP.get requires exactly 1 argument",
+                            "Usage: HTTP.get(url)"
+                        )
+                    ));
+                }
+                
+                self.output.push_str("liva_rt::liva_http_get(");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(".to_string())");
+            }
+            "post" => {
+                // HTTP.post(url, body) returns (Option<LivaHttpResponse>, Option<String>)
+                if method_call.args.len() != 2 {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            "HTTP.post requires exactly 2 arguments",
+                            "Usage: HTTP.post(url, body)"
+                        )
+                    ));
+                }
+                
+                self.output.push_str("liva_rt::liva_http_post(");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(".to_string(), ");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str(".to_string())");
+            }
+            "put" => {
+                // HTTP.put(url, body) returns (Option<LivaHttpResponse>, Option<String>)
+                if method_call.args.len() != 2 {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            "HTTP.put requires exactly 2 arguments",
+                            "Usage: HTTP.put(url, body)"
+                        )
+                    ));
+                }
+                
+                self.output.push_str("liva_rt::liva_http_put(");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(".to_string(), ");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str(".to_string())");
+            }
+            "delete" => {
+                // HTTP.delete(url) returns (Option<LivaHttpResponse>, Option<String>)
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            "HTTP.delete requires exactly 1 argument",
+                            "Usage: HTTP.delete(url)"
+                        )
+                    ));
+                }
+                
+                self.output.push_str("liva_rt::liva_http_delete(");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(".to_string())");
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(
+                    SemanticErrorInfo::new(
+                        "E3000",
+                        &format!("Unknown HTTP function: {}", method_call.method),
+                        "Available HTTP functions: get, post, put, delete"
+                    )
+                ));
+            }
+        }
+        
+        Ok(())
+    }
+
     fn generate_async_call(&mut self, call: &CallExpr) -> Result<()> {
         // Phase 2: NO await here - just create the Task
         // The await will be inserted at first use of the variable
         self.output.push_str("liva_rt::spawn_async(async move { ");
-        self.generate_expr(&call.callee)?;
-        self.output.push('(');
-        for (i, arg) in call.args.iter().enumerate() {
-            if i > 0 {
-                self.output.push_str(", ");
+        
+        // Check if callee is a MethodCall (e.g., HTTP.get())
+        if let Expr::MethodCall(_) = &*call.callee {
+            // MethodCall already generates the full call, just output it with .await
+            self.generate_expr(&call.callee)?;
+            self.output.push_str(".await");
+        } else {
+            // Regular function call
+            self.generate_expr(&call.callee)?;
+            self.output.push('(');
+            for (i, arg) in call.args.iter().enumerate() {
+                if i > 0 {
+                    self.output.push_str(", ");
+                }
+                // Convert string literals to String automatically
+                if let Expr::Literal(Literal::String(_)) = arg {
+                    self.generate_expr(arg)?;
+                    self.output.push_str(".to_string()");
+                } else {
+                    self.generate_expr(arg)?;
+                }
             }
-            // Convert string literals to String automatically
-            if let Expr::Literal(Literal::String(_)) = arg {
-                self.generate_expr(arg)?;
-                self.output.push_str(".to_string()");
-            } else {
-                self.generate_expr(arg)?;
-            }
+            self.output.push(')');
         }
-        self.output.push_str(") })");
+        
+        self.output.push_str(" })");
         // Note: NO .await.unwrap() here anymore!
         Ok(())
     }
@@ -3572,11 +3838,15 @@ impl CodeGenerator {
     fn is_builtin_conversion_call(&self, expr: &Expr) -> bool {
         match expr {
             Expr::Call(call) => {
+                // Check if callee is an identifier (parseInt, parseFloat)
                 if let Expr::Identifier(name) = call.callee.as_ref() {
-                    name == "parseInt" || name == "parseFloat"
-                } else {
-                    false
+                    return name == "parseInt" || name == "parseFloat";
                 }
+                // Check if callee is a MethodCall (async HTTP.get, etc.)
+                if let Expr::MethodCall(method_call) = call.callee.as_ref() {
+                    return self.is_builtin_conversion_call(&Expr::MethodCall(method_call.clone()));
+                }
+                false
             }
             Expr::MethodCall(method_call) => {
                 if let Expr::Identifier(object_name) = method_call.object.as_ref() {
@@ -3589,6 +3859,15 @@ impl CodeGenerator {
                         method_call.method == "read" ||
                         method_call.method == "write" ||
                         method_call.method == "append" ||
+                        method_call.method == "delete"
+                    ) {
+                        return true;
+                    }
+                    // Check for HTTP methods (all return tuples)
+                    if object_name == "HTTP" && (
+                        method_call.method == "get" ||
+                        method_call.method == "post" ||
+                        method_call.method == "put" ||
                         method_call.method == "delete"
                     ) {
                         return true;
@@ -6453,6 +6732,9 @@ pub fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
 
     // Add serde_json for object literals
     cargo_toml.push_str("serde_json = \"1.0\"\n");
+
+    // Add reqwest for HTTP client
+    cargo_toml.push_str("reqwest = { version = \"0.11\", default-features = false, features = [\"json\", \"rustls-tls\"] }\n");
 
     if ctx.has_parallel {
         cargo_toml.push_str("rayon = \"1.11\"\n");

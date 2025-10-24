@@ -1404,6 +1404,15 @@ impl Parser {
                 call.exec_policy = policy;
                 Ok(Expr::Call(call))
             }
+            Expr::MethodCall(method_call) => {
+                // For method calls (like HTTP.get()), wrap in a Call expression with the policy
+                Ok(Expr::Call(CallExpr {
+                    callee: Box::new(Expr::MethodCall(method_call)),
+                    args: Vec::new(),
+                    exec_policy: policy,
+                    type_args: Vec::new(),
+                }))
+            }
             _ => Err(self.error(format!("Expected function call after '{}'", modifier))),
         }
     }

@@ -1,0 +1,24 @@
+// Test HTTP.get() - Basic GET request
+
+main() {
+    print("Testing HTTP.get()...")
+    
+    let response, err = async HTTP.get("https://httpbin.org/get")
+    
+    if err != "" {
+        console.error($"❌ HTTP GET failed: {err}")
+    } else {
+        print($"✓ HTTP GET succeeded!")
+        print($"  Status: {response.status}")
+        print($"  Status Text: {response.statusText}")
+        print($"  Body length: {response.body.length}")
+        print($"  Headers count: {response.headers.length}")
+        
+        // Verify status is 200
+        if response.status == 200 {
+            print("✓ Status code is 200 OK")
+        } else {
+            console.error($"❌ Expected status 200, got {response.status}")
+        }
+    }
+}

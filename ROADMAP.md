@@ -1,8 +1,8 @@
 # 🗺️ Liva Language Roadmap
 
-> **Current Version:** v0.9.4  
-> **Status:** Alpha - File I/O support complete  
-> **Last Updated:** 2025-01-21
+> **Current Version:** v0.9.6  
+> **Status:** Alpha - HTTP Client complete  
+> **Last Updated:** 2025-01-25
 
 ---
 
@@ -1080,17 +1080,50 @@ formatAndCompare<T: Comparable + Display>(a: T, b: T) { ... }
 - Complete documentation (1,160 lines)
 - Working test suite (27 comprehensive tests, all passing)
 
-### 6.3 HTTP Client
-- [ ] Design HTTP API (get, post, put, delete)
-- [ ] Implement HTTP request builder
-- [ ] Add headers and body support
-- [ ] Handle async HTTP requests
-- [ ] Parse HTTP responses
-- [ ] Add timeout and error handling
-- [ ] Write HTTP client documentation
-- [ ] Add HTTP examples
+### 6.3 HTTP Client ✅ COMPLETED (v0.9.6)
+- [x] Design HTTP API (get, post, put, delete)
+- [x] Implement HTTP runtime with reqwest + rustls
+- [x] Add LivaHttpResponse struct (status, statusText, body, headers)
+- [x] Handle async HTTP requests with lazy evaluation
+- [x] Support error binding pattern: `let response, err = async HTTP.get()`
+- [x] Add tuple return type: `(Option<Response>, String)`
+- [x] Add 30-second timeout and comprehensive error handling
+- [x] Write HTTP client documentation (800+ lines)
+- [x] Add HTTP examples and tests (3 test files)
+- [x] Fix error binding for tuple-returning functions
+- [x] Fix Option<Struct> field access code generation
 
-**Estimated:** 4 hours
+**Completed:** 5 hours (2025-01-25)
+**Delivered:**
+- 4 HTTP methods: `get()`, `post()`, `put()`, `delete()`
+- Async by default with `async HTTP.method()` syntax
+- Error binding integration with tuple returns
+- 150+ lines of runtime code in liva_rt
+- 120+ lines of semantic analysis
+- 300+ lines of code generation
+- Complete documentation (PHASE_6.3_HTTP_CLIENT_DESIGN.md)
+- Working test suite (3 comprehensive tests, all passing)
+
+**Examples:**
+```liva
+// GET request
+let response, err = async HTTP.get("https://api.example.com/data")
+if err != "" {
+    console.error($"Error: {err}")
+} else {
+    print($"Status: {response.status}")
+    print($"Body: {response.body}")
+}
+
+// POST with data
+let postResp, postErr = async HTTP.post("https://api.example.com/users", userData)
+```
+
+**Bug Fixes:**
+- ✅ Fixed error binding generation for tuple-returning async functions
+- ✅ Enhanced is_builtin_conversion_call() to detect wrapped MethodCall
+- ✅ Added returns_tuple tracking to TaskInfo struct
+- ✅ Fixed Option<Struct> field access to unwrap before property access
 
 ### 6.4 Enhanced Pattern Matching ✅ COMPLETED (v0.9.5)
 - [x] Design switch expression syntax
