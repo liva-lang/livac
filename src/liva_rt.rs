@@ -355,3 +355,27 @@ async fn liva_http_request(
 
     (Some(liva_response), String::new())
 }
+
+// JSON Value helpers
+pub fn json_value_length(value: &serde_json::Value) -> usize {
+    match value {
+        serde_json::Value::Array(arr) => arr.len(),
+        serde_json::Value::Object(obj) => obj.len(),
+        serde_json::Value::String(s) => s.len(),
+        _ => 0,
+    }
+}
+
+pub fn json_value_get(value: &serde_json::Value, index: usize) -> Option<serde_json::Value> {
+    match value {
+        serde_json::Value::Array(arr) => arr.get(index).cloned(),
+        _ => None,
+    }
+}
+
+pub fn json_value_get_field(value: &serde_json::Value, key: &str) -> Option<serde_json::Value> {
+    match value {
+        serde_json::Value::Object(obj) => obj.get(key).cloned(),
+        _ => None,
+    }
+}

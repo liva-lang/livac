@@ -3316,8 +3316,8 @@ impl CodeGenerator {
         // JSON functions: parse, stringify
         match method_call.method.as_str() {
             "parse" => {
-                // JSON.parse(json_str) returns (Option<JsonValue>, Option<Error>)
-                // Generates: match serde_json::from_str(...) { Ok(v) => (Some(v), None), Err(e) => (None, Some(Error)) }
+                // JSON.parse(json_str) returns (Option<JsonValue>, String)
+                // Generates: match serde_json::from_str(...) { Ok(v) => (Some(v), String::new()), Err(e) => (None, format!("...")) }
                 if method_call.args.len() != 1 {
                     return Err(CompilerError::CodegenError(
                         SemanticErrorInfo::new(
@@ -3330,11 +3330,11 @@ impl CodeGenerator {
                 
                 self.output.push_str("(match serde_json::from_str::<serde_json::Value>(&");
                 self.generate_expr(&method_call.args[0])?;
-                self.output.push_str(") { Ok(v) => (Some(v), None), Err(e) => (None, Some(liva_rt::Error::from(format!(\"JSON parse error: {}\", e)))) })");
+                self.output.push_str(") { Ok(v) => (Some(v), String::new()), Err(e) => (None, format!(\"JSON parse error: {}\", e)) })");
             }
             "stringify" => {
-                // JSON.stringify(value) returns (Option<String>, Option<Error>)
-                // Generates: match serde_json::to_string(...) { Ok(s) => (Some(s), None), Err(e) => (None, Some(Error)) }
+                // JSON.stringify(value) returns (Option<String>, String)
+                // Generates: match serde_json::to_string(...) { Ok(s) => (Some(s), String::new()), Err(e) => (None, format!("...")) }
                 if method_call.args.len() != 1 {
                     return Err(CompilerError::CodegenError(
                         SemanticErrorInfo::new(
@@ -3347,7 +3347,7 @@ impl CodeGenerator {
                 
                 self.output.push_str("(match serde_json::to_string(&");
                 self.generate_expr(&method_call.args[0])?;
-                self.output.push_str(") { Ok(s) => (Some(s), None), Err(e) => (None, Some(liva_rt::Error::from(format!(\"JSON stringify error: {}\", e)))) })");
+                self.output.push_str(") { Ok(s) => (Some(s), String::new()), Err(e) => (None, format!(\"JSON stringify error: {}\", e)) })");
             }
             _ => {
                 return Err(CompilerError::CodegenError(
