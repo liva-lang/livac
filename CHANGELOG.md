@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.4] - 2025-01-21
+
+### Added - File I/O Operations (Phase 6.2 - 2.5h)
+
+**File API:**
+- `File.read(path: string): (string?, Error?)` - Read entire file contents as string
+- `File.write(path, content: string): (bool?, Error?)` - Write/overwrite file
+- `File.append(path, content: string): (bool?, Error?)` - Append to end of file
+- `File.exists(path: string): bool` - Check if file/directory exists
+- `File.delete(path: string): (bool?, Error?)` - Delete file from filesystem
+
+**Implementation:**
+- Added `generate_file_function_call()` to code generator (82 lines)
+- Rust backend using `std::fs`: `read_to_string`, `write`, `OpenOptions`, `Path::exists`, `remove_file`
+- Extended `is_builtin_conversion_call()` to recognize File methods (except `exists`)
+- Added `option_value_vars` tracking for proper string concatenation with Option types
+
+**Features:**
+- Error binding integration for all operations (except `exists`)
+- UTF-8 file encoding
+- Synchronous I/O (blocking operations)
+- Graceful error handling for missing files, permissions, disk full scenarios
+
+**Testing:**
+- 5 basic tests in `test_file_simple.liva`
+- 27 comprehensive tests in `test_file_complex.liva` covering all operations, edge cases, workflows
+- All tests passing ✅
+
+**Documentation:**
+- Complete API reference: `docs/language-reference/file-io.md` (450 lines)
+- Design document: `docs/PHASE_6.2_FILE_IO_API_DESIGN.md` (430 lines)
+- Implementation summary: `docs/PHASE_6.2_FILE_IO_SUMMARY.md` (280 lines)
+- Total: 1,160+ lines of documentation
+
+### Fixed
+- Option value variables now properly unwrap in string concatenation
+- Error binding variables (first in tuple) tracked separately for type-safe string operations
+
 ## [0.9.3] - 2025-01-21
 
 ### Added - JSON Parsing & Serialization (Phase 6.1 - 4h)

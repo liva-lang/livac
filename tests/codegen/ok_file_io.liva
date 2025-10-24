@@ -1,0 +1,32 @@
+// Test File I/O code generation
+
+main() {
+    // Test File.read
+    let content, err = File.read("test.txt")
+    if err {
+        print("Read error")
+    } else {
+        print(content)
+    }
+    
+    // Test File.write
+    let success, writeErr = File.write("output.txt", "Hello")
+    if writeErr {
+        print("Write error")
+    }
+    
+    // Test File.append
+    let ok, appendErr = File.append("log.txt", "Entry")
+    
+    // Test File.exists (no error binding)
+    if File.exists("config.json") {
+        print("Config found")
+    }
+    
+    // Test File.delete
+    let deleted, delErr = File.delete("temp.txt")
+    
+    // Test string concatenation with option values
+    let data, readErr = File.read("data.txt")
+    print("Data: " + data)  // Should unwrap correctly
+}

@@ -10,11 +10,11 @@ expression: json
         "type_params": [
           {
             "name": "T",
-            "constraint": null
+            "constraints": []
           },
           {
             "name": "U",
-            "constraint": null
+            "constraints": []
           }
         ],
         "base": null,

@@ -17,7 +17,7 @@ expression: json
               "type_params": [
                 {
                   "name": "T",
-                  "constraint": null
+                  "constraints": []
                 }
               ],
               "params": [
