@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.7] - 2025-01-25
+
+### Added - JSON Array/Object Support (Phase 6.4 - 3h)
+
+**JsonValue Wrapper:**
+- Created `JsonValue` struct wrapping `serde_json::Value` with Liva-friendly interface
+- Implements `Display` trait for easy printing and string interpolation
+- Provides type-safe methods for common JSON operations
+
+**JSON Methods:**
+- `length() -> usize` - Get array/object/string length
+- `get(index: usize) -> Option<JsonValue>` - Array element access
+- `get_field(key: &str) -> Option<JsonValue>` - Object field access
+- `as_i32()`, `as_f64()`, `as_string()`, `as_bool()` - Type conversions
+- `is_array()`, `is_object()`, `is_null()` - Type checking
+
+**JSON Operations:**
+- ✅ Array indexing: `arr[0]`, `arr[i]` - Access array elements
+- ✅ Object key access: `obj["name"]` - Access object fields
+- ✅ Length property: `arr.length` - Get array/object size
+- ✅ String templates: `print($"Value: {jsonVar}")` - Direct interpolation
+- ✅ Iteration support: Use `.length` with `while` loops
+
+**Parser Support (Modified JSON.parse):**
+- Changed return type from `(Option<Value>, Option<Error>)` to `(Option<JsonValue>, String)`
+- Error messages as strings for consistency with HTTP client
+- JsonValue automatically embedded in generated runtime
+
+**Code Generation:**
+- Added option_value_vars tracking for variables from tuple-returning functions
+- Special handling for JsonValue.length() on Option<JsonValue>
+- Heuristic detection of direct JsonValue variables (non-Option)
+- String template unwrapping for Option<JsonValue> in interpolations
+- Index access generates .get()/.get_field() calls automatically
+
+**Semantic Analysis:**
+- Made `.length` validation permissive for identifiers (validated at codegen)
+- Allows `.length` on JSON variables without full type inference
+
+**Working Example:**
+```liva
+main() {
+    let res, err = async HTTP.get("https://api.example.com/posts?_limit=5")
+    
+    if err == "" && res.status == 200 {
+        let posts, jsonErr = JSON.parse(res.body)
+        
+        if jsonErr == "" {
+            let i = 0
+            while i < posts.length {
+                let post = posts[i]
+                let id = post["id"]
+                let title = post["title"]
+                print($"Post {id}: {title}")
+                i = i + 1
+            }
+        }
+    }
+}
+```
+
+**Limitations:**
+- Direct `obj["key"]` in string templates (e.g., `$"{obj["key"]}"`) not supported due to parser limitations with nested quotes
+- Workaround: use intermediate variables
+- No `for...in` loop support yet (use `while` with `.length`)
+
+**Bug Fixes:**
+- ✅ Fixed hints.rs panic on empty error codes (added defensive guard)
+- ✅ Fixed Option<Struct> consuming with multiple field access (use `.as_ref().unwrap()`)
+- ✅ Fixed string template interpolation for option_value_vars
+
 ## [0.9.6] - 2025-01-25
 
 ### Added - HTTP Client (Phase 6.3 - 5h)

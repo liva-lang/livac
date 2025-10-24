@@ -1,7 +1,7 @@
 # 🗺️ Liva Language Roadmap
 
-> **Current Version:** v0.9.6  
-> **Status:** Alpha - HTTP Client complete  
+> **Current Version:** v0.9.7  
+> **Status:** Alpha - JSON Array/Object Support complete  
 > **Last Updated:** 2025-01-25
 
 ---
@@ -1124,6 +1124,50 @@ let postResp, postErr = async HTTP.post("https://api.example.com/users", userDat
 - ✅ Enhanced is_builtin_conversion_call() to detect wrapped MethodCall
 - ✅ Added returns_tuple tracking to TaskInfo struct
 - ✅ Fixed Option<Struct> field access to unwrap before property access
+
+### 6.3.1 JSON Array/Object Support ✅ COMPLETED (v0.9.7)
+- [x] Create JsonValue wrapper around serde_json::Value
+- [x] Implement Display trait for easy printing
+- [x] Add length() method for arrays/objects
+- [x] Add get(index) for array element access
+- [x] Add get_field(key) for object field access
+- [x] Support array indexing: `arr[0]`, `arr[i]`
+- [x] Support object key access: `obj["name"]`
+- [x] Enable string template interpolation of JSON values
+- [x] Fix semantic validation for .length on identifiers
+- [x] Add option_value_vars unwrapping in string templates
+
+**Completed:** 3 hours (2025-01-25)
+**Delivered:**
+- `JsonValue` struct with 75+ lines of methods
+- Full array and object access support
+- String template integration
+- Iteration support via .length with while loops
+- Complete working example (HTTP + JSON + iteration)
+
+**Example:**
+```liva
+let res, err = async HTTP.get("https://api.example.com/posts?_limit=5")
+
+if err == "" && res.status == 200 {
+    let posts, jsonErr = JSON.parse(res.body)
+    
+    if jsonErr == "" {
+        let i = 0
+        while i < posts.length {  // ✅ Array length
+            let post = posts[i]   // ✅ Array indexing
+            let id = post["id"]   // ✅ Object key access
+            let title = post["title"]
+            print($"Post {id}: {title}")  // ✅ String interpolation
+            i = i + 1
+        }
+    }
+}
+```
+
+**Limitations:**
+- Direct `obj["key"]` in string templates needs intermediate variable
+- No `for...in` loop support yet (use `while` with `.length`)
 
 ### 6.4 Enhanced Pattern Matching ✅ COMPLETED (v0.9.5)
 - [x] Design switch expression syntax
