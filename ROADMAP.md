@@ -1,8 +1,8 @@
 # 🗺️ Liva Language Roadmap
 
-> **Current Version:** v0.9.2  
-> **Status:** Alpha - Generics with trait aliases complete  
-> **Last Updated:** 2025-10-23
+> **Current Version:** v0.9.3  
+> **Status:** Alpha - JSON support complete  
+> **Last Updated:** 2025-01-21
 
 ---
 
@@ -1044,17 +1044,23 @@ formatAndCompare<T: Comparable + Display>(a: T, b: T) { ... }
 **Branch:** Multiple feature branches  
 **ETA:** 2-4 hours each
 
-### 6.1 JSON Parsing & Serialization
-- [ ] Design JSON API (parse, stringify)
-- [ ] Implement JSON lexer and parser
-- [ ] Add JSON error handling
-- [ ] Support JSON to Liva type mapping
-- [ ] Add serialization from Liva types
-- [ ] Write JSON documentation
-- [ ] Add JSON examples
-- [ ] Add comprehensive tests
+### 6.1 JSON Parsing & Serialization ✅ COMPLETED (v0.9.3)
+- [x] Design JSON API (parse, stringify)
+- [x] Implement JSON runtime operations with serde_json
+- [x] Add JSON error handling with error binding
+- [x] Support JSON to Liva type mapping
+- [x] Add serialization from Liva types
+- [x] Write JSON documentation
+- [x] Add JSON examples
+- [x] Add comprehensive tests
 
-**Estimated:** 4 hours
+**Completed:** 4 hours (2025-01-21)
+**Delivered:**
+- `JSON.parse()` and `JSON.stringify()` functions
+- Full error binding support
+- Bidirectional type mapping
+- Complete documentation (400 lines)
+- Working test suite
 
 ### 6.2 File I/O Operations
 - [ ] Design File API (read, write, append)

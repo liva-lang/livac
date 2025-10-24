@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.3] - 2025-01-21
+
+### Added - JSON Parsing & Serialization (Phase 6.1 - 4h)
+
+**JSON API:**
+- `JSON.parse(json: string): (any?, Error?)` - Parse JSON strings to Liva types
+- `JSON.stringify(value: any): (string?, Error?)` - Serialize Liva values to JSON
+
+**Implementation:**
+- Added `generate_json_function_call()` to code generator
+- Integrated `serde_json` crate for runtime JSON operations
+- Extended `is_builtin_conversion_call()` to recognize JSON methods
+- Error binding pattern support for both functions
+
+**Type Mapping:**
+- JSON → Liva: null→none, bool→bool, number→int/float, string→string, array→array, object→object
+- Liva → JSON: Full bidirectional mapping with error handling
+
+**Error Handling:**
+- Parse errors: Invalid syntax, unexpected EOF, malformed numbers
+- Stringify errors: Unsupported types (functions, tasks), circular references
+- All errors use error binding pattern: `let result, err = JSON.parse(str)`
+
+**Examples:**
+```liva
+// Parse JSON
+let data, err = JSON.parse("{\"name\": \"Alice\", \"age\": 30}")
+if err { fail err }
+
+// Stringify
+let json, err2 = JSON.stringify({name: "Bob", age: 25})
+if err2 { fail err2 }
+```
+
+**Test Coverage:**
+- `test_json_simple.liva` - Basic parse/stringify tests
+- Tests valid JSON parsing
+- Tests invalid JSON error handling
+- Round-trip conversion tests
+
+**Documentation:**
+- `docs/language-reference/json.md` - Complete API reference (400 lines)
+- Type mapping tables
+- Error handling guide
+- 4 complete examples
+
 ## [0.9.2] - 2025-10-23
 
 ### Added - Trait Aliases (Phase 5.10 - 2h)

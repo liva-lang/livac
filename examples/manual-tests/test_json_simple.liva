@@ -1,0 +1,38 @@
+// Simple JSON test
+
+main() {
+    // Test 1: stringify a number
+    print("Test 1: Stringify a number")
+    let num = 42
+    let jsonResult, err = JSON.stringify(num)
+
+    if err {
+        print("Error occurred!")
+    } else {
+        print("Success! (JSON result exists)")
+    }
+    
+    // Test 2: parse a valid JSON string
+    print("\nTest 2: Parse valid JSON")
+    let str = "42"
+    let parsed, err2 = JSON.parse(str)
+    
+    if err2 {
+        print("Parse error!")
+    } else {
+        print("Parse success!")
+    }
+    
+    // Test 3: parse invalid JSON
+    print("\nTest 3: Parse invalid JSON")
+    let invalid = "{bad json}"
+    let result3, err3 = JSON.parse(invalid)
+    
+    if err3 {
+        print("Expected error (OK)")
+    } else {
+        print("Should have failed!")
+    }
+    
+    print("\nAll tests completed!")
+}

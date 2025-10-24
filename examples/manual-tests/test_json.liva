@@ -1,0 +1,51 @@
+// Test JSON.parse and JSON.stringify
+
+// Test 1: Parse valid JSON string (simple object)
+const jsonString = "{name: Alice, age: 30}"
+print("Test 1: Parsing object...")
+let data, err = JSON.parse(jsonString)
+
+if err {
+    print("Parse error: ${err}")
+} else {
+    print("Parsed successfully!")
+    print("Data type: ${data}")
+}
+
+// Test 2: Parse invalid JSON
+print("\nTest 2: Parsing invalid JSON...")
+const invalidJson = "{ invalid }"
+let invalidData, err2 = JSON.parse(invalidJson)
+
+if err2 {
+    print("Expected error for invalid JSON (OK)")
+} else {
+    print("Should have failed!")
+}
+
+// Test 3: Stringify a number
+print("\nTest 3: Stringify number...")
+const num = 42
+let jsonNum, err3 = JSON.stringify(num)
+
+if err3 {
+    print("Stringify error: ${err3}")
+} else {
+    print("Stringified number: ${jsonNum}")
+}
+
+// Test 4: Stringify a string
+print("\nTest 4: Stringify string...")
+const name = "Bob"
+let jsonName, err4 = JSON.stringify(name)
+
+if err4 {
+    print("Stringify error: ${err4}")
+} else {
+    print("Stringified string: ${jsonName}")
+}
+
+print("\nAll JSON tests completed!")
+
+
+

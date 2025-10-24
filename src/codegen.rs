@@ -2466,6 +2466,11 @@ impl CodeGenerator {
             if name == "console" {
                 return self.generate_console_function_call(method_call);
             }
+            
+            // Check if this is a JSON function call (JSON.parse, JSON.stringify)
+            if name == "JSON" {
+                return self.generate_json_function_call(method_call);
+            }
         }
         
         // Check if this is a string method (no adapter means it's not an array method)
@@ -3024,6 +3029,57 @@ impl CodeGenerator {
         Ok(())
     }
 
+    fn generate_json_function_call(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
+        // JSON functions: parse, stringify
+        match method_call.method.as_str() {
+            "parse" => {
+                // JSON.parse(json_str) returns (Option<JsonValue>, Option<Error>)
+                // Generates: match serde_json::from_str(...) { Ok(v) => (Some(v), None), Err(e) => (None, Some(Error)) }
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            "JSON.parse requires exactly 1 argument",
+                            "Usage: JSON.parse(json_string)"
+                        )
+                    ));
+                }
+                
+                self.output.push_str("(match serde_json::from_str::<serde_json::Value>(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(") { Ok(v) => (Some(v), None), Err(e) => (None, Some(liva_rt::Error::from(format!(\"JSON parse error: {}\", e)))) })");
+            }
+            "stringify" => {
+                // JSON.stringify(value) returns (Option<String>, Option<Error>)
+                // Generates: match serde_json::to_string(...) { Ok(s) => (Some(s), None), Err(e) => (None, Some(Error)) }
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            "JSON.stringify requires exactly 1 argument",
+                            "Usage: JSON.stringify(value)"
+                        )
+                    ));
+                }
+                
+                self.output.push_str("(match serde_json::to_string(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(") { Ok(s) => (Some(s), None), Err(e) => (None, Some(liva_rt::Error::from(format!(\"JSON stringify error: {}\", e)))) })");
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(
+                    SemanticErrorInfo::new(
+                        "E3000",
+                        &format!("Unknown JSON function: {}", method_call.method),
+                        "Available JSON functions: parse, stringify"
+                    )
+                ));
+            }
+        }
+        
+        Ok(())
+    }
+
     fn generate_async_call(&mut self, call: &CallExpr) -> Result<()> {
         // Phase 2: NO await here - just create the Task
         // The await will be inserted at first use of the variable
@@ -3309,6 +3365,14 @@ impl CodeGenerator {
             Expr::Call(call) => {
                 if let Expr::Identifier(name) = call.callee.as_ref() {
                     name == "parseInt" || name == "parseFloat"
+                } else {
+                    false
+                }
+            }
+            Expr::MethodCall(method_call) => {
+                // Check if this is a JSON method call (JSON.parse, JSON.stringify)
+                if let Expr::Identifier(object_name) = method_call.object.as_ref() {
+                    object_name == "JSON" && (method_call.method == "parse" || method_call.method == "stringify")
                 } else {
                     false
                 }
