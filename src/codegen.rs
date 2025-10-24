@@ -438,6 +438,75 @@ impl CodeGenerator {
         self.writeln("(Some(LivaHttpResponse { status: status_code, status_text, body, headers }), String::new())");
         self.dedent();
         self.writeln("}");
+        self.writeln("");
+        
+        // JSON Support - JsonValue wrapper
+        self.writeln("// JSON Support");
+        self.writeln("#[derive(Debug, Clone)]");
+        self.writeln("pub struct JsonValue(pub serde_json::Value);");
+        self.writeln("");
+        self.writeln("impl JsonValue {");
+        self.indent();
+        self.writeln("pub fn new(value: serde_json::Value) -> Self { JsonValue(value) }");
+        self.writeln("");
+        self.writeln("pub fn length(&self) -> usize {");
+        self.indent();
+        self.writeln("match &self.0 {");
+        self.indent();
+        self.writeln("serde_json::Value::Array(arr) => arr.len(),");
+        self.writeln("serde_json::Value::Object(obj) => obj.len(),");
+        self.writeln("serde_json::Value::String(s) => s.len(),");
+        self.writeln("_ => 0,");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("pub fn get(&self, index: usize) -> Option<JsonValue> {");
+        self.indent();
+        self.writeln("match &self.0 {");
+        self.indent();
+        self.writeln("serde_json::Value::Array(arr) => arr.get(index).map(|v| JsonValue(v.clone())),");
+        self.writeln("_ => None,");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("pub fn get_field(&self, key: &str) -> Option<JsonValue> {");
+        self.indent();
+        self.writeln("match &self.0 {");
+        self.indent();
+        self.writeln("serde_json::Value::Object(obj) => obj.get(key).map(|v| JsonValue(v.clone())),");
+        self.writeln("_ => None,");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("pub fn as_array(&self) -> Option<Vec<JsonValue>> {");
+        self.indent();
+        self.writeln("match &self.0 {");
+        self.indent();
+        self.writeln("serde_json::Value::Array(arr) => Some(arr.iter().map(|v| JsonValue(v.clone())).collect()),");
+        self.writeln("_ => None,");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("impl std::fmt::Display for JsonValue {");
+        self.indent();
+        self.writeln("fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {");
+        self.indent();
+        self.writeln("write!(f, \"{}\", self.0)");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
 
         self.dedent();
         self.writeln("}");
@@ -1762,8 +1831,14 @@ impl CodeGenerator {
                     }
                     
                     // Special handling for Option<Struct> from tuple-returning functions
-                    // For HTTP responses, File contents, etc. - unwrap before accessing field
-                    if self.option_value_vars.contains(&sanitized) && property != "length" {
+                    // For HTTP responses, File contents, JSON values, etc. - unwrap before accessing field
+                    if self.option_value_vars.contains(&sanitized) {
+                        if property == "length" {
+                            // For JSON values: use .length() method
+                            write!(self.output, "{}.as_ref().unwrap().length()", sanitized).unwrap();
+                            return Ok(());
+                        }
+                        
                         // Check if this is a struct field access (not JSON)
                         // Common struct fields: status, statusText, body, headers, content, etc.
                         let is_struct_field = matches!(
@@ -1987,10 +2062,13 @@ impl CodeGenerator {
                             Expr::Literal(_) => {
                                 self.output.push_str("{}");
                             }
-                            // Simple identifiers: check if they're arrays
+                            // Simple identifiers: check if they're arrays or option values
                             Expr::Identifier(name) => {
                                 if self.array_vars.contains(name) {
                                     self.output.push_str("{:?}");
+                                } else if self.option_value_vars.contains(name) || self.error_binding_vars.contains(name) {
+                                    // Option values need special handling - will be unwrapped
+                                    self.output.push_str("{}");
                                 } else {
                                     self.output.push_str("{}");
                                 }
@@ -2043,6 +2121,15 @@ impl CodeGenerator {
                                 write!(
                                     self.output,
                                     "{}.as_ref().map(|e| e.message.as_str()).unwrap_or(\"\")",
+                                    sanitized
+                                )
+                                .unwrap();
+                                continue;
+                            }
+                            if self.option_value_vars.contains(&sanitized) {
+                                write!(
+                                    self.output,
+                                    "{}.as_ref().map(|v| v.to_string()).unwrap_or_default()",
                                     sanitized
                                 )
                                 .unwrap();
@@ -3317,7 +3404,7 @@ impl CodeGenerator {
         match method_call.method.as_str() {
             "parse" => {
                 // JSON.parse(json_str) returns (Option<JsonValue>, String)
-                // Generates: match serde_json::from_str(...) { Ok(v) => (Some(v), String::new()), Err(e) => (None, format!("...")) }
+                // Generates: match serde_json::from_str(...) { Ok(v) => (Some(JsonValue(v)), String::new()), Err(e) => (None, format!("...")) }
                 if method_call.args.len() != 1 {
                     return Err(CompilerError::CodegenError(
                         SemanticErrorInfo::new(
@@ -3330,7 +3417,7 @@ impl CodeGenerator {
                 
                 self.output.push_str("(match serde_json::from_str::<serde_json::Value>(&");
                 self.generate_expr(&method_call.args[0])?;
-                self.output.push_str(") { Ok(v) => (Some(v), String::new()), Err(e) => (None, format!(\"JSON parse error: {}\", e)) })");
+                self.output.push_str(") { Ok(v) => (Some(liva_rt::JsonValue::new(v)), String::new()), Err(e) => (None, format!(\"JSON parse error: {}\", e)) })");
             }
             "stringify" => {
                 // JSON.stringify(value) returns (Option<String>, String)

@@ -356,7 +356,107 @@ async fn liva_http_request(
     (Some(liva_response), String::new())
 }
 
-// JSON Value helpers
+// ============================================================================
+// JSON Support - Wrapper around serde_json::Value
+// ============================================================================
+
+/// Wrapper for JSON values to provide Liva-friendly interface
+#[derive(Debug, Clone)]
+pub struct JsonValue(pub serde_json::Value);
+
+impl JsonValue {
+    /// Create from serde_json::Value
+    pub fn new(value: serde_json::Value) -> Self {
+        JsonValue(value)
+    }
+    
+    /// Get length of array or object
+    pub fn length(&self) -> usize {
+        match &self.0 {
+            serde_json::Value::Array(arr) => arr.len(),
+            serde_json::Value::Object(obj) => obj.len(),
+            serde_json::Value::String(s) => s.len(),
+            _ => 0,
+        }
+    }
+    
+    /// Get element by index (for arrays)
+    pub fn get(&self, index: usize) -> Option<JsonValue> {
+        match &self.0 {
+            serde_json::Value::Array(arr) => arr.get(index).map(|v| JsonValue(v.clone())),
+            _ => None,
+        }
+    }
+    
+    /// Get field by key (for objects)
+    pub fn get_field(&self, key: &str) -> Option<JsonValue> {
+        match &self.0 {
+            serde_json::Value::Object(obj) => obj.get(key).map(|v| JsonValue(v.clone())),
+            _ => None,
+        }
+    }
+    
+    /// Convert to i32 if possible
+    pub fn as_i32(&self) -> Option<i32> {
+        self.0.as_i64().map(|n| n as i32)
+    }
+    
+    /// Convert to f64 if possible
+    pub fn as_f64(&self) -> Option<f64> {
+        self.0.as_f64()
+    }
+    
+    /// Convert to String
+    pub fn as_string(&self) -> Option<String> {
+        match &self.0 {
+            serde_json::Value::String(s) => Some(s.clone()),
+            _ => None,
+        }
+    }
+    
+    /// Convert to bool
+    pub fn as_bool(&self) -> Option<bool> {
+        self.0.as_bool()
+    }
+    
+    /// Check if null
+    pub fn is_null(&self) -> bool {
+        self.0.is_null()
+    }
+    
+    /// Check if array
+    pub fn is_array(&self) -> bool {
+        self.0.is_array()
+    }
+    
+    /// Check if object
+    pub fn is_object(&self) -> bool {
+        self.0.is_object()
+    }
+    
+    /// Convert entire value to string (JSON representation)
+    pub fn to_json_string(&self) -> String {
+        self.0.to_string()
+    }
+    
+    /// Get as vector for iteration (if array)
+    pub fn as_array(&self) -> Option<Vec<JsonValue>> {
+        match &self.0 {
+            serde_json::Value::Array(arr) => {
+                Some(arr.iter().map(|v| JsonValue(v.clone())).collect())
+            }
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for JsonValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+// Legacy helper functions (kept for backward compatibility)
 pub fn json_value_length(value: &serde_json::Value) -> usize {
     match value {
         serde_json::Value::Array(arr) => arr.len(),

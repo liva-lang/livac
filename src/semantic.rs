@@ -2399,6 +2399,8 @@ impl SemanticAnalyzer {
             Expr::ArrayLiteral(_) => true,
             Expr::Literal(Literal::String(_)) => true,
             Expr::StringTemplate { .. } => true,
+            // Allow .length on identifiers - will be validated at codegen
+            Expr::Identifier(_) => true,
             _ => self
                 .infer_expr_type(object)
                 .map(|ty| self.type_supports_length(&Self::strip_optional(ty)))
