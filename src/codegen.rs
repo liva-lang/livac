@@ -1974,6 +1974,30 @@ impl CodeGenerator {
                 }
             }
             Expr::Index { object, index } => {
+                // Special handling for Option<JsonValue> from JSON.parse
+                // BUT: Skip this if we're in a string template (handled separately there)
+                if !self.in_string_template {
+                    if let Expr::Identifier(var_name) = object.as_ref() {
+                        let sanitized = self.sanitize_name(var_name);
+                        if self.option_value_vars.contains(&sanitized) {
+                            // For JsonValue: use .get(index) or .get_field(key)
+                            match index.as_ref() {
+                                Expr::Literal(Literal::String(key)) => {
+                                    // Object key access: json["key"]
+                                    write!(self.output, "{}.as_ref().unwrap().get_field(\"{}\").unwrap()", sanitized, key).unwrap();
+                                }
+                                _ => {
+                                    // Array index access: json[0]
+                                    write!(self.output, "{}.as_ref().unwrap().get(", sanitized).unwrap();
+                                    self.generate_expr(index)?;
+                                    self.output.push_str(").unwrap()");
+                                }
+                            }
+                            return Ok(());
+                        }
+                    }
+                }
+                
                 self.generate_expr(object)?;
                 self.output.push('[');
                 self.generate_expr(index)?;
@@ -2134,6 +2158,26 @@ impl CodeGenerator {
                                 )
                                 .unwrap();
                                 continue;
+                            }
+                        }
+                        // Phase 3.6: If expr is index access on JSON value
+                        if let Expr::Index { object, index } = expr {
+                            if let Expr::Identifier(var_name) = object.as_ref() {
+                                let sanitized = self.sanitize_name(var_name);
+                                if self.option_value_vars.contains(&sanitized) {
+                                    // Generate unwrapped index access for string template
+                                    match index.as_ref() {
+                                        Expr::Literal(Literal::String(key)) => {
+                                            write!(self.output, "{}.as_ref().unwrap().get_field(\"{}\").unwrap()", sanitized, key).unwrap();
+                                        }
+                                        _ => {
+                                            write!(self.output, "{}.as_ref().unwrap().get(", sanitized).unwrap();
+                                            self.generate_expr(index)?;
+                                            self.output.push_str(").unwrap()");
+                                        }
+                                    }
+                                    continue;
+                                }
                             }
                         }
                         self.generate_expr(expr)?;
