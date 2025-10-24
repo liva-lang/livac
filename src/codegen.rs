@@ -507,6 +507,30 @@ impl CodeGenerator {
         self.dedent();
         self.writeln("}");
         self.writeln("");
+        
+        // Add IntoIterator for for...in loop support
+        self.writeln("impl IntoIterator for JsonValue {");
+        self.indent();
+        self.writeln("type Item = JsonValue;");
+        self.writeln("type IntoIter = std::vec::IntoIter<JsonValue>;");
+        self.writeln("");
+        self.writeln("fn into_iter(self) -> Self::IntoIter {");
+        self.indent();
+        self.writeln("match self.0 {");
+        self.indent();
+        self.writeln("serde_json::Value::Array(arr) => {");
+        self.indent();
+        self.writeln("arr.into_iter().map(|v| JsonValue(v)).collect::<Vec<_>>().into_iter()");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("_ => Vec::new().into_iter(),");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
 
         self.dedent();
         self.writeln("}");
@@ -1514,7 +1538,20 @@ impl CodeGenerator {
                         }
 
                         self.output.push_str(" = ");
-                        self.generate_expr(&var.init)?;
+                        
+                        // Check if this is JSON.parse without error binding
+                        // If so, unwrap the result automatically
+                        let is_json_parse = matches!(&var.init, 
+                            Expr::MethodCall(mc) if matches!(&*mc.object, Expr::Identifier(id) if id == "JSON") && mc.method == "parse"
+                        );
+                        
+                        if is_json_parse {
+                            // Generate: let posts = JSON.parse(body).0.expect("JSON parse failed");
+                            self.generate_expr(&var.init)?;
+                            self.output.push_str(".0.expect(\"JSON parse failed\")");
+                        } else {
+                            self.generate_expr(&var.init)?;
+                        }
                         self.output.push_str(";\n");
                     }
                 }
@@ -1862,11 +1899,34 @@ impl CodeGenerator {
                 self.generate_expr(object)?;
 
                 if property == "length" {
-                    self.output.push_str(".len()");
+                    // Check if this is a JsonValue (not an array or string)
+                    // JsonValue uses .length(), Rust arrays/strings use .len()
+                    match object.as_ref() {
+                        Expr::Identifier(var_name) => {
+                            // If not in array_vars and not a class instance, might be JsonValue
+                            if !self.array_vars.contains(var_name) && !self.class_instance_vars.contains(var_name) {
+                                self.output.push_str(".length()");
+                            } else {
+                                self.output.push_str(".len()");
+                            }
+                        }
+                        _ => self.output.push_str(".len()"),
+                    }
                 } else {
                     // Use bracket notation for JSON objects, dot notation for structs
                     match object.as_ref() {
                         Expr::Identifier(var_name) => {
+                            // Check if this is likely a JsonValue (not array, not class instance)
+                            if !self.is_class_instance(var_name) 
+                                && !self.array_vars.contains(var_name)
+                                && !var_name.contains("person")
+                                && !var_name.contains("user")
+                            {
+                                // Likely a JsonValue - use get_field()
+                                write!(self.output, ".get_field(\"{}\").unwrap()", property).unwrap();
+                                return Ok(());
+                            }
+                            
                             // For class instances, use dot notation. For everything else (JSON), use bracket notation
                             if self.is_class_instance(var_name)
                                 || var_name.contains("person")

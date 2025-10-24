@@ -456,6 +456,21 @@ impl std::fmt::Display for JsonValue {
     }
 }
 
+// Implement IntoIterator for JsonValue to support for...in loops
+impl IntoIterator for JsonValue {
+    type Item = JsonValue;
+    type IntoIter = std::vec::IntoIter<JsonValue>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        match self.0 {
+            serde_json::Value::Array(arr) => {
+                arr.into_iter().map(|v| JsonValue(v)).collect::<Vec<_>>().into_iter()
+            }
+            _ => Vec::new().into_iter(), // Empty iterator for non-arrays
+        }
+    }
+}
+
 // Legacy helper functions (kept for backward compatibility)
 pub fn json_value_length(value: &serde_json::Value) -> usize {
     match value {
