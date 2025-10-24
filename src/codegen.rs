@@ -1974,20 +1974,24 @@ impl CodeGenerator {
                 }
             }
             Expr::Index { object, index } => {
-                // Special handling for Option<JsonValue> from JSON.parse
+                // Special handling for JsonValue (both Option<JsonValue> and JsonValue)
                 // BUT: Skip this if we're in a string template (handled separately there)
                 if !self.in_string_template {
                     if let Expr::Identifier(var_name) = object.as_ref() {
                         let sanitized = self.sanitize_name(var_name);
-                        if self.option_value_vars.contains(&sanitized) {
-                            // For JsonValue: use .get(index) or .get_field(key)
+                        let is_option_json = self.option_value_vars.contains(&sanitized);
+                        
+                        // Check if this might be a JsonValue (either Option or direct)
+                        // We detect Option<JsonValue> via option_value_vars
+                        // For direct JsonValue, we'll try to generate the method call
+                        // and let Rust's type system validate it
+                        if is_option_json {
+                            // Option<JsonValue> case
                             match index.as_ref() {
                                 Expr::Literal(Literal::String(key)) => {
-                                    // Object key access: json["key"]
                                     write!(self.output, "{}.as_ref().unwrap().get_field(\"{}\").unwrap()", sanitized, key).unwrap();
                                 }
                                 _ => {
-                                    // Array index access: json[0]
                                     write!(self.output, "{}.as_ref().unwrap().get(", sanitized).unwrap();
                                     self.generate_expr(index)?;
                                     self.output.push_str(").unwrap()");
@@ -1999,6 +2003,37 @@ impl CodeGenerator {
                 }
                 
                 self.generate_expr(object)?;
+                
+                // For JsonValue direct access (not Option), check if object looks like JsonValue
+                // This is a heuristic: if object is an identifier that's not in our known sets,
+                // it might be a JsonValue. We'll generate .get_field() / .get() instead of []
+                if let Expr::Identifier(var_name) = object.as_ref() {
+                    let sanitized = self.sanitize_name(var_name);
+                    // If it's not a known array or class instance, try JsonValue access
+                    if !self.array_vars.contains(&sanitized) && !self.class_instance_vars.contains(&sanitized) {
+                        match index.as_ref() {
+                            Expr::Literal(Literal::String(key)) => {
+                                // Try JsonValue object access
+                                write!(self.output, ".get_field(\"{}\").unwrap()", key).unwrap();
+                                return Ok(());
+                            }
+                            Expr::Literal(Literal::Int(num)) => {
+                                // Try JsonValue array access with numeric literal
+                                write!(self.output, ".get({}).unwrap()", num).unwrap();
+                                return Ok(());
+                            }
+                            _ => {
+                                // Try JsonValue array access with expression
+                                self.output.push_str(".get(");
+                                self.generate_expr(index)?;
+                                self.output.push_str(").unwrap()");
+                                return Ok(());
+                            }
+                        }
+                    }
+                }
+                
+                // Fall back to standard array indexing
                 self.output.push('[');
                 self.generate_expr(index)?;
                 self.output.push(']');
