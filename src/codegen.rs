@@ -1980,6 +1980,106 @@ impl CodeGenerator {
                 // For now, just generate a placeholder
                 self.generate_method_call_expr(method_call)?;
             }
+            Expr::Switch(switch_expr) => {
+                self.generate_switch_expr(switch_expr)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn generate_switch_expr(&mut self, switch_expr: &SwitchExpr) -> Result<()> {
+        // Generate Rust match expression
+        self.output.push_str("match ");
+        self.generate_expr(&switch_expr.discriminant)?;
+        self.output.push_str(" {");
+        self.indent();
+
+        for arm in &switch_expr.arms {
+            self.output.push('\n');
+            self.write_indent();
+
+            // Generate pattern
+            self.generate_pattern(&arm.pattern)?;
+
+            // Generate guard if present
+            if let Some(guard) = &arm.guard {
+                self.output.push_str(" if ");
+                self.generate_expr(guard)?;
+            }
+
+            self.output.push_str(" => ");
+
+            // Generate body
+            match &arm.body {
+                SwitchBody::Expr(expr) => {
+                    self.generate_expr(expr)?;
+                }
+                SwitchBody::Block(stmts) => {
+                    self.output.push('{');
+                    self.indent();
+                    for stmt in stmts {
+                        self.output.push('\n');
+                        self.write_indent();
+                        self.generate_stmt(stmt)?;
+                    }
+                    self.dedent();
+                    self.output.push('\n');
+                    self.write_indent();
+                    self.output.push('}');
+                }
+            }
+
+            self.output.push(',');
+        }
+
+        self.dedent();
+        self.output.push('\n');
+        self.write_indent();
+        self.output.push('}');
+
+        Ok(())
+    }
+
+    fn generate_pattern(&mut self, pattern: &Pattern) -> Result<()> {
+        match pattern {
+            Pattern::Literal(lit) => {
+                self.generate_literal(lit)?;
+            }
+            Pattern::Wildcard => {
+                self.output.push('_');
+            }
+            Pattern::Binding(name) => {
+                self.output.push_str(&self.sanitize_name(name));
+            }
+            Pattern::Range(range) => {
+                match (&range.start, &range.end, range.inclusive) {
+                    (Some(start), Some(end), true) => {
+                        self.generate_expr(start)?;
+                        self.output.push_str("..=");
+                        self.generate_expr(end)?;
+                    }
+                    (Some(start), Some(end), false) => {
+                        self.generate_expr(start)?;
+                        self.output.push_str("..");
+                        self.generate_expr(end)?;
+                    }
+                    (Some(start), None, _) => {
+                        self.generate_expr(start)?;
+                        self.output.push_str("..");
+                    }
+                    (None, Some(end), true) => {
+                        self.output.push_str("..=");
+                        self.generate_expr(end)?;
+                    }
+                    (None, Some(end), false) => {
+                        self.output.push_str("..");
+                        self.generate_expr(end)?;
+                    }
+                    (None, None, _) => {
+                        self.output.push_str("..");
+                    }
+                }
+            }
         }
         Ok(())
     }
@@ -5344,9 +5444,17 @@ impl<'a> IrCodeGenerator<'a> {
                 }
                 Ok(())
             }
-            ir::Expr::Unsupported(_) => Err(CompilerError::CodegenError(
-                "Unsupported expression in IR generator".into(),
-            )),
+            ir::Expr::Unsupported(ast_expr) => {
+                // Handle unsupported IR expressions that are passed through from AST
+                if let Expr::Switch(switch_expr) = ast_expr {
+                    self.generate_switch_expr(switch_expr)?;
+                    Ok(())
+                } else {
+                    Err(CompilerError::CodegenError(
+                        "Unsupported expression in IR generator".into(),
+                    ))
+                }
+            }
         }
     }
 
@@ -5367,6 +5475,173 @@ impl<'a> IrCodeGenerator<'a> {
         }
         Ok(())
     }
+
+    /// Generate code for switch expression (pattern matching) from AST
+    fn generate_switch_expr(&mut self, switch_expr: &SwitchExpr) -> Result<()> {
+        // Generate Rust match expression
+        self.output.push_str("match ");
+        self.generate_expr_from_ast(&switch_expr.discriminant)?;
+        self.output.push_str(" {");
+        self.indent();
+
+        for arm in &switch_expr.arms {
+            self.output.push('\n');
+            self.write_indent();
+
+            // Generate pattern
+            self.generate_pattern(&arm.pattern)?;
+
+            // Generate guard if present
+            if let Some(guard) = &arm.guard {
+                self.output.push_str(" if ");
+                self.generate_expr_from_ast(guard)?;
+            }
+
+            self.output.push_str(" => ");
+
+            // Generate body
+            match &arm.body {
+                SwitchBody::Expr(expr) => {
+                    self.generate_expr_from_ast(expr)?;
+                }
+                SwitchBody::Block(stmts) => {
+                    self.output.push('{');
+                    self.indent();
+                    for stmt in stmts {
+                        self.output.push('\n');
+                        self.write_indent();
+                        self.generate_stmt_from_ast(stmt)?;
+                    }
+                    self.dedent();
+                    self.output.push('\n');
+                    self.write_indent();
+                    self.output.push('}');
+                }
+            }
+
+            self.output.push(',');
+        }
+
+        self.dedent();
+        self.output.push('\n');
+        self.write_indent();
+        self.output.push('}');
+
+        Ok(())
+    }
+
+    /// Generate code for a pattern
+    fn generate_pattern(&mut self, pattern: &Pattern) -> Result<()> {
+        match pattern {
+            Pattern::Literal(lit) => {
+                self.generate_ast_literal(lit)?;
+            }
+            Pattern::Wildcard => {
+                self.output.push('_');
+            }
+            Pattern::Binding(name) => {
+                self.output.push_str(&self.sanitize_name(name));
+            }
+            Pattern::Range(range) => {
+                match (&range.start, &range.end, range.inclusive) {
+                    (Some(start), Some(end), true) => {
+                        self.generate_expr_from_ast(start)?;
+                        self.output.push_str("..=");
+                        self.generate_expr_from_ast(end)?;
+                    }
+                    (Some(start), Some(end), false) => {
+                        self.generate_expr_from_ast(start)?;
+                        self.output.push_str("..");
+                        self.generate_expr_from_ast(end)?;
+                    }
+                    (Some(start), None, _) => {
+                        self.generate_expr_from_ast(start)?;
+                        self.output.push_str("..");
+                    }
+                    (None, Some(end), true) => {
+                        self.output.push_str("..=");
+                        self.generate_expr_from_ast(end)?;
+                    }
+                    (None, Some(end), false) => {
+                        self.output.push_str("..");
+                        self.generate_expr_from_ast(end)?;
+                    }
+                    (None, None, _) => {
+                        self.output.push_str("..");
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Generate code for an AST expression (used for switch patterns)
+    fn generate_expr_from_ast(&mut self, expr: &Expr) -> Result<()> {
+        match expr {
+            Expr::Literal(lit) => self.generate_ast_literal(lit),
+            Expr::Identifier(name) => {
+                write!(self.output, "{}", self.sanitize_name(name)).unwrap();
+                Ok(())
+            }
+            Expr::Binary { op, left, right } => {
+                self.generate_expr_from_ast(left)?;
+                write!(self.output, " {} ", op).unwrap();
+                self.generate_expr_from_ast(right)?;
+                Ok(())
+            }
+            _ => {
+                // For complex expressions, we'd need full AST generation
+                // For now, just handle the simple cases needed for patterns
+                Err(CompilerError::CodegenError(
+                    "Complex expressions in switch patterns not yet supported".into(),
+                ))
+            }
+        }
+    }
+
+    /// Generate code for an AST literal
+    fn generate_ast_literal(&mut self, lit: &Literal) -> Result<()> {
+        match lit {
+            Literal::Int(v) => write!(self.output, "{}", v).unwrap(),
+            Literal::Float(v) => write!(self.output, "{:?}", v).unwrap(),
+            Literal::Bool(v) => write!(self.output, "{}", v).unwrap(),
+            Literal::String(s) => {
+                self.output.push('"');
+                self.output.push_str(s);
+                self.output.push('"');
+            }
+            Literal::Char(c) => write!(self.output, "'{}'", c.escape_default()).unwrap(),
+        }
+        Ok(())
+    }
+
+    /// Generate code for an AST statement (used for switch block bodies)
+    fn generate_stmt_from_ast(&mut self, stmt: &Stmt) -> Result<()> {
+        // For now, we'll just handle the basic cases needed for switch blocks
+        // This is a simplified version - full AST generation would need more
+        match stmt {
+            Stmt::Expr(expr_stmt) => {
+                self.generate_expr_from_ast(&expr_stmt.expr)?;
+                self.output.push(';');
+                Ok(())
+            }
+            Stmt::Return(ret_stmt) => {
+                self.output.push_str("return");
+                if let Some(expr) = &ret_stmt.expr {
+                    self.output.push(' ');
+                    self.generate_expr_from_ast(expr)?;
+                }
+                self.output.push(';');
+                Ok(())
+            }
+            _ => {
+                Err(CompilerError::CodegenError(
+                    "Complex statements in switch blocks not yet fully supported".into(),
+                ))
+            }
+        }
+    }
+
 
     fn expr_is_stringy(&self, expr: &ir::Expr) -> bool {
         match expr {

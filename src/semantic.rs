@@ -1429,6 +1429,29 @@ impl SemanticAnalyzer {
                 // TODO: Phase 2 - validate adapter usage (par, vec, parvec)
                 Ok(())
             }
+            Expr::Switch(switch_expr) => {
+                self.validate_expr(&switch_expr.discriminant)?;
+                
+                // Validate all arms
+                for arm in &switch_expr.arms {
+                    // Validate guard if present
+                    if let Some(guard) = &arm.guard {
+                        self.validate_expr(guard)?;
+                    }
+                    
+                    // Validate body
+                    match &arm.body {
+                        SwitchBody::Expr(expr) => self.validate_expr(expr)?,
+                        SwitchBody::Block(stmts) => {
+                            for stmt in stmts {
+                                self.validate_stmt(stmt)?;
+                            }
+                        }
+                    }
+                }
+                
+                Ok(())
+            }
         }
     }
 
@@ -1855,6 +1878,18 @@ impl SemanticAnalyzer {
             Expr::MethodCall(method_call) => {
                 Self::expr_contains_await(&method_call.object)
                     || method_call.args.iter().any(Self::expr_contains_await)
+            }
+            Expr::Switch(switch_expr) => {
+                Self::expr_contains_await(&switch_expr.discriminant)
+                    || switch_expr.arms.iter().any(|arm| {
+                        arm.guard.as_ref().map_or(false, |g| Self::expr_contains_await(g))
+                            || match &arm.body {
+                                SwitchBody::Expr(expr) => Self::expr_contains_await(expr),
+                                SwitchBody::Block(stmts) => {
+                                    stmts.iter().any(Self::stmt_contains_await)
+                                }
+                            }
+                    })
             }
         }
     }
