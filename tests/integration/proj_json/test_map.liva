@@ -1,0 +1,14 @@
+// Test 5: map on JSON arrays
+main() {
+    let json_str = "[1, 2, 3, 4, 5]"
+    let numbers = JSON.parse(json_str)
+    
+    print($"Test 5: map on JSON")
+    let doubled = numbers.map(n => n.as_i32().unwrap() * 2)
+    
+    print($"Original:")
+    numbers.forEach(n => print($"  {n}"))
+    
+    print($"Doubled:")
+    doubled.forEach(n => print($"  {n}"))
+}

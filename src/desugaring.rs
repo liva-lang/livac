@@ -162,6 +162,15 @@ fn check_expr_concurrency(expr: &Expr, ctx: &mut DesugarContext) {
                     ctx.has_random = true;
                 }
             }
+            
+            // Check if it uses parallel array adapters
+            match method_call.adapter {
+                crate::ast::ArrayAdapter::Par | crate::ast::ArrayAdapter::ParVec => {
+                    ctx.has_parallel = true;
+                }
+                _ => {}
+            }
+            
             // Continue checking nested expressions
             check_expr_concurrency(&method_call.object, ctx);
             for arg in &method_call.args {

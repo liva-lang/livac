@@ -1551,7 +1551,7 @@ impl Parser {
                     break;
                 }
             } else if self.match_token(&Token::Dot) {
-                let name = self.parse_identifier()?;
+                let name = self.parse_method_name()?;
                 
                 // Check if this is a method call (followed by parentheses)
                 if self.check(&Token::LParen) {
@@ -2043,6 +2043,19 @@ impl Parser {
             Some(Token::Ident(s)) => Ok(s.clone()),
             Some(Token::PrivateIdent(s)) => Ok(s.clone()),
             _ => Err(self.error("Expected identifier".into())),
+        }
+    }
+    
+    /// Parse identifier or keyword token as method name
+    /// This allows reserved keywords like "par", "vec", "parvec" to be used as method names
+    fn parse_method_name(&mut self) -> Result<String> {
+        match self.advance() {
+            Some(Token::Ident(s)) => Ok(s.clone()),
+            Some(Token::PrivateIdent(s)) => Ok(s.clone()),
+            Some(Token::Par) => Ok("par".to_string()),
+            Some(Token::Vec) => Ok("vec".to_string()),
+            Some(Token::ParVec) => Ok("parvec".to_string()),
+            _ => Err(self.error("Expected method name".into())),
         }
     }
 

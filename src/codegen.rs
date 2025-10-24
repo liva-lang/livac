@@ -640,6 +640,13 @@ impl CodeGenerator {
         self.writeln("}");
         self.writeln("");
 
+        // Add rayon imports if parallel execution is used (at top level, after liva_rt module)
+        if self.ctx.has_parallel {
+            self.writeln("// Rayon parallel iterator support");
+            self.writeln("use rayon::prelude::*;");
+            self.writeln("");
+        }
+
         // Generate top-level items
         for item in &program.items {
             if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: Processing top-level item: {:?}", item); }
@@ -3187,9 +3194,10 @@ impl CodeGenerator {
                 self.output.push_str(".into_iter()");
             }
             ArrayAdapter::ParVec => {
-                // Parallel + Vectorized
-                // TODO: Implement combined parallel + SIMD
+                // Parallel + Vectorized: use rayon parallel iterator
+                // Same as Par for now, uses references
                 self.output.push_str(".par_iter()");
+                // TODO: Implement SIMD optimizations on top of parallel
             }
         }
         
@@ -3355,7 +3363,12 @@ impl CodeGenerator {
                 }
             }
             // Parallel map/filter with rayon
-            (ArrayAdapter::Par, "map") | (ArrayAdapter::Par, "filter") => {
+            (ArrayAdapter::Par, "map") | (ArrayAdapter::ParVec, "map") => {
+                // Map returns owned values (from the lambda), just collect
+                self.output.push_str(".collect::<Vec<_>>()");
+            }
+            (ArrayAdapter::Par, "filter") | (ArrayAdapter::ParVec, "filter") => {
+                // Filter returns references, need to clone before collecting
                 self.output.push_str(".cloned().collect::<Vec<_>>()");
             }
             // Find returns Option<&T>, copy it

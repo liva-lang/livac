@@ -1,0 +1,38 @@
+// Example: JSON parsing with natural syntax
+// Demonstrates v0.9.8 features: no error binding, for loops, dot notation
+
+main() {
+    print($"=== JSON Natural Syntax Example ===\n")
+    
+    // Simple JSON array
+    let numbersJson = "[1, 2, 3, 4, 5]"
+    let numbers = JSON.parse(numbersJson)
+    
+    print($"Numbers:")
+    for num in numbers {
+        print($"  - {num}")
+    }
+    
+    // JSON object with properties
+    let personJson = "{\"name\": \"Alice\", \"age\": 30, \"city\": \"NYC\"}"
+    let person = JSON.parse(personJson)
+    
+    print($"\nPerson:")
+    let name = person.get_field("name").unwrap()
+    let age = person.get_field("age").unwrap()
+    let city = person.get_field("city").unwrap()
+    print($"  Name: {name}")
+    print($"  Age: {age}")
+    print($"  City: {city}")
+    
+    // Array of objects
+    let usersJson = "[{\"id\": 1, \"name\": \"Bob\"}, {\"id\": 2, \"name\": \"Carol\"}]"
+    let users = JSON.parse(usersJson)
+    
+    print($"\nUsers:")
+    for user in users {
+        let id = user.get_field("id").unwrap()
+        let name = user.get_field("name").unwrap()
+        print($"  User {id}: {name}")
+    }
+}

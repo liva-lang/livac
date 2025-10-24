@@ -1,0 +1,27 @@
+// Example: JSON with Parallel Processing
+// Demonstrates v0.9.9+ features: parvec() for parallel execution
+
+main() {
+    print($"=== JSON Parallel Processing Example ===\n")
+    
+    // Sample data
+    let dataJson = "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]"
+    let data = JSON.parse(dataJson)
+    
+    // 1. Sequential processing
+    print($"1. Sequential (normal):")
+    let seq_doubled = data.map(n => n.as_i32().unwrap() * 2)
+    seq_doubled.forEach(n => print($"  {n}"))
+    
+    // 2. Parallel processing with parvec()
+    print($"\n2. Parallel (parvec):")
+    let par_doubled = data.parvec().map(n => n.as_i32().unwrap() * 2)
+    par_doubled.forEach(n => print($"  {n}"))
+    
+    // 3. Parallel filter
+    print($"\n3. Parallel filter (values > 5):")
+    let filtered = data.parvec().filter(n => n.as_i32().unwrap() > 5)
+    filtered.forEach(n => print($"  {n}"))
+    
+    print($"\n✓ Parallel processing complete!")
+}

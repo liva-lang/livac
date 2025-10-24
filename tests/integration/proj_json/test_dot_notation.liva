@@ -1,0 +1,10 @@
+// Test 3: Dot notation for JSON properties
+main() {
+    let json_str = "{\"id\": 1, \"title\": \"Hello\", \"count\": 42}"
+    let obj = JSON.parse(json_str)
+    
+    print($"Test 3: Dot notation")
+    print($"  ID: {obj.id}")
+    print($"  Title: {obj.title}")
+    print($"  Count: {obj.count}")
+}

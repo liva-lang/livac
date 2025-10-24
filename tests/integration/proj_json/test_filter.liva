@@ -1,0 +1,14 @@
+// Test 6: filter on JSON arrays
+main() {
+    let json_str = "[10, 25, 30, 15, 50, 5]"
+    let numbers = JSON.parse(json_str)
+    
+    print($"Test 6: filter on JSON")
+    let filtered = numbers.filter(n => n.as_i32().unwrap() > 20)
+    
+    print($"Original:")
+    numbers.forEach(n => print($"  {n}"))
+    
+    print($"Filtered (> 20):")
+    filtered.forEach(n => print($"  {n}"))
+}

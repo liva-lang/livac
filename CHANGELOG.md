@@ -7,6 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.10] - 2025-01-25
+
+### Fixed - Parser and Concurrency Support (Phase 6.4.3 - 2h)
+
+**Parser Fix for Reserved Keywords:**
+- ✅ Fixed parsing error with `.parvec()`, `.par()`, `.vec()` method calls
+- Reserved keywords (Par, Vec, ParVec) can now be used as method names
+- Added `parse_method_name()` helper that accepts both identifiers and keyword tokens
+
+**Concurrency Policy Support:**
+- ✅ **parvec() works on all arrays**: Parallel execution with Rayon
+- ✅ Automatic rayon dependency detection via `ArrayAdapter::Par|ParVec`
+- ✅ Correct code generation: `.par_iter()` for parallel, `.collect()` for map
+- ✅ Import `use rayon::prelude::*` when parallel execution is detected
+
+**Code Generation Fixes:**
+- Map with parallel adapter: generates `.collect::<Vec<_>>()` (no `.cloned()`)
+- Filter with parallel adapter: generates `.cloned().collect::<Vec<_>>()`
+- Added rayon imports at top level (after liva_rt module)
+
+**Comprehensive Tests:**
+- ✅ 10 integration tests in `tests/integration/proj_json/`
+  * test_parse_no_error.liva - JSON.parse without binding
+  * test_for_in_loop.liva - for...in on JSON
+  * test_dot_notation.liva - property access
+  * test_foreach_arrow.liva - forEach with arrows
+  * test_map.liva - map transformation
+  * test_filter.liva - filter selection
+  * test_chaining.liva - map then filter
+  * test_objects_array.liva - array of objects
+  * test_parvec_json.liva - parallel execution
+  * test_comprehensive.liva - all features combined
+
+**Example Files:**
+- ✅ 4 comprehensive examples in `examples/`
+  * json_natural_syntax.liva - v0.9.8 features demo
+  * json_arrow_functions.liva - v0.9.9 features demo
+  * json_parallel.liva - parvec() demo
+  * json_api_processing.liva - Real-world API processing
+
+**Example Usage:**
+```liva
+main() {
+    let data = "[1, 2, 3, 4, 5, 6, 7, 8]"
+    let numbers = JSON.parse(data)
+    
+    // Sequential
+    let doubled = numbers.map(n => n.as_i32().unwrap() * 2)
+    
+    // Parallel 🔥 NEW!
+    let par_doubled = numbers.parvec().map(n => n.as_i32().unwrap() * 2)
+    
+    par_doubled.forEach(n => print($"  {n}"))
+}
+```
+
+**Technical Details:**
+- Parser now distinguishes between identifiers and keyword tokens in method position
+- Desugaring phase detects ArrayAdapter usage and sets `ctx.has_parallel = true`
+- Cargo.toml generation includes rayon when parallel execution is detected
+- Code generator emits appropriate iterator methods based on adapter type
+
 ## [0.9.9] - 2025-01-25
 
 ### Added - Arrow Functions for JSON Arrays (Phase 6.4.2 - 3h)

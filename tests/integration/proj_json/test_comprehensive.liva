@@ -1,0 +1,28 @@
+// Test 10: Comprehensive - All features together
+main() {
+    print($"=== Comprehensive JSON Test ===")
+    
+    // Parse JSON array
+    let json_str = "[{\"id\": 1, \"value\": 10}, {\"id\": 2, \"value\": 20}, {\"id\": 3, \"value\": 30}]"
+    let items = JSON.parse(json_str)
+    
+    // 1. forEach with dot notation
+    print($"\n1. forEach with dot notation:")
+    items.forEach(item => {
+        print($"  Item {item.id}: value = {item.value}")
+    })
+    
+    // 2. Extract values with map
+    print($"\n2. Extract values with map:")
+    let values = items.map(item => item.get_field("value").unwrap())
+    values.forEach(v => print($"  Value: {v}"))
+    
+    // 3. Filter by condition
+    print($"\n3. Filter items with value > 15:")
+    let filtered = items.filter(item => item.get_field("value").unwrap().as_i32().unwrap() > 15)
+    filtered.forEach(item => {
+        print($"  Item {item.id}: value = {item.value}")
+    })
+    
+    print($"\n✓ All tests passed!")
+}

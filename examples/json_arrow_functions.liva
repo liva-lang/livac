@@ -1,0 +1,38 @@
+// Example: JSON with Arrow Functions
+// Demonstrates v0.9.9 features: forEach, map, filter with arrow functions
+
+main() {
+    print($"=== JSON Arrow Functions Example ===\n")
+    
+    // 1. forEach - Iterate with arrow function
+    print($"1. forEach:")
+    let numbersJson = "[10, 20, 30, 40, 50]"
+    let numbers = JSON.parse(numbersJson)
+    numbers.forEach(n => print($"  Number: {n}"))
+    
+    // 2. map - Transform array
+    print($"\n2. map (double each number):")
+    let doubled = numbers.map(n => n.as_i32().unwrap() * 2)
+    doubled.forEach(n => print($"  {n}"))
+    
+    // 3. filter - Select items
+    print($"\n3. filter (values > 25):")
+    let filtered = numbers.filter(n => n.as_i32().unwrap() > 25)
+    filtered.forEach(n => print($"  {n}"))
+    
+    // 4. Multiple operations
+    print($"\n4. Multiple map operations:")
+    let tripled = numbers.map(n => n.as_i32().unwrap() * 3)
+    tripled.forEach(n => print($"  {n}"))
+    
+    // 5. Working with objects
+    print($"\n5. Array of objects:")
+    let productsJson = "[{\"id\": 1, \"name\": \"Apple\", \"price\": 1.20}, {\"id\": 2, \"name\": \"Banana\", \"price\": 0.50}]"
+    let products = JSON.parse(productsJson)
+    
+    products.forEach(p => {
+        let name = p.get_field("name").unwrap()
+        let price = p.get_field("price").unwrap()
+        print($"  {name}: ${price}")
+    })
+}
