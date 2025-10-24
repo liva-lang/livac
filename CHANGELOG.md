@@ -7,6 +7,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.8] - 2025-01-25
+
+### Added - Natural JSON Syntax (Phase 6.4.1 - 2h)
+
+**Ergonomic JSON Improvements:**
+- ✅ **JSON.parse without error binding**: `let posts = JSON.parse(body)` - Auto-unwraps or panics on error
+- ✅ **for...in loops**: `for post in posts { ... }` - Natural iteration over JSON arrays
+- ✅ **Dot notation**: `post.id`, `post.title` - Direct property access instead of brackets
+
+**Implementation Details:**
+
+**1. JSON.parse Auto-unwrap:**
+- Detects single-binding pattern in VarDecl: `let posts = JSON.parse(...)`
+- Generates: `.0.expect("JSON parse failed")` automatically
+- No need for error binding when you want to panic on error
+
+**2. IntoIterator for JsonValue:**
+- Implemented `IntoIterator` trait on `JsonValue`
+- Returns `std::vec::IntoIter<JsonValue>` for arrays
+- Empty iterator for non-arrays
+- Embedded in both liva_rt.rs and generated runtime
+
+**3. Dot Notation for Properties:**
+- Heuristic detection: if variable is not array/class → treat as JsonValue
+- Generates `.get_field("property").unwrap()` automatically
+- Works in: assignments, conditions, string templates, function args
+
+**4. Smart Length Detection:**
+- `JsonValue.length()` for JSON arrays/objects
+- `.len()` for Rust arrays and strings
+- Automatic detection based on variable tracking
+
+**Complete Natural Example:**
+```liva
+main() {
+  let res, err = async HTTP.get("https://api.example.com/posts?_limit=5")
+
+  if err != "" {
+    console.log($"Error: {err}")
+  } else {
+    if res.status == 200 {
+      let posts = JSON.parse(res.body)  // ✅ No error binding
+      for post in posts {                // ✅ for...in loop
+        // ✅ Dot notation for properties
+        console.log($"Post ID: {post.id}, Title: {post.title}")
+      }
+    }
+  }
+}
+```
+
+**Comparison:**
+
+Before (v0.9.7):
+```liva
+let posts, jsonErr = JSON.parse(res.body)
+if jsonErr == "" {
+    let i = 0
+    while i < posts.length {
+        let post = posts[i]
+        let id = post["id"]
+        let title = post["title"]
+        print($"Post {id}: {title}")
+        i = i + 1
+    }
+}
+```
+
+After (v0.9.8):
+```liva
+let posts = JSON.parse(res.body)
+for post in posts {
+    print($"Post {post.id}: {post.title}")
+}
+```
+
+**Code Changes:**
+- Modified VarDecl generation to detect and unwrap JSON.parse
+- Added IntoIterator impl to JsonValue (20 lines)
+- Enhanced Member expression generation for JsonValue dot notation
+- Smart .length() vs .len() detection based on context
+
 ## [0.9.7] - 2025-01-25
 
 ### Added - JSON Array/Object Support (Phase 6.4 - 3h)
