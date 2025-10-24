@@ -148,3 +148,35 @@ main() {
     let rust_code = compile_and_generate(source);
     assert_snapshot!("comprehensive_codegen", rust_code);
 }
+
+#[test]
+fn test_file_io_operations() {
+    let source = r#"
+main() {
+    // Test File.read with error binding
+    let content, err = File.read("test.txt")
+    if err {
+        print("Read error: " + err.message)
+    } else {
+        print("Content: " + content)
+    }
+    
+    // Test File.write
+    let success, writeErr = File.write("output.txt", "Hello, Liva!")
+    
+    // Test File.append
+    let ok, appendErr = File.append("log.txt", "New entry")
+    
+    // Test File.exists (no error binding)
+    if File.exists("config.json") {
+        print("Config exists")
+    }
+    
+    // Test File.delete
+    let deleted, delErr = File.delete("temp.txt")
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("file_io_operations", rust_code);
+}

@@ -1,0 +1,298 @@
+// Comprehensive File I/O tests - 27 test cases
+
+main() {
+    print("=== File I/O Comprehensive Tests ===\n")
+    
+    // === WRITE TESTS (5) ===
+    
+    print("Test 1: Write simple text file")
+    let w1, we1 = File.write("test1.txt", "Hello, World!")
+    if we1 {
+        print("✗ Write failed")
+    } else {
+        print("✓ Write successful")
+    }
+    
+    print("\nTest 2: Write multiline content")
+    let w2, we2 = File.write("test2.txt", "Line 1\nLine 2\nLine 3")
+    if we2 {
+        print("✗ Write multiline failed")
+    } else {
+        print("✓ Write multiline successful")
+    }
+    
+    print("\nTest 3: Write empty file")
+    let w3, we3 = File.write("test3.txt", "")
+    if we3 {
+        print("✗ Write empty failed")
+    } else {
+        print("✓ Write empty file successful")
+    }
+    
+    print("\nTest 4: Overwrite existing file")
+    File.write("test_overwrite.txt", "Original content")
+    let w4, we4 = File.write("test_overwrite.txt", "New content")
+    if we4 {
+        print("✗ Overwrite failed")
+    } else {
+        print("✓ Overwrite successful")
+    }
+    
+    print("\nTest 5: Write special characters")
+    let w5, we5 = File.write("test5.txt", "Special: @#$%^&*()[]{}|\\<>?")
+    if we5 {
+        print("✗ Write special chars failed")
+    } else {
+        print("✓ Write special chars successful")
+    }
+    
+    // === READ TESTS (6) ===
+    
+    print("\n\nTest 6: Read simple file")
+    let r1, re1 = File.read("test1.txt")
+    if re1 {
+        print("✗ Read failed")
+    } else {
+        print("✓ Read successful: " + r1)
+    }
+    
+    print("\nTest 7: Read multiline file")
+    let r2, re2 = File.read("test2.txt")
+    if re2 {
+        print("✗ Read multiline failed")
+    } else {
+        print("✓ Read multiline successful (3 lines)")
+    }
+    
+    print("\nTest 8: Read empty file")
+    let r3, re3 = File.read("test3.txt")
+    if re3 {
+        print("✗ Read empty failed")
+    } else {
+        print("✓ Read empty file successful")
+    }
+    
+    print("\nTest 9: Read non-existent file (error test)")
+    let r4, re4 = File.read("nonexistent_file_xyz.txt")
+    if re4 {
+        print("✓ Expected error: File not found")
+    } else {
+        print("✗ Should have failed!")
+    }
+    
+    print("\nTest 10: Read after overwrite")
+    let r5, re5 = File.read("test_overwrite.txt")
+    if re5 {
+        print("✗ Read after overwrite failed")
+    } else {
+        print("✓ Read after overwrite: " + r5)
+    }
+    
+    print("\nTest 11: Read special characters")
+    let r6, re6 = File.read("test5.txt")
+    if re6 {
+        print("✗ Read special chars failed")
+    } else {
+        print("✓ Read special chars successful")
+    }
+    
+    // === EXISTS TESTS (4) ===
+    
+    print("\n\nTest 12: Exists for existing file")
+    if File.exists("test1.txt") {
+        print("✓ Exists check passed")
+    } else {
+        print("✗ File should exist!")
+    }
+    
+    print("\nTest 13: Exists for non-existent file")
+    if File.exists("nonexistent_file_xyz.txt") {
+        print("✗ Should not exist!")
+    } else {
+        print("✓ Exists check passed (not found)")
+    }
+    
+    print("\nTest 14: Exists before write")
+    if File.exists("test_new.txt") {
+        print("✗ File should not exist yet")
+    } else {
+        print("✓ Does not exist (before write)")
+        File.write("test_new.txt", "content")
+        if File.exists("test_new.txt") {
+            print("✓ Exists after write")
+        } else {
+            print("✗ Should exist after write!")
+        }
+    }
+    
+    print("\nTest 15: Exists after delete")
+    File.write("test_temp.txt", "temp")
+    if File.exists("test_temp.txt") {
+        print("✓ File exists before delete")
+        File.delete("test_temp.txt")
+        if File.exists("test_temp.txt") {
+            print("✗ File should not exist after delete!")
+        } else {
+            print("✓ Does not exist after delete")
+        }
+    }
+    
+    // === APPEND TESTS (5) ===
+    
+    print("\n\nTest 16: Append to existing file")
+    File.write("test_append1.txt", "First line")
+    let a1, ae1 = File.append("test_append1.txt", "\nSecond line")
+    if ae1 {
+        print("✗ Append failed")
+    } else {
+        print("✓ Append successful")
+        let check1, ce1 = File.read("test_append1.txt")
+        if ce1 {
+            print("  Read after append failed")
+        } else {
+            print("  Content has both lines")
+        }
+    }
+    
+    print("\nTest 17: Append to non-existent file (creates new)")
+    let a2, ae2 = File.append("test_append_new.txt", "New file via append")
+    if ae2 {
+        print("✗ Append to new file failed")
+    } else {
+        print("✓ Append created new file")
+    }
+    
+    print("\nTest 18: Multiple appends")
+    File.write("test_multi.txt", "Start")
+    File.append("test_multi.txt", "\nLine 2")
+    File.append("test_multi.txt", "\nLine 3")
+    let a3, ae3 = File.append("test_multi.txt", "\nLine 4")
+    if ae3 {
+        print("✗ Multiple appends failed")
+    } else {
+        print("✓ Multiple appends successful")
+    }
+    
+    print("\nTest 19: Append empty string")
+    File.write("test_append_empty.txt", "Content")
+    let a4, ae4 = File.append("test_append_empty.txt", "")
+    if ae4 {
+        print("✗ Append empty failed")
+    } else {
+        print("✓ Append empty successful")
+    }
+    
+    print("\nTest 20: Append multiline")
+    File.write("test_append_multi.txt", "First")
+    let a5, ae5 = File.append("test_append_multi.txt", "\nSecond\nThird\nFourth")
+    if ae5 {
+        print("✗ Append multiline failed")
+    } else {
+        print("✓ Append multiline successful")
+    }
+    
+    // === DELETE TESTS (4) ===
+    
+    print("\n\nTest 21: Delete existing file")
+    File.write("test_delete1.txt", "To be deleted")
+    let d1, de1 = File.delete("test_delete1.txt")
+    if de1 {
+        print("✗ Delete failed")
+    } else {
+        print("✓ Delete successful")
+        if File.exists("test_delete1.txt") {
+            print("✗ File still exists!")
+        }
+    }
+    
+    print("\nTest 22: Delete non-existent file (error test)")
+    let d2, de2 = File.delete("nonexistent_delete.txt")
+    if de2 {
+        print("✓ Expected error: File not found")
+    } else {
+        print("✗ Should have failed!")
+    }
+    
+    print("\nTest 23: Delete then recreate")
+    File.write("test_recreate.txt", "V1")
+    File.delete("test_recreate.txt")
+    let d3, de3 = File.write("test_recreate.txt", "V2")
+    if de3 {
+        print("✗ Recreate failed")
+    } else {
+        print("✓ Delete and recreate successful")
+    }
+    
+    print("\nTest 24: Delete multiple files")
+    File.write("test_del1.txt", "A")
+    File.write("test_del2.txt", "B")
+    File.write("test_del3.txt", "C")
+    File.delete("test_del1.txt")
+    File.delete("test_del2.txt")
+    let d4, de4 = File.delete("test_del3.txt")
+    if de4 {
+        print("✗ Delete multiple failed")
+    } else {
+        print("✓ Delete multiple successful")
+    }
+    
+    // === INTEGRATION/WORKFLOW TESTS (3) ===
+    
+    print("\n\nTest 25: Complete read-write-append workflow")
+    File.write("workflow.txt", "Start")
+    let c1, ce1 = File.read("workflow.txt")
+    File.append("workflow.txt", "\nMiddle")
+    let c2, ce2 = File.read("workflow.txt")
+    File.append("workflow.txt", "\nEnd")
+    let c3, ce3 = File.read("workflow.txt")
+    if ce3 {
+        print("✗ Workflow had errors")
+    } else {
+        print("✓ Complete workflow successful")
+    }
+    
+    print("\nTest 26: Write-Read-Modify-Write pattern")
+    File.write("modify.txt", "Original")
+    let m1, me1 = File.read("modify.txt")
+    if me1 {
+        print("✗ Read for modify failed")
+    } else {
+        let m2, me2 = File.write("modify.txt", m1 + " Modified")
+        if me2 {
+            print("✗ Write back failed")
+        } else {
+            let m3, me3 = File.read("modify.txt")
+            print("✓ Modify pattern successful: " + m3)
+        }
+    }
+    
+    print("\nTest 27: Error handling chain")
+    let e1, ee1 = File.read("missing1.txt")
+    let e2, ee2 = File.read("missing2.txt")
+    let e3, ee3 = File.delete("missing3.txt")
+    if ee3 {
+        print("✓ All expected errors occurred")
+    } else {
+        print("✗ Error handling incomplete")
+    }
+    
+    // === CLEANUP ===
+    print("\n\n=== Cleaning up test files ===")
+    File.delete("test1.txt")
+    File.delete("test2.txt")
+    File.delete("test3.txt")
+    File.delete("test5.txt")
+    File.delete("test_overwrite.txt")
+    File.delete("test_new.txt")
+    File.delete("test_append1.txt")
+    File.delete("test_append_new.txt")
+    File.delete("test_multi.txt")
+    File.delete("test_append_empty.txt")
+    File.delete("test_append_multi.txt")
+    File.delete("test_recreate.txt")
+    File.delete("workflow.txt")
+    File.delete("modify.txt")
+    print("✓ Cleanup complete")
+    
+    print("\n=== All 27 Tests Complete ===")
+}

@@ -39,6 +39,7 @@ pub struct CodeGenerator {
     pending_tasks: std::collections::HashMap<String, TaskInfo>, // Variables that hold unawaited Tasks
     // --- Phase 3: Error binding variables (Option<String> type)
     error_binding_vars: std::collections::HashSet<String>, // Variables from error binding (second variable in let x, err = ...)
+    option_value_vars: std::collections::HashSet<String>, // Variables from error binding (first variable in let value, err = ..., which is Option<T>)
     // --- Phase 4: Join combining optimization
     #[allow(dead_code)]
     awaitable_tasks: Vec<String>, // Tasks that can be combined with tokio::join!
@@ -65,6 +66,7 @@ impl CodeGenerator {
             fallible_functions: std::collections::HashSet::new(),
             pending_tasks: std::collections::HashMap::new(),
             error_binding_vars: std::collections::HashSet::new(),
+            option_value_vars: std::collections::HashSet::new(),
             awaitable_tasks: Vec::new(),
             trait_registry: TraitRegistry::new(),
         }
@@ -1174,6 +1176,7 @@ impl CodeGenerator {
                     // Phase 3: Track the error variable (second binding) as Option<String>
                     if binding_names.len() == 2 {
                         self.error_binding_vars.insert(binding_names[1].clone());
+                        self.option_value_vars.insert(binding_names[0].clone()); // Also track the value (first binding)
                     }
 
                     if let Some(exec_policy) = task_exec_policy {
@@ -2471,6 +2474,11 @@ impl CodeGenerator {
             if name == "JSON" {
                 return self.generate_json_function_call(method_call);
             }
+            
+            // Check if this is a File function call (File.read, File.write, etc.)
+            if name == "File" {
+                return self.generate_file_function_call(method_call);
+            }
         }
         
         // Check if this is a string method (no adapter means it's not an array method)
@@ -3080,6 +3088,107 @@ impl CodeGenerator {
         Ok(())
     }
 
+    fn generate_file_function_call(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
+        // File functions: read, write, append, exists, delete
+        match method_call.method.as_str() {
+            "read" => {
+                // File.read(path) returns (Option<String>, Option<Error>)
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            "File.read requires exactly 1 argument",
+                            "Usage: File.read(path)"
+                        )
+                    ));
+                }
+                
+                self.output.push_str("(match std::fs::read_to_string(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(") { Ok(content) => (Some(content), None), Err(e) => (None, Some(liva_rt::Error::from(format!(\"File read error: {}\", e)))) })");
+            }
+            "write" => {
+                // File.write(path, content) returns (Option<bool>, Option<Error>)
+                if method_call.args.len() != 2 {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            "File.write requires exactly 2 arguments",
+                            "Usage: File.write(path, content)"
+                        )
+                    ));
+                }
+                
+                self.output.push_str("(match std::fs::write(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(", &");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str(") { Ok(_) => (Some(true), None), Err(e) => (Some(false), Some(liva_rt::Error::from(format!(\"File write error: {}\", e)))) })");
+            }
+            "append" => {
+                // File.append(path, content) returns (Option<bool>, Option<Error>)
+                if method_call.args.len() != 2 {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            "File.append requires exactly 2 arguments",
+                            "Usage: File.append(path, content)"
+                        )
+                    ));
+                }
+                
+                self.output.push_str("(match std::fs::OpenOptions::new().create(true).append(true).open(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(").and_then(|mut file| { use std::io::Write; file.write_all(");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str(".as_bytes()) }) { Ok(_) => (Some(true), None), Err(e) => (Some(false), Some(liva_rt::Error::from(format!(\"File append error: {}\", e)))) })");
+            }
+            "exists" => {
+                // File.exists(path) returns bool (no error binding)
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            "File.exists requires exactly 1 argument",
+                            "Usage: File.exists(path)"
+                        )
+                    ));
+                }
+                
+                self.output.push_str("std::path::Path::new(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(").exists()");
+            }
+            "delete" => {
+                // File.delete(path) returns (Option<bool>, Option<Error>)
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            "File.delete requires exactly 1 argument",
+                            "Usage: File.delete(path)"
+                        )
+                    ));
+                }
+                
+                self.output.push_str("(match std::fs::remove_file(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(") { Ok(_) => (Some(true), None), Err(e) => (Some(false), Some(liva_rt::Error::from(format!(\"File delete error: {}\", e)))) })");
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(
+                    SemanticErrorInfo::new(
+                        "E3000",
+                        &format!("Unknown File function: {}", method_call.method),
+                        "Available File functions: read, write, append, exists, delete"
+                    )
+                ));
+            }
+        }
+        
+        Ok(())
+    }
+
     fn generate_async_call(&mut self, call: &CallExpr) -> Result<()> {
         // Phase 2: NO await here - just create the Task
         // The await will be inserted at first use of the variable
@@ -3370,9 +3479,21 @@ impl CodeGenerator {
                 }
             }
             Expr::MethodCall(method_call) => {
-                // Check if this is a JSON method call (JSON.parse, JSON.stringify)
                 if let Expr::Identifier(object_name) = method_call.object.as_ref() {
-                    object_name == "JSON" && (method_call.method == "parse" || method_call.method == "stringify")
+                    // Check for JSON methods
+                    if object_name == "JSON" && (method_call.method == "parse" || method_call.method == "stringify") {
+                        return true;
+                    }
+                    // Check for File methods (all except exists return tuples)
+                    if object_name == "File" && (
+                        method_call.method == "read" ||
+                        method_call.method == "write" ||
+                        method_call.method == "append" ||
+                        method_call.method == "delete"
+                    ) {
+                        return true;
+                    }
+                    false
                 } else {
                     false
                 }
@@ -3417,6 +3538,15 @@ impl CodeGenerator {
                 write!(
                     self.output,
                     "{}.as_ref().map(|e| e.message.as_str()).unwrap_or(\"\")",
+                    sanitized
+                ).unwrap();
+                return Ok(());
+            }
+            if self.option_value_vars.contains(&sanitized) {
+                // For option value variables, unwrap with default: value.as_ref().map(|v| v.to_string()).unwrap_or_default()
+                write!(
+                    self.output,
+                    "{}.as_ref().map(|v| v.to_string()).unwrap_or_default()",
                     sanitized
                 ).unwrap();
                 return Ok(());

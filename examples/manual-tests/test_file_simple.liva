@@ -1,0 +1,75 @@
+// Test básico de File I/O
+
+main() {
+    console.log("=== Test File I/O Simple ===");
+    
+    // Test 1: Write and Read
+    console.log("\n1. Write and Read test:");
+    let success, write_err = File.write("test.txt", "Hello, Liva!");
+    
+    if write_err {
+        console.log("Write failed: " + write_err.message);
+    } else {
+        console.log("Write successful");
+        
+        let content, read_err = File.read("test.txt");
+        if read_err {
+            console.log("Read failed: " + read_err.message);
+        } else {
+            console.log("Read content: " + content);
+        }
+    }
+    
+    // Test 2: File exists
+    console.log("\n2. File exists test:");
+    if File.exists("test.txt") {
+        console.log("test.txt exists!");
+    } else {
+        console.log("test.txt does not exist");
+    }
+    
+    // Test 3: Append
+    console.log("\n3. Append test:");
+    let append_ok, append_err = File.append("test.txt", "\nAppended line");
+    
+    if append_err {
+        console.log("Append failed: " + append_err.message);
+    } else {
+        console.log("Append successful");
+        
+        let new_content, err2 = File.read("test.txt");
+        if err2 {
+            console.log("Read after append failed");
+        } else {
+            console.log("Content after append: " + new_content);
+        }
+    }
+    
+    // Test 4: Delete
+    console.log("\n4. Delete test:");
+    let delete_ok, delete_err = File.delete("test.txt");
+    
+    if delete_err {
+        console.log("Delete failed: " + delete_err.message);
+    } else {
+        console.log("Delete successful");
+        
+        if File.exists("test.txt") {
+            console.log("Error: File still exists after delete!");
+        } else {
+            console.log("File successfully deleted");
+        }
+    }
+    
+    // Test 5: Read non-existent file
+    console.log("\n5. Error handling test (read non-existent):");
+    let content2, err3 = File.read("nonexistent.txt");
+    
+    if err3 {
+        console.log("Expected error: " + err3.message);
+    } else {
+        console.log("Unexpected success!");
+    }
+    
+    console.log("\n=== Tests Complete ===");
+}
