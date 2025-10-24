@@ -1092,15 +1092,48 @@ formatAndCompare<T: Comparable + Display>(a: T, b: T) { ... }
 
 **Estimated:** 4 hours
 
-### 6.4 Enhanced Pattern Matching
-- [ ] Design switch expression syntax
-- [ ] Add exhaustiveness checking
-- [ ] Support pattern guards
-- [ ] Add range patterns (1..10)
-- [ ] Add array/tuple patterns
-- [ ] Implement in parser & semantic
-- [ ] Add pattern matching tests
-- [ ] Write pattern matching guide
+### 6.4 Enhanced Pattern Matching ✅ COMPLETED (v0.9.5)
+- [x] Design switch expression syntax
+- [x] Add literal, wildcard, binding, range patterns
+- [x] Support pattern guards (if conditions)
+- [x] Implement in parser & semantic analyzer
+- [x] Add code generation for Rust match expressions
+- [x] Create comprehensive test suite (5 tests)
+- [x] Write pattern matching guide (600+ lines)
+- [ ] Add exhaustiveness checking (deferred to v0.9.6)
+- [ ] Add array/tuple patterns (deferred to v0.9.6)
+
+**Completed:** 3 hours (2025-01-24)
+**Delivered:**
+- Switch as expression (returns values)
+- 4 pattern types: literal, wildcard, binding, range
+- Pattern guards with if conditions
+- Rust match code generation
+- Complete documentation (1,400+ lines)
+- Working test suite (5 comprehensive tests)
+
+**Examples:**
+```liva
+// Range patterns with guards
+let grade = switch score {
+    90..=100 => "A",
+    80..=89 => "B",
+    x if x >= 60 => "Pass",
+    _ => "Fail"
+};
+
+// Binding patterns
+let doubled = switch num {
+    0 => 0,
+    n => n * 2
+};
+```
+
+**Deferred to v0.9.6:**
+- Full exhaustiveness checking for all types
+- Tuple/array destructuring patterns
+- Enum variant patterns
+- Or patterns (`|` operator)
 
 **Estimated:** 3 hours
 

@@ -7,6 +7,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.5] - 2025-01-24
+
+### Added - Enhanced Pattern Matching (Phase 6.4 - 3h)
+
+**Switch Expressions:**
+- Switch can now be used as an expression (returns a value)
+- Can be used anywhere an expression is valid
+- All arms must return the same type
+
+**Pattern Types:**
+- **Literal patterns**: `1 => "one"`, `"hello" => greet()`, `true => yes()`
+- **Wildcard pattern**: `_ => default_case` (catch-all)
+- **Binding patterns**: `n => n * 2` (capture value in variable)
+- **Range patterns**: `1..10`, `1..=10`, `..10`, `10..` (inclusive/exclusive)
+
+**Pattern Guards:**
+- Add conditional logic with `if` clauses: `x if x < 20 => "teenager"`
+- Guards can use any boolean expression
+- Guards have access to bound variables
+
+**Implementation:**
+- Added `Pattern` enum to AST (Literal, Wildcard, Binding, Range)
+- Added `SwitchExpr`, `SwitchArm`, `SwitchBody` to AST
+- Added `Token::Underscore` and `Token::DotDotEq` to lexer
+- Implemented `parse_switch_expr()` and `parse_pattern()` in parser
+- Switch expressions pass through IR as `Unsupported` (handled in codegen)
+- Generate Rust `match` expressions with proper pattern translation
+- Semantic validation for switch expressions and guards
+- Full await detection for async switch expressions
+
+**Testing:**
+- Created `test_switch_expr.liva` with 5 comprehensive test cases
+- All patterns working: literals, ranges, guards, bindings, wildcards
+- Tested with integers, strings, booleans
+- All 5 tests passing ✅
+
+**Documentation:**
+- Complete language reference: `docs/language-reference/pattern-matching.md` (600+ lines)
+- Comprehensive design document: `docs/PHASE_6.4_PATTERN_MATCHING_DESIGN.md` (800+ lines)
+- Pattern types, guards, exhaustiveness, examples, best practices
+- Error codes: E6001 (non-exhaustive), E6002 (type mismatch), E6003 (invalid range)
+
+**Examples:**
+```liva
+// Basic literal matching
+let result = switch x {
+    1 => "one",
+    2 => "two",
+    _ => "other"
+};
+
+// Range patterns
+let grade = switch score {
+    90..=100 => "A",
+    80..=89 => "B",
+    70..=79 => "C",
+    _ => "F"
+};
+
+// Pattern guards
+let category = switch age {
+    x if x < 13 => "child",
+    x if x < 20 => "teenager",
+    x if x < 65 => "adult",
+    _ => "senior"
+};
+
+// Binding patterns
+let doubled = switch num {
+    0 => 0,
+    n => n * 2
+};
+```
+
+**Future Enhancements (v0.9.6+):**
+- Full exhaustiveness checking for all types
+- Tuple/array destructuring patterns
+- Enum variant patterns
+- Or patterns (`|` operator)
+
 ## [0.9.4] - 2025-01-21
 
 ### Added - File I/O Operations (Phase 6.2 - 2.5h)
