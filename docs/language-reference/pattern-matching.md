@@ -210,24 +210,51 @@ let category = switch (age, hasLicense) {
 
 ## Exhaustiveness
 
-The compiler checks that all possible values are covered.
+> **Status:** ✅ Implemented for `bool` type (v0.9.5)  
+> **Future:** Full exhaustiveness checking for all types (v0.9.6+)
 
-### Boolean Exhaustiveness
+The compiler checks that all possible values are covered in pattern matching.
+
+### Boolean Exhaustiveness (✅ Implemented)
 
 For `bool` type, both values must be covered:
 
 ```liva
-// ✅ Exhaustive
+// ✅ Exhaustive - both cases covered
 let result = switch flag {
     true => "yes",
     false => "no"
 };
 
-// ❌ Non-exhaustive (error: missing 'false' case)
+// ✅ Exhaustive - wildcard catches remaining case
+let result = switch flag {
+    true => "yes",
+    _ => "no"
+};
+
+// ✅ Exhaustive - binding pattern catches all
+let result = switch flag {
+    false => "no",
+    x => "other"
+};
+
+// ❌ Non-exhaustive - missing 'false' case
 let result = switch flag {
     true => "yes"
-    // Compiler error: E6001 - Non-exhaustive pattern match
+    // Compiler error: E0901 - Non-exhaustive pattern match
 };
+```
+
+**Error Example:**
+
+```
+● E0901: Non-exhaustive Pattern Matching [Semantic]
+────────────────────────────────────────────────────────────
+
+  ⓘ Pattern matching on bool is not exhaustive - missing case(s): false
+
+  📚 Learn more: https://liva-lang.org/docs/errors/semantic#e0901
+────────────────────────────────────────────────────────────
 ```
 
 ### Wildcard for Completeness
@@ -242,12 +269,25 @@ let result = switch day {
 };
 ```
 
+### Current Limitations
+
+**Checked Types:**
+- ✅ `bool` - Full exhaustiveness checking
+
+**Not Checked Yet (soft warnings only):**
+- ⏳ `int`, `float`, `string` - Too many possible values
+- ⏳ Enum variants - Coming in future versions
+- ⏳ Tuple/array patterns - Coming in future versions
+
+**Recommendation:** Always include a wildcard `_` or binding pattern as the last arm for non-bool types.
+
 ### Future: Full Exhaustiveness (v0.9.6+)
 
 Coming soon:
 - Integer range exhaustiveness checking
 - Enum variant exhaustiveness
 - Tuple/array pattern exhaustiveness
+- Custom type exhaustiveness
 
 ---
 

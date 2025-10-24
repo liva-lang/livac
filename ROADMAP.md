@@ -1100,17 +1100,19 @@ formatAndCompare<T: Comparable + Display>(a: T, b: T) { ... }
 - [x] Add code generation for Rust match expressions
 - [x] Create comprehensive test suite (5 tests)
 - [x] Write pattern matching guide (600+ lines)
-- [ ] Add exhaustiveness checking (deferred to v0.9.6)
+- [x] Add exhaustiveness checking for bool type (E0901)
+- [ ] Add full exhaustiveness checking for all types (deferred to v0.9.6)
 - [ ] Add array/tuple patterns (deferred to v0.9.6)
 
-**Completed:** 3 hours (2025-01-24)
+**Completed:** 3.5 hours (2025-01-24)
 **Delivered:**
 - Switch as expression (returns values)
 - 4 pattern types: literal, wildcard, binding, range
 - Pattern guards with if conditions
 - Rust match code generation
+- ✅ **Exhaustiveness checking for bool** (E0901 error)
 - Complete documentation (1,400+ lines)
-- Working test suite (5 comprehensive tests)
+- Working test suite (6 comprehensive tests)
 
 **Examples:**
 ```liva
@@ -1122,10 +1124,10 @@ let grade = switch score {
     _ => "Fail"
 };
 
-// Binding patterns
-let doubled = switch num {
-    0 => 0,
-    n => n * 2
+// Exhaustiveness checking (bool)
+let result = switch flag {
+    true => "yes",
+    false => "no"  // Both cases required!
 };
 ```
 
@@ -1135,7 +1137,7 @@ let doubled = switch num {
 - Enum variant patterns
 - Or patterns (`|` operator)
 
-**Estimated:** 3 hours
+**Estimated:** 3.5 hours
 
 ### 6.5 Destructuring Syntax
 - [ ] Design destructuring syntax for objects

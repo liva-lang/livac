@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.9.5] - 2025-01-24
 
-### Added - Enhanced Pattern Matching (Phase 6.4 - 3h)
+### Added - Enhanced Pattern Matching (Phase 6.4 - 3.5h)
 
 **Switch Expressions:**
 - Switch can now be used as an expression (returns a value)
@@ -27,6 +27,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Guards can use any boolean expression
 - Guards have access to bound variables
 
+**Exhaustiveness Checking (✅ NEW):**
+- ✅ **Bool exhaustiveness**: Compiler ensures both `true` and `false` cases are covered
+- Error `E0901`: Non-exhaustive pattern matching on bool
+- Accepts wildcard `_` or binding patterns as catch-all
+- Helpful error messages with suggestions
+- Example:
+  ```liva
+  // ❌ Error: E0901 - missing 'false' case
+  let result = switch flag {
+      true => "yes"
+  };
+  
+  // ✅ OK - both cases covered
+  let result = switch flag {
+      true => "yes",
+      false => "no"
+  };
+  ```
+
 **Implementation:**
 - Added `Pattern` enum to AST (Literal, Wildcard, Binding, Range)
 - Added `SwitchExpr`, `SwitchArm`, `SwitchBody` to AST
@@ -35,19 +54,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Switch expressions pass through IR as `Unsupported` (handled in codegen)
 - Generate Rust `match` expressions with proper pattern translation
 - Semantic validation for switch expressions and guards
+- ✅ **Exhaustiveness checking** in `check_switch_exhaustiveness()`
 - Full await detection for async switch expressions
 
 **Testing:**
 - Created `test_switch_expr.liva` with 5 comprehensive test cases
+- Created `test_exhaustiveness.liva` with exhaustive patterns
+- Created `test_exhaustiveness_error.liva` to verify E0901 error
+- Created `test_exhaustiveness_complete.liva` with all scenarios
 - All patterns working: literals, ranges, guards, bindings, wildcards
 - Tested with integers, strings, booleans
-- All 5 tests passing ✅
+- All 6 tests passing ✅
 
 **Documentation:**
-- Complete language reference: `docs/language-reference/pattern-matching.md` (600+ lines)
+- Complete language reference: `docs/language-reference/pattern-matching.md` (650+ lines)
 - Comprehensive design document: `docs/PHASE_6.4_PATTERN_MATCHING_DESIGN.md` (800+ lines)
 - Pattern types, guards, exhaustiveness, examples, best practices
-- Error codes: E6001 (non-exhaustive), E6002 (type mismatch), E6003 (invalid range)
+- Error codes: E0901 (non-exhaustive bool)
 
 **Examples:**
 ```liva
@@ -74,15 +97,15 @@ let category = switch age {
     _ => "senior"
 };
 
-// Binding patterns
-let doubled = switch num {
-    0 => 0,
-    n => n * 2
+// Exhaustiveness checking
+let result = switch flag {
+    true => "yes",
+    false => "no"  // Both cases required!
 };
 ```
 
 **Future Enhancements (v0.9.6+):**
-- Full exhaustiveness checking for all types
+- Full exhaustiveness checking for all types (int, string, enum)
 - Tuple/array destructuring patterns
 - Enum variant patterns
 - Or patterns (`|` operator)

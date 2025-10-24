@@ -1,0 +1,46 @@
+// Comprehensive exhaustiveness checking test
+// Tests: bool exhaustiveness, wildcard, binding patterns
+
+main() {
+    print("=== Exhaustiveness Checking Tests ===\n")
+    
+    // Test 1: Exhaustive bool (both cases)
+    let flag = true
+    let result1 = switch flag {
+        true => "affirmative",
+        false => "negative"
+    }
+    print($"Test 1 (both cases): {result1}")
+    
+    // Test 2: Exhaustive bool (wildcard)
+    let result2 = switch flag {
+        true => "yes",
+        _ => "other"
+    }
+    print($"Test 2 (wildcard): {result2}")
+    
+    // Test 3: Exhaustive bool (binding)
+    let result3 = switch flag {
+        false => "no",
+        x => "caught by binding"
+    }
+    print($"Test 3 (binding): {result3}")
+    
+    // Test 4: Exhaustive with guard
+    let result4 = switch flag {
+        x if x == true => "guarded true",
+        _ => "other"
+    }
+    print($"Test 4 (guard + wildcard): {result4}")
+    
+    // Test 5: Non-bool types (no exhaustiveness check yet)
+    let num = 5
+    let result5 = switch num {
+        1 => "one",
+        5 => "five",
+        _ => "other"
+    }
+    print($"Test 5 (int with wildcard): {result5}")
+    
+    print("\n✓ All exhaustiveness tests passed!")
+}

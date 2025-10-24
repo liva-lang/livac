@@ -1,0 +1,27 @@
+// Test exhaustiveness checking for switch expressions
+// Expected: Should compile successfully (all cases covered)
+
+main() {
+    let value = true
+    
+    // ✅ Exhaustive: covers both true and false
+    let result1 = switch value {
+        true => "yes",
+        false => "no"
+    }
+    print($"Boolean result: {result1}")
+    
+    // ✅ Exhaustive: has wildcard
+    let result2 = switch value {
+        true => "affirmative",
+        _ => "negative"
+    }
+    print($"With wildcard: {result2}")
+    
+    // ✅ Exhaustive: has binding pattern
+    let result3 = switch value {
+        false => "no",
+        x => "other"
+    }
+    print($"With binding: {result3}")
+}

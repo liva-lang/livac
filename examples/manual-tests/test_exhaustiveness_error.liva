@@ -1,0 +1,12 @@
+// Test exhaustiveness checking - should FAIL with E6001
+// Expected: E6001 error - non-exhaustive pattern matching
+
+main() {
+    let value = true
+    
+    // ❌ Non-exhaustive: missing false case
+    let result = switch value {
+        true => "yes"
+    }
+    print($"Result: {result}")
+}

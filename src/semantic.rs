@@ -1450,6 +1450,9 @@ impl SemanticAnalyzer {
                     }
                 }
                 
+                // Check exhaustiveness
+                self.check_switch_exhaustiveness(switch_expr)?;
+                
                 Ok(())
             }
         }
@@ -2446,6 +2449,94 @@ impl SemanticAnalyzer {
             TypeRef::Optional(inner) => self.validate_type_ref(inner, available_type_params),
             TypeRef::Fallible(inner) => self.validate_type_ref(inner, available_type_params),
         }
+    }
+
+    /// Check if switch expression patterns are exhaustive
+    fn check_switch_exhaustiveness(&self, switch_expr: &SwitchExpr) -> Result<()> {
+        // Check if there's a wildcard or binding pattern (catches all cases)
+        let has_catch_all = switch_expr.arms.iter().any(|arm| {
+            matches!(arm.pattern, Pattern::Wildcard | Pattern::Binding(_))
+        });
+
+        if has_catch_all {
+            return Ok(()); // Exhaustive with wildcard/binding
+        }
+
+        // Try to infer discriminant type from literal patterns
+        let discriminant_type = self.infer_switch_discriminant_type(switch_expr);
+
+        // Check exhaustiveness based on type
+        match discriminant_type.as_deref() {
+            Some("bool") => {
+                // Check if both true and false are covered
+                let mut has_true = false;
+                let mut has_false = false;
+
+                for arm in &switch_expr.arms {
+                    if let Pattern::Literal(Literal::Bool(val)) = &arm.pattern {
+                        if *val {
+                            has_true = true;
+                        } else {
+                            has_false = true;
+                        }
+                    }
+                }
+
+                if !has_true || !has_false {
+                    let missing = if !has_true && !has_false {
+                        "true and false"
+                    } else if !has_true {
+                        "true"
+                    } else {
+                        "false"
+                    };
+
+                    let mut error = SemanticErrorInfo::new(
+                        "E0901",
+                        "Non-exhaustive Pattern Matching",
+                        &format!("Pattern matching on bool is not exhaustive - missing case(s): {}", missing),
+                    );
+                    
+                    error.category = Some("Pattern Matching".to_string());
+                    error.hint = Some(format!("Add pattern `{}` or use wildcard `_` to catch remaining cases", missing));
+                    error.example = Some(format!(
+                        "switch value {{\n    true => \"yes\",\n    false => \"no\"\n}}\n// or\nswitch value {{\n    {} => \"...\",\n    _ => \"...\"\n}}",
+                        if !has_true { "true" } else { "false" }
+                    ));
+                    error.doc_link = Some("https://liva-lang.org/docs/pattern-matching#exhaustiveness".to_string());
+
+                    return Err(CompilerError::SemanticError(error));
+                }
+
+                Ok(())
+            }
+            _ => {
+                // For other types (int, string, etc.), we can't easily determine exhaustiveness
+                // without advanced type analysis. Suggest using a wildcard pattern.
+                // This is a soft warning - we don't enforce it for now.
+                Ok(())
+            }
+        }
+    }
+
+    /// Try to infer the type of the switch discriminant from its patterns
+    fn infer_switch_discriminant_type(&self, switch_expr: &SwitchExpr) -> Option<String> {
+        // Check first literal pattern to infer type
+        for arm in &switch_expr.arms {
+            if let Pattern::Literal(lit) = &arm.pattern {
+                return Some(match lit {
+                    Literal::Int(_) => "int".to_string(),
+                    Literal::Float(_) => "float".to_string(),
+                    Literal::String(_) => "string".to_string(),
+                    Literal::Bool(_) => "bool".to_string(),
+                    Literal::Char(_) => "char".to_string(),
+                });
+            }
+        }
+
+        // Could also check discriminant expression directly, but that requires
+        // more complex type inference. For now, we just use pattern hints.
+        None
     }
 }
 
