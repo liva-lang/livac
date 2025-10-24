@@ -448,6 +448,17 @@ impl JsonValue {
             _ => None,
         }
     }
+    
+    /// Convert to Vec for array operations (unwraps to empty vec if not array)
+    pub fn to_vec(&self) -> Vec<JsonValue> {
+        self.as_array().unwrap_or_else(Vec::new)
+    }
+    
+    /// Iterator method for array operations (forEach, map, filter)
+    /// Always returns a Vec iterator for consistency
+    pub fn iter(&self) -> std::vec::IntoIter<JsonValue> {
+        self.to_vec().into_iter()
+    }
 }
 
 impl std::fmt::Display for JsonValue {

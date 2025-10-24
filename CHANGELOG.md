@@ -7,6 +7,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.9] - 2025-01-25
+
+### Added - Arrow Functions for JSON Arrays (Phase 6.4.2 - 3h)
+
+**Full Array Method Support for JSON:**
+- ✅ **forEach with arrow functions**: `posts.forEach(post => print(post.title))`
+- ✅ **map**: `numbers.map(n => n * 2)` - Transform JSON arrays
+- ✅ **filter**: `numbers.filter(n => n > 25)` - Filter JSON arrays
+- ✅ **find/some/every**: Complete array method support
+- ✅ **Chaining**: `posts.filter(p => p.id > 5).forEach(p => print(p.title))`
+
+**Implementation Details:**
+
+**1. JsonValue Iterator Methods:**
+- Added `.iter()` → returns `std::vec::IntoIter<JsonValue>` (owned clones)
+- Added `.to_vec()` → converts to `Vec<JsonValue>`
+- JsonValue already implements `Clone`, so iteration clones values
+
+**2. Lambda Pattern Detection:**
+- Tracks which variables are JsonValue via `json_value_vars` HashSet
+- Detects when `map`/`filter`/`forEach` is called on JsonValue
+- For normal arrays: generates `|&item|` (borrow from iterator)
+- For JsonValue: generates `|item|` (owned values from `.iter()`)
+
+**3. Vec<JsonValue> Handling:**
+- Results of `.map()`/`.filter()` are `Vec<JsonValue>`
+- Tracked separately to handle iteration properly
+- Uses `.iter().cloned()` for Vec<JsonValue> to clone elements
+- Avoids `.copied()` (which only works for Copy types)
+
+**4. Type Conversion Methods:**
+- Added all conversion methods to generated JsonValue:
+  * `as_i32()`, `as_f64()`, `as_string()`, `as_bool()`
+  * `is_null()`, `is_array()`, `is_object()`
+  * `to_json_string()`
+- Prevents string literal conversion for `get`/`get_field` methods
+
+**Complete Example:**
+```liva
+main() {
+    // HTTP request (v0.9.6)
+    let res, err = async HTTP.get("https://jsonplaceholder.typicode.com/posts")
+    
+    if res.status == 200 {
+        // Natural JSON parsing (v0.9.8)
+        let posts = JSON.parse(res.body)
+        
+        // Arrow functions on JSON arrays (v0.9.9) ✅ NEW!
+        posts.forEach(post => {
+            print($"Post {post.id}: {post.title}")
+        })
+        
+        // Map and filter work too ✅ NEW!
+        let ids = posts.map(p => p.id)
+        let filtered = posts.filter(p => p.id > 5)
+        
+        filtered.forEach(p => print($"Filtered: {p.title}"))
+    }
+}
+```
+
+**Technical Highlights:**
+- Smart detection: distinguishes `JsonValue` (direct) from `Vec<JsonValue>` (derived)
+- Memory efficient: uses cloning only when necessary
+- Iterator consistency: `.iter()` on JsonValue matches `.into_iter()` semantics
+- No breaking changes: normal arrays continue working as before
+
+**Performance Notes:**
+- JsonValue.iter() clones elements (JsonValue contains serde_json::Value)
+- Acceptable for typical JSON use cases (small-medium datasets)
+- For large datasets, consider streaming or direct serde_json manipulation
+
 ## [0.9.8] - 2025-01-25
 
 ### Added - Natural JSON Syntax (Phase 6.4.1 - 2h)

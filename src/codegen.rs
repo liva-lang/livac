@@ -32,6 +32,7 @@ pub struct CodeGenerator {
     bracket_notation_vars: std::collections::HashSet<String>,
     class_instance_vars: std::collections::HashSet<String>,
     array_vars: std::collections::HashSet<String>, // Track which variables are arrays
+    json_value_vars: std::collections::HashSet<String>, // Track which variables are JsonValue
     // --- Class/type metadata (for inheritance and field resolution)
     class_fields: std::collections::HashMap<String, std::collections::HashSet<String>>,
     class_base: std::collections::HashMap<String, Option<String>>,
@@ -62,6 +63,7 @@ impl CodeGenerator {
             bracket_notation_vars: std::collections::HashSet::new(),
             class_instance_vars: std::collections::HashSet::new(),
             array_vars: std::collections::HashSet::new(),
+            json_value_vars: std::collections::HashSet::new(),
             class_fields: std::collections::HashMap::new(),
             class_base: std::collections::HashMap::new(),
             var_types: std::collections::HashMap::new(),
@@ -84,6 +86,37 @@ impl CodeGenerator {
         self.class_instance_vars.contains(var_name) ||
         // Temporary heuristic: single character variables are likely class instances
         var_name.len() == 1
+    }
+
+    /// Check if an expression is a JsonValue (for lambda pattern detection)
+    /// Returns true for both JsonValue direct and Vec<JsonValue>
+    fn is_json_value_expr(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Identifier(var_name) => self.json_value_vars.contains(var_name),
+            Expr::MethodCall(mc) => {
+                // If the method returns a JsonValue (e.g., .get_field(), .get())
+                matches!(mc.method.as_str(), "get" | "get_field") || self.is_json_value_expr(&mc.object)
+            }
+            _ => false,
+        }
+    }
+    
+    /// Check if an expression is a DIRECT JsonValue (not Vec<JsonValue>)
+    /// Direct means: from JSON.parse(), .get(), .get_field()
+    /// Not from: .map(), .filter() (those return Vec<JsonValue>)
+    fn is_direct_json_value(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Identifier(var_name) => {
+                // Check if it's in json_value_vars AND not in array_vars
+                // (array_vars includes Vec<JsonValue> from map/filter)
+                self.json_value_vars.contains(var_name) && !self.array_vars.contains(var_name)
+            }
+            Expr::MethodCall(mc) => {
+                // Only .get() and .get_field() return direct JsonValue
+                matches!(mc.method.as_str(), "get" | "get_field")
+            }
+            _ => false,
+        }
     }
 
     fn indent(&mut self) {
@@ -484,6 +517,62 @@ impl CodeGenerator {
         self.dedent();
         self.writeln("}");
         self.writeln("");
+        
+        // Type conversion methods
+        self.writeln("pub fn as_i32(&self) -> Option<i32> {");
+        self.indent();
+        self.writeln("self.0.as_i64().map(|n| n as i32)");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("pub fn as_f64(&self) -> Option<f64> {");
+        self.indent();
+        self.writeln("self.0.as_f64()");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("pub fn as_string(&self) -> Option<String> {");
+        self.indent();
+        self.writeln("match &self.0 {");
+        self.indent();
+        self.writeln("serde_json::Value::String(s) => Some(s.clone()),");
+        self.writeln("_ => None,");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("pub fn as_bool(&self) -> Option<bool> {");
+        self.indent();
+        self.writeln("self.0.as_bool()");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("pub fn is_null(&self) -> bool {");
+        self.indent();
+        self.writeln("self.0.is_null()");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("pub fn is_array(&self) -> bool {");
+        self.indent();
+        self.writeln("self.0.is_array()");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("pub fn is_object(&self) -> bool {");
+        self.indent();
+        self.writeln("self.0.is_object()");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("pub fn to_json_string(&self) -> String {");
+        self.indent();
+        self.writeln("self.0.to_string()");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        
         self.writeln("pub fn as_array(&self) -> Option<Vec<JsonValue>> {");
         self.indent();
         self.writeln("match &self.0 {");
@@ -494,9 +583,24 @@ impl CodeGenerator {
         self.writeln("}");
         self.dedent();
         self.writeln("}");
+        self.writeln("");
+        
+        // Add to_vec and iter methods for array operations
+        self.writeln("pub fn to_vec(&self) -> Vec<JsonValue> {");
+        self.indent();
+        self.writeln("self.as_array().unwrap_or_else(Vec::new)");
         self.dedent();
         self.writeln("}");
         self.writeln("");
+        self.writeln("pub fn iter(&self) -> std::vec::IntoIter<JsonValue> {");
+        self.indent();
+        self.writeln("self.to_vec().into_iter()");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        
         self.writeln("impl std::fmt::Display for JsonValue {");
         self.indent();
         self.writeln("fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {");
@@ -1514,6 +1618,12 @@ impl CodeGenerator {
                         else if let Expr::MethodCall(method_call) = &var.init {
                             if matches!(method_call.method.as_str(), "map" | "filter") {
                                 self.array_vars.insert(binding.name.clone());
+                                
+                                // If the method is called on a JsonValue, the result is also Vec<JsonValue>
+                                // BUT we need to mark it as json_value for proper forEach iteration
+                                if self.is_json_value_expr(&method_call.object) {
+                                    self.json_value_vars.insert(binding.name.clone());
+                                }
                             }
                         }
                         // Mark instances created via constructor call: let x = ClassName(...)
@@ -1546,6 +1656,9 @@ impl CodeGenerator {
                         );
                         
                         if is_json_parse {
+                            // Mark this variable as JsonValue for lambda pattern detection
+                            self.json_value_vars.insert(binding.name.clone());
+                            
                             // Generate: let posts = JSON.parse(body).0.expect("JSON parse failed");
                             self.generate_expr(&var.init)?;
                             self.output.push_str(".0.expect(\"JSON parse failed\")");
@@ -3005,29 +3118,51 @@ impl CodeGenerator {
         // Generate the object
         self.generate_expr(&method_call.object)?;
         
+        // Check if operating on JsonValue
+        let is_json_value = self.is_json_value_expr(&method_call.object);
+        let is_direct_json = self.is_direct_json_value(&method_call.object);
+        
         // Handle array methods with adapters
         match method_call.adapter {
             ArrayAdapter::Seq => {
-                // Sequential: use .iter() and handle references in lambdas
+                // Sequential: use .iter() but with special handling for JsonValue
                 match method_call.method.as_str() {
                     "map" => {
-                        // For map, use iter() and the lambda will work with &T
+                        // For map, use iter()
+                        // For Vec<JsonValue>, add .cloned() to clone elements
                         self.output.push_str(".iter()");
+                        if is_json_value && !is_direct_json {
+                            // Vec<JsonValue> needs cloned()
+                            self.output.push_str(".cloned()");
+                        }
                     }
                     "filter" => {
-                        // For filter, use iter() and work with references
-                        // We'll add .copied() after filter
+                        // For filter, use iter()
+                        // For Vec<JsonValue>, add .cloned() to clone elements
                         self.output.push_str(".iter()");
+                        if is_json_value && !is_direct_json {
+                            // Vec<JsonValue> needs cloned()
+                            self.output.push_str(".cloned()");
+                        }
                     }
                     "reduce" => {
                         // reduce doesn't use .iter() - it operates directly on the vector
                         // We use .fold() which requires initial value and accumulator
                     }
                     "forEach" => {
+                        // For forEach, use iter()
+                        // For Vec<JsonValue>, add .cloned() to clone elements
                         self.output.push_str(".iter()");
+                        if is_json_value && !is_direct_json {
+                            // Vec<JsonValue> needs cloned()
+                            self.output.push_str(".cloned()");
+                        }
                     }
                     "find" | "some" | "every" | "indexOf" | "includes" => {
                         self.output.push_str(".iter()");
+                        if is_json_value && !is_direct_json {
+                            self.output.push_str(".cloned()");
+                        }
                     }
                     _ => {
                         // For other methods, call directly
@@ -3105,13 +3240,13 @@ impl CodeGenerator {
             // Convert string literals to String for methods/functions
             // This avoids "expected String, found &str" errors
             if matches!(arg, Expr::Literal(Literal::String(_))) {
-                // For array methods (map/filter/etc), don't convert
-                let is_array_method = matches!(
+                // For array methods and JsonValue methods (get/get_field), don't convert
+                let is_array_or_json_method = matches!(
                     method_call.method.as_str(),
-                    "map" | "filter" | "reduce" | "forEach" | "find" | "some" | "every" | "indexOf" | "includes"
+                    "map" | "filter" | "reduce" | "forEach" | "find" | "some" | "every" | "indexOf" | "includes" | "get" | "get_field"
                 );
                 
-                if !is_array_method {
+                if !is_array_or_json_method {
                     self.generate_expr(arg)?;
                     self.output.push_str(".to_string()");
                     continue;
@@ -3120,10 +3255,14 @@ impl CodeGenerator {
             
             // For map/filter/reduce/forEach/find/some/every with .iter(), we need to dereference in the lambda
             // map: |&x| - filter: |&&x| - reduce: |acc, &x| - forEach: |&x| - find: |&&x| - some: |&&x| - every: |&&x|
+            // EXCEPTION: JsonValue.iter() returns owned values, so no dereferencing needed
             if (method_call.method == "map" || method_call.method == "filter" || method_call.method == "reduce" || method_call.method == "forEach" || method_call.method == "find" || method_call.method == "some" || method_call.method == "every") 
                 && matches!(method_call.adapter, ArrayAdapter::Seq) {
                 if let Expr::Lambda(lambda) = arg {
-                    // Generate lambda with pattern |&x| or |&&x| or |acc, &x|
+                    // Check if the object is a JsonValue (iter() returns owned values, not references)
+                    let is_json_value = self.is_json_value_expr(&method_call.object);
+                    
+                    // Generate lambda with pattern |&x| or |&&x| or |acc, &x| (unless JsonValue)
                     if lambda.is_move {
                         self.output.push_str("move ");
                     }
@@ -3138,17 +3277,22 @@ impl CodeGenerator {
                                 // Accumulator: no dereferencing
                                 self.output.push_str(&self.sanitize_name(&param.name));
                             } else {
-                                // Element: dereference once
-                                self.output.push('&');
+                                // Element: dereference once (unless JsonValue)
+                                if !is_json_value {
+                                    self.output.push('&');
+                                }
                                 self.output.push_str(&self.sanitize_name(&param.name));
                             }
                         } else {
                             // filter/find need && (closure takes &&T for filter/find)
                             // map/forEach/some/every need & (closure takes &T)
-                            if method_call.method == "filter" || method_call.method == "find" {
-                                self.output.push_str("&&");
-                            } else {
-                                self.output.push('&');
+                            // UNLESS it's JsonValue, then no dereferencing at all
+                            if !is_json_value {
+                                if method_call.method == "filter" || method_call.method == "find" {
+                                    self.output.push_str("&&");
+                                } else {
+                                    self.output.push('&');
+                                }
                             }
                             self.output.push_str(&self.sanitize_name(&param.name));
                         }
@@ -3194,22 +3338,32 @@ impl CodeGenerator {
         self.output.push(')');
         
         // Add transformations after the method call
+        let is_json_value = self.is_json_value_expr(&method_call.object);
+        
         match (method_call.adapter, method_call.method.as_str()) {
             // Sequential map: just collect (lambda already returns owned values)
             (ArrayAdapter::Seq, "map") => {
                 self.output.push_str(".collect::<Vec<_>>()");
             }
             // Sequential filter: copy values after filtering, then collect
+            // UNLESS it's JsonValue, which already returns owned values
             (ArrayAdapter::Seq, "filter") => {
-                self.output.push_str(".copied().collect::<Vec<_>>()");
+                if is_json_value {
+                    self.output.push_str(".collect::<Vec<_>>()");
+                } else {
+                    self.output.push_str(".copied().collect::<Vec<_>>()");
+                }
             }
             // Parallel map/filter with rayon
             (ArrayAdapter::Par, "map") | (ArrayAdapter::Par, "filter") => {
                 self.output.push_str(".cloned().collect::<Vec<_>>()");
             }
             // Find returns Option<&T>, copy it
+            // UNLESS it's JsonValue, which already returns owned values
             (_, "find") => {
-                self.output.push_str(".copied()");
+                if !is_json_value {
+                    self.output.push_str(".copied()");
+                }
             }
             // indexOf/position returns Option<usize>
             (_, "indexOf") => {
