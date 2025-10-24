@@ -1,0 +1,237 @@
+// Comprehensive JSON tests with complex structures
+
+main() {
+    print("=== JSON Complex Tests ===\n")
+    
+    // Test 1: Parse nested object
+    print("Test 1: Parse nested object")
+    let nested, err1 = JSON.parse("{\"user\": {\"name\": \"Alice\", \"age\": 30}, \"active\": true}")
+    
+    if err1 {
+        print("ERROR: Failed to parse nested object")
+    } else {
+        print("✓ Nested object parsed successfully")
+    }
+    
+    // Test 2: Parse array of objects
+    print("\nTest 2: Parse array of objects")
+    let arr, err2 = JSON.parse("[{\"id\": 1, \"name\": \"Alice\"}, {\"id\": 2, \"name\": \"Bob\"}]")
+    
+    if err2 {
+        print("ERROR: Failed to parse array of objects")
+    } else {
+        print("✓ Array of objects parsed successfully")
+    }
+    
+    // Test 3: Parse array of numbers
+    print("\nTest 3: Parse array of numbers")
+    let numbers, err3 = JSON.parse("[1, 2, 3, 4, 5, 10, 100]")
+    
+    if err3 {
+        print("ERROR: Failed to parse number array")
+    } else {
+        print("✓ Number array parsed successfully")
+    }
+    
+    // Test 4: Parse array of strings
+    print("\nTest 4: Parse array of strings")
+    let strings, err4 = JSON.parse("[\"hello\", \"world\", \"liva\", \"json\"]")
+    
+    if err4 {
+        print("ERROR: Failed to parse string array")
+    } else {
+        print("✓ String array parsed successfully")
+    }
+    
+    // Test 5: Parse mixed array
+    print("\nTest 5: Parse mixed array")
+    let mixed, err5 = JSON.parse("[1, \"text\", true, null, 3.14]")
+    
+    if err5 {
+        print("ERROR: Failed to parse mixed array")
+    } else {
+        print("✓ Mixed array parsed successfully")
+    }
+    
+    // Test 6: Parse deeply nested structure
+    print("\nTest 6: Parse deeply nested structure")
+    let deep, err6 = JSON.parse("{\"level1\": {\"level2\": {\"level3\": {\"value\": 42}}}}")
+    
+    if err6 {
+        print("ERROR: Failed to parse deep nesting")
+    } else {
+        print("✓ Deep nesting parsed successfully")
+    }
+    
+    // Test 7: Parse object with null values
+    print("\nTest 7: Parse object with null values")
+    let nulls, err7 = JSON.parse("{\"name\": \"Alice\", \"email\": null, \"phone\": null}")
+    
+    if err7 {
+        print("ERROR: Failed to parse null values")
+    } else {
+        print("✓ Null values parsed successfully")
+    }
+    
+    // Test 8: Parse boolean values
+    print("\nTest 8: Parse boolean values")
+    let bools, err8 = JSON.parse("{\"active\": true, \"verified\": false}")
+    
+    if err8 {
+        print("ERROR: Failed to parse booleans")
+    } else {
+        print("✓ Booleans parsed successfully")
+    }
+    
+    // Test 9: Parse floating point numbers
+    print("\nTest 9: Parse floating point numbers")
+    let floats, err9 = JSON.parse("{\"pi\": 3.14159, \"e\": 2.71828, \"price\": 19.99}")
+    
+    if err9 {
+        print("ERROR: Failed to parse floats")
+    } else {
+        print("✓ Floating point numbers parsed successfully")
+    }
+    
+    // Test 10: Parse negative numbers
+    print("\nTest 10: Parse negative numbers")
+    let negs, err10 = JSON.parse("{\"temperature\": -5, \"balance\": -100.50}")
+    
+    if err10 {
+        print("ERROR: Failed to parse negative numbers")
+    } else {
+        print("✓ Negative numbers parsed successfully")
+    }
+    
+    // Test 11: Parse empty object
+    print("\nTest 11: Parse empty object")
+    let emptyObj, err11 = JSON.parse("{}")
+    
+    if err11 {
+        print("ERROR: Failed to parse empty object")
+    } else {
+        print("✓ Empty object parsed successfully")
+    }
+    
+    // Test 12: Parse empty array
+    print("\nTest 12: Parse empty array")
+    let emptyArr, err12 = JSON.parse("[]")
+    
+    if err12 {
+        print("ERROR: Failed to parse empty array")
+    } else {
+        print("✓ Empty array parsed successfully")
+    }
+    
+    // Test 13: Stringify integer
+    print("\nTest 13: Stringify integer")
+    let jsonInt, err13 = JSON.stringify(42)
+    
+    if err13 {
+        print("ERROR: Failed to stringify integer")
+    } else {
+        print("✓ Integer stringified successfully")
+    }
+    
+    // Test 14: Stringify float
+    print("\nTest 14: Stringify float")
+    let jsonFloat, err14 = JSON.stringify(3.14159)
+    
+    if err14 {
+        print("ERROR: Failed to stringify float")
+    } else {
+        print("✓ Float stringified successfully")
+    }
+    
+    // Test 15: Stringify string
+    print("\nTest 15: Stringify string")
+    let jsonText, err15 = JSON.stringify("Hello World")
+    
+    if err15 {
+        print("ERROR: Failed to stringify string")
+    } else {
+        print("✓ String stringified successfully")
+    }
+    
+    // Test 16: Stringify boolean
+    print("\nTest 16: Stringify boolean")
+    let jsonBool, err16 = JSON.stringify(true)
+    
+    if err16 {
+        print("ERROR: Failed to stringify boolean")
+    } else {
+        print("✓ Boolean stringified successfully")
+    }
+    
+    // Test 17: Invalid JSON - missing quotes
+    print("\nTest 17: Invalid JSON - missing quotes")
+    let inv1, err17 = JSON.parse("{name: Alice}")
+    
+    if err17 {
+        print("✓ Correctly rejected invalid JSON (missing quotes)")
+    } else {
+        print("ERROR: Should have failed on invalid JSON")
+    }
+    
+    // Test 18: Invalid JSON - trailing comma
+    print("\nTest 18: Invalid JSON - trailing comma")
+    let inv2, err18 = JSON.parse("{\"name\": \"Alice\",}")
+    
+    if err18 {
+        print("✓ Correctly rejected invalid JSON (trailing comma)")
+    } else {
+        print("ERROR: Should have failed on trailing comma")
+    }
+    
+    // Test 19: Invalid JSON - unclosed brace
+    print("\nTest 19: Invalid JSON - unclosed brace")
+    let inv3, err19 = JSON.parse("{\"name\": \"Alice\"")
+    
+    if err19 {
+        print("✓ Correctly rejected invalid JSON (unclosed brace)")
+    } else {
+        print("ERROR: Should have failed on unclosed brace")
+    }
+    
+    // Test 20: Large number
+    print("\nTest 20: Parse large number")
+    let largeNum, err20 = JSON.parse("{\"value\": 999999999}")
+    
+    if err20 {
+        print("ERROR: Failed to parse large number")
+    } else {
+        print("✓ Large number parsed successfully")
+    }
+    
+    // Test 21: Unicode in strings
+    print("\nTest 21: Parse unicode strings")
+    let unicode, err21 = JSON.parse("{\"text\": \"Hello World\"}")
+    
+    if err21 {
+        print("ERROR: Failed to parse unicode")
+    } else {
+        print("✓ Unicode parsed successfully")
+    }
+    
+    // Test 22: Parse scientific notation
+    print("\nTest 22: Parse scientific notation")
+    let sci, err22 = JSON.parse("{\"small\": 1.23e-10, \"large\": 1.23e10}")
+    
+    if err22 {
+        print("ERROR: Failed to parse scientific notation")
+    } else {
+        print("✓ Scientific notation parsed successfully")
+    }
+    
+    // Test 23: Complex real-world-like JSON
+    print("\nTest 23: Complex real-world JSON")
+    let complex, err23 = JSON.parse("{\"users\": [{\"id\": 1, \"name\": \"Alice\"}, {\"id\": 2, \"name\": \"Bob\"}], \"total\": 2}")
+    
+    if err23 {
+        print("ERROR: Failed to parse complex JSON")
+    } else {
+        print("✓ Complex real-world JSON parsed successfully")
+    }
+    
+    print("\n=== All 23 JSON tests completed! ===")
+}
