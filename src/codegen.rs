@@ -46,6 +46,7 @@ pub struct CodeGenerator {
     error_binding_vars: std::collections::HashSet<String>, // Variables from error binding (second variable in let x, err = ...)
     option_value_vars: std::collections::HashSet<String>, // Variables from error binding (first variable in let value, err = ..., which is Option<T>)
     rust_struct_vars: std::collections::HashSet<String>, // Variables that are Rust structs (HTTP response, etc.), not JsonValue
+    typed_array_vars: std::collections::HashMap<String, String>, // Track arrays with element type: var_name -> element_class_name (e.g., "posts" -> "Post")
     // --- Phase 4: Join combining optimization
     #[allow(dead_code)]
     awaitable_tasks: Vec<String>, // Tasks that can be combined with tokio::join!
@@ -75,6 +76,7 @@ impl CodeGenerator {
             error_binding_vars: std::collections::HashSet::new(),
             option_value_vars: std::collections::HashSet::new(),
             rust_struct_vars: std::collections::HashSet::new(),
+            typed_array_vars: std::collections::HashMap::new(),
             awaitable_tasks: Vec::new(),
             trait_registry: TraitRegistry::new(),
         }
@@ -149,6 +151,16 @@ impl CodeGenerator {
                 false
             }
             _ => false
+        }
+    }
+    
+    /// Extract the base variable name from an expression
+    /// e.g., posts.parvec() -> "posts", myArray -> "myArray"
+    fn get_base_var_name(&self, expr: &Expr) -> Option<String> {
+        match expr {
+            Expr::Identifier(name) => Some(name.clone()),
+            Expr::MethodCall(mc) => self.get_base_var_name(&mc.object),
+            _ => None
         }
     }
     
@@ -1047,7 +1059,7 @@ impl CodeGenerator {
         Ok(())
     }
 
-    fn generate_field(&mut self, field: &FieldDecl, _needs_serde: bool) -> Result<()> {
+    fn generate_field(&mut self, field: &FieldDecl, needs_serde: bool) -> Result<()> {
         let vis = match field.visibility {
             Visibility::Public => "pub ",
             Visibility::Private => "",
@@ -1059,10 +1071,17 @@ impl CodeGenerator {
             "()".to_string()
         };
 
+        let field_name_rust = self.sanitize_name(&field.name);
+        
+        // If serde is needed and the original name differs from snake_case, add rename attribute
+        if needs_serde && field.name != field_name_rust {
+            self.writeln(&format!("#[serde(rename = \"{}\")]", field.name));
+        }
+        
         self.writeln(&format!(
             "{}{}: {},",
             vis,
-            self.sanitize_name(&field.name),
+            field_name_rust,
             type_str
         ));
         Ok(())
@@ -1595,6 +1614,21 @@ impl CodeGenerator {
                         // Check if this is an HTTP call - mark first binding as rust_struct
                         if self.is_http_call(&var.init) {
                             self.rust_struct_vars.insert(binding_names[0].clone());
+                        }
+                        
+                        // Check if this is typed JSON.parse with array type - track element type
+                        if is_typed_json_parse {
+                            if let Some(first_binding) = var.bindings.first() {
+                                if let Some(type_ref) = &first_binding.type_ref {
+                                    // Check if it's an array type like [Post]
+                                    if let TypeRef::Array(element_type) = type_ref {
+                                        if let TypeRef::Simple(class_name) = element_type.as_ref() {
+                                            // Track that this variable is an array of this class type
+                                            self.typed_array_vars.insert(binding_names[0].clone(), class_name.clone());
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -2140,11 +2174,7 @@ impl CodeGenerator {
                         
                         if is_struct_field {
                             // Convert camelCase to snake_case for Rust structs
-                            let rust_field = if property == "statusText" {
-                                "status_text"
-                            } else {
-                                property.as_str()
-                            };
+                            let rust_field = self.to_snake_case(property);
                             write!(self.output, "{}.as_ref().unwrap().{}", sanitized, rust_field).unwrap();
                             return Ok(());
                         }
@@ -2192,11 +2222,7 @@ impl CodeGenerator {
                                 || var_name.contains("user")
                             {
                                 // Convert camelCase to snake_case for Rust structs
-                                let rust_field = if property == "statusText" {
-                                    "status_text"
-                                } else {
-                                    property.as_str()
-                                };
+                                let rust_field = self.to_snake_case(property);
                                 write!(self.output, ".{}", rust_field).unwrap();
                                 return Ok(());
                             }
@@ -3443,6 +3469,18 @@ impl CodeGenerator {
             
             if needs_lambda_pattern {
                 if let Expr::Lambda(lambda) = arg {
+                    // Track lambda parameter types for typed arrays
+                    // If the object is a typed array (e.g., posts: [Post]), track that the param is Post
+                    if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
+                        if let Some(_element_type) = self.typed_array_vars.get(&base_var_name).cloned() {
+                            // Track the lambda parameter as an instance of this class type
+                            for param in &lambda.params {
+                                let param_name = self.sanitize_name(&param.name);
+                                self.class_instance_vars.insert(param_name);
+                            }
+                        }
+                    }
+                    
                     // Generate lambda with pattern |&x| or |&&x| or |acc, &x| (unless JsonValue)
                     if lambda.is_move {
                         self.output.push_str("move ");
@@ -3510,6 +3548,22 @@ impl CodeGenerator {
                         }
                     }
                     continue;
+                }
+            }
+            
+            // Track lambda parameter types for typed arrays BEFORE generating the lambda
+            // This handles ParVec/Par forEach/map/etc with typed arrays (not JsonValue)
+            if let Expr::Lambda(lambda) = arg {
+                if matches!(method_call.method.as_str(), "forEach" | "map" | "filter" | "reduce" | "find" | "some" | "every") {
+                    if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
+                        if let Some(_element_type) = self.typed_array_vars.get(&base_var_name).cloned() {
+                            // Track the lambda parameter as an instance of this class type
+                            for param in &lambda.params {
+                                let param_name = self.sanitize_name(&param.name);
+                                self.class_instance_vars.insert(param_name);
+                            }
+                        }
+                    }
                 }
             }
             
