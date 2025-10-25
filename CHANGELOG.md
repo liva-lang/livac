@@ -7,6 +7,183 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2025-01-25
+
+### Added - Typed JSON Parsing (Complete) 🎉
+
+**Type-Safe JSON Parsing with Type Hints:**
+- ✅ Parse JSON directly into typed values without `.as_i32().unwrap()` calls
+- ✅ Type hints support: `let data: [i32], err = JSON.parse(json)`
+- ✅ All Rust primitive types supported: i8-i128, u8-u128, isize, usize, f32, f64, bool, String
+- ✅ Arrays of typed values: `[i32]`, `[f64]`, `[String]`, etc.
+- ✅ **Custom classes with serde derives (Phase 2)**
+- ✅ **Nested classes with recursive dependency tracking (Phase 4)**
+- ✅ **Arrays of custom classes**
+- ✅ Clean error handling with `(Type, String)` tuple (no Option!)
+- ✅ Single binding mode: `let data: [i32] = JSON.parse(json)` (panics on error)
+
+**Example Usage - Primitives and Arrays:**
+```liva
+// OLD syntax (v0.9.x) - verbose with .unwrap()
+let data = JSON.parse("[1, 2, 3]")
+let doubled = data.map(n => n.as_i32().unwrap() * 2)
+
+// NEW syntax (v0.10.0) - clean and type-safe! ✨
+let data: [i32], err = JSON.parse("[1, 2, 3]")
+let doubled = data.map(n => n * 2)  // No .unwrap() needed!
+```
+
+**Example Usage - Custom Classes (Phase 2):**
+```liva
+User {
+    id: u32
+    name: String
+    age: i32
+}
+
+let userJson = "{\"id\": 1, \"name\": \"Alice\", \"age\": 30}"
+let user: User, err = JSON.parse(userJson)
+
+if err == "" {
+    print($"User: {user.name}, age {user.age}")  // Direct field access!
+}
+```
+
+**Example Usage - Nested Classes (Phase 4):**
+```liva
+Address {
+    street: String
+    city: String
+}
+
+User {
+    name: String
+    address: Address    // Nested class
+}
+
+Comment {
+    text: String
+    author: String
+}
+
+Post {
+    title: String
+    comments: [Comment]  // Array of classes
+}
+
+let json = "{\"title\": \"Hello\", \"comments\": [{\"text\": \"Great!\", \"author\": \"Bob\"}]}"
+let post: Post, err = JSON.parse(json)
+// Both Post and Comment automatically get serde derives!
+```
+
+**Phase 1 - Primitives and Arrays (4.5h):**
+- Parser: Type hints already supported in let statements
+- Semantic: `validate_json_parse_type_hint()` validates serializable types
+- Codegen: Generates `serde_json::from_str::<T>` with proper error handling
+- Support for all Rust integer types, floats, bool, String
+- Arrays: `[T]` maps to `Vec<T>`
+
+**Phase 2 - Custom Classes (1h):**
+- AST: Added `needs_serde: bool` to `ClassDecl`
+- Semantic: Tracks classes used with JSON.parse in `json_classes` HashSet
+- Semantic: `mark_json_classes()` updates AST before codegen
+- Codegen: Conditional serde derives: `#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]`
+- Codegen: Tracks class instances in `class_instance_vars` for proper member access
+- Cargo.toml: Automatically adds `serde = { version = "1.0", features = ["derive"] }`
+- Note: Field names must match JSON keys exactly (no automatic camelCase/snake_case conversion)
+
+**Phase 4 - Nested Classes (30min):**
+- Semantic: `collect_class_dependencies()` - Recursively finds all class dependencies
+- Semantic: `collect_type_dependencies()` - Handles TypeRef (Simple, Array, Optional)
+- Semantic: `is_class_type()` - Distinguishes classes from primitives
+- All dependent classes automatically get serde derives
+- Supports arbitrary nesting depth
+- Supports arrays of nested classes: `[Comment]` inside `Post`
+
+**Semantic Validation:**
+- Validates that types used with JSON.parse are serializable
+- Recursive validation for arrays, optionals, and generics
+- Checks class existence for custom types
+- Validates nested class dependencies exist
+
+**Code Generation:**
+- Generates `serde_json::from_str::<T>(&json)` instead of JsonValue wrapper
+- Error handling: `match` expression with Ok/Err branches
+- Default values on error: Vec::new(), 0, 0.0, false, String::new(), Default::default()
+- Single binding: generates `.expect("JSON parse failed")` for simplicity
+- Direct field access for class instances (no `.get_field()`)
+
+**Files Modified:**
+- `src/ast.rs`: Added `needs_serde` field to ClassDecl
+- `src/semantic.rs`: Added validation and dependency tracking (lines 2687-2840)
+- `src/codegen.rs`: Added typed JSON parsing and serde support (lines 119-162, 1540-1720)
+- `Cargo.toml`: Template updated to include serde dependency
+
+**Test Files:**
+- `test_json_typed_parse.liva`: Primitives and arrays
+- `test_json_class_basic.liva`: Simple custom classes
+- `test_json_snake_case.liva`: Field name matching demo
+- `test_json_nested.liva`: Nested classes (User with Address)
+- `test_json_nested_arrays.liva`: Arrays of nested classes (Post with [Comment])
+
+**Documentation:**
+- `/docs/language-reference/json.md`: Updated to v0.10.0 with comprehensive type-safe parsing section
+- `/docs/guides/json-typed-parsing.md`: New 400+ line guide with examples, best practices, and troubleshooting
+
+**Breaking Changes:**
+- None! Old JsonValue syntax still works for untyped parsing
+
+**Known Limitations:**
+- Lambda parameters in forEach/map don't track class types (requires full type inference)
+- Optional fields (`field?: Type`) not yet supported - use manual Option<T> workaround if needed
+
+**Phase 3 Skipped:**
+- Optional fields deferred as general language feature (not JSON-specific)
+- `tests/integration/proj_json/test_map.liva`: Updated
+- `tests/integration/proj_json/test_parvec_json.liva`: Updated
+
+**Coming in Phase 2:**
+- Custom classes with serde derive
+- Snake_case field conversion
+- Optional fields with `field?: Type`
+- Default values with `field: Type = value`
+- Nested classes
+
+## [0.9.11] - 2025-01-25
+
+### Fixed - JsonValue Parallel Execution
+
+**JsonValue.parvec() Support:**
+- ✅ Fixed parallel execution for JsonValue from JSON.parse()
+- JsonValue now converts to Vec with `.to_vec().into_par_iter()` instead of `.par_iter()`
+- Lambda patterns correctly use `|x|` (owned) instead of `|&x|` (reference) for JsonValue parallel iteration
+- Complete HTTP → JSON → parvec workflow now fully functional
+
+**Code Generation Improvements:**
+- Detect `is_direct_json` flag for JsonValue from JSON.parse()
+- Par/ParVec adapters: generate `.to_vec().into_par_iter()` for JsonValue
+- Lambda pattern generation: extended to handle Par/ParVec with JsonValue (no & prefix)
+
+**Example Usage:**
+```liva
+// Complete integration: HTTP + JSON + Parallel Processing
+async fn fetch_and_process() {
+    let res, err = async HTTP.get("https://jsonplaceholder.typicode.com/posts")
+    let posts = JSON.parse(res.body)
+    
+    // Parallel processing of JSON array - NOW WORKS! ✅
+    posts.parvec().forEach(post => {
+        console.log($"Post {post.id}: {post.title}")
+    })
+}
+```
+
+**Technical Details:**
+- JsonValue is a wrapper over serde_json::Value, not a Vec
+- `.par_iter()` requires IntoParallelRefIterator trait (not satisfied)
+- `.to_vec().into_par_iter()` returns owned values (IntoParIter<JsonValue>)
+- Lambda receives owned JsonValue, not reference
+
 ## [0.9.10] - 2025-01-25
 
 ### Fixed - Parser and Concurrency Support (Phase 6.4.3 - 2h)

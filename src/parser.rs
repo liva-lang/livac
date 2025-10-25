@@ -338,6 +338,7 @@ impl Parser {
                 type_params,
                 base,
                 members,
+                needs_serde: false,  // Will be set by semantic analyzer if used with JSON.parse
             }));
         }
 

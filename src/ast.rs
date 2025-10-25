@@ -84,6 +84,8 @@ pub struct ClassDecl {
     pub type_params: Vec<TypeParameter>,  // Generic type parameters
     pub base: Option<String>,
     pub members: Vec<Member>,
+    #[serde(default)]
+    pub needs_serde: bool,  // Phase 2: true if used with JSON.parse
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

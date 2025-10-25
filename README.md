@@ -1302,6 +1302,7 @@ livac/
 - ✅ Pattern matching (switch expressions, guards, ranges, exhaustiveness)
 
 **Standard Library:**
+- ✅ **Type-Safe JSON Parsing (v0.10.0)** - Parse JSON with type hints, custom classes, nested objects
 - ✅ JSON parsing and serialization (`JSON.parse`, `JSON.stringify`)
 - ✅ File I/O operations (`File.read`, `File.write`, `File.append`, `File.delete`, `File.exists`)
 - ✅ HTTP Client (`HTTP.get`, `HTTP.post`, `HTTP.put`, `HTTP.delete`)
@@ -1348,24 +1349,29 @@ livac/
 
 ### 📋 Roadmap
 
-**v0.9.x - Incremental Improvements** 🎯 IN PROGRESS
+**v0.9.x - Incremental Improvements** ✅ COMPLETE
 - ✅ JSON parsing & serialization (v0.9.3)
 - ✅ File I/O operations (v0.9.4)
 - ✅ Enhanced pattern matching (v0.9.5)
 - ✅ HTTP Client (v0.9.6)
-- 🔄 Destructuring syntax (v0.9.7)
-- 🔄 Spread operators (v0.9.8)
 
-**v0.10.0 - Compiler Optimizations** (Planned Q1 2026)
+**v0.10.0 - Type-Safe JSON Parsing** ✅ RELEASED (2025-01-25)
+- ✅ Typed JSON parsing with type hints
+- ✅ Custom classes with serde derives
+- ✅ Nested classes with recursive dependency tracking
+- ✅ Arrays of custom classes
+- ✅ Comprehensive documentation and guides
+
+**v0.11.0 - Compiler Optimizations** (Planned Q2 2025)
 - Benchmark suite for compilation and runtime
 - Dead code elimination
 - Constant folding and propagation
 - Incremental compilation
 - Code coverage analysis
 
-**v1.0.0 - Advanced Features** (Planned Q1 2026)
-- Pattern matching (`match` expressions)
-- Trait refinements
+**v1.0.0 - Advanced Features** (Planned Q3 2025)
+- Pattern matching refinements
+- Trait system enhancements
 - Macro system (hygenic)
 - Language Server Protocol (LSP)
 - Package manager integration

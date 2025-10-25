@@ -1,10 +1,10 @@
-// Test 5: map on JSON arrays
+// Test 5: map on JSON arrays with typed parsing
 main() {
     let json_str = "[1, 2, 3, 4, 5]"
-    let numbers = JSON.parse(json_str)
+    let numbers: [i32], err = JSON.parse(json_str)
     
-    print($"Test 5: map on JSON")
-    let doubled = numbers.map(n => n.as_i32().unwrap() * 2)
+    print($"Test 5: map on JSON with typed parsing")
+    let doubled = numbers.map(n => n * 2)
     
     print($"Original:")
     numbers.forEach(n => print($"  {n}"))

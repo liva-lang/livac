@@ -17,21 +17,25 @@ expression: json
                 "expr": {
                   "Call": {
                     "callee": {
-                      "Member": {
+                      "MethodCall": {
                         "object": {
                           "Identifier": "http"
                         },
-                        "property": "get"
+                        "method": "get",
+                        "args": [
+                          {
+                            "Literal": {
+                              "String": "url"
+                            }
+                          }
+                        ],
+                        "adapter": "seq",
+                        "adapter_options": {}
                       }
                     },
-                    "args": [
-                      {
-                        "Literal": {
-                          "String": "url"
-                        }
-                      }
-                    ],
-                    "exec_policy": "async"
+                    "args": [],
+                    "exec_policy": "async",
+                    "type_args": []
                   }
                 }
               }
@@ -65,7 +69,8 @@ expression: json
                       "Identifier": "fetchData"
                     },
                     "args": [],
-                    "exec_policy": "normal"
+                    "exec_policy": "normal",
+                    "type_args": []
                   }
                 },
                 "is_fallible": false
@@ -83,7 +88,8 @@ expression: json
                         "Identifier": "data"
                       }
                     ],
-                    "exec_policy": "normal"
+                    "exec_policy": "normal",
+                    "type_args": []
                   }
                 }
               }

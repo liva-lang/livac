@@ -1,38 +1,31 @@
 // Example: JSON with Arrow Functions
-// Demonstrates v0.9.9 features: forEach, map, filter with arrow functions
+// Demonstrates v0.10.0 features: Typed JSON parsing + arrow functions
 
 main() {
-    print($"=== JSON Arrow Functions Example ===\n")
+    print($"=== JSON Arrow Functions Example (v0.10.0) ===")
     
-    // 1. forEach - Iterate with arrow function
-    print($"1. forEach:")
+    // 1. Typed parsing - Clean syntax!
+    print($"1. Typed parsing:")
     let numbersJson = "[10, 20, 30, 40, 50]"
-    let numbers = JSON.parse(numbersJson)
+    let numbers: [i32], err = JSON.parse(numbersJson)
     numbers.forEach(n => print($"  Number: {n}"))
     
-    // 2. map - Transform array
-    print($"\n2. map (double each number):")
-    let doubled = numbers.map(n => n.as_i32().unwrap() * 2)
+    // 2. map - Transform array (no .unwrap()!)
+    print($"2. map (double each number):")
+    let doubled = numbers.map(n => n * 2)
     doubled.forEach(n => print($"  {n}"))
     
-    // 3. filter - Select items
-    print($"\n3. filter (values > 25):")
-    let filtered = numbers.filter(n => n.as_i32().unwrap() > 25)
-    filtered.forEach(n => print($"  {n}"))
-    
-    // 4. Multiple operations
-    print($"\n4. Multiple map operations:")
-    let tripled = numbers.map(n => n.as_i32().unwrap() * 3)
+    // 3. map - Triple the numbers
+    print($"3. map (triple):")
+    let tripled = numbers.map(n => n * 3)
     tripled.forEach(n => print($"  {n}"))
     
-    // 5. Working with objects
-    print($"\n5. Array of objects:")
-    let productsJson = "[{\"id\": 1, \"name\": \"Apple\", \"price\": 1.20}, {\"id\": 2, \"name\": \"Banana\", \"price\": 0.50}]"
-    let products = JSON.parse(productsJson)
+    // 4. Parse floats
+    print($"4. Parse floats:")
+    let floatsJson = "[1.5, 2.7, 3.9]"
+    let floats: [f64], err2 = JSON.parse(floatsJson)
+    floats.forEach(f => print($"  {f}"))
     
-    products.forEach(p => {
-        let name = p.get_field("name").unwrap()
-        let price = p.get_field("price").unwrap()
-        print($"  {name}: ${price}")
-    })
+    print($"✓ Complete!")
+    print($"✨ Notice: No .asInt().unwrap() needed with typed JSON parsing!")
 }

@@ -7,6 +7,7 @@ expression: json
     {
       "Class": {
         "name": "Persona",
+        "type_params": [],
         "base": null,
         "members": [
           {
@@ -121,7 +122,8 @@ expression: json
                       "Identifier": "Persona"
                     },
                     "args": [],
-                    "exec_policy": "normal"
+                    "exec_policy": "normal",
+                    "type_args": []
                   }
                 },
                 "is_fallible": false

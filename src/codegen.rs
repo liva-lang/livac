@@ -118,6 +118,41 @@ impl CodeGenerator {
             _ => false,
         }
     }
+    
+    /// Check if expression is JSON.parse method call (Phase 1: JSON Typed Parsing)
+    fn is_json_parse_call(&self, expr: &Expr) -> bool {
+        matches!(expr, 
+            Expr::MethodCall(mc) if matches!(&*mc.object, Expr::Identifier(id) if id == "JSON") && mc.method == "parse"
+        )
+    }
+    
+    /// Generate typed JSON parsing code (Phase 1: JSON Typed Parsing)
+    /// Generates: serde_json::from_str::<Type>(&json_string)
+    fn generate_typed_json_parse(&mut self, method_call: &MethodCallExpr, type_ref: &TypeRef) -> Result<()> {
+        // Convert Liva type to Rust type
+        let rust_type = type_ref.to_rust_type();
+        
+        // Generate: serde_json::from_str::<RustType>(&json_arg)
+        self.output.push_str("serde_json::from_str::<");
+        self.output.push_str(&rust_type);
+        self.output.push_str(">(&");
+        
+        // Generate the JSON string argument
+        if let Some(arg) = method_call.args.first() {
+            self.generate_expr(arg)?;
+        } else {
+            return Err(CompilerError::CodegenError(
+                SemanticErrorInfo::new(
+                    "E3001",
+                    "JSON.parse requires a string argument",
+                    "JSON.parse must be called with a JSON string"
+                )
+            ));
+        }
+        
+        self.output.push(')');
+        Ok(())
+    }
 
     fn indent(&mut self) {
         self.indent_level += 1;
@@ -690,7 +725,7 @@ impl CodeGenerator {
 
         for member in &type_decl.members {
             if let Member::Field(field) = member {
-                self.generate_field(field)?;
+                self.generate_field(field, false)?;  // TypeDecl doesn't need serde
             }
         }
 
@@ -739,22 +774,29 @@ impl CodeGenerator {
             String::new()
         };
         
+        // Phase 2: Generate serde derives if class is used with JSON.parse
+        let derives = if class.needs_serde {
+            "#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]"
+        } else {
+            "#[derive(Debug, Clone, Default)]"
+        };
+        
         // Handle inheritance with composition
         if let Some(base) = &class.base {
             self.writeln(&format!("// Class {} extends {}", class.name, base));
-            self.writeln("#[derive(Debug, Clone, Default)]");
+            self.writeln(derives);
             self.writeln(&format!("pub struct {}{} {{", class.name, type_params_str));
             self.indent();
             self.writeln(&format!("pub base: {},", base));
         } else {
-            self.writeln("#[derive(Debug, Clone, Default)]");
+            self.writeln(derives);
             self.writeln(&format!("pub struct {}{} {{", class.name, type_params_str));
             self.indent();
         }
 
         for member in &class.members {
             if let Member::Field(field) = member {
-                self.generate_field(field)?;
+                self.generate_field(field, class.needs_serde)?;
             }
         }
 
@@ -979,7 +1021,7 @@ impl CodeGenerator {
         Ok(())
     }
 
-    fn generate_field(&mut self, field: &FieldDecl) -> Result<()> {
+    fn generate_field(&mut self, field: &FieldDecl, _needs_serde: bool) -> Result<()> {
         let vis = match field.visibility {
             Visibility::Public => "pub ",
             Visibility::Private => "",
@@ -1508,17 +1550,21 @@ impl CodeGenerator {
 
                     // Check if the init expression returns a tuple directly (before tracking)
                     let returns_tuple = self.is_builtin_conversion_call(&var.init);
+                    
+                    // Phase 1: Check if this is typed JSON.parse (returns direct values, not Option)
+                    let is_typed_json_parse = self.is_json_parse_call(&var.init) 
+                        && var.bindings.first().and_then(|b| b.type_ref.as_ref()).is_some();
 
                     // Phase 3: Track the error variable (second binding) as Option<String>
-                    // BUT: Only track as Option if NOT a tuple-returning function
+                    // BUT: Only track as Option if NOT a tuple-returning function AND NOT typed JSON.parse
                     // Tuple functions return (Option<T>, String) - err is String, not Option
-                    if binding_names.len() == 2 && !returns_tuple {
+                    // Typed JSON.parse returns (T, String) - value is T, not Option<T>
+                    if binding_names.len() == 2 && !returns_tuple && !is_typed_json_parse {
                         self.error_binding_vars.insert(binding_names[1].clone());
                         self.option_value_vars.insert(binding_names[0].clone()); // Also track the value (first binding)
-                    } else if binding_names.len() == 2 && returns_tuple {
-                        // For tuple-returning functions: response is Option<T>, err is String
-                        self.option_value_vars.insert(binding_names[0].clone()); // response is Option<T>
-                        // err is String - don't add to error_binding_vars
+                    } else if binding_names.len() == 2 && (returns_tuple || is_typed_json_parse) {
+                        // For tuple-returning functions AND typed JSON.parse: response is T (not Option), err is String
+                        // Don't add to option_value_vars or error_binding_vars
                     }
 
                     if let Some(exec_policy) = task_exec_policy {
@@ -1559,7 +1605,56 @@ impl CodeGenerator {
                             // Check if the expression is a built-in conversion function that returns a tuple
                             let returns_tuple = self.is_builtin_conversion_call(&var.init);
                             
-                            if returns_tuple {
+                            // Phase 1: Check if this is JSON.parse with type hint
+                            let is_json_parse = self.is_json_parse_call(&var.init);
+                            let has_type_hint = var.bindings.first().and_then(|b| b.type_ref.as_ref()).is_some();
+                            
+                            if is_json_parse && has_type_hint {
+                                // Typed JSON parsing with error binding: let nums: [i32], err = JSON.parse("[1,2,3]")
+                                // Generate: let (nums, err): (Vec<i32>, String) = match serde_json::from_str::<Vec<i32>>(...) { Ok(v) => (v, String::new()), Err(e) => (Vec::new(), format!("{}", e)) };
+                                let type_ref = var.bindings.first().unwrap().type_ref.as_ref().unwrap();
+                                let rust_type = type_ref.to_rust_type();
+                                
+                                write!(self.output, "): ({}, String) = match ", rust_type).unwrap();
+                                
+                                if let Expr::MethodCall(method_call) = &var.init {
+                                    self.generate_typed_json_parse(method_call, type_ref)?;
+                                }
+                                
+                                // Generate default value for error case
+                                let default_value = match type_ref {
+                                    TypeRef::Array(_) => "Vec::new()".to_string(),
+                                    TypeRef::Optional(_) => "None".to_string(),
+                                    TypeRef::Simple(name) => match name.as_str() {
+                                        "int" | "i8" | "i16" | "i32" | "i64" | "i128" |
+                                        "u8" | "u16" | "u32" | "u64" | "u128" | "usize" | "isize" => "0".to_string(),
+                                        "float" | "f32" | "f64" => "0.0".to_string(),
+                                        "bool" => "false".to_string(),
+                                        "string" | "String" => "String::new()".to_string(),
+                                        _ => "Default::default()".to_string(),
+                                    },
+                                    _ => "Default::default()".to_string(),
+                                };
+                                
+                                write!(self.output, " {{ Ok(v) => (v, String::new()), Err(e) => ({}, format!(\"JSON parse error: {{}}\", e)) }};\n", default_value).unwrap();
+                                
+                                // Phase 2.2: Track class instances for proper member access codegen
+                                if let TypeRef::Simple(class_name) = type_ref {
+                                    // Check if this is a class type (not a primitive)
+                                    if self.class_fields.contains_key(class_name) {
+                                        let binding = &var.bindings[0];
+                                        self.class_instance_vars.insert(self.sanitize_name(&binding.name));
+                                    }
+                                } else if let TypeRef::Array(elem_type) = type_ref {
+                                    // Track array element type if it's a class
+                                    if let TypeRef::Simple(class_name) = elem_type.as_ref() {
+                                        if self.class_fields.contains_key(class_name) {
+                                            let binding = &var.bindings[0];
+                                            self.array_vars.insert(self.sanitize_name(&binding.name));
+                                        }
+                                    }
+                                }
+                            } else if returns_tuple {
                                 // Built-in conversion functions (parseInt, parseFloat) already return (value, Option<Error>)
                                 // Generate: let (value, err) = expr;
                                 self.output.push_str(") = ");
@@ -1656,13 +1751,19 @@ impl CodeGenerator {
 
                         self.output.push_str(" = ");
                         
-                        // Check if this is JSON.parse without error binding
-                        // If so, unwrap the result automatically
-                        let is_json_parse = matches!(&var.init, 
-                            Expr::MethodCall(mc) if matches!(&*mc.object, Expr::Identifier(id) if id == "JSON") && mc.method == "parse"
-                        );
+                        // Phase 1: Check if this is JSON.parse with type hint (typed parsing)
+                        let is_json_parse = self.is_json_parse_call(&var.init);
+                        let has_type_hint = binding.type_ref.is_some();
                         
-                        if is_json_parse {
+                        if is_json_parse && has_type_hint {
+                            // Typed JSON parsing: let nums: [i32] = JSON.parse("[1,2,3]")
+                            // Generate: let nums: Vec<i32> = serde_json::from_str::<Vec<i32>>(&"[1,2,3]").expect("JSON parse failed");
+                            if let Expr::MethodCall(method_call) = &var.init {
+                                self.generate_typed_json_parse(method_call, binding.type_ref.as_ref().unwrap())?;
+                                self.output.push_str(".expect(\"JSON parse failed\")");
+                            }
+                        } else if is_json_parse {
+                            // Untyped JSON parsing (original behavior): let data = JSON.parse(body)
                             // Mark this variable as JsonValue for lambda pattern detection
                             self.json_value_vars.insert(binding.name.clone());
                             
@@ -3178,7 +3279,12 @@ impl CodeGenerator {
             }
             ArrayAdapter::Par => {
                 // Parallel: use rayon's .par_iter()
-                self.output.push_str(".par_iter()");
+                // For JsonValue, need to convert to Vec first
+                if is_direct_json {
+                    self.output.push_str(".to_vec().into_par_iter()");
+                } else {
+                    self.output.push_str(".par_iter()");
+                }
                 
                 // TODO: Handle adapter options (threads, chunk, ordered)
                 if method_call.adapter_options.threads.is_some()
@@ -3195,8 +3301,12 @@ impl CodeGenerator {
             }
             ArrayAdapter::ParVec => {
                 // Parallel + Vectorized: use rayon parallel iterator
-                // Same as Par for now, uses references
-                self.output.push_str(".par_iter()");
+                // For JsonValue, need to convert to Vec first
+                if is_direct_json {
+                    self.output.push_str(".to_vec().into_par_iter()");
+                } else {
+                    self.output.push_str(".par_iter()");
+                }
                 // TODO: Implement SIMD optimizations on top of parallel
             }
         }
@@ -3263,13 +3373,16 @@ impl CodeGenerator {
             
             // For map/filter/reduce/forEach/find/some/every with .iter(), we need to dereference in the lambda
             // map: |&x| - filter: |&&x| - reduce: |acc, &x| - forEach: |&x| - find: |&&x| - some: |&&x| - every: |&&x|
-            // EXCEPTION: JsonValue.iter() returns owned values, so no dereferencing needed
-            if (method_call.method == "map" || method_call.method == "filter" || method_call.method == "reduce" || method_call.method == "forEach" || method_call.method == "find" || method_call.method == "some" || method_call.method == "every") 
-                && matches!(method_call.adapter, ArrayAdapter::Seq) {
+            // EXCEPTION: JsonValue.iter() and JsonValue.to_vec().into_par_iter() return owned values, so no dereferencing needed
+            // For parallel: .par_iter() uses &T, but .into_par_iter() (from .to_vec()) uses T (owned)
+            let is_json_value = self.is_json_value_expr(&method_call.object);
+            let needs_lambda_pattern = 
+                (method_call.method == "map" || method_call.method == "filter" || method_call.method == "reduce" || method_call.method == "forEach" || method_call.method == "find" || method_call.method == "some" || method_call.method == "every")
+                && (matches!(method_call.adapter, ArrayAdapter::Seq) 
+                    || (matches!(method_call.adapter, ArrayAdapter::Par | ArrayAdapter::ParVec) && is_json_value));
+            
+            if needs_lambda_pattern {
                 if let Expr::Lambda(lambda) = arg {
-                    // Check if the object is a JsonValue (iter() returns owned values, not references)
-                    let is_json_value = self.is_json_value_expr(&method_call.object);
-                    
                     // Generate lambda with pattern |&x| or |&&x| or |acc, &x| (unless JsonValue)
                     if lambda.is_move {
                         self.output.push_str("move ");
@@ -4393,6 +4506,11 @@ impl CodeGenerator {
         }
 
         result
+    }
+
+    /// Check if a string is in camelCase (has uppercase letters that aren't at the start)
+    fn is_camel_case(&self, s: &str) -> bool {
+        s.chars().enumerate().any(|(i, ch)| i > 0 && ch.is_uppercase())
     }
 }
 
@@ -7129,7 +7247,8 @@ pub fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
     // Always add tokio since liva_rt uses it
     cargo_toml.push_str("tokio = { version = \"1\", features = [\"full\"] }\n");
 
-    // Add serde_json for object literals
+    // Add serde and serde_json (serde needed for derive macros in Phase 2)
+    cargo_toml.push_str("serde = { version = \"1.0\", features = [\"derive\"] }\n");
     cargo_toml.push_str("serde_json = \"1.0\"\n");
 
     // Add reqwest for HTTP client

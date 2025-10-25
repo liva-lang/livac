@@ -1,7 +1,7 @@
 # 🗺️ Liva Language Roadmap
 
-> **Current Version:** v0.9.7  
-> **Status:** Alpha - JSON Array/Object Support complete  
+> **Current Version:** v0.9.11  
+> **Status:** Alpha - JSON Typed Parsing in progress (v0.10.0)  
 > **Last Updated:** 2025-01-25
 
 ---
@@ -1246,11 +1246,57 @@ let result = switch flag {
 
 ## ⚡ Phase 7: Compiler Optimizations (v0.10.0)
 
-**Goal:** Improve compilation speed and generated code quality
+**Goal:** Improve language ergonomics and generated code quality
 
-**Status:** 📋 Planned  
+**Status:** � In Progress  
 **Branch:** `feature/optimizations-v0.10.0`  
-**ETA:** Variable (10-15 hours estimated)
+**ETA:** Variable (18-28 hours estimated)
+
+---
+
+### 7.0 JSON Typed Parsing ⭐ 🚧 IN PROGRESS
+**Goal:** Type-safe JSON parsing with class definitions
+
+**Status:** 🚧 In Progress  
+**Priority:** HIGH - Major DX improvement  
+**See:** `TODO_JSON_TYPED.md` for detailed plan
+
+#### Overview
+Enable type-safe JSON parsing using Liva classes:
+```liva
+class Post {
+    userId: u32
+    id: u64
+    title: String
+    body: String
+}
+
+let posts: [Post], err = JSON.parse(jsonString)
+posts.forEach(post => print(post.title))  // ✨ No .unwrap()!
+```
+
+#### Sub-tasks
+- [ ] **7.0.1** Parser: Type hints in let statements (1h)
+- [ ] **7.0.2** Semantic: Validate type hints with JSON.parse (1.5h)
+- [ ] **7.0.3** Codegen: Generate structs with serde (1.5h)
+- [ ] **7.0.4** Support all Rust types (i8-i128, u8-u128, f32, f64) (1h)
+- [ ] **7.0.5** Optional fields: `field?: Type` (45min)
+- [ ] **7.0.6** Default values: `field: Type = value` (45min)
+- [ ] **7.0.7** Nested classes (1h)
+- [ ] **7.0.8** Arrays of classes (30min)
+- [ ] **7.0.9** Tests and examples (2h)
+- [ ] **7.0.10** Documentation (30min)
+
+**Benefits:**
+- ✅ Eliminate `.asInt().unwrap()` boilerplate
+- ✅ Compile-time type safety
+- ✅ Better IDE support (autocomplete)
+- ✅ Consistent with Liva's type system
+- ✅ Supports all Rust types
+
+**Estimated:** 8-13 hours
+
+---
 
 ### 7.1 Benchmark Suite
 - [ ] Design benchmark framework

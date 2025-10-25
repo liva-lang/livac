@@ -23,21 +23,25 @@ expression: json
                 "init": {
                   "Call": {
                     "callee": {
-                      "Member": {
+                      "MethodCall": {
                         "object": {
                           "Identifier": "http"
                         },
-                        "property": "get"
+                        "method": "get",
+                        "args": [
+                          {
+                            "Literal": {
+                              "String": "https://api.example.com/user"
+                            }
+                          }
+                        ],
+                        "adapter": "seq",
+                        "adapter_options": {}
                       }
                     },
-                    "args": [
-                      {
-                        "Literal": {
-                          "String": "https://api.example.com/user"
-                        }
-                      }
-                    ],
-                    "exec_policy": "async"
+                    "args": [],
+                    "exec_policy": "async",
+                    "type_args": []
                   }
                 },
                 "is_fallible": false
@@ -46,17 +50,14 @@ expression: json
             {
               "Return": {
                 "expr": {
-                  "Call": {
-                    "callee": {
-                      "Member": {
-                        "object": {
-                          "Identifier": "response"
-                        },
-                        "property": "json"
-                      }
+                  "MethodCall": {
+                    "object": {
+                      "Identifier": "response"
                     },
+                    "method": "json",
                     "args": [],
-                    "exec_policy": "normal"
+                    "adapter": "seq",
+                    "adapter_options": {}
                   }
                 }
               }
@@ -90,7 +91,8 @@ expression: json
                       "Identifier": "fetchUser"
                     },
                     "args": [],
-                    "exec_policy": "normal"
+                    "exec_policy": "normal",
+                    "type_args": []
                   }
                 },
                 "is_fallible": false
@@ -114,7 +116,8 @@ expression: json
                         "Identifier": "user"
                       }
                     ],
-                    "exec_policy": "async"
+                    "exec_policy": "async",
+                    "type_args": []
                   }
                 },
                 "is_fallible": false
@@ -156,7 +159,8 @@ expression: json
                       "Identifier": "processData"
                     },
                     "args": [],
-                    "exec_policy": "normal"
+                    "exec_policy": "normal",
+                    "type_args": []
                   }
                 },
                 "is_fallible": false
@@ -174,7 +178,8 @@ expression: json
                         "Identifier": "result"
                       }
                     ],
-                    "exec_policy": "normal"
+                    "exec_policy": "normal",
+                    "type_args": []
                   }
                 }
               }
