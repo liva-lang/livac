@@ -2002,10 +2002,10 @@ impl CodeGenerator {
                     self.output.push(' ');
                     if self.in_fallible_function {
                         self.output.push_str("Ok(");
-                        self.generate_expr(expr)?;
+                        self.generate_return_expr(expr)?;
                         self.output.push(')');
                     } else {
-                        self.generate_expr(expr)?;
+                        self.generate_return_expr(expr)?;
                     }
                 }
                 self.output.push_str(";\n");
@@ -2029,6 +2029,38 @@ impl CodeGenerator {
                 self.output.push_str("));\n");
             }
         }
+        Ok(())
+    }
+
+    /// Generate return expression with auto-clone for non-Copy types
+    /// Detects when returning a field from self and automatically adds .clone()
+    fn generate_return_expr(&mut self, expr: &Expr) -> Result<()> {
+        // Check if this is a member access on 'this' (self.field)
+        let needs_clone = if let Expr::Member { object, property: _ } = expr {
+            if let Expr::Identifier(obj) = object.as_ref() {
+                // Returning this.field - check if it needs clone
+                if obj == "this" && self.in_method {
+                    // Types that need clone: String, Vec, custom structs (not i32, u32, bool, etc.)
+                    // For now, we'll be conservative and clone everything from self
+                    // TODO: Could check type registry to determine if type is Copy
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        if needs_clone {
+            self.generate_expr(expr)?;
+            self.output.push_str(".clone()");
+        } else {
+            self.generate_expr(expr)?;
+        }
+        
         Ok(())
     }
 
