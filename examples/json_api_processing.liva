@@ -1,0 +1,45 @@
+// Example: Complete Real-World JSON API Processing
+// Simulates HTTP API response processing with JSON
+
+main() {
+    print($"=== Real-World API Processing Example ===\n")
+    
+    // Simulate API response (in real code, this would come from HTTP.get())
+    let apiResponse = "[{\"id\": 101, \"title\": \"Introduction to Liva\", \"views\": 1500, \"published\": true}, {\"id\": 102, \"title\": \"Advanced Patterns\", \"views\": 3200, \"published\": true}, {\"id\": 103, \"title\": \"Draft Article\", \"views\": 0, \"published\": false}, {\"id\": 104, \"title\": \"Performance Tips\", \"views\": 2800, \"published\": true}]"
+    
+    print($"Processing API response...")
+    let articles = JSON.parse(apiResponse)
+    
+    // 1. Show all articles
+    print($"\n1. All Articles:")
+    articles.forEach(article => {
+        let id = article.get_field("id").unwrap()
+        let title = article.get_field("title").unwrap()
+        let views = article.get_field("views").unwrap()
+        print($"  [{id}] {title} - {views} views")
+    })
+    
+    // 2. Filter published articles
+    print($"\n2. Published Articles:")
+    let published = articles.filter(a => a.get_field("published").unwrap().as_bool().unwrap())
+    published.forEach(article => {
+        let title = article.get_field("title").unwrap()
+        print($"  ✓ {title}")
+    })
+    
+    // 3. Find popular articles (> 2000 views)
+    print($"\n3. Popular Articles (> 2000 views):")
+    let popular = published.filter(a => a.get_field("views").unwrap().as_i32().unwrap() > 2000)
+    popular.forEach(article => {
+        let title = article.get_field("title").unwrap()
+        let views = article.get_field("views").unwrap()
+        print($"  🔥 {title} ({views} views)")
+    })
+    
+    // 4. Extract just the titles
+    print($"\n4. Article Titles:")
+    let titles = published.map(a => a.get_field("title").unwrap())
+    titles.forEach(title => print($"  - {title}"))
+    
+    print($"\n✓ Processing complete!")
+}

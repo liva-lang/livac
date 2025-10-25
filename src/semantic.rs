@@ -36,6 +36,8 @@ pub struct SemanticAnalyzer {
     type_constraints: Vec<HashMap<String, Vec<String>>>,
     // Trait registry for constraint validation
     trait_registry: TraitRegistry,
+    // Track classes used with JSON.parse (need serde derive) - Phase 2
+    json_classes: HashSet<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -98,6 +100,7 @@ impl SemanticAnalyzer {
             type_parameters: vec![HashSet::new()],
             type_constraints: vec![HashMap::new()],
             trait_registry: TraitRegistry::new(),
+            json_classes: HashSet::new(),
         }
     }
 
@@ -160,6 +163,9 @@ impl SemanticAnalyzer {
         for item in &program.items {
             self.validate_item(item)?;
         }
+
+        // Fourth pass: Mark classes that need serde (Phase 2: JSON Typed Parsing)
+        self.mark_json_classes(&mut program);
 
         Ok(program)
     }
@@ -1186,6 +1192,21 @@ impl SemanticAnalyzer {
                 if var.is_fallible {
                     self.in_error_binding = true;
                 }
+                
+                // Check if this is a JSON.parse call with type hint (Phase 1: JSON Typed Parsing)
+                if let Some(type_hint) = var.bindings.first().and_then(|b| b.type_ref.as_ref()) {
+                    if let Expr::MethodCall(method_call) = &var.init {
+                        if method_call.method == "parse" {
+                            if let Expr::Identifier(obj_name) = method_call.object.as_ref() {
+                                if obj_name == "JSON" {
+                                    // This is JSON.parse with a type hint
+                                    self.validate_json_parse_type_hint(type_hint)?;
+                                }
+                            }
+                        }
+                    }
+                }
+                
                 self.validate_expr(&var.init)?;
                 self.in_error_binding = previous_error_binding;
 
@@ -2399,6 +2420,8 @@ impl SemanticAnalyzer {
             Expr::ArrayLiteral(_) => true,
             Expr::Literal(Literal::String(_)) => true,
             Expr::StringTemplate { .. } => true,
+            // Allow .length on identifiers - will be validated at codegen
+            Expr::Identifier(_) => true,
             _ => self
                 .infer_expr_type(object)
                 .map(|ty| self.type_supports_length(&Self::strip_optional(ty)))
@@ -2665,6 +2688,155 @@ impl SemanticAnalyzer {
         // Could also check discriminant expression directly, but that requires
         // more complex type inference. For now, we just use pattern hints.
         None
+    }
+    
+    /// Validate that a type hint for JSON.parse is serializable (Phase 1: JSON Typed Parsing)
+    fn validate_json_parse_type_hint(&mut self, type_ref: &TypeRef) -> Result<()> {
+        match type_ref {
+            // Primitive types are always serializable
+            TypeRef::Simple(name) => {
+                let valid_primitives = ["int", "i8", "i16", "i32", "i64", "i128", 
+                                       "u8", "u16", "u32", "u64", "u128", "usize", "isize",
+                                       "float", "f32", "f64", "bool", "string", "String"];
+                
+                if !valid_primitives.contains(&name.as_str()) {
+                    // Check if it's a defined class
+                    if !self.types.contains_key(name) {
+                        return Err(CompilerError::SemanticError(
+                            format!("Type '{}' is not defined or not serializable for JSON parsing", name).into()
+                        ));
+                    }
+                    // Phase 2: Mark this class as needing serde derive
+                    self.json_classes.insert(name.clone());
+                    // TODO: Recursive validation of all class fields
+                }
+                Ok(())
+            }
+            // Arrays are serializable if their element type is
+            TypeRef::Array(inner) => {
+                self.validate_json_parse_type_hint(inner)
+            }
+            // Optional types are serializable if their inner type is
+            TypeRef::Optional(inner) => {
+                self.validate_json_parse_type_hint(inner)
+            }
+            // Fallible types (Result) - validate inner type
+            TypeRef::Fallible(inner) => {
+                self.validate_json_parse_type_hint(inner)
+            }
+            // Generic types - basic validation
+            TypeRef::Generic { base, args } => {
+                // Validate base type
+                if !self.types.contains_key(base) {
+                    return Err(CompilerError::SemanticError(
+                        format!("Generic type '{}' is not defined", base).into()
+                    ));
+                }
+                // Validate all type arguments
+                for arg in args {
+                    self.validate_json_parse_type_hint(arg)?;
+                }
+                Ok(())
+            }
+        }
+    }
+
+    /// Mark classes that need serde derives (Phase 2: JSON Typed Parsing)
+    fn mark_json_classes(&self, program: &mut Program) {
+        // Phase 4: Collect all classes transitively (including nested dependencies)
+        let mut all_json_classes = std::collections::HashSet::new();
+        
+        // Start with direct JSON.parse classes
+        for class_name in &self.json_classes {
+            self.collect_class_dependencies(class_name, program, &mut all_json_classes);
+        }
+        
+        // Mark all collected classes
+        for item in &mut program.items {
+            if let TopLevel::Class(class) = item {
+                if all_json_classes.contains(&class.name) {
+                    class.needs_serde = true;
+                }
+            }
+        }
+    }
+    
+    /// Recursively collect all class dependencies for JSON serialization
+    fn collect_class_dependencies(
+        &self,
+        class_name: &str,
+        program: &Program,
+        collected: &mut std::collections::HashSet<String>,
+    ) {
+        // Avoid infinite recursion
+        if collected.contains(class_name) {
+            return;
+        }
+        
+        collected.insert(class_name.to_string());
+        
+        // Find the class definition
+        for item in &program.items {
+            if let TopLevel::Class(class) = item {
+                if class.name == class_name {
+                    // Check all fields for class types
+                    for member in &class.members {
+                        if let Member::Field(field) = member {
+                            if let Some(type_ref) = &field.type_ref {
+                                self.collect_type_dependencies(type_ref, program, collected);
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    
+    /// Collect dependencies from a type reference (handles arrays and nested types)
+    fn collect_type_dependencies(
+        &self,
+        type_ref: &TypeRef,
+        program: &Program,
+        collected: &mut std::collections::HashSet<String>,
+    ) {
+        match type_ref {
+            TypeRef::Simple(name) => {
+                // Check if this is a class type (not a primitive)
+                if self.is_class_type(name, program) {
+                    self.collect_class_dependencies(name, program, collected);
+                }
+            }
+            TypeRef::Array(elem_type) => {
+                // Recursively check array element type
+                self.collect_type_dependencies(elem_type, program, collected);
+            }
+            TypeRef::Optional(inner) => {
+                // Recursively check optional inner type
+                self.collect_type_dependencies(inner, program, collected);
+            }
+            _ => {}
+        }
+    }
+    
+    /// Check if a type name is a class (not a primitive)
+    fn is_class_type(&self, type_name: &str, program: &Program) -> bool {
+        // Primitives are not classes
+        match type_name {
+            "int" | "i8" | "i16" | "i32" | "i64" | "i128" |
+            "u8" | "u16" | "u32" | "u64" | "u128" | "usize" | "isize" |
+            "float" | "f32" | "f64" | "bool" | "string" | "String" => false,
+            _ => {
+                // Check if it's actually defined as a class
+                program.items.iter().any(|item| {
+                    if let TopLevel::Class(class) = item {
+                        class.name == type_name
+                    } else {
+                        false
+                    }
+                })
+            }
+        }
     }
 }
 

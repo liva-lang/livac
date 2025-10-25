@@ -1,7 +1,7 @@
 # 🗺️ Liva Language Roadmap
 
-> **Current Version:** v0.9.6  
-> **Status:** Alpha - HTTP Client complete  
+> **Current Version:** v0.9.11  
+> **Status:** Alpha - JSON Typed Parsing in progress (v0.10.0)  
 > **Last Updated:** 2025-01-25
 
 ---
@@ -1125,6 +1125,50 @@ let postResp, postErr = async HTTP.post("https://api.example.com/users", userDat
 - ✅ Added returns_tuple tracking to TaskInfo struct
 - ✅ Fixed Option<Struct> field access to unwrap before property access
 
+### 6.3.1 JSON Array/Object Support ✅ COMPLETED (v0.9.7)
+- [x] Create JsonValue wrapper around serde_json::Value
+- [x] Implement Display trait for easy printing
+- [x] Add length() method for arrays/objects
+- [x] Add get(index) for array element access
+- [x] Add get_field(key) for object field access
+- [x] Support array indexing: `arr[0]`, `arr[i]`
+- [x] Support object key access: `obj["name"]`
+- [x] Enable string template interpolation of JSON values
+- [x] Fix semantic validation for .length on identifiers
+- [x] Add option_value_vars unwrapping in string templates
+
+**Completed:** 3 hours (2025-01-25)
+**Delivered:**
+- `JsonValue` struct with 75+ lines of methods
+- Full array and object access support
+- String template integration
+- Iteration support via .length with while loops
+- Complete working example (HTTP + JSON + iteration)
+
+**Example:**
+```liva
+let res, err = async HTTP.get("https://api.example.com/posts?_limit=5")
+
+if err == "" && res.status == 200 {
+    let posts, jsonErr = JSON.parse(res.body)
+    
+    if jsonErr == "" {
+        let i = 0
+        while i < posts.length {  // ✅ Array length
+            let post = posts[i]   // ✅ Array indexing
+            let id = post["id"]   // ✅ Object key access
+            let title = post["title"]
+            print($"Post {id}: {title}")  // ✅ String interpolation
+            i = i + 1
+        }
+    }
+}
+```
+
+**Limitations:**
+- Direct `obj["key"]` in string templates needs intermediate variable
+- No `for...in` loop support yet (use `while` with `.length`)
+
 ### 6.4 Enhanced Pattern Matching ✅ COMPLETED (v0.9.5)
 - [x] Design switch expression syntax
 - [x] Add literal, wildcard, binding, range patterns
@@ -1202,11 +1246,57 @@ let result = switch flag {
 
 ## ⚡ Phase 7: Compiler Optimizations (v0.10.0)
 
-**Goal:** Improve compilation speed and generated code quality
+**Goal:** Improve language ergonomics and generated code quality
 
-**Status:** 📋 Planned  
+**Status:** � In Progress  
 **Branch:** `feature/optimizations-v0.10.0`  
-**ETA:** Variable (10-15 hours estimated)
+**ETA:** Variable (18-28 hours estimated)
+
+---
+
+### 7.0 JSON Typed Parsing ⭐ 🚧 IN PROGRESS
+**Goal:** Type-safe JSON parsing with class definitions
+
+**Status:** 🚧 In Progress  
+**Priority:** HIGH - Major DX improvement  
+**See:** `TODO_JSON_TYPED.md` for detailed plan
+
+#### Overview
+Enable type-safe JSON parsing using Liva classes:
+```liva
+class Post {
+    userId: u32
+    id: u64
+    title: String
+    body: String
+}
+
+let posts: [Post], err = JSON.parse(jsonString)
+posts.forEach(post => print(post.title))  // ✨ No .unwrap()!
+```
+
+#### Sub-tasks
+- [ ] **7.0.1** Parser: Type hints in let statements (1h)
+- [ ] **7.0.2** Semantic: Validate type hints with JSON.parse (1.5h)
+- [ ] **7.0.3** Codegen: Generate structs with serde (1.5h)
+- [ ] **7.0.4** Support all Rust types (i8-i128, u8-u128, f32, f64) (1h)
+- [ ] **7.0.5** Optional fields: `field?: Type` (45min)
+- [ ] **7.0.6** Default values: `field: Type = value` (45min)
+- [ ] **7.0.7** Nested classes (1h)
+- [ ] **7.0.8** Arrays of classes (30min)
+- [ ] **7.0.9** Tests and examples (2h)
+- [ ] **7.0.10** Documentation (30min)
+
+**Benefits:**
+- ✅ Eliminate `.asInt().unwrap()` boilerplate
+- ✅ Compile-time type safety
+- ✅ Better IDE support (autocomplete)
+- ✅ Consistent with Liva's type system
+- ✅ Supports all Rust types
+
+**Estimated:** 8-13 hours
+
+---
 
 ### 7.1 Benchmark Suite
 - [ ] Design benchmark framework

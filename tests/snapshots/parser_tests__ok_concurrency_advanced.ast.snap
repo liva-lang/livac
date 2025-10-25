@@ -44,7 +44,8 @@ expression: json
                         }
                       }
                     ],
-                    "exec_policy": "async"
+                    "exec_policy": "async",
+                    "type_args": []
                   }
                 },
                 "is_fallible": false
@@ -70,7 +71,8 @@ expression: json
                         }
                       }
                     ],
-                    "exec_policy": "async"
+                    "exec_policy": "async",
+                    "type_args": []
                   }
                 },
                 "is_fallible": false
@@ -96,7 +98,8 @@ expression: json
                         }
                       }
                     ],
-                    "exec_policy": "async"
+                    "exec_policy": "async",
+                    "type_args": []
                   }
                 },
                 "is_fallible": false
@@ -148,7 +151,8 @@ expression: json
                       "Identifier": "fetchData"
                     },
                     "args": [],
-                    "exec_policy": "async"
+                    "exec_policy": "async",
+                    "type_args": []
                   }
                 },
                 "is_fallible": false
@@ -172,7 +176,8 @@ expression: json
                         "Identifier": "data"
                       }
                     ],
-                    "exec_policy": "par"
+                    "exec_policy": "par",
+                    "type_args": []
                   }
                 },
                 "is_fallible": false
@@ -186,7 +191,8 @@ expression: json
                       "Identifier": "logProcessStart"
                     },
                     "args": [],
-                    "exec_policy": "fire-async"
+                    "exec_policy": "fire-async",
+                    "type_args": []
                   }
                 }
               }
@@ -205,7 +211,8 @@ expression: json
                       "Identifier": "backgroundWork"
                     },
                     "args": [],
-                    "exec_policy": "task-par"
+                    "exec_policy": "task-par",
+                    "type_args": []
                   }
                 },
                 "is_fallible": false
@@ -276,7 +283,8 @@ expression: json
                       "Identifier": "task1"
                     },
                     "args": [],
-                    "exec_policy": "async"
+                    "exec_policy": "async",
+                    "type_args": []
                   }
                 },
                 "is_fallible": false
@@ -296,7 +304,8 @@ expression: json
                       "Identifier": "task2"
                     },
                     "args": [],
-                    "exec_policy": "async"
+                    "exec_policy": "async",
+                    "type_args": []
                   }
                 },
                 "is_fallible": false
@@ -316,7 +325,8 @@ expression: json
                       "Identifier": "task3"
                     },
                     "args": [],
-                    "exec_policy": "async"
+                    "exec_policy": "async",
+                    "type_args": []
                   }
                 },
                 "is_fallible": false
@@ -342,7 +352,8 @@ expression: json
                         }
                       }
                     ],
-                    "exec_policy": "par"
+                    "exec_policy": "par",
+                    "type_args": []
                   }
                 },
                 "is_fallible": false
@@ -368,7 +379,8 @@ expression: json
                         }
                       }
                     ],
-                    "exec_policy": "par"
+                    "exec_policy": "par",
+                    "type_args": []
                   }
                 },
                 "is_fallible": false
@@ -441,7 +453,8 @@ expression: json
                         "Identifier": "result2"
                       }
                     ],
-                    "exec_policy": "fire-async"
+                    "exec_policy": "fire-async",
+                    "type_args": []
                   }
                 }
               }
@@ -454,7 +467,8 @@ expression: json
                       "Identifier": "cleanup"
                     },
                     "args": [],
-                    "exec_policy": "fire-par"
+                    "exec_policy": "fire-par",
+                    "type_args": []
                   }
                 }
               }
@@ -509,7 +523,8 @@ expression: json
                         }
                       }
                     ],
-                    "exec_policy": "async"
+                    "exec_policy": "async",
+                    "type_args": []
                   }
                 },
                 "is_fallible": false
@@ -535,7 +550,8 @@ expression: json
                         }
                       }
                     ],
-                    "exec_policy": "par"
+                    "exec_policy": "par",
+                    "type_args": []
                   }
                 },
                 "is_fallible": false
@@ -555,7 +571,8 @@ expression: json
                       "Identifier": "doSomeWork"
                     },
                     "args": [],
-                    "exec_policy": "normal"
+                    "exec_policy": "normal",
+                    "type_args": []
                   }
                 },
                 "is_fallible": false
@@ -641,7 +658,8 @@ expression: json
                         }
                       }
                     ],
-                    "exec_policy": "normal"
+                    "exec_policy": "normal",
+                    "type_args": []
                   }
                 }
               }

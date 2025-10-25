@@ -1,0 +1,31 @@
+// Example: JSON with Arrow Functions
+// Demonstrates v0.10.0 features: Typed JSON parsing + arrow functions
+
+main() {
+    print($"=== JSON Arrow Functions Example (v0.10.0) ===")
+    
+    // 1. Typed parsing - Clean syntax!
+    print($"1. Typed parsing:")
+    let numbersJson = "[10, 20, 30, 40, 50]"
+    let numbers: [i32], err = JSON.parse(numbersJson)
+    numbers.forEach(n => print($"  Number: {n}"))
+    
+    // 2. map - Transform array (no .unwrap()!)
+    print($"2. map (double each number):")
+    let doubled = numbers.map(n => n * 2)
+    doubled.forEach(n => print($"  {n}"))
+    
+    // 3. map - Triple the numbers
+    print($"3. map (triple):")
+    let tripled = numbers.map(n => n * 3)
+    tripled.forEach(n => print($"  {n}"))
+    
+    // 4. Parse floats
+    print($"4. Parse floats:")
+    let floatsJson = "[1.5, 2.7, 3.9]"
+    let floats: [f64], err2 = JSON.parse(floatsJson)
+    floats.forEach(f => print($"  {f}"))
+    
+    print($"✓ Complete!")
+    print($"✨ Notice: No .asInt().unwrap() needed with typed JSON parsing!")
+}
