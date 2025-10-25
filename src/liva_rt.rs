@@ -224,7 +224,7 @@ impl StringOrInt for usize {
 // ============================================================================
 
 /// HTTP Response structure
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct LivaHttpResponse {
     pub status: i32,
     pub status_text: String,

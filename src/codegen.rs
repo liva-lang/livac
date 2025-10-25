@@ -19,6 +19,8 @@ struct TaskInfo {
     exec_policy: ExecPolicy,
     /// Whether the task returns a tuple directly (vs Result)
     returns_tuple: bool,
+    /// Whether this is an HTTP call that returns (Option<T>, String) needing unwrap
+    is_http_call: bool,
 }
 
 pub struct CodeGenerator {
@@ -43,6 +45,7 @@ pub struct CodeGenerator {
     // --- Phase 3: Error binding variables (Option<String> type)
     error_binding_vars: std::collections::HashSet<String>, // Variables from error binding (second variable in let x, err = ...)
     option_value_vars: std::collections::HashSet<String>, // Variables from error binding (first variable in let value, err = ..., which is Option<T>)
+    rust_struct_vars: std::collections::HashSet<String>, // Variables that are Rust structs (HTTP response, etc.), not JsonValue
     // --- Phase 4: Join combining optimization
     #[allow(dead_code)]
     awaitable_tasks: Vec<String>, // Tasks that can be combined with tokio::join!
@@ -71,6 +74,7 @@ impl CodeGenerator {
             pending_tasks: std::collections::HashMap::new(),
             error_binding_vars: std::collections::HashSet::new(),
             option_value_vars: std::collections::HashSet::new(),
+            rust_struct_vars: std::collections::HashSet::new(),
             awaitable_tasks: Vec::new(),
             trait_registry: TraitRegistry::new(),
         }
@@ -124,6 +128,28 @@ impl CodeGenerator {
         matches!(expr, 
             Expr::MethodCall(mc) if matches!(&*mc.object, Expr::Identifier(id) if id == "JSON") && mc.method == "parse"
         )
+    }
+    
+    /// Check if expression is an HTTP call (GET/POST/PUT/DELETE)
+    fn is_http_call(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Call(call) => {
+                // Check if callee is HTTP method call (async HTTP.get, etc.)
+                if let Expr::MethodCall(mc) = call.callee.as_ref() {
+                    if let Expr::Identifier(obj) = mc.object.as_ref() {
+                        return obj == "HTTP" && matches!(mc.method.as_str(), "get" | "post" | "put" | "delete");
+                    }
+                }
+                false
+            }
+            Expr::MethodCall(mc) => {
+                if let Expr::Identifier(obj) = mc.object.as_ref() {
+                    return obj == "HTTP" && matches!(mc.method.as_str(), "get" | "post" | "put" | "delete");
+                }
+                false
+            }
+            _ => false
+        }
     }
     
     /// Generate typed JSON parsing code (Phase 1: JSON Typed Parsing)
@@ -383,7 +409,7 @@ impl CodeGenerator {
 
         // HTTP Client Runtime Functions
         self.writeln("// HTTP Client");
-        self.writeln("#[derive(Debug, Clone)]");
+        self.writeln("#[derive(Debug, Clone, Default)]");
         self.writeln("pub struct LivaHttpResponse {");
         self.indent();
         self.writeln("pub status: i32,");
@@ -1565,6 +1591,11 @@ impl CodeGenerator {
                     } else if binding_names.len() == 2 && (returns_tuple || is_typed_json_parse) {
                         // For tuple-returning functions AND typed JSON.parse: response is T (not Option), err is String
                         // Don't add to option_value_vars or error_binding_vars
+                        
+                        // Check if this is an HTTP call - mark first binding as rust_struct
+                        if self.is_http_call(&var.init) {
+                            self.rust_struct_vars.insert(binding_names[0].clone());
+                        }
                     }
 
                     if let Some(exec_policy) = task_exec_policy {
@@ -1576,6 +1607,7 @@ impl CodeGenerator {
                         self.output.push_str(";\n");
 
                         // Register as pending task with error binding
+                        let is_http = self.is_http_call(&var.init);
                         self.pending_tasks.insert(
                             binding_names[0].clone(),
                             TaskInfo {
@@ -1584,6 +1616,7 @@ impl CodeGenerator {
                                 awaited: false,
                                 exec_policy,
                                 returns_tuple,
+                                is_http_call: is_http,
                             },
                         );
                     } else {
@@ -1702,6 +1735,7 @@ impl CodeGenerator {
                                 awaited: false,
                                 exec_policy,
                                 returns_tuple: false, // Simple binding, no tuple destructuring
+                                is_http_call: false, // Simple binding doesn't use error handling
                             },
                         );
                     } else {
@@ -2137,14 +2171,33 @@ impl CodeGenerator {
                     // Use bracket notation for JSON objects, dot notation for structs
                     match object.as_ref() {
                         Expr::Identifier(var_name) => {
-                            // Check if this is likely a JsonValue (not array, not class instance)
-                            if !self.is_class_instance(var_name) 
+                            // Check if this is a Rust struct (HTTP response, etc.)
+                            let is_rust_struct = self.rust_struct_vars.contains(var_name);
+                            
+                            // Check if this is likely a JsonValue (not array, not class instance, not rust struct)
+                            if !is_rust_struct
+                                && !self.is_class_instance(var_name) 
                                 && !self.array_vars.contains(var_name)
                                 && !var_name.contains("person")
                                 && !var_name.contains("user")
                             {
                                 // Likely a JsonValue - use get_field()
                                 write!(self.output, ".get_field(\"{}\").unwrap()", property).unwrap();
+                                return Ok(());
+                            }
+                            
+                            // For class instances and Rust structs, use dot notation
+                            if is_rust_struct || self.is_class_instance(var_name)
+                                || var_name.contains("person")
+                                || var_name.contains("user")
+                            {
+                                // Convert camelCase to snake_case for Rust structs
+                                let rust_field = if property == "statusText" {
+                                    "status_text"
+                                } else {
+                                    property.as_str()
+                                };
+                                write!(self.output, ".{}", rust_field).unwrap();
                                 return Ok(());
                             }
                             
@@ -3146,9 +3199,16 @@ impl CodeGenerator {
             }
             
             if task_info.returns_tuple {
-                // Function returns (Option<T>, String) directly - just destructure
+                // Function returns (Option<T>, String) or (T, String) directly - destructure
                 self.output.push_str(") = ");
-                write!(self.output, "{}.await.unwrap();\n", task_var_name).unwrap();
+                
+                if task_info.is_http_call {
+                    // HTTP calls return (Option<T>, String), unwrap the Option too
+                    write!(self.output, "{{ let (opt, err) = {}.await.unwrap(); (opt.unwrap_or_default(), err) }};\n", task_var_name).unwrap();
+                } else {
+                    // Other tuple-returning functions return (T, String) directly
+                    write!(self.output, "{}.await.unwrap();\n", task_var_name).unwrap();
+                }
             } else {
                 // Function returns Result - match and convert
                 self.output.push_str(") = match ");
@@ -4355,8 +4415,9 @@ impl CodeGenerator {
                     return name == "parseInt" || name == "parseFloat";
                 }
                 // Check if callee is a MethodCall (async HTTP.get, etc.)
-                if let Expr::MethodCall(method_call) = call.callee.as_ref() {
-                    return self.is_builtin_conversion_call(&Expr::MethodCall(method_call.clone()));
+                // This handles the async/par wrapper around method calls
+                if let Expr::MethodCall(_) = call.callee.as_ref() {
+                    return self.is_builtin_conversion_call(call.callee.as_ref());
                 }
                 false
             }
