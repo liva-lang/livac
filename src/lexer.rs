@@ -182,6 +182,8 @@ pub enum Token {
     Underscore,
     #[token(".")]
     Dot,
+    #[token("...")]
+    DotDotDot,
     #[token("..=")]
     DotDotEq,
     #[token("..")]
