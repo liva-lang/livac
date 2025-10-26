@@ -1,0 +1,17 @@
+// Test HTTP GET request
+main() {
+    print("Testing HTTP GET request...")
+    
+    let response, err = async HTTP.get("https://httpbin.org/get")
+    
+    if err != "" {
+        print($"Error: {err}")
+    } else {
+        print($"Status: {response.status}")
+        print($"Status Text: {response.statusText}")
+        
+        if response.status == 200 {
+            print("GET request successful!")
+        }
+    }
+}

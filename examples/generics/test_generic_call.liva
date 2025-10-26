@@ -1,0 +1,57 @@
+Person {
+  constructor(name, age) {
+    this.name = name
+    this.age = age
+  }
+
+  name: string
+  age: int
+  _dni: string
+
+  isAdult() => this.age >= 18
+  getDni() => this._dni
+  setDni(dni)  {this._dni = dni}
+}
+
+
+divide(a: float, b: float) : float {
+  if b == 0.0 fail "Division by zero"     // inline
+  return a / b
+}
+
+sum<T: Add>(a: T, b: T) : T => a + b
+
+main() {
+  // ✅ Constructor personalizado funciona
+  let p = Person("Fran", 40)
+
+  let p2 = Person {
+    name: "Ana",
+    age: 30
+  }
+  p2.setDni("123456789")
+  // ✅ Sin necesidad de .toString() manual
+  p.setDni("123456789")
+
+  print(p.name)      // "Fran"
+  print(p.age)       // 40
+  print(p.getDni())  // "123456789"
+  print(p.isAdult()) // true
+
+  print(p2.name)      // "Ana"
+  print(p2.age)       // 30
+  print(p2.getDni())  // "123456789"
+  print(p2.isAdult()) // true
+
+  let res, err = divide(10.0, 2.0)
+  
+  if err {
+    console.log("Error: "+err)  // "Error: Division by zero"
+  } else {
+    print("Result: "+res)
+  }
+
+  let suma = sum<float>(3.5, 2.5)
+  print("Sum: "+suma)  // "Sum: 6.0"
+
+}

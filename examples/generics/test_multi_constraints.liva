@@ -1,0 +1,53 @@
+// Test multiple constraints with + operator
+
+// Function with single constraint (baseline)
+sum<T: Add>(a: T, b: T): T => a + b
+
+// Function with multiple constraints
+clamp<T: Ord + Add + Sub>(value: T, min_val: T, max_val: T): T {
+    // Uses both Ord (comparison) and arithmetic operations
+    if value < min_val {
+        return min_val
+    }
+    if value > max_val {
+        return max_val
+    }
+    return value
+}
+
+// Function that uses all constraints
+average<T: Add + Div>(a: T, b: T, divisor: T): T {
+    let sum_val = a + b
+    return sum_val / divisor
+}
+
+// Function with Eq + Display constraints
+printIfEqual<T: Eq + Display>(a: T, b: T) {
+    if a == b {
+        console.log(a)
+    }
+}
+
+main() {
+    // Test single constraint
+    let x = sum<int>(10, 20)
+    console.log($"Sum: {x}")
+    
+    // Test multiple constraints with int
+    let clamped = clamp<int>(150, 0, 100)
+    console.log($"Clamped 150 to [0,100]: {clamped}")
+    
+    let clamped2 = clamp<int>(-50, 0, 100)
+    console.log($"Clamped -50 to [0,100]: {clamped2}")
+    
+    let clamped3 = clamp<int>(50, 0, 100)
+    console.log($"Clamped 50 to [0,100]: {clamped3}")
+    
+    // Test average (Add + Div)
+    let avg = average<int>(10, 20, 2)
+    console.log($"Average of 10 and 20: {avg}")
+    
+    // Test Eq + Display
+    printIfEqual<int>(42, 42)
+    printIfEqual<int>(10, 20)
+}

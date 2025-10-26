@@ -1,0 +1,19 @@
+// HTTP Test Suite - Level 1: Basic GET request
+// Tests: Simple GET with error checking
+
+main() {
+    print("=== Test 1: Basic GET Request ===\n")
+    
+    let response, err = async HTTP.get("https://jsonplaceholder.typicode.com/posts/1")
+    
+    if err != "" {
+        console.error($"❌ Request failed: {err}")
+        return
+    }
+    
+    print($"✅ Request successful!")
+    print($"   Status: {response.status}")
+    print($"   Status Text: {response.statusText}")
+    print($"   Body length: {response.body.length}")
+    print($"   Body: {response.body}")
+}

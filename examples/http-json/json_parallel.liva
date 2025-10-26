@@ -1,0 +1,28 @@
+// Example: JSON with Parallel Processing
+// Demonstrates v0.10.0 features: Typed JSON parsing + parvec() for parallel execution
+
+main() {
+    print($"=== JSON Parallel Processing Example (v0.10.0) ===")
+    
+    // Sample data - now with type hints for clean syntax!
+    let dataJson = "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]"
+    let data: [i32], err = JSON.parse(dataJson)
+    
+    // 1. Sequential processing - no .unwrap() needed!
+    print($"1. Sequential map (normal):")
+    let seq_doubled = data.map(n => n * 2)
+    seq_doubled.forEach(n => print($"  {n}"))
+    
+    // 2. Parallel processing with parvec() - clean syntax!
+    print($"2. Parallel map (parvec):")
+    let par_doubled = data.parvec().map(n => n * 2)
+    par_doubled.forEach(n => print($"  {n}"))
+    
+    // 3. Parallel tripled
+    print($"3. Parallel triple:")
+    let par_tripled = data.parvec().map(n => n * 3)
+    par_tripled.forEach(n => print($"  {n}"))
+    
+    print($"✓ Processing complete!")
+    print($"✨ Notice: No .asInt().unwrap() needed with typed JSON parsing!")
+}

@@ -1,0 +1,21 @@
+// HTTP Test Suite - Level 3: GET with response inspection
+// Tests: GET request + status check + body access
+
+main() {
+    print("=== Test 3: GET and Inspect Response ===\n")
+    
+    // Fetch first 5 posts
+    let response, err = async HTTP.get("https://jsonplaceholder.typicode.com/posts?_limit=5")
+    
+    if err != "" {
+        console.error($"❌ HTTP Error: {err}")
+    } else {
+        if response.status == 200 {
+            print($"✅ HTTP {response.status} - {response.statusText}")
+            print("✅ Got response body")
+            print("✅ Test 3 complete!")
+        } else {
+            console.error($"❌ HTTP Status: {response.status}")
+        }
+    }
+}

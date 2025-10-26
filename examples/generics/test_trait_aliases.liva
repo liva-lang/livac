@@ -1,0 +1,160 @@
+// Test trait aliases: Numeric, Comparable, Number, Printable
+
+// ========================================
+// SIMPLE ALIASES (Intuitive for beginners)
+// ========================================
+
+// Numeric: All arithmetic operations
+sum<T: Numeric>(a: T, b: T): T => a + b
+
+multiply<T: Numeric>(a: T, b: T): T => a * b
+
+negate<T: Numeric>(value: T): T => -value
+
+// Comparable: Equality and ordering
+max<T: Comparable>(a: T, b: T): T {
+    if a > b {
+        return a
+    }
+    return b
+}
+
+equals<T: Comparable>(a: T, b: T): bool => a == b
+
+// Number: Numeric + Comparable (complete number operations)
+clamp<T: Number>(value: T, min_val: T, max_val: T): T {
+    if value < min_val {
+        return min_val
+    }
+    if value > max_val {
+        return max_val
+    }
+    return value
+}
+
+// Printable: Display + Debug
+showValue<T: Printable>(value: T) {
+    console.log(value)
+}
+
+// ========================================
+// GRANULAR CONTROL (When you need precision)
+// ========================================
+
+// Only addition (more restrictive than Numeric)
+addOnly<T: Add>(a: T, b: T): T => a + b
+
+// Only comparison (more restrictive than Comparable)
+lessThan<T: Ord>(a: T, b: T): bool => a < b
+
+// ========================================
+// MIXING ALIASES AND GRANULAR TRAITS
+// ========================================
+
+// Comparable + Display (alias + granular)
+formatAndCompare<T: Comparable + Display>(a: T, b: T): string {
+    if a == b {
+        return $"Values are equal: {a}"
+    }
+    if a > b {
+        return $"{a} is greater than {b}"
+    }
+    return $"{a} is less than {b}"
+}
+
+// Numeric + Printable (two aliases)
+debugCalculation<T: Numeric + Printable>(a: T, b: T): T {
+    console.log($"Calculating {a} + {b}")
+    let result = a + b
+    console.log($"Result: {result}")
+    return result
+}
+
+// ========================================
+// REAL-WORLD EXAMPLES
+// ========================================
+
+// Statistical functions with Number
+average<T: Number>(a: T, b: T, divisor: T): T {
+    let sum_val = a + b
+    return sum_val / divisor
+}
+
+range<T: Number>(min_val: T, max_val: T): T {
+    return max_val - min_val
+}
+
+// Generic utilities with Comparable
+inRange<T: Comparable>(value: T, min_val: T, max_val: T): bool {
+    if value >= min_val {
+        if value <= max_val {
+            return true
+        }
+    }
+    return false
+}
+
+main() {
+    console.log("=== Simple Aliases ===")
+    
+    // Numeric
+    let s = sum<int>(10, 20)
+    console.log($"sum(10, 20) = {s}")
+    
+    let m = multiply<int>(5, 6)
+    console.log($"multiply(5, 6) = {m}")
+    
+    let n = negate<int>(42)
+    console.log($"negate(42) = {n}")
+    
+    // Comparable
+    let mx = max<int>(100, 50)
+    console.log($"max(100, 50) = {mx}")
+    
+    let eq = equals<int>(42, 42)
+    console.log($"equals(42, 42) = {eq}")
+    
+    console.log("")
+    console.log("=== Number Alias (Numeric + Comparable) ===")
+    
+    let c = clamp<int>(150, 0, 100)
+    console.log($"clamp(150, 0-100) = {c}")
+    
+    let avg = average<int>(10, 20, 2)
+    console.log($"average(10, 20) = {avg}")
+    
+    let rng = range<int>(0, 100)
+    console.log($"range(0, 100) = {rng}")
+    
+    console.log("")
+    console.log("=== Printable Alias ===")
+    
+    showValue<int>(42)
+    showValue<string>("Hello, Liva!")
+    
+    console.log("")
+    console.log("=== Granular Control ===")
+    
+    let add = addOnly<int>(5, 3)
+    console.log($"addOnly(5, 3) = {add}")
+    
+    let less = lessThan<int>(10, 20)
+    console.log($"lessThan(10, 20) = {less}")
+    
+    console.log("")
+    console.log("=== Mixed Aliases + Granular ===")
+    
+    let msg1 = formatAndCompare<int>(42, 42)
+    console.log(msg1)
+    
+    let msg2 = formatAndCompare<int>(10, 20)
+    console.log(msg2)
+    
+    let calc = debugCalculation<int>(15, 25)
+    
+    console.log("")
+    console.log("=== Real-World Examples ===")
+    
+    let inRng = inRange<int>(50, 0, 100)
+    console.log($"inRange(50, 0-100) = {inRng}")
+}

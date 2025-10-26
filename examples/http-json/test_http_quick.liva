@@ -1,0 +1,25 @@
+// Quick HTTP test - GET and DELETE only
+
+main() {
+    print("Testing HTTP Client v0.9.6\n")
+    
+    // Test 1: GET
+    print("1. GET...")
+    let resp1, err1 = async HTTP.get("https://httpbin.org/get")
+    if err1 != "" {
+        console.error($"✗ Failed: {err1}")
+    } else {
+        print($"✓ Status: {resp1.status}")
+    }
+    
+    // Test 2: DELETE  
+    print("\n2. DELETE...")
+    let resp2, err2 = async HTTP.delete("https://httpbin.org/delete")
+    if err2 != "" {
+        console.error($"✗ Failed: {err2}")
+    } else {
+        print($"✓ Status: {resp2.status}")
+    }
+    
+    print("\n✅ Done!")
+}

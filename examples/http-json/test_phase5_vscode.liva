@@ -1,0 +1,31 @@
+// Test Phase 5 VS Code integration
+// This file tests the new error features in the VS Code extension
+
+main() {
+    // Test 1: "Did you mean?" suggestion
+    // Typo: 'divid' instead of 'divide'
+    console.log(divid(10, 2))  // Should show quick fix
+    
+    // Test 2: Undefined variable with suggestion
+    let x = 42
+    console.log(y)  // Typo: 'y' instead of 'x'
+    
+    // Test 3: Fallible function without error binding
+    // (This should show E0701 with hint and example)
+    validateInput("test")
+}
+
+// Helper function for testing
+divide(a, b) {
+    if b == 0 {
+        fail "Division by zero"
+    }
+    return a / b
+}
+
+validateInput(text) {
+    if text == "" {
+        fail "Empty input"
+    }
+    return text
+}

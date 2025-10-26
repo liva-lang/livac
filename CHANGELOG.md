@@ -7,6 +7,606 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1] - 2025-01-26
+
+### Added - response.json() Method 🌐
+
+**Ergonomic JSON Parsing from HTTP Responses:**
+- ✅ `response.json()` method on Response objects (like JavaScript fetch API)
+- ✅ Returns `(JsonValue, String)` tuple for easy error handling
+- ✅ Alternative to `JSON.parse(response.body)`
+- ✅ Works with typed JSON parsing: `let user: User, err = response.json()`
+- ✅ Automatic serde derives for classes used with response.json()
+- ✅ Cleaner, more intuitive API for REST consumption
+
+**Example Usage - Basic:**
+```liva
+let response, err = HTTP.get("https://api.github.com/users/octocat")
+if err != "" { return }
+
+// Parse JSON directly from response (like fetch API)
+let json, parseErr = response.json()
+if parseErr != "" { return }
+
+console.log($"User data: {json}")
+```
+
+**Example Usage - Typed:**
+```liva
+User {
+    name: string
+    email: string
+    company: string
+}
+
+let response, err = HTTP.get("https://api.example.com/users/1")
+if err != "" { return }
+
+// Automatic deserialization to User class
+let user: User, jsonErr = response.json()
+if jsonErr != "" { return }
+
+console.log($"User: {user.name} at {user.company}")
+```
+
+**Implementation:**
+- Runtime (liva_rt.rs): Added `json()` method to Response struct
+- Codegen: Extended `is_json_parse_call()` to detect `.json()` methods
+- Codegen: Updated `generate_typed_json_parse()` to use `.body` for response.json()
+- Codegen: Fixed `is_builtin_conversion_call()` tuple detection logic
+- Semantic: Extended JSON.parse validation to include `.json()` calls
+- Semantic: Tracks `.json()` calls with type hints for serde derives
+
+### Fixed
+- is_builtin_conversion_call() now correctly detects .json() as tuple-returning method
+- Moved .json() check to beginning of match statement (was unreachable in else block)
+
+### Documentation
+- Updated docs/language-reference/http.md with response.json() documentation (+171 lines)
+- Added response.json() examples for basic and typed parsing
+- Updated all HTTP examples to use ergonomic response.json() API
+
+### VSCode Extension v0.8.0
+- Added 16 new HTTP snippets: httpget, hget, httppost, hpost, httpput, hput, httpdelete, hdel, httpjson, httppostjson, resjson, resjsonc, httptyped, httpstatus, httpfull, restapi
+- Updated README with comprehensive HTTP Client documentation
+- Added HTTP keywords: http, rest-api, web
+- Total snippets: 103 (87 existing + 16 new HTTP snippets)
+
+## [0.10.0] - 2025-01-25
+
+### Added - Typed JSON Parsing (Complete) 🎉
+
+**Type-Safe JSON Parsing with Type Hints:**
+- ✅ Parse JSON directly into typed values without `.as_i32().unwrap()` calls
+- ✅ Type hints support: `let data: [i32], err = JSON.parse(json)`
+- ✅ All Rust primitive types supported: i8-i128, u8-u128, isize, usize, f32, f64, bool, String
+- ✅ Arrays of typed values: `[i32]`, `[f64]`, `[String]`, etc.
+- ✅ **Custom classes with serde derives (Phase 2)**
+- ✅ **Nested classes with recursive dependency tracking (Phase 4)**
+- ✅ **Arrays of custom classes**
+- ✅ Clean error handling with `(Type, String)` tuple (no Option!)
+- ✅ Single binding mode: `let data: [i32] = JSON.parse(json)` (panics on error)
+
+**Example Usage - Primitives and Arrays:**
+```liva
+// OLD syntax (v0.9.x) - verbose with .unwrap()
+let data = JSON.parse("[1, 2, 3]")
+let doubled = data.map(n => n.as_i32().unwrap() * 2)
+
+// NEW syntax (v0.10.0) - clean and type-safe! ✨
+let data: [i32], err = JSON.parse("[1, 2, 3]")
+let doubled = data.map(n => n * 2)  // No .unwrap() needed!
+```
+
+**Example Usage - Custom Classes (Phase 2):**
+```liva
+User {
+    id: u32
+    name: String
+    age: i32
+}
+
+let userJson = "{\"id\": 1, \"name\": \"Alice\", \"age\": 30}"
+let user: User, err = JSON.parse(userJson)
+
+if err == "" {
+    print($"User: {user.name}, age {user.age}")  // Direct field access!
+}
+```
+
+**Example Usage - Nested Classes (Phase 4):**
+```liva
+Address {
+    street: String
+    city: String
+}
+
+User {
+    name: String
+    address: Address    // Nested class
+}
+
+Comment {
+    text: String
+    author: String
+}
+
+Post {
+    title: String
+    comments: [Comment]  // Array of classes
+}
+
+let json = "{\"title\": \"Hello\", \"comments\": [{\"text\": \"Great!\", \"author\": \"Bob\"}]}"
+let post: Post, err = JSON.parse(json)
+// Both Post and Comment automatically get serde derives!
+```
+
+**Phase 1 - Primitives and Arrays (4.5h):**
+- Parser: Type hints already supported in let statements
+- Semantic: `validate_json_parse_type_hint()` validates serializable types
+- Codegen: Generates `serde_json::from_str::<T>` with proper error handling
+- Support for all Rust integer types, floats, bool, String
+- Arrays: `[T]` maps to `Vec<T>`
+
+**Phase 2 - Custom Classes (1h):**
+- AST: Added `needs_serde: bool` to `ClassDecl`
+- Semantic: Tracks classes used with JSON.parse in `json_classes` HashSet
+- Semantic: `mark_json_classes()` updates AST before codegen
+- Codegen: Conditional serde derives: `#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]`
+- Codegen: Tracks class instances in `class_instance_vars` for proper member access
+- Cargo.toml: Automatically adds `serde = { version = "1.0", features = ["derive"] }`
+- Note: Field names must match JSON keys exactly (no automatic camelCase/snake_case conversion)
+
+**Phase 4 - Nested Classes (30min):**
+- Semantic: `collect_class_dependencies()` - Recursively finds all class dependencies
+- Semantic: `collect_type_dependencies()` - Handles TypeRef (Simple, Array, Optional)
+- Semantic: `is_class_type()` - Distinguishes classes from primitives
+- All dependent classes automatically get serde derives
+- Supports arbitrary nesting depth
+- Supports arrays of nested classes: `[Comment]` inside `Post`
+
+**Semantic Validation:**
+- Validates that types used with JSON.parse are serializable
+- Recursive validation for arrays, optionals, and generics
+- Checks class existence for custom types
+- Validates nested class dependencies exist
+
+**Code Generation:**
+- Generates `serde_json::from_str::<T>(&json)` instead of JsonValue wrapper
+- Error handling: `match` expression with Ok/Err branches
+- Default values on error: Vec::new(), 0, 0.0, false, String::new(), Default::default()
+- Single binding: generates `.expect("JSON parse failed")` for simplicity
+- Direct field access for class instances (no `.get_field()`)
+
+**Files Modified:**
+- `src/ast.rs`: Added `needs_serde` field to ClassDecl
+- `src/semantic.rs`: Added validation and dependency tracking (lines 2687-2840)
+- `src/codegen.rs`: Added typed JSON parsing and serde support (lines 119-162, 1540-1720)
+- `Cargo.toml`: Template updated to include serde dependency
+
+**Test Files:**
+- `test_json_typed_parse.liva`: Primitives and arrays
+- `test_json_class_basic.liva`: Simple custom classes
+- `test_json_snake_case.liva`: Field name matching demo
+- `test_json_nested.liva`: Nested classes (User with Address)
+- `test_json_nested_arrays.liva`: Arrays of nested classes (Post with [Comment])
+
+**Documentation:**
+- `/docs/language-reference/json.md`: Updated to v0.10.0 with comprehensive type-safe parsing section
+- `/docs/guides/json-typed-parsing.md`: New 400+ line guide with examples, best practices, and troubleshooting
+
+**Breaking Changes:**
+- None! Old JsonValue syntax still works for untyped parsing
+
+**Known Limitations:**
+- Lambda parameters in forEach/map don't track class types (requires full type inference)
+- Optional fields (`field?: Type`) not yet supported - use manual Option<T> workaround if needed
+
+**Phase 3 Skipped:**
+- Optional fields deferred as general language feature (not JSON-specific)
+- `tests/integration/proj_json/test_map.liva`: Updated
+- `tests/integration/proj_json/test_parvec_json.liva`: Updated
+
+**Coming in Phase 2:**
+- Custom classes with serde derive
+- Snake_case field conversion
+- Optional fields with `field?: Type`
+- Default values with `field: Type = value`
+- Nested classes
+
+## [0.9.11] - 2025-01-25
+
+### Fixed - JsonValue Parallel Execution
+
+**JsonValue.parvec() Support:**
+- ✅ Fixed parallel execution for JsonValue from JSON.parse()
+- JsonValue now converts to Vec with `.to_vec().into_par_iter()` instead of `.par_iter()`
+- Lambda patterns correctly use `|x|` (owned) instead of `|&x|` (reference) for JsonValue parallel iteration
+- Complete HTTP → JSON → parvec workflow now fully functional
+
+**Code Generation Improvements:**
+- Detect `is_direct_json` flag for JsonValue from JSON.parse()
+- Par/ParVec adapters: generate `.to_vec().into_par_iter()` for JsonValue
+- Lambda pattern generation: extended to handle Par/ParVec with JsonValue (no & prefix)
+
+**Example Usage:**
+```liva
+// Complete integration: HTTP + JSON + Parallel Processing
+async fn fetch_and_process() {
+    let res, err = async HTTP.get("https://jsonplaceholder.typicode.com/posts")
+    let posts = JSON.parse(res.body)
+    
+    // Parallel processing of JSON array - NOW WORKS! ✅
+    posts.parvec().forEach(post => {
+        console.log($"Post {post.id}: {post.title}")
+    })
+}
+```
+
+**Technical Details:**
+- JsonValue is a wrapper over serde_json::Value, not a Vec
+- `.par_iter()` requires IntoParallelRefIterator trait (not satisfied)
+- `.to_vec().into_par_iter()` returns owned values (IntoParIter<JsonValue>)
+- Lambda receives owned JsonValue, not reference
+
+## [0.9.10] - 2025-01-25
+
+### Fixed - Parser and Concurrency Support (Phase 6.4.3 - 2h)
+
+**Parser Fix for Reserved Keywords:**
+- ✅ Fixed parsing error with `.parvec()`, `.par()`, `.vec()` method calls
+- Reserved keywords (Par, Vec, ParVec) can now be used as method names
+- Added `parse_method_name()` helper that accepts both identifiers and keyword tokens
+
+**Concurrency Policy Support:**
+- ✅ **parvec() works on all arrays**: Parallel execution with Rayon
+- ✅ Automatic rayon dependency detection via `ArrayAdapter::Par|ParVec`
+- ✅ Correct code generation: `.par_iter()` for parallel, `.collect()` for map
+- ✅ Import `use rayon::prelude::*` when parallel execution is detected
+
+**Code Generation Fixes:**
+- Map with parallel adapter: generates `.collect::<Vec<_>>()` (no `.cloned()`)
+- Filter with parallel adapter: generates `.cloned().collect::<Vec<_>>()`
+- Added rayon imports at top level (after liva_rt module)
+
+**Comprehensive Tests:**
+- ✅ 10 integration tests in `tests/integration/proj_json/`
+  * test_parse_no_error.liva - JSON.parse without binding
+  * test_for_in_loop.liva - for...in on JSON
+  * test_dot_notation.liva - property access
+  * test_foreach_arrow.liva - forEach with arrows
+  * test_map.liva - map transformation
+  * test_filter.liva - filter selection
+  * test_chaining.liva - map then filter
+  * test_objects_array.liva - array of objects
+  * test_parvec_json.liva - parallel execution
+  * test_comprehensive.liva - all features combined
+
+**Example Files:**
+- ✅ 4 comprehensive examples in `examples/`
+  * json_natural_syntax.liva - v0.9.8 features demo
+  * json_arrow_functions.liva - v0.9.9 features demo
+  * json_parallel.liva - parvec() demo
+  * json_api_processing.liva - Real-world API processing
+
+**Example Usage:**
+```liva
+main() {
+    let data = "[1, 2, 3, 4, 5, 6, 7, 8]"
+    let numbers = JSON.parse(data)
+    
+    // Sequential
+    let doubled = numbers.map(n => n.as_i32().unwrap() * 2)
+    
+    // Parallel 🔥 NEW!
+    let par_doubled = numbers.parvec().map(n => n.as_i32().unwrap() * 2)
+    
+    par_doubled.forEach(n => print($"  {n}"))
+}
+```
+
+**Technical Details:**
+- Parser now distinguishes between identifiers and keyword tokens in method position
+- Desugaring phase detects ArrayAdapter usage and sets `ctx.has_parallel = true`
+- Cargo.toml generation includes rayon when parallel execution is detected
+- Code generator emits appropriate iterator methods based on adapter type
+
+## [0.9.9] - 2025-01-25
+
+### Added - Arrow Functions for JSON Arrays (Phase 6.4.2 - 3h)
+
+**Full Array Method Support for JSON:**
+- ✅ **forEach with arrow functions**: `posts.forEach(post => print(post.title))`
+- ✅ **map**: `numbers.map(n => n * 2)` - Transform JSON arrays
+- ✅ **filter**: `numbers.filter(n => n > 25)` - Filter JSON arrays
+- ✅ **find/some/every**: Complete array method support
+- ✅ **Chaining**: `posts.filter(p => p.id > 5).forEach(p => print(p.title))`
+
+**Implementation Details:**
+
+**1. JsonValue Iterator Methods:**
+- Added `.iter()` → returns `std::vec::IntoIter<JsonValue>` (owned clones)
+- Added `.to_vec()` → converts to `Vec<JsonValue>`
+- JsonValue already implements `Clone`, so iteration clones values
+
+**2. Lambda Pattern Detection:**
+- Tracks which variables are JsonValue via `json_value_vars` HashSet
+- Detects when `map`/`filter`/`forEach` is called on JsonValue
+- For normal arrays: generates `|&item|` (borrow from iterator)
+- For JsonValue: generates `|item|` (owned values from `.iter()`)
+
+**3. Vec<JsonValue> Handling:**
+- Results of `.map()`/`.filter()` are `Vec<JsonValue>`
+- Tracked separately to handle iteration properly
+- Uses `.iter().cloned()` for Vec<JsonValue> to clone elements
+- Avoids `.copied()` (which only works for Copy types)
+
+**4. Type Conversion Methods:**
+- Added all conversion methods to generated JsonValue:
+  * `as_i32()`, `as_f64()`, `as_string()`, `as_bool()`
+  * `is_null()`, `is_array()`, `is_object()`
+  * `to_json_string()`
+- Prevents string literal conversion for `get`/`get_field` methods
+
+**Complete Example:**
+```liva
+main() {
+    // HTTP request (v0.9.6)
+    let res, err = async HTTP.get("https://jsonplaceholder.typicode.com/posts")
+    
+    if res.status == 200 {
+        // Natural JSON parsing (v0.9.8)
+        let posts = JSON.parse(res.body)
+        
+        // Arrow functions on JSON arrays (v0.9.9) ✅ NEW!
+        posts.forEach(post => {
+            print($"Post {post.id}: {post.title}")
+        })
+        
+        // Map and filter work too ✅ NEW!
+        let ids = posts.map(p => p.id)
+        let filtered = posts.filter(p => p.id > 5)
+        
+        filtered.forEach(p => print($"Filtered: {p.title}"))
+    }
+}
+```
+
+**Technical Highlights:**
+- Smart detection: distinguishes `JsonValue` (direct) from `Vec<JsonValue>` (derived)
+- Memory efficient: uses cloning only when necessary
+- Iterator consistency: `.iter()` on JsonValue matches `.into_iter()` semantics
+- No breaking changes: normal arrays continue working as before
+
+**Performance Notes:**
+- JsonValue.iter() clones elements (JsonValue contains serde_json::Value)
+- Acceptable for typical JSON use cases (small-medium datasets)
+- For large datasets, consider streaming or direct serde_json manipulation
+
+## [0.9.8] - 2025-01-25
+
+### Added - Natural JSON Syntax (Phase 6.4.1 - 2h)
+
+**Ergonomic JSON Improvements:**
+- ✅ **JSON.parse without error binding**: `let posts = JSON.parse(body)` - Auto-unwraps or panics on error
+- ✅ **for...in loops**: `for post in posts { ... }` - Natural iteration over JSON arrays
+- ✅ **Dot notation**: `post.id`, `post.title` - Direct property access instead of brackets
+
+**Implementation Details:**
+
+**1. JSON.parse Auto-unwrap:**
+- Detects single-binding pattern in VarDecl: `let posts = JSON.parse(...)`
+- Generates: `.0.expect("JSON parse failed")` automatically
+- No need for error binding when you want to panic on error
+
+**2. IntoIterator for JsonValue:**
+- Implemented `IntoIterator` trait on `JsonValue`
+- Returns `std::vec::IntoIter<JsonValue>` for arrays
+- Empty iterator for non-arrays
+- Embedded in both liva_rt.rs and generated runtime
+
+**3. Dot Notation for Properties:**
+- Heuristic detection: if variable is not array/class → treat as JsonValue
+- Generates `.get_field("property").unwrap()` automatically
+- Works in: assignments, conditions, string templates, function args
+
+**4. Smart Length Detection:**
+- `JsonValue.length()` for JSON arrays/objects
+- `.len()` for Rust arrays and strings
+- Automatic detection based on variable tracking
+
+**Complete Natural Example:**
+```liva
+main() {
+  let res, err = async HTTP.get("https://api.example.com/posts?_limit=5")
+
+  if err != "" {
+    console.log($"Error: {err}")
+  } else {
+    if res.status == 200 {
+      let posts = JSON.parse(res.body)  // ✅ No error binding
+      for post in posts {                // ✅ for...in loop
+        // ✅ Dot notation for properties
+        console.log($"Post ID: {post.id}, Title: {post.title}")
+      }
+    }
+  }
+}
+```
+
+**Comparison:**
+
+Before (v0.9.7):
+```liva
+let posts, jsonErr = JSON.parse(res.body)
+if jsonErr == "" {
+    let i = 0
+    while i < posts.length {
+        let post = posts[i]
+        let id = post["id"]
+        let title = post["title"]
+        print($"Post {id}: {title}")
+        i = i + 1
+    }
+}
+```
+
+After (v0.9.8):
+```liva
+let posts = JSON.parse(res.body)
+for post in posts {
+    print($"Post {post.id}: {post.title}")
+}
+```
+
+**Code Changes:**
+- Modified VarDecl generation to detect and unwrap JSON.parse
+- Added IntoIterator impl to JsonValue (20 lines)
+- Enhanced Member expression generation for JsonValue dot notation
+- Smart .length() vs .len() detection based on context
+
+## [0.9.7] - 2025-01-25
+
+### Added - JSON Array/Object Support (Phase 6.4 - 3h)
+
+**JsonValue Wrapper:**
+- Created `JsonValue` struct wrapping `serde_json::Value` with Liva-friendly interface
+- Implements `Display` trait for easy printing and string interpolation
+- Provides type-safe methods for common JSON operations
+
+**JSON Methods:**
+- `length() -> usize` - Get array/object/string length
+- `get(index: usize) -> Option<JsonValue>` - Array element access
+- `get_field(key: &str) -> Option<JsonValue>` - Object field access
+- `as_i32()`, `as_f64()`, `as_string()`, `as_bool()` - Type conversions
+- `is_array()`, `is_object()`, `is_null()` - Type checking
+
+**JSON Operations:**
+- ✅ Array indexing: `arr[0]`, `arr[i]` - Access array elements
+- ✅ Object key access: `obj["name"]` - Access object fields
+- ✅ Length property: `arr.length` - Get array/object size
+- ✅ String templates: `print($"Value: {jsonVar}")` - Direct interpolation
+- ✅ Iteration support: Use `.length` with `while` loops
+
+**Parser Support (Modified JSON.parse):**
+- Changed return type from `(Option<Value>, Option<Error>)` to `(Option<JsonValue>, String)`
+- Error messages as strings for consistency with HTTP client
+- JsonValue automatically embedded in generated runtime
+
+**Code Generation:**
+- Added option_value_vars tracking for variables from tuple-returning functions
+- Special handling for JsonValue.length() on Option<JsonValue>
+- Heuristic detection of direct JsonValue variables (non-Option)
+- String template unwrapping for Option<JsonValue> in interpolations
+- Index access generates .get()/.get_field() calls automatically
+
+**Semantic Analysis:**
+- Made `.length` validation permissive for identifiers (validated at codegen)
+- Allows `.length` on JSON variables without full type inference
+
+**Working Example:**
+```liva
+main() {
+    let res, err = async HTTP.get("https://api.example.com/posts?_limit=5")
+    
+    if err == "" && res.status == 200 {
+        let posts, jsonErr = JSON.parse(res.body)
+        
+        if jsonErr == "" {
+            let i = 0
+            while i < posts.length {
+                let post = posts[i]
+                let id = post["id"]
+                let title = post["title"]
+                print($"Post {id}: {title}")
+                i = i + 1
+            }
+        }
+    }
+}
+```
+
+**Limitations:**
+- Direct `obj["key"]` in string templates (e.g., `$"{obj["key"]}"`) not supported due to parser limitations with nested quotes
+- Workaround: use intermediate variables
+- No `for...in` loop support yet (use `while` with `.length`)
+
+**Bug Fixes:**
+- ✅ Fixed hints.rs panic on empty error codes (added defensive guard)
+- ✅ Fixed Option<Struct> consuming with multiple field access (use `.as_ref().unwrap()`)
+- ✅ Fixed string template interpolation for option_value_vars
+
+## [0.9.6] - 2025-01-25
+
+### Added - HTTP Client (Phase 6.3 - 5h)
+
+**HTTP Methods:**
+- `HTTP.get(url: string) -> (Option<Response>, string)` - GET request
+- `HTTP.post(url: string, body: string) -> (Option<Response>, string)` - POST request
+- `HTTP.put(url: string, body: string) -> (Option<Response>, string)` - PUT request
+- `HTTP.delete(url: string) -> (Option<Response>, string)` - DELETE request
+
+**Response Object:**
+- `status: i32` - HTTP status code (200, 404, etc.)
+- `statusText: string` - Status text ("OK", "Not Found", etc.)
+- `body: string` - Response body as string
+- `headers: [string]` - Response headers
+
+**Features:**
+- ✅ Async by default using Liva's lazy evaluation (`async HTTP.get()`)
+- ✅ Error binding pattern: `let response, err = async HTTP.get(url)`
+- ✅ Tuple return type: `(Option<Response>, String)` for success/error
+- ✅ 30-second timeout with reqwest
+- ✅ TLS support via rustls (no OpenSSL dependency)
+- ✅ Comprehensive error handling (network, DNS, timeout, HTTP errors)
+
+**Implementation:**
+- Runtime: 150+ lines in liva_rt with LivaHttpResponse struct
+- Semantic Analysis: 120+ lines detecting HTTP.*, validation, async/fallible marking
+- Parser: Enhanced parse_exec_call() to support `async HTTP.method()` syntax
+- Code Generation: 300+ lines across 4 locations for HTTP support
+- Dependencies: reqwest 0.11 with rustls-tls features
+
+**Bug Fixes:**
+- ✅ Fixed error binding code generation for tuple-returning functions
+- ✅ Added returns_tuple field to TaskInfo for correct await generation
+- ✅ Enhanced is_builtin_conversion_call() to detect Call wrapping MethodCall
+- ✅ Fixed Option<Struct> field access to generate `value.unwrap().field`
+- ✅ Prevented String error vars from being tracked as Option<Error>
+
+**Examples:**
+```liva
+// Simple GET request
+let response, err = async HTTP.get("https://api.example.com/data")
+if err != "" {
+    console.error($"Error: {err}")
+} else {
+    print($"Status: {response.status}")
+    print($"Body: {response.body}")
+}
+
+// POST with data
+let postResp, postErr = async HTTP.post("https://api.example.com/users", userData)
+if postErr == "" {
+    print($"Created! Status: {postResp.status}")
+}
+```
+
+**Time Breakdown:**
+- Design & Documentation: 30 min
+- Setup & Dependencies: 30 min
+- Runtime Implementation: 1.5 hours (all 4 methods)
+- Semantic Analysis: 30 min (detection, validation)
+- Parser Enhancement: 15 min (async MethodCall)
+- Code Generation: 1.5 hours (HTTP calls, embedding, deps)
+- Bug Fixes: 1 hour (error binding, tuple handling)
+- Testing: 30 min (all methods verified)
+
+**Tests:**
+- ✅ test_http_simple.liva - Basic GET with error handling
+- ✅ test_http_quick.liva - GET and DELETE
+- ✅ examples/manual-tests/test_http_all.liva - Comprehensive (all 4 methods)
+
 ## [0.9.5] - 2025-01-24
 
 ### Added - Enhanced Pattern Matching (Phase 6.4 - 3.5h)

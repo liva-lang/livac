@@ -1,0 +1,43 @@
+// HTTP Test Suite - Level 4: POST request
+// Tests: POST with JSON body
+
+main() {
+    print("=== Test 4: POST Request ===\n")
+    
+    // Create new post data
+    let newPost, stringifyErr = JSON.stringify({
+        title: "Test Post from Liva",
+        body: "This is a test post created using Liva HTTP client",
+        userId: 1
+    })
+    
+    if stringifyErr != "" {
+        console.error($"JSON stringify error: {stringifyErr}")
+    }
+    
+    print($"Sending POST request with body:")
+    print(newPost)
+    print("")
+    
+    // Send POST request
+    let response, err = async HTTP.post("https://jsonplaceholder.typicode.com/posts", newPost)
+    
+    if err != "" {
+        console.error($"HTTP Error: {err}")
+    }
+    
+    print($"Status: {response.status} {response.statusText}")
+    
+    // Parse response
+    let createdPost, jsonErr = JSON.parse(response.body)
+    
+    if jsonErr != "" {
+        console.error($"JSON parse error: {jsonErr}")
+    }
+    
+    if response.status == 201 {
+        print($"Success! Created post with ID: {createdPost["id"]}")
+        print($"Title: {createdPost["title"]}")
+        print($"Body: {createdPost["body"]}")
+    }
+}

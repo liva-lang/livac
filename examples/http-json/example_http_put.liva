@@ -1,0 +1,31 @@
+// Example: HTTP PUT request with JSON body
+// Demonstrates updating data via PUT request
+
+main() {
+    print("=== HTTP PUT Example ===")
+    print("")
+    
+    // Create JSON data for update
+    let updateData = "{\"id\": 1, \"name\": \"Bob Updated\", \"status\": \"active\"}"
+    
+    print("Sending PUT request to httpbin.org...")
+    let response, err = async HTTP.put("https://httpbin.org/put", updateData)
+    
+    if err != "" {
+        print($"Error: {err}")
+    } else {
+        print($"Status: {response.status} {response.statusText}")
+        print("")
+        
+        if response.status == 200 {
+            print("PUT request successful!")
+            
+            let data, parseErr = JSON.parse(response.body)
+            if parseErr == "" {
+                print("Response parsed successfully")
+            }
+        } else {
+            print($"Unexpected status: {response.status}")
+        }
+    }
+}

@@ -1,0 +1,33 @@
+// Test: JSON Typed Parsing with arrays of nested classes
+
+Comment {
+    id: u32
+    text: String
+    author: String
+}
+
+Post {
+    id: u32
+    title: String
+    body: String
+    comments: [Comment]    // Array of nested class
+}
+
+main() {
+    print($"=== JSON Nested Arrays Test ===")
+    
+    let postJson = "{\"id\": 1, \"title\": \"Hello World\", \"body\": \"This is a test post\", \"comments\": [{\"id\": 1, \"text\": \"Great post!\", \"author\": \"Alice\"}, {\"id\": 2, \"text\": \"Thanks for sharing\", \"author\": \"Bob\"}]}"
+    let post: Post, err = JSON.parse(postJson)
+    
+    if err == "" {
+        print($"✅ Parsed successfully!")
+        print($"Post: {post.title}")
+        print($"Body: {post.body}")
+        print($"Comments: {post.comments.len()} total")
+        print($"✓ Nested array of classes works!")
+    } else {
+        print($"❌ Error: {err}")
+    }
+    
+    print($"✓ Test complete!")
+}

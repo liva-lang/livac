@@ -1,0 +1,72 @@
+// Test typed JSON parsing with response.json()
+// Demonstrates that response.json() works with custom types
+
+Post {
+    userId: u32
+    id: u64
+    title: string
+    body: string
+}
+
+Geo {
+    lat: string
+    lng: string
+}
+
+Address {
+    street: string
+    suite: string
+    city: string
+    zipcode: string
+    geo: Geo
+}
+
+Company {
+    name: string
+    catchPhrase: string
+    bs: string
+}
+
+User {
+    id: u32
+    name: string
+    username: string
+    email: string
+    address: Address
+    phone: string
+    website: string
+    company: Company
+
+    getName() :String {
+        return this.name + " (custom method)"
+    }
+}
+
+main() {
+    print("Fetching users with typed JSON parsing using response.json()...")
+    
+    let res, err = async HTTP.get("https://jsonplaceholder.typicode.com/users")
+
+    if err != "" {
+        console.log($"HTTP Error: {err}")
+    } else if res.status != 200 {
+        console.log($"Failed to fetch users. Status: {res.status}")
+    } else {
+        // ✨ NEW: Using response.json() instead of JSON.parse(res.body)
+        let users: [User], parseErr = res.json()
+        
+        if parseErr != "" {
+            console.log($"Parse error: {parseErr}")
+        } else {
+            console.log($"Fetched {users.len()} users:")
+
+            users.parvec().forEach(user => {
+                console.log($"User {user.id}: {user.name} (@{user.username})")
+                console.log($"  Email: {user.email}")
+                console.log($"  City: {user.address.city}")
+                console.log($"  Company: {user.company.name}")
+                console.log($"  Custom method: {user.getName()}")
+            })
+        }
+    }
+}

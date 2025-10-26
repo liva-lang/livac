@@ -26,7 +26,8 @@ expression: json
                         }
                       }
                     ],
-                    "exec_policy": "normal"
+                    "exec_policy": "normal",
+                    "type_args": []
                   }
                 }
               }
@@ -126,7 +127,8 @@ expression: json
                             }
                           }
                         ],
-                        "exec_policy": "normal"
+                        "exec_policy": "normal",
+                        "type_args": []
                       }
                     }
                   }
@@ -176,7 +178,8 @@ expression: json
                         "Identifier": "url"
                       }
                     ],
-                    "exec_policy": "normal"
+                    "exec_policy": "normal",
+                    "type_args": []
                   }
                 },
                 "is_fallible": false

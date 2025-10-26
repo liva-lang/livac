@@ -1,0 +1,65 @@
+Geo {
+    lat: string
+    lng: string
+}
+
+Address {
+    street: string
+    suite: string
+    city: string
+    zipcode: string
+    geo: Geo
+}
+
+Company {
+    name: string
+    catchPhrase: string
+    bs: string
+}
+
+User {
+    id: u32
+    name: string
+    username: string
+    email: string
+    address: Address
+    phone: string
+    website: string
+    company: Company
+
+    getName(): string {
+        return this.name
+    }
+}
+
+main() {
+  let res, err = async HTTP.get("https://jsonplaceholder.typicode.com/users?_limit=3")
+
+  if err != "" {
+      console.log($"HTTP Error: {err}")
+  } else if res.status != 200 {
+    console.log($"Failed to fetch users. Status: {res.status}")
+  } else {
+    let users: [User], parseErr = JSON.parse(res.body)
+    
+    if parseErr != "" {
+      console.log($"Parse error: {parseErr}")
+    } else {
+      console.log($"Fetched {users.len()} users:")
+
+      users.parvec().forEach(user => {
+        console.log($"User {user.id}: {user.getName()} (@{user.username})")
+        console.log($"  Email: {user.email}")
+        console.log($"  Phone: {user.phone}")
+        console.log($"  Website: {user.website}")
+        console.log($"  Address: {user.address.street}, {user.address.suite}")
+        console.log($"           {user.address.city}, {user.address.zipcode}")
+        console.log($"           Geo: ({user.address.geo.lat}, {user.address.geo.lng})")
+        console.log($"  Company: {user.company.name}")
+        console.log($"           {user.company.catchPhrase}")
+        console.log($"           {user.company.bs}")
+        console.log("")
+      })
+    }
+  }
+}

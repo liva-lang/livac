@@ -1,0 +1,12 @@
+// Test 8: JSON array of objects with arrow functions
+main() {
+    let json_str = "[{\"id\": 1, \"name\": \"Alice\"}, {\"id\": 2, \"name\": \"Bob\"}, {\"id\": 3, \"name\": \"Charlie\"}]"
+    let users = JSON.parse(json_str)
+    
+    print($"Test 8: Array of objects with forEach")
+    users.forEach(user => {
+        let id = user.get_field("id").unwrap()
+        let name = user.get_field("name").unwrap()
+        print($"  User {id}: {name}")
+    })
+}

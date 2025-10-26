@@ -1,0 +1,6 @@
+main() {
+    let arr = [1, 2, 3, 4, 5]
+    
+    print("Testing forEach with arrow:")
+    arr.forEach(item => print($"Item: {item}"))
+}

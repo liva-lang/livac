@@ -1,0 +1,34 @@
+// HTTP Test Suite - Level 8: Multiple parallel requests
+// Tests: Concurrent HTTP requests with async
+
+main() {
+    print("=== Test 8: Parallel Requests ===\n")
+    
+    print("Launching 3 parallel requests...")
+    
+    // Create 3 tasks simultaneously
+    let posts, err1 = async HTTP.get("https://jsonplaceholder.typicode.com/posts?_limit=3")
+    let users, err2 = async HTTP.get("https://jsonplaceholder.typicode.com/users?_limit=3")
+    let comments, err3 = async HTTP.get("https://jsonplaceholder.typicode.com/comments?_limit=3")
+    
+    // Check results (tasks execute in parallel when accessed)
+    if err1 != "" {
+        console.error($"Posts error: {err1}")
+    } else {
+        print($"Posts: Status {posts.status}, Body length: {posts.body.length}")
+    }
+    
+    if err2 != "" {
+        console.error($"Users error: {err2}")
+    } else {
+        print($"Users: Status {users.status}, Body length: {users.body.length}")
+    }
+    
+    if err3 != "" {
+        console.error($"Comments error: {err3}")
+    } else {
+        print($"Comments: Status {comments.status}, Body length: {comments.body.length}")
+    }
+    
+    print("\nAll parallel requests completed!")
+}

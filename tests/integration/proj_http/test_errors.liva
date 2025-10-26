@@ -1,0 +1,24 @@
+// Test HTTP error handling
+main() {
+    print("Testing HTTP error handling...")
+    
+    print("Test 1: Invalid URL")
+    let resp1, err1 = async HTTP.get("invalid-url")
+    if err1 != "" {
+        print("Error caught correctly for invalid URL")
+    }
+    
+    print("Test 2: Non-existent domain")
+    let resp2, err2 = async HTTP.get("https://this-domain-does-not-exist-12345.com")
+    if err2 != "" {
+        print("Error caught correctly for non-existent domain")
+    }
+    
+    print("Test 3: 404 Not Found")
+    let resp3, err3 = async HTTP.get("https://httpbin.org/status/404")
+    if err3 == "" {
+        print($"Status 404 returned as response (not error): {resp3.status}")
+    }
+    
+    print("All error handling tests completed!")
+}

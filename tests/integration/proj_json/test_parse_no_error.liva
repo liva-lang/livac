@@ -1,0 +1,8 @@
+// Test 1: JSON.parse without error binding
+main() {
+    let json_str = "[1, 2, 3, 4, 5]"
+    let numbers = JSON.parse(json_str)
+    
+    print($"Test 1: JSON.parse without error binding")
+    print($"Numbers: {numbers}")
+}

@@ -1,0 +1,10 @@
+// Test 2: for...in loop on JSON array
+main() {
+    let json_str = "[10, 20, 30, 40, 50]"
+    let numbers = JSON.parse(json_str)
+    
+    print($"Test 2: for...in loop on JSON")
+    for num in numbers {
+        print($"  Number: {num}")
+    }
+}

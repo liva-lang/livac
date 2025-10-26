@@ -1,0 +1,32 @@
+// Test response.json() method
+// Demonstrates ergonomic JSON parsing from HTTP responses
+
+main() {
+    print("Testing response.json() method...")
+    
+    let response, httpErr = async HTTP.get("https://jsonplaceholder.typicode.com/posts?_limit=3")
+    
+    if httpErr != "" {
+        print($"HTTP Error: {httpErr}")
+    } else {
+        print($"Status: {response.status}")
+        
+        // ✨ NEW: Use response.json() directly instead of JSON.parse(response.body)
+        let posts, jsonErr = response.json()
+        
+        if jsonErr != "" {
+            print($"JSON Error: {jsonErr}")
+        } else {
+            print("Posts parsed successfully!")
+            print($"Posts length: {posts.length}")
+            
+            let i = 0
+            while i < posts.length {
+                let post = posts[i]
+                let title = post["title"]
+                print($"  - Post {i}: {title}")
+                i = i + 1
+            }
+        }
+    }
+}

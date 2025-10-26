@@ -1,0 +1,21 @@
+// Test HTTP POST request with JSON body
+main() {
+    print("Testing HTTP POST request...")
+    
+    let jsonBody = "{\"name\": \"Liva\", \"version\": \"0.9.6\"}"
+    let response, err = async HTTP.post("https://httpbin.org/post", jsonBody)
+    
+    if err != "" {
+        print($"Error: {err}")
+    } else {
+        print($"Status: {response.status}")
+        
+        if response.status == 200 {
+            print("POST request successful!")
+            let data, parseErr = JSON.parse(response.body)
+            if parseErr == "" {
+                print("Response body parsed successfully")
+            }
+        }
+    }
+}

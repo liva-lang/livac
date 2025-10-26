@@ -1285,8 +1285,8 @@ livac/
 
 ## 🎯 Current Status
 
-**Version:** 0.8.0  
-**Status:** Alpha - Core language complete, stdlib released, modules in development
+**Version:** 0.9.6  
+**Status:** Alpha - HTTP Client complete, Pattern Matching with exhaustiveness checking
 
 ### ✅ Fully Implemented
 
@@ -1299,18 +1299,31 @@ livac/
 - ✅ Operators (arithmetic, logical, comparison, bitwise)
 - ✅ String templates with interpolation
 - ✅ Visibility modifiers (public, private)
+- ✅ Pattern matching (switch expressions, guards, ranges, exhaustiveness)
+
+**Standard Library:**
+- ✅ **Type-Safe JSON Parsing (v0.10.0)** - Parse JSON with type hints, custom classes, nested objects
+- ✅ JSON parsing and serialization (`JSON.parse`, `JSON.stringify`)
+- ✅ File I/O operations (`File.read`, `File.write`, `File.append`, `File.delete`, `File.exists`)
+- ✅ HTTP Client (`HTTP.get`, `HTTP.post`, `HTTP.put`, `HTTP.delete`)
+- ✅ Console I/O (`console.log`, `console.error`, `console.warn`, `console.input`)
+- ✅ Math operations (sqrt, sin, cos, abs, pow, etc.)
+- ✅ String utilities (37 functions)
+- ✅ Type conversions (parseInt, parseFloat, toString)
 
 **Concurrency:**
 - ✅ Async/await for I/O-bound operations
 - ✅ Parallel execution for CPU-bound operations
 - ✅ Task handles (`task`, `fire`, `await`)
 - ✅ Hybrid concurrency (mix async + parallel)
+- ✅ Lazy async evaluation (tasks execute when used)
 
 **Error Handling:**
 - ✅ Explicit `fail` statements
 - ✅ Error binding (`let value, err = ...`)
 - ✅ Fallibility inference (automatic detection)
 - ✅ Comprehensive error messages with suggestions
+- ✅ Tuple-based error handling for stdlib functions
 
 **Compiler:**
 - ✅ Complete lexer with 50+ tokens
@@ -1336,31 +1349,29 @@ livac/
 
 ### 📋 Roadmap
 
-**v0.7.0 - Standard Library** ✅ RELEASED (Oct 2025)
-- ✅ String manipulation (37 functions)
-- ✅ Math operations (sqrt, sin, cos, abs, etc.)
-- ✅ Type conversions (parseInt, parseFloat, toString)
-- ✅ Console I/O (console.log, console.error, console.warn, console.input)
-- ✅ Array/collection utilities
+**v0.9.x - Incremental Improvements** ✅ COMPLETE
+- ✅ JSON parsing & serialization (v0.9.3)
+- ✅ File I/O operations (v0.9.4)
+- ✅ Enhanced pattern matching (v0.9.5)
+- ✅ HTTP Client (v0.9.6)
 
-**v0.8.0 - Module System** ✅ RELEASED (Oct 21, 2025)
-- ✅ Import/export statements with JavaScript-style syntax
-- ✅ Module resolution with cycle detection
-- ✅ Symbol validation with collision detection
-- ✅ Multi-file Rust project generation
-- ✅ Comprehensive documentation (2,500+ lines)
-- ✅ Working examples (calculator, module imports)
-- **Released:** All 6 phases complete in 17h (3.1x faster than estimated)
+**v0.10.0 - Type-Safe JSON Parsing** ✅ RELEASED (2025-01-25)
+- ✅ Typed JSON parsing with type hints
+- ✅ Custom classes with serde derives
+- ✅ Nested classes with recursive dependency tracking
+- ✅ Arrays of custom classes
+- ✅ Comprehensive documentation and guides
 
-**v0.9.0 - Generics** (Planned Q4 2025)
-- Generic functions: `fn box<T>(value: T) -> T`
-- Generic classes: `class Box<T>`
-- Type parameter bounds: `<T: Comparable>`
-- Standard library updates (Array<T>, Result<T, E>)
+**v0.11.0 - Compiler Optimizations** (Planned Q2 2025)
+- Benchmark suite for compilation and runtime
+- Dead code elimination
+- Constant folding and propagation
+- Incremental compilation
+- Code coverage analysis
 
-**v1.0.0 - Advanced Features** (Planned Q1 2026)
-- Pattern matching (`match` expressions)
-- Trait refinements
+**v1.0.0 - Advanced Features** (Planned Q3 2025)
+- Pattern matching refinements
+- Trait system enhancements
 - Macro system (hygenic)
 - Language Server Protocol (LSP)
 - Package manager integration

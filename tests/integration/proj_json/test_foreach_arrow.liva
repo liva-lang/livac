@@ -1,0 +1,8 @@
+// Test 4: forEach with arrow functions on JSON
+main() {
+    let json_str = "[1, 2, 3, 4, 5]"
+    let numbers = JSON.parse(json_str)
+    
+    print($"Test 4: forEach with arrow functions")
+    numbers.forEach(n => print($"  Item: {n}"))
+}
