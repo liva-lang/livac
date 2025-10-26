@@ -3722,14 +3722,54 @@ impl CodeGenerator {
                     }
                     self.output.push_str("| ");
                     
+                    // Check if we need to generate destructuring code for lambda params
+                    let has_destructuring = lambda.params.iter().any(|p| p.is_destructuring());
+                    
                     match &lambda.body {
                         LambdaBody::Expr(expr) => {
-                            self.generate_expr(expr)?;
+                            if has_destructuring {
+                                // Need to wrap in block to add destructuring
+                                self.output.push('{');
+                                self.indent();
+                                self.output.push('\n');
+                                
+                                // Generate destructuring for each param
+                                for (idx, param) in lambda.params.iter().enumerate() {
+                                    if param.is_destructuring() {
+                                        let temp_name = format!("_param_{}", idx);
+                                        self.write_indent();
+                                        self.generate_lambda_param_destructuring(&param.pattern, &temp_name)?;
+                                        self.output.push('\n');
+                                    }
+                                }
+                                
+                                self.write_indent();
+                                self.generate_expr(expr)?;
+                                self.output.push('\n');
+                                self.dedent();
+                                self.write_indent();
+                                self.output.push('}');
+                            } else {
+                                self.generate_expr(expr)?;
+                            }
                         }
                         LambdaBody::Block(block) => {
                             self.output.push('{');
                             self.indent();
                             self.output.push('\n');
+                            
+                            // Generate destructuring for lambda params (if any)
+                            if has_destructuring {
+                                for (idx, param) in lambda.params.iter().enumerate() {
+                                    if param.is_destructuring() {
+                                        let temp_name = format!("_param_{}", idx);
+                                        self.write_indent();
+                                        self.generate_lambda_param_destructuring(&param.pattern, &temp_name)?;
+                                        self.output.push('\n');
+                                    }
+                                }
+                            }
+                            
                             self.write_indent();
                             for stmt in &block.stmts[..block.stmts.len().saturating_sub(1)] {
                                 self.generate_stmt(stmt)?;

@@ -141,6 +141,54 @@ impl Parser {
             Some(Token::Ident(_)) | Some(Token::PrivateIdent(_)) => {
                 matches!(self.peek_token(offset + 1), Some(Token::Arrow))
             }
+            Some(Token::LBrace) => {
+                // Object destructuring: {x, y} =>
+                // Scan forward to find closing brace and check for arrow
+                let mut depth = 0usize;
+                let mut idx = offset;
+                while let Some(tok) = self.peek_token(idx) {
+                    match tok {
+                        Token::LBrace => depth += 1,
+                        Token::RBrace => {
+                            if depth == 0 {
+                                return false;
+                            }
+                            depth -= 1;
+                            if depth == 0 {
+                                idx += 1;
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                    idx += 1;
+                }
+                matches!(self.peek_token(idx), Some(Token::Arrow))
+            }
+            Some(Token::LBracket) => {
+                // Array destructuring: [x, y] =>
+                // Scan forward to find closing bracket and check for arrow
+                let mut depth = 0usize;
+                let mut idx = offset;
+                while let Some(tok) = self.peek_token(idx) {
+                    match tok {
+                        Token::LBracket => depth += 1,
+                        Token::RBracket => {
+                            if depth == 0 {
+                                return false;
+                            }
+                            depth -= 1;
+                            if depth == 0 {
+                                idx += 1;
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                    idx += 1;
+                }
+                matches!(self.peek_token(idx), Some(Token::Arrow))
+            }
             _ => false,
         }
     }
