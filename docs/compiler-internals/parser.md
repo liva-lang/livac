@@ -91,6 +91,7 @@ fn parse_statement(&mut self) -> Result<Stmt>
 
 Statement types:
 - **Variable**: `let x = 10` or `let x, err = fallible()`
+  - **Destructuring** (v0.10.2+): `let {name, age} = user` or `let [first, second] = array`
 - **Constant**: `const MAX = 100`
 - **If**: With optional parentheses, single-statement or block
 - **While**: `while condition { ... }`
@@ -101,6 +102,73 @@ Statement types:
 - **Throw**: `throw error`
 - **Fail**: `fail "message"`
 - **Expression**: Any expression as statement
+
+### Variable Bindings and Destructuring (v0.10.2+)
+
+```rust
+fn parse_let_bindings(&mut self) -> Result<Vec<VarBinding>>
+```
+
+Liva supports multiple binding patterns:
+
+**Simple Binding**:
+```liva
+let name = "Alice"
+let age: number = 25
+```
+
+**Fallible Binding** (error tuple):
+```liva
+let result, err = parseInt("123")
+let data, error = HTTP.get("https://api.example.com")
+```
+
+**Object Destructuring** (v0.10.2+):
+```liva
+let {name, age} = user
+let {name: userName, age: userAge} = user  // with rename
+```
+
+**Array Destructuring** (v0.10.2+):
+```liva
+let [first, second] = array
+let [first, , third] = array  // skip elements
+let [head, ...tail] = array   // rest pattern
+```
+
+**AST Structure**:
+
+```rust
+pub struct VarBinding {
+    pub pattern: BindingPattern,
+    pub type_ref: Option<TypeRef>,
+    pub span: Span,
+}
+
+pub enum BindingPattern {
+    Identifier(String),
+    Object(ObjectPattern),
+    Array(ArrayPattern),
+}
+
+pub struct ObjectPattern {
+    pub fields: Vec<ObjectPatternField>,
+}
+
+pub struct ObjectPatternField {
+    pub key: String,
+    pub binding: String,  // renamed binding or same as key
+}
+
+pub struct ArrayPattern {
+    pub elements: Vec<Option<String>>,  // None for skipped elements
+    pub rest: Option<String>,           // rest pattern variable name
+}
+```
+
+**Helper Methods**:
+- `binding.name() -> Option<&str>`: Returns the simple identifier name, or None for complex patterns
+- `binding.is_simple() -> bool`: Returns true if it's a simple identifier binding
 
 ### For Loops with Policies
 
