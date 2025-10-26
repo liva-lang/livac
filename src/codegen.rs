@@ -127,9 +127,13 @@ impl CodeGenerator {
     
     /// Check if expression is JSON.parse method call (Phase 1: JSON Typed Parsing)
     fn is_json_parse_call(&self, expr: &Expr) -> bool {
-        matches!(expr, 
-            Expr::MethodCall(mc) if matches!(&*mc.object, Expr::Identifier(id) if id == "JSON") && mc.method == "parse"
-        )
+        match expr {
+            // JSON.parse() call
+            Expr::MethodCall(mc) if matches!(&*mc.object, Expr::Identifier(id) if id == "JSON") && mc.method == "parse" => true,
+            // response.json() or any object's .json() method
+            Expr::MethodCall(mc) if mc.method == "json" => true,
+            _ => false
+        }
     }
     
     /// Check if expression is an HTTP call (GET/POST/PUT/DELETE)
@@ -175,17 +179,24 @@ impl CodeGenerator {
         self.output.push_str(&rust_type);
         self.output.push_str(">(&");
         
-        // Generate the JSON string argument
-        if let Some(arg) = method_call.args.first() {
-            self.generate_expr(arg)?;
+        // Check if this is JSON.parse() or response.json()
+        if method_call.method == "json" && !matches!(&*method_call.object, Expr::Identifier(id) if id == "JSON") {
+            // This is response.json() - use the response body
+            self.generate_expr(&method_call.object)?;
+            self.output.push_str(".body");
         } else {
-            return Err(CompilerError::CodegenError(
-                SemanticErrorInfo::new(
-                    "E3001",
-                    "JSON.parse requires a string argument",
-                    "JSON.parse must be called with a JSON string"
-                )
-            ));
+            // This is JSON.parse() - use the argument
+            if let Some(arg) = method_call.args.first() {
+                self.generate_expr(arg)?;
+            } else {
+                return Err(CompilerError::CodegenError(
+                    SemanticErrorInfo::new(
+                        "E3001",
+                        "JSON.parse requires a string argument",
+                        "JSON.parse must be called with a JSON string"
+                    )
+                ));
+            }
         }
         
         self.output.push(')');

@@ -1193,16 +1193,17 @@ impl SemanticAnalyzer {
                     self.in_error_binding = true;
                 }
                 
-                // Check if this is a JSON.parse call with type hint (Phase 1: JSON Typed Parsing)
+                // Check if this is a JSON.parse or response.json() call with type hint (Phase 1: JSON Typed Parsing)
                 if let Some(type_hint) = var.bindings.first().and_then(|b| b.type_ref.as_ref()) {
                     if let Expr::MethodCall(method_call) = &var.init {
-                        if method_call.method == "parse" {
-                            if let Expr::Identifier(obj_name) = method_call.object.as_ref() {
-                                if obj_name == "JSON" {
-                                    // This is JSON.parse with a type hint
-                                    self.validate_json_parse_type_hint(type_hint)?;
-                                }
-                            }
+                        // Check for JSON.parse() or any .json() method
+                        let is_json_parse = method_call.method == "parse" && 
+                            matches!(method_call.object.as_ref(), Expr::Identifier(id) if id == "JSON");
+                        let is_json_method = method_call.method == "json";
+                        
+                        if is_json_parse || is_json_method {
+                            // This is JSON.parse or response.json() with a type hint
+                            self.validate_json_parse_type_hint(type_hint)?;
                         }
                     }
                 }
