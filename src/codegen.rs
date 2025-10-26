@@ -1863,9 +1863,15 @@ impl CodeGenerator {
                         }
 
                         // Check if initializing with an array literal - mark variable as array
-                        if let Expr::ArrayLiteral(_) = &var.init {
+                        if let Expr::ArrayLiteral(elements) = &var.init {
                             if let Some(name) = binding.name() {
                                 self.array_vars.insert(name.to_string());
+                                
+                                // If array contains anonymous objects, mark as json_value
+                                // e.g., let users = [{ id: 1, name: "Alice" }, { id: 2, name: "Bob" }]
+                                if !elements.is_empty() && matches!(elements[0], Expr::ObjectLiteral(_)) {
+                                    self.json_value_vars.insert(name.to_string());
+                                }
                             }
                         }
                         // Check if initializing with a method call that returns an array (map, filter, etc.)
@@ -2750,7 +2756,7 @@ impl CodeGenerator {
                                 if param.is_destructuring() {
                                     let temp_name = format!("_param_{}", idx);
                                     self.write_indent();
-                                    self.generate_lambda_param_destructuring(&param.pattern, &temp_name)?;
+                                    self.generate_lambda_param_destructuring(&param.pattern, &temp_name, false)?;
                                 }
                             }
                             
@@ -2781,7 +2787,7 @@ impl CodeGenerator {
                                             if param.is_destructuring() {
                                                 let temp_name = format!("_param_{}", idx);
                                                 self.write_indent();
-                                                self.generate_lambda_param_destructuring(&param.pattern, &temp_name)?;
+                                                self.generate_lambda_param_destructuring(&param.pattern, &temp_name, false)?;
                                                 self.output.push('\n');
                                             }
                                         }
@@ -2819,7 +2825,7 @@ impl CodeGenerator {
                                         if param.is_destructuring() {
                                             let temp_name = format!("_param_{}", idx);
                                             self.write_indent();
-                                            self.generate_lambda_param_destructuring(&param.pattern, &temp_name)?;
+                                            self.generate_lambda_param_destructuring(&param.pattern, &temp_name, false)?;
                                             self.output.push('\n');
                                         }
                                     }
@@ -3700,8 +3706,8 @@ impl CodeGenerator {
                                 // Accumulator: no dereferencing
                                 self.output.push_str(&param_name);
                             } else {
-                                // Element: dereference once (unless JsonValue)
-                                if !is_json_value {
+                                // Element: dereference once (unless JsonValue or destructured)
+                                if !is_json_value && !param.is_destructuring() {
                                     self.output.push('&');
                                 }
                                 self.output.push_str(&param_name);
@@ -3710,7 +3716,8 @@ impl CodeGenerator {
                             // filter/find need && (closure takes &&T for filter/find)
                             // map/forEach/some/every need & (closure takes &T)
                             // UNLESS it's JsonValue, then no dereferencing at all
-                            if !is_json_value {
+                            // ALSO: if parameter is destructured, don't add & because we'll clone inside
+                            if !is_json_value && !param.is_destructuring() {
                                 if method_call.method == "filter" || method_call.method == "find" {
                                     self.output.push_str("&&");
                                 } else {
@@ -3738,7 +3745,7 @@ impl CodeGenerator {
                                     if param.is_destructuring() {
                                         let temp_name = format!("_param_{}", idx);
                                         self.write_indent();
-                                        self.generate_lambda_param_destructuring(&param.pattern, &temp_name)?;
+                                        self.generate_lambda_param_destructuring(&param.pattern, &temp_name, is_json_value)?;
                                         self.output.push('\n');
                                     }
                                 }
@@ -3764,7 +3771,7 @@ impl CodeGenerator {
                                     if param.is_destructuring() {
                                         let temp_name = format!("_param_{}", idx);
                                         self.write_indent();
-                                        self.generate_lambda_param_destructuring(&param.pattern, &temp_name)?;
+                                        self.generate_lambda_param_destructuring(&param.pattern, &temp_name, is_json_value)?;
                                         self.output.push('\n');
                                     }
                                 }
@@ -5018,17 +5025,29 @@ impl CodeGenerator {
 
     /// Generate destructuring code for lambda parameters
     /// Similar to generate_param_destructuring but for lambdas (no indent on first line)
-    fn generate_lambda_param_destructuring(&mut self, pattern: &BindingPattern, temp_name: &str) -> Result<()> {
+    fn generate_lambda_param_destructuring(&mut self, pattern: &BindingPattern, temp_name: &str, is_json_value: bool) -> Result<()> {
         match pattern {
             BindingPattern::Object(obj_pattern) => {
                 // Object destructuring: extract each field
                 for field in &obj_pattern.fields {
                     let binding_name = self.sanitize_name(&field.binding);
-                    write!(
-                        self.output,
-                        "let {} = {}.{}.clone();\n",
-                        binding_name, temp_name, field.key
-                    ).unwrap();
+                    
+                    if is_json_value {
+                        // For JsonValue, use .get("field") access
+                        write!(
+                            self.output,
+                            "let {} = {}[\"{}\"].clone();\n",
+                            binding_name, temp_name, field.key
+                        ).unwrap();
+                    } else {
+                        // For structs, use direct field access
+                        write!(
+                            self.output,
+                            "let {} = {}.{}.clone();\n",
+                            binding_name, temp_name, field.key
+                        ).unwrap();
+                    }
+                    
                     if field != obj_pattern.fields.last().unwrap() {
                         self.write_indent();
                     }
