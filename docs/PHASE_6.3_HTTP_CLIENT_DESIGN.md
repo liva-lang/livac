@@ -609,15 +609,19 @@ Hint: The server may be slow or unreachable. Consider retrying.
 - `body: string` - Response body as string
 - `headers: [string]` - Response headers as array
 
+**Response Methods:**
+- `json(): (JsonValue, string)` - Parse response body as JSON (returns tuple for error binding)
+
 **Features:**
 - Async by default (uses await)
 - Error binding integration
 - 30-second default timeout
 - Comprehensive error messages
-- JSON integration (parse response bodies)
+- Ergonomic JSON parsing with `.json()` method
 
 **Examples:**
 \`\`\`liva
+// Example 1: Using JSON.parse (traditional)
 main() {
     let response, err = async HTTP.get("https://api.example.com/data")
     if err != "" {
@@ -627,6 +631,22 @@ main() {
     
     let data, jsonErr = JSON.parse(response.body)
     print($"Data: {data}")  // Auto-awaits on response access
+}
+
+// Example 2: Using response.json() (ergonomic - NEW in v0.9.6)
+main() {
+    let response, err = async HTTP.get("https://api.example.com/posts")
+    if err != "" {
+        fail $"Request failed: {err}"
+    }
+    
+    // ✨ Ergonomic JSON parsing inspired by JavaScript fetch API
+    let posts, jsonErr = response.json()
+    if jsonErr != "" {
+        fail $"JSON parsing failed: {jsonErr}"
+    }
+    
+    print($"Got {posts.length} posts")  // Auto-awaits on access
 }
 \`\`\`
 
@@ -820,17 +840,19 @@ main() {
 - `tests/integration/proj_http/test_put.liva` - PUT with JSON body
 - `tests/integration/proj_http/test_delete.liva` - DELETE requests
 - `tests/integration/proj_http/test_errors.liva` - Error handling
+- `tests/integration/proj_http/test_response_json.liva` - response.json() method (NEW)
 
 **Examples Created:**
 - `examples/http-json/example_http_post.liva` - POST demonstration
 - `examples/http-json/example_http_put.liva` - PUT demonstration
 - `examples/http-json/example_http_all_methods.liva` - All methods demo
+- `examples/http-json/example_response_json.liva` - response.json() demo (NEW)
 
 **Metrics:**
-- Total implementation time: 5 hours
-- Files created: 8 (5 tests + 3 examples)
-- Tests passing: 5/5 ✅
-- Documentation pages: 1 (800+ lines)
+- Total implementation time: 5.5 hours
+- Files created: 10 (6 tests + 4 examples)
+- Tests passing: 6/6 ✅
+- Documentation pages: 1 (850+ lines)
 - Code quality: Zero warnings in HTTP implementation
 - 🧪 Integration tests
 
