@@ -4753,10 +4753,10 @@ impl CodeGenerator {
                             binding_name, temp_var, field.key
                         ).unwrap();
                     } else {
-                        // Struct field access
+                        // Struct field access - clone to handle non-Copy types (String, Vec, etc.)
                         write!(
                             self.output,
-                            "let mut {} = {}.{};\n",
+                            "let mut {} = {}.{}.clone();\n",
                             binding_name, temp_var, field.key
                         ).unwrap();
                     }
