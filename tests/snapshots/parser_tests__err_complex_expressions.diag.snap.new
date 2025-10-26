@@ -1,0 +1,24 @@
+---
+source: tests/parser_tests.rs
+assertion_line: 32
+expression: error_msg
+---
+● E2000: Parse Error [Parser]
+────────────────────────────────────────────────────────────
+  → <input>:4:13
+
+     2 │ main() {
+     3 │     // Error: acceso a miembro sin objeto
+     4 │
+       │ let x = .name
+       │         ^
+     5 │ 
+     6 │     // Error: llamada a función sin función
+       │
+
+  ⓘ Expected expression
+
+  💡 Check for missing semicolons, parentheses, or keywords
+
+  📚 Learn more: https://liva-lang.org/docs/errors/parser#e2000
+────────────────────────────────────────────────────────────

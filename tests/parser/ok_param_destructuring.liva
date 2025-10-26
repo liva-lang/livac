@@ -1,0 +1,20 @@
+// Test parameter destructuring patterns
+
+// Array destructuring
+processArray([first, second]: [int]): int {
+    return first + second
+}
+
+// Object destructuring
+processObject({name, age}): User {
+    return name
+}
+
+// Rest pattern
+processList([head, ...tail]: [int]) {
+    return head
+}
+
+main() {
+    print(42)
+}

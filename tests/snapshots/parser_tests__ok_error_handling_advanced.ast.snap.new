@@ -1,0 +1,885 @@
+---
+source: tests/parser_tests.rs
+assertion_line: 15
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "readFile",
+        "type_params": [],
+        "params": [
+          {
+            "pattern": {
+              "Identifier": "filename"
+            },
+            "type_ref": {
+              "Simple": "string"
+            },
+            "default": null
+          }
+        ],
+        "return_type": {
+          "Simple": "string"
+        },
+        "body": {
+          "stmts": [
+            {
+              "TryCatch": {
+                "try_block": {
+                  "stmts": [
+                    {
+                      "If": {
+                        "condition": {
+                          "Binary": {
+                            "op": "Eq",
+                            "left": {
+                              "Identifier": "filename"
+                            },
+                            "right": {
+                              "Literal": {
+                                "String": "nonexistent.txt"
+                              }
+                            }
+                          }
+                        },
+                        "then_branch": {
+                          "Block": {
+                            "stmts": [
+                              {
+                                "Throw": {
+                                  "expr": {
+                                    "Literal": {
+                                      "String": "File not found"
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        "else_branch": null
+                      }
+                    },
+                    {
+                      "Return": {
+                        "expr": {
+                          "Literal": {
+                            "String": "file content"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "catch_var": "e",
+                "catch_block": {
+                  "stmts": [
+                    {
+                      "Throw": {
+                        "expr": {
+                          "StringTemplate": {
+                            "parts": [
+                              {
+                                "Text": "Failed to read file: "
+                              },
+                              {
+                                "Expr": {
+                                  "Identifier": "e"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    },
+    {
+      "Function": {
+        "name": "safeDivide",
+        "type_params": [],
+        "params": [
+          {
+            "pattern": {
+              "Identifier": "a"
+            },
+            "type_ref": {
+              "Simple": "number"
+            },
+            "default": null
+          },
+          {
+            "pattern": {
+              "Identifier": "b"
+            },
+            "type_ref": {
+              "Simple": "number"
+            },
+            "default": null
+          }
+        ],
+        "return_type": {
+          "Generic": {
+            "base": "Result",
+            "args": [
+              {
+                "Simple": "number"
+              },
+              {
+                "Simple": "string"
+              }
+            ]
+          }
+        },
+        "body": {
+          "stmts": [
+            {
+              "If": {
+                "condition": {
+                  "Binary": {
+                    "op": "Eq",
+                    "left": {
+                      "Identifier": "b"
+                    },
+                    "right": {
+                      "Literal": {
+                        "Int": 0
+                      }
+                    }
+                  }
+                },
+                "then_branch": {
+                  "Block": {
+                    "stmts": [
+                      {
+                        "Return": {
+                          "expr": {
+                            "Call": {
+                              "callee": {
+                                "Identifier": "Err"
+                              },
+                              "args": [
+                                {
+                                  "Literal": {
+                                    "String": "Division by zero"
+                                  }
+                                }
+                              ],
+                              "exec_policy": "normal",
+                              "type_args": []
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "else_branch": null
+              }
+            },
+            {
+              "Return": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "Ok"
+                    },
+                    "args": [
+                      {
+                        "Binary": {
+                          "op": "Div",
+                          "left": {
+                            "Identifier": "a"
+                          },
+                          "right": {
+                            "Identifier": "b"
+                          }
+                        }
+                      }
+                    ],
+                    "exec_policy": "normal",
+                    "type_args": []
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    },
+    {
+      "Function": {
+        "name": "processDivision",
+        "type_params": [],
+        "params": [
+          {
+            "pattern": {
+              "Identifier": "a"
+            },
+            "type_ref": {
+              "Simple": "number"
+            },
+            "default": null
+          },
+          {
+            "pattern": {
+              "Identifier": "b"
+            },
+            "type_ref": {
+              "Simple": "number"
+            },
+            "default": null
+          }
+        ],
+        "return_type": {
+          "Simple": "string"
+        },
+        "body": {
+          "stmts": [
+            {
+              "TryCatch": {
+                "try_block": {
+                  "stmts": [
+                    {
+                      "VarDecl": {
+                        "bindings": [
+                          {
+                            "pattern": {
+                              "Identifier": "result"
+                            },
+                            "type_ref": null
+                          }
+                        ],
+                        "init": {
+                          "Call": {
+                            "callee": {
+                              "Identifier": "safeDivide"
+                            },
+                            "args": [
+                              {
+                                "Identifier": "a"
+                              },
+                              {
+                                "Identifier": "b"
+                              }
+                            ],
+                            "exec_policy": "normal",
+                            "type_args": []
+                          }
+                        },
+                        "is_fallible": false
+                      }
+                    },
+                    {
+                      "If": {
+                        "condition": {
+                          "MethodCall": {
+                            "object": {
+                              "Identifier": "result"
+                            },
+                            "method": "isOk",
+                            "args": [],
+                            "adapter": "seq",
+                            "adapter_options": {}
+                          }
+                        },
+                        "then_branch": {
+                          "Block": {
+                            "stmts": [
+                              {
+                                "Return": {
+                                  "expr": {
+                                    "StringTemplate": {
+                                      "parts": [
+                                        {
+                                          "Text": "Success: "
+                                        },
+                                        {
+                                          "Expr": {
+                                            "MethodCall": {
+                                              "object": {
+                                                "Identifier": "result"
+                                              },
+                                              "method": "unwrap",
+                                              "args": [],
+                                              "adapter": "seq",
+                                              "adapter_options": {}
+                                            }
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        "else_branch": {
+                          "Block": {
+                            "stmts": [
+                              {
+                                "Return": {
+                                  "expr": {
+                                    "StringTemplate": {
+                                      "parts": [
+                                        {
+                                          "Text": "Error: "
+                                        },
+                                        {
+                                          "Expr": {
+                                            "MethodCall": {
+                                              "object": {
+                                                "Identifier": "result"
+                                              },
+                                              "method": "unwrapErr",
+                                              "args": [],
+                                              "adapter": "seq",
+                                              "adapter_options": {}
+                                            }
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "catch_var": "e",
+                "catch_block": {
+                  "stmts": [
+                    {
+                      "Return": {
+                        "expr": {
+                          "StringTemplate": {
+                            "parts": [
+                              {
+                                "Text": "Unexpected error: "
+                              },
+                              {
+                                "Expr": {
+                                  "Identifier": "e"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    },
+    {
+      "Function": {
+        "name": "complexErrorHandling",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "TryCatch": {
+                "try_block": {
+                  "stmts": [
+                    {
+                      "VarDecl": {
+                        "bindings": [
+                          {
+                            "pattern": {
+                              "Identifier": "data"
+                            },
+                            "type_ref": null
+                          }
+                        ],
+                        "init": {
+                          "Call": {
+                            "callee": {
+                              "Identifier": "readFile"
+                            },
+                            "args": [
+                              {
+                                "Literal": {
+                                  "String": "nonexistent.txt"
+                                }
+                              }
+                            ],
+                            "exec_policy": "normal",
+                            "type_args": []
+                          }
+                        },
+                        "is_fallible": false
+                      }
+                    },
+                    {
+                      "TryCatch": {
+                        "try_block": {
+                          "stmts": [
+                            {
+                              "VarDecl": {
+                                "bindings": [
+                                  {
+                                    "pattern": {
+                                      "Identifier": "result"
+                                    },
+                                    "type_ref": null
+                                  }
+                                ],
+                                "init": {
+                                  "Call": {
+                                    "callee": {
+                                      "Identifier": "safeDivide"
+                                    },
+                                    "args": [
+                                      {
+                                        "Literal": {
+                                          "Int": 10
+                                        }
+                                      },
+                                      {
+                                        "Literal": {
+                                          "Int": 0
+                                        }
+                                      }
+                                    ],
+                                    "exec_policy": "normal",
+                                    "type_args": []
+                                  }
+                                },
+                                "is_fallible": false
+                              }
+                            },
+                            {
+                              "Expr": {
+                                "expr": {
+                                  "Call": {
+                                    "callee": {
+                                      "Identifier": "print"
+                                    },
+                                    "args": [
+                                      {
+                                        "StringTemplate": {
+                                          "parts": [
+                                            {
+                                              "Text": "Result: "
+                                            },
+                                            {
+                                              "Expr": {
+                                                "Identifier": "result"
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    ],
+                                    "exec_policy": "normal",
+                                    "type_args": []
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        "catch_var": "e",
+                        "catch_block": {
+                          "stmts": [
+                            {
+                              "Expr": {
+                                "expr": {
+                                  "Call": {
+                                    "callee": {
+                                      "Identifier": "print"
+                                    },
+                                    "args": [
+                                      {
+                                        "StringTemplate": {
+                                          "parts": [
+                                            {
+                                              "Text": "Division error: "
+                                            },
+                                            {
+                                              "Expr": {
+                                                "Identifier": "e"
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    ],
+                                    "exec_policy": "normal",
+                                    "type_args": []
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                },
+                "catch_var": "e",
+                "catch_block": {
+                  "stmts": [
+                    {
+                      "Expr": {
+                        "expr": {
+                          "Call": {
+                            "callee": {
+                              "Identifier": "print"
+                            },
+                            "args": [
+                              {
+                                "StringTemplate": {
+                                  "parts": [
+                                    {
+                                      "Text": "File error: "
+                                    },
+                                    {
+                                      "Expr": {
+                                        "Identifier": "e"
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ],
+                            "exec_policy": "normal",
+                            "type_args": []
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "Throw": {
+                        "expr": {
+                          "StringTemplate": {
+                            "parts": [
+                              {
+                                "Text": "Critical error in complexErrorHandling: "
+                              },
+                              {
+                                "Expr": {
+                                  "Identifier": "e"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    },
+    {
+      "Function": {
+        "name": "handleMultipleErrors",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "TryCatch": {
+                "try_block": {
+                  "stmts": [
+                    {
+                      "VarDecl": {
+                        "bindings": [
+                          {
+                            "pattern": {
+                              "Identifier": "result"
+                            },
+                            "type_ref": null
+                          }
+                        ],
+                        "init": {
+                          "Call": {
+                            "callee": {
+                              "Identifier": "parseAndDivide"
+                            },
+                            "args": [
+                              {
+                                "Literal": {
+                                  "String": "10"
+                                }
+                              },
+                              {
+                                "Literal": {
+                                  "String": "0"
+                                }
+                              }
+                            ],
+                            "exec_policy": "normal",
+                            "type_args": []
+                          }
+                        },
+                        "is_fallible": false
+                      }
+                    },
+                    {
+                      "Expr": {
+                        "expr": {
+                          "Call": {
+                            "callee": {
+                              "Identifier": "print"
+                            },
+                            "args": [
+                              {
+                                "StringTemplate": {
+                                  "parts": [
+                                    {
+                                      "Text": "Result: "
+                                    },
+                                    {
+                                      "Expr": {
+                                        "Identifier": "result"
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ],
+                            "exec_policy": "normal",
+                            "type_args": []
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "catch_var": "e",
+                "catch_block": {
+                  "stmts": [
+                    {
+                      "If": {
+                        "condition": {
+                          "MethodCall": {
+                            "object": {
+                              "Identifier": "e"
+                            },
+                            "method": "contains",
+                            "args": [
+                              {
+                                "Literal": {
+                                  "String": "parse"
+                                }
+                              }
+                            ],
+                            "adapter": "seq",
+                            "adapter_options": {}
+                          }
+                        },
+                        "then_branch": {
+                          "Block": {
+                            "stmts": [
+                              {
+                                "Expr": {
+                                  "expr": {
+                                    "Call": {
+                                      "callee": {
+                                        "Identifier": "print"
+                                      },
+                                      "args": [
+                                        {
+                                          "StringTemplate": {
+                                            "parts": [
+                                              {
+                                                "Text": "Parse error: "
+                                              },
+                                              {
+                                                "Expr": {
+                                                  "Identifier": "e"
+                                                }
+                                              }
+                                            ]
+                                          }
+                                        }
+                                      ],
+                                      "exec_policy": "normal",
+                                      "type_args": []
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        "else_branch": {
+                          "Stmt": {
+                            "If": {
+                              "condition": {
+                                "MethodCall": {
+                                  "object": {
+                                    "Identifier": "e"
+                                  },
+                                  "method": "contains",
+                                  "args": [
+                                    {
+                                      "Literal": {
+                                        "String": "division"
+                                      }
+                                    }
+                                  ],
+                                  "adapter": "seq",
+                                  "adapter_options": {}
+                                }
+                              },
+                              "then_branch": {
+                                "Block": {
+                                  "stmts": [
+                                    {
+                                      "Expr": {
+                                        "expr": {
+                                          "Call": {
+                                            "callee": {
+                                              "Identifier": "print"
+                                            },
+                                            "args": [
+                                              {
+                                                "StringTemplate": {
+                                                  "parts": [
+                                                    {
+                                                      "Text": "Division error: "
+                                                    },
+                                                    {
+                                                      "Expr": {
+                                                        "Identifier": "e"
+                                                      }
+                                                    }
+                                                  ]
+                                                }
+                                              }
+                                            ],
+                                            "exec_policy": "normal",
+                                            "type_args": []
+                                          }
+                                        }
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              "else_branch": {
+                                "Block": {
+                                  "stmts": [
+                                    {
+                                      "Expr": {
+                                        "expr": {
+                                          "Call": {
+                                            "callee": {
+                                              "Identifier": "print"
+                                            },
+                                            "args": [
+                                              {
+                                                "StringTemplate": {
+                                                  "parts": [
+                                                    {
+                                                      "Text": "Other error: "
+                                                    },
+                                                    {
+                                                      "Expr": {
+                                                        "Identifier": "e"
+                                                      }
+                                                    }
+                                                  ]
+                                                }
+                                              }
+                                            ],
+                                            "exec_policy": "normal",
+                                            "type_args": []
+                                          }
+                                        }
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    },
+    {
+      "Function": {
+        "name": "main",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "Expr": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "print"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "String": "Advanced error handling parsed successfully"
+                        }
+                      }
+                    ],
+                    "exec_policy": "normal",
+                    "type_args": []
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    }
+  ]
+}

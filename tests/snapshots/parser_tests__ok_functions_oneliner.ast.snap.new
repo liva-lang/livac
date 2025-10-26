@@ -1,0 +1,110 @@
+---
+source: tests/parser_tests.rs
+assertion_line: 15
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "sum",
+        "type_params": [],
+        "params": [
+          {
+            "pattern": {
+              "Identifier": "a"
+            },
+            "type_ref": {
+              "Simple": "number"
+            },
+            "default": null
+          },
+          {
+            "pattern": {
+              "Identifier": "b"
+            },
+            "type_ref": {
+              "Simple": "number"
+            },
+            "default": null
+          }
+        ],
+        "return_type": {
+          "Simple": "number"
+        },
+        "body": null,
+        "expr_body": {
+          "Binary": {
+            "op": "Add",
+            "left": {
+              "Identifier": "a"
+            },
+            "right": {
+              "Identifier": "b"
+            }
+          }
+        },
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    },
+    {
+      "Function": {
+        "name": "isAdult",
+        "type_params": [],
+        "params": [
+          {
+            "pattern": {
+              "Identifier": "age"
+            },
+            "type_ref": null,
+            "default": null
+          }
+        ],
+        "return_type": null,
+        "body": null,
+        "expr_body": {
+          "Binary": {
+            "op": "Ge",
+            "left": {
+              "Identifier": "age"
+            },
+            "right": {
+              "Literal": {
+                "Int": 18
+              }
+            }
+          }
+        },
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    },
+    {
+      "Function": {
+        "name": "greet",
+        "type_params": [],
+        "params": [
+          {
+            "pattern": {
+              "Identifier": "name"
+            },
+            "type_ref": {
+              "Simple": "string"
+            },
+            "default": null
+          }
+        ],
+        "return_type": null,
+        "body": null,
+        "expr_body": {
+          "Literal": {
+            "String": "Hello"
+          }
+        },
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    }
+  ]
+}
