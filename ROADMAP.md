@@ -1,8 +1,8 @@
 # 🗺️ Liva Language Roadmap
 
-> **Current Version:** v0.9.11  
-> **Status:** Alpha - JSON Typed Parsing in progress (v0.10.0)  
-> **Last Updated:** 2025-01-25
+> **Current Version:** v0.10.2  
+> **Status:** Alpha - Destructuring Patterns completed  
+> **Last Updated:** 2025-01-26
 
 ---
 
@@ -1223,17 +1223,31 @@ let result = switch flag {
 
 **Estimated:** 3.5 hours
 
-### 6.5 Destructuring Syntax
-- [ ] Design destructuring syntax for objects
-- [ ] Design destructuring syntax for arrays
-- [ ] Parse destructuring in let bindings
-- [ ] Parse destructuring in function parameters
-- [ ] Implement semantic analysis for destructuring
-- [ ] Generate code for destructuring
-- [ ] Add destructuring tests
-- [ ] Document destructuring patterns
+### 6.5 Destructuring Syntax ✅ COMPLETED (v0.10.2)
+- [x] Design destructuring syntax for objects
+- [x] Design destructuring syntax for arrays
+- [x] Parse destructuring in let bindings
+- [ ] Parse destructuring in function parameters (deferred)
+- [x] Implement semantic analysis for destructuring
+- [x] Generate code for destructuring
+- [x] Add destructuring tests (6 parser tests + integration test)
+- [x] Document destructuring patterns (4 docs + migration guide)
 
-**Estimated:** 3 hours
+**Status:** ✅ COMPLETED (2025-01-26)  
+**Branch:** `feature/destructuring-v0.10.2` (ready to merge)  
+**Release:** v0.10.2
+
+**Completed Features:**
+- Object destructuring: `let {x, y} = point`
+- Object renaming: `let {name: userName} = person`
+- Array destructuring: `let [first, second] = array`
+- Array skip: `let [a, , c] = array`
+- Rest patterns: `let [head, ...tail] = items`
+- Type annotations with patterns
+- Semantic validation (field existence, duplicates, types)
+- Codegen for both JSON and struct destructuring
+
+**Actual Time:** ~3.5 hours (matches estimate)
 
 ### 6.6 Spread Operators
 - [ ] Design spread syntax `...array`, `...object`

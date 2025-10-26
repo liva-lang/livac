@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.2] - 2025-01-26
+
+### Added - Destructuring Patterns 🎯
+
+**Object and Array Destructuring:**
+- ✅ Object destructuring: `let {x, y} = point`
+- ✅ Object destructuring with rename: `let {name: userName, age: userAge} = person`
+- ✅ Array destructuring: `let [first, second] = array`
+- ✅ Array destructuring with skip: `let [a, , c] = array`
+- ✅ Rest patterns in arrays: `let [head, ...tail] = items`
+- ✅ Type annotations with destructuring: `let {x, y}: Point = point`
+- ✅ Full semantic validation (field existence, duplicate bindings, type checking)
+- ✅ Comprehensive parser, semantic, and codegen support
+
+**Example Usage - Object Destructuring:**
+```liva
+let point = { x: 10, y: 20 }
+let {x, y} = point
+print("x:", x, "y:", y)  // x: 10 y: 20
+
+// Rename bindings
+let person = { name: "Alice", age: 30 }
+let {name: userName, age: userAge} = person
+print("userName:", userName)  // userName: Alice
+```
+
+**Example Usage - Array Destructuring:**
+```liva
+let numbers = [1, 2, 3, 4, 5]
+
+// Basic destructuring
+let [first, second] = numbers
+print("first:", first)  // first: 1
+
+// Skip elements
+let [a, , c] = numbers
+print("a:", a, "c:", c)  // a: 1 c: 3
+
+// Rest patterns
+let [head, ...tail] = numbers
+print("head:", head)  // head: 1
+// tail is [2, 3, 4, 5]
+```
+
+**Implementation Details:**
+- New `BindingPattern` enum in AST (Identifier, Object, Array)
+- Parser support with proper error handling
+- Semantic validation ensures fields exist on known types
+- Duplicate binding detection
+- Codegen generates temporary variables to avoid move issues
+- Works with both JSON objects and Rust structs
+
+See `examples/destructuring_demo.liva` for complete examples.
+
 ## [0.10.1] - 2025-01-26
 
 ### Added - response.json() Method 🌐

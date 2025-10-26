@@ -1,0 +1,41 @@
+// Test destructuring patterns
+
+testObjectDestructuring() {
+    // Simple object destructuring
+    let point = { x: 10, y: 20 }
+    let {x, y} = point
+    print("x:", x)
+    print("y:", y)
+    
+    // Object destructuring with rename
+    let person = { name: "Alice", age: 30 }
+    let {name: userName, age: userAge} = person
+    print("userName:", userName)
+    print("userAge:", userAge)
+}
+
+testArrayDestructuring() {
+    // Simple array destructuring
+    let numbers = [1, 2, 3, 4, 5]
+    let [first, second] = numbers
+    print("first:", first)
+    print("second:", second)
+    
+    // Array destructuring with skip
+    let [a, , c] = numbers
+    print("a:", a)
+    print("c:", c)
+    
+    // Array destructuring with rest
+    let [head, ...tail] = numbers
+    print("head:", head)
+    // tail is an array, so iterate to print
+    for item in tail {
+        print("tail item:", item)
+    }
+}
+
+main() {
+    testObjectDestructuring()
+    testArrayDestructuring()
+}
