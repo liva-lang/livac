@@ -94,7 +94,8 @@ expression: json
               "contains_fail": false
             }
           }
-        ]
+        ],
+        "needs_serde": false
       }
     }
   ]

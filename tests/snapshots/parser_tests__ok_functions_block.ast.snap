@@ -164,7 +164,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "response",
+                    "pattern": {
+                      "Identifier": "response"
+                    },
                     "type_ref": null
                   }
                 ],

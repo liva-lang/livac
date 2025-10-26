@@ -247,7 +247,9 @@ expression: json
                       "VarDecl": {
                         "bindings": [
                           {
-                            "name": "result",
+                            "pattern": {
+                              "Identifier": "result"
+                            },
                             "type_ref": null
                           }
                         ],
@@ -400,7 +402,9 @@ expression: json
                       "VarDecl": {
                         "bindings": [
                           {
-                            "name": "data",
+                            "pattern": {
+                              "Identifier": "data"
+                            },
                             "type_ref": null
                           }
                         ],
@@ -431,7 +435,9 @@ expression: json
                               "VarDecl": {
                                 "bindings": [
                                   {
-                                    "name": "result",
+                                    "pattern": {
+                                      "Identifier": "result"
+                                    },
                                     "type_ref": null
                                   }
                                 ],
@@ -605,7 +611,9 @@ expression: json
                       "VarDecl": {
                         "bindings": [
                           {
-                            "name": "result",
+                            "pattern": {
+                              "Identifier": "result"
+                            },
                             "type_ref": null
                           }
                         ],

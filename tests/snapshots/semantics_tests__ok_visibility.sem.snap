@@ -97,7 +97,8 @@ expression: json
               "contains_fail": false
             }
           }
-        ]
+        ],
+        "needs_serde": false
       }
     },
     {
@@ -112,7 +113,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "p",
+                    "pattern": {
+                      "Identifier": "p"
+                    },
                     "type_ref": null
                   }
                 ],
@@ -133,7 +136,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "nombre",
+                    "pattern": {
+                      "Identifier": "nombre"
+                    },
                     "type_ref": null
                   }
                 ],

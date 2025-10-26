@@ -16,7 +16,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "i8_val",
+                    "pattern": {
+                      "Identifier": "i8_val"
+                    },
                     "type_ref": {
                       "Simple": "i8"
                     }
@@ -34,7 +36,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "i16_val",
+                    "pattern": {
+                      "Identifier": "i16_val"
+                    },
                     "type_ref": {
                       "Simple": "i16"
                     }
@@ -52,7 +56,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "i32_val",
+                    "pattern": {
+                      "Identifier": "i32_val"
+                    },
                     "type_ref": {
                       "Simple": "i32"
                     }
@@ -70,7 +76,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "i64_val",
+                    "pattern": {
+                      "Identifier": "i64_val"
+                    },
                     "type_ref": {
                       "Simple": "i64"
                     }
@@ -88,7 +96,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "i128_val",
+                    "pattern": {
+                      "Identifier": "i128_val"
+                    },
                     "type_ref": {
                       "Simple": "i128"
                     }
@@ -113,7 +123,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "u8_val",
+                    "pattern": {
+                      "Identifier": "u8_val"
+                    },
                     "type_ref": {
                       "Simple": "u8"
                     }
@@ -131,7 +143,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "u16_val",
+                    "pattern": {
+                      "Identifier": "u16_val"
+                    },
                     "type_ref": {
                       "Simple": "u16"
                     }
@@ -149,7 +163,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "u32_val",
+                    "pattern": {
+                      "Identifier": "u32_val"
+                    },
                     "type_ref": {
                       "Simple": "u32"
                     }
@@ -174,7 +190,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "u64_val",
+                    "pattern": {
+                      "Identifier": "u64_val"
+                    },
                     "type_ref": {
                       "Simple": "u64"
                     }
@@ -199,7 +217,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "u128_val",
+                    "pattern": {
+                      "Identifier": "u128_val"
+                    },
                     "type_ref": {
                       "Simple": "u128"
                     }
@@ -224,7 +244,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "isize_val",
+                    "pattern": {
+                      "Identifier": "isize_val"
+                    },
                     "type_ref": {
                       "Simple": "isize"
                     }
@@ -242,7 +264,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "usize_val",
+                    "pattern": {
+                      "Identifier": "usize_val"
+                    },
                     "type_ref": {
                       "Simple": "usize"
                     }
@@ -260,7 +284,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "f32_val",
+                    "pattern": {
+                      "Identifier": "f32_val"
+                    },
                     "type_ref": {
                       "Simple": "f32"
                     }
@@ -285,7 +311,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "f64_val",
+                    "pattern": {
+                      "Identifier": "f64_val"
+                    },
                     "type_ref": {
                       "Simple": "f64"
                     }
@@ -310,7 +338,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "char_a",
+                    "pattern": {
+                      "Identifier": "char_a"
+                    },
                     "type_ref": {
                       "Simple": "char"
                     }
@@ -328,7 +358,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "char_b",
+                    "pattern": {
+                      "Identifier": "char_b"
+                    },
                     "type_ref": {
                       "Simple": "char"
                     }
@@ -346,7 +378,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "char_z",
+                    "pattern": {
+                      "Identifier": "char_z"
+                    },
                     "type_ref": {
                       "Simple": "char"
                     }
@@ -364,7 +398,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "char_space",
+                    "pattern": {
+                      "Identifier": "char_space"
+                    },
                     "type_ref": {
                       "Simple": "char"
                     }
@@ -382,7 +418,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "bytes_val",
+                    "pattern": {
+                      "Identifier": "bytes_val"
+                    },
                     "type_ref": {
                       "Simple": "bytes"
                     }
@@ -424,7 +462,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "optional",
+                    "pattern": {
+                      "Identifier": "optional"
+                    },
                     "type_ref": {
                       "Generic": {
                         "base": "Option",
@@ -460,7 +500,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "optional_none",
+                    "pattern": {
+                      "Identifier": "optional_none"
+                    },
                     "type_ref": {
                       "Generic": {
                         "base": "Option",
@@ -483,7 +525,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "result_ok",
+                    "pattern": {
+                      "Identifier": "result_ok"
+                    },
                     "type_ref": {
                       "Generic": {
                         "base": "Result",
@@ -522,7 +566,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "result_err",
+                    "pattern": {
+                      "Identifier": "result_err"
+                    },
                     "type_ref": {
                       "Generic": {
                         "base": "Result",
@@ -561,7 +607,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "int_array",
+                    "pattern": {
+                      "Identifier": "int_array"
+                    },
                     "type_ref": null
                   }
                 ],
@@ -601,7 +649,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "str_array",
+                    "pattern": {
+                      "Identifier": "str_array"
+                    },
                     "type_ref": null
                   }
                 ],

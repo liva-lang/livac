@@ -25,7 +25,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "box",
+                    "pattern": {
+                      "Identifier": "box"
+                    },
                     "type_ref": {
                       "Generic": {
                         "base": "Box",
@@ -95,7 +97,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "map",
+                    "pattern": {
+                      "Identifier": "map"
+                    },
                     "type_ref": {
                       "Generic": {
                         "base": "Map",

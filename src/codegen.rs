@@ -1618,7 +1618,7 @@ impl CodeGenerator {
                     let binding_names: Vec<String> = var
                         .bindings
                         .iter()
-                        .map(|b| self.sanitize_name(&b.name))
+                        .filter_map(|b| b.name().map(|n| self.sanitize_name(n)))
                         .collect();
 
                     // Check if the init expression returns a tuple directly (before tracking)
@@ -1688,7 +1688,9 @@ impl CodeGenerator {
                             if i > 0 {
                                 self.output.push_str(", ");
                             }
-                            write!(self.output, "{}", self.sanitize_name(&binding.name)).unwrap();
+                            if let Some(name) = binding.name() {
+                                write!(self.output, "{}", self.sanitize_name(name)).unwrap();
+                            }
                         }
 
                         if is_fallible_call {
@@ -1738,14 +1740,18 @@ impl CodeGenerator {
                                     // Check if this is a class type (not a primitive)
                                     if self.class_fields.contains_key(class_name) {
                                         let binding = &var.bindings[0];
-                                        self.class_instance_vars.insert(self.sanitize_name(&binding.name));
+                                        if let Some(name) = binding.name() {
+                                            self.class_instance_vars.insert(self.sanitize_name(name));
+                                        }
                                     }
                                 } else if let TypeRef::Array(elem_type) = type_ref {
                                     // Track array element type if it's a class
                                     if let TypeRef::Simple(class_name) = elem_type.as_ref() {
                                         if self.class_fields.contains_key(class_name) {
                                             let binding = &var.bindings[0];
-                                            self.array_vars.insert(self.sanitize_name(&binding.name));
+                                            if let Some(name) = binding.name() {
+                                                self.array_vars.insert(self.sanitize_name(name));
+                                            }
                                         }
                                     }
                                 }
@@ -1777,7 +1783,16 @@ impl CodeGenerator {
                         ));
                     }
                     let binding = &var.bindings[0];
-                    let var_name = self.sanitize_name(&binding.name);
+                    
+                    // Check if this is a destructuring pattern
+                    if !binding.pattern.is_simple() {
+                        // Handle destructuring patterns
+                        self.generate_destructuring_pattern(&binding.pattern, &var.init)?;
+                        return Ok(());
+                    }
+                    
+                    // Simple identifier binding
+                    let var_name = self.sanitize_name(binding.name().unwrap());
 
                     // Phase 2: Check if this is a Task assignment
                     if let Some(exec_policy) = task_exec_policy {
@@ -1805,38 +1820,48 @@ impl CodeGenerator {
 
                         // Check if initializing with an object literal - mark variable for bracket notation
                         if let Expr::ObjectLiteral(_) = &var.init {
-                            self.bracket_notation_vars.insert(binding.name.clone());
+                            if let Some(name) = binding.name() {
+                                self.bracket_notation_vars.insert(name.to_string());
+                            }
                         }
 
                         // Check if initializing with an array literal - mark variable as array
                         if let Expr::ArrayLiteral(_) = &var.init {
-                            self.array_vars.insert(binding.name.clone());
+                            if let Some(name) = binding.name() {
+                                self.array_vars.insert(name.to_string());
+                            }
                         }
                         // Check if initializing with a method call that returns an array (map, filter, etc.)
                         else if let Expr::MethodCall(method_call) = &var.init {
                             if matches!(method_call.method.as_str(), "map" | "filter") {
-                                self.array_vars.insert(binding.name.clone());
-                                
-                                // If the method is called on a JsonValue, the result is also Vec<JsonValue>
-                                // BUT we need to mark it as json_value for proper forEach iteration
-                                if self.is_json_value_expr(&method_call.object) {
-                                    self.json_value_vars.insert(binding.name.clone());
+                                if let Some(name) = binding.name() {
+                                    self.array_vars.insert(name.to_string());
+                                    
+                                    // If the method is called on a JsonValue, the result is also Vec<JsonValue>
+                                    // BUT we need to mark it as json_value for proper forEach iteration
+                                    if self.is_json_value_expr(&method_call.object) {
+                                        self.json_value_vars.insert(name.to_string());
+                                    }
                                 }
                             }
                         }
                         // Mark instances created via constructor call: let x = ClassName(...)
                         else if let Expr::Call(call) = &var.init {
                             if let Expr::Identifier(class_name) = &*call.callee {
-                                self.class_instance_vars.insert(binding.name.clone());
-                                self.var_types
-                                    .insert(binding.name.clone(), class_name.clone());
+                                if let Some(name) = binding.name() {
+                                    self.class_instance_vars.insert(name.to_string());
+                                    self.var_types
+                                        .insert(name.to_string(), class_name.clone());
+                                }
                             }
                         }
                         // Mark instances created via struct literal: let x = ClassName { ... }
                         else if let Expr::StructLiteral { type_name, .. } = &var.init {
-                            self.class_instance_vars.insert(binding.name.clone());
-                            self.var_types
-                                .insert(binding.name.clone(), type_name.clone());
+                            if let Some(name) = binding.name() {
+                                self.class_instance_vars.insert(name.to_string());
+                                self.var_types
+                                    .insert(name.to_string(), type_name.clone());
+                            }
                         }
 
                         write!(self.output, "let mut {}", var_name).unwrap();
@@ -1861,7 +1886,9 @@ impl CodeGenerator {
                         } else if is_json_parse {
                             // Untyped JSON parsing (original behavior): let data = JSON.parse(body)
                             // Mark this variable as JsonValue for lambda pattern detection
-                            self.json_value_vars.insert(binding.name.clone());
+                            if let Some(name) = binding.name() {
+                                self.json_value_vars.insert(name.to_string());
+                            }
                             
                             // Generate: let posts = JSON.parse(body).0.expect("JSON parse failed");
                             self.generate_expr(&var.init)?;
@@ -4665,6 +4692,122 @@ impl CodeGenerator {
             Expr::Literal(Literal::Char(_)) => "char".to_string(),
             _ => "i32".to_string(),
         }
+    }
+
+    /// Generate destructuring code for a binding pattern
+    fn generate_destructuring_pattern(
+        &mut self,
+        pattern: &BindingPattern,
+        init_expr: &Expr,
+    ) -> Result<()> {
+        match pattern {
+            BindingPattern::Identifier(name) => {
+                // Simple binding - should not reach here since we check is_simple() before calling
+                // But handle it anyway for completeness
+                let var_name = self.sanitize_name(name);
+                
+                // Track variable types based on init expression
+                if let Expr::ObjectLiteral(_) = init_expr {
+                    self.bracket_notation_vars.insert(name.clone());
+                }
+                if let Expr::ArrayLiteral(_) = init_expr {
+                    self.array_vars.insert(name.clone());
+                }
+                if let Expr::Call(call) = init_expr {
+                    if let Expr::Identifier(class_name) = &*call.callee {
+                        self.class_instance_vars.insert(name.clone());
+                        self.var_types.insert(name.clone(), class_name.clone());
+                    }
+                }
+                
+                write!(self.output, "let mut {}", var_name).unwrap();
+                self.output.push_str(" = ");
+                self.generate_expr(init_expr)?;
+                self.output.push_str(";\n");
+            }
+            BindingPattern::Object(obj_pattern) => {
+                // Object destructuring: let {x, y} = point
+                // First, generate temporary variable for the object
+                let temp_var = format!("_temp_{}", self.gen_unique_id());
+                write!(self.output, "let {} = ", temp_var).unwrap();
+                self.generate_expr(init_expr)?;
+                self.output.push_str(";\n");
+
+                // Then extract each field
+                for field in &obj_pattern.fields {
+                    self.write_indent();
+                    let binding_name = self.sanitize_name(&field.binding);
+                    
+                    // Check if temp var is a JsonValue or needs bracket notation
+                    // We need to check the init_expr to determine the type
+                    let needs_bracket_notation = matches!(init_expr, Expr::ObjectLiteral(_)) ||
+                        (matches!(init_expr, Expr::Identifier(id) if 
+                            self.bracket_notation_vars.contains(id) || 
+                            self.json_value_vars.contains(id)));
+                    
+                    if needs_bracket_notation {
+                        // JSON object access using bracket notation
+                        write!(
+                            self.output,
+                            "let mut {} = {}[\"{}\"].clone();\n",
+                            binding_name, temp_var, field.key
+                        ).unwrap();
+                    } else {
+                        // Struct field access
+                        write!(
+                            self.output,
+                            "let mut {} = {}.{};\n",
+                            binding_name, temp_var, field.key
+                        ).unwrap();
+                    }
+                }
+            }
+            BindingPattern::Array(arr_pattern) => {
+                // Array destructuring: let [first, second] = array
+                // First, generate temporary variable for the array (clone to avoid move)
+                let temp_var = format!("_temp_{}", self.gen_unique_id());
+                write!(self.output, "let {} = ", temp_var).unwrap();
+                self.generate_expr(init_expr)?;
+                self.output.push_str(".clone();\n");
+
+                // Extract individual elements
+                for (i, element) in arr_pattern.elements.iter().enumerate() {
+                    if let Some(name) = element {
+                        self.write_indent();
+                        let binding_name = self.sanitize_name(name);
+                        write!(
+                            self.output,
+                            "let mut {} = {}[{}].clone();\n",
+                            binding_name, temp_var, i
+                        ).unwrap();
+                    }
+                }
+
+                // Handle rest pattern: [...rest]
+                if let Some(rest_name) = &arr_pattern.rest {
+                    self.write_indent();
+                    let binding_name = self.sanitize_name(rest_name);
+                    let start_index = arr_pattern.elements.len();
+                    write!(
+                        self.output,
+                        "let mut {}: Vec<_> = {}[{}..].to_vec();\n",
+                        binding_name, temp_var, start_index
+                    ).unwrap();
+                    
+                    // Track the rest variable as an array
+                    self.array_vars.insert(rest_name.clone());
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Generate a unique ID for temporary variables
+    fn gen_unique_id(&self) -> usize {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        static COUNTER: AtomicUsize = AtomicUsize::new(0);
+        COUNTER.fetch_add(1, Ordering::SeqCst)
     }
 
     fn sanitize_name(&self, name: &str) -> String {

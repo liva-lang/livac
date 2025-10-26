@@ -815,37 +815,139 @@ impl Parser {
     fn parse_let_bindings(&mut self) -> Result<Vec<VarBinding>> {
         let mut bindings = Vec::new();
 
-        // Parse first binding
-        let name = self.parse_identifier()?;
-        let span = self.previous_span();
+        // Parse first binding (can be identifier, object pattern, or array pattern)
+        let binding = self.parse_binding_pattern()?;
+        bindings.push(binding);
+
+        // Parse additional bindings if present (for fallible binding: let x, err = ...)
+        while self.match_token(&Token::Comma) {
+            let binding = self.parse_binding_pattern()?;
+            bindings.push(binding);
+        }
+
+        Ok(bindings)
+    }
+
+    /// Parse a single binding pattern: identifier, {obj}, or [array]
+    fn parse_binding_pattern(&mut self) -> Result<VarBinding> {
+        let start_pos = self.current;
+        
+        let pattern = if self.check(&Token::LBrace) {
+            // Object destructuring: {name, age} or {name: userName}
+            self.parse_object_pattern()?
+        } else if self.check(&Token::LBracket) {
+            // Array destructuring: [first, second] or [head, ...tail]
+            self.parse_array_pattern()?
+        } else {
+            // Simple identifier
+            let name = self.parse_identifier()?;
+            BindingPattern::Identifier(name)
+        };
+
+        // Get span from start position to current
+        let span = if start_pos < self.tokens.len() {
+            let start = self.tokens[start_pos].span.start;
+            let end = if self.current > 0 && self.current - 1 < self.tokens.len() {
+                self.tokens[self.current - 1].span.end
+            } else {
+                start
+            };
+            Some(crate::span::Span { start, end })
+        } else {
+            None
+        };
+
+        // Optional type annotation
         let type_ref = if self.match_token(&Token::Colon) {
             Some(self.parse_type()?)
         } else {
             None
         };
-        bindings.push(VarBinding {
-            name,
+
+        Ok(VarBinding {
+            pattern,
             type_ref,
             span,
-        });
+        })
+    }
 
-        // Parse additional bindings if present (for fallible binding)
-        while self.match_token(&Token::Comma) {
-            let name = self.parse_identifier()?;
-            let span = self.previous_span();
-            let type_ref = if self.match_token(&Token::Colon) {
-                Some(self.parse_type()?)
-            } else {
-                None
-            };
-            bindings.push(VarBinding {
-                name,
-                type_ref,
-                span,
-            });
+    /// Parse object destructuring pattern: {name, age} or {name: userName, age: userAge}
+    fn parse_object_pattern(&mut self) -> Result<BindingPattern> {
+        self.expect(Token::LBrace)?;
+        
+        let mut fields = Vec::new();
+
+        // Parse first field
+        if !self.check(&Token::RBrace) {
+            fields.push(self.parse_object_pattern_field()?);
+
+            // Parse remaining fields
+            while self.match_token(&Token::Comma) {
+                if self.check(&Token::RBrace) {
+                    break; // Trailing comma
+                }
+                fields.push(self.parse_object_pattern_field()?);
+            }
         }
 
-        Ok(bindings)
+        self.expect(Token::RBrace)?;
+
+        Ok(BindingPattern::Object(ObjectPattern { fields }))
+    }
+
+    /// Parse a single field in object pattern: name or name: binding
+    fn parse_object_pattern_field(&mut self) -> Result<ObjectPatternField> {
+        let key = self.parse_identifier()?;
+
+        let binding = if self.match_token(&Token::Colon) {
+            // Renamed: {name: userName}
+            self.parse_identifier()?
+        } else {
+            // Shorthand: {name} means {name: name}
+            key.clone()
+        };
+
+        Ok(ObjectPatternField { key, binding })
+    }
+
+    /// Parse array destructuring pattern: [first, second] or [first, , third] or [head, ...tail]
+    fn parse_array_pattern(&mut self) -> Result<BindingPattern> {
+        self.expect(Token::LBracket)?;
+        
+        let mut elements = Vec::new();
+        let mut rest = None;
+
+        // Parse elements
+        if !self.check(&Token::RBracket) {
+            loop {
+                // Check for rest pattern: ...rest
+                if self.match_token(&Token::DotDotDot) {
+                    let rest_name = self.parse_identifier()?;
+                    rest = Some(rest_name);
+                    break; // Rest pattern must be last
+                }
+                
+                // Check for skip: [a, , c]
+                if self.check(&Token::Comma) {
+                    elements.push(None);
+                } else {
+                    let name = self.parse_identifier()?;
+                    elements.push(Some(name));
+                }
+
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+
+                if self.check(&Token::RBracket) {
+                    break; // Trailing comma
+                }
+            }
+        }
+
+        self.expect(Token::RBracket)?;
+
+        Ok(BindingPattern::Array(ArrayPattern { elements, rest }))
     }
 
     fn parse_simple_statement(&mut self) -> Result<Stmt> {

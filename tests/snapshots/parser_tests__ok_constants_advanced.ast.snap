@@ -16,7 +16,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "PI",
+                    "pattern": {
+                      "Identifier": "PI"
+                    },
                     "type_ref": null
                   }
                 ],
@@ -32,7 +34,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "GREETING",
+                    "pattern": {
+                      "Identifier": "GREETING"
+                    },
                     "type_ref": null
                   }
                 ],
@@ -48,7 +52,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "MAX_SIZE",
+                    "pattern": {
+                      "Identifier": "MAX_SIZE"
+                    },
                     "type_ref": null
                   }
                 ],

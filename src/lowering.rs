@@ -143,7 +143,8 @@ fn lower_stmt(stmt: &ast::Stmt) -> ir::Stmt {
             if var.bindings.len() == 1 {
                 let binding = &var.bindings[0];
                 ir::Stmt::Let {
-                    name: binding.name.clone(),
+                    // TODO: Support destructuring patterns in IR
+                    name: binding.name().unwrap_or("_").to_string(),
                     ty: binding
                         .type_ref
                         .as_ref()
@@ -153,7 +154,7 @@ fn lower_stmt(stmt: &ast::Stmt) -> ir::Stmt {
             } else {
                 // Multiple bindings - for now just use first name
                 ir::Stmt::Let {
-                    name: var.bindings[0].name.clone(),
+                    name: var.bindings[0].name().unwrap_or("_").to_string(),
                     ty: None,
                     value,
                 }
@@ -752,7 +753,10 @@ fn infer_stmt_return_type_with_env(
         ast::Stmt::VarDecl(var) => {
             let ty = infer_expr_return_type_with_env(&var.init, vars);
             for binding in &var.bindings {
-                vars.insert(binding.name.clone(), ty.clone());
+                // TODO: Support destructuring patterns in type inference
+                if let Some(name) = binding.name() {
+                    vars.insert(name.to_string(), ty.clone());
+                }
             }
             None
         }

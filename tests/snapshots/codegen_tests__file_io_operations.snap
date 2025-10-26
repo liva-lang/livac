@@ -111,12 +111,21 @@ mod liva_rt {
     }
     
     // HTTP Client
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Default)]
     pub struct LivaHttpResponse {
         pub status: i32,
         pub status_text: String,
         pub body: String,
         pub headers: Vec<String>,
+    }
+    
+    impl LivaHttpResponse {
+        pub fn json(&self) -> (JsonValue, String) {
+            match serde_json::from_str(&self.body) {
+                Ok(value) => (JsonValue(value), String::new()),
+                Err(e) => (JsonValue(serde_json::Value::Null), format!("JSON parse error: {}", e)),
+            }
+        }
     }
     
     pub async fn liva_http_get(url: String) -> (Option<LivaHttpResponse>, String) {
@@ -302,7 +311,7 @@ fn main() {
     if err {
         println!("{}", format!("{}{}", "Read error: ", err.get_field("message").unwrap()));
     } else {
-        println!("{}", format!("{}{}", "Content: ", content.as_ref().map(|v| v.to_string()).unwrap_or_default()));
+        println!("{}", format!("{}{}", "Content: ", content));
     }
     let (success, write_err) = (match std::fs::write(&"output.txt", &"Hello, Liva!") { Ok(_) => (Some(true), None), Err(e) => (Some(false), Some(liva_rt::Error::from(format!("File write error: {}", e)))) });
     let (ok, append_err) = (match std::fs::OpenOptions::new().create(true).append(true).open(&"log.txt").and_then(|mut file| { use std::io::Write; file.write_all("New entry".as_bytes()) }) { Ok(_) => (Some(true), None), Err(e) => (Some(false), Some(liva_rt::Error::from(format!("File append error: {}", e)))) });

@@ -16,7 +16,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "x",
+                    "pattern": {
+                      "Identifier": "x"
+                    },
                     "type_ref": {
                       "Simple": "i32"
                     }
@@ -34,7 +36,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "y",
+                    "pattern": {
+                      "Identifier": "y"
+                    },
                     "type_ref": {
                       "Simple": "u64"
                     }
@@ -52,7 +56,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "z",
+                    "pattern": {
+                      "Identifier": "z"
+                    },
                     "type_ref": {
                       "Simple": "f32"
                     }
@@ -70,7 +76,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "w",
+                    "pattern": {
+                      "Identifier": "w"
+                    },
                     "type_ref": {
                       "Simple": "f64"
                     }
@@ -88,7 +96,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "optional",
+                    "pattern": {
+                      "Identifier": "optional"
+                    },
                     "type_ref": {
                       "Generic": {
                         "base": "Option",
@@ -124,7 +134,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "result",
+                    "pattern": {
+                      "Identifier": "result"
+                    },
                     "type_ref": {
                       "Generic": {
                         "base": "Result",
