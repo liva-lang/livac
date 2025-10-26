@@ -42,16 +42,29 @@ fn lower_function(func: &ast::FunctionDecl) -> ir::Function {
     let params = func
         .params
         .iter()
-        .map(|param| {
+        .enumerate()
+        .map(|(i, param)| {
             let ty = if let Some(explicit) = &param.type_ref {
                 ir::Type::from_ast(&Some(explicit.clone()))
-            } else if let Some(inferred) = infer_param_type(func, &param.name) {
-                inferred
+            } else if let Some(name) = param.name() {
+                if let Some(inferred) = infer_param_type(func, name) {
+                    inferred
+                } else {
+                    ir::Type::Inferred
+                }
             } else {
                 ir::Type::Inferred
             };
+            
+            // For destructured parameters, use temporary names
+            let param_name = if let Some(name) = param.name() {
+                name.to_string()
+            } else {
+                format!("_param_{}", i)
+            };
+            
             ir::Param {
-                name: param.name.clone(),
+                name: param_name,
                 ty,
                 default: param.default.as_ref().map(lower_expr),
             }
@@ -331,8 +344,9 @@ fn lower_expr(expr: &ast::Expr) -> ir::Expr {
             let params = lambda
                 .params
                 .iter()
-                .map(|param| ir::LambdaParam {
-                    name: param.name.clone(),
+                .enumerate()
+                .map(|(idx, param)| ir::LambdaParam {
+                    name: param.name().map(|s| s.to_string()).unwrap_or_else(|| format!("_param_{}", idx)),
                     type_ref: param.type_ref.as_ref().map(|tr| tr.to_rust_type()),
                 })
                 .collect();

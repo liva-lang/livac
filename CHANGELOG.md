@@ -7,6 +7,89 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.3] - 2025-01-26
+
+### Added - Parameter Destructuring 🎯
+
+**Destructuring in Function Parameters:**
+- ✅ Array destructuring in parameters: `printPair([first, second]: [int]) { ... }`
+- ✅ Object destructuring in parameters: `printUser({name, age}: User) { ... }`
+- ✅ Rest patterns in parameters: `processList([head, ...tail]: [int]) { ... }`
+- ✅ Full code generation with temporary parameter names
+- ✅ Works in both functions and methods
+- ✅ Semantic validation for destructured parameters
+
+**Destructuring in Lambda Parameters:**
+- ✅ Array destructuring in lambdas: `pairs.forEach(([x, y]) => ...)`
+- ✅ Object destructuring in lambdas: `users.forEach(({id, name}) => ...)`
+- ✅ Works with all array methods: `forEach`, `map`, `filter`, `reduce`
+- ✅ Works with parallel variants: `parvec().forEach(([x, y]) => ...)`
+- ✅ Parser recognizes `[x, y] =>` and `{x, y} =>` as lambda starts
+- ✅ Codegen inserts destructuring in both regular and special paths
+
+**Example Usage - Array Destructuring:**
+```liva
+// Function with array destructuring parameter
+printPair([first, second]: [int]): int {
+    print("First:", first)
+    print("Second:", second)
+    return first + second
+}
+
+main() {
+    let nums = [100, 200]
+    let sum = printPair(nums)  // First: 100, Second: 200
+    print("Sum:", sum)         // Sum: 300
+}
+```
+
+**Example Usage - Lambda Destructuring:**
+```liva
+// Array destructuring in forEach
+let pairs = [[1, 2], [3, 4], [5, 6]]
+pairs.forEach(([x, y]) => {
+    print("x=${x}, y=${y}, sum=${x + y}")
+})
+
+// Object destructuring in forEach
+let users = [
+    {id: 1, name: "Alice"},
+    {id: 2, name: "Bob"}
+]
+users.forEach(({id, name}) => {
+    print("User #${id}: ${name}")
+})
+
+// Works with map
+let sums = pairs.map(([a, b]) => a + b)
+
+// Works with filter
+let filtered = pairs.filter(([x, y]) => x > 2)
+```
+
+**Implementation Details:**
+- Parser creates `BindingPattern` for both `Param` and `LambdaParam`
+- Both use `pattern: BindingPattern` instead of `name: String`
+- Lambda parser updated to recognize destructuring patterns as lambda starts
+- Codegen generates temporary names (`_param_0`, `_param_1`, etc.)
+- Destructuring code inserted at function/lambda start with `let` statements
+- Special array method path (forEach/map/filter) now includes destructuring support
+- Semantic analyzer validates patterns and declares variables
+- Codegen generates temporary parameter names (`_param_0`, `_param_1`)
+- Destructuring code inserted at function/method entry
+- Supports nested destructuring (coming soon)
+
+### Changed
+- AST: `Param.name: String` → `Param.pattern: BindingPattern`
+- All usages of `param.name` migrated to `param.name()` method
+- `generate_params()` now handles destructured parameters with temp names
+
+### Technical
+- Added `generate_param_destructuring()` for code generation
+- Added `parse_param_pattern()` for parsing patterns without type annotations
+- Added `declare_param_pattern()` for semantic validation
+- Comprehensive design document in `docs/PHASE_6.5.1_PARAM_DESTRUCTURING_DESIGN.md`
+
 ## [0.10.2] - 2025-01-26
 
 ### Added - Destructuring Patterns 🎯

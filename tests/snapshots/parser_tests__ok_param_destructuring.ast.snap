@@ -1,0 +1,175 @@
+---
+source: tests/parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "processArray",
+        "type_params": [],
+        "params": [
+          {
+            "pattern": {
+              "Array": {
+                "elements": [
+                  "first",
+                  "second"
+                ],
+                "rest": null
+              }
+            },
+            "type_ref": {
+              "Array": {
+                "Simple": "int"
+              }
+            },
+            "default": null
+          }
+        ],
+        "return_type": {
+          "Simple": "int"
+        },
+        "body": {
+          "stmts": [
+            {
+              "Return": {
+                "expr": {
+                  "Binary": {
+                    "op": "Add",
+                    "left": {
+                      "Identifier": "first"
+                    },
+                    "right": {
+                      "Identifier": "second"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    },
+    {
+      "Function": {
+        "name": "processObject",
+        "type_params": [],
+        "params": [
+          {
+            "pattern": {
+              "Object": {
+                "fields": [
+                  {
+                    "key": "name",
+                    "binding": "name"
+                  },
+                  {
+                    "key": "age",
+                    "binding": "age"
+                  }
+                ]
+              }
+            },
+            "type_ref": null,
+            "default": null
+          }
+        ],
+        "return_type": {
+          "Simple": "User"
+        },
+        "body": {
+          "stmts": [
+            {
+              "Return": {
+                "expr": {
+                  "Identifier": "name"
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    },
+    {
+      "Function": {
+        "name": "processList",
+        "type_params": [],
+        "params": [
+          {
+            "pattern": {
+              "Array": {
+                "elements": [
+                  "head"
+                ],
+                "rest": "tail"
+              }
+            },
+            "type_ref": {
+              "Array": {
+                "Simple": "int"
+              }
+            },
+            "default": null
+          }
+        ],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "Return": {
+                "expr": {
+                  "Identifier": "head"
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    },
+    {
+      "Function": {
+        "name": "main",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "Expr": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "print"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "Int": 42
+                        }
+                      }
+                    ],
+                    "exec_policy": "normal",
+                    "type_args": []
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    }
+  ]
+}

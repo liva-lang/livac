@@ -136,3 +136,8 @@ fn test_modifier_on_function_decl() {
 fn test_modifier_on_class_member() {
     test_parser_err("invalid_modifier_member");
 }
+
+#[test]
+fn test_param_destructuring() {
+    test_parser_ok("param_destructuring");
+}

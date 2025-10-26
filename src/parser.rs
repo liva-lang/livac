@@ -141,6 +141,54 @@ impl Parser {
             Some(Token::Ident(_)) | Some(Token::PrivateIdent(_)) => {
                 matches!(self.peek_token(offset + 1), Some(Token::Arrow))
             }
+            Some(Token::LBrace) => {
+                // Object destructuring: {x, y} =>
+                // Scan forward to find closing brace and check for arrow
+                let mut depth = 0usize;
+                let mut idx = offset;
+                while let Some(tok) = self.peek_token(idx) {
+                    match tok {
+                        Token::LBrace => depth += 1,
+                        Token::RBrace => {
+                            if depth == 0 {
+                                return false;
+                            }
+                            depth -= 1;
+                            if depth == 0 {
+                                idx += 1;
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                    idx += 1;
+                }
+                matches!(self.peek_token(idx), Some(Token::Arrow))
+            }
+            Some(Token::LBracket) => {
+                // Array destructuring: [x, y] =>
+                // Scan forward to find closing bracket and check for arrow
+                let mut depth = 0usize;
+                let mut idx = offset;
+                while let Some(tok) = self.peek_token(idx) {
+                    match tok {
+                        Token::LBracket => depth += 1,
+                        Token::RBracket => {
+                            if depth == 0 {
+                                return false;
+                            }
+                            depth -= 1;
+                            if depth == 0 {
+                                idx += 1;
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                    idx += 1;
+                }
+                matches!(self.peek_token(idx), Some(Token::Arrow))
+            }
             _ => false,
         }
     }
@@ -716,7 +764,10 @@ impl Parser {
         }
 
         loop {
-            let name = self.parse_identifier()?;
+            // Parse pattern WITHOUT type annotation (handled separately below)
+            let pattern = self.parse_param_pattern()?;
+            
+            // Parse type annotation for the parameter
             let type_ref = if self.match_token(&Token::Colon) {
                 Some(self.parse_type()?)
             } else {
@@ -730,7 +781,7 @@ impl Parser {
             };
 
             params.push(Param {
-                name,
+                pattern,
                 type_ref,
                 default,
             });
@@ -826,6 +877,21 @@ impl Parser {
         }
 
         Ok(bindings)
+    }
+    /// Parse a parameter pattern WITHOUT type annotation (just the pattern itself)
+    /// Used in parse_params() where type is handled separately
+    fn parse_param_pattern(&mut self) -> Result<BindingPattern> {
+        if self.check(&Token::LBrace) {
+            // Object destructuring: {name, age}
+            self.parse_object_pattern()
+        } else if self.check(&Token::LBracket) {
+            // Array destructuring: [first, second]
+            self.parse_array_pattern()
+        } else {
+            // Simple identifier
+            let name = self.parse_identifier()?;
+            Ok(BindingPattern::Identifier(name))
+        }
     }
 
     /// Parse a single binding pattern: identifier, {obj}, or [array]
@@ -1231,9 +1297,10 @@ impl Parser {
             self.expect(Token::RParen)?;
             params
         } else {
-            let name = self.parse_identifier()?;
+            // Single parameter without parentheses: x => ... or {x, y} => ...
+            let pattern = self.parse_param_pattern()?;
             vec![LambdaParam {
-                name,
+                pattern,
                 type_ref: None,
             }]
         };
@@ -1264,14 +1331,15 @@ impl Parser {
         }
 
         loop {
-            let name = self.parse_identifier()?;
+            // Parse pattern (can be identifier, object destructuring, or array destructuring)
+            let pattern = self.parse_param_pattern()?;
             let type_ref = if self.match_token(&Token::Colon) {
                 Some(self.parse_type()?)
             } else {
                 None
             };
 
-            params.push(LambdaParam { name, type_ref });
+            params.push(LambdaParam { pattern, type_ref });
 
             if !self.match_token(&Token::Comma) {
                 break;

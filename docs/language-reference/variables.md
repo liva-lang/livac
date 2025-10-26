@@ -7,6 +7,7 @@ Complete reference for variable declarations and constant definitions in Liva.
 - [Constants](#constants)
 - [Type Annotations](#type-annotations)
 - [Initialization](#initialization)
+- [Destructuring](#destructuring) ⭐ ENHANCED!
 - [Scoping Rules](#scoping-rules)
 - [Error Binding](#error-binding)
 - [Best Practices](#best-practices)
@@ -140,20 +141,112 @@ let x = 10        // ✅ Valid
 let y: number     // ❌ Compile error: uninitialized variable
 ```
 
+---
+
+## Destructuring
+
 ### Multiple Assignment (Destructuring)
 
+**⭐ Enhanced in v0.10.2 and v0.10.3**
+
+#### Array Destructuring
+
+Extract multiple values from arrays:
+
 ```liva
-// Array destructuring
-let a, b = [10, 20]
+// Simple array destructuring
+let [a, b] = [10, 20]
 print($"{a}, {b}")  // Output: 10, 20
 
-// Error binding (fallible functions)
+// With more elements
+let [x, y, z] = [1, 2, 3]
+print($"x={x}, y={y}, z={z}")  // Output: x=1, y=2, z=3
+
+// Skip elements with empty slots
+let [first, , third] = [1, 2, 3]
+print($"{first}, {third}")  // Output: 1, 3
+```
+
+#### Object Destructuring
+
+Extract fields from objects:
+
+```liva
+class User {
+    id: int
+    name: string
+    email: string
+}
+
+// Extract specific fields
+let {id, name} = User { id: 1, name: "Alice", email: "alice@example.com" }
+print($"User {id}: {name}")  // Output: User 1: Alice
+
+// Field renaming
+let {name: userName, email: userEmail} = user
+print($"{userName} <{userEmail}>")
+```
+
+#### Rest Patterns
+
+Capture remaining elements:
+
+```liva
+// Array rest pattern
+let [head, ...tail] = [1, 2, 3, 4, 5]
+print($"First: {head}")      // Output: First: 1
+print($"Rest: {tail}")       // Output: Rest: [2, 3, 4, 5]
+
+// Object rest pattern
+let {id, ...rest} = user
+print($"ID: {id}, Other data: {rest}")
+```
+
+#### Nested Destructuring
+
+Destructure nested structures:
+
+```liva
+// Nested arrays
+let [[a, b], [c, d]] = [[1, 2], [3, 4]]
+print($"{a}, {b}, {c}, {d}")  // Output: 1, 2, 3, 4
+
+// Nested objects
+let {address: {city, country}} = user
+print($"{city}, {country}")
+```
+
+#### Error Binding (Fallible Functions)
+
+Special syntax for functions that can fail:
+
+```liva
+// Error binding syntax
 let result, err = divide(10, 2)
 if err != "" {
   print($"Error: {err}")
 } else {
   print($"Result: {result}")
 }
+
+// With async/parallel
+let data, error = async fetchUserData(userId)
+if error != "" {
+  print($"Failed to fetch: {error}")
+}
+```
+
+#### Type Annotations with Destructuring
+
+```liva
+// Array with type
+let [x, y]: [int] = [10, 20]
+
+// Object with type
+let {id, name}: User = getUser(1)
+
+// Rest pattern with type
+let [first, ...rest]: [string] = ["a", "b", "c"]
 ```
 
 ---
@@ -381,7 +474,9 @@ main() {
 | **Constant** | `const MAX = 100` | Immutable, block-scoped |
 | **Type Annotation** | `let x: number = 10` | Optional |
 | **Error Binding** | `let val, err = fallibleFn()` | For fallible functions |
-| **Destructuring** | `let a, b = [1, 2]` | Multiple assignment |
+| **Array Destructuring** | `let [a, b] = [1, 2]` | Extract array elements |
+| **Object Destructuring** | `let {id, name} = user` | Extract object fields |
+| **Rest Pattern** | `let [head, ...tail] = arr` | Capture remaining elements |
 | **Shadowing** | Allowed | Inner scope shadows outer |
 
 ### Quick Reference
@@ -390,7 +485,15 @@ main() {
 // Variables
 let age = 25
 let name: string = "Alice"
-let x, y = [10, 20]
+
+// Array destructuring
+let [x, y] = [10, 20]
+let [first, , third] = [1, 2, 3]
+let [head, ...tail] = [1, 2, 3, 4]
+
+// Object destructuring
+let {id, name} = user
+let {name: userName} = user
 
 // Constants
 const PI = 3.14159

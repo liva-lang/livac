@@ -7,6 +7,7 @@ Complete reference for function declarations, syntax variations, and best practi
 - [Arrow Functions (One-Liners)](#arrow-functions-one-liners)
 - [Block Functions](#block-functions)
 - [Parameters](#parameters)
+- [Parameter Destructuring](#parameter-destructuring) ⭐ NEW!
 - [Return Types](#return-types)
 - [Async Inference](#async-inference)
 - [Fallibility](#fallibility)
@@ -167,6 +168,255 @@ main() {
   let name = formatFullName("John", "Fitzgerald", "Kennedy")
   print(name)  // Output: John Fitzgerald Kennedy
 }
+```
+
+---
+
+## Parameter Destructuring
+
+**⭐ New in v0.10.3**
+
+Destructure arrays and objects directly in function parameters, eliminating the need for explicit `let` bindings inside the function body.
+
+### Array Destructuring
+
+Extract elements from array parameters:
+
+```liva
+// Simple array destructuring
+printPair([first, second]: [int]): int {
+    print("First:", first)
+    print("Second:", second)
+    return first + second
+}
+
+main() {
+    let nums = [100, 200]
+    let sum = printPair(nums)  // Output: First: 100, Second: 200
+}
+```
+
+### Object Destructuring
+
+Extract fields from object parameters:
+
+```liva
+class User {
+    id: int
+    name: string
+    email: string
+}
+
+// Extract specific fields
+printUser({id, name}: User) {
+    print($"User #{id}: {name}")
+}
+
+// Use in function call
+main() {
+    let user = User { id: 1, name: "Alice", email: "alice@example.com" }
+    printUser(user)  // Output: User #1: Alice
+}
+```
+
+### Lambda Destructuring
+
+Works seamlessly with arrow functions and lambdas:
+
+```liva
+// Array destructuring in forEach
+let pairs = [[1, 2], [3, 4], [5, 6]]
+pairs.forEach(([x, y]) => {
+    print($"Pair: x={x}, y={y}, sum={x + y}")
+})
+// Output:
+// Pair: x=1, y=2, sum=3
+// Pair: x=3, y=4, sum=7
+// Pair: x=5, y=6, sum=11
+
+// Object destructuring in forEach
+let users = [
+    {id: 1, name: "Alice"},
+    {id: 2, name: "Bob"}
+]
+
+users.forEach(({id, name}) => {
+    print($"User #{id}: {name}")
+})
+// Output:
+// User #1: Alice
+// User #2: Bob
+```
+
+### Array Methods with Destructuring
+
+All array methods support destructuring:
+
+```liva
+let points = [[1, 2], [3, 4], [5, 6]]
+
+// map with destructuring
+let sums = points.map(([a, b]) => a + b)
+// sums = [3, 7, 11]
+
+// filter with destructuring
+let filtered = points.filter(([x, y]) => x > 2)
+// filtered = [[3, 4], [5, 6]]
+
+// reduce with destructuring
+let total = points.reduce((acc, [x, y]) => acc + x + y, 0)
+// total = 21
+```
+
+### Field Renaming
+
+Rename fields during destructuring:
+
+```liva
+class Person {
+    firstName: string
+    lastName: string
+}
+
+// Rename to shorter names
+greet({firstName: first, lastName: last}: Person) {
+    print($"Hello, {first} {last}!")
+}
+
+main() {
+    let person = Person { firstName: "John", lastName: "Doe" }
+    greet(person)  // Output: Hello, John Doe!
+}
+```
+
+### Rest Patterns
+
+Capture remaining elements:
+
+```liva
+// Array rest pattern
+processList([head, ...tail]: [int]) {
+    print("First element:", head)
+    print("Remaining:", tail)
+}
+
+main() {
+    let numbers = [10, 20, 30, 40]
+    processList(numbers)
+    // Output:
+    // First element: 10
+    // Remaining: [20, 30, 40]
+}
+```
+
+### Multiple Destructured Parameters
+
+Mix destructured and regular parameters:
+
+```liva
+// Multiple destructured parameters
+addPairs([a, b]: [int], [c, d]: [int]): int {
+    return a + b + c + d
+}
+
+main() {
+    let pair1 = [5, 15]
+    let pair2 = [100, 200]
+    let total = addPairs(pair1, pair2)
+    print(total)  // Output: 320
+}
+```
+
+### Type Annotations
+
+Always recommended for clarity:
+
+```liva
+// Without types (inferred)
+sum([a, b]) => a + b
+
+// With types (explicit)
+sum([a, b]: [int]): int => a + b
+
+// Object with types
+formatUser({id, name}: User): string => $"User {id}: {name}"
+```
+
+### Parallel Execution
+
+Works with `parvec()` for parallel processing:
+
+```liva
+let data = [[1, 2], [3, 4], [5, 6], [7, 8]]
+
+// Parallel forEach with destructuring
+data.parvec().forEach(([x, y]) => {
+    let result = expensiveComputation(x, y)
+    print($"Result for ({x}, {y}): {result}")
+})
+```
+
+### Best Practices
+
+```liva
+// ✅ Good: Clear parameter names
+users.forEach(({id, name, email}) => {
+    sendEmail(email, $"Hello {name}")
+})
+
+// ✅ Good: Extract only what you need
+users.forEach(({email}) => {
+    validateEmail(email)
+})
+
+// ✅ Good: Use type annotations for public APIs
+export processUser({id, name}: User): string {
+    return $"Processing user {id}"
+}
+
+// ❌ Bad: Destructuring when not needed
+processId({id}: User) => id  // Just pass `user.id` instead
+
+// ❌ Bad: Too many fields (creates clutter)
+processUser({id, name, email, phone, address, city, state, zip, country}) {
+    // Consider passing the whole object instead
+}
+```
+
+### When to Use
+
+**✅ Use destructuring when:**
+- You need only a few fields from an object
+- Working with pairs, tuples, or coordinate data
+- Using array methods like `forEach`, `map`, `filter`
+- The destructured names improve code clarity
+
+**❌ Avoid destructuring when:**
+- You need most/all fields (pass the whole object)
+- Destructuring pattern is complex or deeply nested
+- Parameter is used as a whole object throughout the function
+
+### Syntax Summary
+
+```liva
+// Array destructuring
+func([x, y]: [int]) => x + y
+func([first, second, third]) => first
+
+// Object destructuring  
+func({id, name}: User) => name
+func({x, y}: Point) => x + y
+
+// Field renaming
+func({name: userName, email: userEmail}) => userName
+
+// Rest pattern
+func([head, ...tail]) => head
+
+// Lambda with destructuring
+array.forEach(([x, y]) => print(x, y))
+array.map(({id, name}) => name)
+array.filter(([a, b]) => a > b)
 ```
 
 ---
