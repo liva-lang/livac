@@ -224,10 +224,52 @@ pub struct VarDecl {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct VarBinding {
-    pub name: String,
+    pub pattern: BindingPattern,  // Changed from name: String to pattern
     pub type_ref: Option<TypeRef>,
     #[serde(skip)]
     pub span: Option<crate::span::Span>,
+}
+
+impl VarBinding {
+    // Helper to get name for simple identifier patterns (backward compatibility)
+    pub fn name(&self) -> Option<&str> {
+        match &self.pattern {
+            BindingPattern::Identifier(name) => Some(name),
+            _ => None,
+        }
+    }
+    
+    // Helper to check if it's a simple identifier
+    pub fn is_simple(&self) -> bool {
+        matches!(self.pattern, BindingPattern::Identifier(_))
+    }
+}
+
+/// Binding pattern for destructuring
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum BindingPattern {
+    Identifier(String),                    // Simple: x
+    Object(ObjectPattern),                 // Object: {x, y}
+    Array(ArrayPattern),                   // Array: [x, y, ...rest]
+}
+
+/// Object destructuring pattern: {name, age: userAge}
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ObjectPattern {
+    pub fields: Vec<ObjectPatternField>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ObjectPatternField {
+    pub key: String,        // Field name in object
+    pub binding: String,    // Variable name (may differ with rename syntax)
+}
+
+/// Array destructuring pattern: [first, second, ...rest]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ArrayPattern {
+    pub elements: Vec<Option<String>>,  // None = skip element
+    pub rest: Option<String>,            // ...rest binding
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

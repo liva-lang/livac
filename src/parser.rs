@@ -824,7 +824,7 @@ impl Parser {
             None
         };
         bindings.push(VarBinding {
-            name,
+            pattern: BindingPattern::Identifier(name),
             type_ref,
             span,
         });
@@ -839,7 +839,7 @@ impl Parser {
                 None
             };
             bindings.push(VarBinding {
-                name,
+                pattern: BindingPattern::Identifier(name),
                 type_ref,
                 span,
             });

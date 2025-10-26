@@ -16,7 +16,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "x",
+                    "pattern": {
+                      "Identifier": "x"
+                    },
                     "type_ref": null
                   }
                 ],

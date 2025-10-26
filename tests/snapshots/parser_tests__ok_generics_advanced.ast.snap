@@ -16,7 +16,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "optional",
+                    "pattern": {
+                      "Identifier": "optional"
+                    },
                     "type_ref": {
                       "Generic": {
                         "base": "Option",
@@ -52,7 +54,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "result",
+                    "pattern": {
+                      "Identifier": "result"
+                    },
                     "type_ref": {
                       "Generic": {
                         "base": "Result",

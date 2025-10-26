@@ -32,7 +32,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "inner",
+                    "pattern": {
+                      "Identifier": "inner"
+                    },
                     "type_ref": {
                       "Generic": {
                         "base": "Box",
@@ -68,7 +70,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "outer",
+                    "pattern": {
+                      "Identifier": "outer"
+                    },
                     "type_ref": {
                       "Generic": {
                         "base": "Box",
@@ -147,7 +151,9 @@ expression: json
               "VarDecl": {
                 "bindings": [
                   {
-                    "name": "arr",
+                    "pattern": {
+                      "Identifier": "arr"
+                    },
                     "type_ref": {
                       "Generic": {
                         "base": "Array",

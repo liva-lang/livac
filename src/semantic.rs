@@ -1227,23 +1227,26 @@ impl SemanticAnalyzer {
                             .or_else(|| self.infer_expr_type(&var.init))
                     };
 
-                    if self.declare_symbol(&binding.name, declared_type.clone()) {
-                        let error = self.error_with_span(
-                            "E0001",
-                            &format!("Variable '{}' already defined in this scope", binding.name),
-                            &format!("Variable '{}' already defined in this scope", binding.name),
-                            binding.span
-                        )
-                        .with_help(&format!("Consider using a different name or removing the previous declaration of '{}'", binding.name));
+                    // TODO: Support destructuring patterns in semantic analysis
+                    if let Some(name) = binding.name() {
+                        if self.declare_symbol(name, declared_type.clone()) {
+                            let error = self.error_with_span(
+                                "E0001",
+                                &format!("Variable '{}' already defined in this scope", name),
+                                &format!("Variable '{}' already defined in this scope", name),
+                                binding.span
+                            )
+                            .with_help(&format!("Consider using a different name or removing the previous declaration of '{}'", name));
 
-                        return Err(CompilerError::SemanticError(error));
-                    }
+                            return Err(CompilerError::SemanticError(error));
+                        }
 
-                    if var.is_fallible {
-                        // For fallible bindings, we don't update awaitable status in the same way
-                        self.clear_awaitable(&binding.name);
-                    } else {
-                        self.update_awaitable_from_expr(&binding.name, &var.init)?;
+                        if var.is_fallible {
+                            // For fallible bindings, we don't update awaitable status in the same way
+                            self.clear_awaitable(name);
+                        } else {
+                            self.update_awaitable_from_expr(name, &var.init)?;
+                        }
                     }
                 }
             }

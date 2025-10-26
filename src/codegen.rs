@@ -1618,7 +1618,7 @@ impl CodeGenerator {
                     let binding_names: Vec<String> = var
                         .bindings
                         .iter()
-                        .map(|b| self.sanitize_name(&b.name))
+                        .filter_map(|b| b.name().map(|n| self.sanitize_name(n)))
                         .collect();
 
                     // Check if the init expression returns a tuple directly (before tracking)
@@ -1688,7 +1688,9 @@ impl CodeGenerator {
                             if i > 0 {
                                 self.output.push_str(", ");
                             }
-                            write!(self.output, "{}", self.sanitize_name(&binding.name)).unwrap();
+                            if let Some(name) = binding.name() {
+                                write!(self.output, "{}", self.sanitize_name(name)).unwrap();
+                            }
                         }
 
                         if is_fallible_call {
@@ -1738,14 +1740,18 @@ impl CodeGenerator {
                                     // Check if this is a class type (not a primitive)
                                     if self.class_fields.contains_key(class_name) {
                                         let binding = &var.bindings[0];
-                                        self.class_instance_vars.insert(self.sanitize_name(&binding.name));
+                                        if let Some(name) = binding.name() {
+                                            self.class_instance_vars.insert(self.sanitize_name(name));
+                                        }
                                     }
                                 } else if let TypeRef::Array(elem_type) = type_ref {
                                     // Track array element type if it's a class
                                     if let TypeRef::Simple(class_name) = elem_type.as_ref() {
                                         if self.class_fields.contains_key(class_name) {
                                             let binding = &var.bindings[0];
-                                            self.array_vars.insert(self.sanitize_name(&binding.name));
+                                            if let Some(name) = binding.name() {
+                                                self.array_vars.insert(self.sanitize_name(name));
+                                            }
                                         }
                                     }
                                 }
@@ -1777,7 +1783,8 @@ impl CodeGenerator {
                         ));
                     }
                     let binding = &var.bindings[0];
-                    let var_name = self.sanitize_name(&binding.name);
+                    // TODO: Support destructuring patterns here
+                    let var_name = self.sanitize_name(binding.name().unwrap());
 
                     // Phase 2: Check if this is a Task assignment
                     if let Some(exec_policy) = task_exec_policy {
@@ -1805,38 +1812,48 @@ impl CodeGenerator {
 
                         // Check if initializing with an object literal - mark variable for bracket notation
                         if let Expr::ObjectLiteral(_) = &var.init {
-                            self.bracket_notation_vars.insert(binding.name.clone());
+                            if let Some(name) = binding.name() {
+                                self.bracket_notation_vars.insert(name.to_string());
+                            }
                         }
 
                         // Check if initializing with an array literal - mark variable as array
                         if let Expr::ArrayLiteral(_) = &var.init {
-                            self.array_vars.insert(binding.name.clone());
+                            if let Some(name) = binding.name() {
+                                self.array_vars.insert(name.to_string());
+                            }
                         }
                         // Check if initializing with a method call that returns an array (map, filter, etc.)
                         else if let Expr::MethodCall(method_call) = &var.init {
                             if matches!(method_call.method.as_str(), "map" | "filter") {
-                                self.array_vars.insert(binding.name.clone());
-                                
-                                // If the method is called on a JsonValue, the result is also Vec<JsonValue>
-                                // BUT we need to mark it as json_value for proper forEach iteration
-                                if self.is_json_value_expr(&method_call.object) {
-                                    self.json_value_vars.insert(binding.name.clone());
+                                if let Some(name) = binding.name() {
+                                    self.array_vars.insert(name.to_string());
+                                    
+                                    // If the method is called on a JsonValue, the result is also Vec<JsonValue>
+                                    // BUT we need to mark it as json_value for proper forEach iteration
+                                    if self.is_json_value_expr(&method_call.object) {
+                                        self.json_value_vars.insert(name.to_string());
+                                    }
                                 }
                             }
                         }
                         // Mark instances created via constructor call: let x = ClassName(...)
                         else if let Expr::Call(call) = &var.init {
                             if let Expr::Identifier(class_name) = &*call.callee {
-                                self.class_instance_vars.insert(binding.name.clone());
-                                self.var_types
-                                    .insert(binding.name.clone(), class_name.clone());
+                                if let Some(name) = binding.name() {
+                                    self.class_instance_vars.insert(name.to_string());
+                                    self.var_types
+                                        .insert(name.to_string(), class_name.clone());
+                                }
                             }
                         }
                         // Mark instances created via struct literal: let x = ClassName { ... }
                         else if let Expr::StructLiteral { type_name, .. } = &var.init {
-                            self.class_instance_vars.insert(binding.name.clone());
-                            self.var_types
-                                .insert(binding.name.clone(), type_name.clone());
+                            if let Some(name) = binding.name() {
+                                self.class_instance_vars.insert(name.to_string());
+                                self.var_types
+                                    .insert(name.to_string(), type_name.clone());
+                            }
                         }
 
                         write!(self.output, "let mut {}", var_name).unwrap();
@@ -1861,7 +1878,9 @@ impl CodeGenerator {
                         } else if is_json_parse {
                             // Untyped JSON parsing (original behavior): let data = JSON.parse(body)
                             // Mark this variable as JsonValue for lambda pattern detection
-                            self.json_value_vars.insert(binding.name.clone());
+                            if let Some(name) = binding.name() {
+                                self.json_value_vars.insert(name.to_string());
+                            }
                             
                             // Generate: let posts = JSON.parse(body).0.expect("JSON parse failed");
                             self.generate_expr(&var.init)?;

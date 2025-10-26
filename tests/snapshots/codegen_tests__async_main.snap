@@ -111,12 +111,21 @@ mod liva_rt {
     }
     
     // HTTP Client
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Default)]
     pub struct LivaHttpResponse {
         pub status: i32,
         pub status_text: String,
         pub body: String,
         pub headers: Vec<String>,
+    }
+    
+    impl LivaHttpResponse {
+        pub fn json(&self) -> (JsonValue, String) {
+            match serde_json::from_str(&self.body) {
+                Ok(value) => (JsonValue(value), String::new()),
+                Err(e) => (JsonValue(serde_json::Value::Null), format!("JSON parse error: {}", e)),
+            }
+        }
     }
     
     pub async fn liva_http_get(url: String) -> (Option<LivaHttpResponse>, String) {
