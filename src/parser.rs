@@ -1249,9 +1249,10 @@ impl Parser {
             self.expect(Token::RParen)?;
             params
         } else {
-            let name = self.parse_identifier()?;
+            // Single parameter without parentheses: x => ... or {x, y} => ...
+            let pattern = self.parse_param_pattern()?;
             vec![LambdaParam {
-                name,
+                pattern,
                 type_ref: None,
             }]
         };
@@ -1282,14 +1283,15 @@ impl Parser {
         }
 
         loop {
-            let name = self.parse_identifier()?;
+            // Parse pattern (can be identifier, object destructuring, or array destructuring)
+            let pattern = self.parse_param_pattern()?;
             let type_ref = if self.match_token(&Token::Colon) {
                 Some(self.parse_type()?)
             } else {
                 None
             };
 
-            params.push(LambdaParam { name, type_ref });
+            params.push(LambdaParam { pattern, type_ref });
 
             if !self.match_token(&Token::Comma) {
                 break;

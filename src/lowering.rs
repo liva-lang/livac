@@ -344,8 +344,9 @@ fn lower_expr(expr: &ast::Expr) -> ir::Expr {
             let params = lambda
                 .params
                 .iter()
-                .map(|param| ir::LambdaParam {
-                    name: param.name.clone(),
+                .enumerate()
+                .map(|(idx, param)| ir::LambdaParam {
+                    name: param.name().map(|s| s.to_string()).unwrap_or_else(|| format!("_param_{}", idx)),
                     type_ref: param.type_ref.as_ref().map(|tr| tr.to_rust_type()),
                 })
                 .collect();

@@ -1814,11 +1814,48 @@ impl SemanticAnalyzer {
                 self.validate_type_ref(type_ref, &empty)?;
             }
 
-            if self.declare_symbol(&param.name, param.type_ref.clone()) {
-                self.exit_scope()?;
-                return Err(CompilerError::SemanticError(
-                    format!("Parameter '{}' defined multiple times", param.name).into(),
-                ));
+            // Handle both simple and destructured parameters
+            match &param.pattern {
+                BindingPattern::Identifier(name) => {
+                    if self.declare_symbol(name, param.type_ref.clone()) {
+                        self.exit_scope()?;
+                        return Err(CompilerError::SemanticError(
+                            format!("Parameter '{}' defined multiple times", name).into(),
+                        ));
+                    }
+                }
+                BindingPattern::Object(obj_pattern) => {
+                    // Validate and declare all bindings from object pattern
+                    for field in &obj_pattern.fields {
+                        if self.declare_symbol(&field.binding, None) {
+                            self.exit_scope()?;
+                            return Err(CompilerError::SemanticError(
+                                format!("Binding '{}' defined multiple times", field.binding).into(),
+                            ));
+                        }
+                    }
+                }
+                BindingPattern::Array(arr_pattern) => {
+                    // Validate and declare all bindings from array pattern
+                    for element in arr_pattern.elements.iter().flatten() {
+                        if self.declare_symbol(element, None) {
+                            self.exit_scope()?;
+                            return Err(CompilerError::SemanticError(
+                                format!("Binding '{}' defined multiple times", element).into(),
+                            ));
+                        }
+                    }
+                    
+                    // Handle rest pattern
+                    if let Some(rest_name) = &arr_pattern.rest {
+                        if self.declare_symbol(rest_name, None) {
+                            self.exit_scope()?;
+                            return Err(CompilerError::SemanticError(
+                                format!("Binding '{}' defined multiple times", rest_name).into(),
+                            ));
+                        }
+                    }
+                }
             }
         }
 

@@ -687,8 +687,23 @@ pub struct LambdaExpr {
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct LambdaParam {
-    pub name: String,
+    pub pattern: BindingPattern,
     pub type_ref: Option<TypeRef>,
+}
+
+impl LambdaParam {
+    /// Get the parameter name if it's a simple identifier pattern
+    pub fn name(&self) -> Option<&str> {
+        match &self.pattern {
+            BindingPattern::Identifier(name) => Some(name),
+            _ => None,
+        }
+    }
+
+    /// Check if this parameter uses destructuring
+    pub fn is_destructuring(&self) -> bool {
+        !matches!(self.pattern, BindingPattern::Identifier(_))
+    }
 }
 
 #[allow(dead_code)]
