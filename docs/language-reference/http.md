@@ -15,6 +15,8 @@ Liva provides a built-in HTTP client for making web requests. All HTTP methods a
 - ⏱️ 30-second timeout (configurable in future versions)
 - 🎯 Error binding: `let response, err = async HTTP.get(url)`
 - 📦 Response object with status, body, headers
+- ✨ Ergonomic JSON parsing: `response.json()` (like JavaScript fetch API)
+- 🎨 Typed JSON parsing: `let users: [User], err = response.json()`
 
 ---
 
@@ -31,7 +33,16 @@ main() {
     }
     
     print($"Status: {response.status}")
-    print($"Body: {response.body}")
+    
+    // ✨ Parse JSON response (ergonomic way)
+    let users, jsonErr = response.json()
+    
+    if jsonErr != "" {
+        console.error($"JSON parsing failed: {jsonErr}")
+        return
+    }
+    
+    print($"Got {users.length} users")
 }
 ```
 
@@ -66,10 +77,34 @@ if err != "" {
     print($"Status: {response.status}")
     print($"Headers: {response.headers}")
     
-    // Parse JSON response
-    let data, jsonErr = JSON.parse(response.body)
+    // ✨ Parse JSON response using response.json()
+    let data, jsonErr = response.json()
     if jsonErr == "" {
         print($"Data: {data}")
+    }
+}
+```
+
+**With Typed Parsing:**
+```liva
+ApiResponse {
+    url: string
+    headers: JsonValue  // Can use JsonValue for unstructured data
+}
+
+main() {
+    let response, err = async HTTP.get("https://httpbin.org/get")
+    
+    if err != "" {
+        console.error($"Error: {err}")
+        return
+    }
+    
+    // ✨ Typed JSON parsing
+    let data: ApiResponse, jsonErr = response.json()
+    
+    if jsonErr == "" {
+        print($"Request URL: {data.url}")
     }
 }
 ```
@@ -192,7 +227,96 @@ The `Response` object contains information about the HTTP response.
 | `body` | `string` | Response body as a string |
 | `headers` | `[string]` | Response headers as array of strings |
 
-### Example Usage
+### Methods
+
+#### response.json()
+
+Parse the response body as JSON. Returns a tuple for error binding pattern.
+
+**Signature:**
+```liva
+response.json() -> (JsonValue, string)
+```
+
+**Returns:**
+- Tuple: `(JsonValue, string)`
+  - First element: `JsonValue` - Parsed JSON data (Null if error)
+  - Second element: `string` - Error message if parsing failed, empty string if success
+
+**Basic Example:**
+```liva
+let response, httpErr = async HTTP.get("https://api.example.com/posts")
+
+if httpErr != "" {
+    console.error($"HTTP Error: {httpErr}")
+    return
+}
+
+// ✨ Ergonomic JSON parsing (like JavaScript fetch API)
+let posts, jsonErr = response.json()
+
+if jsonErr != "" {
+    console.error($"JSON Error: {jsonErr}")
+    return
+}
+
+// Use the parsed data
+print($"Got {posts.length} posts")
+print($"First post title: {posts[0]['title']}")
+```
+
+**Typed JSON Parsing:**
+
+You can specify a type hint for automatic deserialization into custom classes:
+
+```liva
+// Define your data model
+User {
+    id: u32
+    name: string
+    email: string
+}
+
+main() {
+    let response, httpErr = async HTTP.get("https://api.example.com/users")
+    
+    if httpErr != "" {
+        console.error($"HTTP Error: {httpErr}")
+        return
+    }
+    
+    // ✨ Typed parsing - automatically deserializes to User array
+    let users: [User], jsonErr = response.json()
+    
+    if jsonErr != "" {
+        console.error($"JSON Error: {jsonErr}")
+        return
+    }
+    
+    // Access typed fields directly
+    print($"First user: {users[0].name} <{users[0].email}>")
+    
+    // Type-safe iteration
+    users.forEach(user => {
+        print($"User {user.id}: {user.name}")
+    })
+}
+```
+
+**Comparison with JSON.parse():**
+
+```liva
+// Traditional way (still works)
+let data1, err1 = JSON.parse(response.body)
+
+// New ergonomic way (recommended)
+let data2, err2 = response.json()
+
+// Both produce the same result!
+// But response.json() is more concise and follows JavaScript fetch API pattern
+```
+
+### Field Access Example
 
 ```liva
 let response, err = async HTTP.get("https://api.example.com/data")
@@ -209,6 +333,12 @@ if err == "" {
     
     // Access body
     print($"Body length: {response.body.length}")
+    
+    // Parse JSON directly from response
+    let data, jsonErr = response.json()
+    if jsonErr == "" {
+        print($"Parsed data: {data}")
+    }
     
     // Access headers (future enhancement will allow individual header access)
     print($"Headers count: {response.headers.length}")
@@ -377,8 +507,8 @@ main() {
         return
     }
     
-    // Parse JSON response
-    let data, jsonErr = JSON.parse(response.body)
+    // ✨ Parse JSON using response.json() (ergonomic way)
+    let data, jsonErr = response.json()
     
     if jsonErr != "" {
         console.error($"JSON Error: {jsonErr}")
@@ -387,6 +517,41 @@ main() {
     
     // Use the data
     print($"Received data: {data}")
+}
+```
+
+**With Typed Parsing:**
+
+```liva
+Post {
+    id: u32
+    userId: u32
+    title: string
+    body: string
+}
+
+main() {
+    let response, err = async HTTP.get("https://jsonplaceholder.typicode.com/posts")
+    
+    if err != "" || response.status != 200 {
+        console.error("Failed to fetch posts")
+        return
+    }
+    
+    // ✨ Typed JSON parsing - automatic deserialization
+    let posts: [Post], jsonErr = response.json()
+    
+    if jsonErr != "" {
+        console.error($"JSON Error: {jsonErr}")
+        return
+    }
+    
+    // Type-safe access to fields
+    print($"Fetched {posts.length} posts")
+    
+    posts.forEach(post => {
+        print($"Post {post.id}: {post.title}")
+    })
 }
 ```
 
