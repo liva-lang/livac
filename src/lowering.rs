@@ -42,16 +42,29 @@ fn lower_function(func: &ast::FunctionDecl) -> ir::Function {
     let params = func
         .params
         .iter()
-        .map(|param| {
+        .enumerate()
+        .map(|(i, param)| {
             let ty = if let Some(explicit) = &param.type_ref {
                 ir::Type::from_ast(&Some(explicit.clone()))
-            } else if let Some(inferred) = infer_param_type(func, &param.name) {
-                inferred
+            } else if let Some(name) = param.name() {
+                if let Some(inferred) = infer_param_type(func, name) {
+                    inferred
+                } else {
+                    ir::Type::Inferred
+                }
             } else {
                 ir::Type::Inferred
             };
+            
+            // For destructured parameters, use temporary names
+            let param_name = if let Some(name) = param.name() {
+                name.to_string()
+            } else {
+                format!("_param_{}", i)
+            };
+            
             ir::Param {
-                name: param.name.clone(),
+                name: param_name,
                 ty,
                 default: param.default.as_ref().map(lower_expr),
             }

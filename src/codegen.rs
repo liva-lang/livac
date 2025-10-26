@@ -941,20 +941,21 @@ impl CodeGenerator {
                 let mut first = true;
                 if let Some(base_fields) = self.class_fields.get(base_name) {
                     for bf in base_fields {
-                        if let Some(p) = constructor_method.params.iter().find(|p| &p.name == bf) {
+                        if let Some(p) = constructor_method.params.iter().find(|p| p.name() == Some(bf.as_str())) {
                             if !first {
                                 self.output.push_str(", ");
                             } else {
                                 first = false;
                             }
-                            if p.name == "name" {
+                            let param_name = p.name().unwrap();
+                            if param_name == "name" {
                                 // Common name-as-String convenience
                                 self.output.push_str(&format!(
                                     "{}.to_string()",
-                                    self.sanitize_name(&p.name)
+                                    self.sanitize_name(param_name)
                                 ));
                             } else {
-                                self.output.push_str(&self.sanitize_name(&p.name));
+                                self.output.push_str(&self.sanitize_name(param_name));
                             }
                         }
                     }
@@ -964,13 +965,13 @@ impl CodeGenerator {
                 // Then handle own fields (excluding base fields)
                 for param in &constructor_method.params {
                     if let Some(base_fields) = self.class_fields.get(base_name) {
-                        if base_fields.contains(&param.name) {
+                        if base_fields.contains(param.name().unwrap()) {
                             continue;
                         }
                     }
                     self.write_indent();
-                    let field_name = self.sanitize_name(&param.name);
-                    if param.name == "name" {
+                    let field_name = self.sanitize_name(param.name().unwrap());
+                    if param.name().unwrap() == "name" {
                         self.output
                             .push_str(&format!("{}: {}.to_string(),\n", field_name, field_name));
                     } else {
@@ -981,8 +982,8 @@ impl CodeGenerator {
             } else {
                 for param in &constructor_method.params {
                     self.write_indent();
-                    let field_name = self.sanitize_name(&param.name);
-                    if param.name == "name" {
+                    let field_name = self.sanitize_name(param.name().unwrap());
+                    if param.name().unwrap() == "name" {
                         self.output
                             .push_str(&format!("{}: {}.to_string(),\n", field_name, field_name));
                     } else {
@@ -998,7 +999,7 @@ impl CodeGenerator {
                     if !constructor_method
                         .params
                         .iter()
-                        .any(|p| p.name == field.name)
+                        .any(|p| p.name() == Some(field.name.as_str()))
                     {
                         let default_value = match field.type_ref.as_ref() {
                             Some(type_ref) => match type_ref {
@@ -1267,9 +1268,9 @@ impl CodeGenerator {
         // Generate field assignments based on parameters
         for param in &method.params {
             self.write_indent();
-            let field_name = self.sanitize_name(&param.name);
+            let field_name = self.sanitize_name(param.name().unwrap());
             // Add conversion for string fields
-            if param.name == "name" {
+            if param.name().unwrap() == "name" {
                 self.output
                     .push_str(&format!("{}: {}.to_string()", field_name, field_name));
             } else {
@@ -1449,6 +1450,10 @@ impl CodeGenerator {
         if let Some(expr) = &func.expr_body {
             self.output.push_str(" {\n");
             self.indent();
+            
+            // Generate destructuring code for parameters
+            self.generate_param_destructuring(&func.params)?;
+            
             self.write_indent();
             let was_fallible = self.in_fallible_function;
             self.in_fallible_function = func.contains_fail;
@@ -1542,16 +1547,16 @@ impl CodeGenerator {
                 result.push_str(", ");
             }
 
-            let param_name = self.sanitize_name(&param.name);
+            let param_name = self.sanitize_name(param.name().unwrap());
             let type_str = if let Some(type_ref) = &param.type_ref {
                 type_ref.to_rust_type()
             } else if let Some(cls) = class {
                 // Try to infer from field types in the class
-                self.infer_param_type_from_class(&param.name, cls, method_name)
+                self.infer_param_type_from_class(param.name().unwrap(), cls, method_name)
                     .unwrap_or_else(|| "i32".to_string())
             } else {
                 // Infer type based on parameter name (hack for constructor)
-                match param.name.as_str() {
+                match param.name().unwrap() {
                     "name" => "String".to_string(),
                     "age" => "i32".to_string(),
                     "items" => "Vec<serde_json::Value>".to_string(),

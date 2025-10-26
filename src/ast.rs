@@ -129,9 +129,24 @@ pub struct FunctionDecl {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Param {
-    pub name: String,
+    pub pattern: BindingPattern,  // Changed from `name: String` to support destructuring
     pub type_ref: Option<TypeRef>,
     pub default: Option<Expr>,
+}
+
+impl Param {
+    /// Helper to get the name for simple identifier parameters (backward compatibility)
+    pub fn name(&self) -> Option<&str> {
+        match &self.pattern {
+            BindingPattern::Identifier(name) => Some(name),
+            _ => None,
+        }
+    }
+    
+    /// Check if this parameter uses destructuring
+    pub fn is_destructuring(&self) -> bool {
+        !self.pattern.is_simple()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

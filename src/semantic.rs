@@ -935,12 +935,8 @@ impl SemanticAnalyzer {
         self.enter_scope();
 
         for param in &func.params {
-            if self.declare_symbol(&param.name, param.type_ref.clone()) {
-                self.exit_scope()?;
-                return Err(CompilerError::SemanticError(
-                    format!("Parameter '{}' defined multiple times", param.name).into(),
-                ));
-            }
+            // Declare variables from parameter pattern
+            self.declare_param_pattern(&param.pattern, param.type_ref.clone(), None)?;
         }
 
         if let Some(body) = &func.body {
@@ -1136,12 +1132,8 @@ impl SemanticAnalyzer {
         self.declare_symbol("this", Some(owner_type));
 
         for param in &method.params {
-            if self.declare_symbol(&param.name, param.type_ref.clone()) {
-                self.exit_scope()?;
-                return Err(CompilerError::SemanticError(
-                    format!("Parameter '{}' defined multiple times", param.name).into(),
-                ));
-            }
+            // Declare variables from parameter pattern
+            self.declare_param_pattern(&param.pattern, param.type_ref.clone(), None)?;
         }
 
         if let Some(body) = &method.body {
@@ -2652,6 +2644,154 @@ impl SemanticAnalyzer {
             }
         }
 
+        Ok(())
+    }
+
+    /// Declare variables from a parameter pattern (for function parameters)
+    fn declare_param_pattern(
+        &mut self,
+        pattern: &BindingPattern,
+        param_type: Option<TypeRef>,
+        span: Option<crate::span::Span>
+    ) -> Result<()> {
+        match pattern {
+            BindingPattern::Identifier(name) => {
+                // Simple parameter
+                if self.declare_symbol(name, param_type) {
+                    let error = self.error_with_span(
+                        "E0310",
+                        &format!("Parameter '{}' already declared", name),
+                        &format!("Parameter '{}' already declared", name),
+                        span
+                    )
+                    .with_help(&format!("Each parameter must have a unique name"));
+                    return Err(CompilerError::SemanticError(error));
+                }
+            }
+            BindingPattern::Object(obj_pattern) => {
+                // Validate field existence if type is known
+                if let Some(TypeRef::Simple(type_name)) = &param_type {
+                    if let Some(type_info) = self.types.get(type_name) {
+                        for field in &obj_pattern.fields {
+                            if !type_info.fields.contains_key(&field.key) {
+                                let error = self.error_with_span(
+                                    "E0311",
+                                    &format!("Field '{}' not found on type '{}'", field.key, type_name),
+                                    &format!("Field '{}' not found on type '{}'", field.key, type_name),
+                                    span
+                                )
+                                .with_help(&format!("Available fields: {}", type_info.fields.keys().map(|k| format!("'{}'", k)).collect::<Vec<_>>().join(", ")));
+                                return Err(CompilerError::SemanticError(error));
+                            }
+                        }
+                    }
+                }
+                
+                // Check for duplicates
+                let mut seen = HashSet::new();
+                for field in &obj_pattern.fields {
+                    if !seen.insert(&field.binding) {
+                        let error = self.error_with_span(
+                            "E0312",
+                            &format!("Binding '{}' appears multiple times in pattern", field.binding),
+                            &format!("Binding '{}' appears multiple times in pattern", field.binding),
+                            span
+                        )
+                        .with_help("Each binding in a destructuring pattern must be unique");
+                        return Err(CompilerError::SemanticError(error));
+                    }
+                }
+                
+                // Declare all bindings
+                for field in &obj_pattern.fields {
+                    let field_type = if let Some(TypeRef::Simple(type_name)) = &param_type {
+                        self.types.get(type_name)
+                            .and_then(|info| info.fields.get(&field.key))
+                            .map(|(_, ty)| ty.clone())
+                    } else {
+                        None
+                    };
+                    
+                    if self.declare_symbol(&field.binding, field_type) {
+                        let error = self.error_with_span(
+                            "E0312",
+                            &format!("Binding '{}' already declared", field.binding),
+                            &format!("Binding '{}' already declared", field.binding),
+                            span
+                        )
+                        .with_help(&format!("Consider using a different name"));
+                        return Err(CompilerError::SemanticError(error));
+                    }
+                }
+            }
+            BindingPattern::Array(arr_pattern) => {
+                // Infer element type from array type
+                let element_type = match &param_type {
+                    Some(TypeRef::Array(inner)) => Some((**inner).clone()),
+                    _ => None,
+                };
+                
+                // Check for duplicates
+                let mut seen = HashSet::new();
+                for element in &arr_pattern.elements {
+                    if let Some(name) = element {
+                        if !seen.insert(name) {
+                            let error = self.error_with_span(
+                                "E0312",
+                                &format!("Binding '{}' appears multiple times in pattern", name),
+                                &format!("Binding '{}' appears multiple times in pattern", name),
+                                span
+                            )
+                            .with_help("Each binding in a destructuring pattern must be unique");
+                            return Err(CompilerError::SemanticError(error));
+                        }
+                    }
+                }
+                if let Some(rest) = &arr_pattern.rest {
+                    if !seen.insert(rest) {
+                        let error = self.error_with_span(
+                            "E0312",
+                            &format!("Binding '{}' appears multiple times in pattern", rest),
+                            &format!("Binding '{}' appears multiple times in pattern", rest),
+                            span
+                        )
+                        .with_help("Each binding in a destructuring pattern must be unique");
+                        return Err(CompilerError::SemanticError(error));
+                    }
+                }
+                
+                // Declare element bindings
+                for element in &arr_pattern.elements {
+                    if let Some(name) = element {
+                        if self.declare_symbol(name, element_type.clone()) {
+                            let error = self.error_with_span(
+                                "E0312",
+                                &format!("Binding '{}' already declared", name),
+                                &format!("Binding '{}' already declared", name),
+                                span
+                            )
+                            .with_help(&format!("Consider using a different name"));
+                            return Err(CompilerError::SemanticError(error));
+                        }
+                    }
+                }
+                
+                // Declare rest binding
+                if let Some(rest) = &arr_pattern.rest {
+                    let rest_type = element_type.map(|t| TypeRef::Array(Box::new(t)));
+                    if self.declare_symbol(rest, rest_type) {
+                        let error = self.error_with_span(
+                            "E0312",
+                            &format!("Binding '{}' already declared", rest),
+                            &format!("Binding '{}' already declared", rest),
+                            span
+                        )
+                        .with_help(&format!("Consider using a different name"));
+                        return Err(CompilerError::SemanticError(error));
+                    }
+                }
+            }
+        }
         Ok(())
     }
 

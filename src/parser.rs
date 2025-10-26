@@ -716,7 +716,10 @@ impl Parser {
         }
 
         loop {
-            let name = self.parse_identifier()?;
+            // Parse pattern WITHOUT type annotation (handled separately below)
+            let pattern = self.parse_param_pattern()?;
+            
+            // Parse type annotation for the parameter
             let type_ref = if self.match_token(&Token::Colon) {
                 Some(self.parse_type()?)
             } else {
@@ -730,7 +733,7 @@ impl Parser {
             };
 
             params.push(Param {
-                name,
+                pattern,
                 type_ref,
                 default,
             });
@@ -826,6 +829,21 @@ impl Parser {
         }
 
         Ok(bindings)
+    }
+    /// Parse a parameter pattern WITHOUT type annotation (just the pattern itself)
+    /// Used in parse_params() where type is handled separately
+    fn parse_param_pattern(&mut self) -> Result<BindingPattern> {
+        if self.check(&Token::LBrace) {
+            // Object destructuring: {name, age}
+            self.parse_object_pattern()
+        } else if self.check(&Token::LBracket) {
+            // Array destructuring: [first, second]
+            self.parse_array_pattern()
+        } else {
+            // Simple identifier
+            let name = self.parse_identifier()?;
+            Ok(BindingPattern::Identifier(name))
+        }
     }
 
     /// Parse a single binding pattern: identifier, {obj}, or [array]
