@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✅ Works in both functions and methods
 - ✅ Semantic validation for destructured parameters
 
+**Destructuring in Lambda Parameters:**
+- ✅ Array destructuring in lambdas: `pairs.forEach(([x, y]) => ...)`
+- ✅ Object destructuring in lambdas: `users.forEach(({id, name}) => ...)`
+- ✅ Works with all array methods: `forEach`, `map`, `filter`, `reduce`
+- ✅ Works with parallel variants: `parvec().forEach(([x, y]) => ...)`
+- ✅ Parser recognizes `[x, y] =>` and `{x, y} =>` as lambda starts
+- ✅ Codegen inserts destructuring in both regular and special paths
+
 **Example Usage - Array Destructuring:**
 ```liva
 // Function with array destructuring parameter
@@ -35,20 +43,37 @@ main() {
 }
 ```
 
-**Example Usage - forEach with Destructuring:**
+**Example Usage - Lambda Destructuring:**
 ```liva
+// Array destructuring in forEach
+let pairs = [[1, 2], [3, 4], [5, 6]]
+pairs.forEach(([x, y]) => {
+    print("x=${x}, y=${y}, sum=${x + y}")
+})
+
+// Object destructuring in forEach
 let users = [
     {id: 1, name: "Alice"},
     {id: 2, name: "Bob"}
 ]
-
-users.forEach({id, name} => {
-    print(id, name)
+users.forEach(({id, name}) => {
+    print("User #${id}: ${name}")
 })
+
+// Works with map
+let sums = pairs.map(([a, b]) => a + b)
+
+// Works with filter
+let filtered = pairs.filter(([x, y]) => x > 2)
 ```
 
 **Implementation Details:**
-- Parser creates `BindingPattern` for parameters
+- Parser creates `BindingPattern` for both `Param` and `LambdaParam`
+- Both use `pattern: BindingPattern` instead of `name: String`
+- Lambda parser updated to recognize destructuring patterns as lambda starts
+- Codegen generates temporary names (`_param_0`, `_param_1`, etc.)
+- Destructuring code inserted at function/lambda start with `let` statements
+- Special array method path (forEach/map/filter) now includes destructuring support
 - Semantic analyzer validates patterns and declares variables
 - Codegen generates temporary parameter names (`_param_0`, `_param_1`)
 - Destructuring code inserted at function/method entry

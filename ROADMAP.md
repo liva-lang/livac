@@ -1251,10 +1251,15 @@ let result = switch flag {
 ### 6.5.1 Parameter Destructuring ✅ COMPLETED (v0.10.3)
 - [x] Design parameter destructuring syntax
 - [x] Refactor AST: `Param.name` → `Param.pattern: BindingPattern`
+- [x] Refactor AST: `LambdaParam.name` → `LambdaParam.pattern: BindingPattern`
 - [x] Update parser to parse patterns in parameters
+- [x] Update parser to recognize `[x, y] =>` and `{x, y} =>` as lambda starts
 - [x] Add semantic validation for parameter patterns
+- [x] Add semantic validation for lambda parameter patterns
 - [x] Implement codegen with temp parameter names
+- [x] Implement codegen for lambda destructuring in special array method path
 - [x] Support both functions and methods
+- [x] Support lambdas in forEach/map/filter/reduce
 - [x] Add parser tests and integration tests
 - [x] Document in CHANGELOG and ROADMAP
 
@@ -1266,12 +1271,29 @@ let result = switch flag {
 - Array destructuring in parameters: `printPair([first, second]: [int]) { ... }`
 - Object destructuring in parameters: `processUser({name, age}: User) { ... }`
 - Rest patterns in parameters: `processList([head, ...tail]: [int]) { ... }`
-- Works with lambdas/forEach: `users.forEach({id, name} => { ... })`
+- **Lambda destructuring:** `pairs.forEach(([x, y]) => { ... })` ✅ NEW!
+- **Object destructuring in lambdas:** `users.forEach(({id, name}) => { ... })` ✅ NEW!
+- Works with all array methods: forEach, map, filter, reduce
+- Works with parallel variants: `parvec().forEach(([x, y]) => ...)`
 - Temp parameter names generated: `_param_0`, `_param_1`
-- Destructuring code inserted at function entry
+- Destructuring code inserted at function/lambda entry
 - Full semantic validation and type checking
 
-**Actual Time:** ~4 hours (includes AST migration and testing)
+**Implementation:**
+- Parser recognizes `[x, y] =>` and `{x, y} =>` patterns via `is_lambda_start_from()`
+- Special codegen path for array methods now includes destructuring support
+- Lambda body wrapped in block when destructuring needed
+- Calls `generate_lambda_param_destructuring()` for each param
+
+**Commits:**
+1. cf3fc5d - AST refactor (Param.pattern)
+2. 00efb50 - Function codegen implementation
+3. 4345adb - Parser test
+4. a04c832 - Documentation
+5. bf2b6cf - Lambda AST refactor (LambdaParam.pattern)
+6. 77ae728 - Lambda destructuring in special array method path
+
+**Actual Time:** ~6 hours (includes both function and lambda support)
 
 ### 6.6 Spread Operators
 - [ ] Design spread syntax `...array`, `...object`
