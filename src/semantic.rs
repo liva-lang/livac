@@ -1227,27 +1227,14 @@ impl SemanticAnalyzer {
                             .or_else(|| self.infer_expr_type(&var.init))
                     };
 
-                    // TODO: Support destructuring patterns in semantic analysis
-                    if let Some(name) = binding.name() {
-                        if self.declare_symbol(name, declared_type.clone()) {
-                            let error = self.error_with_span(
-                                "E0001",
-                                &format!("Variable '{}' already defined in this scope", name),
-                                &format!("Variable '{}' already defined in this scope", name),
-                                binding.span
-                            )
-                            .with_help(&format!("Consider using a different name or removing the previous declaration of '{}'", name));
-
-                            return Err(CompilerError::SemanticError(error));
-                        }
-
-                        if var.is_fallible {
-                            // For fallible bindings, we don't update awaitable status in the same way
-                            self.clear_awaitable(name);
-                        } else {
-                            self.update_awaitable_from_expr(name, &var.init)?;
-                        }
-                    }
+                    // Validate and declare the binding pattern (supports destructuring)
+                    self.validate_and_declare_pattern(
+                        &binding.pattern,
+                        &var.init,
+                        declared_type,
+                        var.is_fallible,
+                        binding.span
+                    )?;
                 }
             }
             Stmt::ConstDecl(const_decl) => {
@@ -2451,6 +2438,221 @@ impl SemanticAnalyzer {
             TypeRef::Optional(inner) => self.type_supports_length(inner),
             TypeRef::Fallible(_) => false,
         }
+    }
+
+    /// Validate a destructuring binding pattern and declare all bound variables
+    fn validate_and_declare_pattern(
+        &mut self,
+        pattern: &BindingPattern,
+        init_expr: &Expr,
+        declared_type: Option<TypeRef>,
+        is_fallible: bool,
+        span: Option<crate::span::Span>
+    ) -> Result<()> {
+        match pattern {
+            BindingPattern::Identifier(name) => {
+                // Simple identifier binding - existing behavior
+                if self.declare_symbol(name, declared_type.clone()) {
+                    let error = self.error_with_span(
+                        "E0001",
+                        &format!("Variable '{}' already defined in this scope", name),
+                        &format!("Variable '{}' already defined in this scope", name),
+                        span
+                    )
+                    .with_help(&format!("Consider using a different name or removing the previous declaration of '{}'", name));
+                    return Err(CompilerError::SemanticError(error));
+                }
+
+                if is_fallible {
+                    self.clear_awaitable(name);
+                } else {
+                    self.update_awaitable_from_expr(name, init_expr)?;
+                }
+            }
+            BindingPattern::Object(obj_pattern) => {
+                // Validate that we're destructuring from an object type
+                let inferred_type = declared_type.or_else(|| self.infer_expr_type(init_expr));
+                
+                // Extract type name for validation
+                let type_name = match inferred_type.as_ref() {
+                    Some(TypeRef::Simple(name)) => Some(name.as_str()),
+                    Some(TypeRef::Optional(inner)) => {
+                        if let TypeRef::Simple(name) = inner.as_ref() {
+                            Some(name.as_str())
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                };
+
+                // If we have a concrete type, validate that fields exist
+                if let Some(type_name) = type_name {
+                    if let Some(type_info) = self.types.get(type_name) {
+                        for field in &obj_pattern.fields {
+                            if !type_info.fields.contains_key(&field.key) {
+                                let error = self.error_with_span(
+                                    "E0301",
+                                    &format!("Field '{}' does not exist on type '{}'", field.key, type_name),
+                                    &format!("Field '{}' does not exist on type '{}'", field.key, type_name),
+                                    span
+                                )
+                                .with_help(&format!("Available fields: {}", type_info.fields.keys().map(|k| format!("'{}'", k)).collect::<Vec<_>>().join(", ")));
+                                return Err(CompilerError::SemanticError(error));
+                            }
+                        }
+                    }
+                }
+
+                // Check for duplicate bindings
+                let mut seen_bindings = HashSet::new();
+                for field in &obj_pattern.fields {
+                    if !seen_bindings.insert(&field.binding) {
+                        let error = self.error_with_span(
+                            "E0302",
+                            &format!("Duplicate binding '{}' in destructuring pattern", field.binding),
+                            &format!("Duplicate binding '{}' in destructuring pattern", field.binding),
+                            span
+                        )
+                        .with_help("Each binding in a destructuring pattern must be unique");
+                        return Err(CompilerError::SemanticError(error));
+                    }
+                }
+
+                // Declare all bound variables
+                for field in &obj_pattern.fields {
+                    // Infer field type if possible
+                    let field_type = if let Some(type_name) = type_name {
+                        self.types.get(type_name)
+                            .and_then(|info| info.fields.get(&field.key))
+                            .map(|(_, ty)| ty.clone())
+                    } else {
+                        None
+                    };
+
+                    if self.declare_symbol(&field.binding, field_type) {
+                        let error = self.error_with_span(
+                            "E0001",
+                            &format!("Variable '{}' already defined in this scope", field.binding),
+                            &format!("Variable '{}' already defined in this scope", field.binding),
+                            span
+                        )
+                        .with_help(&format!("Consider using a different name or removing the previous declaration of '{}'", field.binding));
+                        return Err(CompilerError::SemanticError(error));
+                    }
+
+                    if !is_fallible {
+                        self.update_awaitable_from_expr(&field.binding, init_expr)?;
+                    }
+                }
+            }
+            BindingPattern::Array(arr_pattern) => {
+                // Validate that we're destructuring from an array type
+                let inferred_type = declared_type.or_else(|| self.infer_expr_type(init_expr));
+                
+                // Check if it's an array type
+                let is_array = match inferred_type.as_ref() {
+                    Some(TypeRef::Array(_)) => true,
+                    Some(TypeRef::Optional(inner)) => matches!(inner.as_ref(), TypeRef::Array(_)),
+                    _ => false,
+                };
+
+                if !is_array && inferred_type.is_some() {
+                    let error = self.error_with_span(
+                        "E0303",
+                        "Cannot destructure non-array type with array pattern",
+                        "Cannot destructure non-array type with array pattern",
+                        span
+                    )
+                    .with_help("Array destructuring can only be used with array types");
+                    return Err(CompilerError::SemanticError(error));
+                }
+
+                // Check for duplicate bindings
+                let mut seen_bindings = HashSet::new();
+                for element in &arr_pattern.elements {
+                    if let Some(name) = element {
+                        if !seen_bindings.insert(name) {
+                            let error = self.error_with_span(
+                                "E0302",
+                                &format!("Duplicate binding '{}' in destructuring pattern", name),
+                                &format!("Duplicate binding '{}' in destructuring pattern", name),
+                                span
+                            )
+                            .with_help("Each binding in a destructuring pattern must be unique");
+                            return Err(CompilerError::SemanticError(error));
+                        }
+                    }
+                }
+                
+                if let Some(rest) = &arr_pattern.rest {
+                    if !seen_bindings.insert(rest) {
+                        let error = self.error_with_span(
+                            "E0302",
+                            &format!("Duplicate binding '{}' in destructuring pattern", rest),
+                            &format!("Duplicate binding '{}' in destructuring pattern", rest),
+                            span
+                        )
+                        .with_help("Each binding in a destructuring pattern must be unique");
+                        return Err(CompilerError::SemanticError(error));
+                    }
+                }
+
+                // Infer element type from array
+                let element_type = match inferred_type {
+                    Some(TypeRef::Array(inner)) => Some(*inner),
+                    Some(TypeRef::Optional(inner)) => {
+                        if let TypeRef::Array(elem) = *inner {
+                            Some(*elem)
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                };
+
+                // Declare all bound variables
+                for element in &arr_pattern.elements {
+                    if let Some(name) = element {
+                        if self.declare_symbol(name, element_type.clone()) {
+                            let error = self.error_with_span(
+                                "E0001",
+                                &format!("Variable '{}' already defined in this scope", name),
+                                &format!("Variable '{}' already defined in this scope", name),
+                                span
+                            )
+                            .with_help(&format!("Consider using a different name or removing the previous declaration of '{}'", name));
+                            return Err(CompilerError::SemanticError(error));
+                        }
+
+                        if !is_fallible {
+                            self.update_awaitable_from_expr(name, init_expr)?;
+                        }
+                    }
+                }
+
+                // Declare rest binding (as an array of the element type)
+                if let Some(rest) = &arr_pattern.rest {
+                    let rest_type = element_type.map(|t| TypeRef::Array(Box::new(t)));
+                    if self.declare_symbol(rest, rest_type) {
+                        let error = self.error_with_span(
+                            "E0001",
+                            &format!("Variable '{}' already defined in this scope", rest),
+                            &format!("Variable '{}' already defined in this scope", rest),
+                            span
+                        )
+                        .with_help(&format!("Consider using a different name or removing the previous declaration of '{}'", rest));
+                        return Err(CompilerError::SemanticError(error));
+                    }
+
+                    if !is_fallible {
+                        self.update_awaitable_from_expr(rest, init_expr)?;
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 
     /// Validate that a binary operator can be used with the given operands
