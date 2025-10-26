@@ -28,6 +28,11 @@ name = "Bob"
 // Immutable constant
 const PI = 3.1416
 const MAX_USERS = 100
+
+// Destructuring (v0.10.2+)
+let [a, b] = [1, 2]
+let {id, name} = user
+let [head, ...tail] = [1, 2, 3]
 ```
 
 ## Functions
@@ -71,6 +76,10 @@ func(a, b, c) { }
 
 // With types
 func(a: number, b: string, c: bool) { }
+
+// Parameter destructuring (v0.10.3+)
+func([x, y]: [int]) { }
+func({id, name}: User) { }
 
 // Default values (future)
 func(a: number, b: number = 10) { }
