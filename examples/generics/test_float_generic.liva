@@ -1,0 +1,6 @@
+sum<T: Add>(a: T, b: T): T => a + b
+
+main() {
+  let suma = sum<float>(3.5, 2.5)
+  print(suma)
+}

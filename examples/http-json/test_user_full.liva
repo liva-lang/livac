@@ -1,0 +1,26 @@
+User {
+    id: u32
+    name: string
+
+    getName() {
+        return this.name 
+    }
+}
+
+main() {
+  let res, err = async HTTP.get("https://jsonplaceholder.typicode.com/users")
+
+  if err != "" {
+      console.log($"HTTP Error: {err}")
+  } else if res.status != 200 {
+    console.log($"Failed to fetch users. Status: {res.status}")
+  } else {
+    let users: [User], parseErr = JSON.parse(res.body)
+    
+    if parseErr != "" {
+      console.log($"Parse error: {parseErr}")
+    } else {
+      console.log($"Fetched {users.len()} users")
+    }
+  }
+}

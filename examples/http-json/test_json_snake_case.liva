@@ -1,0 +1,28 @@
+// Test: JSON Typed Parsing - Field names must match JSON keys
+
+Post {
+    user_id: u32       // Must match JSON key names exactly
+    post_id: u64
+    user_name: String
+    created_at: String
+}
+
+main() {
+    print($"=== JSON Field Name Matching Test ===")
+    
+    // Field names in Post must match JSON keys exactly
+    let postJson = "{\"user_id\": 123, \"post_id\": 456, \"user_name\": \"Alice\", \"created_at\": \"2025-01-25\"}"
+    let post: Post, err = JSON.parse(postJson)
+    
+    if err == "" {
+        print($"✅ Parsed successfully!")
+        print($"User ID: {post.user_id}")
+        print($"Post ID: {post.post_id}")
+        print($"User Name: {post.user_name}")
+        print($"Created At: {post.created_at}")
+    } else {
+        print($"❌ Error: {err}")
+    }
+    
+    print($"✓ Test complete!")
+}

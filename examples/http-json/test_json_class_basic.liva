@@ -1,0 +1,34 @@
+// Test: JSON Typed Parsing with Custom Classes (Phase 2.1)
+
+User {
+    id: u64
+    name: String
+    age: i32
+}
+
+main() {
+    print($"=== JSON Class Parsing Test ===")
+    
+    // Test 1: Single user
+    let userJson = "{\"id\": 1, \"name\": \"Alice\", \"age\": 30}"
+    let user: User, err = JSON.parse(userJson)
+    
+    if err == "" {
+        print($"User: {user.name}, age {user.age}")
+    } else {
+        print($"Error: {err}")
+    }
+    
+    // Test 2: Array of users
+    let usersJson = "[{\"id\": 1, \"name\": \"Bob\", \"age\": 25}, {\"id\": 2, \"name\": \"Charlie\", \"age\": 35}]"
+    let users: [User], err2 = JSON.parse(usersJson)
+    
+    if err2 == "" {
+        print($"Users count: 2")
+        print($"✓ Successfully parsed array of users!")
+    } else {
+        print($"Error: {err2}")
+    }
+    
+    print($"✓ Test complete!")
+}

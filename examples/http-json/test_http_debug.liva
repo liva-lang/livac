@@ -1,0 +1,17 @@
+main() {
+ 
+  let res, err = async HTTP.get("https://jsonplaceholder.typicode.com/posts")
+
+  if err {
+    console.log($"Error: {err}")
+  } else {
+    if res.status == 200 {
+      let posts = JSON.parse(res.body)
+      for post in posts {
+        console.log($"Post ID: {post.id}, Title: {post.title}")
+      }
+    } else {
+      console.log($"Failed to fetch posts. Status code: {res.status}")
+    }
+  }
+}

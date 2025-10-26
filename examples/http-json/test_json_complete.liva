@@ -1,0 +1,36 @@
+main() {
+    print($"=== Testing Complete JSON + HTTP + Arrow Functions ===\n")
+    
+    // Test 1: Simple forEach on JSON array
+    let json_str = "[10, 20, 30, 40, 50]"
+    let numbers = JSON.parse(json_str)
+    
+    print($"Test 1: forEach on JSON array")
+    numbers.forEach(num => print($"  Number: {num}"))
+    print($"")
+    
+    // Test 2: map on JSON array
+    print($"Test 2: map to double values")
+    let doubled = numbers.map(n => n.as_i32().unwrap() * 2)
+    doubled.forEach(n => print($"  Doubled: {n}"))
+    print($"")
+    
+    // Test 3: filter on JSON array
+    print($"Test 3: filter values > 25")
+    let filtered = numbers.filter(n => n.as_i32().unwrap() > 25)
+    filtered.forEach(n => print($"  Filtered: {n}"))
+    print($"")
+    
+    // Test 4: HTTP + JSON + forEach (simulated with sample data)
+    print($"Test 4: Simulating HTTP response with JSON array of objects")
+    let response_json = "[{\"id\": 1, \"title\": \"First\"}, {\"id\": 2, \"title\": \"Second\"}]"
+    let posts = JSON.parse(response_json)
+    
+    posts.forEach(post => {
+        let id = post.get_field("id").unwrap()
+        let title = post.get_field("title").unwrap()
+        print($"  Post {id}: {title}")
+    })
+    
+    print($"\n✓ All tests passed!")
+}

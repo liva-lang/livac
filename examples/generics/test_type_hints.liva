@@ -1,0 +1,22 @@
+// Test: Type hints in variable declarations
+
+main() {
+    // Test 1: Simple type hint with int
+    let num: int = 42
+    print($"Test 1: num = {num}")
+    
+    // Test 2: Array type hint
+    let numbers = [1, 2, 3, 4, 5]
+    print($"Test 2: numbers count = {numbers.len()}")
+    
+    // Test 3: Float type hint
+    let pi: float = 3.14159
+    print($"Test 3: pi = {pi}")
+    
+    // Test 4: Bool type hint
+    let flag: bool = true
+    print($"Test 4: flag = {flag}")
+    
+    print($"\n✓ All type hints parsed successfully!")
+}
+

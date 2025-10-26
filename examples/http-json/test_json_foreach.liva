@@ -1,0 +1,7 @@
+main() {
+    let jsonStr = "[10, 20, 30, 40, 50]"
+    let posts = JSON.parse(jsonStr)
+    
+    print("Testing forEach on JSON array:")
+    posts.forEach(item => print($"Item: {item}"))
+}

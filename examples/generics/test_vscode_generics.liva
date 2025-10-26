@@ -1,0 +1,49 @@
+// Test VS Code Extension v0.5.0 - Generics Support
+
+// Trait aliases should be highlighted
+sum<T: Numeric>(a: T, b: T): T => a + b
+max<T: Comparable>(a: T, b: T): T => a > b ? a : b
+clamp<T: Number>(value: T, min: T, max: T): T {
+    if value < min { return min }
+    if value > max { return max }
+    return value
+}
+
+// Mixed constraints
+formatAndCompare<T: Comparable + Display>(a: T, b: T): string {
+    if a == b { return $"Equal: {a}" }
+    return $"{a} vs {b}"
+}
+
+// Granular traits
+addOnly<T: Add>(a: T, b: T): T => a + b
+
+// Generic class
+Range<T: Number> {
+    constructor(min: T, max: T) {
+        this.min = min
+        this.max = max
+    }
+    
+    min: T
+    max: T
+    
+    contains(value: T): bool {
+        return value >= this.min and value <= this.max
+    }
+}
+
+// Test usage
+main() {
+    let result1 = sum<int>(10, 20)
+    let result2 = max<float>(3.14, 2.71)
+    let result3 = clamp<int>(150, 0, 100)
+    
+    let range = Range<int>(0, 100)
+    let inRange = range.contains(50)
+    
+    console.log($"Sum: {result1}")
+    console.log($"Max: {result2}")
+    console.log($"Clamped: {result3}")
+    console.log($"In range: {inRange}")
+}

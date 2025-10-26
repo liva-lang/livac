@@ -1,0 +1,9 @@
+main() {
+    let jsonStr = "[10, 20, 30, 40, 50]"
+    let arr = JSON.parse(jsonStr)
+    
+    print("Iterating with for loop:")
+    for item in arr {
+        print($"Item: {item}")
+    }
+}

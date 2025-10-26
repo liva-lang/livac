@@ -1,0 +1,101 @@
+// Advanced example: Generic utility functions with multiple constraints
+
+// Mathematical utilities
+
+// Calculate distance between two numbers (requires comparison and arithmetic)
+distance<T: Ord + Sub>(a: T, b: T): T {
+    if a > b {
+        return a - b
+    }
+    return b - a
+}
+
+// Linear interpolation (lerp) - blend between two values
+lerp<T: Add + Mul + Sub>(a: T, b: T, t: T, one: T): T {
+    // lerp(a, b, t) = a + (b - a) * t
+    let diff = b - a
+    let scaled = diff * t
+    return a + scaled
+}
+
+// Clamp value to range (simpler version)
+clampValue<T: Ord>(value: T, min_val: T, max_val: T): T {
+    if value < min_val {
+        return min_val
+    }
+    if value > max_val {
+        return max_val
+    }
+    return value
+}
+
+// Comparison utilities
+
+// Find middle value of three (median)
+median<T: Ord>(a: T, b: T, c: T): T {
+    if a > b {
+        if b > c {
+            return b  // a > b > c
+        } else if a > c {
+            return c  // a > c > b
+        } else {
+            return a  // c > a > b
+        }
+    } else {
+        if a > c {
+            return a  // b > a > c
+        } else if b > c {
+            return c  // b > c > a
+        } else {
+            return b  // c > b > a
+        }
+    }
+}
+
+// Formatting utilities
+
+// Format and compare values
+formatAndCompare<T: Eq + Display>(a: T, b: T): string {
+    if a == b {
+        return $"Values are equal: {a}"
+    }
+    return $"Values differ: {a} vs {b}"
+}
+
+main() {
+    console.log("=== Mathematical Utilities ===")
+    
+    // Distance
+    let dist1 = distance<int>(100, 50)
+    console.log($"Distance(100, 50) = {dist1}")
+    
+    let dist2 = distance<int>(25, 75)
+    console.log($"Distance(25, 75) = {dist2}")
+    
+    // Clamp value
+    let clamp1 = clampValue<int>(150, 0, 100)
+    console.log($"Clamp(150, 0-100) = {clamp1}")
+    
+    let clamp2 = clampValue<int>(-50, 0, 100)
+    console.log($"Clamp(-50, 0-100) = {clamp2}")
+    
+    console.log("")
+    console.log("=== Comparison Utilities ===")
+    
+    // Median
+    let med1 = median<int>(10, 5, 8)
+    console.log($"Median(10, 5, 8) = {med1}")
+    
+    let med2 = median<int>(42, 100, 20)
+    console.log($"Median(42, 100, 20) = {med2}")
+    
+    console.log("")
+    console.log("=== Formatting Utilities ===")
+    
+    // Format and compare
+    let msg1 = formatAndCompare<int>(42, 42)
+    console.log(msg1)
+    
+    let msg2 = formatAndCompare<int>(10, 20)
+    console.log(msg2)
+}

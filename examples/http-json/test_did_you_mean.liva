@@ -1,0 +1,8 @@
+// Test "Did you mean?" suggestions
+
+main() {
+    let userName = "Alice"
+    
+    // Typo: usrName instead of userName
+    console.log(usrName)
+}

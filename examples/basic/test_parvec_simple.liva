@@ -1,0 +1,9 @@
+main() {
+    let arr = [1, 2, 3, 4, 5]
+    
+    print($"Testing parvec")
+    
+    let doubled = arr.parvec().map(x => x * 2)
+    
+    doubled.forEach(item => print($"  {item}"))
+}

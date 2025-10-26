@@ -1,0 +1,6 @@
+identity<T>(x: T): T => x
+
+main() {
+  let result = identity<int>(42)
+  print(result)
+}

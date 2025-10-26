@@ -1,0 +1,16 @@
+main() {
+    let json_str = "[10, 20, 30, 40, 50]"
+    let numbers = JSON.parse(json_str)
+
+    print($"Testing map and filter")
+
+    // Test map - double each number
+    let doubled = numbers.map(x => x.as_i32().unwrap() * 2)
+    print($"Doubled:")
+    doubled.forEach(item => print($"  {item}"))
+
+    // Test filter - only numbers > 25
+    let filtered = numbers.filter(x => x.as_i32().unwrap() > 25)
+    print($"Filtered (> 25):")
+    filtered.forEach(item => print($"  {item}"))
+}

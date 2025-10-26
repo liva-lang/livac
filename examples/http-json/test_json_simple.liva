@@ -1,0 +1,6 @@
+main() {
+    let jsonStr = "[1, 2, 3, 4, 5]"
+    let arr = JSON.parse(jsonStr)
+    print($"Array: {arr}")
+    print($"Length: {arr.length}")
+}

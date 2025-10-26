@@ -1,0 +1,23 @@
+// Test: JSON.parse with type hints validation
+
+main() {
+    // Test 1: Valid primitive type
+    let num: int, err = JSON.parse("42")
+    if err == "" {
+        print($"Test 1: num = {num}")
+    }
+    
+    // Test 2: Valid array type
+    let numbers: [i32], err2 = JSON.parse("[1, 2, 3]")
+    if err2 == "" {
+        print($"Test 2: numbers count = {numbers.len()}")
+    }
+    
+    // Test 3: Valid string type
+    let text: String, err3 = JSON.parse("\"hello\"")
+    if err3 == "" {
+        print($"Test 3: text = {text}")
+    }
+    
+    print($"\n✓ All JSON.parse type hints validated!")
+}
