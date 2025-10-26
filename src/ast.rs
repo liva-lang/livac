@@ -253,6 +253,13 @@ pub enum BindingPattern {
     Array(ArrayPattern),                   // Array: [x, y, ...rest]
 }
 
+impl BindingPattern {
+    /// Check if this is a simple identifier pattern (not destructuring)
+    pub fn is_simple(&self) -> bool {
+        matches!(self, BindingPattern::Identifier(_))
+    }
+}
+
 /// Object destructuring pattern: {name, age: userAge}
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ObjectPattern {
