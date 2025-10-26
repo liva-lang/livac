@@ -1080,29 +1080,36 @@ formatAndCompare<T: Comparable + Display>(a: T, b: T) { ... }
 - Complete documentation (1,160 lines)
 - Working test suite (27 comprehensive tests, all passing)
 
-### 6.3 HTTP Client ✅ COMPLETED (v0.9.6)
+### 6.3 HTTP Client ✅ COMPLETED (v0.10.1)
 - [x] Design HTTP API (get, post, put, delete)
 - [x] Implement HTTP runtime with reqwest + rustls
 - [x] Add LivaHttpResponse struct (status, statusText, body, headers)
 - [x] Handle async HTTP requests with lazy evaluation
-- [x] Support error binding pattern: `let response, err = async HTTP.get()`
-- [x] Add tuple return type: `(Option<Response>, String)`
+- [x] Support error binding pattern: `let response, err = HTTP.get()`
+- [x] Add tuple return type: `(Response, String)`
 - [x] Add 30-second timeout and comprehensive error handling
+- [x] Implement response.json() method (ergonomic JSON parsing)
+- [x] Add typed JSON parsing with response.json()
+- [x] Fix is_builtin_conversion_call() tuple detection
 - [x] Write HTTP client documentation (800+ lines)
-- [x] Add HTTP examples and tests (3 test files)
+- [x] Add HTTP examples and tests (6 test files)
 - [x] Fix error binding for tuple-returning functions
 - [x] Fix Option<Struct> field access code generation
+- [x] Update VSCode extension to v0.8.0 (16 HTTP snippets)
 
-**Completed:** 5 hours (2025-01-25)
+**Completed:** 8 hours (2025-01-26)
 **Delivered:**
 - 4 HTTP methods: `get()`, `post()`, `put()`, `delete()`
-- Async by default with `async HTTP.method()` syntax
-- Error binding integration with tuple returns
-- 150+ lines of runtime code in liva_rt
-- 120+ lines of semantic analysis
-- 300+ lines of code generation
-- Complete documentation (PHASE_6.3_HTTP_CLIENT_DESIGN.md)
-- Working test suite (3 comprehensive tests, all passing)
+- response.json() method (like JavaScript fetch API)
+- Typed JSON parsing: `let user: User, err = response.json()`
+- Async by default with error binding pattern
+- 300+ lines of runtime code in liva_rt
+- 200+ lines of semantic analysis
+- 500+ lines of code generation
+- Complete documentation (http.md with +171 lines)
+- Working test suite (6/6 tests passing)
+- VSCode extension v0.8.0 with 16 new HTTP snippets
+- Released as v0.10.1
 
 **Examples:**
 ```liva
