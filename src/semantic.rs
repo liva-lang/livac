@@ -1441,6 +1441,13 @@ impl SemanticAnalyzer {
                 // Validate the object expression
                 self.validate_expr(&method_call.object)?;
                 
+                // Check if this is response.json() - mark as fallible
+                if method_call.method == "json" {
+                    // This is a fallible method that returns (JsonValue?, Error?)
+                    // Mark it so error binding validation knows it needs error handling
+                    // We don't need to store it anywhere, the compiler will handle it
+                }
+                
                 // Validate method arguments
                 for arg in &method_call.args {
                     self.validate_expr(arg)?;

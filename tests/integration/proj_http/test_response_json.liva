@@ -1,0 +1,45 @@
+// Integration test: response.json() method
+// Tests ergonomic JSON parsing from HTTP responses
+
+main() {
+    // Test 1: Successful JSON parsing
+    print("Test 1: Parsing valid JSON from HTTP response...")
+    let response1, err1 = async HTTP.get("https://jsonplaceholder.typicode.com/posts/1")
+    
+    if err1 != "" {
+        fail $"HTTP request failed: {err1}"
+    } else {
+        if response1.status != 200 {
+            fail $"Expected status 200, got {response1.status}"
+        } else {
+            let data, jsonErr = response1.json()
+            
+            if jsonErr != "" {
+                fail $"JSON parsing failed: {jsonErr}"
+            } else {
+                // Verify we got valid data
+                let userId = data["userId"]
+                let id = data["id"]
+                print($"✓ Successfully parsed JSON (userId={userId}, id={id})")
+            }
+        }
+    }
+    
+    // Test 2: Invalid JSON handling
+    print("Test 2: Handling invalid JSON...")
+    let response2, err2 = async HTTP.get("https://httpbin.org/html")
+    
+    if err2 != "" {
+        fail $"HTTP request failed: {err2}"
+    } else {
+        let data2, jsonErr2 = response2.json()
+        
+        if jsonErr2 == "" {
+            fail "Expected JSON parse error for HTML content"
+        } else {
+            print($"✓ Correctly detected invalid JSON: {jsonErr2}")
+        }
+    }
+    
+    print("All tests passed!")
+}

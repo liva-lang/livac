@@ -432,6 +432,23 @@ impl CodeGenerator {
         self.writeln("}");
         self.writeln("");
         
+        // Add impl block with json() method
+        self.writeln("impl LivaHttpResponse {");
+        self.indent();
+        self.writeln("pub fn json(&self) -> (JsonValue, String) {");
+        self.indent();
+        self.writeln("match serde_json::from_str(&self.body) {");
+        self.indent();
+        self.writeln("Ok(value) => (JsonValue(value), String::new()),");
+        self.writeln("Err(e) => (JsonValue(serde_json::Value::Null), format!(\"JSON parse error: {}\", e)),");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        
         self.writeln("pub async fn liva_http_get(url: String) -> (Option<LivaHttpResponse>, String) {");
         self.indent();
         self.writeln("liva_http_request(\"GET\", url, None).await");
@@ -3341,6 +3358,16 @@ impl CodeGenerator {
             return self.generate_string_method_call(method_call);
         }
         
+        // Check if this is a method on HTTP Response (e.g., response.json())
+        if let Expr::Identifier(var_name) = method_call.object.as_ref() {
+            if self.rust_struct_vars.contains(var_name) && method_call.method == "json" {
+                // This is response.json() - generate as method call
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".json()");
+                return Ok(());
+            }
+        }
+        
         // Generate the object
         self.generate_expr(&method_call.object)?;
         
@@ -4508,6 +4535,12 @@ impl CodeGenerator {
                 false
             }
             Expr::MethodCall(method_call) => {
+                // Check for .json() method on HTTP responses
+                if method_call.method == "json" {
+                    // response.json() returns (Option<JsonValue>, String)
+                    return true;
+                }
+                
                 if let Expr::Identifier(object_name) = method_call.object.as_ref() {
                     // Check for JSON methods
                     if object_name == "JSON" && (method_call.method == "parse" || method_call.method == "stringify") {
@@ -4531,10 +4564,8 @@ impl CodeGenerator {
                     ) {
                         return true;
                     }
-                    false
-                } else {
-                    false
                 }
+                false
             }
             _ => false,
         }

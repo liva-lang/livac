@@ -241,6 +241,15 @@ impl LivaHttpResponse {
             headers: Vec::new(),
         }
     }
+
+    /// Parse response body as JSON
+    /// Returns (JsonValue, error_string) tuple for error binding
+    pub fn json(&self) -> (JsonValue, String) {
+        match serde_json::from_str(&self.body) {
+            Ok(value) => (JsonValue(value), String::new()),
+            Err(e) => (JsonValue(serde_json::Value::Null), format!("JSON parse error: {}", e)),
+        }
+    }
 }
 
 /// HTTP GET request
