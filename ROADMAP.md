@@ -1,7 +1,7 @@
 # 🗺️ Liva Language Roadmap
 
-> **Current Version:** v0.10.2  
-> **Status:** Alpha - Destructuring Patterns completed  
+> **Current Version:** v0.10.3  
+> **Status:** Alpha - Parameter Destructuring completed  
 > **Last Updated:** 2025-01-26
 
 ---
@@ -1227,14 +1227,13 @@ let result = switch flag {
 - [x] Design destructuring syntax for objects
 - [x] Design destructuring syntax for arrays
 - [x] Parse destructuring in let bindings
-- [ ] Parse destructuring in function parameters (deferred)
 - [x] Implement semantic analysis for destructuring
 - [x] Generate code for destructuring
 - [x] Add destructuring tests (6 parser tests + integration test)
 - [x] Document destructuring patterns (4 docs + migration guide)
 
 **Status:** ✅ COMPLETED (2025-01-26)  
-**Branch:** `feature/destructuring-v0.10.2` (ready to merge)  
+**Branch:** `feature/destructuring-v0.10.2` (merged to main)  
 **Release:** v0.10.2
 
 **Completed Features:**
@@ -1248,6 +1247,31 @@ let result = switch flag {
 - Codegen for both JSON and struct destructuring
 
 **Actual Time:** ~3.5 hours (matches estimate)
+
+### 6.5.1 Parameter Destructuring ✅ COMPLETED (v0.10.3)
+- [x] Design parameter destructuring syntax
+- [x] Refactor AST: `Param.name` → `Param.pattern: BindingPattern`
+- [x] Update parser to parse patterns in parameters
+- [x] Add semantic validation for parameter patterns
+- [x] Implement codegen with temp parameter names
+- [x] Support both functions and methods
+- [x] Add parser tests and integration tests
+- [x] Document in CHANGELOG and ROADMAP
+
+**Status:** ✅ COMPLETED (2025-01-26)  
+**Branch:** `feature/param-destructuring-v0.10.3` (ready to merge)  
+**Release:** v0.10.3
+
+**Completed Features:**
+- Array destructuring in parameters: `printPair([first, second]: [int]) { ... }`
+- Object destructuring in parameters: `processUser({name, age}: User) { ... }`
+- Rest patterns in parameters: `processList([head, ...tail]: [int]) { ... }`
+- Works with lambdas/forEach: `users.forEach({id, name} => { ... })`
+- Temp parameter names generated: `_param_0`, `_param_1`
+- Destructuring code inserted at function entry
+- Full semantic validation and type checking
+
+**Actual Time:** ~4 hours (includes AST migration and testing)
 
 ### 6.6 Spread Operators
 - [ ] Design spread syntax `...array`, `...object`

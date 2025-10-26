@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.3] - 2025-01-26
+
+### Added - Parameter Destructuring 🎯
+
+**Destructuring in Function Parameters:**
+- ✅ Array destructuring in parameters: `printPair([first, second]: [int]) { ... }`
+- ✅ Object destructuring in parameters: `printUser({name, age}: User) { ... }`
+- ✅ Rest patterns in parameters: `processList([head, ...tail]: [int]) { ... }`
+- ✅ Full code generation with temporary parameter names
+- ✅ Works in both functions and methods
+- ✅ Semantic validation for destructured parameters
+
+**Example Usage - Array Destructuring:**
+```liva
+// Function with array destructuring parameter
+printPair([first, second]: [int]): int {
+    print("First:", first)
+    print("Second:", second)
+    return first + second
+}
+
+main() {
+    let nums = [100, 200]
+    let sum = printPair(nums)  // First: 100, Second: 200
+    print("Sum:", sum)         // Sum: 300
+}
+```
+
+**Example Usage - forEach with Destructuring:**
+```liva
+let users = [
+    {id: 1, name: "Alice"},
+    {id: 2, name: "Bob"}
+]
+
+users.forEach({id, name} => {
+    print(id, name)
+})
+```
+
+**Implementation Details:**
+- Parser creates `BindingPattern` for parameters
+- Semantic analyzer validates patterns and declares variables
+- Codegen generates temporary parameter names (`_param_0`, `_param_1`)
+- Destructuring code inserted at function/method entry
+- Supports nested destructuring (coming soon)
+
+### Changed
+- AST: `Param.name: String` → `Param.pattern: BindingPattern`
+- All usages of `param.name` migrated to `param.name()` method
+- `generate_params()` now handles destructured parameters with temp names
+
+### Technical
+- Added `generate_param_destructuring()` for code generation
+- Added `parse_param_pattern()` for parsing patterns without type annotations
+- Added `declare_param_pattern()` for semantic validation
+- Comprehensive design document in `docs/PHASE_6.5.1_PARAM_DESTRUCTURING_DESIGN.md`
+
 ## [0.10.2] - 2025-01-26
 
 ### Added - Destructuring Patterns 🎯
