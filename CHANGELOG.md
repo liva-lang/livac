@@ -7,6 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1] - 2025-01-26
+
+### Added - response.json() Method 🌐
+
+**Ergonomic JSON Parsing from HTTP Responses:**
+- ✅ `response.json()` method on Response objects (like JavaScript fetch API)
+- ✅ Returns `(JsonValue, String)` tuple for easy error handling
+- ✅ Alternative to `JSON.parse(response.body)`
+- ✅ Works with typed JSON parsing: `let user: User, err = response.json()`
+- ✅ Automatic serde derives for classes used with response.json()
+- ✅ Cleaner, more intuitive API for REST consumption
+
+**Example Usage - Basic:**
+```liva
+let response, err = HTTP.get("https://api.github.com/users/octocat")
+if err != "" { return }
+
+// Parse JSON directly from response (like fetch API)
+let json, parseErr = response.json()
+if parseErr != "" { return }
+
+console.log($"User data: {json}")
+```
+
+**Example Usage - Typed:**
+```liva
+User {
+    name: string
+    email: string
+    company: string
+}
+
+let response, err = HTTP.get("https://api.example.com/users/1")
+if err != "" { return }
+
+// Automatic deserialization to User class
+let user: User, jsonErr = response.json()
+if jsonErr != "" { return }
+
+console.log($"User: {user.name} at {user.company}")
+```
+
+**Implementation:**
+- Runtime (liva_rt.rs): Added `json()` method to Response struct
+- Codegen: Extended `is_json_parse_call()` to detect `.json()` methods
+- Codegen: Updated `generate_typed_json_parse()` to use `.body` for response.json()
+- Codegen: Fixed `is_builtin_conversion_call()` tuple detection logic
+- Semantic: Extended JSON.parse validation to include `.json()` calls
+- Semantic: Tracks `.json()` calls with type hints for serde derives
+
+### Fixed
+- is_builtin_conversion_call() now correctly detects .json() as tuple-returning method
+- Moved .json() check to beginning of match statement (was unreachable in else block)
+
+### Documentation
+- Updated docs/language-reference/http.md with response.json() documentation (+171 lines)
+- Added response.json() examples for basic and typed parsing
+- Updated all HTTP examples to use ergonomic response.json() API
+
+### VSCode Extension v0.8.0
+- Added 16 new HTTP snippets: httpget, hget, httppost, hpost, httpput, hput, httpdelete, hdel, httpjson, httppostjson, resjson, resjsonc, httptyped, httpstatus, httpfull, restapi
+- Updated README with comprehensive HTTP Client documentation
+- Added HTTP keywords: http, rest-api, web
+- Total snippets: 103 (87 existing + 16 new HTTP snippets)
+
 ## [0.10.0] - 2025-01-25
 
 ### Added - Typed JSON Parsing (Complete) 🎉
