@@ -1,0 +1,17 @@
+// Test HTTP PUT request with JSON body
+main() {
+    print("Testing HTTP PUT request...")
+    
+    let jsonBody = "{\"id\": 1, \"name\": \"Updated Liva\"}"
+    let response, err = async HTTP.put("https://httpbin.org/put", jsonBody)
+    
+    if err != "" {
+        print($"Error: {err}")
+    } else {
+        print($"Status: {response.status}")
+        
+        if response.status == 200 {
+            print("PUT request successful!")
+        }
+    }
+}

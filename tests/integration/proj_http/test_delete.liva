@@ -1,0 +1,16 @@
+// Test HTTP DELETE request
+main() {
+    print("Testing HTTP DELETE request...")
+    
+    let response, err = async HTTP.delete("https://httpbin.org/delete")
+    
+    if err != "" {
+        print($"Error: {err}")
+    } else {
+        print($"Status: {response.status}")
+        
+        if response.status == 200 {
+            print("DELETE request successful!")
+        }
+    }
+}

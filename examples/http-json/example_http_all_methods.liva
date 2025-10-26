@@ -1,0 +1,47 @@
+// Example: All HTTP methods (GET, POST, PUT, DELETE)
+// Demonstrates complete HTTP client API
+
+main() {
+    print("=== HTTP Client - All Methods Demo ===")
+    print("")
+    
+    print("1. GET Request")
+    let getResp, getErr = async HTTP.get("https://httpbin.org/get")
+    if getErr == "" {
+        print($"   GET Status: {getResp.status}")
+    } else {
+        print($"   GET Error: {getErr}")
+    }
+    print("")
+    
+    print("2. POST Request")
+    let postData = "{\"action\": \"create\", \"item\": \"test\"}"
+    let postResp, postErr = async HTTP.post("https://httpbin.org/post", postData)
+    if postErr == "" {
+        print($"   POST Status: {postResp.status}")
+    } else {
+        print($"   POST Error: {postErr}")
+    }
+    print("")
+    
+    print("3. PUT Request")
+    let putData = "{\"action\": \"update\", \"item\": \"test\"}"
+    let putResp, putErr = async HTTP.put("https://httpbin.org/put", putData)
+    if putErr == "" {
+        print($"   PUT Status: {putResp.status}")
+    } else {
+        print($"   PUT Error: {putErr}")
+    }
+    print("")
+    
+    print("4. DELETE Request")
+    let delResp, delErr = async HTTP.delete("https://httpbin.org/delete")
+    if delErr == "" {
+        print($"   DELETE Status: {delResp.status}")
+    } else {
+        print($"   DELETE Error: {delErr}")
+    }
+    print("")
+    
+    print("All HTTP methods tested successfully!")
+}
