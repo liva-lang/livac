@@ -7,6 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - In Development
+
+### Added - Language Server Protocol (LSP) Planning 📝
+
+**Documentation Created:**
+- ✅ `LSP_IMPLEMENTATION_PLAN.md` - Complete 9-phase implementation roadmap
+  - Phase breakdown with time estimates (8-10 hours total)
+  - Success criteria and testing strategy
+  - Dependencies and rollout plan
+  - ~400 lines of comprehensive planning
+  
+- ✅ `docs/lsp/LSP_DESIGN.md` - Architecture and design documentation
+  - System architecture diagrams
+  - Module structure (src/lsp/ with handlers)
+  - Data structures (LivaLanguageServer, DocumentState, SymbolTable)
+  - LSP capabilities matrix
+  - Performance optimization strategies
+  - ~600 lines of technical specifications
+  
+- ✅ `docs/lsp/LSP_USER_GUIDE.md` - End-user documentation
+  - Quick start guide
+  - Feature walkthroughs (completion, navigation, diagnostics)
+  - Configuration options
+  - Troubleshooting guide
+  - Tips & tricks
+  - ~900 lines of user-facing docs
+  
+- ✅ `docs/lsp/LSP_API.md` - API reference for contributors
+  - Complete handler APIs
+  - Data structure documentation
+  - Code examples
+  - Extension points
+  - ~900 lines of API documentation
+
+**Implementation Plan:**
+- **Phase 1:** LSP Infrastructure (2 hours) - tower-lsp setup, server lifecycle
+- **Phase 2:** Document Synchronization (1 hour) - didOpen, didChange, didSave handlers
+- **Phase 3:** Diagnostics (1.5 hours) - Real-time error reporting
+- **Phase 4:** Autocompletion (2 hours) - Context-aware completions
+- **Phase 5:** Go to Definition (1 hour) - Navigation
+- **Phase 6:** Find References (1 hour) - Symbol search
+- **Phase 7:** Hover Information (0.5 hours) - Type info display
+- **Phase 8:** Rename Symbol (1 hour) - Refactoring
+- **Phase 9:** VS Code Integration (1 hour) - Client setup
+
+**Key Technologies:**
+- `tower-lsp` 0.20 - LSP framework
+- `tokio` 1.x - Async runtime
+- `dashmap` 5.5 - Concurrent document storage
+- JSON-RPC over stdio for communication
+
+**Architecture:**
+- Document-centric with AST caching
+- Incremental parsing for performance
+- Symbol table for fast lookups
+- Performance targets: <100ms completion, <500ms diagnostics
+
+**Status:** Planning complete, implementation ready to begin  
+**Progress:** 4/4 documentation files complete, 0/9 implementation phases complete
+
 ## [0.11.3] - 2025-01-28
 
 ### Added - Pattern Matching for Union Types ✨

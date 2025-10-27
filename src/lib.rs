@@ -41,6 +41,7 @@ pub mod ir;
 pub mod lexer;
 pub mod liva_rt;
 pub mod lowering;
+pub mod lsp;
 pub mod module;
 pub mod parser;
 pub mod semantic;

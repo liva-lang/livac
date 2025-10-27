@@ -1,0 +1,3 @@
+// Test with semantic error
+let x: int = "hello"  // Type mismatch error
+print(x)

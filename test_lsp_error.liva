@@ -1,0 +1,4 @@
+// Test with syntax error
+let x = 10
+let y = // syntax error: incomplete statement
+print(x + y)
