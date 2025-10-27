@@ -1094,13 +1094,25 @@ impl CodeGenerator {
             Visibility::Private => "",
         };
 
-        let type_str = if let Some(type_ref) = &field.type_ref {
+        let base_type = if let Some(type_ref) = &field.type_ref {
             type_ref.to_rust_type()
         } else {
             "()".to_string()
         };
 
+        // Wrap in Option<T> if field is optional
+        let type_str = if field.is_optional {
+            format!("Option<{}>", base_type)
+        } else {
+            base_type
+        };
+
         let field_name_rust = self.sanitize_name(&field.name);
+        
+        // Add serde attributes for optional fields
+        if needs_serde && field.is_optional {
+            self.writeln("#[serde(skip_serializing_if = \"Option::is_none\")]");
+        }
         
         // If serde is needed and the original name differs from snake_case, add rename attribute
         if needs_serde && field.name != field_name_rust {

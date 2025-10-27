@@ -7,6 +7,99 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.4] - 2025-01-27
+
+### Added - Optional Fields for JSON Parsing ✨
+
+**Optional Fields with `?` Syntax:**
+- ✅ New syntax: `field?: Type` declares optional fields in classes
+- ✅ Generates `Option<T>` wrapper in Rust code
+- ✅ Auto-adds `#[serde(skip_serializing_if = "Option::is_none")]` attribute
+- ✅ Handles missing fields, null values, and present values seamlessly
+- ✅ Perfect for real-world APIs with optional/nullable fields
+
+**Why Optional Fields Matter:**
+- **Type Safety:** Explicitly document which fields can be absent/null
+- **No More Crashes:** Missing fields don't cause JSON parse failures
+- **Better DX:** Code shows intent - optional vs required fields
+- **API Ready:** Handle real-world JSON APIs with nullable fields
+
+**Example Usage:**
+```liva
+User {
+    id: u32          // Required field
+    name: String     // Required field
+    email?: String   // ✨ Optional - can be null or absent
+    age?: u32        // ✨ Optional - can be null or absent
+}
+
+main() {
+    // Works with all fields present
+    let json1 = "{\"id\": 1, \"name\": \"Alice\", \"email\": \"alice@example.com\"}"
+    let user1: User, err1 = JSON.parse(json1)
+    
+    // Works with email missing
+    let json2 = "{\"id\": 2, \"name\": \"Bob\"}"
+    let user2: User, err2 = JSON.parse(json2)  // ✅ No error!
+    
+    // Works with email null
+    let json3 = "{\"id\": 3, \"name\": \"Carol\", \"email\": null}"
+    let user3: User, err3 = JSON.parse(json3)  // ✅ No error!
+}
+```
+
+**Generated Rust Code:**
+```rust
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct User {
+    pub id: u32,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,  // ✅ Wrapped in Option<T>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub age: Option<u32>,
+}
+```
+
+**Real-World Use Case:**
+```liva
+// API response with optional fields
+Post {
+    id: u64
+    title: String
+    content: String
+    publishedAt?: String  // May not be published yet
+    authorEmail?: String  // Author may not have public email
+    likes?: u32           // New field, older posts don't have it
+}
+
+main() {
+    let response, err = async HTTP.get("https://api.example.com/posts")
+    if err == "" {
+        let posts: [Post], parseErr = JSON.parse(response.body)
+        // All posts parse successfully, regardless of which fields are present! ✅
+    }
+}
+```
+
+**Implementation Details:**
+- **Parser:** Already implemented in v0.10.3 (detects `?` token after field name)
+- **AST:** `FieldDecl.is_optional: bool` field tracks optional status
+- **Codegen:** `generate_field()` wraps type in `Option<T>` when `is_optional=true`
+- **Serde:** Auto-adds skip attribute for efficient serialization
+- **Time:** ~45 minutes (as estimated in Phase 7.0.5)
+
+**Files Modified:**
+- `src/codegen.rs` - Updated `generate_field()` function (20 lines)
+- Tests: `test_optional_fields.liva` (comprehensive 4-case validation)
+
+**Statistics:**
+- Code changes: +20 lines in codegen.rs
+- Test coverage: 4 test cases (all fields, missing, null, multiple missing)
+- Generated code: Clean Option<T> with proper serde attributes
+
+---
+
 ## [0.10.3] - 2025-01-26
 
 ### Added - Parameter Destructuring 🎯

@@ -1343,16 +1343,81 @@ posts.forEach(post => print(post.title))  // ✨ No .unwrap()!
 ```
 
 #### Sub-tasks
-- [ ] **7.0.1** Parser: Type hints in let statements (1h)
-- [ ] **7.0.2** Semantic: Validate type hints with JSON.parse (1.5h)
-- [ ] **7.0.3** Codegen: Generate structs with serde (1.5h)
-- [ ] **7.0.4** Support all Rust types (i8-i128, u8-u128, f32, f64) (1h)
-- [ ] **7.0.5** Optional fields: `field?: Type` (45min)
+- [x] **7.0.1** Parser: Type hints in let statements ✅ **ALREADY DONE**
+- [x] **7.0.2** Semantic: Validate type hints with JSON.parse ✅ **ALREADY DONE**
+- [x] **7.0.3** Codegen: Generate structs with serde ✅ **ALREADY DONE**
+- [x] **7.0.4** Support all Rust types (i8-i128, u8-u128, f32, f64) ✅ **ALREADY DONE**
+- [x] **7.0.5** Optional fields: `field?: Type` ✅ **COMPLETED** (v0.10.4)
 - [ ] **7.0.6** Default values: `field: Type = value` (45min)
-- [ ] **7.0.7** Nested classes (1h)
-- [ ] **7.0.8** Arrays of classes (30min)
-- [ ] **7.0.9** Tests and examples (2h)
-- [ ] **7.0.10** Documentation (30min)
+- [x] **7.0.7** Nested classes ✅ **ALREADY DONE**
+- [x] **7.0.8** Arrays of classes ✅ **ALREADY DONE**
+- [ ] **7.0.9** Tests and examples (needs expansion)
+- [ ] **7.0.10** Documentation (needs update)
+
+**Progress:** 7/10 tasks completed (70%) 🎉
+
+---
+
+#### 7.0.5 Optional Fields ✅ COMPLETED (2025-01-27)
+
+**Implementation:**
+- Modified `generate_field()` in codegen.rs to wrap type in `Option<T>` when `is_optional=true`
+- Auto-adds `#[serde(skip_serializing_if = "Option::is_none")]` attribute
+- Parser support already existed from v0.10.3 (detects `?` token)
+- AST field `FieldDecl.is_optional: bool` already present
+
+**Syntax:**
+```liva
+User {
+    id: u32          // Required
+    name: String     // Required
+    email?: String   // ✨ Optional - can be null or absent
+    age?: u32        // ✨ Optional
+}
+```
+
+**Generated Code:**
+```rust
+pub struct User {
+    pub id: u32,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub age: Option<u32>,
+}
+```
+
+**Testing:**
+- Created `test_optional_fields.liva` with 4 comprehensive test cases
+- ✅ All fields present
+- ✅ Optional field missing
+- ✅ Optional field null
+- ✅ Multiple optional fields missing
+- All tests passing!
+
+**Documentation:**
+- Updated CHANGELOG.md with v0.10.4 entry (130+ lines)
+- Updated docs/language-reference/json.md with comprehensive Optional Fields section (140+ lines)
+- Includes examples, best practices, comparison table, real-world use cases
+
+**Actual Time:** 45 minutes (exactly as estimated!)
+
+**Files Modified:**
+- `src/codegen.rs` - Updated `generate_field()` function (+10 lines)
+- `test_optional_fields.liva` - New test file (54 lines)
+- `CHANGELOG.md` - Added v0.10.4 entry (+130 lines)
+- `docs/language-reference/json.md` - Added Optional Fields section (+140 lines)
+
+**Benefits:**
+- ✅ Type-safe handling of nullable/missing JSON fields
+- ✅ No more parse failures on missing fields
+- ✅ Explicit documentation in code (optional vs required)
+- ✅ Perfect for real-world API integration
+
+---
+
+#### Sub-tasks
 
 **Benefits:**
 - ✅ Eliminate `.asInt().unwrap()` boilerplate

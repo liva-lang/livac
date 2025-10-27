@@ -729,6 +729,9 @@ impl Parser {
                 }
             } else {
                 // It's a field
+                // Check for optional field syntax: name?:
+                let is_optional = self.match_token(&Token::Question);
+                
                 let type_ref = if self.match_token(&Token::Colon) {
                     Some(self.parse_type()?)
                 } else {
@@ -746,6 +749,7 @@ impl Parser {
                     visibility,
                     type_ref,
                     init,
+                    is_optional,
                 }));
 
                 // Consume optional semicolon

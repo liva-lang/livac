@@ -100,6 +100,8 @@ pub struct FieldDecl {
     pub visibility: Visibility,
     pub type_ref: Option<TypeRef>,
     pub init: Option<Expr>,
+    #[serde(default)]
+    pub is_optional: bool,  // true if field?: Type syntax
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
