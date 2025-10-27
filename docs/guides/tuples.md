@@ -369,59 +369,76 @@ let elem = (matrix.0).0
 
 **Workaround:** Always use parentheses for chained tuple access.
 
-### 2. No Destructuring in Let Bindings
+### 2. ~~No Destructuring in Let Bindings~~ ✅ RESOLVED (v0.11.0)
 
-**Problem:** Parser doesn't recognize tuple patterns after `let`
+~~**Problem:** Parser doesn't recognize tuple patterns after `let`~~
+
+**UPDATE v0.11.0:** Tuple destructuring is now fully supported!
 
 ```liva
 let coords = (10, 20)
 
-// ❌ Not yet supported
+// ✅ Now supported!
 let (x, y) = coords
+print(x)  // 10
+print(y)  // 20
 
-// ✅ Use direct access
-let x = coords.0
-let y = coords.1
+// Also works with function returns
+getPoint(): (int, int) {
+    return (100, 200)
+}
+let (px, py) = getPoint()
+
+// Mixed types
+let (name, age, active) = ("Alice", 30, true)
 ```
 
-**Workaround:** Access elements by index.
+**Features:**
+- ✅ Let binding destructuring
+- ✅ Function parameter destructuring  
+- ✅ Lambda parameter destructuring
+- ✅ Type inference for destructured variables
+- ✅ Nested tuple destructuring
 
-### 3. Return Type Inference
+### 3. ~~Return Type Inference~~ ✅ RESOLVED (v0.11.0)
 
-**Problem:** Functions without explicit return types may infer as `f64`
+~~**Problem:** Functions without explicit return types may infer as `f64`~~
+
+**UPDATE v0.11.0:** Return type inference now works correctly!
 
 ```liva
-// ❌ May fail to compile
-getPoint() {
-    return (10, 20)  // Type inference issue
+// ✅ Now works without explicit type
+getUserInfo() {
+    return ("Charlie", 35, true)  // Correctly inferred as (String, i32, bool)
 }
 
-// ✅ Always use explicit types
+// Explicit types still recommended for clarity
 getPoint(): (int, int) {
     return (10, 20)
 }
 ```
 
-**Workaround:** Always specify explicit return types for tuple-returning functions.
+**Note:** Type inference works best with literals. Complex expressions may still benefit from explicit types.
 
-### 4. String Type Annotations
+### 4. ~~String Type Annotations~~ ✅ RESOLVED (v0.11.0)
 
-**Problem:** `(string, ...)` generates `(String, ...)` but literals are `&str`
+~~**Problem:** `(string, ...)` generates `(String, ...)` but literals are `&str`~~
+
+**UPDATE v0.11.0:** Automatic string conversion now handles this!
 
 ```liva
-// ❌ Type mismatch
-getUserInfo(): (string, int) {
-    return ("Alice", 30)  // &str vs String
+// ✅ Now works - automatic .to_string() conversion
+getUserInfo(): (String, int) {
+    return ("Alice", 30)  // String literal automatically converted
 }
 
-// ✅ Use type inference
-getUserInfo() {
-    return ("Alice", 30)
+// Type inference also works
+getUser() {
+    return ("Bob", 25)  // Inferred as (String, i32)
 }
-// Or convert explicitly: "Alice".to_string()
 ```
 
-**Workaround:** Use type inference or avoid explicit `string` in tuple types.
+**Implementation:** The compiler automatically adds `.to_string()` to string literals in tuple expressions.
 
 ---
 
@@ -640,14 +657,13 @@ let elem = nested.0.0;  // Chained access works
 ```
 
 ```liva
-// Liva
+// Liva (v0.11.0+)
 let point = (10, 20)
-// No destructuring yet
-let x = point.0
-let y = point.1
+// ✅ Destructuring now supported!
+let (x, y) = point
 
 let nested = ((1, 2), 3)
-let elem = (nested.0).0  // Need parentheses!
+let elem = (nested.0).0  // Need parentheses (lexer limitation)
 ```
 
 ---
@@ -656,15 +672,17 @@ let elem = (nested.0).0  // Need parentheses!
 
 Planned for v0.11.1+:
 
-1. **Tuple Destructuring in Let:**
+1. ~~**Tuple Destructuring in Let:**~~ ✅ **IMPLEMENTED v0.11.0**
    ```liva
-   let (x, y, z) = point
+   let (x, y, z) = point  // ✅ Works!
    ```
 
-2. **Chained Access Without Parentheses:**
+2. **Chained Access Without Parentheses:** ⚠️ **Deferred**
    ```liva
-   let elem = matrix.0.0  // No parentheses needed
+   let elem = matrix.0.0  // ❌ Lexer limitation
+   // Workaround: (matrix.0).0
    ```
+   **Status:** Requires lexer redesign. Using parentheses is acceptable workaround.
 
 3. **Tuple Type Aliases:**
    ```liva
