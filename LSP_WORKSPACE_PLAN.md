@@ -54,35 +54,46 @@ impl WorkspaceManager {
 
 ---
 
-### Phase 2: Multi-file Symbol Index (2h)
+### Phase 2: Multi-file Symbol Index (2h) - ✅ COMPLETE
 
 **Deliverables:**
-- [ ] Global symbol index across all workspace files
-- [ ] Parse and index files on workspace scan
-- [ ] Update index when files change
-- [ ] Query symbols by name (workspace-wide)
-- [ ] Track symbol origin (which file)
+- [x] Global symbol index across all workspace files
+- [x] Parse and index files on workspace scan
+- [x] Update index when files change
+- [x] Query symbols by name (workspace-wide)
+- [x] Track symbol origin (which file)
 
-**Files:**
-- `src/lsp/workspace.rs` - Add indexing functionality
-- `src/lsp/symbols.rs` - Enhance SymbolTable for multi-file
-
-**Data Structure:**
+**Implementation:**
 ```rust
 pub struct WorkspaceIndex {
-    /// Symbol name -> List of (URI, Symbol)
-    symbols: DashMap<String, Vec<(Url, Symbol)>>,
-    /// URI -> Local symbol table
-    file_symbols: DashMap<Url, SymbolTable>,
+    symbols: DashMap<String, Vec<(Url, Symbol)>>,  // name -> locations
+    file_symbols: DashMap<Url, SymbolTable>,       // file -> symbols
 }
 
 impl WorkspaceIndex {
-    pub fn index_file(&mut self, uri: &Url, ast: &Program, source: &str);
-    pub fn lookup_global(&self, name: &str) -> Vec<(Url, &Symbol)>;
-    pub fn lookup_in_file(&self, uri: &Url, name: &str) -> Option<&Vec<Symbol>>;
-    pub fn remove_file(&mut self, uri: &Url);
+    pub fn index_file(&self, uri: Url, ast: &Program, source: &str);
+    pub fn lookup_global(&self, name: &str) -> Option<Vec<(Url, Symbol)>>;
+    pub fn lookup_in_file(&self, uri: &Url, name: &str) -> Option<Vec<Symbol>>;
+    pub fn remove_file(&self, uri: &Url);
+    pub fn all_symbols(&self) -> Vec<(Url, Symbol)>;
+    pub fn file_count(&self) -> usize;
+    pub fn symbol_count(&self) -> usize;
 }
 ```
+
+**Integration:**
+- Added `workspace_index` field to `LivaLanguageServer`
+- `parse_document()` calls `index_file()` after semantic analysis
+- `initialized()` indexes all workspace files on startup
+- Logs indexed file count to client
+
+**Commit:** 0e95041 - "feat: Phase 2 - Multi-file Symbol Index complete"
+
+**Performance:**
+- Thread-safe with DashMap
+- O(1) symbol lookup by name
+- O(1) file operations
+- Concurrent indexing support
 
 ---
 
