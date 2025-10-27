@@ -6,6 +6,15 @@ use crate::traits::TraitRegistry;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 
+/// Capitalize the first letter of a string
+fn capitalize_first_letter(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+    }
+}
+
 /// Information about a pending Task (async/par) that hasn't been awaited yet
 #[derive(Debug, Clone)]
 struct TaskInfo {
@@ -37,6 +46,7 @@ pub struct CodeGenerator {
     json_value_vars: std::collections::HashSet<String>, // Track which variables are JsonValue
     // --- Class/type metadata (for inheritance and field resolution)
     class_fields: std::collections::HashMap<String, std::collections::HashSet<String>>,
+    class_optional_fields: std::collections::HashMap<String, std::collections::HashSet<String>>, // Track optional fields per class
     class_base: std::collections::HashMap<String, Option<String>>,
     var_types: std::collections::HashMap<String, String>, // var -> ClassName
     fallible_functions: std::collections::HashSet<String>, // Track which functions are fallible
@@ -45,8 +55,10 @@ pub struct CodeGenerator {
     // --- Phase 3: Error binding variables (Option<String> type)
     error_binding_vars: std::collections::HashSet<String>, // Variables from error binding (second variable in let x, err = ...)
     option_value_vars: std::collections::HashSet<String>, // Variables from error binding (first variable in let value, err = ..., which is Option<T>)
+    struct_destructured_vars: std::collections::HashSet<String>, // Variables from struct destructuring (may be Option<T>)
     rust_struct_vars: std::collections::HashSet<String>, // Variables that are Rust structs (HTTP response, etc.), not JsonValue
     typed_array_vars: std::collections::HashMap<String, String>, // Track arrays with element type: var_name -> element_class_name (e.g., "posts" -> "Post")
+    current_lambda_element_type: Option<String>, // Temporarily track element type when generating lambdas in forEach/map/etc
     // --- Phase 4: Join combining optimization
     #[allow(dead_code)]
     awaitable_tasks: Vec<String>, // Tasks that can be combined with tokio::join!
@@ -69,14 +81,17 @@ impl CodeGenerator {
             array_vars: std::collections::HashSet::new(),
             json_value_vars: std::collections::HashSet::new(),
             class_fields: std::collections::HashMap::new(),
+            class_optional_fields: std::collections::HashMap::new(),
             class_base: std::collections::HashMap::new(),
             var_types: std::collections::HashMap::new(),
             fallible_functions: std::collections::HashSet::new(),
             pending_tasks: std::collections::HashMap::new(),
             error_binding_vars: std::collections::HashSet::new(),
             option_value_vars: std::collections::HashSet::new(),
+            struct_destructured_vars: std::collections::HashSet::new(),
             rust_struct_vars: std::collections::HashSet::new(),
             typed_array_vars: std::collections::HashMap::new(),
+            current_lambda_element_type: None,
             awaitable_tasks: Vec::new(),
             trait_registry: TraitRegistry::new(),
         }
@@ -239,16 +254,22 @@ impl CodeGenerator {
 
         // Build class metadata maps
         self.class_fields.clear();
+        self.class_optional_fields.clear();
         self.class_base.clear();
         for item in &program.items {
             if let TopLevel::Class(cls) = item {
                 let mut fields = std::collections::HashSet::new();
+                let mut optional_fields = std::collections::HashSet::new();
                 for m in &cls.members {
                     if let Member::Field(f) = m {
                         fields.insert(f.name.clone());
+                        if f.is_optional {
+                            optional_fields.insert(f.name.clone());
+                        }
                     }
                 }
                 self.class_fields.insert(cls.name.clone(), fields);
+                self.class_optional_fields.insert(cls.name.clone(), optional_fields);
                 self.class_base.insert(cls.name.clone(), cls.base.clone());
             }
         }
@@ -791,7 +812,7 @@ impl CodeGenerator {
 
         for member in &type_decl.members {
             if let Member::Field(field) = member {
-                self.generate_field(field, false)?;  // TypeDecl doesn't need serde
+                self.generate_field(field, false, None)?;  // TypeDecl doesn't need serde
             }
         }
 
@@ -824,6 +845,17 @@ impl CodeGenerator {
     }
 
     fn generate_class(&mut self, class: &ClassDecl) -> Result<()> {
+        // Generate default functions for optional fields with init values
+        if class.needs_serde {
+            for member in &class.members {
+                if let Member::Field(field) = member {
+                    if field.is_optional && field.init.is_some() {
+                        self.generate_field_default_function(&class.name, field)?;
+                    }
+                }
+            }
+        }
+        
         // Format type parameters
         let type_params_str = if !class.type_params.is_empty() {
             let params: Vec<String> = class.type_params.iter().map(|tp| {
@@ -862,7 +894,7 @@ impl CodeGenerator {
 
         for member in &class.members {
             if let Member::Field(field) = member {
-                self.generate_field(field, class.needs_serde)?;
+                self.generate_field(field, class.needs_serde, Some(&class.name))?;
             }
         }
 
@@ -1001,26 +1033,56 @@ impl CodeGenerator {
                         .iter()
                         .any(|p| p.name() == Some(field.name.as_str()))
                     {
-                        let default_value = match field.type_ref.as_ref() {
-                            Some(type_ref) => match type_ref {
-                                TypeRef::Simple(name) => match name.as_str() {
-                                    "number" | "int" => "0".to_string(),
-                                    "float" => "0.0".to_string(),
-                                    "string" => "String::new()".to_string(),
-                                    "bool" => "false".to_string(),
-                                    "char" => "'\\0'".to_string(),
-                                    _ => "Default::default()".to_string(),
-                                },
-                                _ => "Default::default()".to_string(),
-                            },
-                            None => "Default::default()".to_string(),
-                        };
                         self.write_indent();
-                        self.writeln(&format!(
-                            "{}: {},",
-                            self.sanitize_name(&field.name),
-                            default_value
-                        ));
+                        let field_name = self.sanitize_name(&field.name);
+                        
+                        // Use explicit init value if provided, otherwise use defaults
+                        if let Some(init_expr) = &field.init {
+                            write!(self.output, "{}: ", field_name).unwrap();
+                            
+                            // Check if we need to convert string literal to String
+                            let needs_string_conversion = matches!(init_expr, Expr::Literal(Literal::String(_)))
+                                && field.type_ref.as_ref().map(|t| matches!(t, TypeRef::Simple(s) if s == "string" || s == "String")).unwrap_or(false);
+                            
+                            // If field is optional, wrap the init value in Some()
+                            if field.is_optional {
+                                self.output.push_str("Some(");
+                            }
+                            
+                            if needs_string_conversion {
+                                self.generate_expr(init_expr)?;
+                                self.output.push_str(".to_string()");
+                            } else {
+                                self.generate_expr(init_expr)?;
+                            }
+                            
+                            if field.is_optional {
+                                self.output.push_str(")");
+                            }
+                            
+                            self.output.push_str(",\n");
+                        } else {
+                            // Optional fields should default to None
+                            let default_value = if field.is_optional {
+                                "None".to_string()
+                            } else {
+                                match field.type_ref.as_ref() {
+                                    Some(type_ref) => match type_ref {
+                                        TypeRef::Simple(name) => match name.as_str() {
+                                            "number" | "int" => "0".to_string(),
+                                            "float" => "0.0".to_string(),
+                                            "string" => "String::new()".to_string(),
+                                            "bool" => "false".to_string(),
+                                            "char" => "'\\0'".to_string(),
+                                            _ => "Default::default()".to_string(),
+                                        },
+                                        _ => "Default::default()".to_string(),
+                                    },
+                                    None => "Default::default()".to_string(),
+                                }
+                            };
+                            self.writeln(&format!("{}: {},", field_name, default_value));
+                        }
                     }
                 }
             }
@@ -1040,26 +1102,56 @@ impl CodeGenerator {
 
             for member in &class.members {
                 if let Member::Field(field) = member {
-                    let default_value = match field.type_ref.as_ref() {
-                        Some(type_ref) => match type_ref {
-                            TypeRef::Simple(name) => match name.as_str() {
-                                "number" | "int" => "0".to_string(),
-                                "float" => "0.0".to_string(),
-                                "string" => "String::new()".to_string(),
-                                "bool" => "false".to_string(),
-                                "char" => "'\\0'".to_string(),
-                                _ => "Default::default()".to_string(),
-                            },
-                            _ => "Default::default()".to_string(),
-                        },
-                        None => "Default::default()".to_string(),
-                    };
-
-                    self.writeln(&format!(
-                        "{}: {},",
-                        self.sanitize_name(&field.name),
-                        default_value
-                    ));
+                    self.write_indent();
+                    let field_name = self.sanitize_name(&field.name);
+                    
+                    // Use explicit init value if provided, otherwise use defaults
+                    if let Some(init_expr) = &field.init {
+                        write!(self.output, "{}: ", field_name).unwrap();
+                        
+                        // Check if we need to convert string literal to String
+                        let needs_string_conversion = matches!(init_expr, Expr::Literal(Literal::String(_)))
+                            && field.type_ref.as_ref().map(|t| matches!(t, TypeRef::Simple(s) if s == "string" || s == "String")).unwrap_or(false);
+                        
+                        // If field is optional, wrap the init value in Some()
+                        if field.is_optional {
+                            self.output.push_str("Some(");
+                        }
+                        
+                        if needs_string_conversion {
+                            self.generate_expr(init_expr)?;
+                            self.output.push_str(".to_string()");
+                        } else {
+                            self.generate_expr(init_expr)?;
+                        }
+                        
+                        if field.is_optional {
+                            self.output.push_str(")");
+                        }
+                        
+                        self.output.push_str(",\n");
+                    } else {
+                        // Optional fields should default to None
+                        let default_value = if field.is_optional {
+                            "None".to_string()
+                        } else {
+                            match field.type_ref.as_ref() {
+                                Some(type_ref) => match type_ref {
+                                    TypeRef::Simple(name) => match name.as_str() {
+                                        "number" | "int" => "0".to_string(),
+                                        "float" => "0.0".to_string(),
+                                        "string" => "String::new()".to_string(),
+                                        "bool" => "false".to_string(),
+                                        "char" => "'\\0'".to_string(),
+                                        _ => "Default::default()".to_string(),
+                                    },
+                                    _ => "Default::default()".to_string(),
+                                },
+                                None => "Default::default()".to_string(),
+                            }
+                        };
+                        self.writeln(&format!("{}: {},", field_name, default_value));
+                    }
                 }
             }
 
@@ -1088,19 +1180,74 @@ impl CodeGenerator {
         Ok(())
     }
 
-    fn generate_field(&mut self, field: &FieldDecl, needs_serde: bool) -> Result<()> {
+    fn generate_field_default_function(&mut self, class_name: &str, field: &FieldDecl) -> Result<()> {
+        let field_name = self.sanitize_name(&field.name);
+        let func_name = format!("default_{}_{}", class_name.to_lowercase(), field_name);
+        
+        let base_type = if let Some(type_ref) = &field.type_ref {
+            type_ref.to_rust_type()
+        } else {
+            "String".to_string()
+        };
+        
+        self.writeln(&format!("fn {}() -> Option<{}>{{", func_name, base_type));
+        self.indent();
+        
+        if let Some(init_expr) = &field.init {
+            self.write_indent();
+            self.output.push_str("Some(");
+            
+            // Check if we need to convert string literal to String
+            let needs_string_conversion = matches!(init_expr, Expr::Literal(Literal::String(_)))
+                && field.type_ref.as_ref().map(|t| matches!(t, TypeRef::Simple(s) if s == "string" || s == "String")).unwrap_or(false);
+            
+            if needs_string_conversion {
+                self.generate_expr(init_expr)?;
+                self.output.push_str(".to_string()");
+            } else {
+                self.generate_expr(init_expr)?;
+            }
+            
+            self.output.push_str(")\n");
+        }
+        
+        self.dedent();
+        self.writeln("}");
+        self.output.push('\n');
+        
+        Ok(())
+    }
+
+    fn generate_field(&mut self, field: &FieldDecl, needs_serde: bool, class_name: Option<&str>) -> Result<()> {
         let vis = match field.visibility {
             Visibility::Public => "pub ",
             Visibility::Private => "",
         };
 
-        let type_str = if let Some(type_ref) = &field.type_ref {
+        let base_type = if let Some(type_ref) = &field.type_ref {
             type_ref.to_rust_type()
         } else {
             "()".to_string()
         };
 
+        // Wrap in Option<T> if field is optional
+        let type_str = if field.is_optional {
+            format!("Option<{}>", base_type)
+        } else {
+            base_type
+        };
+
         let field_name_rust = self.sanitize_name(&field.name);
+        
+        // Add serde attributes for optional fields
+        if needs_serde && field.is_optional {
+            // If the field has a default value, use serde default function
+            if field.init.is_some() && class_name.is_some() {
+                let func_name = format!("default_{}_{}", class_name.unwrap().to_lowercase(), field_name_rust);
+                self.writeln(&format!("#[serde(default = \"{}\")]", func_name));
+            }
+            self.writeln("#[serde(skip_serializing_if = \"Option::is_none\")]");
+        }
         
         // If serde is needed and the original name differs from snake_case, add rename attribute
         if needs_serde && field.name != field_name_rust {
@@ -2751,12 +2898,15 @@ impl CodeGenerator {
                             self.indent();
                             self.output.push('\n');
                             
+                            // Capture element type before mutable borrows
+                            let element_type_for_destr = self.current_lambda_element_type.clone();
+                            
                             // Generate destructuring for lambda params
                             for (idx, param) in lambda.params.iter().enumerate() {
                                 if param.is_destructuring() {
                                     let temp_name = format!("_param_{}", idx);
                                     self.write_indent();
-                                    self.generate_lambda_param_destructuring(&param.pattern, &temp_name, false)?;
+                                    self.generate_lambda_param_destructuring(&param.pattern, &temp_name, false, element_type_for_destr.as_deref())?;
                                 }
                             }
                             
@@ -2781,13 +2931,16 @@ impl CodeGenerator {
                                     self.indent();
                                     self.output.push('\n');
                                     
+                                    // Capture element type before mutable borrows
+                                    let element_type_for_destr = self.current_lambda_element_type.clone();
+                                    
                                     // Generate destructuring for lambda params (if any)
                                     if has_destructuring {
                                         for (idx, param) in lambda.params.iter().enumerate() {
                                             if param.is_destructuring() {
                                                 let temp_name = format!("_param_{}", idx);
                                                 self.write_indent();
-                                                self.generate_lambda_param_destructuring(&param.pattern, &temp_name, false)?;
+                                                self.generate_lambda_param_destructuring(&param.pattern, &temp_name, false, element_type_for_destr.as_deref())?;
                                                 self.output.push('\n');
                                             }
                                         }
@@ -2819,13 +2972,16 @@ impl CodeGenerator {
                                 self.indent();
                                 self.output.push('\n');
                                 
+                                // Capture element type before mutable borrows
+                                let element_type_for_destr = self.current_lambda_element_type.clone();
+                                
                                 // Generate destructuring for lambda params (if any)
                                 if has_destructuring {
                                     for (idx, param) in lambda.params.iter().enumerate() {
                                         if param.is_destructuring() {
                                             let temp_name = format!("_param_{}", idx);
                                             self.write_indent();
-                                            self.generate_lambda_param_destructuring(&param.pattern, &temp_name, false)?;
+                                            self.generate_lambda_param_destructuring(&param.pattern, &temp_name, false, element_type_for_destr.as_deref())?;
                                             self.output.push('\n');
                                         }
                                     }
@@ -3671,14 +3827,18 @@ impl CodeGenerator {
                 if let Expr::Lambda(lambda) = arg {
                     // Track lambda parameter types for typed arrays
                     // If the object is a typed array (e.g., posts: [Post]), track that the param is Post
-                    if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
-                        if let Some(_element_type) = self.typed_array_vars.get(&base_var_name).cloned() {
-                            // Track the lambda parameter as an instance of this class type
-                            for param in &lambda.params {
-                                if let Some(name) = param.name() {
-                                    let param_name = self.sanitize_name(name);
-                                    self.class_instance_vars.insert(param_name);
-                                }
+                    let element_type = if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
+                        self.typed_array_vars.get(&base_var_name).cloned()
+                    } else {
+                        None
+                    };
+                    
+                    if let Some(ref elem_type) = element_type {
+                        // Track the lambda parameter as an instance of this class type
+                        for param in &lambda.params {
+                            if let Some(name) = param.name() {
+                                let param_name = self.sanitize_name(name);
+                                self.class_instance_vars.insert(param_name);
                             }
                         }
                     }
@@ -3745,7 +3905,7 @@ impl CodeGenerator {
                                     if param.is_destructuring() {
                                         let temp_name = format!("_param_{}", idx);
                                         self.write_indent();
-                                        self.generate_lambda_param_destructuring(&param.pattern, &temp_name, is_json_value)?;
+                                        self.generate_lambda_param_destructuring(&param.pattern, &temp_name, is_json_value, element_type.as_deref())?;
                                         self.output.push('\n');
                                     }
                                 }
@@ -3771,7 +3931,7 @@ impl CodeGenerator {
                                     if param.is_destructuring() {
                                         let temp_name = format!("_param_{}", idx);
                                         self.write_indent();
-                                        self.generate_lambda_param_destructuring(&param.pattern, &temp_name, is_json_value)?;
+                                        self.generate_lambda_param_destructuring(&param.pattern, &temp_name, is_json_value, element_type.as_deref())?;
                                         self.output.push('\n');
                                     }
                                 }
@@ -3807,7 +3967,10 @@ impl CodeGenerator {
             if let Expr::Lambda(lambda) = arg {
                 if matches!(method_call.method.as_str(), "forEach" | "map" | "filter" | "reduce" | "find" | "some" | "every") {
                     if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
-                        if let Some(_element_type) = self.typed_array_vars.get(&base_var_name).cloned() {
+                        if let Some(element_type) = self.typed_array_vars.get(&base_var_name).cloned() {
+                            // Set current element type for lambda generation
+                            self.current_lambda_element_type = Some(element_type.clone());
+                            
                             // Track the lambda parameter as an instance of this class type
                             for param in &lambda.params {
                                 if let Some(name) = param.name() {
@@ -3821,6 +3984,9 @@ impl CodeGenerator {
             }
             
             self.generate_expr(arg)?;
+            
+            // Clear current element type after generating lambda
+            self.current_lambda_element_type = None;
         }
         
         self.output.push(')');
@@ -4814,6 +4980,15 @@ impl CodeGenerator {
                 ).unwrap();
                 return Ok(());
             }
+            if self.struct_destructured_vars.contains(&sanitized) {
+                // For struct destructured variables (may be Option<T>), use as_ref().map().unwrap_or_default()
+                write!(
+                    self.output,
+                    "{}.as_ref().map(|v| format!(\"{{}}\", v)).unwrap_or_default()",
+                    sanitized
+                ).unwrap();
+                return Ok(());
+            }
         }
         // Otherwise, generate normally
         self.generate_expr(expr)
@@ -5025,7 +5200,7 @@ impl CodeGenerator {
 
     /// Generate destructuring code for lambda parameters
     /// Similar to generate_param_destructuring but for lambdas (no indent on first line)
-    fn generate_lambda_param_destructuring(&mut self, pattern: &BindingPattern, temp_name: &str, is_json_value: bool) -> Result<()> {
+    fn generate_lambda_param_destructuring(&mut self, pattern: &BindingPattern, temp_name: &str, is_json_value: bool, class_name: Option<&str>) -> Result<()> {
         match pattern {
             BindingPattern::Object(obj_pattern) => {
                 // Object destructuring: extract each field
@@ -5040,12 +5215,47 @@ impl CodeGenerator {
                             binding_name, temp_name, field.key
                         ).unwrap();
                     } else {
-                        // For structs, use direct field access
-                        write!(
-                            self.output,
-                            "let {} = {}.{}.clone();\n",
-                            binding_name, temp_name, field.key
-                        ).unwrap();
+                        // For structs, check if field is optional in the class definition
+                        let is_field_optional = if let Some(cls_name) = class_name {
+                            if let Some(optional_fields) = self.class_optional_fields.get(cls_name) {
+                                optional_fields.contains(&field.key)
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        };
+                        
+                        if is_field_optional {
+                            // For optional fields, unwrap or use default
+                            write!(
+                                self.output,
+                                "let {} = {}.{}.as_ref().map(|v| v.clone()).unwrap_or_default();\n",
+                                binding_name, temp_name, field.key
+                            ).unwrap();
+                            // Only register optional fields for special string template handling
+                            self.struct_destructured_vars.insert(binding_name.clone());
+                        } else {
+                            // For required fields, just clone
+                            write!(
+                                self.output,
+                                "let {} = {}.{}.clone();\n",
+                                binding_name, temp_name, field.key
+                            ).unwrap();
+                        }
+                        
+                        // Check if this field is itself a class type, and register it as a class instance
+                        // This is important for nested struct access (e.g., address.zipcode)
+                        if let Some(cls_name) = class_name {
+                            // Try to get the field type from class_fields metadata
+                            // For now, we'll use a heuristic: if the field name starts with lowercase
+                            // and there's a corresponding capitalized class, mark it as class instance
+                            let potential_class = capitalize_first_letter(&field.key);
+                            if self.class_fields.contains_key(&potential_class) {
+                                self.class_instance_vars.insert(binding_name.clone());
+                                self.var_types.insert(binding_name.clone(), potential_class);
+                            }
+                        }
                     }
                     
                     if field != obj_pattern.fields.last().unwrap() {

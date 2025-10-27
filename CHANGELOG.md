@@ -7,6 +7,165 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.4] - 2025-01-27
+
+### Added - Optional Fields & Default Values for JSON Parsing ✨
+
+**Optional Fields with `?` Syntax:**
+- ✅ New syntax: `field?: Type` declares optional fields in classes
+- ✅ Generates `Option<T>` wrapper in Rust code
+- ✅ Auto-adds `#[serde(skip_serializing_if = "Option::is_none")]` attribute
+- ✅ Handles missing fields, null values, and present values seamlessly
+- ✅ Perfect for real-world APIs with optional/nullable fields
+
+**Default Values with `=` Syntax:**
+- ✅ New syntax: `field: Type = value` declares fields with default values
+- ✅ Supports all literal types: int, float, string, bool
+- ✅ Automatic string conversion: `"text"` → `"text".to_string()` for string fields
+- ✅ Works with both default and parameterized constructors
+- ✅ Non-parameter fields use their init value in constructors
+
+**Optional Fields with Default Values:**
+- ✅ Combined syntax: `field?: Type = value` for optional fields with defaults
+- ✅ Generates serde default functions: `fn default_{class}_{field}() -> Option<T>`
+- ✅ Adds `#[serde(default = "default_function")]` attribute
+- ✅ When JSON missing the field, serde uses default value instead of None
+- ✅ Makes defaults available in destructuring patterns automatically
+
+### Fixed - Optional Fields Bug Fixes 🐛
+
+**Constructor Generation:**
+- Fixed optional field constructors to generate `None` instead of `String::new()`
+- Both default and parameterized constructors now correctly initialize optional fields
+- Fixed default values to wrap in `Some()` when field is optional
+- String literals in default values automatically converted to `String` type
+
+**Object Destructuring:**
+- Fixed optional fields in lambda destructuring for `forEach`, `map`, `filter`, etc.
+- Optional fields now correctly unwrap with `.as_ref().map(|v| v.clone()).unwrap_or_default()`
+- Required fields correctly use `.clone()` without unnecessary unwrapping
+- Added `current_lambda_element_type` to track class types through lambda generation
+- Works correctly with parallel operations (`.parvec().forEach`)
+
+**Nested Struct Access:**
+- Fixed issue where nested structs were incorrectly treated as JsonValue
+- Destructured nested class fields (e.g., `address` from `User`) now correctly identified as class instances
+- Member access on nested structs now generates correct code (e.g., `address.zipcode` instead of `address.get_field("zipcode")`)
+- Added type tracking for destructured fields that are themselves class types
+
+**Serde Default Integration:**
+- Optional fields with default values now generate serde default functions
+- Default values correctly applied when field is missing from JSON (not just in constructors)
+- Generated code: `#[serde(default = "default_{class}_{field}")]`
+- Solves issue where defaults only worked in constructors, not during JSON deserialization
+
+**Real-World Testing:**
+- Tested with JSONPlaceholder API integration
+- User class with optional `username?: string` field works correctly
+- Nested struct access (`address.zipcode`) works correctly in string templates
+- Object destructuring in forEach properly handles mixed optional/required fields
+- Optional fields with defaults (`algo?: string = "hola"`) show default value when missing from JSON
+
+**Example of Fixed Behavior:**
+```liva
+User {
+    id: u32
+    name: string
+    username?: string  // ✨ Optional field
+}
+
+main() {
+    let users: [User], err = async HTTP.get("https://api.example.com/users").json()
+    
+    // ✅ Now works correctly with optional username
+    users.parvec().forEach(({id, name, username}) => {
+        console.log($"User {id}: {name} (@{username})")
+    })
+}
+```
+
+**Why Optional Fields Matter:**
+- **Type Safety:** Explicitly document which fields can be absent/null
+- **No More Crashes:** Missing fields don't cause JSON parse failures
+- **Better DX:** Code shows intent - optional vs required fields
+- **API Ready:** Handle real-world JSON APIs with nullable fields
+
+**Example Usage:**
+```liva
+User {
+    id: u32          // Required field
+    name: String     // Required field
+    email?: String   // ✨ Optional - can be null or absent
+    age?: u32        // ✨ Optional - can be null or absent
+}
+
+main() {
+    // Works with all fields present
+    let json1 = "{\"id\": 1, \"name\": \"Alice\", \"email\": \"alice@example.com\"}"
+    let user1: User, err1 = JSON.parse(json1)
+    
+    // Works with email missing
+    let json2 = "{\"id\": 2, \"name\": \"Bob\"}"
+    let user2: User, err2 = JSON.parse(json2)  // ✅ No error!
+    
+    // Works with email null
+    let json3 = "{\"id\": 3, \"name\": \"Carol\", \"email\": null}"
+    let user3: User, err3 = JSON.parse(json3)  // ✅ No error!
+}
+```
+
+**Generated Rust Code:**
+```rust
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct User {
+    pub id: u32,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,  // ✅ Wrapped in Option<T>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub age: Option<u32>,
+}
+```
+
+**Real-World Use Case:**
+```liva
+// API response with optional fields
+Post {
+    id: u64
+    title: String
+    content: String
+    publishedAt?: String  // May not be published yet
+    authorEmail?: String  // Author may not have public email
+    likes?: u32           // New field, older posts don't have it
+}
+
+main() {
+    let response, err = async HTTP.get("https://api.example.com/posts")
+    if err == "" {
+        let posts: [Post], parseErr = JSON.parse(response.body)
+        // All posts parse successfully, regardless of which fields are present! ✅
+    }
+}
+```
+
+**Implementation Details:**
+- **Parser:** Already implemented in v0.10.3 (detects `?` token after field name)
+- **AST:** `FieldDecl.is_optional: bool` field tracks optional status
+- **Codegen:** `generate_field()` wraps type in `Option<T>` when `is_optional=true`
+- **Serde:** Auto-adds skip attribute for efficient serialization
+- **Time:** ~45 minutes (as estimated in Phase 7.0.5)
+
+**Files Modified:**
+- `src/codegen.rs` - Updated `generate_field()` function (20 lines)
+- Tests: `test_optional_fields.liva` (comprehensive 4-case validation)
+
+**Statistics:**
+- Code changes: +20 lines in codegen.rs
+- Test coverage: 4 test cases (all fields, missing, null, multiple missing)
+- Generated code: Clean Option<T> with proper serde attributes
+
+---
+
 ## [0.10.3] - 2025-01-26
 
 ### Added - Parameter Destructuring 🎯

@@ -1321,10 +1321,10 @@ let result = switch flag {
 
 ---
 
-### 7.0 JSON Typed Parsing ⭐ 🚧 IN PROGRESS
+### 7.0 JSON Typed Parsing ⭐ ✅ COMPLETED (v0.10.4)
 **Goal:** Type-safe JSON parsing with class definitions
 
-**Status:** 🚧 In Progress  
+**Status:** ✅ COMPLETED  
 **Priority:** HIGH - Major DX improvement  
 **See:** `TODO_JSON_TYPED.md` for detailed plan
 
@@ -1343,16 +1343,209 @@ posts.forEach(post => print(post.title))  // ✨ No .unwrap()!
 ```
 
 #### Sub-tasks
-- [ ] **7.0.1** Parser: Type hints in let statements (1h)
-- [ ] **7.0.2** Semantic: Validate type hints with JSON.parse (1.5h)
-- [ ] **7.0.3** Codegen: Generate structs with serde (1.5h)
-- [ ] **7.0.4** Support all Rust types (i8-i128, u8-u128, f32, f64) (1h)
-- [ ] **7.0.5** Optional fields: `field?: Type` (45min)
-- [ ] **7.0.6** Default values: `field: Type = value` (45min)
-- [ ] **7.0.7** Nested classes (1h)
-- [ ] **7.0.8** Arrays of classes (30min)
-- [ ] **7.0.9** Tests and examples (2h)
-- [ ] **7.0.10** Documentation (30min)
+- [x] **7.0.1** Parser: Type hints in let statements ✅ **ALREADY DONE**
+- [x] **7.0.2** Semantic: Validate type hints with JSON.parse ✅ **ALREADY DONE**
+- [x] **7.0.3** Codegen: Generate structs with serde ✅ **ALREADY DONE**
+- [x] **7.0.4** Support all Rust types (i8-i128, u8-u128, f32, f64) ✅ **ALREADY DONE**
+- [x] **7.0.5** Optional fields: `field?: Type` ✅ **COMPLETED** (v0.10.4)
+- [x] **7.0.6** Default values: `field: Type = value` ✅ **COMPLETED** (v0.10.4)
+- [x] **7.0.7** Nested classes ✅ **ALREADY DONE**
+- [x] **7.0.8** Arrays of classes ✅ **ALREADY DONE**
+- [x] **7.0.9** Tests and examples ✅ **COMPLETED** (v0.10.4)
+- [x] **7.0.10** Documentation ✅ **COMPLETED** (v0.10.4)
+
+**Progress:** 10/10 tasks completed (100%) 🎉🎉🎉
+
+---
+
+#### 7.0.5 Optional Fields ✅ COMPLETED (2025-01-27)
+
+**Implementation:**
+- Modified `generate_field()` in codegen.rs to wrap type in `Option<T>` when `is_optional=true`
+- Auto-adds `#[serde(skip_serializing_if = "Option::is_none")]` attribute
+- Parser support already existed from v0.10.3 (detects `?` token)
+- AST field `FieldDecl.is_optional: bool` already present
+
+**Syntax:**
+```liva
+User {
+    id: u32          // Required
+    name: String     // Required
+    email?: String   // ✨ Optional - can be null or absent
+    age?: u32        // ✨ Optional
+}
+```
+
+**Generated Code:**
+```rust
+pub struct User {
+    pub id: u32,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub age: Option<u32>,
+}
+```
+
+**Testing:**
+- Created `test_optional_fields.liva` with 4 comprehensive test cases
+- ✅ All fields present
+- ✅ Optional field missing
+- ✅ Optional field null
+- ✅ Multiple optional fields missing
+- All tests passing!
+
+**Documentation:**
+- Updated CHANGELOG.md with v0.10.4 entry (130+ lines)
+- Updated docs/language-reference/json.md with comprehensive Optional Fields section (140+ lines)
+- Includes examples, best practices, comparison table, real-world use cases
+
+**Actual Time:** 45 minutes (exactly as estimated!)
+
+**Files Modified:**
+- `src/codegen.rs` - Updated `generate_field()` function (+10 lines)
+- `test_optional_fields.liva` - New test file (54 lines)
+- `CHANGELOG.md` - Added v0.10.4 entry (+130 lines)
+- `docs/language-reference/json.md` - Added Optional Fields section (+140 lines)
+
+**Benefits:**
+- ✅ Type-safe handling of nullable/missing JSON fields
+- ✅ No more parse failures on missing fields
+- ✅ Explicit documentation in code (optional vs required)
+- ✅ Perfect for real-world API integration
+
+---
+
+#### 7.0.6 Default Values ✅ COMPLETED (2025-01-27)
+
+**Implementation:**
+- Modified constructor generation to use `field.init` when provided
+- Added string literal to String conversion for string-typed fields
+- Support for all literal types (int, float, string, bool) as default values
+- Works with both default constructor and parameterized constructors
+- Optional fields with defaults generate serde default functions
+- Serde integration: `#[serde(default = "default_{class}_{field}")]` for optional fields
+
+**Syntax:**
+```liva
+User {
+    name: string = "Guest"      // Default for required field
+    age: int = 18               // Default int value
+    role: string = "user"       // Default string
+    active: bool = true         // Default bool
+    bio?: string = "No bio"     // ✨ Optional with default
+}
+```
+
+**Generated Code (Required Fields):**
+```rust
+pub fn new() -> Self {
+    Self {
+        name: "Guest".to_string(),  // ✅ Auto-converted
+        age: 18,
+        role: "user".to_string(),
+        active: true,
+        bio: Some("No bio".to_string()),  // ✅ Wrapped in Some()
+    }
+}
+```
+
+**Generated Code (Optional with Default):**
+```rust
+fn default_user_bio() -> Option<String> {
+    Some("No bio".to_string())
+}
+
+pub struct User {
+    #[serde(default = "default_user_bio")]  // ✅ Uses default when missing from JSON
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bio: Option<String>,
+}
+```
+
+**Testing:**
+- Created `test_default_values.liva` with User and Config classes
+- All literal types tested (string, int, bool)
+- ✅ Compilation successful
+- ✅ Runtime tests passing
+- ✅ JSONPlaceholder API integration test passing
+
+**Bug Fixes:**
+- ✅ String literals converted to String with `.to_string()`
+- ✅ Optional fields with defaults wrapped in `Some()`
+- ✅ Serde default functions generated for optional+default fields
+- ✅ Defaults applied during JSON deserialization (not just constructors)
+
+**Actual Time:** 40 minutes + 30 minutes for serde defaults = 70 minutes
+
+**Files Modified:**
+- `src/codegen.rs` - Constructor generation, field generation, serde defaults (+80 lines)
+- `test_default_values.liva` - New test file (35 lines)
+- `CHANGELOG.md` - Updated v0.10.4 entry (+25 lines)
+
+**Benefits:**
+- ✅ Less boilerplate in constructors
+- ✅ Sensible defaults for common patterns
+- ✅ Serde integration for JSON parsing
+- ✅ Optional fields with defaults work seamlessly
+
+---
+
+#### 7.0.9 Tests and Examples ✅ COMPLETED (2025-01-27)
+
+**Implementation:**
+- Created comprehensive test suite in `examples/test_json_typed_complete.liva`
+- 12 comprehensive test cases covering all features
+- All tests passing ✅
+
+**Test Coverage:**
+1. Basic types test (i8-u64, f32-f64, string, bool)
+2. Optional fields - all present
+3. Optional fields - some missing
+4. Optional fields - null values
+5. Default values - empty JSON (uses all defaults)
+6. Default values - partial override
+7. Optional with defaults - field missing (uses default)
+8. Optional with defaults - null overrides default
+9. Nested classes - full structure
+10. Nested classes - optional nested missing
+11. Array of classes
+12. Parallel forEach with destructuring
+
+**Test File:**
+- `examples/test_json_typed_complete.liva` (209 lines)
+- Tests BasicTypes, OptionalFields, DefaultValues, OptionalWithDefaults classes
+- Tests nested structures (Geo, Address, Company, User)
+- Real-world scenarios with complex JSON
+
+**Actual Time:** 30 minutes
+
+---
+
+#### 7.0.10 Documentation ✅ COMPLETED (2025-01-27)
+
+**Documentation Updates:**
+- Updated `docs/language-reference/json.md` with default values section
+- Updated `docs/language-reference/classes.md` with default values syntax
+- Changed "Planned" sections to "Available" with checkmarks
+- Added examples for all literal types
+- Documented optional+default field combinations
+- Documented serde integration for defaults
+- Added nested classes examples with optional fields
+- Cross-referenced between json.md and classes.md
+
+**Files Updated:**
+- `docs/language-reference/json.md` (+90 lines)
+- `docs/language-reference/classes.md` (+50 lines)
+- `CHANGELOG.md` (comprehensive v0.10.4 entry)
+- `ROADMAP.md` (this file, marked all tasks complete)
+
+**Actual Time:** 30 minutes
+
+---
+
+#### Sub-tasks
 
 **Benefits:**
 - ✅ Eliminate `.asInt().unwrap()` boilerplate
@@ -1361,7 +1554,8 @@ posts.forEach(post => print(post.title))  // ✨ No .unwrap()!
 - ✅ Consistent with Liva's type system
 - ✅ Supports all Rust types
 
-**Estimated:** 8-13 hours
+**Total Time:** ~3 hours (optional fields + default values + serde integration + tests + docs)  
+**Status:** ✅ PHASE 7.0 COMPLETE - Ready for merge!
 
 ---
 

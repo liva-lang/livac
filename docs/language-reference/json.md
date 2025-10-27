@@ -259,6 +259,155 @@ main() {
 }
 ```
 
+---
+
+## Optional Fields (v0.10.4+) ✨
+
+**New in v0.10.4:** Optional fields with `?` syntax for handling nullable/missing JSON fields.
+
+### Why Optional Fields?
+
+Real-world APIs often have fields that may be absent, null, or undefined:
+
+```json
+{
+  "users": [
+    {"id": 1, "name": "Alice", "email": "alice@example.com"},
+    {"id": 2, "name": "Bob"},  // Missing email
+    {"id": 3, "name": "Carol", "email": null}  // Null email
+  ]
+}
+```
+
+**Without optional fields (v0.10.3-):** JSON parsing **fails** for Bob and Carol.  
+**With optional fields (v0.10.4+):** All users parse successfully! ✅
+
+### Syntax
+
+Declare optional fields with `?` after the field name:
+
+```liva
+User {
+    id: u32           // Required field
+    name: String      // Required field
+    email?: String    // ✨ Optional - can be null or missing
+    age?: u32         // ✨ Optional - can be null or missing
+}
+```
+
+### How It Works
+
+- **Required fields** (`field: Type`): Must be present and non-null in JSON
+- **Optional fields** (`field?: Type`): Can be absent, null, or present
+- Generates `Option<T>` wrapper in Rust code
+- Automatically adds `#[serde(skip_serializing_if = "Option::is_none")]` for efficient serialization
+
+### Generated Code
+
+```rust
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct User {
+    pub id: u32,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,  // ✅ Wrapped in Option
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub age: Option<u32>,
+}
+```
+
+### Example Usage
+
+```liva
+User {
+    id: u32
+    name: String
+    email?: String
+    phone?: String
+}
+
+main() {
+    // Case 1: All fields present
+    let json1 = "{\"id\": 1, \"name\": \"Alice\", \"email\": \"alice@example.com\", \"phone\": \"555-0001\"}"
+    let user1: User, err1 = JSON.parse(json1)
+    // ✅ Success: email = Some("alice@example.com")
+    
+    // Case 2: Optional field missing
+    let json2 = "{\"id\": 2, \"name\": \"Bob\", \"email\": \"bob@example.com\"}"
+    let user2: User, err2 = JSON.parse(json2)
+    // ✅ Success: email = Some("bob@example.com"), phone = None
+    
+    // Case 3: Optional field null
+    let json3 = "{\"id\": 3, \"name\": \"Carol\", \"email\": null, \"phone\": \"555-0003\"}"
+    let user3: User, err3 = JSON.parse(json3)
+    // ✅ Success: email = None, phone = Some("555-0003")
+    
+    // Case 4: All optional fields missing
+    let json4 = "{\"id\": 4, \"name\": \"Dave\"}"
+    let user4: User, err4 = JSON.parse(json4)
+    // ✅ Success: email = None, phone = None
+}
+```
+
+### Real-World Example: API Integration
+
+```liva
+Post {
+    id: u64
+    title: String
+    content: String
+    publishedAt?: String  // May not be published yet
+    authorEmail?: String  // Author may not have public email
+    tags?: [String]       // Optional array of tags
+    likes?: u32           // New field, old posts don't have it
+    imageUrl?: String     // Not all posts have images
+}
+
+main() {
+    let response, err = async HTTP.get("https://api.example.com/posts")
+    
+    if err == "" && response.status == 200 {
+        let posts: [Post], parseErr = JSON.parse(response.body)
+        
+        if parseErr == "" {
+            print($"Loaded {posts.length} posts")
+            // All posts parse successfully, regardless of which optional fields are present! ✅
+        }
+    }
+}
+```
+
+### Benefits
+
+✅ **Type Safety:** Explicitly document which fields can be absent/null  
+✅ **No More Crashes:** Missing fields don't cause parse failures  
+✅ **Better DX:** Code shows intent - optional vs required  
+✅ **API Ready:** Handle real-world APIs with nullable fields  
+✅ **Zero Overhead:** Direct mapping to Rust's `Option<T>`
+
+### Best Practices
+
+**DO:**
+- ✅ Use `?` for fields that may be absent/null in JSON
+- ✅ Use optional fields for API responses with partial data
+- ✅ Combine with error binding for robust error handling
+
+**DON'T:**
+- ❌ Make all fields optional "just in case" (be explicit!)
+- ❌ Use optional for required API fields (document your API contract)
+
+### Comparison: Required vs Optional
+
+| Feature | Required (`field: Type`) | Optional (`field?: Type`) |
+|---------|-------------------------|--------------------------|
+| JSON missing | ❌ Parse error | ✅ Parse success (None) |
+| JSON null | ❌ Parse error | ✅ Parse success (None) |
+| JSON present | ✅ Parse success | ✅ Parse success (Some) |
+| Rust type | `T` | `Option<T>` |
+| Default value | Type default | `None` |
+
+---
+
 #### Example 4: Parse Array of Classes
 ```liva
 User {
@@ -581,31 +730,155 @@ let user: User, err = JSON.parse("{\"name\": \"Alice\", \"age\": 30}")
 // email and phone will be None
 ```
 
-### Default Values (Phase 3 - Planned)
+### Default Values ✅ Available in v0.10.4
+
+Fields can have default values that are used both in constructors and when deserializing from JSON:
+
 ```liva
 Config {
-    host: String = "localhost"
-    port: i32 = 8080
+    host: string = "localhost"
+    port: int = 8080
     debug: bool = false
+    timeout?: int = 30  // Optional with default
 }
 
 let config: Config, err = JSON.parse("{}")
-// Uses defaults for missing fields
+// Uses defaults for missing fields:
+// host = "localhost", port = 8080, debug = false, timeout = Some(30)
+
+let config2: Config, err2 = JSON.parse("{\"port\": 3000}")
+// Overrides port, uses defaults for others:
+// host = "localhost", port = 3000, debug = false, timeout = Some(30)
 ```
 
-### Nested Classes (Phase 4 - Planned)
+**Supported Default Types:**
+- `int`, `i8`, `i16`, `i32`, `i64`, `i128`, `u8`, `u16`, `u32`, `u64`, `u128`: Integer literals
+- `float`, `f32`, `f64`: Float literals
+- `string`, `String`: String literals (automatically converted to `String`)
+- `bool`: `true` or `false`
+
+**Constructor Usage:**
 ```liva
+User {
+    name: string = "Guest"
+    age: int = 18
+    role: string = "user"
+    active: bool = true
+}
+
+let user1 = User.new()  // Uses all defaults
+// name = "Guest", age = 18, role = "user", active = true
+```
+
+**JSON Deserialization:**
+Default values are automatically applied when fields are missing from JSON:
+
+```liva
+Settings {
+    theme: string = "dark"
+    fontSize: int = 14
+    autoSave: bool = true
+    maxRetries?: int = 3  // Optional with default
+}
+
+let json = "{\"theme\": \"light\"}"
+let settings: Settings, err = JSON.parse(json)
+// theme = "light" (from JSON)
+// fontSize = 14 (default)
+// autoSave = true (default)
+// maxRetries = Some(3) (default for optional field)
+```
+
+**Optional Fields with Defaults:**
+When combining `?` (optional) with `=` (default value), the default is used when the field is missing from JSON:
+
+```liva
+User {
+    id: u32
+    name: string
+    bio?: string = "No bio available"  // Optional with default
+}
+
+// JSON without bio field:
+let json1 = "{\"id\": 1, \"name\": \"Alice\"}"
+let user1: User, err1 = JSON.parse(json1)
+// bio = Some("No bio available")
+
+// JSON with bio field:
+let json2 = "{\"id\": 2, \"name\": \"Bob\", \"bio\": \"Developer\"}"
+let user2: User, err2 = JSON.parse(json2)
+// bio = Some("Developer")
+
+// JSON with null bio:
+let json3 = "{\"id\": 3, \"name\": \"Carol\", \"bio\": null}"
+let user3: User, err3 = JSON.parse(json3)
+// bio = None (null overrides default)
+```
+
+### Nested Classes ✅ Available
+```liva
+### Nested Classes ✅ Available
+```liva
+Geo {
+    lat: string
+    lng: string
+}
+
 Address {
-    street: String
-    city: String
+    street: string
+    suite: string
+    city: string
+    zipcode: string
+    geo: Geo  // Nested class
 }
 
 User {
-    name: String
+    name: string
     address: Address  // Nested class
 }
 
-let user: User, err = JSON.parse("{\"name\": \"Alice\", \"address\": {...}}")
+let json = """
+{
+    "name": "Alice",
+    "address": {
+        "street": "Main St",
+        "suite": "Apt 4",
+        "city": "NYC",
+        "zipcode": "10001",
+        "geo": {
+            "lat": "40.7128",
+            "lng": "-74.0060"
+        }
+    }
+}
+"""
+
+let user: User, err = JSON.parse(json)
+console.log(user.address.city)           // "NYC"
+console.log(user.address.geo.lat)        // "40.7128"
+
+// Works in destructuring too:
+users.forEach(({name, address}) => {
+    console.log($"{name} lives at {address.zipcode}")
+})
+```
+
+**Nested Optional Classes:**
+```liva
+User {
+    name: string
+    address?: Address  // Optional nested class
+}
+
+// JSON without address:
+let json1 = "{\"name\": \"Bob\"}"
+let user1: User, err1 = JSON.parse(json1)
+// address = None
+
+// JSON with address:
+let json2 = "{\"name\": \"Alice\", \"address\": {...}}"
+let user2: User, err2 = JSON.parse(json2)
+// address = Some(Address { ... })
 ```
 
 ### Snake_case Conversion (Phase 2.2 - In Progress)

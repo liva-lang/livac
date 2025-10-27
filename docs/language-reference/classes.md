@@ -135,6 +135,63 @@ Counter {
 }
 ```
 
+### Default Values ✅ Available in v0.10.4
+
+Fields can have default values that are automatically used in constructors:
+
+```liva
+User {
+  constructor(name: string) {
+    this.name = name
+    // Other fields use their defaults automatically
+  }
+  
+  name: string
+  age: int = 18           // Default value
+  role: string = "user"   // Default value
+  active: bool = true     // Default value
+}
+
+let user = User.new("Alice")
+// age = 18, role = "user", active = true
+```
+
+**Supported Default Types:**
+- `int`, `i8`-`i128`, `u8`-`u128`: Integer literals
+- `float`, `f32`, `f64`: Float literals
+- `string`, `String`: String literals (auto-converted to `String`)
+- `bool`: `true` or `false`
+
+**Default Constructor:**
+When no constructor is defined, fields with defaults are used:
+
+```liva
+Config {
+  host: string = "localhost"
+  port: int = 8080
+  debug: bool = false
+}
+
+let config = Config.new()
+// host = "localhost", port = 8080, debug = false
+```
+
+**Optional Fields with Defaults:**
+Combine `?` (optional) with `=` (default) for JSON deserialization:
+
+```liva
+Settings {
+  theme: string = "dark"          // Required with default
+  fontSize: int = 14              // Required with default
+  autoSave?: bool = true          // Optional with default
+}
+
+let settings = Settings.new()
+// theme = "dark", fontSize = 14, autoSave = Some(true)
+```
+
+See [JSON Typed Parsing](./json.md) for how defaults work with JSON deserialization.
+
 ### Computed Fields
 
 Use methods for computed values:
