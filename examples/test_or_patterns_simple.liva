@@ -1,0 +1,55 @@
+// Test: Or-pattern matching (simple version without println)
+
+main() {
+    // Test 1: Small numbers with or-pattern
+    let num1 = 2;
+    let category1 = switch num1 {
+        1 | 2 | 3 => "small",
+        4 | 5 | 6 => "medium",
+        _ => "large"
+    };
+    // category1 should be "small"
+
+    // Test 2: Medium number
+    let num2 = 5;
+    let category2 = switch num2 {
+        1 | 2 | 3 => "small",
+        4 | 5 | 6 => "medium",
+        _ => "large"
+    };
+    // category2 should be "medium"
+
+    // Test 3: Large number
+    let num3 = 10;
+    let category3 = switch num3 {
+        1 | 2 | 3 => "small",
+        4 | 5 | 6 => "medium",
+        _ => "large"
+    };
+    // category3 should be "large"
+
+    // Test 4: Weekend check with strings
+    let day1 = "Saturday";
+    let isWeekend1 = switch day1 {
+        "Saturday" | "Sunday" => true,
+        _ => false
+    };
+    // isWeekend1 should be true
+
+    // Test 5: Weekday check
+    let day2 = "Tuesday";
+    let isWeekend2 = switch day2 {
+        "Saturday" | "Sunday" => true,
+        _ => false
+    };
+    // isWeekend2 should be false
+
+    // Test 6: Multiple or-patterns with different types
+    let status = "pending";
+    let needsAction = switch status {
+        "pending" | "waiting" | "queued" => true,
+        "done" | "completed" | "finished" => false,
+        _ => true
+    };
+    // needsAction should be true
+}

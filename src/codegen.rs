@@ -3114,6 +3114,34 @@ impl CodeGenerator {
                     }
                 }
             }
+            Pattern::Tuple(patterns) => {
+                self.output.push('(');
+                for (i, pat) in patterns.iter().enumerate() {
+                    if i > 0 {
+                        self.output.push_str(", ");
+                    }
+                    self.generate_pattern(pat)?;
+                }
+                self.output.push(')');
+            }
+            Pattern::Array(patterns) => {
+                self.output.push('[');
+                for (i, pat) in patterns.iter().enumerate() {
+                    if i > 0 {
+                        self.output.push_str(", ");
+                    }
+                    self.generate_pattern(pat)?;
+                }
+                self.output.push(']');
+            }
+            Pattern::Or(patterns) => {
+                for (i, pat) in patterns.iter().enumerate() {
+                    if i > 0 {
+                        self.output.push_str(" | ");
+                    }
+                    self.generate_pattern(pat)?;
+                }
+            }
         }
         Ok(())
     }
@@ -7192,6 +7220,34 @@ impl<'a> IrCodeGenerator<'a> {
                     (None, None, _) => {
                         self.output.push_str("..");
                     }
+                }
+            }
+            Pattern::Tuple(patterns) => {
+                self.output.push('(');
+                for (i, pat) in patterns.iter().enumerate() {
+                    if i > 0 {
+                        self.output.push_str(", ");
+                    }
+                    self.generate_pattern(pat)?;
+                }
+                self.output.push(')');
+            }
+            Pattern::Array(patterns) => {
+                self.output.push('[');
+                for (i, pat) in patterns.iter().enumerate() {
+                    if i > 0 {
+                        self.output.push_str(", ");
+                    }
+                    self.generate_pattern(pat)?;
+                }
+                self.output.push(']');
+            }
+            Pattern::Or(patterns) => {
+                for (i, pat) in patterns.iter().enumerate() {
+                    if i > 0 {
+                        self.output.push_str(" | ");
+                    }
+                    self.generate_pattern(pat)?;
                 }
             }
         }

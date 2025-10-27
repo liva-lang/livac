@@ -1,0 +1,50 @@
+// Test exhaustiveness checking for integer patterns
+
+main() {
+    console.log("=== Testing Integer Exhaustiveness ===\n")
+    
+    // Test 1: Non-exhaustive - should fail to compile
+    // This should give E0902 error
+    /*
+    let x = 5
+    let result = switch x {
+        0 => "zero",
+        1 => "one",
+        2 => "two"
+        // Missing wildcard - should error
+    }
+    */
+    
+    // Test 2: Exhaustive with wildcard - should compile
+    let x = 5
+    let result = switch x {
+        0 => "zero",
+        1 => "one",
+        2 => "two",
+        _ => "other"
+    }
+    console.log($"Test 2 - With wildcard: {result}")
+    
+    // Test 3: With ranges - requires wildcard
+    let score = 85
+    let grade = switch score {
+        0..=59 => "F",
+        60..=69 => "D",
+        70..=79 => "C",
+        80..=89 => "B",
+        90..=100 => "A",
+        _ => "Invalid"
+    }
+    console.log($"Test 3 - With ranges: {grade}")
+    
+    // Test 4: Binding pattern catches all
+    let num = 42
+    let category = switch num {
+        0 => "zero",
+        1 => "one",
+        _ => "other number"
+    }
+    console.log($"Test 4 - Binding pattern: {category}")
+    
+    console.log("\n✅ All exhaustive tests passed!")
+}

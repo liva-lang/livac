@@ -1,0 +1,14 @@
+// Test that should fail: non-exhaustive integer pattern
+
+main() {
+    let x = 5
+    
+    // This should give E0902 error - missing wildcard
+    let result = switch x {
+        0 => "zero",
+        1 => "one",
+        2 => "two"
+    }
+    
+    console.log(result)
+}

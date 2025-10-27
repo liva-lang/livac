@@ -154,6 +154,8 @@ pub enum Token {
     Ne,
     #[token("&&")]
     AndAnd,
+    #[token("|")]
+    Pipe,
     #[token("||")]
     OrOr,
     #[token("!")]

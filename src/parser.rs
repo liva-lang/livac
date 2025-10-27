@@ -2134,9 +2134,77 @@ impl Parser {
 
     /// Parse a pattern for pattern matching
     fn parse_pattern(&mut self) -> Result<Pattern> {
+        self.parse_or_pattern()
+    }
+
+    /// Parse or-pattern: pattern | pattern | ...
+    fn parse_or_pattern(&mut self) -> Result<Pattern> {
+        let mut patterns = vec![self.parse_single_pattern()?];
+
+        while self.match_token(&Token::Pipe) {
+            patterns.push(self.parse_single_pattern()?);
+        }
+
+        if patterns.len() == 1 {
+            Ok(patterns.into_iter().next().unwrap())
+        } else {
+            Ok(Pattern::Or(patterns))
+        }
+    }
+
+    /// Parse a single pattern (no or-patterns)
+    fn parse_single_pattern(&mut self) -> Result<Pattern> {
         // Wildcard pattern: _
         if self.match_token(&Token::Underscore) {
             return Ok(Pattern::Wildcard);
+        }
+
+        // Tuple pattern: (p1, p2, ...)
+        if self.match_token(&Token::LParen) {
+            let mut patterns = Vec::new();
+            
+            if !self.check(&Token::RParen) {
+                loop {
+                    patterns.push(self.parse_pattern()?);
+                    if !self.match_token(&Token::Comma) {
+                        break;
+                    }
+                    // Allow trailing comma
+                    if self.check(&Token::RParen) {
+                        break;
+                    }
+                }
+            }
+            
+            self.expect(Token::RParen)?;
+            
+            // Single element is not a tuple, just a grouped pattern
+            if patterns.len() == 1 {
+                return Ok(patterns.into_iter().next().unwrap());
+            }
+            
+            return Ok(Pattern::Tuple(patterns));
+        }
+
+        // Array pattern: [p1, p2, ...]
+        if self.match_token(&Token::LBracket) {
+            let mut patterns = Vec::new();
+            
+            if !self.check(&Token::RBracket) {
+                loop {
+                    patterns.push(self.parse_pattern()?);
+                    if !self.match_token(&Token::Comma) {
+                        break;
+                    }
+                    // Allow trailing comma
+                    if self.check(&Token::RBracket) {
+                        break;
+                    }
+                }
+            }
+            
+            self.expect(Token::RBracket)?;
+            return Ok(Pattern::Array(patterns));
         }
 
         // Check for range patterns

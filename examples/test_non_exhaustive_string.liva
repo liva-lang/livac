@@ -1,0 +1,13 @@
+// Test that should fail: non-exhaustive string pattern
+
+main() {
+    let status = "active"
+    
+    // This should give E0903 error - missing wildcard
+    let code = switch status {
+        "active" => 1,
+        "inactive" => 2
+    }
+    
+    console.log(code)
+}

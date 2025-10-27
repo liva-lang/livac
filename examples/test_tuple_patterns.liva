@@ -1,0 +1,41 @@
+// Test: Tuple pattern matching
+
+main() {
+    // Test 1: Simple tuple destructuring
+    let point = (10, 20);
+    let description1 = switch point {
+        (0, 0) => "origin",
+        (0, _) => "on Y axis",
+        (_, 0) => "on X axis",
+        (x, y) => $"point at ({x}, {y})"
+    };
+    println($"Point 1: {description1}");  // Should print: Point 1: point at (10, 20)
+
+    // Test 2: Origin check
+    let origin = (0, 0);
+    let description2 = switch origin {
+        (0, 0) => "origin",
+        (0, _) => "on Y axis",
+        (_, 0) => "on X axis",
+        (x, y) => $"point at ({x}, {y})"
+    };
+    println($"Point 2: {description2}");  // Should print: Point 2: origin
+
+    // Test 3: Nested tuples
+    let triple = (1, (2, 3));
+    let description3 = switch triple {
+        (0, _) => "first is zero",
+        (_, (0, _)) => "second.first is zero",
+        (a, (b, c)) => $"values: {a}, {b}, {c}"
+    };
+    println($"Triple: {description3}");  // Should print: Triple: values: 1, 2, 3
+
+    // Test 4: Binding in tuple
+    let pair = (5, 10);
+    let sum = switch pair {
+        (0, b) => b,
+        (a, 0) => a,
+        (a, b) => a + b
+    };
+    println($"Sum: {sum}");  // Should print: Sum: 15
+}

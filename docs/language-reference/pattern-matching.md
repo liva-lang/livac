@@ -1,8 +1,9 @@
 # Pattern Matching
 
-> **Version:** v0.9.5  
+> **Version:** v0.10.5  
 > **Status:** Production Ready  
-> **Implemented:** 2025-01-24
+> **Last Updated:** 2025-01-24  
+> **New in v0.10.5:** Or-patterns, Enhanced exhaustiveness checking
 
 Pattern matching provides a powerful way to inspect and destructure values in Liva. The `switch` expression allows you to match values against patterns and execute different code paths.
 
@@ -26,10 +27,11 @@ Pattern matching provides a powerful way to inspect and destructure values in Li
 Pattern matching in Liva combines the simplicity of traditional switch statements with the power of modern pattern matching systems. Key features:
 
 - **Switch as Expression** - Returns a value, can be used anywhere an expression is valid
-- **Multiple Pattern Types** - Literals, wildcards, bindings, ranges
+- **Multiple Pattern Types** - Literals, wildcards, bindings, ranges, or-patterns
+- **Or-Patterns** - Match multiple values with a single arm: `1 | 2 | 3 => ...` (v0.10.5)
 - **Pattern Guards** - Add conditional logic with `if` clauses
 - **Type Safety** - All arms must return the same type
-- **Exhaustiveness** - Compiler ensures all cases are handled (coming in v0.9.5)
+- **Exhaustiveness Checking** - Compiler ensures all cases are handled for bool, int, and string types (v0.10.5)
 
 ---
 
@@ -200,6 +202,88 @@ let category = switch (age, hasLicense) {
 };
 ```
 
+---
+
+### 5. Or-Patterns ✅ Implemented (v0.10.5)
+
+Match multiple patterns with the same action using the `|` operator:
+
+```liva
+let category = switch num {
+    1 | 2 | 3 => "small",
+    4 | 5 | 6 => "medium",
+    7 | 8 | 9 => "large",
+    _ => "out of range"
+};
+```
+
+**String Or-Patterns:**
+
+```liva
+let isWeekend = switch day {
+    "Saturday" | "Sunday" => true,
+    _ => false
+};
+```
+
+**Status Codes:**
+
+```liva
+let statusType = switch httpCode {
+    200 | 201 | 204 => "success",
+    400 | 401 | 403 | 404 => "client error",
+    500 | 502 | 503 => "server error",
+    _ => "other"
+};
+```
+
+**Benefits:**
+- More concise than multiple arms with the same body
+- Reduces code duplication
+- Makes patterns more readable
+
+**Limitations (v0.10.5):**
+- Or-patterns with bindings must bind the same variables in all alternatives
+- Cannot mix wildcard `_` with specific patterns in an or-pattern (use separate arms instead)
+
+**Example: Valid Or-Patterns with Exhaustiveness:**
+
+```liva
+// ✅ Good: All paths have wildcard
+let result = switch status {
+    "active" | "running" | "started" => "operational",
+    "stopped" | "paused" | "idle" => "not operational",
+    _ => "unknown"  // Required for string exhaustiveness
+};
+```
+
+**Note:** Or-patterns still require exhaustiveness checking - they don't automatically make a switch exhaustive unless combined with a wildcard or binding pattern.
+
+---
+
+## Pattern Guards
+
+Add conditional logic to patterns with `if` clauses:
+
+```liva
+let status = switch value {
+    x if x < 0 => "negative",
+    x if x == 0 => "zero",
+    x if x > 0 => "positive"
+};
+```
+
+**Multiple Conditions:**
+
+```liva
+let category = switch (age, hasLicense) {
+    (a, true) if a >= 18 => "can drive",
+    (a, false) if a >= 18 => "adult without license",
+    (a, _) if a < 18 => "too young",
+    _ => "invalid"
+};
+```
+
 **Guard Evaluation:**
 - Guards are evaluated in order
 - First matching guard wins
@@ -210,12 +294,12 @@ let category = switch (age, hasLicense) {
 
 ## Exhaustiveness
 
-> **Status:** ✅ Implemented for `bool` type (v0.9.5)  
-> **Future:** Full exhaustiveness checking for all types (v0.9.6+)
+> **Status:** ✅ Implemented for `bool`, `int`, and `string` types (v0.10.5)  
+> **Future:** Array/tuple patterns, or-patterns (v0.10.6+)
 
-The compiler checks that all possible values are covered in pattern matching.
+The compiler checks that all possible values are covered in pattern matching. This prevents runtime errors from unhandled cases.
 
-### Boolean Exhaustiveness (✅ Implemented)
+### Boolean Exhaustiveness ✅ Implemented (v0.9.5)
 
 For `bool` type, both values must be covered:
 
@@ -253,7 +337,128 @@ let result = switch flag {
 
   ⓘ Pattern matching on bool is not exhaustive - missing case(s): false
 
-  📚 Learn more: https://liva-lang.org/docs/errors/semantic#e0901
+  � Hint: Add pattern `false` or use wildcard `_` to catch remaining cases
+
+  �📚 Learn more: https://liva-lang.org/docs/pattern-matching#exhaustiveness
+────────────────────────────────────────────────────────────
+```
+
+### Integer Exhaustiveness ✅ Implemented (v0.10.5)
+
+For integer types, the compiler requires a wildcard pattern unless you have a very small set of explicit values (≤ 20):
+
+```liva
+// ✅ Exhaustive - wildcard catches all other integers
+let result = switch num {
+    0 => "zero",
+    1 => "one",
+    2 => "two",
+    _ => "other"  // Required
+};
+
+// ✅ Exhaustive - with ranges and wildcard
+let grade = switch score {
+    0..=59 => "F",
+    60..=69 => "D",
+    70..=79 => "C",
+    80..=89 => "B",
+    90..=100 => "A",
+    _ => "Invalid"  // Required
+};
+
+// ✅ Exhaustive - binding pattern catches all
+let category = switch num {
+    0 => "zero",
+    1 => "one",
+    other => "something else"
+};
+
+// ❌ Non-exhaustive - missing wildcard
+let result = switch num {
+    0 => "zero",
+    1 => "one",
+    2 => "two"
+    // Compiler error: E0902 - Non-exhaustive pattern match
+};
+```
+
+**Error Example:**
+
+```
+● E0902: Non-exhaustive Pattern Matching [Semantic]
+────────────────────────────────────────────────────────────
+
+  ⓘ Pattern matching on integers is not exhaustive - 3 value(s) explicitly
+    covered, but no wildcard for other integers
+
+  💡 Hint: Add wildcard pattern `_` to catch all other integer values
+
+  📝 Example:
+    switch num {
+        0 => "zero",
+        1 => "one",
+        _ => "other"  // Required
+    }
+
+  📚 Learn more: https://liva-lang.org/docs/pattern-matching#exhaustiveness
+────────────────────────────────────────────────────────────
+```
+
+**Why Require Wildcard?**
+- Integers have infinite possible values (or very large ranges like i32: -2³¹ to 2³¹-1)
+- Explicitly listing all values is impractical
+- Wildcard ensures no runtime panics from unhandled cases
+
+**Small Sets Exception:**
+If you have ≤ 20 explicit integer literals without ranges, the compiler still requires a wildcard to be safe.
+
+### String Exhaustiveness ✅ Implemented (v0.10.5)
+
+For string types, a wildcard or binding pattern is **always required** since strings have infinite possible values:
+
+```liva
+// ✅ Exhaustive - wildcard catches all other strings
+let code = switch status {
+    "active" => 1,
+    "inactive" => 2,
+    "pending" => 3,
+    _ => 0  // Required
+};
+
+// ✅ Exhaustive - binding pattern catches all
+let message = switch text {
+    "yes" => "affirmative",
+    "no" => "negative",
+    other => $"unknown: {other}"
+};
+
+// ❌ Non-exhaustive - missing wildcard
+let code = switch status {
+    "active" => 1,
+    "inactive" => 2
+    // Compiler error: E0903 - Non-exhaustive pattern match
+};
+```
+
+**Error Example:**
+
+```
+● E0903: Non-exhaustive Pattern Matching [Semantic]
+────────────────────────────────────────────────────────────
+
+  ⓘ Pattern matching on strings requires a wildcard or binding pattern
+
+  💡 Hint: Add wildcard pattern `_` or binding pattern to catch all string
+    values not explicitly matched
+
+  📝 Example:
+    switch text {
+        "active" => 1,
+        "inactive" => 2,
+        _ => 0  // Required
+    }
+
+  📚 Learn more: https://liva-lang.org/docs/pattern-matching#exhaustiveness
 ────────────────────────────────────────────────────────────
 ```
 
@@ -269,24 +474,29 @@ let result = switch day {
 };
 ```
 
-### Current Limitations
+### Exhaustiveness Summary
 
 **Checked Types:**
-- ✅ `bool` - Full exhaustiveness checking
+- ✅ `bool` - Both `true` and `false` must be covered (v0.9.5)
+- ✅ `int`, `i8`-`i128`, `u8`-`u128` - Requires wildcard (v0.10.5)
+- ✅ `string`, `String` - Requires wildcard (v0.10.5)
+- ✅ **Or-patterns** - Supported with exhaustiveness checking (v0.10.5)
 
-**Not Checked Yet (soft warnings only):**
-- ⏳ `int`, `float`, `string` - Too many possible values
+**Not Checked Yet:**
+- ⏳ `float`, `f32`, `f64` - Not recommended for pattern matching
+- ⏳ `char` - Coming soon
 - ⏳ Enum variants - Coming in future versions
-- ⏳ Tuple/array patterns - Coming in future versions
+- ⏳ Tuple/array destructuring patterns - Coming in v0.10.6+
 
-**Recommendation:** Always include a wildcard `_` or binding pattern as the last arm for non-bool types.
+**Recommendation:** Always include a wildcard `_` or binding pattern as the last arm to ensure exhaustiveness.
 
-### Future: Full Exhaustiveness (v0.9.6+)
+**Or-Pattern Note:** Or-patterns (`1 | 2 | 3 => ...`) don't automatically make a switch exhaustive. You still need a wildcard or binding pattern to catch remaining values.
+
+### Future: Full Exhaustiveness (v0.10.6+)
 
 Coming soon:
-- Integer range exhaustiveness checking
+- Array/tuple destructuring patterns: `[x, y] => ...`, `(x, y) => ...`
 - Enum variant exhaustiveness
-- Tuple/array pattern exhaustiveness
 - Custom type exhaustiveness
 
 ---
@@ -308,7 +518,7 @@ main() {
         403 => "Forbidden",
         404 => "Not Found",
         500 => "Internal Server Error",
-        _ => "Unknown Status"
+        _ => "Unknown Status"  // Required for exhaustiveness
     };
     
     print($"Status: {statusCode} - {message}");

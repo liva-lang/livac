@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.5] - 2025-01-27
+
+### Added - Or-Patterns & Enhanced Pattern Matching ✨
+
+**Or-Patterns:**
+- ✅ New syntax: `1 | 2 | 3 => "value"` matches multiple patterns with one arm
+- ✅ Works with integers, strings, and all literal types
+- ✅ Significantly reduces code duplication in switch expressions
+- ✅ Example: `"Saturday" | "Sunday" => true` for weekend checking
+- ✅ Can combine multiple or-patterns in same switch: `1|2|3 => "small", 4|5|6 => "medium"`
+
+**Enhanced Exhaustiveness Checking:**
+- ✅ Extended to support or-patterns correctly
+- ✅ Integer exhaustiveness (E0902) now processes or-patterns recursively
+- ✅ String exhaustiveness (E0903) validates or-patterns properly
+- ✅ Type inference improved to detect types inside or-patterns
+- ✅ All existing exhaustiveness checks continue to work with or-patterns
+
+**Lexer & Parser Extensions:**
+- ✅ Added `|` (Pipe) token to lexer for or-pattern syntax
+- ✅ Parser extended with `parse_or_pattern()` method
+- ✅ Recursive pattern parsing: `parse_pattern() → parse_or_pattern() → parse_single_pattern()`
+- ✅ Tuple and Array pattern AST nodes added (foundation for future work)
+
+**Code Generation:**
+- ✅ Or-patterns generate clean Rust match syntax: `1 | 2 | 3 => ...`
+- ✅ Display trait updated for all new pattern types
+- ✅ Seamless integration with existing codegen infrastructure
+
+**Semantic Validation:**
+- ✅ Added pattern binding extraction for future tuple/array validation
+- ✅ Added validation framework for nested patterns
+- ✅ E0906 error code reserved for incompatible or-pattern bindings (future use with tuples)
+
+**Documentation:**
+- ✅ Updated `pattern-matching.md` with or-pattern section
+- ✅ Added examples for integer and string or-patterns
+- ✅ Documented exhaustiveness behavior with or-patterns
+- ✅ Updated version to v0.10.5 across documentation
+
+**Tests:**
+- ✅ `test_or_patterns_simple.liva` - Validates or-pattern code generation
+- ✅ `test_or_patterns_non_exhaustive.liva` - Validates E0902 with or-patterns
+- ✅ All existing exhaustiveness tests continue to pass
+
+**Impact:**
+- Makes switch expressions more concise and readable
+- Reduces boilerplate when matching multiple values
+- Maintains type safety and exhaustiveness guarantees
+- Foundation laid for tuple/array destructuring in v0.10.6
+
 ## [0.10.4] - 2025-01-27
 
 ### Added - Optional Fields & Default Values for JSON Parsing ✨
