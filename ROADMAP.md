@@ -1321,10 +1321,10 @@ let result = switch flag {
 
 ---
 
-### 7.0 JSON Typed Parsing ⭐ 🚧 IN PROGRESS
+### 7.0 JSON Typed Parsing ⭐ ✅ COMPLETED (v0.10.4)
 **Goal:** Type-safe JSON parsing with class definitions
 
-**Status:** 🚧 In Progress  
+**Status:** ✅ COMPLETED  
 **Priority:** HIGH - Major DX improvement  
 **See:** `TODO_JSON_TYPED.md` for detailed plan
 
@@ -1351,10 +1351,10 @@ posts.forEach(post => print(post.title))  // ✨ No .unwrap()!
 - [x] **7.0.6** Default values: `field: Type = value` ✅ **COMPLETED** (v0.10.4)
 - [x] **7.0.7** Nested classes ✅ **ALREADY DONE**
 - [x] **7.0.8** Arrays of classes ✅ **ALREADY DONE**
-- [ ] **7.0.9** Tests and examples (needs expansion)
-- [ ] **7.0.10** Documentation (needs update)
+- [x] **7.0.9** Tests and examples ✅ **COMPLETED** (v0.10.4)
+- [x] **7.0.10** Documentation ✅ **COMPLETED** (v0.10.4)
 
-**Progress:** 8/10 tasks completed (80%) 🎉
+**Progress:** 10/10 tasks completed (100%) 🎉🎉🎉
 
 ---
 
@@ -1492,6 +1492,59 @@ pub struct User {
 
 ---
 
+#### 7.0.9 Tests and Examples ✅ COMPLETED (2025-01-27)
+
+**Implementation:**
+- Created comprehensive test suite in `examples/test_json_typed_complete.liva`
+- 12 comprehensive test cases covering all features
+- All tests passing ✅
+
+**Test Coverage:**
+1. Basic types test (i8-u64, f32-f64, string, bool)
+2. Optional fields - all present
+3. Optional fields - some missing
+4. Optional fields - null values
+5. Default values - empty JSON (uses all defaults)
+6. Default values - partial override
+7. Optional with defaults - field missing (uses default)
+8. Optional with defaults - null overrides default
+9. Nested classes - full structure
+10. Nested classes - optional nested missing
+11. Array of classes
+12. Parallel forEach with destructuring
+
+**Test File:**
+- `examples/test_json_typed_complete.liva` (209 lines)
+- Tests BasicTypes, OptionalFields, DefaultValues, OptionalWithDefaults classes
+- Tests nested structures (Geo, Address, Company, User)
+- Real-world scenarios with complex JSON
+
+**Actual Time:** 30 minutes
+
+---
+
+#### 7.0.10 Documentation ✅ COMPLETED (2025-01-27)
+
+**Documentation Updates:**
+- Updated `docs/language-reference/json.md` with default values section
+- Updated `docs/language-reference/classes.md` with default values syntax
+- Changed "Planned" sections to "Available" with checkmarks
+- Added examples for all literal types
+- Documented optional+default field combinations
+- Documented serde integration for defaults
+- Added nested classes examples with optional fields
+- Cross-referenced between json.md and classes.md
+
+**Files Updated:**
+- `docs/language-reference/json.md` (+90 lines)
+- `docs/language-reference/classes.md` (+50 lines)
+- `CHANGELOG.md` (comprehensive v0.10.4 entry)
+- `ROADMAP.md` (this file, marked all tasks complete)
+
+**Actual Time:** 30 minutes
+
+---
+
 #### Sub-tasks
 
 **Benefits:**
@@ -1501,7 +1554,8 @@ pub struct User {
 - ✅ Consistent with Liva's type system
 - ✅ Supports all Rust types
 
-**Estimated:** 8-13 hours
+**Total Time:** ~3 hours (optional fields + default values + serde integration + tests + docs)  
+**Status:** ✅ PHASE 7.0 COMPLETE - Ready for merge!
 
 ---
 
