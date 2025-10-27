@@ -192,6 +192,7 @@ pub enum TypeRef {
     Optional(Box<TypeRef>),
     Fallible(Box<TypeRef>),
     Tuple(Vec<TypeRef>),  // Tuple types: (int, string, bool)
+    Union(Vec<TypeRef>),  // Union types: int | string | bool
 }
 
 impl TypeRef {
@@ -230,6 +231,16 @@ impl TypeRef {
                 } else {
                     format!("({})", types_str)
                 }
+            }
+            TypeRef::Union(types) => {
+                // For now, generate a placeholder enum name
+                // This will be handled more sophisticatedly in codegen
+                let types_str = types
+                    .iter()
+                    .map(|t| t.to_rust_type())
+                    .collect::<Vec<_>>()
+                    .join("Or");
+                format!("Union{}", types_str)
             }
         }
     }

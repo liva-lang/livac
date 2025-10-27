@@ -821,6 +821,48 @@ impl Parser {
     }
 
     fn parse_type(&mut self) -> Result<TypeRef> {
+        // Parse the base type (which could be tuple, array, or simple type)
+        let base_type = self.parse_base_type()?;
+        
+        // Check for union type: T | U | V
+        if self.check(&Token::Pipe) {
+            let mut types = vec![base_type];
+            
+            while self.match_token(&Token::Pipe) {
+                types.push(self.parse_base_type()?);
+            }
+            
+            // Flatten nested unions and remove duplicates
+            let flattened = self.flatten_union_types(types);
+            
+            return Ok(TypeRef::Union(flattened));
+        }
+        
+        Ok(base_type)
+    }
+    
+    fn flatten_union_types(&self, types: Vec<TypeRef>) -> Vec<TypeRef> {
+        let mut result = Vec::new();
+        
+        for ty in types {
+            match ty {
+                TypeRef::Union(inner_types) => {
+                    // Recursively flatten nested unions
+                    result.extend(self.flatten_union_types(inner_types));
+                }
+                _ => {
+                    // Only add if not already in the result (remove duplicates)
+                    if !result.iter().any(|t| t == &ty) {
+                        result.push(ty);
+                    }
+                }
+            }
+        }
+        
+        result
+    }
+    
+    fn parse_base_type(&mut self) -> Result<TypeRef> {
         // Check for tuple type syntax: (T1, T2, T3) or ()
         if self.check(&Token::LParen) {
             self.advance(); // consume '('

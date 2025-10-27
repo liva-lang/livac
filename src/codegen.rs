@@ -924,6 +924,16 @@ impl CodeGenerator {
                     format!("({})", types_str.join(", "))
                 }
             }
+            TypeRef::Union(types) => {
+                // For union types, we'll generate a Rust enum
+                // For now, generate a placeholder that will be handled later
+                let type_names: Vec<String> = types
+                    .iter()
+                    .map(|t| self.expand_type_alias(t))
+                    .collect();
+                // Generate union enum name (will be defined in codegen)
+                format!("Union_{}", type_names.join("_"))
+            }
         }
     }
 
@@ -959,6 +969,14 @@ impl CodeGenerator {
                     elements
                         .iter()
                         .map(|elem| self.substitute_type_params_codegen(elem, params, args))
+                        .collect(),
+                )
+            }
+            TypeRef::Union(types) => {
+                TypeRef::Union(
+                    types
+                        .iter()
+                        .map(|ty| self.substitute_type_params_codegen(ty, params, args))
                         .collect(),
                 )
             }

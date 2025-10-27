@@ -291,6 +291,11 @@ impl Type {
                 let rust_type = ast::TypeRef::Tuple(types.clone()).to_rust_type();
                 Type::Custom(rust_type)
             }
+            Some(ast::TypeRef::Union(types)) => {
+                // Convert to Rust union enum type
+                let rust_type = ast::TypeRef::Union(types.clone()).to_rust_type();
+                Type::Custom(rust_type)
+            }
             None => Type::Inferred,
         }
     }

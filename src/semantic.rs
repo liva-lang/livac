@@ -1104,6 +1104,9 @@ impl SemanticAnalyzer {
             TypeRef::Tuple(elements) => {
                 elements.iter().any(|elem| self.type_ref_contains_name(elem, name))
             }
+            TypeRef::Union(types) => {
+                types.iter().any(|ty| self.type_ref_contains_name(ty, name))
+            }
             TypeRef::Generic { base, args } => {
                 base == name || args.iter().any(|arg| self.type_ref_contains_name(arg, name))
             }
@@ -1142,6 +1145,14 @@ impl SemanticAnalyzer {
                     elements
                         .iter()
                         .map(|elem| self.substitute_type_params(elem, params, args))
+                        .collect(),
+                )
+            }
+            TypeRef::Union(types) => {
+                TypeRef::Union(
+                    types
+                        .iter()
+                        .map(|ty| self.substitute_type_params(ty, params, args))
                         .collect(),
                 )
             }
@@ -2622,6 +2633,7 @@ impl SemanticAnalyzer {
             TypeRef::Optional(inner) => self.type_supports_length(inner),
             TypeRef::Fallible(_) => false,
             TypeRef::Tuple(_) => false,  // Tuples don't have .length
+            TypeRef::Union(_) => false,  // Unions don't have .length without narrowing
         }
     }
 
@@ -3202,6 +3214,7 @@ impl SemanticAnalyzer {
             TypeRef::Simple(name) if self.is_type_param(name) => Some(name.clone()),
             TypeRef::Optional(inner) => self.extract_type_param_from_type_ref(inner),
             TypeRef::Fallible(inner) => self.extract_type_param_from_type_ref(inner),
+            TypeRef::Union(_) => None,  // Unions don't directly represent type params
             _ => None,
         }
     }
@@ -3284,6 +3297,13 @@ impl SemanticAnalyzer {
             TypeRef::Fallible(inner) => self.validate_type_ref(inner, available_type_params),
             TypeRef::Tuple(types) => {
                 // Validate all element types in the tuple
+                for ty in types {
+                    self.validate_type_ref(ty, available_type_params)?;
+                }
+                Ok(())
+            }
+            TypeRef::Union(types) => {
+                // Validate all types in the union
                 for ty in types {
                     self.validate_type_ref(ty, available_type_params)?;
                 }
@@ -3667,6 +3687,13 @@ impl SemanticAnalyzer {
             }
             // Tuples are serializable if all their element types are
             TypeRef::Tuple(types) => {
+                for ty in types {
+                    self.validate_json_parse_type_hint(ty)?;
+                }
+                Ok(())
+            }
+            // Unions: validate all member types are serializable
+            TypeRef::Union(types) => {
                 for ty in types {
                     self.validate_json_parse_type_hint(ty)?;
                 }
