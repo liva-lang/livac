@@ -812,7 +812,7 @@ impl CodeGenerator {
 
         for member in &type_decl.members {
             if let Member::Field(field) = member {
-                self.generate_field(field, false)?;  // TypeDecl doesn't need serde
+                self.generate_field(field, false, None)?;  // TypeDecl doesn't need serde
             }
         }
 
@@ -845,6 +845,17 @@ impl CodeGenerator {
     }
 
     fn generate_class(&mut self, class: &ClassDecl) -> Result<()> {
+        // Generate default functions for optional fields with init values
+        if class.needs_serde {
+            for member in &class.members {
+                if let Member::Field(field) = member {
+                    if field.is_optional && field.init.is_some() {
+                        self.generate_field_default_function(&class.name, field)?;
+                    }
+                }
+            }
+        }
+        
         // Format type parameters
         let type_params_str = if !class.type_params.is_empty() {
             let params: Vec<String> = class.type_params.iter().map(|tp| {
@@ -883,7 +894,7 @@ impl CodeGenerator {
 
         for member in &class.members {
             if let Member::Field(field) = member {
-                self.generate_field(field, class.needs_serde)?;
+                self.generate_field(field, class.needs_serde, Some(&class.name))?;
             }
         }
 
@@ -1033,12 +1044,22 @@ impl CodeGenerator {
                             let needs_string_conversion = matches!(init_expr, Expr::Literal(Literal::String(_)))
                                 && field.type_ref.as_ref().map(|t| matches!(t, TypeRef::Simple(s) if s == "string" || s == "String")).unwrap_or(false);
                             
+                            // If field is optional, wrap the init value in Some()
+                            if field.is_optional {
+                                self.output.push_str("Some(");
+                            }
+                            
                             if needs_string_conversion {
                                 self.generate_expr(init_expr)?;
                                 self.output.push_str(".to_string()");
                             } else {
                                 self.generate_expr(init_expr)?;
                             }
+                            
+                            if field.is_optional {
+                                self.output.push_str(")");
+                            }
+                            
                             self.output.push_str(",\n");
                         } else {
                             // Optional fields should default to None
@@ -1092,12 +1113,22 @@ impl CodeGenerator {
                         let needs_string_conversion = matches!(init_expr, Expr::Literal(Literal::String(_)))
                             && field.type_ref.as_ref().map(|t| matches!(t, TypeRef::Simple(s) if s == "string" || s == "String")).unwrap_or(false);
                         
+                        // If field is optional, wrap the init value in Some()
+                        if field.is_optional {
+                            self.output.push_str("Some(");
+                        }
+                        
                         if needs_string_conversion {
                             self.generate_expr(init_expr)?;
                             self.output.push_str(".to_string()");
                         } else {
                             self.generate_expr(init_expr)?;
                         }
+                        
+                        if field.is_optional {
+                            self.output.push_str(")");
+                        }
+                        
                         self.output.push_str(",\n");
                     } else {
                         // Optional fields should default to None
@@ -1149,7 +1180,45 @@ impl CodeGenerator {
         Ok(())
     }
 
-    fn generate_field(&mut self, field: &FieldDecl, needs_serde: bool) -> Result<()> {
+    fn generate_field_default_function(&mut self, class_name: &str, field: &FieldDecl) -> Result<()> {
+        let field_name = self.sanitize_name(&field.name);
+        let func_name = format!("default_{}_{}", class_name.to_lowercase(), field_name);
+        
+        let base_type = if let Some(type_ref) = &field.type_ref {
+            type_ref.to_rust_type()
+        } else {
+            "String".to_string()
+        };
+        
+        self.writeln(&format!("fn {}() -> Option<{}>{{", func_name, base_type));
+        self.indent();
+        
+        if let Some(init_expr) = &field.init {
+            self.write_indent();
+            self.output.push_str("Some(");
+            
+            // Check if we need to convert string literal to String
+            let needs_string_conversion = matches!(init_expr, Expr::Literal(Literal::String(_)))
+                && field.type_ref.as_ref().map(|t| matches!(t, TypeRef::Simple(s) if s == "string" || s == "String")).unwrap_or(false);
+            
+            if needs_string_conversion {
+                self.generate_expr(init_expr)?;
+                self.output.push_str(".to_string()");
+            } else {
+                self.generate_expr(init_expr)?;
+            }
+            
+            self.output.push_str(")\n");
+        }
+        
+        self.dedent();
+        self.writeln("}");
+        self.output.push('\n');
+        
+        Ok(())
+    }
+
+    fn generate_field(&mut self, field: &FieldDecl, needs_serde: bool, class_name: Option<&str>) -> Result<()> {
         let vis = match field.visibility {
             Visibility::Public => "pub ",
             Visibility::Private => "",
@@ -1172,6 +1241,11 @@ impl CodeGenerator {
         
         // Add serde attributes for optional fields
         if needs_serde && field.is_optional {
+            // If the field has a default value, use serde default function
+            if field.init.is_some() && class_name.is_some() {
+                let func_name = format!("default_{}_{}", class_name.unwrap().to_lowercase(), field_name_rust);
+                self.writeln(&format!("#[serde(default = \"{}\")]", func_name));
+            }
             self.writeln("#[serde(skip_serializing_if = \"Option::is_none\")]");
         }
         
