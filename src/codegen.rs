@@ -1022,31 +1022,46 @@ impl CodeGenerator {
                         .iter()
                         .any(|p| p.name() == Some(field.name.as_str()))
                     {
-                        // Optional fields should default to None
-                        let default_value = if field.is_optional {
-                            "None".to_string()
+                        self.write_indent();
+                        let field_name = self.sanitize_name(&field.name);
+                        
+                        // Use explicit init value if provided, otherwise use defaults
+                        if let Some(init_expr) = &field.init {
+                            write!(self.output, "{}: ", field_name).unwrap();
+                            
+                            // Check if we need to convert string literal to String
+                            let needs_string_conversion = matches!(init_expr, Expr::Literal(Literal::String(_)))
+                                && field.type_ref.as_ref().map(|t| matches!(t, TypeRef::Simple(s) if s == "string" || s == "String")).unwrap_or(false);
+                            
+                            if needs_string_conversion {
+                                self.generate_expr(init_expr)?;
+                                self.output.push_str(".to_string()");
+                            } else {
+                                self.generate_expr(init_expr)?;
+                            }
+                            self.output.push_str(",\n");
                         } else {
-                            match field.type_ref.as_ref() {
-                                Some(type_ref) => match type_ref {
-                                    TypeRef::Simple(name) => match name.as_str() {
-                                        "number" | "int" => "0".to_string(),
-                                        "float" => "0.0".to_string(),
-                                        "string" => "String::new()".to_string(),
-                                        "bool" => "false".to_string(),
-                                        "char" => "'\\0'".to_string(),
+                            // Optional fields should default to None
+                            let default_value = if field.is_optional {
+                                "None".to_string()
+                            } else {
+                                match field.type_ref.as_ref() {
+                                    Some(type_ref) => match type_ref {
+                                        TypeRef::Simple(name) => match name.as_str() {
+                                            "number" | "int" => "0".to_string(),
+                                            "float" => "0.0".to_string(),
+                                            "string" => "String::new()".to_string(),
+                                            "bool" => "false".to_string(),
+                                            "char" => "'\\0'".to_string(),
+                                            _ => "Default::default()".to_string(),
+                                        },
                                         _ => "Default::default()".to_string(),
                                     },
-                                    _ => "Default::default()".to_string(),
-                                },
-                                None => "Default::default()".to_string(),
-                            }
-                        };
-                        self.write_indent();
-                        self.writeln(&format!(
-                            "{}: {},",
-                            self.sanitize_name(&field.name),
-                            default_value
-                        ));
+                                    None => "Default::default()".to_string(),
+                                }
+                            };
+                            self.writeln(&format!("{}: {},", field_name, default_value));
+                        }
                     }
                 }
             }
@@ -1066,31 +1081,46 @@ impl CodeGenerator {
 
             for member in &class.members {
                 if let Member::Field(field) = member {
-                    // Optional fields should default to None
-                    let default_value = if field.is_optional {
-                        "None".to_string()
+                    self.write_indent();
+                    let field_name = self.sanitize_name(&field.name);
+                    
+                    // Use explicit init value if provided, otherwise use defaults
+                    if let Some(init_expr) = &field.init {
+                        write!(self.output, "{}: ", field_name).unwrap();
+                        
+                        // Check if we need to convert string literal to String
+                        let needs_string_conversion = matches!(init_expr, Expr::Literal(Literal::String(_)))
+                            && field.type_ref.as_ref().map(|t| matches!(t, TypeRef::Simple(s) if s == "string" || s == "String")).unwrap_or(false);
+                        
+                        if needs_string_conversion {
+                            self.generate_expr(init_expr)?;
+                            self.output.push_str(".to_string()");
+                        } else {
+                            self.generate_expr(init_expr)?;
+                        }
+                        self.output.push_str(",\n");
                     } else {
-                        match field.type_ref.as_ref() {
-                            Some(type_ref) => match type_ref {
-                                TypeRef::Simple(name) => match name.as_str() {
-                                    "number" | "int" => "0".to_string(),
-                                    "float" => "0.0".to_string(),
-                                    "string" => "String::new()".to_string(),
-                                    "bool" => "false".to_string(),
-                                    "char" => "'\\0'".to_string(),
+                        // Optional fields should default to None
+                        let default_value = if field.is_optional {
+                            "None".to_string()
+                        } else {
+                            match field.type_ref.as_ref() {
+                                Some(type_ref) => match type_ref {
+                                    TypeRef::Simple(name) => match name.as_str() {
+                                        "number" | "int" => "0".to_string(),
+                                        "float" => "0.0".to_string(),
+                                        "string" => "String::new()".to_string(),
+                                        "bool" => "false".to_string(),
+                                        "char" => "'\\0'".to_string(),
+                                        _ => "Default::default()".to_string(),
+                                    },
                                     _ => "Default::default()".to_string(),
                                 },
-                                _ => "Default::default()".to_string(),
-                            },
-                            None => "Default::default()".to_string(),
-                        }
-                    };
-
-                    self.writeln(&format!(
-                        "{}: {},",
-                        self.sanitize_name(&field.name),
-                        default_value
-                    ));
+                                None => "Default::default()".to_string(),
+                            }
+                        };
+                        self.writeln(&format!("{}: {},", field_name, default_value));
+                    }
                 }
             }
 
