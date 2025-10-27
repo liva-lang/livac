@@ -494,13 +494,13 @@ let result = switch day {
 
 ### Future: Tuple/Array Patterns in Switch (v0.11.0+)
 
-**Status:** AST infrastructure ready, waiting for tuple literal support
+**Status:** ⚠️ Limited Support - Tuple patterns work in switch, destructuring in let bindings not yet supported
 
-Tuple and array destructuring patterns in switch expressions require tuple/array literals first:
+Tuple patterns in switch expressions are **working now in v0.11.0**:
 
 ```liva
-// Future syntax (requires tuple literals):
-let point = (10, 20)  // Tuple literal not yet implemented
+// ✅ Working in v0.11.0
+let point = (10, 20)
 
 let location = switch point {
     (0, 0) => "origin",
@@ -508,31 +508,37 @@ let location = switch point {
     (x, 0) => $"on X axis at {x}",
     (x, y) => $"at ({x}, {y})"
 }
+```
 
-// Future syntax (with arrays):
-let coord = [10, 20]
+**What Works:**
+- ✅ Tuple literals: `(10, 20)`, `(x,)` for single element
+- ✅ Tuple types: `(int, int)`, `(string, bool)`
+- ✅ Tuple patterns in switch: `(x, y) => ...`, `(0, _) => ...`
+- ✅ Pattern matching with bindings and wildcards
+- ✅ Nested tuples: `((1, 2), 3)`
 
-let location = switch coord {
-    [0, 0] => "origin",
-    [0, _] => "on Y axis",
-    [_, 0] => "on X axis",
-    [x, y] => $"at ({x}, {y})"
+**Known Limitations (v0.11.0):**
+- ⚠️ Tuple destructuring in let bindings broken: `let (x, y) = tuple` fails
+  - Parser expects identifier after `let`, doesn't recognize tuple pattern
+  - **Workaround:** Use direct access: `let x = tuple.0, y = tuple.1`
+- ⚠️ Chained tuple access needs parentheses: `(matrix.0).0` instead of `matrix.0.0`
+  - Root cause: Lexer tokenizes `.0.0` as Dot + FloatLiteral(0.0)
+
+**Example: Matrix Pattern Matching**
+```liva
+let matrix = ((1, 2), (3, 4))
+
+let result = switch matrix {
+    ((0, 0), (0, 0)) => "zero matrix",
+    ((a, b), (c, d)) if a == d && b == c => "symmetric",
+    ((a, _), (_, d)) => $"diagonal: {a}, {d}"
 }
 ```
 
-**Current State:**
-- ✅ AST nodes: `Pattern::Tuple` and `Pattern::Array` exist
-- ✅ Parser: Can parse tuple/array patterns
-- ✅ Codegen: Ready to generate destructuring match code
-- ⏳ Blocked by: Tuple literal expressions (`(x, y)`)
-- ⏳ Blocked by: Array literal type inference in switch context
-
-**Coming in v0.11.0+:**
-- Tuple literal expressions
-- Tuple types in type system
-- Array pattern exhaustiveness checking
-- Tuple pattern exhaustiveness checking
-- Enum variant patterns
+**Future Enhancements (v0.11.1+):**
+- Array patterns: `[x, y, z] => ...`
+- Tuple destructuring in let: `let (x, y) = point`
+- Chained access without parentheses: `matrix.0.0`
 
 ---
 

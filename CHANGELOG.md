@@ -7,6 +7,130 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2025-01-28
+
+### Added - Tuple Types & Literals ✨
+
+**Tuple Literals:**
+- ✅ New syntax: `(10, 20)` for multi-element tuples
+- ✅ Single-element tuples with trailing comma: `(42,)` vs `(42)` (grouped expression)
+- ✅ Empty tuples (unit type): `()`
+- ✅ Nested tuples: `((1, 2), (3, 4))`
+- ✅ Type inference for tuple literals
+
+**Tuple Types:**
+- ✅ Type annotations: `(int, int)`, `(string, bool, float)`
+- ✅ Function return types: `fn(): (int, int)`
+- ✅ Heterogeneous types (mixed types in single tuple)
+- ✅ Rust interop: Direct mapping to Rust tuples with zero overhead
+
+**Tuple Member Access:**
+- ✅ Numeric property access: `tuple.0`, `tuple.1`, `tuple.2`
+- ✅ Works in all expressions: assignments, conditions, string templates
+- ⚠️ Chained access requires parentheses: `(matrix.0).0` instead of `matrix.0.0`
+  - Root cause: Lexer tokenizes `.0.0` as Dot + FloatLiteral(0.0)
+  - Documented workaround in all guides
+
+**Pattern Matching Integration:**
+- ✅ Tuple patterns in switch expressions: `(x, y) => ...`, `(0, _) => ...`
+- ✅ Binding patterns work: `(x, y) if x > y => ...`
+- ✅ Wildcard patterns: `(_, y) => ...`
+- ✅ Nested tuple patterns: `((a, b), c) => ...`
+- ✅ All pattern types supported (literals, bindings, wildcards, guards)
+
+**Code Generation:**
+- ✅ Generates clean Rust tuple syntax: `(i32, i32)`
+- ✅ Single-element tuple handling: `(i32,)` in Rust
+- ✅ Tuple literal codegen: `(10, 20)`
+- ✅ Member access codegen: `.0`, `.1` direct field access
+- ✅ Pattern matching codegen: Rust match with tuple destructuring
+
+**Implementation Details:**
+- **Phase 1 (AST):** Added `Expr::Tuple` and `TypeRef::Tuple` variants
+- **Phase 2 (Parser):** 
+  - Tuple literals with comma disambiguation: `(x)` vs `(x,)`
+  - Tuple type parsing: `(int, int)`, `(string, bool)`
+  - Numeric member access: `IntLiteral` case in `parse_method_name()`
+- **Phase 3 (Semantic):**
+  - Type inference for tuples: builds `TypeRef::Tuple` from element types
+  - Validation: tuple member access with bounds checking
+  - Type checking: validates numeric indices, returns element type
+- **Phase 4 (Codegen):**
+  - Tuple literal generation with single-element comma handling
+  - Direct field access generation: `.0`, `.1` instead of get_field()
+  - Fixed console.log to pass format strings directly
+- **Testing:** 6 comprehensive test files, 5 of 6 passing (83% success rate)
+
+**Test Files:**
+1. `test_tuple_literals.liva` ✅ PASSING - Basic creation, empty, single, nested
+2. `test_tuple_types.liva` ✅ PASSING - Type annotations
+3. `test_tuple_access.liva` ✅ PASSING - Member access (with parentheses for chained)
+4. `test_tuple_functions.liva` ❌ FAILING - Return type inference issue
+5. `test_tuple_patterns.liva` ✅ PASSING - Switch expression pattern matching
+6. `test_tuple_nested.liva` ✅ PASSING - Complex nested structures
+
+**Known Limitations (v0.11.0):**
+- ⚠️ Chained tuple access requires parentheses: `(matrix.0).0` instead of `matrix.0.0`
+  - Root cause: Lexer tokenizes `.0.0` as Dot + FloatLiteral(0.0) (greedy float tokenization)
+  - Workaround documented: Use parentheses for chained access
+  
+- ⚠️ Tuple destructuring in let bindings broken: `let (x, y) = tuple` fails
+  - Parser expects identifier after `let`, doesn't recognize tuple pattern
+  - Workaround: Use direct access: `let x = tuple.0, y = tuple.1`
+  
+- ⚠️ String type annotations cause &str vs String mismatch
+  - `getUserInfo(): (string, int, bool)` generates `(String, i32, bool)` but returns `(&str, i32, bool)`
+  - Workaround: Use type inference instead of explicit string types in tuples
+  
+- ⚠️ Return type inference doesn't work for functions without explicit return type
+  - Functions without return type default to `f64` instead of inferring tuple type
+  - Workaround: Always specify explicit return types for tuple-returning functions
+
+**Documentation:**
+- ✅ `TUPLE_IMPLEMENTATION_PLAN.md` - Complete 6-phase implementation plan (518 lines)
+- ✅ `docs/language-reference/types.md` - Updated with Tuple Types section
+- ✅ `docs/language-reference/pattern-matching.md` - Updated tuple pattern status
+- ✅ `docs/language-reference/functions.md` - Added Tuple Returns section
+- ✅ `docs/guides/tuples.md` - Comprehensive tutorial (600+ lines)
+  - Basic usage, pattern matching, best practices
+  - When to use tuples vs structs
+  - Common patterns and real-world examples
+  - Known limitations and workarounds
+
+**Statistics:**
+- **Time:** 4 hours (100% of estimate)
+- **Code changes:** 7 files modified (ast.rs, parser.rs, semantic.rs, codegen.rs, ir.rs, lowering.rs, liva_rt.rs)
+- **Tests:** 6 test files created, 5 passing (83% success rate)
+- **Documentation:** 1,500+ lines (implementation plan, language reference updates, tutorial)
+- **Commits:** 1 feature commit (0742d6a)
+
+**Use Cases:**
+```liva
+// Multiple return values
+getCoordinates(): (int, int) {
+    return (10, 20)
+}
+
+// Pattern matching
+let point = (10, 20)
+let location = switch point {
+    (0, 0) => "origin",
+    (0, y) => $"on Y axis at {y}",
+    (x, 0) => $"on X axis at {x}",
+    (x, y) => $"at ({x}, {y})"
+}
+
+// Nested tuples
+let matrix = ((1, 2), (3, 4))
+let elem = (matrix.0).0  // Access with parentheses
+```
+
+**Future Work (v0.11.1+):**
+- Fix tuple destructuring in let bindings
+- Fix chained access without parentheses (lexer improvement)
+- Fix string type annotation mismatch
+- Fix return type inference for tuples
+
 ## [0.10.5] - 2025-01-27
 
 ### Added - Or-Patterns & Enhanced Pattern Matching ✨

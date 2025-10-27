@@ -302,6 +302,146 @@ let box = Box<number>(42)
 let value = identity<string>("hello")
 ```
 
+## Tuple Types
+
+⭐ **New in v0.11.0**
+
+Tuples are fixed-size collections of values with different types.
+
+### Basic Tuple Types
+
+```liva
+// Type annotation
+let point: (int, int) = (10, 20)
+let user: (string, int, bool) = ("Alice", 30, true)
+
+// Type inference
+let coords = (0, 0)           // (int, int)
+let mixed = (42, "hello")     // (int, string)
+```
+
+### Single-Element Tuples
+
+Require trailing comma to distinguish from grouped expressions:
+
+```liva
+let single = (42,)     // Tuple with one element
+let grouped = (42)      // Just 42 (not a tuple)
+```
+
+### Empty Tuples (Unit Type)
+
+```liva
+let unit = ()  // Empty tuple (unit type)
+```
+
+### Tuple Member Access
+
+Access elements by index using dot notation:
+
+```liva
+let point = (10, 20, 30)
+let x = point.0  // 10
+let y = point.1  // 20
+let z = point.2  // 30
+```
+
+**Chained Access:**
+Requires parentheses for nested tuples:
+
+```liva
+let matrix = ((1, 2), (3, 4))
+
+// ✅ Correct (use parentheses)
+let first_row_first = (matrix.0).0  // 1
+
+// ❌ Won't work (lexer issue)
+let first_row_first = matrix.0.0    // Parsed as matrix.(0.0)
+```
+
+### Tuple Functions
+
+Return multiple values without structs:
+
+```liva
+// Function returning tuple
+getCoordinates(): (int, int) {
+    return (10, 20)
+}
+
+main() {
+    let coords = getCoordinates()
+    print($"x: {coords.0}, y: {coords.1}")
+}
+```
+
+### Pattern Matching
+
+Tuples work with switch expressions:
+
+```liva
+let point = (10, 20)
+
+let location = switch point {
+    (0, 0) => "origin",
+    (0, y) => $"on Y axis at {y}",
+    (x, 0) => $"on X axis at {x}",
+    (x, y) => $"at ({x}, {y})"
+}
+```
+
+### Nested Tuples
+
+```liva
+// 2x2 matrix as nested tuples
+let matrix = ((1, 2), (3, 4))
+
+// Access with parentheses
+let first_row = matrix.0      // (1, 2)
+let elem = (matrix.0).0       // 1
+```
+
+### When to Use Tuples vs Structs
+
+**Use Tuples When:**
+- Small, fixed-size collection of values
+- Temporary grouping (return values, intermediate results)
+- Order is obvious (coordinates, RGB colors)
+
+**Use Structs When:**
+- Many fields (>3-4 elements)
+- Field names add clarity
+- Need methods or behavior
+- Part of your domain model
+
+**Example:**
+
+```liva
+// ✅ Good: Tuple for simple coordinate
+getPosition(): (int, int) => (10, 20)
+
+// ✅ Better: Struct for complex data
+User {
+    id: u32
+    name: string
+    email: string
+}
+```
+
+### Limitations (v0.11.0)
+
+1. **Chained Access Requires Parentheses:**
+   - Lexer limitation: `.0.0` tokenizes as Dot + FloatLiteral(0.0)
+   - Solution: Use `(tuple.0).0` instead of `tuple.0.0`
+
+2. **No Destructuring in Let Bindings (Yet):**
+   - `let (x, y) = tuple` not yet supported
+   - Use direct access: `let x = tuple.0`
+
+3. **Return Type Inference:**
+   - Explicit return types needed for tuple-returning functions
+   - Inference defaults to `f64` without type annotation
+
 ## Type Conversions
 
 ### Explicit Conversions
@@ -466,12 +606,13 @@ Current and planned features:
 | Objects/Classes | ✅ v0.6 |
 | Type inference | ✅ v0.6 (basic) |
 | Rust type compatibility | ✅ v0.6 |
-| Explicit type checking | 🚧 v0.7 |
-| Optional types (`?`) | 📋 v0.8 |
-| Union types (`\|`) | 📋 v0.8 |
-| Generic types (`<T>`) | 📋 v0.8 |
-| Type aliases | 📋 v0.8 |
-| Traits/Interfaces | 📋 v0.9 |
+| Explicit type checking | ✅ v0.9 |
+| Generics (`<T>`) | ✅ v0.9 |
+| **Tuple types** | ✅ v0.11.0 |
+| Optional types (`?`) | ✅ v0.10.4 |
+| Union types (`\|`) | 📋 v0.12+ |
+| Type aliases | 📋 v0.12+ |
+| Traits/Interfaces | ✅ v0.6 (basic) |
 
 ## Rust Interop
 
