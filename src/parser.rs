@@ -799,6 +799,44 @@ impl Parser {
     }
 
     fn parse_type(&mut self) -> Result<TypeRef> {
+        // Check for tuple type syntax: (T1, T2, T3) or ()
+        if self.check(&Token::LParen) {
+            self.advance(); // consume '('
+            
+            // Empty tuple type: ()
+            if self.match_token(&Token::RParen) {
+                return Ok(TypeRef::Tuple(vec![]));
+            }
+
+            // Parse first type
+            let first = self.parse_type()?;
+
+            // Check for comma (tuple) or RParen (error - grouped types don't make sense)
+            if self.match_token(&Token::Comma) {
+                let mut types = vec![first];
+
+                // Parse remaining types (allow trailing comma)
+                if !self.check(&Token::RParen) {
+                    loop {
+                        types.push(self.parse_type()?);
+                        if !self.match_token(&Token::Comma) {
+                            break;
+                        }
+                        // Allow trailing comma before )
+                        if self.check(&Token::RParen) {
+                            break;
+                        }
+                    }
+                }
+
+                self.expect(Token::RParen)?;
+                return Ok(TypeRef::Tuple(types));
+            } else {
+                // Error: grouped type doesn't make sense in Liva
+                return Err(self.error("Unexpected type in parentheses - did you mean a tuple type like (T,)?".into()));
+            }
+        }
+
         // Check for array type syntax: [T]
         if self.check(&Token::LBracket) {
             self.advance(); // consume '['
@@ -2038,9 +2076,40 @@ impl Parser {
         }
 
         if self.match_token(&Token::LParen) {
-            let expr = self.parse_expression()?;
-            self.expect(Token::RParen)?;
-            return Ok(expr); // Just return the expression without wrapping
+            // Handle empty tuple: ()
+            if self.match_token(&Token::RParen) {
+                return Ok(Expr::Tuple(vec![]));
+            }
+
+            // Parse first element
+            let first = self.parse_expression()?;
+
+            // Check for comma (tuple) or RParen (grouped expr)
+            if self.match_token(&Token::Comma) {
+                // It's a tuple!
+                let mut elements = vec![first];
+
+                // Parse remaining elements (allow trailing comma)
+                if !self.check(&Token::RParen) {
+                    loop {
+                        elements.push(self.parse_expression()?);
+                        if !self.match_token(&Token::Comma) {
+                            break;
+                        }
+                        // Allow trailing comma before )
+                        if self.check(&Token::RParen) {
+                            break;
+                        }
+                    }
+                }
+
+                self.expect(Token::RParen)?;
+                return Ok(Expr::Tuple(elements));
+            } else {
+                // Just a grouped expression
+                self.expect(Token::RParen)?;
+                return Ok(first);  // Return the expression, not a tuple
+            }
         }
 
         if self.match_token(&Token::LBrace) {
@@ -2298,6 +2367,7 @@ impl Parser {
             Some(Token::Par) => Ok("par".to_string()),
             Some(Token::Vec) => Ok("vec".to_string()),
             Some(Token::ParVec) => Ok("parvec".to_string()),
+            Some(Token::IntLiteral(n)) => Ok(n.to_string()),  // Tuple member access: .0, .1, .2
             _ => Err(self.error("Expected method name".into())),
         }
     }

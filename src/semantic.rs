@@ -1400,6 +1400,13 @@ impl SemanticAnalyzer {
                 }
                 Ok(())
             }
+            Expr::Tuple(elements) => {
+                // Validate all tuple elements
+                for elem in elements {
+                    self.validate_expr(elem)?;
+                }
+                Ok(())
+            }
             Expr::StringTemplate { parts } => {
                 for part in parts {
                     if let StringTemplatePart::Expr(expr) = part {
@@ -2044,6 +2051,9 @@ impl SemanticAnalyzer {
             Expr::ArrayLiteral(elements) => elements
                 .iter()
                 .any(|value| Self::expr_contains_await(value)),
+            Expr::Tuple(elements) => elements
+                .iter()
+                .any(|value| Self::expr_contains_await(value)),
             Expr::Lambda(lambda) => match &lambda.body {
                 LambdaBody::Expr(body) => Self::expr_contains_await(body),
                 LambdaBody::Block(block) => Self::block_contains_await_stmt(block),
@@ -2406,6 +2416,19 @@ impl SemanticAnalyzer {
                     .unwrap_or_else(|| TypeRef::Simple("unknown".into()));
                 Some(TypeRef::Array(Box::new(inner)))
             }
+            Expr::Tuple(elements) => {
+                // Infer tuple type from element types
+                let mut types = Vec::new();
+                for elem in elements {
+                    if let Some(ty) = self.infer_expr_type(elem) {
+                        types.push(ty);
+                    } else {
+                        // If we can't infer an element, we can't infer the tuple
+                        return None;
+                    }
+                }
+                Some(TypeRef::Tuple(types))
+            }
             Expr::Identifier(name) => self.lookup_symbol(name).cloned().flatten(),
             Expr::Member { object, property } => {
                 if property == "length" {
@@ -2414,6 +2437,19 @@ impl SemanticAnalyzer {
 
                 let base_type = self.infer_expr_type(object)?;
                 let base_type = Self::strip_optional(base_type);
+                
+                // Handle tuple member access (.0, .1, .2, etc.)
+                if let TypeRef::Tuple(types) = &base_type {
+                    if let Ok(index) = property.parse::<usize>() {
+                        if index < types.len() {
+                            return Some(types[index].clone());
+                        }
+                    }
+                    // Invalid tuple index - will error later
+                    return None;
+                }
+                
+                // Handle struct/class member access
                 if let TypeRef::Simple(type_name) = base_type {
                     if let Some(info) = self.types.get(&type_name) {
                         if let Some((_, field_ty)) = info.fields.get(property) {
@@ -2466,6 +2502,7 @@ impl SemanticAnalyzer {
             TypeRef::Generic { base, .. } => matches!(base.as_str(), "Vec" | "Array"),
             TypeRef::Optional(inner) => self.type_supports_length(inner),
             TypeRef::Fallible(_) => false,
+            TypeRef::Tuple(_) => false,  // Tuples don't have .length
         }
     }
 
@@ -2989,6 +3026,13 @@ impl SemanticAnalyzer {
             TypeRef::Array(inner) => self.validate_type_ref(inner, available_type_params),
             TypeRef::Optional(inner) => self.validate_type_ref(inner, available_type_params),
             TypeRef::Fallible(inner) => self.validate_type_ref(inner, available_type_params),
+            TypeRef::Tuple(types) => {
+                // Validate all element types in the tuple
+                for ty in types {
+                    self.validate_type_ref(ty, available_type_params)?;
+                }
+                Ok(())
+            }
         }
     }
 
@@ -3362,6 +3406,13 @@ impl SemanticAnalyzer {
                 // Validate all type arguments
                 for arg in args {
                     self.validate_json_parse_type_hint(arg)?;
+                }
+                Ok(())
+            }
+            // Tuples are serializable if all their element types are
+            TypeRef::Tuple(types) => {
+                for ty in types {
+                    self.validate_json_parse_type_hint(ty)?;
                 }
                 Ok(())
             }

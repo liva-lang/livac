@@ -177,6 +177,7 @@ pub enum Expr {
         fields: Vec<(String, Expr)>,
     },
     ArrayLiteral(Vec<Expr>),
+    TupleLiteral(Vec<Expr>),
     Range {
         start: Box<Expr>,
         end: Box<Expr>,
@@ -284,6 +285,11 @@ impl Type {
                 let inner_type = (**inner).clone();
                 let inner_rust = inner_type.to_rust_type();
                 Type::Custom(format!("Result<{}, liva_rt::Error>", inner_rust))
+            }
+            Some(ast::TypeRef::Tuple(types)) => {
+                // Convert to Rust tuple type
+                let rust_type = ast::TypeRef::Tuple(types.clone()).to_rust_type();
+                Type::Custom(rust_type)
             }
             None => Type::Inferred,
         }

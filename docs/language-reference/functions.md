@@ -459,6 +459,85 @@ findUser(id: number): string? {
 }
 ```
 
+### Tuple Returns
+
+⭐ **New in v0.11.0**
+
+Return multiple values using tuples:
+
+```liva
+// Function returning tuple (explicit type required)
+getCoordinates(): (int, int) {
+    return (10, 20)
+}
+
+main() {
+    let coords = getCoordinates()
+    print($"x: {coords.0}, y: {coords.1}")
+}
+```
+
+**Multiple Return Values:**
+
+```liva
+// User info with three values
+getUserInfo(): (string, int, bool) {
+    return ("Alice", 30, true)
+}
+
+main() {
+    let info = getUserInfo()
+    print($"Name: {info.0}, Age: {info.1}, Active: {info.2}")
+}
+```
+
+**Pattern Matching on Tuples:**
+
+```liva
+getStatus(): (int, string) {
+    return (200, "OK")
+}
+
+main() {
+    let status = getStatus()
+    
+    let message = switch status {
+        (200, text) => $"Success: {text}",
+        (404, _) => "Not Found",
+        (500, _) => "Server Error",
+        (code, text) => $"Status {code}: {text}"
+    }
+    
+    print(message)
+}
+```
+
+**Important Notes:**
+
+1. **Explicit Return Type Required:**
+   ```liva
+   // ✅ Good: Explicit return type
+   getPoint(): (int, int) {
+       return (10, 20)
+   }
+   
+   // ❌ May fail: Type inference defaults to f64
+   getPoint() {
+       return (10, 20)  // Inferred as f64, not tuple
+   }
+   ```
+
+2. **Member Access:**
+   ```liva
+   let point = getPoint()
+   let x = point.0  // Access first element
+   let y = point.1  // Access second element
+   ```
+
+3. **Limitations (v0.11.0):**
+   - No destructuring in let bindings: `let (x, y) = getPoint()` not yet supported
+   - Use: `let point = getPoint()` then `point.0`, `point.1`
+
 ### Array Returns
 
 ```liva
