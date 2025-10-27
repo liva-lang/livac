@@ -7,10 +7,10 @@ use livac::{CompilerError, CompilerOptions};
 
 #[derive(Parser)]
 #[command(name = "livac")]
-#[command(about = "Liva → Rust compiler (v0.6)", long_about = None)]
+#[command(about = "Liva → Rust compiler (v0.12)", long_about = None)]
 struct Cli {
     /// Input Liva file
-    input: PathBuf,
+    input: Option<PathBuf>,
 
     /// Output directory (default: ./target/liva_build)
     #[arg(short, long)]
@@ -31,12 +31,29 @@ struct Cli {
     /// Output errors in JSON format for IDE integration
     #[arg(long)]
     json: bool,
+
+    /// Start Language Server Protocol mode
+    #[arg(long)]
+    lsp: bool,
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let cli = Cli::parse();
 
-    if let Err(e) = compile(&cli) {
+    // LSP mode
+    if cli.lsp {
+        if let Err(e) = run_lsp_server().await {
+            eprintln!("LSP server error: {}", e);
+            std::process::exit(1);
+        }
+        return;
+    }
+
+    // Regular compilation mode
+    let input = cli.input.as_ref().expect("input file required for compilation");
+
+    if let Err(e) = compile(&cli, input) {
         // Output errors in JSON format if requested
         if cli.json {
             if let Some(json) = e.to_json() {
@@ -52,16 +69,31 @@ fn main() {
     }
 }
 
-fn compile(cli: &Cli) -> Result<(), CompilerError> {
+async fn run_lsp_server() -> Result<(), Box<dyn std::error::Error>> {
+    use tower_lsp::{LspService, Server};
+    use livac::lsp::LivaLanguageServer;
+
+    let stdin = tokio::io::stdin();
+    let stdout = tokio::io::stdout();
+
+    let (service, socket) = LspService::build(|client| LivaLanguageServer::new(client))
+        .finish();
+
+    Server::new(stdin, stdout, socket).serve(service).await;
+
+    Ok(())
+}
+
+fn compile(cli: &Cli, input: &PathBuf) -> Result<(), CompilerError> {
     let skip_cargo = std::env::var("LIVAC_SKIP_CARGO").is_ok();
 
     if !cli.json {
         println!("{}", "🧩 Liva Compiler v0.11.3".cyan().bold());
-        println!("{} {}", "→ Compiling".green(), cli.input.display());
+        println!("{} {}", "→ Compiling".green(), input.display());
     }
 
     let options = CompilerOptions {
-        input: cli.input.clone(),
+        input: input.clone(),
         output: cli.output.clone(),
         verbose: false,
         check_only: cli.check,
@@ -97,7 +129,7 @@ fn compile(cli: &Cli) -> Result<(), CompilerError> {
         output.clone()
     } else if cli.run && result.has_imports {
         // --run with imports: use .liva_build/ next to source file
-        let input_dir = cli.input.parent().unwrap_or_else(|| std::path::Path::new("."));
+        let input_dir = input.parent().unwrap_or_else(|| std::path::Path::new("."));
         input_dir.join(".liva_build")
     } else {
         // Default: ./target/liva_build
