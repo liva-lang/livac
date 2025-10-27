@@ -6,6 +6,15 @@ use crate::traits::TraitRegistry;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 
+/// Capitalize the first letter of a string
+fn capitalize_first_letter(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+    }
+}
+
 /// Information about a pending Task (async/par) that hasn't been awaited yet
 #[derive(Debug, Clone)]
 struct TaskInfo {
@@ -5120,6 +5129,8 @@ impl CodeGenerator {
                                 "let {} = {}.{}.as_ref().map(|v| v.clone()).unwrap_or_default();\n",
                                 binding_name, temp_name, field.key
                             ).unwrap();
+                            // Only register optional fields for special string template handling
+                            self.struct_destructured_vars.insert(binding_name.clone());
                         } else {
                             // For required fields, just clone
                             write!(
@@ -5129,8 +5140,18 @@ impl CodeGenerator {
                             ).unwrap();
                         }
                         
-                        // Register as potentially optional (from struct destructuring)
-                        self.struct_destructured_vars.insert(binding_name);
+                        // Check if this field is itself a class type, and register it as a class instance
+                        // This is important for nested struct access (e.g., address.zipcode)
+                        if let Some(cls_name) = class_name {
+                            // Try to get the field type from class_fields metadata
+                            // For now, we'll use a heuristic: if the field name starts with lowercase
+                            // and there's a corresponding capitalized class, mark it as class instance
+                            let potential_class = capitalize_first_letter(&field.key);
+                            if self.class_fields.contains_key(&potential_class) {
+                                self.class_instance_vars.insert(binding_name.clone());
+                                self.var_types.insert(binding_name.clone(), potential_class);
+                            }
+                        }
                     }
                     
                     if field != obj_pattern.fields.last().unwrap() {
