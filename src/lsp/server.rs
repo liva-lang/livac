@@ -102,6 +102,7 @@ impl LanguageServer for LivaLanguageServer {
                     ..Default::default()
                 }),
                 definition_provider: Some(OneOf::Left(true)),
+                references_provider: Some(OneOf::Left(true)),
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
@@ -301,6 +302,48 @@ impl LanguageServer for LivaLanguageServer {
                     };
                     return Ok(Some(GotoDefinitionResponse::Scalar(location)));
                 }
+            }
+        }
+        
+        Ok(None)
+    }
+    
+    async fn references(&self, params: ReferenceParams) -> Result<Option<Vec<Location>>> {
+        let uri = &params.text_document_position.text_document.uri;
+        let position = params.text_document_position.position;
+        
+        let doc = match self.documents.get(uri) {
+            Some(doc) => doc,
+            None => return Ok(None),
+        };
+        
+        // Get the word at the cursor position
+        let word = match doc.word_at_position(position) {
+            Some(w) => w,
+            None => return Ok(None),
+        };
+        
+        // Find all textual references in the document
+        if let Some(symbols) = &doc.symbols {
+            // Check if the symbol exists
+            if symbols.lookup(&word).is_some() {
+                let ranges = symbols.find_references(&word, &doc.text);
+                
+                // Convert ranges to locations
+                let locations: Vec<Location> = ranges
+                    .into_iter()
+                    .map(|range| Location {
+                        uri: uri.clone(),
+                        range,
+                    })
+                    .collect();
+                
+                // Include definition if requested
+                if params.context.include_declaration {
+                    // Definition is already included in textual search
+                }
+                
+                return Ok(Some(locations));
             }
         }
         

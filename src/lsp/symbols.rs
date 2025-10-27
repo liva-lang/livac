@@ -145,6 +145,44 @@ impl SymbolTable {
     pub fn all(&self) -> Vec<&Symbol> {
         self.symbols.values().flatten().collect()
     }
+    
+    /// Finds all textual references to a symbol name in the source
+    /// Returns a list of ranges where the symbol appears
+    pub fn find_references(&self, name: &str, source: &str) -> Vec<Range> {
+        let mut references = Vec::new();
+        
+        for (line_idx, line) in source.lines().enumerate() {
+            let mut search_start = 0;
+            
+            while let Some(pos) = line[search_start..].find(name) {
+                let actual_pos = search_start + pos;
+                
+                // Check if it's a word boundary (not part of a larger identifier)
+                let before_ok = actual_pos == 0 || 
+                    !line.chars().nth(actual_pos - 1).unwrap().is_alphanumeric();
+                let after_pos = actual_pos + name.len();
+                let after_ok = after_pos >= line.len() || 
+                    !line.chars().nth(after_pos).unwrap().is_alphanumeric();
+                
+                if before_ok && after_ok {
+                    references.push(Range {
+                        start: Position {
+                            line: line_idx as u32,
+                            character: actual_pos as u32,
+                        },
+                        end: Position {
+                            line: line_idx as u32,
+                            character: (actual_pos + name.len()) as u32,
+                        },
+                    });
+                }
+                
+                search_start = actual_pos + 1;
+            }
+        }
+        
+        references
+    }
 }
 
 impl Default for SymbolTable {
