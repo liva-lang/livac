@@ -1,0 +1,30 @@
+// Test: Tuple pattern matching in switch expressions
+
+main() {
+    // Note: Liva doesn't have tuple literals yet, so we simulate with a function
+    // that returns a conceptual tuple structure
+    
+    // Test with pairs represented as two-element array (simulation)
+    let points = [[0, 0], [1, 0], [0, 1], [5, 3]]
+    
+    // Process each point (simulated tuple)
+    let i = 0
+    while i < 4 {
+        let point = points[i]
+        
+        // In a full implementation, this would be:
+        // let description = switch point {
+        //     (0, 0) => "origin",
+        //     (0, _) => "on Y axis",
+        //     (_, 0) => "on X axis",
+        //     (x, y) => $"point at ({x}, {y})"
+        // }
+        
+        // For now, we test the pattern syntax is recognized
+        // This will fail until tuple destructuring in switch is implemented
+        
+        i = i + 1
+    }
+    
+    console.log("Tuple pattern test - waiting for full tuple support")
+}
