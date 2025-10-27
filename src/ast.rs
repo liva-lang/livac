@@ -465,6 +465,12 @@ pub enum Pattern {
     Binding(String),
     /// Range pattern: 1..10, 1..=10, ..10, 10..
     Range(RangePattern),
+    /// Tuple pattern: (x, y, z)
+    Tuple(Vec<Pattern>),
+    /// Array pattern: [first, second, rest]
+    Array(Vec<Pattern>),
+    /// Or pattern: 1 | 2 | 3
+    Or(Vec<Pattern>),
 }
 
 /// Range pattern for numeric matching
@@ -807,6 +813,35 @@ impl fmt::Display for Pattern {
             Pattern::Wildcard => write!(f, "_"),
             Pattern::Binding(name) => write!(f, "{}", name),
             Pattern::Range(range) => write!(f, "{}", range),
+            Pattern::Tuple(patterns) => {
+                write!(f, "(")?;
+                for (i, pat) in patterns.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", pat)?;
+                }
+                write!(f, ")")
+            }
+            Pattern::Array(patterns) => {
+                write!(f, "[")?;
+                for (i, pat) in patterns.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", pat)?;
+                }
+                write!(f, "]")
+            }
+            Pattern::Or(patterns) => {
+                for (i, pat) in patterns.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, " | ")?;
+                    }
+                    write!(f, "{}", pat)?;
+                }
+                Ok(())
+            }
         }
     }
 }

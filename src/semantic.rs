@@ -2992,8 +2992,99 @@ impl SemanticAnalyzer {
         }
     }
 
+    /// Extract all binding names from a pattern
+    fn extract_pattern_bindings(&self, pattern: &Pattern, bindings: &mut Vec<String>) {
+        match pattern {
+            Pattern::Binding(name) => {
+                bindings.push(name.clone());
+            }
+            Pattern::Tuple(patterns) | Pattern::Array(patterns) | Pattern::Or(patterns) => {
+                for p in patterns {
+                    self.extract_pattern_bindings(p, bindings);
+                }
+            }
+            Pattern::Literal(_) | Pattern::Wildcard | Pattern::Range(_) => {
+                // No bindings
+            }
+        }
+    }
+
+    /// Validate or-patterns have consistent bindings across all alternatives
+    fn validate_or_pattern(&self, or_patterns: &[Pattern]) -> Result<()> {
+        if or_patterns.is_empty() {
+            return Ok(());
+        }
+
+        // Extract bindings from first pattern
+        let mut first_bindings = Vec::new();
+        self.extract_pattern_bindings(&or_patterns[0], &mut first_bindings);
+        first_bindings.sort();
+
+        // Check all other patterns have same bindings
+        for (i, pattern) in or_patterns.iter().enumerate().skip(1) {
+            let mut bindings = Vec::new();
+            self.extract_pattern_bindings(pattern, &mut bindings);
+            bindings.sort();
+
+            if bindings != first_bindings {
+                let mut error = SemanticErrorInfo::new(
+                    "E0906",
+                    "Incompatible Or-Pattern Bindings",
+                    &format!(
+                        "All alternatives in an or-pattern must bind the same variables. \
+                        First pattern binds: {:?}, but pattern {} binds: {:?}",
+                        first_bindings,
+                        i + 1,
+                        bindings
+                    ),
+                );
+
+                error.category = Some("Pattern Matching".to_string());
+                error.hint = Some("Ensure all alternatives in the or-pattern bind the same variable names".to_string());
+                error.example = Some("// ✅ Good:\n1 | 2 | 3 => \"small\"\n\n// ✅ Good with bindings:\nx | y => x  // Both bind one variable\n\n// ❌ Bad:\nSome(x) | None => x  // Inconsistent bindings".to_string());
+                error.doc_link = Some("https://liva-lang.org/docs/pattern-matching#or-patterns".to_string());
+
+                return Err(CompilerError::SemanticError(error));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate all patterns in a switch expression
+    fn validate_switch_patterns(&self, switch_expr: &SwitchExpr) -> Result<()> {
+        for arm in &switch_expr.arms {
+            self.validate_pattern(&arm.pattern)?;
+        }
+        Ok(())
+    }
+
+    /// Recursively validate a pattern
+    fn validate_pattern(&self, pattern: &Pattern) -> Result<()> {
+        match pattern {
+            Pattern::Or(patterns) => {
+                self.validate_or_pattern(patterns)?;
+                for p in patterns {
+                    self.validate_pattern(p)?;
+                }
+            }
+            Pattern::Tuple(patterns) | Pattern::Array(patterns) => {
+                for p in patterns {
+                    self.validate_pattern(p)?;
+                }
+            }
+            Pattern::Literal(_) | Pattern::Wildcard | Pattern::Binding(_) | Pattern::Range(_) => {
+                // No additional validation needed
+            }
+        }
+        Ok(())
+    }
+
     /// Check if switch expression patterns are exhaustive
     fn check_switch_exhaustiveness(&self, switch_expr: &SwitchExpr) -> Result<()> {
+        // First validate all patterns (or-patterns, nested patterns, etc.)
+        self.validate_switch_patterns(switch_expr)?;
+
         // Check if there's a wildcard or binding pattern (catches all cases)
         let has_catch_all = switch_expr.arms.iter().any(|arm| {
             matches!(arm.pattern, Pattern::Wildcard | Pattern::Binding(_))
@@ -3069,22 +3160,92 @@ impl SemanticAnalyzer {
 
     /// Try to infer the type of the switch discriminant from its patterns
     fn infer_switch_discriminant_type(&self, switch_expr: &SwitchExpr) -> Option<String> {
-        // Check first literal pattern to infer type
+        // Check first literal pattern to infer type, including inside or-patterns
         for arm in &switch_expr.arms {
-            if let Pattern::Literal(lit) = &arm.pattern {
-                return Some(match lit {
-                    Literal::Int(_) => "int".to_string(),
-                    Literal::Float(_) => "float".to_string(),
-                    Literal::String(_) => "string".to_string(),
-                    Literal::Bool(_) => "bool".to_string(),
-                    Literal::Char(_) => "char".to_string(),
-                });
+            if let Some(typ) = self.infer_pattern_type(&arm.pattern) {
+                return Some(typ);
             }
         }
 
-        // Could also check discriminant expression directly, but that requires
-        // more complex type inference. For now, we just use pattern hints.
         None
+    }
+
+    /// Helper to infer type from a pattern recursively
+    fn infer_pattern_type(&self, pattern: &Pattern) -> Option<String> {
+        match pattern {
+            Pattern::Literal(lit) => Some(match lit {
+                Literal::Int(_) => "int".to_string(),
+                Literal::Float(_) => "float".to_string(),
+                Literal::String(_) => "string".to_string(),
+                Literal::Bool(_) => "bool".to_string(),
+                Literal::Char(_) => "char".to_string(),
+            }),
+            Pattern::Or(patterns) => {
+                // Check first sub-pattern in or-pattern
+                patterns.first().and_then(|p| self.infer_pattern_type(p))
+            }
+            Pattern::Tuple(patterns) | Pattern::Array(patterns) => {
+                // For tuple/array, we'd need more complex type inference
+                // For now, we don't infer types from these
+                None
+            }
+            Pattern::Wildcard | Pattern::Binding(_) | Pattern::Range(_) => {
+                // These don't give us type info directly
+                None
+            }
+        }
+    }
+
+    /// Extract integer literals from a pattern recursively
+    fn extract_int_literals(&self, pattern: &Pattern, values: &mut HashSet<i64>, has_ranges: &mut bool) {
+        match pattern {
+            Pattern::Literal(Literal::Int(val)) => {
+                values.insert(*val);
+            }
+            Pattern::Literal(_) => {
+                // Other literal types don't contribute to integer exhaustiveness
+            }
+            Pattern::Range(range_pattern) => {
+                *has_ranges = true;
+                // Try to extract integer bounds if both are literals
+                let start_val = range_pattern.start.as_ref().and_then(|expr| {
+                    if let Expr::Literal(Literal::Int(v)) = expr.as_ref() {
+                        Some(*v)
+                    } else {
+                        None
+                    }
+                });
+                
+                let end_val = range_pattern.end.as_ref().and_then(|expr| {
+                    if let Expr::Literal(Literal::Int(v)) = expr.as_ref() {
+                        Some(*v)
+                    } else {
+                        None
+                    }
+                });
+                
+                // Only enumerate small, bounded ranges
+                if let (Some(s), Some(e)) = (start_val, end_val) {
+                    let range_size = (e - s + 1).abs();
+                    if range_size <= 1000 && range_size > 0 {
+                        for i in s..=e {
+                            values.insert(i);
+                        }
+                    }
+                }
+            }
+            Pattern::Or(patterns) => {
+                for p in patterns {
+                    self.extract_int_literals(p, values, has_ranges);
+                }
+            }
+            Pattern::Tuple(patterns) | Pattern::Array(patterns) => {
+                // Don't extract from nested structures for now
+            }
+            Pattern::Wildcard | Pattern::Binding(_) => {
+                // These don't contribute to coverage
+            }
+        }
     }
 
     /// Check exhaustiveness for integer patterns
@@ -3096,44 +3257,7 @@ impl SemanticAnalyzer {
         
         // Collect all explicitly covered values and check for ranges
         for arm in &switch_expr.arms {
-            match &arm.pattern {
-                Pattern::Literal(Literal::Int(val)) => {
-                    covered_values.insert(*val);
-                }
-                Pattern::Range(range_pattern) => {
-                    has_ranges = true;
-                    // For range patterns, we can't easily enumerate all values
-                    // We'll require a wildcard when ranges are present
-                    
-                    // Try to extract integer bounds if both are literals
-                    let start_val = range_pattern.start.as_ref().and_then(|expr| {
-                        if let Expr::Literal(Literal::Int(v)) = expr.as_ref() {
-                            Some(*v)
-                        } else {
-                            None
-                        }
-                    });
-                    
-                    let end_val = range_pattern.end.as_ref().and_then(|expr| {
-                        if let Expr::Literal(Literal::Int(v)) = expr.as_ref() {
-                            Some(*v)
-                        } else {
-                            None
-                        }
-                    });
-                    
-                    // Only enumerate small, bounded ranges
-                    if let (Some(s), Some(e)) = (start_val, end_val) {
-                        let range_size = (e - s + 1).abs();
-                        if range_size <= 1000 && range_size > 0 {
-                            for i in s..=e {
-                                covered_values.insert(i);
-                            }
-                        }
-                    }
-                }
-                _ => {}
-            }
+            self.extract_int_literals(&arm.pattern, &mut covered_values, &mut has_ranges);
         }
         
         // For integers with only literal patterns (no ranges), we can check if all reasonable values are covered
