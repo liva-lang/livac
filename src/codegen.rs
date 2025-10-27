@@ -8548,10 +8548,14 @@ fn generate_use_statement(import_decl: &ImportDecl, _current_module_path: &std::
     } else if import_decl.imports.len() == 1 {
         // Single import
         let symbol = &import_decl.imports[0];
-        Ok(format!("use {}::{};", rust_module_path, symbol))
+        let rust_symbol = to_snake_case(symbol);
+        Ok(format!("use {}::{};", rust_module_path, rust_symbol))
     } else {
         // Multiple imports: use crate::math::{add, subtract};
-        let symbols = import_decl.imports.join(", ");
+        let rust_symbols: Vec<String> = import_decl.imports.iter()
+            .map(|s| to_snake_case(s))
+            .collect();
+        let symbols = rust_symbols.join(", ");
         Ok(format!("use {}::{{{}}};", rust_module_path, symbols))
     }
 }
