@@ -1,0 +1,25 @@
+// Test exhaustiveness for string patterns
+
+main() {
+    console.log("=== Testing String Exhaustiveness ===\n")
+    
+    // Test 1: Exhaustive with wildcard
+    let status = "active"
+    let code = switch status {
+        "active" => 1,
+        "inactive" => 2,
+        _ => 0
+    }
+    console.log($"Test 1 - With wildcard: {code}")
+    
+    // Test 2: Exhaustive with binding pattern
+    let text = "hello"
+    let result = switch text {
+        "yes" => "affirmative",
+        "no" => "negative",
+        other => "unknown"
+    }
+    console.log($"Test 2 - With binding: {result}")
+    
+    console.log("\n✅ All string exhaustiveness tests passed!")
+}

@@ -3051,8 +3051,15 @@ impl SemanticAnalyzer {
 
                 Ok(())
             }
+            Some("int") | Some("i8") | Some("i16") | Some("i32") | Some("i64") | Some("i128") |
+            Some("u8") | Some("u16") | Some("u32") | Some("u64") | Some("u128") => {
+                self.check_int_exhaustiveness(switch_expr, discriminant_type.as_deref().unwrap())
+            }
+            Some("string") | Some("String") => {
+                self.check_string_exhaustiveness(switch_expr)
+            }
             _ => {
-                // For other types (int, string, etc.), we can't easily determine exhaustiveness
+                // For other types (float, char, custom types), we can't easily determine exhaustiveness
                 // without advanced type analysis. Suggest using a wildcard pattern.
                 // This is a soft warning - we don't enforce it for now.
                 Ok(())
@@ -3078,6 +3085,112 @@ impl SemanticAnalyzer {
         // Could also check discriminant expression directly, but that requires
         // more complex type inference. For now, we just use pattern hints.
         None
+    }
+
+    /// Check exhaustiveness for integer patterns
+    fn check_int_exhaustiveness(&self, switch_expr: &SwitchExpr, _int_type: &str) -> Result<()> {
+        use std::collections::HashSet;
+        
+        let mut covered_values: HashSet<i64> = HashSet::new();
+        let mut has_ranges = false;
+        
+        // Collect all explicitly covered values and check for ranges
+        for arm in &switch_expr.arms {
+            match &arm.pattern {
+                Pattern::Literal(Literal::Int(val)) => {
+                    covered_values.insert(*val);
+                }
+                Pattern::Range(range_pattern) => {
+                    has_ranges = true;
+                    // For range patterns, we can't easily enumerate all values
+                    // We'll require a wildcard when ranges are present
+                    
+                    // Try to extract integer bounds if both are literals
+                    let start_val = range_pattern.start.as_ref().and_then(|expr| {
+                        if let Expr::Literal(Literal::Int(v)) = expr.as_ref() {
+                            Some(*v)
+                        } else {
+                            None
+                        }
+                    });
+                    
+                    let end_val = range_pattern.end.as_ref().and_then(|expr| {
+                        if let Expr::Literal(Literal::Int(v)) = expr.as_ref() {
+                            Some(*v)
+                        } else {
+                            None
+                        }
+                    });
+                    
+                    // Only enumerate small, bounded ranges
+                    if let (Some(s), Some(e)) = (start_val, end_val) {
+                        let range_size = (e - s + 1).abs();
+                        if range_size <= 1000 && range_size > 0 {
+                            for i in s..=e {
+                                covered_values.insert(i);
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        
+        // For integers with only literal patterns (no ranges), we can check if all reasonable values are covered
+        // But since integers are infinite, we require a wildcard unless it's a very small set
+        if !has_ranges && !covered_values.is_empty() && covered_values.len() <= 20 {
+            // For small sets of literals without wildcard, suggest adding wildcard
+            let mut error = SemanticErrorInfo::new(
+                "E0902",
+                "Non-exhaustive Pattern Matching",
+                &format!("Pattern matching on integers is not exhaustive - {} value(s) explicitly covered, but no wildcard for other integers", covered_values.len()),
+            );
+            
+            error.category = Some("Pattern Matching".to_string());
+            error.hint = Some("Add wildcard pattern `_` to catch all other integer values".to_string());
+            error.example = Some("switch num {\n    0 => \"zero\",\n    1 => \"one\",\n    _ => \"other\"  // Required\n}".to_string());
+            error.doc_link = Some("https://liva-lang.org/docs/pattern-matching#exhaustiveness".to_string());
+            
+            return Err(CompilerError::SemanticError(error));
+        }
+        
+        // For ranges or large sets, we always require a wildcard (already checked at start)
+        if has_ranges || covered_values.len() > 20 {
+            let mut error = SemanticErrorInfo::new(
+                "E0902",
+                "Non-exhaustive Pattern Matching",
+                "Pattern matching on integers with ranges requires a wildcard pattern",
+            );
+            
+            error.category = Some("Pattern Matching".to_string());
+            error.hint = Some("Add wildcard pattern `_` to catch all values not covered by explicit patterns or ranges".to_string());
+            error.example = Some("switch num {\n    0..=10 => \"small\",\n    11..=100 => \"medium\",\n    _ => \"large\"  // Required\n}".to_string());
+            error.doc_link = Some("https://liva-lang.org/docs/pattern-matching#exhaustiveness".to_string());
+            
+            return Err(CompilerError::SemanticError(error));
+        }
+        
+        Ok(())
+    }
+
+    /// Check exhaustiveness for string patterns
+    fn check_string_exhaustiveness(&self, _switch_expr: &SwitchExpr) -> Result<()> {
+        // Strings are infinite, so we always require a wildcard or binding pattern
+        // This is already checked by has_catch_all at the start of check_switch_exhaustiveness
+        // If we reach here, it means no wildcard was found
+        
+        let mut error = SemanticErrorInfo::new(
+            "E0903",
+            "Non-exhaustive Pattern Matching",
+            "Pattern matching on strings requires a wildcard or binding pattern",
+        );
+        
+        error.category = Some("Pattern Matching".to_string());
+        error.hint = Some("Add wildcard pattern `_` or binding pattern to catch all string values not explicitly matched".to_string());
+        error.example = Some("switch text {\n    \"active\" => 1,\n    \"inactive\" => 2,\n    _ => 0  // Required\n}".to_string());
+        error.doc_link = Some("https://liva-lang.org/docs/pattern-matching#exhaustiveness".to_string());
+        
+        return Err(CompilerError::SemanticError(error));
     }
     
     /// Validate that a type hint for JSON.parse is serializable (Phase 1: JSON Typed Parsing)
