@@ -1,0 +1,3 @@
+// Test with undefined variable error
+let x = 10
+print(y)  // y is not defined

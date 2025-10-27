@@ -5,7 +5,8 @@ use tower_lsp::{Client, LanguageServer};
 
 use super::document::DocumentState;
 use super::diagnostics::error_to_diagnostic;
-use crate::{lexer, parser};
+use super::symbols::SymbolTable;
+use crate::{lexer, parser, semantic};
 
 /// Main Language Server for Liva
 pub struct LivaLanguageServer {
@@ -47,8 +48,22 @@ impl LivaLanguageServer {
         // Parse
         match parser::parse(tokens, &doc.text) {
             Ok(ast) => {
-                doc.ast = Some(ast);
-                doc.diagnostics.clear();
+                // Run semantic analysis
+                match semantic::analyze(ast.clone()) {
+                    Ok(analyzed_ast) => {
+                        doc.ast = Some(analyzed_ast);
+                        doc.diagnostics.clear();
+                        // TODO: Build proper symbol table from analyzed AST
+                        doc.symbols = Some(SymbolTable::new());
+                    }
+                    Err(e) => {
+                        // Store semantic error as diagnostic
+                        doc.ast = Some(ast);
+                        if let Some(diag) = error_to_diagnostic(&e) {
+                            doc.diagnostics = vec![diag];
+                        }
+                    }
+                }
             }
             Err(e) => {
                 // Store parse error as diagnostic
