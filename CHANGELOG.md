@@ -31,9 +31,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `current_lambda_element_type` to track class types through lambda generation
 - Works correctly with parallel operations (`.parvec().forEach`)
 
+**Nested Struct Access:**
+- Fixed issue where nested structs were incorrectly treated as JsonValue
+- Destructured nested class fields (e.g., `address` from `User`) now correctly identified as class instances
+- Member access on nested structs now generates correct code (e.g., `address.zipcode` instead of `address.get_field("zipcode")`)
+- Added type tracking for destructured fields that are themselves class types
+
 **Real-World Testing:**
 - Tested with JSONPlaceholder API integration
 - User class with optional `username?: string` field works correctly
+- Nested struct access (`address.zipcode`) works correctly in string templates
 - Object destructuring in forEach properly handles mixed optional/required fields
 
 **Example of Fixed Behavior:**
