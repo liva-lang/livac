@@ -1,0 +1,32 @@
+// Parser test - Union types
+
+main() {
+    // Basic two-type unions
+    let x: int | string = 42
+    let y: string | bool = "hello"
+    let z: bool | int = true
+    
+    // Three-type unions
+    let multi: int | string | bool = 100
+    let value: string | int | float = 3.14
+    
+    // Union with tuples
+    let coord: (int, int) | string = (10, 20)
+    let data: int | (string, bool) = 42
+    
+    // Union with arrays
+    let items: [int] | string = "text"
+    let collection: int | [string] = 5
+    
+    // Union with optionals
+    let maybe: int? | string = 42
+    let opt: string | int? = "text"
+    
+    // Multiple unions in same scope
+    let a: int | string = 1
+    let b: string | bool = "test"
+    let c: bool | int = false
+    
+    // Union with type inference from value
+    let inferred: int | string = 100
+}

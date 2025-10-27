@@ -1,0 +1,465 @@
+---
+source: tests/parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "main",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "x"
+                    },
+                    "type_ref": {
+                      "Union": [
+                        {
+                          "Simple": "int"
+                        },
+                        {
+                          "Simple": "string"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "init": {
+                  "Literal": {
+                    "Int": 42
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "y"
+                    },
+                    "type_ref": {
+                      "Union": [
+                        {
+                          "Simple": "string"
+                        },
+                        {
+                          "Simple": "bool"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "init": {
+                  "Literal": {
+                    "String": "hello"
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "z"
+                    },
+                    "type_ref": {
+                      "Union": [
+                        {
+                          "Simple": "bool"
+                        },
+                        {
+                          "Simple": "int"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "init": {
+                  "Literal": {
+                    "Bool": true
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "multi"
+                    },
+                    "type_ref": {
+                      "Union": [
+                        {
+                          "Simple": "int"
+                        },
+                        {
+                          "Simple": "string"
+                        },
+                        {
+                          "Simple": "bool"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "init": {
+                  "Literal": {
+                    "Int": 100
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "value"
+                    },
+                    "type_ref": {
+                      "Union": [
+                        {
+                          "Simple": "string"
+                        },
+                        {
+                          "Simple": "int"
+                        },
+                        {
+                          "Simple": "float"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "init": {
+                  "Literal": {
+                    "Float": 3.14
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "coord"
+                    },
+                    "type_ref": {
+                      "Union": [
+                        {
+                          "Tuple": [
+                            {
+                              "Simple": "int"
+                            },
+                            {
+                              "Simple": "int"
+                            }
+                          ]
+                        },
+                        {
+                          "Simple": "string"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "init": {
+                  "Tuple": [
+                    {
+                      "Literal": {
+                        "Int": 10
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "Int": 20
+                      }
+                    }
+                  ]
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "data"
+                    },
+                    "type_ref": {
+                      "Union": [
+                        {
+                          "Simple": "int"
+                        },
+                        {
+                          "Tuple": [
+                            {
+                              "Simple": "string"
+                            },
+                            {
+                              "Simple": "bool"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "init": {
+                  "Literal": {
+                    "Int": 42
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "items"
+                    },
+                    "type_ref": {
+                      "Union": [
+                        {
+                          "Array": {
+                            "Simple": "int"
+                          }
+                        },
+                        {
+                          "Simple": "string"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "init": {
+                  "Literal": {
+                    "String": "text"
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "collection"
+                    },
+                    "type_ref": {
+                      "Union": [
+                        {
+                          "Simple": "int"
+                        },
+                        {
+                          "Array": {
+                            "Simple": "string"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "init": {
+                  "Literal": {
+                    "Int": 5
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "maybe"
+                    },
+                    "type_ref": {
+                      "Union": [
+                        {
+                          "Optional": {
+                            "Simple": "int"
+                          }
+                        },
+                        {
+                          "Simple": "string"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "init": {
+                  "Literal": {
+                    "Int": 42
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "opt"
+                    },
+                    "type_ref": {
+                      "Union": [
+                        {
+                          "Simple": "string"
+                        },
+                        {
+                          "Optional": {
+                            "Simple": "int"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "init": {
+                  "Literal": {
+                    "String": "text"
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "a"
+                    },
+                    "type_ref": {
+                      "Union": [
+                        {
+                          "Simple": "int"
+                        },
+                        {
+                          "Simple": "string"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "init": {
+                  "Literal": {
+                    "Int": 1
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "b"
+                    },
+                    "type_ref": {
+                      "Union": [
+                        {
+                          "Simple": "string"
+                        },
+                        {
+                          "Simple": "bool"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "init": {
+                  "Literal": {
+                    "String": "test"
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "c"
+                    },
+                    "type_ref": {
+                      "Union": [
+                        {
+                          "Simple": "bool"
+                        },
+                        {
+                          "Simple": "int"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "init": {
+                  "Literal": {
+                    "Bool": false
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "inferred"
+                    },
+                    "type_ref": {
+                      "Union": [
+                        {
+                          "Simple": "int"
+                        },
+                        {
+                          "Simple": "string"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "init": {
+                  "Literal": {
+                    "Int": 100
+                  }
+                },
+                "is_fallible": false
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    }
+  ]
+}

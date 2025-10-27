@@ -1,0 +1,380 @@
+---
+source: tests/parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "TypeAlias": {
+        "name": "UserId",
+        "type_params": [],
+        "target_type": {
+          "Simple": "int"
+        }
+      }
+    },
+    {
+      "TypeAlias": {
+        "name": "Username",
+        "type_params": [],
+        "target_type": {
+          "Simple": "string"
+        }
+      }
+    },
+    {
+      "TypeAlias": {
+        "name": "Score",
+        "type_params": [],
+        "target_type": {
+          "Simple": "float"
+        }
+      }
+    },
+    {
+      "TypeAlias": {
+        "name": "Point",
+        "type_params": [],
+        "target_type": {
+          "Tuple": [
+            {
+              "Simple": "int"
+            },
+            {
+              "Simple": "int"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "TypeAlias": {
+        "name": "Point3D",
+        "type_params": [],
+        "target_type": {
+          "Tuple": [
+            {
+              "Simple": "int"
+            },
+            {
+              "Simple": "int"
+            },
+            {
+              "Simple": "int"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "TypeAlias": {
+        "name": "Coordinate",
+        "type_params": [],
+        "target_type": {
+          "Tuple": [
+            {
+              "Simple": "float"
+            },
+            {
+              "Simple": "float"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "TypeAlias": {
+        "name": "Box",
+        "type_params": [
+          {
+            "name": "T",
+            "constraints": []
+          }
+        ],
+        "target_type": {
+          "Tuple": [
+            {
+              "Simple": "T"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "TypeAlias": {
+        "name": "Pair",
+        "type_params": [
+          {
+            "name": "T",
+            "constraints": []
+          },
+          {
+            "name": "U",
+            "constraints": []
+          }
+        ],
+        "target_type": {
+          "Tuple": [
+            {
+              "Simple": "T"
+            },
+            {
+              "Simple": "U"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "TypeAlias": {
+        "name": "Triple",
+        "type_params": [
+          {
+            "name": "A",
+            "constraints": []
+          },
+          {
+            "name": "B",
+            "constraints": []
+          },
+          {
+            "name": "C",
+            "constraints": []
+          }
+        ],
+        "target_type": {
+          "Tuple": [
+            {
+              "Simple": "A"
+            },
+            {
+              "Simple": "B"
+            },
+            {
+              "Simple": "C"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "TypeAlias": {
+        "name": "IntBox",
+        "type_params": [],
+        "target_type": {
+          "Generic": {
+            "base": "Box",
+            "args": [
+              {
+                "Simple": "int"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "TypeAlias": {
+        "name": "StringPair",
+        "type_params": [],
+        "target_type": {
+          "Generic": {
+            "base": "Pair",
+            "args": [
+              {
+                "Simple": "string"
+              },
+              {
+                "Simple": "string"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "TypeAlias": {
+        "name": "IntPoint",
+        "type_params": [],
+        "target_type": {
+          "Generic": {
+            "base": "Pair",
+            "args": [
+              {
+                "Simple": "int"
+              },
+              {
+                "Simple": "int"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "TypeAlias": {
+        "name": "IntArray",
+        "type_params": [],
+        "target_type": {
+          "Array": {
+            "Simple": "int"
+          }
+        }
+      }
+    },
+    {
+      "TypeAlias": {
+        "name": "StringList",
+        "type_params": [],
+        "target_type": {
+          "Array": {
+            "Simple": "string"
+          }
+        }
+      }
+    },
+    {
+      "TypeAlias": {
+        "name": "Matrix",
+        "type_params": [],
+        "target_type": {
+          "Array": {
+            "Array": {
+              "Simple": "int"
+            }
+          }
+        }
+      }
+    },
+    {
+      "TypeAlias": {
+        "name": "MaybeInt",
+        "type_params": [],
+        "target_type": {
+          "Optional": {
+            "Simple": "int"
+          }
+        }
+      }
+    },
+    {
+      "TypeAlias": {
+        "name": "MaybeString",
+        "type_params": [],
+        "target_type": {
+          "Optional": {
+            "Simple": "string"
+          }
+        }
+      }
+    },
+    {
+      "Function": {
+        "name": "main",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "id"
+                    },
+                    "type_ref": {
+                      "Simple": "UserId"
+                    }
+                  }
+                ],
+                "init": {
+                  "Literal": {
+                    "Int": 42
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "name"
+                    },
+                    "type_ref": {
+                      "Simple": "Username"
+                    }
+                  }
+                ],
+                "init": {
+                  "Literal": {
+                    "String": "Alice"
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "pos"
+                    },
+                    "type_ref": {
+                      "Simple": "Point"
+                    }
+                  }
+                ],
+                "init": {
+                  "Tuple": [
+                    {
+                      "Literal": {
+                        "Int": 5
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "Int": 10
+                      }
+                    }
+                  ]
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "boxed"
+                    },
+                    "type_ref": {
+                      "Simple": "IntBox"
+                    }
+                  }
+                ],
+                "init": {
+                  "Tuple": [
+                    {
+                      "Literal": {
+                        "Int": 100
+                      }
+                    }
+                  ]
+                },
+                "is_fallible": false
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    }
+  ]
+}

@@ -146,3 +146,13 @@ fn test_param_destructuring() {
 fn test_union_patterns() {
     test_parser_ok("union_patterns");
 }
+
+#[test]
+fn test_type_aliases() {
+    test_parser_ok("type_aliases");
+}
+
+#[test]
+fn test_union_types() {
+    test_parser_ok("union_types");
+}

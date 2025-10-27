@@ -1,0 +1,37 @@
+// Parser test - Type aliases
+
+// Simple aliases
+type UserId = int
+type Username = string
+type Score = float
+
+// Tuple aliases
+type Point = (int, int)
+type Point3D = (int, int, int)
+type Coordinate = (float, float)
+
+// Generic aliases
+type Box<T> = (T,)
+type Pair<T, U> = (T, U)
+type Triple<A, B, C> = (A, B, C)
+
+// Nested aliases
+type IntBox = Box<int>
+type StringPair = Pair<string, string>
+type IntPoint = Pair<int, int>
+
+// Array aliases
+type IntArray = [int]
+type StringList = [string]
+type Matrix = [[int]]
+
+// Optional aliases
+type MaybeInt = int?
+type MaybeString = string?
+
+main() {
+    let id: UserId = 42
+    let name: Username = "Alice"
+    let pos: Point = (5, 10)
+    let boxed: IntBox = (100,)
+}
