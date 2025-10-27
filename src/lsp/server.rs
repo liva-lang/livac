@@ -51,8 +51,8 @@ impl LivaLanguageServer {
                 // Run semantic analysis
                 match semantic::analyze(ast.clone()) {
                     Ok(analyzed_ast) => {
-                        // Build symbol table from AST
-                        let symbols = SymbolTable::from_ast(&analyzed_ast);
+                        // Build symbol table from AST (pass source text for span conversion)
+                        let symbols = SymbolTable::from_ast(&analyzed_ast, &doc.text);
                         doc.ast = Some(analyzed_ast);
                         doc.symbols = Some(symbols);
                         doc.diagnostics.clear();
@@ -101,6 +101,7 @@ impl LanguageServer for LivaLanguageServer {
                     trigger_characters: Some(vec![".".to_string(), ":".to_string()]),
                     ..Default::default()
                 }),
+                definition_provider: Some(OneOf::Left(true)),
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
@@ -269,5 +270,40 @@ impl LanguageServer for LivaLanguageServer {
         }
         
         Ok(Some(CompletionResponse::Array(items)))
+    }
+    
+    async fn goto_definition(
+        &self,
+        params: GotoDefinitionParams,
+    ) -> Result<Option<GotoDefinitionResponse>> {
+        let uri = &params.text_document_position_params.text_document.uri;
+        let position = params.text_document_position_params.position;
+        
+        let doc = match self.documents.get(uri) {
+            Some(doc) => doc,
+            None => return Ok(None),
+        };
+        
+        // Get the word at the cursor position
+        let word = match doc.word_at_position(position) {
+            Some(w) => w,
+            None => return Ok(None),
+        };
+        
+        // Look up the symbol in the symbol table
+        if let Some(symbols) = &doc.symbols {
+            if let Some(symbol_list) = symbols.lookup(&word) {
+                // Return the first symbol's location (TODO: handle overloads)
+                if let Some(symbol) = symbol_list.first() {
+                    let location = Location {
+                        uri: uri.clone(),
+                        range: symbol.range,
+                    };
+                    return Ok(Some(GotoDefinitionResponse::Scalar(location)));
+                }
+            }
+        }
+        
+        Ok(None)
     }
 }
