@@ -1,7 +1,7 @@
 # 🗺️ Liva Language Roadmap
 
-> **Current Version:** v0.11.1  
-> **Status:** Alpha - Type Aliases completed  
+> **Current Version:** v0.11.2  
+> **Status:** Alpha - Union Types completed  
 > **Last Updated:** 2025-01-28
 
 ---
@@ -26,14 +26,14 @@ The roadmap is organized into focused phases:
 - **Phase 7:** 🎯 Advanced types - Tuples, unions, type aliases (v0.11.0+) 🔄
   - **Phase 7.1:** ✅ Tuple Types (v0.11.0) - Complete
   - **Phase 7.3:** ✅ Type Aliases (v0.11.1) - Complete
-  - **Phase 7.2:** 📋 Union Types - Next up
+  - **Phase 7.2:** ✅ Union Types (v0.11.2) - Complete (pattern matching pending)
 - **Phase 8:** 🚢 Production release - LSP, debugging, stability (v1.0.0) 📋
 
 Each phase is broken into sub-tasks with time estimates and clear deliverables.
 
 ---
 
-## �📍 Current Status (v0.8.1)
+## 📍 Current Status (v0.11.2)
 
 ### ✅ Completed Features
 
@@ -1732,25 +1732,45 @@ let location = switch point {
 }
 ```
 
-### 7.2 Union Types (Optional)
-- [ ] Design union type syntax: `int | string`
-- [ ] Implement union type checking
-- [ ] Add type narrowing in switch
-- [ ] Codegen for unions (enums or trait objects)
+### 7.2 Union Types ✅ COMPLETE (v0.11.2)
+- [x] Design union type syntax: `int | string`
+- [x] Implement AST with Union variant
+- [x] Parser with union flattening and deduplication
+- [x] Semantic validation for union types
+- [x] Codegen: Generate Rust enums with variants
+- [x] Auto-wrapping values in union variants
+- [x] Implement Display trait for unions
+- [x] Complete documentation
 
-**Estimated:** 4 hours
+**Completed:** January 28, 2025 (3 hours)
 
 **Example:**
 ```liva
-// Union type
-let value: int | string = 42
+// Union types with inline annotations
+let x: int | string = 42
+let y: int | string = "hello"
 
-// Type narrowing
-let result = switch value {
-    x: int => x * 2,
-    s: string => s.length
-}
+// Multi-type unions
+let z: int | string | bool = true
+
+// Generates:
+// enum Union_i32_String { Int(i32), Str(String) }
+// let x = Union_i32_String::Int(42);
+// let y = Union_i32_String::Str("hello".to_string());
 ```
+
+**Features:**
+- Type-safe sum types with automatic variant wrapping
+- Union flattening and duplicate removal
+- String literal conversion (`.to_string()`)
+- Display, Debug, and Clone implementations
+- Documentation: `docs/language-reference/union-types.md`
+
+**Known Limitations:**
+- Type aliases with unions at top level pending
+- Pattern matching integration pending (Phase 7.2.6)
+
+**Estimated remaining (pattern matching):** 2 hours
 
 ### 7.3 Type Aliases ✅ COMPLETE (v0.11.1)
 - [x] Add `type` keyword for aliases

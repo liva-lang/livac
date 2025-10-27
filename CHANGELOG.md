@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.2] - 2025-01-28
+
+### Added - Union Types ✨
+
+**Basic Union Types:**
+- ✅ Syntax: `int | string`, `T | U | V`
+- ✅ Type-safe sum types with automatic variant wrapping
+- ✅ Inline union annotations: `let x: int | string = 42`
+- ✅ Multi-type unions: `int | string | bool`
+
+**Code Generation:**
+- ✅ Generates Rust enums with proper variants: `Union_i32_String { Int(i32), Str(String) }`
+- ✅ Auto-wrapping values in correct variants: `42` → `Union_i32_String::Int(42)`
+- ✅ Automatic `.to_string()` conversion for string literals
+- ✅ Implements `Debug`, `Clone`, and `Display` traits for all unions
+
+**Type Safety:**
+- ✅ Union flattening: `(A | B) | C` becomes `A | B | C`
+- ✅ Duplicate removal: `int | int | string` becomes `int | string`
+- ✅ Full semantic validation
+- ✅ Integration with existing type system
+
+**Documentation:**
+- ✅ Complete specification in `docs/language-reference/union-types.md`
+- ✅ Examples: Result<T>, Option<T>, discriminated unions
+- ✅ Comparison with TypeScript, Rust, and Haskell
+
+**Known Limitations:**
+- ⚠️ Type aliases with unions (e.g., `type Result<T> = T | Error`) not yet supported at top level
+- ⚠️ Pattern matching integration pending (Phase 7.2.6)
+
 ## [0.11.1] - 2025-01-28
 
 ### Added - Type Aliases ✨
