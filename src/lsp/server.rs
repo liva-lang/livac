@@ -51,10 +51,11 @@ impl LivaLanguageServer {
                 // Run semantic analysis
                 match semantic::analyze(ast.clone()) {
                     Ok(analyzed_ast) => {
+                        // Build symbol table from AST
+                        let symbols = SymbolTable::from_ast(&analyzed_ast);
                         doc.ast = Some(analyzed_ast);
+                        doc.symbols = Some(symbols);
                         doc.diagnostics.clear();
-                        // TODO: Build proper symbol table from analyzed AST
-                        doc.symbols = Some(SymbolTable::new());
                     }
                     Err(e) => {
                         // Store semantic error as diagnostic
@@ -95,6 +96,11 @@ impl LanguageServer for LivaLanguageServer {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
                     TextDocumentSyncKind::FULL,
                 )),
+                completion_provider: Some(CompletionOptions {
+                    resolve_provider: Some(false),
+                    trigger_characters: Some(vec![".".to_string(), ":".to_string()]),
+                    ..Default::default()
+                }),
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
@@ -174,5 +180,94 @@ impl LanguageServer for LivaLanguageServer {
         self.client
             .publish_diagnostics(params.text_document.uri, Vec::new(), None)
             .await;
+    }
+    
+    async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
+        let uri = &params.text_document_position.text_document.uri;
+        let position = params.text_document_position.position;
+        
+        let doc = match self.documents.get(uri) {
+            Some(doc) => doc,
+            None => return Ok(None),
+        };
+        
+        let mut items = Vec::new();
+        
+        // Keywords
+        let keywords = vec![
+            "let", "const", "fn", "return", "if", "else", "while", "for", "switch",
+            "async", "await", "task", "fire", "import", "from", "export", "type",
+            "true", "false", "print", "console", "Math", "JSON", "File", "HTTP",
+        ];
+        
+        for keyword in keywords {
+            items.push(CompletionItem {
+                label: keyword.to_string(),
+                kind: Some(CompletionItemKind::KEYWORD),
+                detail: Some("keyword".to_string()),
+                ..Default::default()
+            });
+        }
+        
+        // Types
+        let types = vec![
+            "int", "float", "string", "bool", "void",
+        ];
+        
+        for type_name in types {
+            items.push(CompletionItem {
+                label: type_name.to_string(),
+                kind: Some(CompletionItemKind::TYPE_PARAMETER),
+                detail: Some("type".to_string()),
+                ..Default::default()
+            });
+        }
+        
+        // Built-in functions
+        let builtins = vec![
+            ("parseInt", "parseInt(str: string) -> (int, string)"),
+            ("parseFloat", "parseFloat(str: string) -> (float, string)"),
+            ("toString", "toString(value) -> string"),
+        ];
+        
+        for (name, signature) in builtins {
+            items.push(CompletionItem {
+                label: name.to_string(),
+                kind: Some(CompletionItemKind::FUNCTION),
+                detail: Some(signature.to_string()),
+                ..Default::default()
+            });
+        }
+        
+        // Add symbols from AST (variables, functions, classes)
+        if let Some(symbols) = &doc.symbols {
+            for symbol in symbols.all() {
+                // Skip if already added (avoid duplicates with keywords)
+                if items.iter().any(|item| item.label == symbol.name) {
+                    continue;
+                }
+                
+                // Convert SymbolKind to CompletionItemKind
+                let completion_kind = match symbol.kind {
+                    SymbolKind::FUNCTION => CompletionItemKind::FUNCTION,
+                    SymbolKind::CLASS => CompletionItemKind::CLASS,
+                    SymbolKind::METHOD => CompletionItemKind::METHOD,
+                    SymbolKind::STRUCT => CompletionItemKind::STRUCT,
+                    SymbolKind::CONSTANT => CompletionItemKind::CONSTANT,
+                    SymbolKind::VARIABLE => CompletionItemKind::VARIABLE,
+                    SymbolKind::TYPE_PARAMETER => CompletionItemKind::TYPE_PARAMETER,
+                    _ => CompletionItemKind::TEXT,
+                };
+                
+                items.push(CompletionItem {
+                    label: symbol.name.clone(),
+                    kind: Some(completion_kind),
+                    detail: symbol.detail.clone(),
+                    ..Default::default()
+                });
+            }
+        }
+        
+        Ok(Some(CompletionResponse::Array(items)))
     }
 }
