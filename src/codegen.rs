@@ -37,6 +37,7 @@ pub struct CodeGenerator {
     json_value_vars: std::collections::HashSet<String>, // Track which variables are JsonValue
     // --- Class/type metadata (for inheritance and field resolution)
     class_fields: std::collections::HashMap<String, std::collections::HashSet<String>>,
+    class_optional_fields: std::collections::HashMap<String, std::collections::HashSet<String>>, // Track optional fields per class
     class_base: std::collections::HashMap<String, Option<String>>,
     var_types: std::collections::HashMap<String, String>, // var -> ClassName
     fallible_functions: std::collections::HashSet<String>, // Track which functions are fallible
@@ -45,8 +46,10 @@ pub struct CodeGenerator {
     // --- Phase 3: Error binding variables (Option<String> type)
     error_binding_vars: std::collections::HashSet<String>, // Variables from error binding (second variable in let x, err = ...)
     option_value_vars: std::collections::HashSet<String>, // Variables from error binding (first variable in let value, err = ..., which is Option<T>)
+    struct_destructured_vars: std::collections::HashSet<String>, // Variables from struct destructuring (may be Option<T>)
     rust_struct_vars: std::collections::HashSet<String>, // Variables that are Rust structs (HTTP response, etc.), not JsonValue
     typed_array_vars: std::collections::HashMap<String, String>, // Track arrays with element type: var_name -> element_class_name (e.g., "posts" -> "Post")
+    current_lambda_element_type: Option<String>, // Temporarily track element type when generating lambdas in forEach/map/etc
     // --- Phase 4: Join combining optimization
     #[allow(dead_code)]
     awaitable_tasks: Vec<String>, // Tasks that can be combined with tokio::join!
@@ -69,14 +72,17 @@ impl CodeGenerator {
             array_vars: std::collections::HashSet::new(),
             json_value_vars: std::collections::HashSet::new(),
             class_fields: std::collections::HashMap::new(),
+            class_optional_fields: std::collections::HashMap::new(),
             class_base: std::collections::HashMap::new(),
             var_types: std::collections::HashMap::new(),
             fallible_functions: std::collections::HashSet::new(),
             pending_tasks: std::collections::HashMap::new(),
             error_binding_vars: std::collections::HashSet::new(),
             option_value_vars: std::collections::HashSet::new(),
+            struct_destructured_vars: std::collections::HashSet::new(),
             rust_struct_vars: std::collections::HashSet::new(),
             typed_array_vars: std::collections::HashMap::new(),
+            current_lambda_element_type: None,
             awaitable_tasks: Vec::new(),
             trait_registry: TraitRegistry::new(),
         }
@@ -239,16 +245,22 @@ impl CodeGenerator {
 
         // Build class metadata maps
         self.class_fields.clear();
+        self.class_optional_fields.clear();
         self.class_base.clear();
         for item in &program.items {
             if let TopLevel::Class(cls) = item {
                 let mut fields = std::collections::HashSet::new();
+                let mut optional_fields = std::collections::HashSet::new();
                 for m in &cls.members {
                     if let Member::Field(f) = m {
                         fields.insert(f.name.clone());
+                        if f.is_optional {
+                            optional_fields.insert(f.name.clone());
+                        }
                     }
                 }
                 self.class_fields.insert(cls.name.clone(), fields);
+                self.class_optional_fields.insert(cls.name.clone(), optional_fields);
                 self.class_base.insert(cls.name.clone(), cls.base.clone());
             }
         }
@@ -1001,19 +1013,24 @@ impl CodeGenerator {
                         .iter()
                         .any(|p| p.name() == Some(field.name.as_str()))
                     {
-                        let default_value = match field.type_ref.as_ref() {
-                            Some(type_ref) => match type_ref {
-                                TypeRef::Simple(name) => match name.as_str() {
-                                    "number" | "int" => "0".to_string(),
-                                    "float" => "0.0".to_string(),
-                                    "string" => "String::new()".to_string(),
-                                    "bool" => "false".to_string(),
-                                    "char" => "'\\0'".to_string(),
+                        // Optional fields should default to None
+                        let default_value = if field.is_optional {
+                            "None".to_string()
+                        } else {
+                            match field.type_ref.as_ref() {
+                                Some(type_ref) => match type_ref {
+                                    TypeRef::Simple(name) => match name.as_str() {
+                                        "number" | "int" => "0".to_string(),
+                                        "float" => "0.0".to_string(),
+                                        "string" => "String::new()".to_string(),
+                                        "bool" => "false".to_string(),
+                                        "char" => "'\\0'".to_string(),
+                                        _ => "Default::default()".to_string(),
+                                    },
                                     _ => "Default::default()".to_string(),
                                 },
-                                _ => "Default::default()".to_string(),
-                            },
-                            None => "Default::default()".to_string(),
+                                None => "Default::default()".to_string(),
+                            }
                         };
                         self.write_indent();
                         self.writeln(&format!(
@@ -1040,19 +1057,24 @@ impl CodeGenerator {
 
             for member in &class.members {
                 if let Member::Field(field) = member {
-                    let default_value = match field.type_ref.as_ref() {
-                        Some(type_ref) => match type_ref {
-                            TypeRef::Simple(name) => match name.as_str() {
-                                "number" | "int" => "0".to_string(),
-                                "float" => "0.0".to_string(),
-                                "string" => "String::new()".to_string(),
-                                "bool" => "false".to_string(),
-                                "char" => "'\\0'".to_string(),
+                    // Optional fields should default to None
+                    let default_value = if field.is_optional {
+                        "None".to_string()
+                    } else {
+                        match field.type_ref.as_ref() {
+                            Some(type_ref) => match type_ref {
+                                TypeRef::Simple(name) => match name.as_str() {
+                                    "number" | "int" => "0".to_string(),
+                                    "float" => "0.0".to_string(),
+                                    "string" => "String::new()".to_string(),
+                                    "bool" => "false".to_string(),
+                                    "char" => "'\\0'".to_string(),
+                                    _ => "Default::default()".to_string(),
+                                },
                                 _ => "Default::default()".to_string(),
                             },
-                            _ => "Default::default()".to_string(),
-                        },
-                        None => "Default::default()".to_string(),
+                            None => "Default::default()".to_string(),
+                        }
                     };
 
                     self.writeln(&format!(
@@ -2763,12 +2785,15 @@ impl CodeGenerator {
                             self.indent();
                             self.output.push('\n');
                             
+                            // Capture element type before mutable borrows
+                            let element_type_for_destr = self.current_lambda_element_type.clone();
+                            
                             // Generate destructuring for lambda params
                             for (idx, param) in lambda.params.iter().enumerate() {
                                 if param.is_destructuring() {
                                     let temp_name = format!("_param_{}", idx);
                                     self.write_indent();
-                                    self.generate_lambda_param_destructuring(&param.pattern, &temp_name, false)?;
+                                    self.generate_lambda_param_destructuring(&param.pattern, &temp_name, false, element_type_for_destr.as_deref())?;
                                 }
                             }
                             
@@ -2793,13 +2818,16 @@ impl CodeGenerator {
                                     self.indent();
                                     self.output.push('\n');
                                     
+                                    // Capture element type before mutable borrows
+                                    let element_type_for_destr = self.current_lambda_element_type.clone();
+                                    
                                     // Generate destructuring for lambda params (if any)
                                     if has_destructuring {
                                         for (idx, param) in lambda.params.iter().enumerate() {
                                             if param.is_destructuring() {
                                                 let temp_name = format!("_param_{}", idx);
                                                 self.write_indent();
-                                                self.generate_lambda_param_destructuring(&param.pattern, &temp_name, false)?;
+                                                self.generate_lambda_param_destructuring(&param.pattern, &temp_name, false, element_type_for_destr.as_deref())?;
                                                 self.output.push('\n');
                                             }
                                         }
@@ -2831,13 +2859,16 @@ impl CodeGenerator {
                                 self.indent();
                                 self.output.push('\n');
                                 
+                                // Capture element type before mutable borrows
+                                let element_type_for_destr = self.current_lambda_element_type.clone();
+                                
                                 // Generate destructuring for lambda params (if any)
                                 if has_destructuring {
                                     for (idx, param) in lambda.params.iter().enumerate() {
                                         if param.is_destructuring() {
                                             let temp_name = format!("_param_{}", idx);
                                             self.write_indent();
-                                            self.generate_lambda_param_destructuring(&param.pattern, &temp_name, false)?;
+                                            self.generate_lambda_param_destructuring(&param.pattern, &temp_name, false, element_type_for_destr.as_deref())?;
                                             self.output.push('\n');
                                         }
                                     }
@@ -3683,14 +3714,18 @@ impl CodeGenerator {
                 if let Expr::Lambda(lambda) = arg {
                     // Track lambda parameter types for typed arrays
                     // If the object is a typed array (e.g., posts: [Post]), track that the param is Post
-                    if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
-                        if let Some(_element_type) = self.typed_array_vars.get(&base_var_name).cloned() {
-                            // Track the lambda parameter as an instance of this class type
-                            for param in &lambda.params {
-                                if let Some(name) = param.name() {
-                                    let param_name = self.sanitize_name(name);
-                                    self.class_instance_vars.insert(param_name);
-                                }
+                    let element_type = if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
+                        self.typed_array_vars.get(&base_var_name).cloned()
+                    } else {
+                        None
+                    };
+                    
+                    if let Some(ref elem_type) = element_type {
+                        // Track the lambda parameter as an instance of this class type
+                        for param in &lambda.params {
+                            if let Some(name) = param.name() {
+                                let param_name = self.sanitize_name(name);
+                                self.class_instance_vars.insert(param_name);
                             }
                         }
                     }
@@ -3757,7 +3792,7 @@ impl CodeGenerator {
                                     if param.is_destructuring() {
                                         let temp_name = format!("_param_{}", idx);
                                         self.write_indent();
-                                        self.generate_lambda_param_destructuring(&param.pattern, &temp_name, is_json_value)?;
+                                        self.generate_lambda_param_destructuring(&param.pattern, &temp_name, is_json_value, element_type.as_deref())?;
                                         self.output.push('\n');
                                     }
                                 }
@@ -3783,7 +3818,7 @@ impl CodeGenerator {
                                     if param.is_destructuring() {
                                         let temp_name = format!("_param_{}", idx);
                                         self.write_indent();
-                                        self.generate_lambda_param_destructuring(&param.pattern, &temp_name, is_json_value)?;
+                                        self.generate_lambda_param_destructuring(&param.pattern, &temp_name, is_json_value, element_type.as_deref())?;
                                         self.output.push('\n');
                                     }
                                 }
@@ -3819,7 +3854,10 @@ impl CodeGenerator {
             if let Expr::Lambda(lambda) = arg {
                 if matches!(method_call.method.as_str(), "forEach" | "map" | "filter" | "reduce" | "find" | "some" | "every") {
                     if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
-                        if let Some(_element_type) = self.typed_array_vars.get(&base_var_name).cloned() {
+                        if let Some(element_type) = self.typed_array_vars.get(&base_var_name).cloned() {
+                            // Set current element type for lambda generation
+                            self.current_lambda_element_type = Some(element_type.clone());
+                            
                             // Track the lambda parameter as an instance of this class type
                             for param in &lambda.params {
                                 if let Some(name) = param.name() {
@@ -3833,6 +3871,9 @@ impl CodeGenerator {
             }
             
             self.generate_expr(arg)?;
+            
+            // Clear current element type after generating lambda
+            self.current_lambda_element_type = None;
         }
         
         self.output.push(')');
@@ -4826,6 +4867,15 @@ impl CodeGenerator {
                 ).unwrap();
                 return Ok(());
             }
+            if self.struct_destructured_vars.contains(&sanitized) {
+                // For struct destructured variables (may be Option<T>), use as_ref().map().unwrap_or_default()
+                write!(
+                    self.output,
+                    "{}.as_ref().map(|v| format!(\"{{}}\", v)).unwrap_or_default()",
+                    sanitized
+                ).unwrap();
+                return Ok(());
+            }
         }
         // Otherwise, generate normally
         self.generate_expr(expr)
@@ -5037,7 +5087,7 @@ impl CodeGenerator {
 
     /// Generate destructuring code for lambda parameters
     /// Similar to generate_param_destructuring but for lambdas (no indent on first line)
-    fn generate_lambda_param_destructuring(&mut self, pattern: &BindingPattern, temp_name: &str, is_json_value: bool) -> Result<()> {
+    fn generate_lambda_param_destructuring(&mut self, pattern: &BindingPattern, temp_name: &str, is_json_value: bool, class_name: Option<&str>) -> Result<()> {
         match pattern {
             BindingPattern::Object(obj_pattern) => {
                 // Object destructuring: extract each field
@@ -5052,12 +5102,35 @@ impl CodeGenerator {
                             binding_name, temp_name, field.key
                         ).unwrap();
                     } else {
-                        // For structs, use direct field access
-                        write!(
-                            self.output,
-                            "let {} = {}.{}.clone();\n",
-                            binding_name, temp_name, field.key
-                        ).unwrap();
+                        // For structs, check if field is optional in the class definition
+                        let is_field_optional = if let Some(cls_name) = class_name {
+                            if let Some(optional_fields) = self.class_optional_fields.get(cls_name) {
+                                optional_fields.contains(&field.key)
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        };
+                        
+                        if is_field_optional {
+                            // For optional fields, unwrap or use default
+                            write!(
+                                self.output,
+                                "let {} = {}.{}.as_ref().map(|v| v.clone()).unwrap_or_default();\n",
+                                binding_name, temp_name, field.key
+                            ).unwrap();
+                        } else {
+                            // For required fields, just clone
+                            write!(
+                                self.output,
+                                "let {} = {}.{}.clone();\n",
+                                binding_name, temp_name, field.key
+                            ).unwrap();
+                        }
+                        
+                        // Register as potentially optional (from struct destructuring)
+                        self.struct_destructured_vars.insert(binding_name);
                     }
                     
                     if field != obj_pattern.fields.last().unwrap() {
