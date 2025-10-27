@@ -6,6 +6,7 @@ use tower_lsp::{Client, LanguageServer};
 use super::document::DocumentState;
 use super::diagnostics::error_to_diagnostic;
 use super::symbols::SymbolTable;
+use super::workspace::WorkspaceManager;
 use crate::{lexer, parser, semantic};
 
 /// Main Language Server for Liva
@@ -15,6 +16,9 @@ pub struct LivaLanguageServer {
     
     /// Open documents indexed by URI
     documents: DashMap<Url, DocumentState>,
+    
+    /// Workspace file manager
+    workspace: std::sync::Arc<tokio::sync::RwLock<WorkspaceManager>>,
 }
 
 impl LivaLanguageServer {
@@ -23,6 +27,7 @@ impl LivaLanguageServer {
         Self {
             client,
             documents: DashMap::new(),
+            workspace: std::sync::Arc::new(tokio::sync::RwLock::new(WorkspaceManager::new(vec![]))),
         }
     }
     
@@ -90,7 +95,27 @@ impl LivaLanguageServer {
 
 #[tower_lsp::async_trait]
 impl LanguageServer for LivaLanguageServer {
-    async fn initialize(&self, _params: InitializeParams) -> Result<InitializeResult> {
+    async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult> {
+        // Initialize workspace with root URIs
+        if let Some(workspace_folders) = params.workspace_folders {
+            let root_uris: Vec<Url> = workspace_folders
+                .iter()
+                .map(|folder| folder.uri.clone())
+                .collect();
+            
+            let mut workspace = self.workspace.write().await;
+            *workspace = WorkspaceManager::new(root_uris);
+            workspace.scan_workspace();
+            
+            let file_count = workspace.file_count();
+            self.client
+                .log_message(
+                    MessageType::INFO,
+                    format!("Workspace initialized: {} .liva files found", file_count)
+                )
+                .await;
+        }
+        
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
@@ -104,6 +129,13 @@ impl LanguageServer for LivaLanguageServer {
                 definition_provider: Some(OneOf::Left(true)),
                 references_provider: Some(OneOf::Left(true)),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
+                workspace: Some(WorkspaceServerCapabilities {
+                    workspace_folders: Some(WorkspaceFoldersServerCapabilities {
+                        supported: Some(true),
+                        change_notifications: Some(OneOf::Left(true)),
+                    }),
+                    file_operations: None,
+                }),
                 ..Default::default()
             },
             server_info: Some(ServerInfo {

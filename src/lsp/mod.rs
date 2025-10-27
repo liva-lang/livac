@@ -13,5 +13,6 @@ pub mod server;
 pub mod document;
 pub mod symbols;
 pub mod diagnostics;
+pub mod workspace;
 
 pub use server::LivaLanguageServer;
