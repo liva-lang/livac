@@ -401,8 +401,17 @@ impl LanguageServer for LivaLanguageServer {
         drop(import_resolver);
         
         // Workspace symbols (priority 5 - all other workspace symbols)
+        // Limit to prevent overwhelming completion list in large workspaces
+        const MAX_WORKSPACE_SYMBOLS: usize = 100;
         let all_workspace_symbols = self.workspace_index.all_symbols();
+        let mut workspace_count = 0;
+        
         for (symbol_uri, symbol) in all_workspace_symbols {
+            // Limit workspace symbols to keep completion responsive
+            if workspace_count >= MAX_WORKSPACE_SYMBOLS {
+                break;
+            }
+            
             // Skip current file (already added)
             if &symbol_uri == uri {
                 continue;
@@ -437,6 +446,8 @@ impl LanguageServer for LivaLanguageServer {
                 sort_text: Some(format!("5_{}", symbol.name)),
                 ..Default::default()
             });
+            
+            workspace_count += 1;
         }
         
         self.client
