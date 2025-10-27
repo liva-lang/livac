@@ -458,31 +458,100 @@ impl LanguageServer for LivaLanguageServer {
             None => return Ok(None),
         };
         
-        // Find all textual references in the document
+        let mut all_locations = Vec::new();
+        
+        // 1. Search in current file
         if let Some(symbols) = &doc.symbols {
-            // Check if the symbol exists
             if symbols.lookup(&word).is_some() {
                 let ranges = symbols.find_references(&word, &doc.text);
                 
                 // Convert ranges to locations
-                let locations: Vec<Location> = ranges
-                    .into_iter()
-                    .map(|range| Location {
+                for range in ranges {
+                    all_locations.push(Location {
                         uri: uri.clone(),
                         range,
-                    })
-                    .collect();
-                
-                // Include definition if requested
-                if params.context.include_declaration {
-                    // Definition is already included in textual search
+                    });
                 }
-                
-                return Ok(Some(locations));
             }
         }
         
-        Ok(None)
+        // 2. Search in all workspace files
+        let indexed_files = self.workspace_index.indexed_files();
+        
+        for file_uri in indexed_files {
+            // Skip current file (already searched)
+            if &file_uri == uri {
+                continue;
+            }
+            
+            // Check if file is open in editor
+            if let Some(open_doc) = self.documents.get(&file_uri) {
+                // Search in open document
+                if let Some(symbols) = &open_doc.symbols {
+                    if symbols.lookup(&word).is_some() {
+                        let ranges = symbols.find_references(&word, &open_doc.text);
+                        for range in ranges {
+                            all_locations.push(Location {
+                                uri: file_uri.clone(),
+                                range,
+                            });
+                        }
+                    }
+                }
+            } else {
+                // Read file from disk
+                if let Ok(path) = file_uri.to_file_path() {
+                    if let Ok(content) = tokio::fs::read_to_string(&path).await {
+                        // Quick textual search (no need to parse)
+                        let lines: Vec<&str> = content.lines().collect();
+                        for (line_idx, line) in lines.iter().enumerate() {
+                            let mut search_from = 0;
+                            while let Some(pos) = line[search_from..].find(&word) {
+                                let actual_pos = search_from + pos;
+                                
+                                // Check word boundaries
+                                let is_start_boundary = actual_pos == 0 || 
+                                    !line.chars().nth(actual_pos - 1).unwrap_or(' ').is_alphanumeric();
+                                let end_pos = actual_pos + word.len();
+                                let is_end_boundary = end_pos >= line.len() || 
+                                    !line.chars().nth(end_pos).unwrap_or(' ').is_alphanumeric();
+                                
+                                if is_start_boundary && is_end_boundary {
+                                    all_locations.push(Location {
+                                        uri: file_uri.clone(),
+                                        range: Range {
+                                            start: Position {
+                                                line: line_idx as u32,
+                                                character: actual_pos as u32,
+                                            },
+                                            end: Position {
+                                                line: line_idx as u32,
+                                                character: (actual_pos + word.len()) as u32,
+                                            },
+                                        },
+                                    });
+                                }
+                                
+                                search_from = actual_pos + 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        if all_locations.is_empty() {
+            return Ok(None);
+        }
+        
+        self.client
+            .log_message(
+                MessageType::INFO,
+                format!("Found {} references to '{}' across workspace", all_locations.len(), word),
+            )
+            .await;
+        
+        Ok(Some(all_locations))
     }
     
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
