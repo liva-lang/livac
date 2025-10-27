@@ -1,8 +1,8 @@
 # 🗺️ Liva Language Roadmap
 
-> **Current Version:** v0.10.3  
-> **Status:** Alpha - Parameter Destructuring completed  
-> **Last Updated:** 2025-01-26
+> **Current Version:** v0.10.5  
+> **Status:** Alpha - Or-Patterns & Enhanced Pattern Matching completed  
+> **Last Updated:** 2025-01-27
 
 ---
 
@@ -1176,7 +1176,7 @@ if err == "" && res.status == 200 {
 - Direct `obj["key"]` in string templates needs intermediate variable
 - No `for...in` loop support yet (use `while` with `.length`)
 
-### 6.4 Enhanced Pattern Matching ✅ COMPLETED (v0.9.5)
+### 6.4 Enhanced Pattern Matching ✅ COMPLETED (v0.10.5)
 - [x] Design switch expression syntax
 - [x] Add literal, wildcard, binding, range patterns
 - [x] Support pattern guards (if conditions)
@@ -1185,18 +1185,23 @@ if err == "" && res.status == 200 {
 - [x] Create comprehensive test suite (5 tests)
 - [x] Write pattern matching guide (600+ lines)
 - [x] Add exhaustiveness checking for bool type (E0901)
-- [ ] Add full exhaustiveness checking for all types (deferred to v0.9.6)
-- [ ] Add array/tuple patterns (deferred to v0.9.6)
+- [x] Add exhaustiveness checking for int types (E0902)
+- [x] Add exhaustiveness checking for string types (E0903)
+- [x] Add or-patterns with | operator
+- [x] Add tuple/array pattern AST (foundation for future)
 
-**Completed:** 3.5 hours (2025-01-24)
+**Completed:** 7 hours (2025-01-24 to 2025-01-27)
 **Delivered:**
 - Switch as expression (returns values)
-- 4 pattern types: literal, wildcard, binding, range
+- 5+ pattern types: literal, wildcard, binding, range, or-patterns
 - Pattern guards with if conditions
 - Rust match code generation
 - ✅ **Exhaustiveness checking for bool** (E0901 error)
-- Complete documentation (1,400+ lines)
-- Working test suite (6 comprehensive tests)
+- ✅ **Exhaustiveness checking for integers** (E0902 error)
+- ✅ **Exhaustiveness checking for strings** (E0903 error)
+- ✅ **Or-patterns:** `1 | 2 | 3 => "small"` syntax
+- Complete documentation (1,600+ lines)
+- Working test suite (9 comprehensive tests)
 
 **Examples:**
 ```liva
@@ -1208,20 +1213,43 @@ let grade = switch score {
     _ => "Fail"
 };
 
-// Exhaustiveness checking (bool)
+// Exhaustiveness checking (bool, int, string)
 let result = switch flag {
     true => "yes",
     false => "no"  // Both cases required!
 };
+
+let category = switch num {
+    1..=10 => "small",
+    11..=100 => "large",
+    _ => "out of range"  // Required for integers!
+};
+
+// Or-patterns (v0.10.5)
+let weekendStatus = switch day {
+    "Saturday" | "Sunday" => "weekend",
+    _ => "weekday"
+};
+
+let size = switch num {
+    1 | 2 | 3 => "small",
+    4 | 5 | 6 => "medium",
+    7 | 8 | 9 => "large",
+    _ => "out of range"
+};
 ```
 
-**Deferred to v0.9.6:**
-- Full exhaustiveness checking for all types
-- Tuple/array destructuring patterns
-- Enum variant patterns
-- Or patterns (`|` operator)
+**Deferred to v0.10.6:**
+- Tuple/array destructuring patterns in switch expressions
+- Enum variant patterns (requires enum implementation first)
+- Nested or-patterns with bindings
 
-**Estimated:** 3.5 hours
+**Phase Breakdown:**
+- **Phase 1 (2h):** Integer and string exhaustiveness (E0902, E0903) ✅
+- **Phase 2 (2.5h):** Or-patterns with | operator ✅
+- **Future:** Tuple/array destructuring, enum patterns
+
+**Estimated:** 7 hours (completed)
 
 ### 6.5 Destructuring Syntax ✅ COMPLETED (v0.10.2)
 - [x] Design destructuring syntax for objects
