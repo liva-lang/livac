@@ -313,11 +313,33 @@ impl Parser {
 
         if self.match_token(&Token::Type) {
             let name = self.parse_identifier()?;
-            let type_params = vec![];  // TODO: Parse type parameters for type declarations
-            self.expect(Token::LBrace)?;
-            let members = self.parse_members()?;
-            self.expect(Token::RBrace)?;
-            return Ok(TopLevel::Type(TypeDecl { name, type_params, members }));
+            
+            // Check for type parameters: type Name<T> or type Name<T, U>
+            let type_params = if self.check(&Token::Lt) {
+                self.advance(); // consume '<'
+                self.parse_type_parameters()?
+            } else {
+                vec![]
+            };
+            
+            // Check if it's a type alias (=) or interface ({)
+            if self.match_token(&Token::Assign) {
+                // Type alias: type Point = (int, int)
+                let target_type = self.parse_type()?;
+                let span = None; // TODO: capture span
+                return Ok(TopLevel::TypeAlias(TypeAliasDecl {
+                    name,
+                    type_params,
+                    target_type,
+                    span,
+                }));
+            } else {
+                // Interface: type Name { ... }
+                self.expect(Token::LBrace)?;
+                let members = self.parse_members()?;
+                self.expect(Token::RBrace)?;
+                return Ok(TopLevel::Type(TypeDecl { name, type_params, members }));
+            }
         }
 
         if self.match_token(&Token::Test) {

@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.1] - 2025-01-28
+
+### Added - Type Aliases ✨
+
+**Basic Type Aliases:**
+- ✅ Simple syntax: `type UserId = int`
+- ✅ Tuple aliases: `type Point = (int, int)`
+- ✅ Complex types: `type Matrix = [[int]]`
+- ✅ Inline expansion during compilation (zero runtime overhead)
+
+**Generic Type Aliases:**
+- ✅ Single parameter: `type Box<T> = (T,)`
+- ✅ Multiple parameters: `type Pair<T, U> = (T, U)`
+- ✅ Proper type parameter substitution
+- ✅ Nested generic aliases: `type IntBox = Box<int>`
+
+**Type Safety:**
+- ✅ Circular reference detection with E0701 error
+- ✅ Type parameter count validation with E0702 error
+- ✅ Full semantic validation during type checking
+- ✅ Integration with existing type system (tuples, arrays, optionals, generics)
+
+**Code Generation:**
+- ✅ Type aliases expanded inline in generated Rust code
+- ✅ No Rust type aliases generated (simpler codegen, zero overhead)
+- ✅ Works with all type annotations (let bindings, parameters, return types)
+
+**Documentation:**
+- ✅ Complete specification in `docs/language-reference/type-aliases.md`
+- ✅ Examples, best practices, and restrictions
+- ✅ Comparison with TypeScript, Rust, and Haskell
+
 ## [0.11.0] - 2025-01-28
 
 ### Added - Tuple Types & Literals ✨

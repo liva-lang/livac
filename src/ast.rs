@@ -52,6 +52,7 @@ pub enum TopLevel {
     Import(ImportDecl),
     UseRust(UseRustDecl),
     Type(TypeDecl),
+    TypeAlias(TypeAliasDecl),
     Class(ClassDecl),
     Function(FunctionDecl),
     Test(TestDecl),
@@ -76,6 +77,16 @@ pub struct TypeDecl {
     pub name: String,
     pub type_params: Vec<TypeParameter>,  // Generic type parameters
     pub members: Vec<Member>,
+}
+
+/// Type alias declaration: type Point = (int, int)
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct TypeAliasDecl {
+    pub name: String,
+    pub type_params: Vec<TypeParameter>,  // Generic type parameters
+    pub target_type: TypeRef,             // The type being aliased
+    #[serde(skip)]
+    pub span: Option<crate::span::Span>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

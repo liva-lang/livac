@@ -1,8 +1,8 @@
 # 🗺️ Liva Language Roadmap
 
-> **Current Version:** v0.10.5  
-> **Status:** Alpha - Or-Patterns & Enhanced Pattern Matching completed  
-> **Last Updated:** 2025-01-27
+> **Current Version:** v0.11.1  
+> **Status:** Alpha - Type Aliases completed  
+> **Last Updated:** 2025-01-28
 
 ---
 
@@ -23,7 +23,10 @@ The roadmap is organized into focused phases:
 - **Phase 1-4:** ✅ Core language features (completed)
 - **Phase 5:** 🧬 Generics - Type-safe generic programming (v0.9.0) ✅
 - **Phase 6:** 🔧 Incremental improvements - High-value productivity features (v0.9.x - v0.10.x) ✅
-- **Phase 7:** 🎯 Advanced types - Tuples, unions, type aliases (v0.11.0+) 📋
+- **Phase 7:** 🎯 Advanced types - Tuples, unions, type aliases (v0.11.0+) 🔄
+  - **Phase 7.1:** ✅ Tuple Types (v0.11.0) - Complete
+  - **Phase 7.3:** ✅ Type Aliases (v0.11.1) - Complete
+  - **Phase 7.2:** 📋 Union Types - Next up
 - **Phase 8:** 🚢 Production release - LSP, debugging, stability (v1.0.0) 📋
 
 Each phase is broken into sub-tasks with time estimates and clear deliverables.
@@ -1749,18 +1752,30 @@ let result = switch value {
 }
 ```
 
-### 7.3 Type Aliases
-- [ ] Add `type` keyword for aliases
-- [ ] Support generic type aliases
-- [ ] Add to type system
+### 7.3 Type Aliases ✅ COMPLETE (v0.11.1)
+- [x] Add `type` keyword for aliases
+- [x] Support generic type aliases
+- [x] Add to type system
+- [x] Inline expansion (zero runtime overhead)
+- [x] Circular reference detection
+- [x] Type parameter validation
+- [x] Complete documentation
 
-**Estimated:** 2 hours
+**Completed:** January 28, 2025 (2 hours)
 
 **Example:**
 ```liva
 type Point = (int, int)
-type Result<T> = (T, Error?)
+type Box<T> = (T,)
+type Pair<T, U> = (T, U)
 ```
+
+**Features:**
+- Simple and generic type aliases
+- Full semantic validation
+- Integration with tuples, arrays, optionals
+- Comprehensive error reporting (E0701, E0702)
+- Documentation: `docs/language-reference/type-aliases.md`
 
 ---
 

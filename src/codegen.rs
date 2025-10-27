@@ -50,6 +50,8 @@ pub struct CodeGenerator {
     class_base: std::collections::HashMap<String, Option<String>>,
     var_types: std::collections::HashMap<String, String>, // var -> ClassName
     fallible_functions: std::collections::HashSet<String>, // Track which functions are fallible
+    // --- Type aliases (for expansion during codegen)
+    type_aliases: std::collections::HashMap<String, (Vec<TypeParameter>, TypeRef)>,
     // --- Phase 2: Lazy await/join tracking
     pending_tasks: std::collections::HashMap<String, TaskInfo>, // Variables that hold unawaited Tasks
     // --- Phase 3: Error binding variables (Option<String> type)
@@ -85,6 +87,7 @@ impl CodeGenerator {
             class_base: std::collections::HashMap::new(),
             var_types: std::collections::HashMap::new(),
             fallible_functions: std::collections::HashSet::new(),
+            type_aliases: std::collections::HashMap::new(),
             pending_tasks: std::collections::HashMap::new(),
             error_binding_vars: std::collections::HashSet::new(),
             option_value_vars: std::collections::HashSet::new(),
@@ -769,6 +772,16 @@ impl CodeGenerator {
             self.writeln("");
         }
 
+        // Pre-pass: Collect all type aliases
+        for item in &program.items {
+            if let TopLevel::TypeAlias(alias) = item {
+                self.type_aliases.insert(
+                    alias.name.clone(),
+                    (alias.type_params.clone(), alias.target_type.clone())
+                );
+            }
+        }
+
         // Generate top-level items
         for item in &program.items {
             if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: Processing top-level item: {:?}", item); }
@@ -796,7 +809,8 @@ impl CodeGenerator {
                 Ok(())
             }
             TopLevel::Type(type_decl) => self.generate_type_decl(type_decl),
-                TopLevel::Class(class) => {
+            TopLevel::TypeAlias(alias) => self.generate_type_alias(alias),
+            TopLevel::Class(class) => {
                 if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: Generating class {}", class.name); }
                 self.generate_class(class)
             }
@@ -843,6 +857,133 @@ impl CodeGenerator {
 
         Ok(())
     }
+
+    fn generate_type_alias(&mut self, alias: &TypeAliasDecl) -> Result<()> {
+        // Store type alias for expansion during type annotation generation
+        self.type_aliases.insert(
+            alias.name.clone(),
+            (alias.type_params.clone(), alias.target_type.clone())
+        );
+        // Type aliases in Liva are expanded inline during type checking
+        // We don't generate Rust type aliases to keep codegen simple
+        Ok(())
+    }
+
+    /// Expand type aliases in a TypeRef to get the final Rust type string
+    fn expand_type_alias(&self, type_ref: &TypeRef) -> String {
+        match type_ref {
+            TypeRef::Simple(name) => {
+                // Check if it's a type alias
+                if let Some((alias_params, target_type)) = self.type_aliases.get(name) {
+                    // If the alias has no type parameters, just expand the target
+                    if alias_params.is_empty() {
+                        return self.expand_type_alias(target_type);
+                    }
+                    // If it has type parameters but no args, just expand (error should be caught in semantic)
+                    return self.expand_type_alias(target_type);
+                }
+                // Not a type alias, use the normal to_rust_type conversion
+                type_ref.to_rust_type()
+            }
+            TypeRef::Generic { base, args } => {
+                // Check if the base is a type alias
+                if let Some((alias_params, target_type)) = self.type_aliases.get(base) {
+                    // Substitute type parameters
+                    let substituted = self.substitute_type_params_codegen(
+                        target_type,
+                        alias_params,
+                        args,
+                    );
+                    return self.expand_type_alias(&substituted);
+                }
+                // Not a type alias, recursively expand arguments
+                let expanded_args: Vec<String> = args
+                    .iter()
+                    .map(|arg| self.expand_type_alias(arg))
+                    .collect();
+                format!("{}<{}>", base, expanded_args.join(", "))
+            }
+            TypeRef::Array(inner) => {
+                format!("Vec<{}>", self.expand_type_alias(inner))
+            }
+            TypeRef::Optional(inner) => {
+                format!("Option<{}>", self.expand_type_alias(inner))
+            }
+            TypeRef::Fallible(inner) => {
+                format!("Result<{}, liva_rt::Error>", self.expand_type_alias(inner))
+            }
+            TypeRef::Tuple(types) => {
+                let types_str: Vec<String> = types
+                    .iter()
+                    .map(|t| self.expand_type_alias(t))
+                    .collect();
+                // Rust requires trailing comma for single-element tuples
+                if types.len() == 1 {
+                    format!("({},)", types_str.join(", "))
+                } else {
+                    format!("({})", types_str.join(", "))
+                }
+            }
+        }
+    }
+
+    /// Substitute type parameters in a TypeRef (for codegen)
+    fn substitute_type_params_codegen(
+        &self,
+        type_ref: &TypeRef,
+        params: &[TypeParameter],
+        args: &[TypeRef],
+    ) -> TypeRef {
+        match type_ref {
+            TypeRef::Simple(name) => {
+                // Check if this name is one of the type parameters
+                for (i, param) in params.iter().enumerate() {
+                    if &param.name == name {
+                        return args[i].clone();
+                    }
+                }
+                // Not a type parameter, return as-is
+                type_ref.clone()
+            }
+            TypeRef::Array(inner) => {
+                TypeRef::Array(Box::new(self.substitute_type_params_codegen(inner, params, args)))
+            }
+            TypeRef::Optional(inner) => {
+                TypeRef::Optional(Box::new(self.substitute_type_params_codegen(inner, params, args)))
+            }
+            TypeRef::Fallible(inner) => {
+                TypeRef::Fallible(Box::new(self.substitute_type_params_codegen(inner, params, args)))
+            }
+            TypeRef::Tuple(elements) => {
+                TypeRef::Tuple(
+                    elements
+                        .iter()
+                        .map(|elem| self.substitute_type_params_codegen(elem, params, args))
+                        .collect(),
+                )
+            }
+            TypeRef::Generic { base, args: inner_args } => {
+                // Recursively substitute in base and all arguments
+                let substituted_base = match self.substitute_type_params_codegen(
+                    &TypeRef::Simple(base.clone()),
+                    params,
+                    args,
+                ) {
+                    TypeRef::Simple(name) => name,
+                    _ => base.clone(), // Shouldn't happen
+                };
+                
+                TypeRef::Generic {
+                    base: substituted_base,
+                    args: inner_args
+                        .iter()
+                        .map(|arg| self.substitute_type_params_codegen(arg, params, args))
+                        .collect(),
+                }
+            }
+        }
+    }
+
 
     fn generate_class(&mut self, class: &ClassDecl) -> Result<()> {
         // Generate default functions for optional fields with init values
@@ -1915,7 +2056,7 @@ impl CodeGenerator {
                                 // Typed JSON parsing with error binding: let nums: [i32], err = JSON.parse("[1,2,3]")
                                 // Generate: let (nums, err): (Vec<i32>, String) = match serde_json::from_str::<Vec<i32>>(...) { Ok(v) => (v, String::new()), Err(e) => (Vec::new(), format!("{}", e)) };
                                 let type_ref = var.bindings.first().unwrap().type_ref.as_ref().unwrap();
-                                let rust_type = type_ref.to_rust_type();
+                                let rust_type = self.expand_type_alias(type_ref);
                                 
                                 write!(self.output, "): ({}, String) = match ", rust_type).unwrap();
                                 
@@ -2078,7 +2219,7 @@ impl CodeGenerator {
                         write!(self.output, "let mut {}", var_name).unwrap();
 
                         if let Some(type_ref) = &binding.type_ref {
-                            write!(self.output, ": {}", type_ref.to_rust_type()).unwrap();
+                            write!(self.output, ": {}", self.expand_type_alias(type_ref)).unwrap();
                         }
 
                         self.output.push_str(" = ");
@@ -8125,6 +8266,10 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext) ->
                 }
                 output.push_str(&type_code);
                 output.push('\n');
+            }
+            TopLevel::TypeAlias(_) => {
+                // Type aliases are expanded inline, no code generation needed
+                continue;
             }
             TopLevel::UseRust(_) | TopLevel::Test(_) => {
                 // Reset codegen output for this item

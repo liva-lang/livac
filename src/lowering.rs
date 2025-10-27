@@ -29,6 +29,9 @@ pub fn lower_program(program: &ast::Program) -> ir::Module {
                 // For now, skip type declarations in IR - they will be handled by AST generator
                 // module.items.push(ir::Item::Type(lower_type(type_decl)));
             }
+            ast::TopLevel::TypeAlias(_) => {
+                // Type aliases are expanded inline during type checking, skip in IR
+            }
             ast::TopLevel::Import(_) => {
                 // Skip imports in IR
             }

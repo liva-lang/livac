@@ -38,6 +38,8 @@ pub struct SemanticAnalyzer {
     trait_registry: TraitRegistry,
     // Track classes used with JSON.parse (need serde derive) - Phase 2
     json_classes: HashSet<String>,
+    // Type aliases: map from alias name to (type_params, target_type)
+    type_aliases: HashMap<String, (Vec<TypeParameter>, TypeRef)>,
 }
 
 #[derive(Debug, Clone)]
@@ -101,6 +103,7 @@ impl SemanticAnalyzer {
             type_constraints: vec![HashMap::new()],
             trait_registry: TraitRegistry::new(),
             json_classes: HashSet::new(),
+            type_aliases: HashMap::new(),
         }
     }
 
@@ -869,6 +872,7 @@ impl SemanticAnalyzer {
             TopLevel::Function(func) => self.validate_function(func),
             TopLevel::Class(class) => self.validate_class(class),
             TopLevel::Type(type_decl) => self.validate_type_decl(type_decl),
+            TopLevel::TypeAlias(alias) => self.validate_type_alias(alias),
             _ => Ok(()),
         }
     }
@@ -1057,6 +1061,110 @@ impl SemanticAnalyzer {
         }
 
         Ok(())
+    }
+
+    fn validate_type_alias(&mut self, alias: &TypeAliasDecl) -> Result<()> {
+        // 1. Enter type parameter scope for alias's generics
+        self.enter_type_param_scope();
+        
+        // 2. Register type parameters
+        for param in &alias.type_params {
+            self.declare_type_param(&param.name);
+        }
+        
+        // 3. Validate target type exists and is valid
+        let type_params_set: HashSet<String> = alias.type_params.iter().map(|tp| tp.name.clone()).collect();
+        self.validate_type_ref(&alias.target_type, &type_params_set)?;
+        
+        // 4. Check for circular reference (alias can't reference itself directly)
+        if self.type_ref_contains_name(&alias.target_type, &alias.name) {
+            self.exit_type_param_scope();
+            return Err(CompilerError::SemanticError(
+                format!("E0701: Circular type alias: '{}' references itself", alias.name).into(),
+            ));
+        }
+        
+        // 5. Register the alias for later expansion
+        self.type_aliases.insert(
+            alias.name.clone(),
+            (alias.type_params.clone(), alias.target_type.clone())
+        );
+        
+        self.exit_type_param_scope();
+        Ok(())
+    }
+    
+    /// Check if a TypeRef contains a reference to a specific type name
+    fn type_ref_contains_name(&self, type_ref: &TypeRef, name: &str) -> bool {
+        match type_ref {
+            TypeRef::Simple(ref_name) => ref_name == name,
+            TypeRef::Array(inner) => self.type_ref_contains_name(inner, name),
+            TypeRef::Optional(inner) => self.type_ref_contains_name(inner, name),
+            TypeRef::Fallible(inner) => self.type_ref_contains_name(inner, name),
+            TypeRef::Tuple(elements) => {
+                elements.iter().any(|elem| self.type_ref_contains_name(elem, name))
+            }
+            TypeRef::Generic { base, args } => {
+                base == name || args.iter().any(|arg| self.type_ref_contains_name(arg, name))
+            }
+        }
+    }
+
+    /// Substitute type parameters in a type reference with concrete types
+    fn substitute_type_params(
+        &self,
+        type_ref: &TypeRef,
+        params: &[TypeParameter],
+        args: &[TypeRef],
+    ) -> TypeRef {
+        match type_ref {
+            TypeRef::Simple(name) => {
+                // Check if this name is one of the type parameters
+                for (i, param) in params.iter().enumerate() {
+                    if &param.name == name {
+                        return args[i].clone();
+                    }
+                }
+                // Not a type parameter, return as-is
+                type_ref.clone()
+            }
+            TypeRef::Array(inner) => {
+                TypeRef::Array(Box::new(self.substitute_type_params(inner, params, args)))
+            }
+            TypeRef::Optional(inner) => {
+                TypeRef::Optional(Box::new(self.substitute_type_params(inner, params, args)))
+            }
+            TypeRef::Fallible(inner) => {
+                TypeRef::Fallible(Box::new(self.substitute_type_params(inner, params, args)))
+            }
+            TypeRef::Tuple(elements) => {
+                TypeRef::Tuple(
+                    elements
+                        .iter()
+                        .map(|elem| self.substitute_type_params(elem, params, args))
+                        .collect(),
+                )
+            }
+            TypeRef::Generic { base, args: inner_args } => {
+                // Recursively substitute in base and all arguments
+                let substituted_base = match self.substitute_type_params(
+                    &TypeRef::Simple(base.clone()),
+                    params,
+                    args,
+                ) {
+                    TypeRef::Simple(name) => name,
+                    _ => base.clone(), // Shouldn't happen, but keep original if it does
+                };
+                
+                TypeRef::Generic {
+                    base: substituted_base,
+                    args: inner_args
+                        .iter()
+                        .map(|arg| self.substitute_type_params(arg, params, args))
+                        .collect(),
+                }
+            }
+        }
     }
 
     fn validate_method(&mut self, method: &MethodDecl, owner: &str) -> Result<()> {
@@ -3110,6 +3218,17 @@ impl SemanticAnalyzer {
                     return Ok(());
                 }
                 
+                // Check if it's a type alias - expand and validate the target type
+                if let Some((alias_type_params, target_type)) = self.type_aliases.get(name) {
+                    // If the alias has no type parameters, just validate the target
+                    if alias_type_params.is_empty() {
+                        return self.validate_type_ref(target_type, available_type_params);
+                    }
+                    // If it has type parameters but no args provided, it's an error
+                    // For now, we allow it (could add stricter checking later)
+                    return self.validate_type_ref(target_type, available_type_params);
+                }
+                
                 // Check if it's a known type (class, interface, primitive)
                 let primitives = ["int", "float", "bool", "string"];
                 if primitives.contains(&name.as_str()) || self.types.contains_key(name) {
@@ -3121,7 +3240,36 @@ impl SemanticAnalyzer {
                 Ok(())
             }
             TypeRef::Generic { base, args } => {
-                // Validate base type (it's a String, so wrap it as Simple TypeRef)
+                // Check if the base is a type alias with type parameters
+                if let Some((alias_type_params, target_type)) = self.type_aliases.get(base) {
+                    // Validate that the number of arguments matches the alias parameters
+                    if args.len() != alias_type_params.len() {
+                        return Err(CompilerError::SemanticError(
+                            SemanticErrorInfo::new(
+                                "E0702",
+                                "Type argument count mismatch",
+                                &format!(
+                                    "Type alias `{}` expects {} type argument(s), but {} provided",
+                                    base,
+                                    alias_type_params.len(),
+                                    args.len()
+                                ),
+                            )
+                        ));
+                    }
+                    
+                    // Substitute type parameters in the target type
+                    let substituted = self.substitute_type_params(
+                        target_type,
+                        alias_type_params,
+                        args,
+                    );
+                    
+                    // Validate the substituted type
+                    return self.validate_type_ref(&substituted, available_type_params);
+                }
+                
+                // Not a type alias - validate base type (it's a String, so wrap it as Simple TypeRef)
                 let base_ref = TypeRef::Simple(base.clone());
                 self.validate_type_ref(&base_ref, available_type_params)?;
                 
