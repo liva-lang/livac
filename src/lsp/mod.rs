@@ -13,5 +13,11 @@ pub mod server;
 pub mod document;
 pub mod symbols;
 pub mod diagnostics;
+pub mod workspace;
+pub mod imports;
 
 pub use server::LivaLanguageServer;
+pub use document::DocumentState;
+pub use symbols::{Symbol, SymbolTable};
+pub use workspace::{WorkspaceManager, WorkspaceIndex};
+pub use imports::{ImportResolver, ImportInfo};

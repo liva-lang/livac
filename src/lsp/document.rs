@@ -3,6 +3,7 @@ use tower_lsp::lsp_types::*;
 
 use crate::ast::Program;
 use super::symbols::SymbolTable;
+use super::imports::ImportInfo;
 
 /// State of an open document
 pub struct DocumentState {
@@ -17,6 +18,9 @@ pub struct DocumentState {
     
     /// Symbol table (extracted from AST)
     pub symbols: Option<SymbolTable>,
+    
+    /// Import declarations (extracted from AST)
+    pub imports: Vec<ImportInfo>,
     
     /// Current diagnostics
     pub diagnostics: Vec<Diagnostic>,
@@ -33,6 +37,7 @@ impl DocumentState {
             version,
             ast: None,
             symbols: None,
+            imports: Vec::new(),
             diagnostics: Vec::new(),
             last_parsed: Instant::now(),
         }
