@@ -1,8 +1,8 @@
 # 🗺️ Liva Language Roadmap
 
-> **Current Version:** v0.11.3  
-> **Status:** Alpha - Pattern Matching for Union Types completed  
-> **Last Updated:** 2025-01-28
+> **Current Version:** v0.12.0  
+> **Status:** Alpha - Language Server Protocol (LSP) completed  
+> **Last Updated:** 2025-10-27
 
 ---
 
@@ -27,13 +27,14 @@ The roadmap is organized into focused phases:
   - **Phase 7.1:** ✅ Tuple Types (v0.11.0) - Complete
   - **Phase 7.3:** ✅ Type Aliases (v0.11.1) - Complete
   - **Phase 7.2:** ✅ Union Types (v0.11.2-v0.11.3) - Complete with Pattern Matching
-- **Phase 8:** 🚢 Production release - LSP, debugging, stability (v1.0.0) 📋
+- **Phase 8:** 🚢 Production release - LSP, debugging, stability (v1.0.0) �
+  - **Phase 8.1:** ✅ Language Server Protocol (v0.12.0) - Complete
 
 Each phase is broken into sub-tasks with time estimates and clear deliverables.
 
 ---
 
-## 📍 Current Status (v0.11.3)
+## 📍 Current Status (v0.12.0)
 
 ### ✅ Completed Features
 
@@ -63,18 +64,26 @@ Each phase is broken into sub-tasks with time estimates and clear deliverables.
 - ✅ Error binding (`let value, err = ...`)
 - ✅ Fallibility inference (automatic detection)
 
-**Tooling:**
-- ✅ VS Code extension with IntelliSense
+**Tooling & IDE Support:**
+- ✅ Language Server Protocol (LSP) with full IDE features
+- ✅ Real-time diagnostics (lexer, parser, semantic errors)
+- ✅ Intelligent code completion (30+ items)
+- ✅ Go to definition (F12 navigation)
+- ✅ Find all references (Shift+F12)
+- ✅ Hover type information
+- ✅ VS Code extension with LSP client integration
 - ✅ Real-time interface validation
 - ✅ Syntax highlighting and snippets
 - ✅ Comprehensive test suite (110+ tests)
-- ✅ Complete documentation (23 files)
+- ✅ Complete documentation (27+ files, 5,500+ lines)
 
-**Recent Changes (2025-01-28):**
-- ✅ Pattern matching for union types: `n: int => expr`
-- ✅ Automatic type narrowing in switch arms
-- ✅ Exhaustiveness checking for union patterns
-- ✅ Phase 7.2 fully complete
+**Recent Changes (2025-10-27):**
+- ✅ Complete Language Server Protocol implementation
+- ✅ LSP server in Rust with tower-lsp framework
+- ✅ VS Code extension with automatic LSP client
+- ✅ 7 core LSP features working (completion, diagnostics, navigation, hover)
+- ✅ Full documentation suite (~3,400 lines)
+- ✅ Phase 8.1 fully complete
 
 ---
 
@@ -1809,29 +1818,64 @@ type Pair<T, U> = (T, U)
 
 **Goal:** Stable, production-ready language with full IDE support
 
-**Status:** 🏗️ In Progress (Planning Phase)  
-**Branch:** `feature/lsp-v0.12.0` (livac), `feature/lsp-integration` (vscode-extension)  
-**ETA:** 8-10 hours for Phase 8.1 (LSP)
+**Status:** ✅ Phase 8.1 COMPLETED (2025-10-27)  
+**Branch:** `main` (merged from `feature/lsp-v0.12.0`)  
+**Release:** v0.12.0
 
-### 8.1 Language Server Protocol (LSP) 🚀 IN PROGRESS (v0.12.0)
-- [x] Create implementation plan ✅ (LSP_IMPLEMENTATION_PLAN.md)
-- [x] Write design documentation ✅ (docs/lsp/LSP_DESIGN.md)
-- [x] Write user guide ✅ (docs/lsp/LSP_USER_GUIDE.md)
-- [x] Write API reference ✅ (docs/lsp/LSP_API.md)
-- [ ] Phase 1: LSP Infrastructure (2h) - Server setup, module structure
-- [ ] Phase 2: Document Synchronization (1h) - didOpen, didChange, didSave
-- [ ] Phase 3: Diagnostics (1.5h) - Real-time error reporting
-- [ ] Phase 4: Autocompletion (2h) - Context-aware completions
-- [ ] Phase 5: Go to Definition (1h) - Navigation
-- [ ] Phase 6: Find References (1h) - Symbol search
-- [ ] Phase 7: Hover Information (0.5h) - Type info display
-- [ ] Phase 8: Rename Symbol (1h) - Refactoring
-- [ ] Phase 9: VS Code Integration (1h) - Client setup
+### 8.1 Language Server Protocol (LSP) ✅ COMPLETED (v0.12.0)
 
-**Status:** Planning complete, implementation ready to start  
-**Documentation:** 4 comprehensive files created (~2,700 lines total)  
-**Architecture:** tower-lsp, tokio, JSON-RPC over stdio  
-**Progress:** Documentation 100%, Implementation 0%
+**Implementation Status:** ✅ COMPLETE AND MERGED TO MAIN
+
+**Documentation Phase:**
+- [x] Create implementation plan ✅ (LSP_IMPLEMENTATION_PLAN.md - 350 lines)
+- [x] Write design documentation ✅ (docs/lsp/LSP_DESIGN.md - 800 lines)
+- [x] Write user guide ✅ (docs/lsp/LSP_USER_GUIDE.md - 900 lines)
+- [x] Write API reference ✅ (docs/lsp/LSP_API.md - 650 lines)
+
+**Implementation Phases:**
+- [x] Phase 1: LSP Infrastructure (2h) ✅ - Server setup with tower-lsp, module structure
+- [x] Phase 2: Document Synchronization (1h) ✅ - didOpen, didChange, didSave, didClose
+- [x] Phase 3: Diagnostics (1.5h) ✅ - Real-time error reporting with rich metadata
+- [x] Phase 4: Autocompletion (2h) ✅ - Context-aware completions (30+ items)
+- [x] Phase 5: Go to Definition (1h) ✅ - F12 navigation to declarations
+- [x] Phase 6: Find References (1h) ✅ - Shift+F12 to find all usages
+- [x] Phase 7: Hover Information (0.5h) ✅ - Type info tooltips with Markdown
+- [x] Phase 8: Rename Symbol (SKIPPED) - Optional, deferred to v0.13.0
+- [x] Phase 9: VS Code Integration (1h) ✅ - LSP client with auto-discovery
+
+**Deliverables:**
+- ✅ LSP server in Rust (~750 lines)
+- ✅ VS Code extension with LSP client (~100 lines TypeScript)
+- ✅ Complete documentation (~3,400 lines)
+- ✅ 5 test files for validation
+- ✅ CHANGELOG updates in both repos
+- ✅ Git tags: v0.12.0 on both repositories
+
+**Features Working:**
+- ✅ Real-time diagnostics (lexer, parser, semantic errors)
+- ✅ Intelligent code completion (Ctrl+Space)
+- ✅ Go to definition (F12)
+- ✅ Find all references (Shift+F12)
+- ✅ Hover type information
+- ✅ Document synchronization
+
+**Technical Stack:**
+- tower-lsp 0.20 (LSP framework)
+- DashMap 5.5 (concurrent document storage)
+- tokio (async runtime)
+- vscode-languageclient 9.0.1 (VS Code client)
+
+**Time:** 8.5 hours (15% under 10h estimate)  
+**Status:** Production Ready  
+**Merged:** 2025-10-27  
+**Tag:** v0.12.0
+
+**Known Limitations (for v0.13.0):**
+- FunctionDecl/ClassDecl lack span fields (use default ranges)
+- Single-file scope only (no workspace-wide symbols yet)
+- Textual reference search (no semantic filtering)
+- No incremental parsing (full re-parse on change)
+- Basic symbol resolution (global symbols only)
 
 ### 8.2 Debugger Support
 - [ ] Debug adapter protocol
