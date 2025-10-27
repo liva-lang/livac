@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.10.4] - 2025-01-27
 
-### Added - Optional Fields for JSON Parsing ✨
+### Added - Optional Fields & Default Values for JSON Parsing ✨
 
 **Optional Fields with `?` Syntax:**
 - ✅ New syntax: `field?: Type` declares optional fields in classes
@@ -18,11 +18,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✅ Handles missing fields, null values, and present values seamlessly
 - ✅ Perfect for real-world APIs with optional/nullable fields
 
+**Default Values with `=` Syntax:**
+- ✅ New syntax: `field: Type = value` declares fields with default values
+- ✅ Supports all literal types: int, float, string, bool
+- ✅ Automatic string conversion: `"text"` → `"text".to_string()` for string fields
+- ✅ Works with both default and parameterized constructors
+- ✅ Non-parameter fields use their init value in constructors
+
+**Optional Fields with Default Values:**
+- ✅ Combined syntax: `field?: Type = value` for optional fields with defaults
+- ✅ Generates serde default functions: `fn default_{class}_{field}() -> Option<T>`
+- ✅ Adds `#[serde(default = "default_function")]` attribute
+- ✅ When JSON missing the field, serde uses default value instead of None
+- ✅ Makes defaults available in destructuring patterns automatically
+
 ### Fixed - Optional Fields Bug Fixes 🐛
 
 **Constructor Generation:**
 - Fixed optional field constructors to generate `None` instead of `String::new()`
 - Both default and parameterized constructors now correctly initialize optional fields
+- Fixed default values to wrap in `Some()` when field is optional
+- String literals in default values automatically converted to `String` type
 
 **Object Destructuring:**
 - Fixed optional fields in lambda destructuring for `forEach`, `map`, `filter`, etc.
@@ -37,11 +53,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Member access on nested structs now generates correct code (e.g., `address.zipcode` instead of `address.get_field("zipcode")`)
 - Added type tracking for destructured fields that are themselves class types
 
+**Serde Default Integration:**
+- Optional fields with default values now generate serde default functions
+- Default values correctly applied when field is missing from JSON (not just in constructors)
+- Generated code: `#[serde(default = "default_{class}_{field}")]`
+- Solves issue where defaults only worked in constructors, not during JSON deserialization
+
 **Real-World Testing:**
 - Tested with JSONPlaceholder API integration
 - User class with optional `username?: string` field works correctly
 - Nested struct access (`address.zipcode`) works correctly in string templates
 - Object destructuring in forEach properly handles mixed optional/required fields
+- Optional fields with defaults (`algo?: string = "hola"`) show default value when missing from JSON
 
 **Example of Fixed Behavior:**
 ```liva

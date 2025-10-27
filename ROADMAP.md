@@ -1348,13 +1348,13 @@ posts.forEach(post => print(post.title))  // ✨ No .unwrap()!
 - [x] **7.0.3** Codegen: Generate structs with serde ✅ **ALREADY DONE**
 - [x] **7.0.4** Support all Rust types (i8-i128, u8-u128, f32, f64) ✅ **ALREADY DONE**
 - [x] **7.0.5** Optional fields: `field?: Type` ✅ **COMPLETED** (v0.10.4)
-- [ ] **7.0.6** Default values: `field: Type = value` (45min)
+- [x] **7.0.6** Default values: `field: Type = value` ✅ **COMPLETED** (v0.10.4)
 - [x] **7.0.7** Nested classes ✅ **ALREADY DONE**
 - [x] **7.0.8** Arrays of classes ✅ **ALREADY DONE**
 - [ ] **7.0.9** Tests and examples (needs expansion)
 - [ ] **7.0.10** Documentation (needs update)
 
-**Progress:** 7/10 tasks completed (70%) 🎉
+**Progress:** 8/10 tasks completed (80%) 🎉
 
 ---
 
@@ -1414,6 +1414,81 @@ pub struct User {
 - ✅ No more parse failures on missing fields
 - ✅ Explicit documentation in code (optional vs required)
 - ✅ Perfect for real-world API integration
+
+---
+
+#### 7.0.6 Default Values ✅ COMPLETED (2025-01-27)
+
+**Implementation:**
+- Modified constructor generation to use `field.init` when provided
+- Added string literal to String conversion for string-typed fields
+- Support for all literal types (int, float, string, bool) as default values
+- Works with both default constructor and parameterized constructors
+- Optional fields with defaults generate serde default functions
+- Serde integration: `#[serde(default = "default_{class}_{field}")]` for optional fields
+
+**Syntax:**
+```liva
+User {
+    name: string = "Guest"      // Default for required field
+    age: int = 18               // Default int value
+    role: string = "user"       // Default string
+    active: bool = true         // Default bool
+    bio?: string = "No bio"     // ✨ Optional with default
+}
+```
+
+**Generated Code (Required Fields):**
+```rust
+pub fn new() -> Self {
+    Self {
+        name: "Guest".to_string(),  // ✅ Auto-converted
+        age: 18,
+        role: "user".to_string(),
+        active: true,
+        bio: Some("No bio".to_string()),  // ✅ Wrapped in Some()
+    }
+}
+```
+
+**Generated Code (Optional with Default):**
+```rust
+fn default_user_bio() -> Option<String> {
+    Some("No bio".to_string())
+}
+
+pub struct User {
+    #[serde(default = "default_user_bio")]  // ✅ Uses default when missing from JSON
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bio: Option<String>,
+}
+```
+
+**Testing:**
+- Created `test_default_values.liva` with User and Config classes
+- All literal types tested (string, int, bool)
+- ✅ Compilation successful
+- ✅ Runtime tests passing
+- ✅ JSONPlaceholder API integration test passing
+
+**Bug Fixes:**
+- ✅ String literals converted to String with `.to_string()`
+- ✅ Optional fields with defaults wrapped in `Some()`
+- ✅ Serde default functions generated for optional+default fields
+- ✅ Defaults applied during JSON deserialization (not just constructors)
+
+**Actual Time:** 40 minutes + 30 minutes for serde defaults = 70 minutes
+
+**Files Modified:**
+- `src/codegen.rs` - Constructor generation, field generation, serde defaults (+80 lines)
+- `test_default_values.liva` - New test file (35 lines)
+- `CHANGELOG.md` - Updated v0.10.4 entry (+25 lines)
+
+**Benefits:**
+- ✅ Less boilerplate in constructors
+- ✅ Sensible defaults for common patterns
+- ✅ Serde integration for JSON parsing
+- ✅ Optional fields with defaults work seamlessly
 
 ---
 
