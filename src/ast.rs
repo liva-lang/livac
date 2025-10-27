@@ -180,6 +180,7 @@ pub enum TypeRef {
     Array(Box<TypeRef>),
     Optional(Box<TypeRef>),
     Fallible(Box<TypeRef>),
+    Tuple(Vec<TypeRef>),  // Tuple types: (int, string, bool)
 }
 
 impl TypeRef {
@@ -206,6 +207,19 @@ impl TypeRef {
             TypeRef::Array(inner) => format!("Vec<{}>", inner.to_rust_type()),
             TypeRef::Optional(inner) => format!("Option<{}>", inner.to_rust_type()),
             TypeRef::Fallible(inner) => format!("Result<{}, liva_rt::Error>", inner.to_rust_type()),
+            TypeRef::Tuple(types) => {
+                let types_str = types
+                    .iter()
+                    .map(|t| t.to_rust_type())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                // Rust requires trailing comma for single-element tuples
+                if types.len() == 1 {
+                    format!("({},)", types_str)
+                } else {
+                    format!("({})", types_str)
+                }
+            }
         }
     }
 }
@@ -550,6 +564,7 @@ pub enum Expr {
         fields: Vec<(String, Expr)>,
     },
     ArrayLiteral(Vec<Expr>),
+    Tuple(Vec<Expr>),  // Tuple literals: (10, 20, 30)
     Lambda(LambdaExpr),
     StringTemplate {
         parts: Vec<StringTemplatePart>,

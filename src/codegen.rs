@@ -2460,6 +2460,12 @@ impl CodeGenerator {
 
                 self.generate_expr(object)?;
 
+                // v0.11.0: Tuple member access - check if property is numeric (tuple.0, tuple.1, etc.)
+                if property.parse::<usize>().is_ok() {
+                    write!(self.output, ".{}", property).unwrap();
+                    return Ok(());
+                }
+
                 if property == "length" {
                     // Check if this is a JsonValue (not an array or string)
                     // JsonValue uses .length(), Rust arrays/strings use .len()
@@ -2736,6 +2742,20 @@ impl CodeGenerator {
                 }
                 self.output.push(']');
             }
+            Expr::Tuple(elements) => {
+                self.output.push('(');
+                for (i, elem) in elements.iter().enumerate() {
+                    if i > 0 {
+                        self.output.push_str(", ");
+                    }
+                    self.generate_expr(elem)?;
+                }
+                // Rust requires trailing comma for single-element tuples
+                if elements.len() == 1 {
+                    self.output.push(',');
+                }
+                self.output.push(')');
+            }
             Expr::StringTemplate { parts } => {
                 self.output.push_str("format!(\"");
 
@@ -2778,7 +2798,7 @@ impl CodeGenerator {
                                 self.output.push_str("{}");
                             }
                             // Arrays and objects use Debug
-                            Expr::ArrayLiteral(_) | Expr::ObjectLiteral(_) => {
+                            Expr::ArrayLiteral(_) | Expr::ObjectLiteral(_) | Expr::Tuple(_) => {
                                 self.output.push_str("{:?}");
                             }
                             // Everything else uses Debug
@@ -4252,18 +4272,14 @@ impl CodeGenerator {
         // Console functions: log, error, warn
         match method_call.method.as_str() {
             "log" => {
-                // console.log(...) -> println!(...) with Display format for clean output
+                // console.log(...) -> println!(...)
                 if method_call.args.is_empty() {
                     self.output.push_str("println!()");
                 } else {
-                    self.output.push_str("println!(\"");
-                    for (i, _) in method_call.args.iter().enumerate() {
-                        if i > 0 {
-                            self.output.push(' ');  // Space between arguments
-                        }
-                        self.output.push_str("{}");
-                    }
-                    self.output.push_str("\", ");
+                    // Check if first arg is a string literal with format placeholders
+                    // If so, use it as the format string, otherwise generate default format
+                    self.output.push_str("println!(");
+                    
                     for (i, arg) in method_call.args.iter().enumerate() {
                         if i > 0 {
                             self.output.push_str(", ");
@@ -4275,23 +4291,50 @@ impl CodeGenerator {
             }
             "error" => {
                 // console.error(...) -> eprintln!(...) in red color (ANSI escape codes)
-                // Red: \x1b[31m ... \x1b[0m
                 if method_call.args.is_empty() {
                     self.output.push_str("eprintln!()");
                 } else {
-                    self.output.push_str("eprintln!(\"\\x1b[31m");  // Red color
-                    for (i, _) in method_call.args.iter().enumerate() {
-                        if i > 0 {
-                            self.output.push(' ');  // Space between arguments
+                    self.output.push_str("eprintln!(\"\\x1b[31m");  // Red color start
+                    // Check if first arg is format string
+                    if method_call.args.len() == 1 {
+                        // Single arg - just print it with reset
+                        self.output.push_str("{}\\x1b[0m\", ");
+                        self.generate_expr(&method_call.args[0])?;
+                    } else if let Expr::Literal(Literal::String(fmt)) = &method_call.args[0] {
+                        // First arg is string literal - use as format string
+                        // Escape the format string properly
+                        for ch in fmt.chars() {
+                            match ch {
+                                '"' => self.output.push_str("\\\""),
+                                '\\' => self.output.push_str("\\\\"),
+                                '\n' => self.output.push_str("\\n"),
+                                '\r' => self.output.push_str("\\r"),
+                                '\t' => self.output.push_str("\\t"),
+                                _ => self.output.push(ch),
+                            }
                         }
-                        self.output.push_str("{}");
-                    }
-                    self.output.push_str("\\x1b[0m\", ");  // Reset color
-                    for (i, arg) in method_call.args.iter().enumerate() {
-                        if i > 0 {
-                            self.output.push_str(", ");
+                        self.output.push_str("\\x1b[0m\", ");
+                        for (i, arg) in method_call.args.iter().skip(1).enumerate() {
+                            if i > 0 {
+                                self.output.push_str(", ");
+                            }
+                            self.generate_expr(arg)?;
                         }
-                        self.generate_expr(arg)?;
+                    } else {
+                        // Multiple args without format string - generate default
+                        for (i, _) in method_call.args.iter().enumerate() {
+                            if i > 0 {
+                                self.output.push(' ');
+                            }
+                            self.output.push_str("{}");
+                        }
+                        self.output.push_str("\\x1b[0m\", ");
+                        for (i, arg) in method_call.args.iter().enumerate() {
+                            if i > 0 {
+                                self.output.push_str(", ");
+                            }
+                            self.generate_expr(arg)?;
+                        }
                     }
                     self.output.push(')');
                 }
@@ -5458,6 +5501,7 @@ impl<'a> IrCodeGenerator<'a> {
     fn format_from_expr(&self, expr: &ir::Expr) -> FormatKind {
         match expr {
             ir::Expr::ArrayLiteral(_) => FormatKind::Debug,
+            ir::Expr::TupleLiteral(_) => FormatKind::Debug,
             ir::Expr::ObjectLiteral(_) => FormatKind::Debug,
             ir::Expr::StructLiteral { .. } => FormatKind::Display,
             _ => FormatKind::Display,
@@ -5495,6 +5539,7 @@ impl<'a> IrCodeGenerator<'a> {
     fn expr_needs_debug(&self, expr: &ir::Expr) -> bool {
         match expr {
             ir::Expr::ArrayLiteral(_) => true,
+            ir::Expr::TupleLiteral(_) => true,
             ir::Expr::ObjectLiteral(_) => true,
             ir::Expr::StructLiteral { .. } => false,
             ir::Expr::Identifier(name) => {
@@ -7020,6 +7065,21 @@ impl<'a> IrCodeGenerator<'a> {
                 self.output.push(']');
                 Ok(())
             }
+            ir::Expr::TupleLiteral(elements) => {
+                self.output.push('(');
+                for (idx, elem) in elements.iter().enumerate() {
+                    if idx > 0 {
+                        self.output.push_str(", ");
+                    }
+                    self.generate_expr(elem)?;
+                }
+                // Rust requires trailing comma for single-element tuples
+                if elements.len() == 1 {
+                    self.output.push(',');
+                }
+                self.output.push(')');
+                Ok(())
+            }
             ir::Expr::Lambda(lambda) => {
                 if lambda.is_move {
                     self.output.push_str("move ");
@@ -7532,6 +7592,7 @@ fn expr_has_unsupported(expr: &ir::Expr) -> bool {
             fields.iter().any(|(_, value)| expr_has_unsupported(value))
         }
         ir::Expr::ArrayLiteral(elements) => elements.iter().any(expr_has_unsupported),
+        ir::Expr::TupleLiteral(elements) => elements.iter().any(expr_has_unsupported),
         ir::Expr::Lambda(lambda) => match &lambda.body {
             ir::LambdaBody::Expr(expr) => expr_has_unsupported(expr),
             ir::LambdaBody::Block(block) => block.iter().any(stmt_has_unsupported),
@@ -7761,6 +7822,7 @@ fn expr_has_async_concurrency(expr: &ir::Expr) -> bool {
             .iter()
             .any(|(_, value)| expr_has_async_concurrency(value)),
         &ir::Expr::ArrayLiteral(ref elements) => elements.iter().any(expr_has_async_concurrency),
+        &ir::Expr::TupleLiteral(ref elements) => elements.iter().any(expr_has_async_concurrency),
         ir::Expr::Lambda(lambda) => match &lambda.body {
             ir::LambdaBody::Expr(expr) => expr_has_async_concurrency(expr),
             ir::LambdaBody::Block(block) => block.iter().any(stmt_has_async_concurrency),
@@ -7836,6 +7898,7 @@ fn expr_has_parallel_concurrency(expr: &ir::Expr) -> bool {
             .iter()
             .any(|(_, value)| expr_has_parallel_concurrency(value)),
         &ir::Expr::ArrayLiteral(ref elements) => elements.iter().any(expr_has_parallel_concurrency),
+        &ir::Expr::TupleLiteral(ref elements) => elements.iter().any(expr_has_parallel_concurrency),
         ir::Expr::Lambda(lambda) => match &lambda.body {
             ir::LambdaBody::Expr(expr) => expr_has_parallel_concurrency(expr),
             ir::LambdaBody::Block(block) => block.iter().any(stmt_has_parallel_concurrency),

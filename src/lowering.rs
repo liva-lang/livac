@@ -314,6 +314,9 @@ fn lower_expr(expr: &ast::Expr) -> ir::Expr {
         ast::Expr::ArrayLiteral(items) => {
             ir::Expr::ArrayLiteral(items.iter().map(lower_expr).collect())
         }
+        ast::Expr::Tuple(items) => {
+            ir::Expr::TupleLiteral(items.iter().map(lower_expr).collect())
+        }
         ast::Expr::ObjectLiteral(fields) => ir::Expr::ObjectLiteral(
             fields
                 .iter()
