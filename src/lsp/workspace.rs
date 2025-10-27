@@ -206,6 +206,13 @@ impl WorkspaceIndex {
             .and_then(|table| table.lookup(name).map(|v| v.clone()))
     }
     
+    /// Gets all symbols from a specific file
+    pub fn get_file_symbols(&self, uri: &Url) -> Option<Vec<Symbol>> {
+        self.file_symbols
+            .get(uri)
+            .map(|table| table.all().iter().map(|s| (*s).clone()).collect())
+    }
+    
     /// Removes a file from the index
     pub fn remove_file(&self, uri: &Url) {
         // Remove the file's symbol table

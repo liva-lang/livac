@@ -285,7 +285,7 @@ impl LanguageServer for LivaLanguageServer {
         
         let mut items = Vec::new();
         
-        // Keywords
+        // Keywords (priority 0 - always first)
         let keywords = vec![
             "let", "const", "fn", "return", "if", "else", "while", "for", "switch",
             "async", "await", "task", "fire", "import", "from", "export", "type",
@@ -297,11 +297,12 @@ impl LanguageServer for LivaLanguageServer {
                 label: keyword.to_string(),
                 kind: Some(CompletionItemKind::KEYWORD),
                 detail: Some("keyword".to_string()),
+                sort_text: Some(format!("0_{}", keyword)),
                 ..Default::default()
             });
         }
         
-        // Types
+        // Types (priority 1)
         let types = vec![
             "int", "float", "string", "bool", "void",
         ];
@@ -311,11 +312,12 @@ impl LanguageServer for LivaLanguageServer {
                 label: type_name.to_string(),
                 kind: Some(CompletionItemKind::TYPE_PARAMETER),
                 detail: Some("type".to_string()),
+                sort_text: Some(format!("1_{}", type_name)),
                 ..Default::default()
             });
         }
         
-        // Built-in functions
+        // Built-in functions (priority 2)
         let builtins = vec![
             ("parseInt", "parseInt(str: string) -> (int, string)"),
             ("parseFloat", "parseFloat(str: string) -> (float, string)"),
@@ -327,19 +329,18 @@ impl LanguageServer for LivaLanguageServer {
                 label: name.to_string(),
                 kind: Some(CompletionItemKind::FUNCTION),
                 detail: Some(signature.to_string()),
+                sort_text: Some(format!("2_{}", name)),
                 ..Default::default()
             });
         }
         
-        // Add symbols from AST (variables, functions, classes)
+        // Local file symbols (priority 3 - local symbols)
         if let Some(symbols) = &doc.symbols {
             for symbol in symbols.all() {
-                // Skip if already added (avoid duplicates with keywords)
                 if items.iter().any(|item| item.label == symbol.name) {
                     continue;
                 }
                 
-                // Convert SymbolKind to CompletionItemKind
                 let completion_kind = match symbol.kind {
                     SymbolKind::FUNCTION => CompletionItemKind::FUNCTION,
                     SymbolKind::CLASS => CompletionItemKind::CLASS,
@@ -355,10 +356,95 @@ impl LanguageServer for LivaLanguageServer {
                     label: symbol.name.clone(),
                     kind: Some(completion_kind),
                     detail: symbol.detail.clone(),
+                    sort_text: Some(format!("3_{}", symbol.name)),
                     ..Default::default()
                 });
             }
         }
+        
+        // Imported symbols (priority 4 - from explicit imports)
+        let import_resolver = self.import_resolver.read().await;
+        for import_info in &doc.imports {
+            if let Some(import_uri) = &import_info.resolved_uri {
+                // Get all symbols from imported file
+                if let Some(imported_symbols) = self.workspace_index.get_file_symbols(import_uri) {
+                    for symbol in imported_symbols {
+                        // Only add explicitly imported symbols (or all if wildcard)
+                        if import_info.is_wildcard || import_info.symbols.contains(&symbol.name) {
+                            if items.iter().any(|item| item.label == symbol.name) {
+                                continue;
+                            }
+                            
+                            let completion_kind = match symbol.kind {
+                                SymbolKind::FUNCTION => CompletionItemKind::FUNCTION,
+                                SymbolKind::CLASS => CompletionItemKind::CLASS,
+                                SymbolKind::METHOD => CompletionItemKind::METHOD,
+                                SymbolKind::STRUCT => CompletionItemKind::STRUCT,
+                                SymbolKind::CONSTANT => CompletionItemKind::CONSTANT,
+                                SymbolKind::VARIABLE => CompletionItemKind::VARIABLE,
+                                SymbolKind::TYPE_PARAMETER => CompletionItemKind::TYPE_PARAMETER,
+                                _ => CompletionItemKind::TEXT,
+                            };
+                            
+                            items.push(CompletionItem {
+                                label: symbol.name.clone(),
+                                kind: Some(completion_kind),
+                                detail: Some(format!("from {}", import_info.source)),
+                                sort_text: Some(format!("4_{}", symbol.name)),
+                                ..Default::default()
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        drop(import_resolver);
+        
+        // Workspace symbols (priority 5 - all other workspace symbols)
+        let all_workspace_symbols = self.workspace_index.all_symbols();
+        for (symbol_uri, symbol) in all_workspace_symbols {
+            // Skip current file (already added)
+            if &symbol_uri == uri {
+                continue;
+            }
+            
+            // Skip if already added
+            if items.iter().any(|item| item.label == symbol.name) {
+                continue;
+            }
+            
+            let completion_kind = match symbol.kind {
+                SymbolKind::FUNCTION => CompletionItemKind::FUNCTION,
+                SymbolKind::CLASS => CompletionItemKind::CLASS,
+                SymbolKind::METHOD => CompletionItemKind::METHOD,
+                SymbolKind::STRUCT => CompletionItemKind::STRUCT,
+                SymbolKind::CONSTANT => CompletionItemKind::CONSTANT,
+                SymbolKind::VARIABLE => CompletionItemKind::VARIABLE,
+                SymbolKind::TYPE_PARAMETER => CompletionItemKind::TYPE_PARAMETER,
+                _ => CompletionItemKind::TEXT,
+            };
+            
+            // Extract filename from URI
+            let file_name = symbol_uri
+                .path_segments()
+                .and_then(|segments| segments.last())
+                .unwrap_or("unknown");
+            
+            items.push(CompletionItem {
+                label: symbol.name.clone(),
+                kind: Some(completion_kind),
+                detail: Some(format!("from {}", file_name)),
+                sort_text: Some(format!("5_{}", symbol.name)),
+                ..Default::default()
+            });
+        }
+        
+        self.client
+            .log_message(
+                MessageType::INFO,
+                format!("Completion: {} items (local + imported + workspace)", items.len()),
+            )
+            .await;
         
         Ok(Some(CompletionResponse::Array(items)))
     }
