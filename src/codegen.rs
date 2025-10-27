@@ -52,6 +52,8 @@ pub struct CodeGenerator {
     fallible_functions: std::collections::HashSet<String>, // Track which functions are fallible
     // --- Type aliases (for expansion during codegen)
     type_aliases: std::collections::HashMap<String, (Vec<TypeParameter>, TypeRef)>,
+    // --- Union types (for enum generation)
+    union_types: std::collections::HashSet<Vec<String>>, // Track all union types used: [(i32, String), ...]
     // --- Phase 2: Lazy await/join tracking
     pending_tasks: std::collections::HashMap<String, TaskInfo>, // Variables that hold unawaited Tasks
     // --- Phase 3: Error binding variables (Option<String> type)
@@ -88,6 +90,7 @@ impl CodeGenerator {
             var_types: std::collections::HashMap::new(),
             fallible_functions: std::collections::HashSet::new(),
             type_aliases: std::collections::HashMap::new(),
+            union_types: std::collections::HashSet::new(),
             pending_tasks: std::collections::HashMap::new(),
             error_binding_vars: std::collections::HashSet::new(),
             option_value_vars: std::collections::HashSet::new(),
@@ -782,7 +785,10 @@ impl CodeGenerator {
             }
         }
 
-        // Generate top-level items
+        // Pre-pass: Collect all union types by scanning type annotations
+        // This happens during generation, unions are registered in expand_type_alias
+
+        // Generate top-level items (first pass to collect unions)
         for item in &program.items {
             if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: Processing top-level item: {:?}", item); }
             match item {
@@ -794,7 +800,113 @@ impl CodeGenerator {
             self.output.push('\n');
         }
 
+        // After first pass, generate union type enum definitions
+        let unions_to_generate: Vec<Vec<String>> = self.union_types.iter().cloned().collect();
+        if !unions_to_generate.is_empty() {
+            // Insert union enums before the generated code
+            let mut union_defs = String::new();
+            union_defs.push_str("\n// Union type definitions\n");
+            
+            for union_types in unions_to_generate {
+                let enum_name = format!("Union_{}", union_types.join("_"));
+                union_defs.push_str(&format!("#[derive(Debug, Clone)]\n"));
+                union_defs.push_str(&format!("enum {} {{\n", enum_name));
+                
+                // Generate variant for each type in the union
+                for (_i, rust_type) in union_types.iter().enumerate() {
+                    let variant_name = self.type_to_variant_name(rust_type);
+                    union_defs.push_str(&format!("    {}({}),\n", variant_name, rust_type));
+                }
+                
+                union_defs.push_str("}\n\n");
+                
+                // Implement Display for the union enum
+                union_defs.push_str(&format!("impl std::fmt::Display for {} {{\n", enum_name));
+                union_defs.push_str("    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n");
+                union_defs.push_str("        match self {\n");
+                
+                for rust_type in &union_types {
+                    let variant_name = self.type_to_variant_name(rust_type);
+                    union_defs.push_str(&format!("            {}::{}(val) => write!(f, \"{{}}\", val),\n", 
+                        enum_name, variant_name));
+                }
+                
+                union_defs.push_str("        }\n");
+                union_defs.push_str("    }\n");
+                union_defs.push_str("}\n\n");
+            }
+            
+            // Find where to insert (after liva_rt module, before first function)
+            // For now, prepend to output (will fix positioning later)
+            let temp = self.output.clone();
+            self.output = union_defs;
+            self.output.push_str(&temp);
+        }
+
         Ok(())
+    }
+
+    /// Convert a Rust type string to a valid enum variant name
+    fn type_to_variant_name(&self, rust_type: &str) -> String {
+        match rust_type {
+            "i32" => "Int".to_string(),
+            "String" => "Str".to_string(),
+            "f64" => "Float".to_string(),
+            "bool" => "Bool".to_string(),
+            other => {
+                // Remove special characters and capitalize
+                other
+                    .replace("<", "")
+                    .replace(">", "")
+                    .replace(",", "")
+                    .replace(" ", "")
+                    .replace("(", "")
+                    .replace(")", "")
+                    .chars()
+                    .next()
+                    .map(|c| c.to_uppercase().to_string())
+                    .unwrap_or_default()
+                    + &other[1..]
+                        .replace("<", "")
+                        .replace(">", "")
+                        .replace(",", "")
+                        .replace(" ", "")
+                        .replace("(", "")
+                        .replace(")", "")
+            }
+        }
+    }
+
+    /// Generate union wrapper if needed (e.g., Union_i32_String::Int(42))
+    /// Returns (needs_close, needs_to_string) tuple
+    fn maybe_wrap_in_union(&mut self, dest_type_ref: &TypeRef, expr: &Expr) -> (bool, bool) {
+        // Check if destination is a union type
+        if let TypeRef::Union(members) = dest_type_ref {
+            // Infer the type of the expression (using existing infer_expr_type)
+            if let Some(type_with_arrow) = self.infer_expr_type(expr, None) {
+                // Extract type from " -> i32" format
+                let expr_type = type_with_arrow.trim_start_matches(" -> ").to_string();
+                
+                // Generate the union type name
+                let expanded_members: Vec<String> = members
+                    .iter()
+                    .map(|m| self.expand_type_alias(m))
+                    .collect();
+                let union_name = format!("Union_{}", expanded_members.join("_"));
+                
+                // Find which variant to use
+                let variant = self.type_to_variant_name(&expr_type);
+                
+                // Check if this is a string literal that needs .to_string()
+                let needs_to_string = expr_type == "String" 
+                    && matches!(expr, Expr::Literal(Literal::String(_)));
+                
+                // Generate wrapper
+                write!(self.output, "{}::{}(", union_name, variant).unwrap();
+                return (true, needs_to_string);
+            }
+        }
+        (false, false)
     }
 
     fn generate_top_level(&mut self, item: &TopLevel) -> Result<()> {
@@ -870,28 +982,28 @@ impl CodeGenerator {
     }
 
     /// Expand type aliases in a TypeRef to get the final Rust type string
-    fn expand_type_alias(&self, type_ref: &TypeRef) -> String {
+    fn expand_type_alias(&mut self, type_ref: &TypeRef) -> String {
         match type_ref {
             TypeRef::Simple(name) => {
                 // Check if it's a type alias
-                if let Some((alias_params, target_type)) = self.type_aliases.get(name) {
+                if let Some((alias_params, target_type)) = self.type_aliases.get(name).cloned() {
                     // If the alias has no type parameters, just expand the target
                     if alias_params.is_empty() {
-                        return self.expand_type_alias(target_type);
+                        return self.expand_type_alias(&target_type);
                     }
                     // If it has type parameters but no args, just expand (error should be caught in semantic)
-                    return self.expand_type_alias(target_type);
+                    return self.expand_type_alias(&target_type);
                 }
                 // Not a type alias, use the normal to_rust_type conversion
                 type_ref.to_rust_type()
             }
             TypeRef::Generic { base, args } => {
                 // Check if the base is a type alias
-                if let Some((alias_params, target_type)) = self.type_aliases.get(base) {
+                if let Some((alias_params, target_type)) = self.type_aliases.get(base).cloned() {
                     // Substitute type parameters
                     let substituted = self.substitute_type_params_codegen(
-                        target_type,
-                        alias_params,
+                        &target_type,
+                        &alias_params,
                         args,
                     );
                     return self.expand_type_alias(&substituted);
@@ -925,13 +1037,16 @@ impl CodeGenerator {
                 }
             }
             TypeRef::Union(types) => {
-                // For union types, we'll generate a Rust enum
-                // For now, generate a placeholder that will be handled later
+                // For union types, register and generate a Rust enum
                 let type_names: Vec<String> = types
                     .iter()
                     .map(|t| self.expand_type_alias(t))
                     .collect();
-                // Generate union enum name (will be defined in codegen)
+                
+                // Register this union for enum generation
+                self.union_types.insert(type_names.clone());
+                
+                // Generate union enum name
                 format!("Union_{}", type_names.join("_"))
             }
         }
@@ -2237,10 +2352,18 @@ impl CodeGenerator {
                         write!(self.output, "let mut {}", var_name).unwrap();
 
                         if let Some(type_ref) = &binding.type_ref {
-                            write!(self.output, ": {}", self.expand_type_alias(type_ref)).unwrap();
+                            let rust_type = self.expand_type_alias(type_ref);
+                            write!(self.output, ": {}", rust_type).unwrap();
                         }
 
                         self.output.push_str(" = ");
+                        
+                        // Check if we need to wrap in a union variant
+                        let (needs_union_close, needs_to_string) = if let Some(type_ref) = &binding.type_ref {
+                            self.maybe_wrap_in_union(type_ref, &var.init)
+                        } else {
+                            (false, false)
+                        };
                         
                         // Phase 1: Check if this is JSON.parse with type hint (typed parsing)
                         let is_json_parse = self.is_json_parse_call(&var.init);
@@ -2266,6 +2389,17 @@ impl CodeGenerator {
                         } else {
                             self.generate_expr(&var.init)?;
                         }
+                        
+                        // Add .to_string() if needed for string literals
+                        if needs_to_string {
+                            self.output.push_str(".to_string()");
+                        }
+                        
+                        // Close union wrapper if opened
+                        if needs_union_close {
+                            self.output.push(')');
+                        }
+                        
                         self.output.push_str(";\n");
                     }
                 }
