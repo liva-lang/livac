@@ -3318,6 +3318,9 @@ impl SemanticAnalyzer {
             Pattern::Binding(name) => {
                 bindings.push(name.clone());
             }
+            Pattern::Typed { name, .. } => {
+                bindings.push(name.clone());
+            }
             Pattern::Tuple(patterns) | Pattern::Array(patterns) | Pattern::Or(patterns) => {
                 for p in patterns {
                     self.extract_pattern_bindings(p, bindings);
@@ -3396,6 +3399,11 @@ impl SemanticAnalyzer {
             Pattern::Literal(_) | Pattern::Wildcard | Pattern::Binding(_) | Pattern::Range(_) => {
                 // No additional validation needed
             }
+            Pattern::Typed { type_ref, .. } => {
+                // Validate the type annotation
+                let empty_type_params = std::collections::HashSet::new();
+                self.validate_type_ref(type_ref, &empty_type_params)?;
+            }
         }
         Ok(())
     }
@@ -3407,7 +3415,7 @@ impl SemanticAnalyzer {
 
         // Check if there's a wildcard or binding pattern (catches all cases)
         let has_catch_all = switch_expr.arms.iter().any(|arm| {
-            matches!(arm.pattern, Pattern::Wildcard | Pattern::Binding(_))
+            matches!(arm.pattern, Pattern::Wildcard | Pattern::Binding(_) | Pattern::Typed { .. })
         });
 
         if has_catch_all {
@@ -3509,6 +3517,10 @@ impl SemanticAnalyzer {
                 // For now, we don't infer types from these
                 None
             }
+            Pattern::Typed { type_ref, .. } => {
+                // Type pattern explicitly specifies the type
+                Some(type_ref.to_rust_type())
+            }
             Pattern::Wildcard | Pattern::Binding(_) | Pattern::Range(_) => {
                 // These don't give us type info directly
                 None
@@ -3562,7 +3574,7 @@ impl SemanticAnalyzer {
             Pattern::Tuple(patterns) | Pattern::Array(patterns) => {
                 // Don't extract from nested structures for now
             }
-            Pattern::Wildcard | Pattern::Binding(_) => {
+            Pattern::Wildcard | Pattern::Binding(_) | Pattern::Typed { .. } => {
                 // These don't contribute to coverage
             }
         }

@@ -120,6 +120,137 @@ fn handleValue(x: int | string) {
 }
 ```
 
+### Pattern Matching with Switch (v0.11.3)
+
+The most powerful way to work with unions is through pattern matching with `switch`:
+
+```liva
+fn processValue(x: int | string | bool) {
+    switch x {
+        case n: int => print("Number: {}", n * 2)
+        case s: string => print("String: {}", s.length)
+        case b: bool => print("Boolean: {}", b)
+    }
+}
+```
+
+#### Type Pattern Syntax
+
+Pattern arms use the syntax `case variable: type => expression`:
+
+```liva
+let value: int | string = 42
+
+let result = switch value {
+    case num: int => num * 2        // Binds to 'num' as int
+    case text: string => text.length // Binds to 'text' as string
+}
+```
+
+#### Automatic Type Narrowing
+
+Inside each match arm, the variable is automatically narrowed to the matched type:
+
+```liva
+fn describe(x: int | string | bool) -> string {
+    return switch x {
+        case n: int => "Number with value " + n.toString()
+        case s: string => "String with length " + s.length.toString()
+        case b: bool => "Boolean: " + (b ? "true" : "false")
+    }
+}
+```
+
+#### Exhaustiveness Checking
+
+The compiler ensures all union variants are handled:
+
+```liva
+let x: int | string = 42
+
+// ✅ OK - all variants covered
+switch x {
+    case n: int => print(n)
+    case s: string => print(s)
+}
+
+// ❌ Error: Non-exhaustive pattern - missing string case
+switch x {
+    case n: int => print(n)
+}
+```
+
+#### Wildcard Pattern
+
+Use `_` to match any remaining variants:
+
+```liva
+let value: int | string | bool | float = 3.14
+
+switch value {
+    case n: int => print("Integer: {}", n)
+    case s: string => print("String: {}", s)
+    case _ => print("Other type")  // Matches bool and float
+}
+```
+
+#### Nested Unions
+
+Pattern matching works with nested union types:
+
+```liva
+type Value = int | string | (int, string)
+
+fn process(v: Value) {
+    switch v {
+        case n: int => print("Number: {}", n)
+        case s: string => print("String: {}", s)
+        case (num, text): (int, string) => {
+            print("Tuple: ({}, {})", num, text)
+        }
+    }
+}
+```
+
+#### Multiple Type Unions
+
+Handle unions with three or more types:
+
+```liva
+type Token = int | string | bool | float
+
+fn tokenValue(t: Token) -> string {
+    return switch t {
+        case n: int => "int:" + n.toString()
+        case s: string => "str:" + s
+        case b: bool => "bool:" + (b ? "true" : "false")
+        case f: float => "float:" + f.toString()
+    }
+}
+```
+
+#### Code Generation
+
+Pattern matching on unions generates efficient Rust match expressions:
+
+```liva
+// Liva code
+let x: int | string = 42
+switch x {
+    case n: int => print(n * 2)
+    case s: string => print(s.length)
+}
+```
+
+```rust
+// Generated Rust code
+let x: Union_i32_String = Union_i32_String::Int(42);
+match x {
+    Union_i32_String::Int(n) => println!("{}", n * 2),
+    Union_i32_String::Str(s) => println!("{}", s.len()),
+}
+```
+
 ## Common Patterns
 
 ### Optional Values

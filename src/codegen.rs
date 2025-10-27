@@ -3362,6 +3362,9 @@ impl CodeGenerator {
     }
 
     fn generate_switch_expr(&mut self, switch_expr: &SwitchExpr) -> Result<()> {
+        // Check if this is a union type match by examining the first Typed pattern
+        let union_type_name = self.detect_union_switch(switch_expr);
+        
         // Generate Rust match expression
         self.output.push_str("match ");
         self.generate_expr(&switch_expr.discriminant)?;
@@ -3372,8 +3375,12 @@ impl CodeGenerator {
             self.output.push('\n');
             self.write_indent();
 
-            // Generate pattern
-            self.generate_pattern(&arm.pattern)?;
+            // Generate pattern (with union context if applicable)
+            if let Some(ref union_name) = union_type_name {
+                self.generate_union_pattern(&arm.pattern, union_name)?;
+            } else {
+                self.generate_pattern(&arm.pattern)?;
+            }
 
             // Generate guard if present
             if let Some(guard) = &arm.guard {
@@ -3411,6 +3418,47 @@ impl CodeGenerator {
         self.write_indent();
         self.output.push('}');
 
+        Ok(())
+    }
+
+    /// Detect if this is a union type switch by checking for Typed patterns
+    fn detect_union_switch(&mut self, switch_expr: &SwitchExpr) -> Option<String> {
+        // Collect types from Typed patterns in order
+        let mut pattern_types = Vec::new();
+        
+        for arm in &switch_expr.arms {
+            if let Pattern::Typed { type_ref, .. } = &arm.pattern {
+                let rust_type = self.expand_type_alias(type_ref);
+                if !pattern_types.contains(&rust_type) {
+                    pattern_types.push(rust_type);
+                }
+            }
+        }
+        
+        // If we found typed patterns, construct union name from pattern order
+        if pattern_types.len() >= 2 {
+            Some(format!("Union_{}", pattern_types.join("_")))
+        } else {
+            None
+        }
+    }
+
+    /// Generate a pattern in the context of a union match
+    fn generate_union_pattern(&mut self, pattern: &Pattern, union_name: &str) -> Result<()> {
+        match pattern {
+            Pattern::Typed { name, type_ref } => {
+                let rust_type = self.expand_type_alias(type_ref);
+                let variant_name = self.type_to_variant_name(&rust_type);
+                write!(self.output, "{}::{}({})", union_name, variant_name, self.sanitize_name(name)).unwrap();
+            }
+            Pattern::Wildcard => {
+                self.output.push('_');
+            }
+            _ => {
+                // For other patterns, fallback to normal generation
+                self.generate_pattern(pattern)?;
+            }
+        }
         Ok(())
     }
 
@@ -3481,6 +3529,12 @@ impl CodeGenerator {
                     }
                     self.generate_pattern(pat)?;
                 }
+            }
+            Pattern::Typed { name, type_ref } => {
+                // Type pattern for union narrowing: name: type
+                // When used outside of union context, just bind the variable
+                // (Union context is handled in generate_union_pattern)
+                self.output.push_str(&self.sanitize_name(name));
             }
         }
         Ok(())
@@ -7681,6 +7735,11 @@ impl<'a> IrCodeGenerator<'a> {
                     }
                     self.generate_pattern(pat)?;
                 }
+            }
+            Pattern::Typed { name, type_ref } => {
+                // Type pattern for union narrowing: name: type
+                // This will be handled specially in generate_switch_expr
+                self.output.push_str(&self.sanitize_name(name));
             }
         }
         Ok(())

@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.3] - 2025-01-28
+
+### Added - Pattern Matching for Union Types ✨
+
+**Pattern Matching Integration:**
+- ✅ Type patterns in switch expressions: `n: int => expr`
+- ✅ Automatic type narrowing in each match arm
+- ✅ Full exhaustiveness checking for union patterns
+- ✅ Wildcard pattern support: `_ => default`
+
+**Syntax:**
+```liva
+let x: int | string = 42
+let result = switch x {
+  n: int => n * 2,      // n has type int here
+  s: string => s.len()  // s has type string here
+}
+```
+
+**Implementation:**
+- ✅ AST extension: `Pattern::Typed { name, type_ref }`
+- ✅ Parser: Recognizes `variable: type` pattern syntax
+- ✅ Codegen: Generates proper Rust enum variant matches
+  - `Union_i32_String::Int(n) => ...`
+  - `Union_i32_String::Str(s) => ...`
+- ✅ Semantic validation: Ensures exhaustiveness and type safety
+
+**Multi-Type Unions:**
+```liva
+let value: int | string | bool = "hello"
+switch value {
+  n: int => "Number",
+  s: string => "String",
+  b: bool => "Boolean"
+}
+```
+
+**Documentation:**
+- ✅ Comprehensive pattern matching section in `union-types.md`
+- ✅ Examples: type narrowing, exhaustiveness, wildcards
+- ✅ Code generation details and best practices
+
+**Phase 7.2 Complete:** Union types are now fully usable with pattern matching support.
+
 ## [0.11.2] - 2025-01-28
 
 ### Added - Union Types ✨

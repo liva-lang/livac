@@ -506,6 +506,8 @@ pub enum Pattern {
     Wildcard,
     /// Binding pattern: x (captures value)
     Binding(String),
+    /// Type pattern: x: int (for union type narrowing)
+    Typed { name: String, type_ref: TypeRef },
     /// Range pattern: 1..10, 1..=10, ..10, 10..
     Range(RangePattern),
     /// Tuple pattern: (x, y, z)
@@ -885,6 +887,9 @@ impl fmt::Display for Pattern {
                     write!(f, "{}", pat)?;
                 }
                 Ok(())
+            }
+            Pattern::Typed { name, type_ref } => {
+                write!(f, "{}: {}", name, type_ref.to_rust_type())
             }
         }
     }

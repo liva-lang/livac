@@ -2411,9 +2411,15 @@ impl Parser {
         match expr {
             Expr::Literal(lit) => Ok(Pattern::Literal(lit)),
             Expr::Identifier(name) => {
-                // Identifiers can be bindings (lowercase) or enum variants (capitalized)
-                // For now, treat all as bindings since we don't have enums yet
-                Ok(Pattern::Binding(name))
+                // Check if this is a type pattern: name: type
+                if self.match_token(&Token::Colon) {
+                    let type_ref = self.parse_type()?;
+                    Ok(Pattern::Typed { name, type_ref })
+                } else {
+                    // Identifiers can be bindings (lowercase) or enum variants (capitalized)
+                    // For now, treat all as bindings since we don't have enums yet
+                    Ok(Pattern::Binding(name))
+                }
             }
             _ => Err(self.error("Invalid pattern".into())),
         }

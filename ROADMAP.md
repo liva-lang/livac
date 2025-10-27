@@ -1,7 +1,7 @@
 # 🗺️ Liva Language Roadmap
 
-> **Current Version:** v0.11.2  
-> **Status:** Alpha - Union Types completed  
+> **Current Version:** v0.11.3  
+> **Status:** Alpha - Pattern Matching for Union Types completed  
 > **Last Updated:** 2025-01-28
 
 ---
@@ -23,17 +23,17 @@ The roadmap is organized into focused phases:
 - **Phase 1-4:** ✅ Core language features (completed)
 - **Phase 5:** 🧬 Generics - Type-safe generic programming (v0.9.0) ✅
 - **Phase 6:** 🔧 Incremental improvements - High-value productivity features (v0.9.x - v0.10.x) ✅
-- **Phase 7:** 🎯 Advanced types - Tuples, unions, type aliases (v0.11.0+) 🔄
+- **Phase 7:** 🎯 Advanced types - Tuples, unions, type aliases (v0.11.0+) ✅
   - **Phase 7.1:** ✅ Tuple Types (v0.11.0) - Complete
   - **Phase 7.3:** ✅ Type Aliases (v0.11.1) - Complete
-  - **Phase 7.2:** ✅ Union Types (v0.11.2) - Complete (pattern matching pending)
+  - **Phase 7.2:** ✅ Union Types (v0.11.2-v0.11.3) - Complete with Pattern Matching
 - **Phase 8:** 🚢 Production release - LSP, debugging, stability (v1.0.0) 📋
 
 Each phase is broken into sub-tasks with time estimates and clear deliverables.
 
 ---
 
-## 📍 Current Status (v0.11.2)
+## 📍 Current Status (v0.11.3)
 
 ### ✅ Completed Features
 
@@ -46,6 +46,11 @@ Each phase is broken into sub-tasks with time estimates and clear deliverables.
 - ✅ Operators (arithmetic, logical, comparison, bitwise)
 - ✅ String templates with interpolation
 - ✅ Visibility modifiers (public, private)
+
+**Advanced Types:**
+- ✅ Tuple types with destructuring (v0.11.0)
+- ✅ Type aliases with generics (v0.11.1)
+- ✅ Union types with pattern matching (v0.11.2-v0.11.3)
 
 **Concurrency:**
 - ✅ Async/await for I/O-bound operations
@@ -65,10 +70,11 @@ Each phase is broken into sub-tasks with time estimates and clear deliverables.
 - ✅ Comprehensive test suite (110+ tests)
 - ✅ Complete documentation (23 files)
 
-**Recent Changes (2025-10-19):**
-- ✅ Removed `protected` visibility (no inheritance = no need)
-- ✅ Simplified to `public` (no prefix) and `private` (`_` prefix)
-- ✅ Updated 68 files, 110+ test snapshots
+**Recent Changes (2025-01-28):**
+- ✅ Pattern matching for union types: `n: int => expr`
+- ✅ Automatic type narrowing in switch arms
+- ✅ Exhaustiveness checking for union patterns
+- ✅ Phase 7.2 fully complete
 
 ---
 
