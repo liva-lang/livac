@@ -18,6 +18,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✅ Handles missing fields, null values, and present values seamlessly
 - ✅ Perfect for real-world APIs with optional/nullable fields
 
+### Fixed - Optional Fields Bug Fixes 🐛
+
+**Constructor Generation:**
+- Fixed optional field constructors to generate `None` instead of `String::new()`
+- Both default and parameterized constructors now correctly initialize optional fields
+
+**Object Destructuring:**
+- Fixed optional fields in lambda destructuring for `forEach`, `map`, `filter`, etc.
+- Optional fields now correctly unwrap with `.as_ref().map(|v| v.clone()).unwrap_or_default()`
+- Required fields correctly use `.clone()` without unnecessary unwrapping
+- Added `current_lambda_element_type` to track class types through lambda generation
+- Works correctly with parallel operations (`.parvec().forEach`)
+
+**Real-World Testing:**
+- Tested with JSONPlaceholder API integration
+- User class with optional `username?: string` field works correctly
+- Object destructuring in forEach properly handles mixed optional/required fields
+
+**Example of Fixed Behavior:**
+```liva
+User {
+    id: u32
+    name: string
+    username?: string  // ✨ Optional field
+}
+
+main() {
+    let users: [User], err = async HTTP.get("https://api.example.com/users").json()
+    
+    // ✅ Now works correctly with optional username
+    users.parvec().forEach(({id, name, username}) => {
+        console.log($"User {id}: {name} (@{username})")
+    })
+}
+```
+
 **Why Optional Fields Matter:**
 - **Type Safety:** Explicitly document which fields can be absent/null
 - **No More Crashes:** Missing fields don't cause JSON parse failures
