@@ -936,7 +936,7 @@ impl Parser {
         }
     }
 
-    /// Parse a single binding pattern: identifier, {obj}, or [array]
+    /// Parse a single binding pattern: identifier, {obj}, [array], or (tuple)
     fn parse_binding_pattern(&mut self) -> Result<VarBinding> {
         let start_pos = self.current;
         
@@ -946,6 +946,9 @@ impl Parser {
         } else if self.check(&Token::LBracket) {
             // Array destructuring: [first, second] or [head, ...tail]
             self.parse_array_pattern()?
+        } else if self.check(&Token::LParen) {
+            // Tuple destructuring: (x, y, z)
+            self.parse_tuple_pattern()?
         } else {
             // Simple identifier
             let name = self.parse_identifier()?;
@@ -1056,6 +1059,31 @@ impl Parser {
         self.expect(Token::RBracket)?;
 
         Ok(BindingPattern::Array(ArrayPattern { elements, rest }))
+    }
+
+    /// Parse tuple destructuring pattern: (x, y, z)
+    fn parse_tuple_pattern(&mut self) -> Result<BindingPattern> {
+        self.expect(Token::LParen)?;
+        
+        let mut elements = Vec::new();
+
+        // Parse elements
+        if !self.check(&Token::RParen) {
+            // Parse first element
+            elements.push(self.parse_identifier()?);
+
+            // Parse remaining elements
+            while self.match_token(&Token::Comma) {
+                if self.check(&Token::RParen) {
+                    break; // Trailing comma
+                }
+                elements.push(self.parse_identifier()?);
+            }
+        }
+
+        self.expect(Token::RParen)?;
+
+        Ok(BindingPattern::Tuple(TuplePattern { elements }))
     }
 
     fn parse_simple_statement(&mut self) -> Result<Stmt> {

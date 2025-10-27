@@ -1863,6 +1863,17 @@ impl SemanticAnalyzer {
                         }
                     }
                 }
+                BindingPattern::Tuple(tuple_pattern) => {
+                    // Validate and declare all bindings from tuple pattern
+                    for element in &tuple_pattern.elements {
+                        if self.declare_symbol(element, None) {
+                            self.exit_scope()?;
+                            return Err(CompilerError::SemanticError(
+                                format!("Binding '{}' defined multiple times", element).into(),
+                            ));
+                        }
+                    }
+                }
             }
         }
 
@@ -2716,6 +2727,65 @@ impl SemanticAnalyzer {
                     }
                 }
             }
+            BindingPattern::Tuple(tuple_pattern) => {
+                // Validate that we're destructuring from a tuple type
+                let inferred_type = declared_type.or_else(|| self.infer_expr_type(init_expr));
+                
+                // Check if it's a tuple type
+                let is_tuple = matches!(inferred_type.as_ref(), Some(TypeRef::Tuple(_)));
+
+                if !is_tuple && inferred_type.is_some() {
+                    let error = self.error_with_span(
+                        "E0304",
+                        "Cannot destructure non-tuple type with tuple pattern",
+                        "Cannot destructure non-tuple type with tuple pattern",
+                        span
+                    )
+                    .with_help("Tuple destructuring can only be used with tuple types");
+                    return Err(CompilerError::SemanticError(error));
+                }
+
+                // Check for duplicate bindings
+                let mut seen_bindings = HashSet::new();
+                for element in &tuple_pattern.elements {
+                    if !seen_bindings.insert(element) {
+                        let error = self.error_with_span(
+                            "E0302",
+                            &format!("Duplicate binding '{}' in destructuring pattern", element),
+                            &format!("Duplicate binding '{}' in destructuring pattern", element),
+                            span
+                        )
+                        .with_help("Each binding in a destructuring pattern must be unique");
+                        return Err(CompilerError::SemanticError(error));
+                    }
+                }
+
+                // Extract element types from tuple
+                let element_types: Vec<Option<TypeRef>> = match inferred_type {
+                    Some(TypeRef::Tuple(types)) => types.iter().map(|t| Some(t.clone())).collect(),
+                    _ => vec![None; tuple_pattern.elements.len()],
+                };
+
+                // Declare all bound variables with their corresponding types
+                for (i, name) in tuple_pattern.elements.iter().enumerate() {
+                    let element_type = element_types.get(i).and_then(|t| t.clone());
+                    
+                    if self.declare_symbol(name, element_type) {
+                        let error = self.error_with_span(
+                            "E0001",
+                            &format!("Variable '{}' already defined in this scope", name),
+                            &format!("Variable '{}' already defined in this scope", name),
+                            span
+                        )
+                        .with_help(&format!("Consider using a different name or removing the previous declaration of '{}'", name));
+                        return Err(CompilerError::SemanticError(error));
+                    }
+
+                    if !is_fallible {
+                        self.update_awaitable_from_expr(name, init_expr)?;
+                    }
+                }
+            }
         }
 
         Ok(())
@@ -2858,6 +2928,44 @@ impl SemanticAnalyzer {
                             "E0312",
                             &format!("Binding '{}' already declared", rest),
                             &format!("Binding '{}' already declared", rest),
+                            span
+                        )
+                        .with_help(&format!("Consider using a different name"));
+                        return Err(CompilerError::SemanticError(error));
+                    }
+                }
+            }
+            BindingPattern::Tuple(tuple_pattern) => {
+                // Infer element types from tuple type
+                let element_types: Vec<Option<TypeRef>> = match &param_type {
+                    Some(TypeRef::Tuple(types)) => types.iter().map(|t| Some(t.clone())).collect(),
+                    _ => vec![None; tuple_pattern.elements.len()],
+                };
+                
+                // Check for duplicates
+                let mut seen = HashSet::new();
+                for name in &tuple_pattern.elements {
+                    if !seen.insert(name) {
+                        let error = self.error_with_span(
+                            "E0312",
+                            &format!("Binding '{}' appears multiple times in pattern", name),
+                            &format!("Binding '{}' appears multiple times in pattern", name),
+                            span
+                        )
+                        .with_help("Each binding in a destructuring pattern must be unique");
+                        return Err(CompilerError::SemanticError(error));
+                    }
+                }
+                
+                // Declare element bindings with their corresponding types
+                for (i, name) in tuple_pattern.elements.iter().enumerate() {
+                    let element_type = element_types.get(i).and_then(|t| t.clone());
+                    
+                    if self.declare_symbol(name, element_type) {
+                        let error = self.error_with_span(
+                            "E0312",
+                            &format!("Binding '{}' already declared", name),
+                            &format!("Binding '{}' already declared", name),
                             span
                         )
                         .with_help(&format!("Consider using a different name"));

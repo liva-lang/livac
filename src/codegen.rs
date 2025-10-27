@@ -1265,6 +1265,25 @@ impl CodeGenerator {
 
     fn infer_expr_type(&self, expr: &Expr, class: Option<&ClassDecl>) -> Option<String> {
         match expr {
+            Expr::Tuple(elements) => {
+                // Infer tuple type from element expressions
+                let mut element_types = Vec::new();
+                for elem in elements {
+                    if let Some(type_str) = self.infer_expr_type(elem, class) {
+                        // Extract just the type part (remove " -> " prefix)
+                        let type_part = type_str.trim_start_matches(" -> ");
+                        element_types.push(type_part.to_string());
+                    } else {
+                        // If we can't infer an element type, fall back to generic
+                        element_types.push("i32".to_string());
+                    }
+                }
+                if !element_types.is_empty() {
+                    Some(format!(" -> ({})", element_types.join(", ")))
+                } else {
+                    Some(" -> ()".to_string()) // Empty tuple
+                }
+            }
             Expr::Member { object, property } => {
                 // Check if this is accessing a field of 'this'
                 if let Expr::Identifier(obj) = object.as_ref() {
@@ -1302,7 +1321,7 @@ impl CodeGenerator {
                 }
             }
             Expr::Literal(lit) => match lit {
-                Literal::String(_) => Some(" -> String".to_string()),
+                Literal::String(_) => Some(" -> String".to_string()), // String literals converted to String in tuples
                 Literal::Int(_) => Some(" -> i32".to_string()),
                 Literal::Float(_) => Some(" -> f64".to_string()),
                 Literal::Bool(_) => Some(" -> bool".to_string()),
@@ -1576,10 +1595,12 @@ impl CodeGenerator {
                 self.infer_expr_type(expr, None)
                     .unwrap_or_else(|| " -> i32".to_string())
             } else if func.body.is_some() {
-                // For block-bodied functions, check if there's a return statement
+                // For block-bodied functions, try to infer from return statements
                 if let Some(body) = &func.body {
                     if self.block_has_return(body) {
-                        " -> f64".to_string() // Default to f64 for functions that return values
+                        // Try to infer type from return statement
+                        self.infer_return_type_from_block(body)
+                            .unwrap_or_else(|| " -> f64".to_string()) // Default to f64 as fallback
                     } else {
                         String::new()
                     }
@@ -2748,7 +2769,13 @@ impl CodeGenerator {
                     if i > 0 {
                         self.output.push_str(", ");
                     }
-                    self.generate_expr(elem)?;
+                    // Convert string literals to String for tuple compatibility
+                    if matches!(elem, Expr::Literal(Literal::String(_))) {
+                        self.generate_expr(elem)?;
+                        self.output.push_str(".to_string()");
+                    } else {
+                        self.generate_expr(elem)?;
+                    }
                 }
                 // Rust requires trailing comma for single-element tuples
                 if elements.len() == 1 {
@@ -4920,6 +4947,18 @@ impl CodeGenerator {
             .any(|stmt| matches!(stmt, Stmt::Return(_)))
     }
 
+    /// Infer return type from the first return statement in a block
+    fn infer_return_type_from_block(&self, block: &BlockStmt) -> Option<String> {
+        for stmt in &block.stmts {
+            if let Stmt::Return(return_stmt) = stmt {
+                if let Some(expr) = &return_stmt.expr {
+                    return self.infer_expr_type(expr, None);
+                }
+            }
+        }
+        None
+    }
+
     fn block_ends_with_return(&self, block: &BlockStmt) -> bool {
         block
             .stmts
@@ -5200,6 +5239,21 @@ impl CodeGenerator {
                     self.array_vars.insert(rest_name.clone());
                 }
             }
+            BindingPattern::Tuple(tuple_pattern) => {
+                // Tuple destructuring: let (x, y, z) = tuple
+                // Generate tuple pattern on left side
+                self.output.push_str("let (");
+                for (i, name) in tuple_pattern.elements.iter().enumerate() {
+                    if i > 0 {
+                        self.output.push_str(", ");
+                    }
+                    let var_name = self.sanitize_name(name);
+                    write!(self.output, "mut {}", var_name).unwrap();
+                }
+                self.output.push_str(") = ");
+                self.generate_expr(init_expr)?;
+                self.output.push_str(";\n");
+            }
         }
 
         Ok(())
@@ -5258,6 +5312,19 @@ impl CodeGenerator {
                             // Track as array variable
                             self.array_vars.insert(rest_name.clone());
                         }
+                    }
+                    BindingPattern::Tuple(tuple_pattern) => {
+                        // Tuple destructuring: (x, y, z) => extract by position
+                        self.write_indent();
+                        self.output.push_str("let (");
+                        for (i, name) in tuple_pattern.elements.iter().enumerate() {
+                            if i > 0 {
+                                self.output.push_str(", ");
+                            }
+                            let var_name = self.sanitize_name(name);
+                            write!(self.output, "mut {}", var_name).unwrap();
+                        }
+                        write!(self.output, ") = {};\n", temp_name).unwrap();
                     }
                     BindingPattern::Identifier(_) => {
                         // Not destructured, nothing to do
@@ -5360,6 +5427,18 @@ impl CodeGenerator {
                         binding_name, temp_name, start_index
                     ).unwrap();
                 }
+            }
+            BindingPattern::Tuple(tuple_pattern) => {
+                // Tuple destructuring: extract by position
+                self.output.push_str("let (");
+                for (i, name) in tuple_pattern.elements.iter().enumerate() {
+                    if i > 0 {
+                        self.output.push_str(", ");
+                    }
+                    let var_name = self.sanitize_name(name);
+                    write!(self.output, "{}", var_name).unwrap();
+                }
+                write!(self.output, ") = {};\n", temp_name).unwrap();
             }
             BindingPattern::Identifier(_) => {
                 // Not destructured, nothing to do

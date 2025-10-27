@@ -282,6 +282,7 @@ pub enum BindingPattern {
     Identifier(String),                    // Simple: x
     Object(ObjectPattern),                 // Object: {x, y}
     Array(ArrayPattern),                   // Array: [x, y, ...rest]
+    Tuple(TuplePattern),                   // Tuple: (x, y, z)
 }
 
 impl BindingPattern {
@@ -308,6 +309,12 @@ pub struct ObjectPatternField {
 pub struct ArrayPattern {
     pub elements: Vec<Option<String>>,  // None = skip element
     pub rest: Option<String>,            // ...rest binding
+}
+
+/// Tuple destructuring pattern: (x, y, z)
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct TuplePattern {
+    pub elements: Vec<String>,  // Variable names for each tuple element
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
