@@ -7,6 +7,7 @@ use super::document::DocumentState;
 use super::diagnostics::error_to_diagnostic;
 use super::symbols::SymbolTable;
 use super::workspace::{WorkspaceManager, WorkspaceIndex};
+use super::imports::ImportResolver;
 use crate::{lexer, parser, semantic};
 
 /// Main Language Server for Liva
@@ -22,6 +23,9 @@ pub struct LivaLanguageServer {
     
     /// Workspace symbol index
     workspace_index: std::sync::Arc<WorkspaceIndex>,
+    
+    /// Import resolver
+    import_resolver: std::sync::Arc<tokio::sync::RwLock<ImportResolver>>,
 }
 
 impl LivaLanguageServer {
@@ -32,6 +36,7 @@ impl LivaLanguageServer {
             documents: DashMap::new(),
             workspace: std::sync::Arc::new(tokio::sync::RwLock::new(WorkspaceManager::new(vec![]))),
             workspace_index: std::sync::Arc::new(WorkspaceIndex::default()),
+            import_resolver: std::sync::Arc::new(tokio::sync::RwLock::new(ImportResolver::new(vec![]))),
         }
     }
     
@@ -63,11 +68,17 @@ impl LivaLanguageServer {
                         // Build symbol table from AST (pass source text for span conversion)
                         let symbols = SymbolTable::from_ast(&analyzed_ast, &doc.text);
                         
+                        // Extract imports from AST
+                        let import_resolver = self.import_resolver.read().await;
+                        let imports = import_resolver.extract_imports(&analyzed_ast, uri);
+                        drop(import_resolver);
+                        
                         // Index file in workspace index
                         self.workspace_index.index_file(uri.clone(), &analyzed_ast, &doc.text);
                         
                         doc.ast = Some(analyzed_ast);
                         doc.symbols = Some(symbols);
+                        doc.imports = imports;
                         doc.diagnostics.clear();
                     }
                     Err(e) => {
@@ -111,11 +122,19 @@ impl LanguageServer for LivaLanguageServer {
                 .map(|folder| folder.uri.clone())
                 .collect();
             
+            // Initialize workspace manager
             let mut workspace = self.workspace.write().await;
-            *workspace = WorkspaceManager::new(root_uris);
+            *workspace = WorkspaceManager::new(root_uris.clone());
             workspace.scan_workspace();
             
             let file_count = workspace.file_count();
+            drop(workspace);
+            
+            // Initialize import resolver with workspace roots
+            let mut import_resolver = self.import_resolver.write().await;
+            *import_resolver = ImportResolver::new(root_uris);
+            drop(import_resolver);
+            
             self.client
                 .log_message(
                     MessageType::INFO,
@@ -376,7 +395,33 @@ impl LanguageServer for LivaLanguageServer {
             }
         }
         
-        // 2. Search workspace index for cross-file definitions
+        // 2. Check if symbol is imported and resolve to imported file
+        let import_resolver = self.import_resolver.read().await;
+        let import_source = import_resolver.get_import_source(&word, &doc.imports);
+        drop(import_resolver);
+        
+        if let Some(import_uri) = import_source {
+            // Look up symbol in the imported file
+            if let Some(matches) = self.workspace_index.lookup_in_file(&import_uri, &word) {
+                if let Some(def_symbol) = matches.first() {
+                    let location = Location {
+                        uri: import_uri.clone(),
+                        range: def_symbol.range,
+                    };
+                    
+                    self.client
+                        .log_message(
+                            MessageType::INFO,
+                            format!("Imported definition found: {} from {}", word, import_uri),
+                        )
+                        .await;
+                    
+                    return Ok(Some(GotoDefinitionResponse::Scalar(location)));
+                }
+            }
+        }
+        
+        // 3. Search workspace index for cross-file definitions (fallback)
         if let Some(matches) = self.workspace_index.lookup_global(&word) {
             if let Some((def_uri, def_symbol)) = matches.first() {
                 let location = Location {
