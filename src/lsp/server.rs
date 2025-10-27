@@ -103,6 +103,7 @@ impl LanguageServer for LivaLanguageServer {
                 }),
                 definition_provider: Some(OneOf::Left(true)),
                 references_provider: Some(OneOf::Left(true)),
+                hover_provider: Some(HoverProviderCapability::Simple(true)),
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
@@ -345,6 +346,88 @@ impl LanguageServer for LivaLanguageServer {
                 
                 return Ok(Some(locations));
             }
+        }
+        
+        Ok(None)
+    }
+    
+    async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
+        let uri = &params.text_document_position_params.text_document.uri;
+        let position = params.text_document_position_params.position;
+        
+        let doc = match self.documents.get(uri) {
+            Some(doc) => doc,
+            None => return Ok(None),
+        };
+        
+        // Get the word at the cursor position
+        let word = match doc.word_at_position(position) {
+            Some(w) => w,
+            None => return Ok(None),
+        };
+        
+        // Look up the symbol in the symbol table
+        if let Some(symbols) = &doc.symbols {
+            if let Some(symbol_list) = symbols.lookup(&word) {
+                if let Some(symbol) = symbol_list.first() {
+                    // Format hover content as Markdown
+                    let mut content = String::new();
+                    
+                    // Add symbol kind and name
+                    let kind_str = match symbol.kind {
+                        SymbolKind::FUNCTION => "function",
+                        SymbolKind::CLASS => "class",
+                        SymbolKind::STRUCT => "interface",
+                        SymbolKind::TYPE_PARAMETER => "type",
+                        SymbolKind::VARIABLE => "variable",
+                        SymbolKind::CONSTANT => "constant",
+                        _ => "symbol",
+                    };
+                    
+                    content.push_str(&format!("```liva\n{} {}\n```\n", kind_str, symbol.name));
+                    
+                    // Add detail if available
+                    if let Some(detail) = &symbol.detail {
+                        content.push_str(&format!("\n{}", detail));
+                    }
+                    
+                    return Ok(Some(Hover {
+                        contents: HoverContents::Markup(MarkupContent {
+                            kind: MarkupKind::Markdown,
+                            value: content,
+                        }),
+                        range: Some(symbol.range),
+                    }));
+                }
+            }
+        }
+        
+        // Check for built-in keywords/types
+        let builtin_info = match word.as_str() {
+            "int" => Some("```liva\ntype int\n```\n\nSigned 32-bit integer type"),
+            "float" => Some("```liva\ntype float\n```\n\n64-bit floating-point type"),
+            "string" => Some("```liva\ntype string\n```\n\nUTF-8 string type"),
+            "bool" => Some("```liva\ntype bool\n```\n\nBoolean type (true/false)"),
+            "void" => Some("```liva\ntype void\n```\n\nVoid type (no return value)"),
+            "let" => Some("```liva\nlet\n```\n\nDeclares a mutable variable"),
+            "const" => Some("```liva\nconst\n```\n\nDeclares an immutable constant"),
+            "fn" => Some("```liva\nfn\n```\n\nDefines a function"),
+            "return" => Some("```liva\nreturn\n```\n\nReturns a value from a function"),
+            "if" => Some("```liva\nif\n```\n\nConditional statement"),
+            "else" => Some("```liva\nelse\n```\n\nAlternative branch for if"),
+            "while" => Some("```liva\nwhile\n```\n\nLoop while condition is true"),
+            "for" => Some("```liva\nfor\n```\n\nIterate over a range or collection"),
+            _ => None,
+        };
+        
+        if let Some(info) = builtin_info {
+            return Ok(Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: info.to_string(),
+                }),
+                range: None,
+            }));
         }
         
         Ok(None)
