@@ -1,0 +1,36 @@
+// Parser test - Union types with pattern matching
+
+main() {
+    // Basic union with pattern matching
+    let x: int | string = 42
+    let result1 = switch x {
+        n: int => n * 2,
+        s: string => 0
+    }
+    
+    // Three-type union
+    let y: int | string | bool = "hello"
+    let result2 = switch y {
+        n: int => "Number",
+        s: string => "String",
+        b: bool => "Boolean"
+    }
+    
+    // Type narrowing with operations
+    let value: int | string = 100
+    let doubled = switch value {
+        n: int => n + n,
+        s: string => 0
+    }
+    
+    // Nested switch with union
+    let multi: int | string | bool = 42
+    let nested = switch multi {
+        n: int => switch n > 50 {
+            true => "Large",
+            false => "Small"
+        },
+        s: string => "Text",
+        b: bool => "Bool"
+    }
+}

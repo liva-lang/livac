@@ -10,7 +10,9 @@ expression: json
         "type_params": [],
         "params": [
           {
-            "name": "filename",
+            "pattern": {
+              "Identifier": "filename"
+            },
             "type_ref": {
               "Simple": "string"
             },
@@ -108,14 +110,18 @@ expression: json
         "type_params": [],
         "params": [
           {
-            "name": "a",
+            "pattern": {
+              "Identifier": "a"
+            },
             "type_ref": {
               "Simple": "number"
             },
             "default": null
           },
           {
-            "name": "b",
+            "pattern": {
+              "Identifier": "b"
+            },
             "type_ref": {
               "Simple": "number"
             },
@@ -220,14 +226,18 @@ expression: json
         "type_params": [],
         "params": [
           {
-            "name": "a",
+            "pattern": {
+              "Identifier": "a"
+            },
             "type_ref": {
               "Simple": "number"
             },
             "default": null
           },
           {
-            "name": "b",
+            "pattern": {
+              "Identifier": "b"
+            },
             "type_ref": {
               "Simple": "number"
             },

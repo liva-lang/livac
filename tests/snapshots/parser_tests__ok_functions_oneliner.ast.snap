@@ -10,14 +10,18 @@ expression: json
         "type_params": [],
         "params": [
           {
-            "name": "a",
+            "pattern": {
+              "Identifier": "a"
+            },
             "type_ref": {
               "Simple": "number"
             },
             "default": null
           },
           {
-            "name": "b",
+            "pattern": {
+              "Identifier": "b"
+            },
             "type_ref": {
               "Simple": "number"
             },
@@ -49,7 +53,9 @@ expression: json
         "type_params": [],
         "params": [
           {
-            "name": "age",
+            "pattern": {
+              "Identifier": "age"
+            },
             "type_ref": null,
             "default": null
           }
@@ -79,7 +85,9 @@ expression: json
         "type_params": [],
         "params": [
           {
-            "name": "name",
+            "pattern": {
+              "Identifier": "name"
+            },
             "type_ref": {
               "Simple": "string"
             },

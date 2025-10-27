@@ -141,3 +141,8 @@ fn test_modifier_on_class_member() {
 fn test_param_destructuring() {
     test_parser_ok("param_destructuring");
 }
+
+#[test]
+fn test_union_patterns() {
+    test_parser_ok("union_patterns");
+}

@@ -1,0 +1,463 @@
+---
+source: tests/parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "main",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "x"
+                    },
+                    "type_ref": {
+                      "Union": [
+                        {
+                          "Simple": "int"
+                        },
+                        {
+                          "Simple": "string"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "init": {
+                  "Literal": {
+                    "Int": 42
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "result1"
+                    },
+                    "type_ref": null
+                  }
+                ],
+                "init": {
+                  "Switch": {
+                    "discriminant": {
+                      "Identifier": "x"
+                    },
+                    "arms": [
+                      {
+                        "pattern": {
+                          "Typed": {
+                            "name": "n",
+                            "type_ref": {
+                              "Simple": "int"
+                            }
+                          }
+                        },
+                        "guard": null,
+                        "body": {
+                          "Expr": {
+                            "Binary": {
+                              "op": "Mul",
+                              "left": {
+                                "Identifier": "n"
+                              },
+                              "right": {
+                                "Literal": {
+                                  "Int": 2
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "pattern": {
+                          "Typed": {
+                            "name": "s",
+                            "type_ref": {
+                              "Simple": "string"
+                            }
+                          }
+                        },
+                        "guard": null,
+                        "body": {
+                          "Expr": {
+                            "Literal": {
+                              "Int": 0
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "y"
+                    },
+                    "type_ref": {
+                      "Union": [
+                        {
+                          "Simple": "int"
+                        },
+                        {
+                          "Simple": "string"
+                        },
+                        {
+                          "Simple": "bool"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "init": {
+                  "Literal": {
+                    "String": "hello"
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "result2"
+                    },
+                    "type_ref": null
+                  }
+                ],
+                "init": {
+                  "Switch": {
+                    "discriminant": {
+                      "Identifier": "y"
+                    },
+                    "arms": [
+                      {
+                        "pattern": {
+                          "Typed": {
+                            "name": "n",
+                            "type_ref": {
+                              "Simple": "int"
+                            }
+                          }
+                        },
+                        "guard": null,
+                        "body": {
+                          "Expr": {
+                            "Literal": {
+                              "String": "Number"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "pattern": {
+                          "Typed": {
+                            "name": "s",
+                            "type_ref": {
+                              "Simple": "string"
+                            }
+                          }
+                        },
+                        "guard": null,
+                        "body": {
+                          "Expr": {
+                            "Literal": {
+                              "String": "String"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "pattern": {
+                          "Typed": {
+                            "name": "b",
+                            "type_ref": {
+                              "Simple": "bool"
+                            }
+                          }
+                        },
+                        "guard": null,
+                        "body": {
+                          "Expr": {
+                            "Literal": {
+                              "String": "Boolean"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "value"
+                    },
+                    "type_ref": {
+                      "Union": [
+                        {
+                          "Simple": "int"
+                        },
+                        {
+                          "Simple": "string"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "init": {
+                  "Literal": {
+                    "Int": 100
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "doubled"
+                    },
+                    "type_ref": null
+                  }
+                ],
+                "init": {
+                  "Switch": {
+                    "discriminant": {
+                      "Identifier": "value"
+                    },
+                    "arms": [
+                      {
+                        "pattern": {
+                          "Typed": {
+                            "name": "n",
+                            "type_ref": {
+                              "Simple": "int"
+                            }
+                          }
+                        },
+                        "guard": null,
+                        "body": {
+                          "Expr": {
+                            "Binary": {
+                              "op": "Add",
+                              "left": {
+                                "Identifier": "n"
+                              },
+                              "right": {
+                                "Identifier": "n"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "pattern": {
+                          "Typed": {
+                            "name": "s",
+                            "type_ref": {
+                              "Simple": "string"
+                            }
+                          }
+                        },
+                        "guard": null,
+                        "body": {
+                          "Expr": {
+                            "Literal": {
+                              "Int": 0
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "multi"
+                    },
+                    "type_ref": {
+                      "Union": [
+                        {
+                          "Simple": "int"
+                        },
+                        {
+                          "Simple": "string"
+                        },
+                        {
+                          "Simple": "bool"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "init": {
+                  "Literal": {
+                    "Int": 42
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "nested"
+                    },
+                    "type_ref": null
+                  }
+                ],
+                "init": {
+                  "Switch": {
+                    "discriminant": {
+                      "Identifier": "multi"
+                    },
+                    "arms": [
+                      {
+                        "pattern": {
+                          "Typed": {
+                            "name": "n",
+                            "type_ref": {
+                              "Simple": "int"
+                            }
+                          }
+                        },
+                        "guard": null,
+                        "body": {
+                          "Expr": {
+                            "Switch": {
+                              "discriminant": {
+                                "Binary": {
+                                  "op": "Gt",
+                                  "left": {
+                                    "Identifier": "n"
+                                  },
+                                  "right": {
+                                    "Literal": {
+                                      "Int": 50
+                                    }
+                                  }
+                                }
+                              },
+                              "arms": [
+                                {
+                                  "pattern": {
+                                    "Literal": {
+                                      "Bool": true
+                                    }
+                                  },
+                                  "guard": null,
+                                  "body": {
+                                    "Expr": {
+                                      "Literal": {
+                                        "String": "Large"
+                                      }
+                                    }
+                                  }
+                                },
+                                {
+                                  "pattern": {
+                                    "Literal": {
+                                      "Bool": false
+                                    }
+                                  },
+                                  "guard": null,
+                                  "body": {
+                                    "Expr": {
+                                      "Literal": {
+                                        "String": "Small"
+                                      }
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "pattern": {
+                          "Typed": {
+                            "name": "s",
+                            "type_ref": {
+                              "Simple": "string"
+                            }
+                          }
+                        },
+                        "guard": null,
+                        "body": {
+                          "Expr": {
+                            "Literal": {
+                              "String": "Text"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "pattern": {
+                          "Typed": {
+                            "name": "b",
+                            "type_ref": {
+                              "Simple": "bool"
+                            }
+                          }
+                        },
+                        "guard": null,
+                        "body": {
+                          "Expr": {
+                            "Literal": {
+                              "String": "Bool"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "is_fallible": false
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    }
+  ]
+}

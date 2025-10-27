@@ -47,14 +47,18 @@ expression: json
               "type_params": [],
               "params": [
                 {
-                  "name": "nombre",
+                  "pattern": {
+                    "Identifier": "nombre"
+                  },
                   "type_ref": {
                     "Simple": "string"
                   },
                   "default": null
                 },
                 {
-                  "name": "edad",
+                  "pattern": {
+                    "Identifier": "edad"
+                  },
                   "type_ref": {
                     "Simple": "number"
                   },
