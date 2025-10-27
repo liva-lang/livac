@@ -6,7 +6,7 @@ use tower_lsp::{Client, LanguageServer};
 use super::document::DocumentState;
 use super::diagnostics::error_to_diagnostic;
 use super::symbols::SymbolTable;
-use super::workspace::WorkspaceManager;
+use super::workspace::{WorkspaceManager, WorkspaceIndex};
 use crate::{lexer, parser, semantic};
 
 /// Main Language Server for Liva
@@ -19,6 +19,9 @@ pub struct LivaLanguageServer {
     
     /// Workspace file manager
     workspace: std::sync::Arc<tokio::sync::RwLock<WorkspaceManager>>,
+    
+    /// Workspace symbol index
+    workspace_index: std::sync::Arc<WorkspaceIndex>,
 }
 
 impl LivaLanguageServer {
@@ -28,6 +31,7 @@ impl LivaLanguageServer {
             client,
             documents: DashMap::new(),
             workspace: std::sync::Arc::new(tokio::sync::RwLock::new(WorkspaceManager::new(vec![]))),
+            workspace_index: std::sync::Arc::new(WorkspaceIndex::default()),
         }
     }
     
@@ -58,6 +62,10 @@ impl LivaLanguageServer {
                     Ok(analyzed_ast) => {
                         // Build symbol table from AST (pass source text for span conversion)
                         let symbols = SymbolTable::from_ast(&analyzed_ast, &doc.text);
+                        
+                        // Index file in workspace index
+                        self.workspace_index.index_file(uri.clone(), &analyzed_ast, &doc.text);
+                        
                         doc.ast = Some(analyzed_ast);
                         doc.symbols = Some(symbols);
                         doc.diagnostics.clear();
@@ -148,6 +156,36 @@ impl LanguageServer for LivaLanguageServer {
     async fn initialized(&self, _params: InitializedParams) {
         self.client
             .log_message(MessageType::INFO, "Liva Language Server initialized")
+            .await;
+        
+        // Index all workspace files
+        let workspace = self.workspace.read().await;
+        let files = workspace.list_liva_files();
+        let file_count = files.len();
+        
+        for file_uri in files {
+            if let Ok(path) = file_uri.to_file_path() {
+                if let Ok(content) = tokio::fs::read_to_string(&path).await {
+                    // Tokenize
+                    if let Ok(tokens) = lexer::tokenize(&content) {
+                        // Parse
+                        if let Ok(ast) = parser::parse(tokens, &content) {
+                            // Run semantic analysis
+                            if let Ok(analyzed_ast) = semantic::analyze(ast) {
+                                // Index the file
+                                self.workspace_index.index_file(file_uri.clone(), &analyzed_ast, &content);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        self.client
+            .log_message(
+                MessageType::INFO,
+                format!("Indexed {} workspace files", file_count),
+            )
             .await;
     }
 

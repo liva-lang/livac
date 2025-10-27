@@ -16,3 +16,6 @@ pub mod diagnostics;
 pub mod workspace;
 
 pub use server::LivaLanguageServer;
+pub use document::DocumentState;
+pub use symbols::{Symbol, SymbolTable};
+pub use workspace::{WorkspaceManager, WorkspaceIndex};
