@@ -21,10 +21,10 @@ Build a modern, practical programming language that combines:
 The roadmap is organized into focused phases:
 
 - **Phase 1-4:** ✅ Core language features (completed)
-- **Phase 5:** 🧬 Generics - Type-safe generic programming (v0.9.0)
-- **Phase 6:** 🔧 Incremental improvements - High-value productivity features (v0.9.x)
-- **Phase 7:** ⚡ Optimizations - Performance and code quality (v0.10.0)
-- **Phase 8:** 🚢 Production release - LSP, debugging, stability (v1.0.0)
+- **Phase 5:** 🧬 Generics - Type-safe generic programming (v0.9.0) ✅
+- **Phase 6:** 🔧 Incremental improvements - High-value productivity features (v0.9.x - v0.10.x) ✅
+- **Phase 7:** 🎯 Advanced types - Tuples, unions, type aliases (v0.11.0+) 📋
+- **Phase 8:** 🚢 Production release - LSP, debugging, stability (v1.0.0) 📋
 
 Each phase is broken into sub-tasks with time estimates and clear deliverables.
 
@@ -1239,17 +1239,25 @@ let size = switch num {
 };
 ```
 
-**Deferred to v0.10.6:**
-- Tuple/array destructuring patterns in switch expressions
-- Enum variant patterns (requires enum implementation first)
-- Nested or-patterns with bindings
+**Infrastructure Ready for Future:**
+- ✅ AST: Pattern::Tuple and Pattern::Array variants exist
+- ✅ Parser: Can parse `(x, y) => ...` and `[x, y] => ...` patterns
+- ✅ Codegen: Ready to generate Rust match destructuring
+- ⏳ Blocked by: Tuple literal expressions (need `(x, y)` syntax)
+
+**Deferred to v0.11.0+:**
+- Tuple literal expressions: `let point = (10, 20)`
+- Tuple types in type system: `(int, int)`
+- Tuple/array patterns in switch: `(x, y) => ...`
+- Tuple/array pattern exhaustiveness
+- Enum variant patterns (requires enum implementation)
 
 **Phase Breakdown:**
 - **Phase 1 (2h):** Integer and string exhaustiveness (E0902, E0903) ✅
 - **Phase 2 (2.5h):** Or-patterns with | operator ✅
-- **Future:** Tuple/array destructuring, enum patterns
+- **Phase 3:** Tuple literals and types (deferred to v0.11.0+)
 
-**Estimated:** 7 hours (completed)
+**Estimated:** 7 hours (completed for v0.10.5)
 
 ### 6.5 Destructuring Syntax ✅ COMPLETED (v0.10.2)
 - [x] Design destructuring syntax for objects
@@ -1263,6 +1271,8 @@ let size = switch num {
 **Status:** ✅ COMPLETED (2025-01-26)  
 **Branch:** `feature/destructuring-v0.10.2` (merged to main)  
 **Release:** v0.10.2
+
+**Note:** This is **variable/parameter destructuring** (in `let` bindings and function parameters), not pattern matching destructuring (in `switch` expressions). Switch pattern destructuring requires tuple literals first.
 
 **Completed Features:**
 - Object destructuring: `let {x, y} = point`
@@ -1645,6 +1655,88 @@ pub struct User {
 **Estimated:** 1 hour
 
 **Deliverable:** Liva v0.10.0 - Fast, efficient compiler
+
+---
+
+---
+
+## 🎯 Phase 7: Advanced Types (v0.11.0+)
+
+**Goal:** Add tuple types and advanced type system features
+
+**Status:** 📋 Planned  
+**Branch:** TBD  
+**ETA:** 8-12 hours
+
+### 7.1 Tuple Types & Literals
+- [ ] Design tuple syntax: `(int, string, bool)`
+- [ ] Add tuple literal expressions: `let point = (10, 20)`
+- [ ] Implement tuple type checking
+- [ ] Add tuple indexing: `point.0`, `point.1`
+- [ ] Support nested tuples: `((int, int), string)`
+- [ ] Add tuple pattern matching in switch
+- [ ] Codegen for tuple types (map to Rust tuples)
+
+**Estimated:** 4 hours
+
+**Benefits:**
+- Enables multiple return values without structs
+- Required for tuple patterns in switch expressions
+- Cleaner than using arrays for fixed-size groups
+- Type-safe heterogeneous collections
+
+**Examples:**
+```liva
+// Function returning tuple
+getCoordinates(): (int, int) {
+    return (10, 20)
+}
+
+// Destructuring
+let (x, y) = getCoordinates()
+
+// Pattern matching
+let point = (10, 20)
+let location = switch point {
+    (0, 0) => "origin",
+    (0, _) => "Y axis",
+    (_, 0) => "X axis",
+    (x, y) => $"at ({x}, {y})"
+}
+```
+
+### 7.2 Union Types (Optional)
+- [ ] Design union type syntax: `int | string`
+- [ ] Implement union type checking
+- [ ] Add type narrowing in switch
+- [ ] Codegen for unions (enums or trait objects)
+
+**Estimated:** 4 hours
+
+**Example:**
+```liva
+// Union type
+let value: int | string = 42
+
+// Type narrowing
+let result = switch value {
+    x: int => x * 2,
+    s: string => s.length
+}
+```
+
+### 7.3 Type Aliases
+- [ ] Add `type` keyword for aliases
+- [ ] Support generic type aliases
+- [ ] Add to type system
+
+**Estimated:** 2 hours
+
+**Example:**
+```liva
+type Point = (int, int)
+type Result<T> = (T, Error?)
+```
 
 ---
 

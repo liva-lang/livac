@@ -492,12 +492,47 @@ let result = switch day {
 
 **Or-Pattern Note:** Or-patterns (`1 | 2 | 3 => ...`) don't automatically make a switch exhaustive. You still need a wildcard or binding pattern to catch remaining values.
 
-### Future: Full Exhaustiveness (v0.10.6+)
+### Future: Tuple/Array Patterns in Switch (v0.11.0+)
 
-Coming soon:
-- Array/tuple destructuring patterns: `[x, y] => ...`, `(x, y) => ...`
-- Enum variant exhaustiveness
-- Custom type exhaustiveness
+**Status:** AST infrastructure ready, waiting for tuple literal support
+
+Tuple and array destructuring patterns in switch expressions require tuple/array literals first:
+
+```liva
+// Future syntax (requires tuple literals):
+let point = (10, 20)  // Tuple literal not yet implemented
+
+let location = switch point {
+    (0, 0) => "origin",
+    (0, y) => $"on Y axis at {y}",
+    (x, 0) => $"on X axis at {x}",
+    (x, y) => $"at ({x}, {y})"
+}
+
+// Future syntax (with arrays):
+let coord = [10, 20]
+
+let location = switch coord {
+    [0, 0] => "origin",
+    [0, _] => "on Y axis",
+    [_, 0] => "on X axis",
+    [x, y] => $"at ({x}, {y})"
+}
+```
+
+**Current State:**
+- ✅ AST nodes: `Pattern::Tuple` and `Pattern::Array` exist
+- ✅ Parser: Can parse tuple/array patterns
+- ✅ Codegen: Ready to generate destructuring match code
+- ⏳ Blocked by: Tuple literal expressions (`(x, y)`)
+- ⏳ Blocked by: Array literal type inference in switch context
+
+**Coming in v0.11.0+:**
+- Tuple literal expressions
+- Tuple types in type system
+- Array pattern exhaustiveness checking
+- Tuple pattern exhaustiveness checking
+- Enum variant patterns
 
 ---
 
