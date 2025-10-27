@@ -362,7 +362,7 @@ impl LanguageServer for LivaLanguageServer {
             None => return Ok(None),
         };
         
-        // Look up the symbol in the symbol table
+        // 1. Try current file first (fast path)
         if let Some(symbols) = &doc.symbols {
             if let Some(symbol_list) = symbols.lookup(&word) {
                 // Return the first symbol's location (TODO: handle overloads)
@@ -373,6 +373,25 @@ impl LanguageServer for LivaLanguageServer {
                     };
                     return Ok(Some(GotoDefinitionResponse::Scalar(location)));
                 }
+            }
+        }
+        
+        // 2. Search workspace index for cross-file definitions
+        if let Some(matches) = self.workspace_index.lookup_global(&word) {
+            if let Some((def_uri, def_symbol)) = matches.first() {
+                let location = Location {
+                    uri: def_uri.clone(),
+                    range: def_symbol.range,
+                };
+                
+                self.client
+                    .log_message(
+                        MessageType::INFO,
+                        format!("Cross-file definition found: {} in {}", word, def_uri),
+                    )
+                    .await;
+                
+                return Ok(Some(GotoDefinitionResponse::Scalar(location)));
             }
         }
         
