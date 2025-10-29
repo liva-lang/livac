@@ -245,12 +245,52 @@ livac main.liva -r
 - `generate_entry_point()` generates main.rs with imports
 - `generate_use_statement()` converts Liva imports to Rust
 
-**Issues Found:**
-1. ✅ Module names that are Rust keywords need escaping (e.g., `box` → `r#box`)
-2. ✅ Constructor function names need proper snake_case conversion
-3. The multi-file generation is already called from `compile_with_modules()` in `lib.rs`
+**Issues Found & Fixed:**
+1. ✅ Module names that are Rust keywords need escaping (e.g., `box` → `r#box`) - WORKAROUND: renamed file
+2. ✅ Constructor function names need proper snake_case conversion - FIXED
+3. ✅ Type names (PascalCase) were incorrectly converted to snake_case in imports - FIXED
 
-### Phase 3.5.2: Import Resolution (Week 2) - 🚧 IN PROGRESS
+### Phase 3.5.2: Import Resolution (Week 2) - ✅ COMPLETE
+- [x] Convert Liva import paths to Rust paths
+- [x] Handle relative imports (./,  ../)
+- [x] Generate `use` statements
+- [x] Track symbol exports
+- [x] Test import resolution
+
+**Status:** Import resolution is fully functional:
+- PascalCase type names preserved correctly
+- snake_case for functions
+- Relative paths work (./file.liva)
+- Multiple imports from same module work
+
+**Tests:**
+- `tests/multifile_simple/test_all.liva` - ✅ PASSES
+  - Imports from 3 modules (container, math)
+  - Classes, functions, factory patterns all work
+  - Cross-module calls successful
+
+### Phase 3.5.3: Multi-File Generation (Week 3) - ✅ COMPLETE
+- [x] Generate main.rs with imports
+- [x] Generate mod.rs files (handled by codegen)
+- [x] Create module directory structure
+- [x] Handle module visibility (pub)
+- [x] Test with 2-3 file projects
+
+**Status:** Multi-file generation works end-to-end:
+- Entry point (main.rs) generated with mod declarations
+- Module files (.rs) generated with pub visibility
+- Directory structure respected
+- All symbols properly exported
+
+**Verified:**
+```bash
+$ livac test_all.liva -r
+✓ Compiles 3 modules (container, math, main)
+✓ Runs successfully
+✓ All imports resolved correctly
+```
+
+### Phase 3.5.4: Advanced Features (Week 4) - 🚧 TODO
 - [ ] Convert Liva import paths to Rust paths
 - [ ] Handle relative imports (./,  ../)
 - [ ] Generate `use` statements
