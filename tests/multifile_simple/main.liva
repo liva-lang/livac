@@ -1,0 +1,14 @@
+// Test main file with imports
+import { Container, createContainer } from "./container.liva"
+
+main() {
+    print("Testing multi-file compilation")
+    
+    let container1 = createContainer("Hello from factory")
+    print(container1.getValue())
+    
+    let container2 = Container("Hello from constructor")
+    print(container2.getValue())
+    
+    print("Multi-file compilation successful!")
+}
