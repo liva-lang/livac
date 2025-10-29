@@ -1,0 +1,23 @@
+// Simple Result type
+
+Result<T, E> {
+    value
+    isOk: bool
+    
+    constructor(value, isOk: bool) {
+        this.value = value
+        this.isOk = isOk
+    }
+    
+    unwrap() {
+        return this.value
+    }
+}
+
+ok<T, E>(value: T): Result<T, E> {
+    return Result(value, true)
+}
+
+err<T, E>(error: E): Result<T, E> {
+    return Result(error, false)
+}

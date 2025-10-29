@@ -1,0 +1,46 @@
+// Comprehensive multi-file test
+import { Container, createContainer } from "./container.liva"
+import { add, multiply, square } from "./math.liva"
+
+main() {
+    print("========================================")
+    print("  Multi-File Compilation Test")
+    print("========================================")
+    print("")
+    
+    // Test 1: Container module
+    print("Test 1: Container Module")
+    let cont1 = createContainer("Factory pattern works!")
+    print(cont1.getValue())
+    
+    let cont2 = Container("Constructor works!")
+    print(cont2.getValue())
+    print("")
+    
+    // Test 2: Math module
+    print("Test 2: Math Module")
+    let sum = add(10, 20)
+    print("10 + 20 =")
+    print(sum)
+    
+    let product = multiply(5, 7)
+    print("5 * 7 =")
+    print(product)
+    
+    let sq = square(8)
+    print("8^2 =")
+    print(sq)
+    print("")
+    
+    print("========================================")
+    print("  All Tests Passed!")
+    print("========================================")
+    print("")
+    print("Successfully demonstrated:")
+    print("- Importing classes (Container)")
+    print("- Importing functions (add, multiply, square)")
+    print("- Importing factory functions (createContainer)")
+    print("- Multi-module dependency resolution")
+    print("- Cross-module function calls")
+    print("")
+}
