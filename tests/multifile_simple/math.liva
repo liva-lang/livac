@@ -1,0 +1,13 @@
+// Math utilities
+
+add(a: int, b: int): int {
+    return a + b
+}
+
+multiply(a: int, b: int): int {
+    return a * b
+}
+
+square(n: int): int {
+    return multiply(n, n)
+}
