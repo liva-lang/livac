@@ -4677,11 +4677,29 @@ impl CodeGenerator {
                 // console.log(...) -> println!(...)
                 if method_call.args.is_empty() {
                     self.output.push_str("println!()");
+                } else if method_call.args.len() == 1 {
+                    // Single argument - check if it's a string template
+                    if let Expr::StringTemplate { .. } = &method_call.args[0] {
+                        // String template: println!("{}", format!(...))
+                        self.output.push_str("println!(\"{}\", ");
+                        self.generate_expr(&method_call.args[0])?;
+                        self.output.push(')');
+                    } else {
+                        // Other expression: println!("{}", expr)
+                        self.output.push_str("println!(\"{}\", ");
+                        self.generate_expr(&method_call.args[0])?;
+                        self.output.push(')');
+                    }
                 } else {
-                    // Check if first arg is a string literal with format placeholders
-                    // If so, use it as the format string, otherwise generate default format
-                    self.output.push_str("println!(");
-                    
+                    // Multiple arguments: println!("{} {} {}", arg1, arg2, arg3)
+                    self.output.push_str("println!(\"");
+                    for (i, _) in method_call.args.iter().enumerate() {
+                        if i > 0 {
+                            self.output.push(' ');
+                        }
+                        self.output.push_str("{}");
+                    }
+                    self.output.push_str("\", ");
                     for (i, arg) in method_call.args.iter().enumerate() {
                         if i > 0 {
                             self.output.push_str(", ");
