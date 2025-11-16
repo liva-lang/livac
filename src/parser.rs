@@ -725,6 +725,7 @@ impl Parser {
                         expr_body: Some(body.clone()),
                         is_async_inferred: false,
                         contains_fail: self.function_body_contains_fail(&None, &Some(body)),
+                        requires_mut_self: false,  // Will be inferred later in semantic analysis
                     }));
 
                     // Consume optional semicolon for one-liner methods
@@ -744,6 +745,7 @@ impl Parser {
                         expr_body: None,
                         is_async_inferred: false,
                         contains_fail: self.function_body_contains_fail(&Some(body), &None),
+                        requires_mut_self: false,  // Will be inferred later in semantic analysis
                     }));
 
                     // Consume optional semicolon for block methods

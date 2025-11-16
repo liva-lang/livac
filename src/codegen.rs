@@ -1988,9 +1988,24 @@ impl CodeGenerator {
         let mut result = String::new();
 
         if is_method {
-            // Use &mut self for methods that modify fields (setters)
-            let is_setter = method_name.map_or(false, |name| name.starts_with("set"));
-            if is_setter {
+            // Check if method requires &mut self (inferred during semantic analysis)
+            // For now, we need to look up the method in the class
+            let requires_mut = class
+                .and_then(|cls| {
+                    method_name.and_then(|name| {
+                        cls.members.iter().find_map(|m| {
+                            if let Member::Method(method) = m {
+                                if method.name == name {
+                                    return Some(method.requires_mut_self);
+                                }
+                            }
+                            None
+                        })
+                    })
+                })
+                .unwrap_or(false);
+            
+            if requires_mut {
                 result.push_str("&mut self");
             } else {
                 result.push_str("&self");
@@ -2431,6 +2446,19 @@ impl CodeGenerator {
                             // This is a heuristic - we could improve this by checking against known class names
                             self.class_instance_vars.insert(var_name.clone());
                         }
+                    }
+                }
+
+                // Detect array append pattern: arr[arr.length] = value
+                // Transform to: arr.push(value)
+                if let Expr::Index { object, index } = &assign.target {
+                    if self.is_array_length_pattern(object, index) {
+                        self.write_indent();
+                        self.generate_expr(object)?;
+                        self.output.push_str(".push(");
+                        self.generate_expr(&assign.value)?;
+                        self.output.push_str(");\n");
+                        return Ok(());
                     }
                 }
 
@@ -5808,6 +5836,34 @@ impl CodeGenerator {
         self.to_snake_case(name)
     }
 
+    /// Check if index expression is the array.length pattern
+    /// Returns true for patterns like: arr[arr.length], this.items[this.items.length]
+    fn is_array_length_pattern(&self, array_expr: &Expr, index_expr: &Expr) -> bool {
+        // Check if index is a .length access
+        if let Expr::Member { object: index_object, property } = index_expr {
+            if property == "length" {
+                // Check if both array expressions refer to the same thing
+                return self.exprs_are_same(array_expr, index_object);
+            }
+        }
+        false
+    }
+
+    /// Check if two expressions are semantically the same
+    /// Handles: arr vs arr, this.field vs this.field
+    fn exprs_are_same(&self, expr1: &Expr, expr2: &Expr) -> bool {
+        match (expr1, expr2) {
+            (Expr::Identifier(name1), Expr::Identifier(name2)) => name1 == name2,
+            (
+                Expr::Member { object: obj1, property: prop1 },
+                Expr::Member { object: obj2, property: prop2 }
+            ) => {
+                prop1 == prop2 && self.exprs_are_same(obj1, obj2)
+            }
+            _ => false,
+        }
+    }
+
     fn sanitize_test_name(&self, name: &str) -> String {
         name.replace(' ', "_").replace('-', "_").to_lowercase()
     }
@@ -8407,10 +8463,90 @@ pub fn generate_multifile_project(
     Ok(files)
 }
 
+/// Infer mutability for all methods in a module
+/// This is a simplified version that runs during codegen
+fn infer_module_mutability(program: &mut Program) {
+    for item in &mut program.items {
+        if let TopLevel::Class(class) = item {
+            for member in &mut class.members {
+                if let Member::Method(method) = member {
+                    // Check if method body modifies any self fields
+                    let modifies_self = if let Some(body) = &method.body {
+                        block_modifies_self(body)
+                    } else if let Some(expr) = &method.expr_body {
+                        expr_modifies_self(expr)
+                    } else {
+                        false
+                    };
+                    
+                    method.requires_mut_self = modifies_self;
+                }
+            }
+        }
+    }
+}
+
+/// Check if a block statement modifies self fields
+fn block_modifies_self(block: &BlockStmt) -> bool {
+    block.stmts.iter().any(stmt_modifies_self)
+}
+
+/// Check if a statement modifies self fields
+fn stmt_modifies_self(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::Expr(expr_stmt) => expr_modifies_self(&expr_stmt.expr),
+        Stmt::VarDecl(var_decl) => expr_modifies_self(&var_decl.init),
+        Stmt::Assign(assign) => expr_is_self_field(&assign.target),
+        Stmt::If(if_stmt) => {
+            if_body_modifies_self(&if_stmt.then_branch)
+                || if_stmt
+                    .else_branch
+                    .as_ref()
+                    .map_or(false, if_body_modifies_self)
+        }
+        Stmt::While(while_stmt) => block_modifies_self(&while_stmt.body),
+        Stmt::For(for_stmt) => block_modifies_self(&for_stmt.body),
+        Stmt::Return(ret) => ret.expr.as_ref().map_or(false, expr_modifies_self),
+        _ => false,
+    }
+}
+
+/// Check if an if body modifies self
+fn if_body_modifies_self(body: &IfBody) -> bool {
+    match body {
+        IfBody::Block(block) => block_modifies_self(block),
+        IfBody::Stmt(stmt) => stmt_modifies_self(stmt),
+    }
+}
+
+/// Check if an expression modifies self fields
+fn expr_modifies_self(expr: &Expr) -> bool {
+    match expr {
+        Expr::Call(call) => call.args.iter().any(expr_modifies_self),
+        Expr::MethodCall(method_call) => method_call.args.iter().any(expr_modifies_self),
+        _ => false,
+    }
+}
+
+/// Check if an expression represents a self field (this.field or this.field[index])
+fn expr_is_self_field(expr: &Expr) -> bool {
+    match expr {
+        Expr::Member { object, .. } => {
+            matches!(**object, Expr::Identifier(ref name) if name == "this")
+        }
+        Expr::Index { object, .. } => expr_is_self_field(object),
+        _ => false,
+    }
+}
+
 /// Generate Rust code for a single Liva module
 fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext) -> Result<String> {
     let mut codegen = CodeGenerator::new(ctx.clone());
     let mut output = String::new();
+    
+    // Apply mutability inference to this module's AST
+    let mut module_ast = module.ast.clone();
+    infer_module_mutability(&mut module_ast);
     
     // Generate use statements from imports
     for import_decl in &module.imports {
@@ -8424,7 +8560,7 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext) ->
     }
     
     // Generate code for each top-level item
-    for item in &module.ast.items {
+    for item in &module_ast.items {
         match item {
             TopLevel::Import(_) => {
                 // Already handled above

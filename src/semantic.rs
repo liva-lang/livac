@@ -162,6 +162,9 @@ impl SemanticAnalyzer {
         // Detect fallible functions (those containing 'fail')
         self.detect_fallible_functions(&program);
 
+        // Infer mutability for methods (detect if they need &mut self)
+        self.infer_method_mutability(&mut program);
+
         // Third pass: type checking and validation
         for item in &program.items {
             self.validate_item(item)?;
@@ -750,6 +753,108 @@ impl SemanticAnalyzer {
     }
 
     /// Check if an expression is a direct call to a fallible function
+    
+    /// Infer which methods need &mut self by analyzing if they modify self fields
+    fn infer_method_mutability(&mut self, program: &mut Program) {
+        for item in &mut program.items {
+            if let TopLevel::Class(class) = item {
+                for member in &mut class.members {
+                    if let Member::Method(method) = member {
+                        // Check if method body modifies any self fields
+                        let modifies_self = if let Some(body) = &method.body {
+                            self.block_modifies_self(body)
+                        } else if let Some(expr) = &method.expr_body {
+                            self.expr_modifies_self(expr)
+                        } else {
+                            false
+                        };
+                        
+                        method.requires_mut_self = modifies_self;
+                    }
+                }
+            }
+        }
+    }
+    
+    /// Check if a block statement modifies self fields
+    fn block_modifies_self(&self, block: &BlockStmt) -> bool {
+        block.stmts.iter().any(|stmt| self.stmt_modifies_self(stmt))
+    }
+    
+    /// Check if a statement modifies self fields
+    fn stmt_modifies_self(&self, stmt: &Stmt) -> bool {
+        match stmt {
+            Stmt::Expr(expr_stmt) => {
+                // Check for assignments in expressions
+                self.expr_modifies_self(&expr_stmt.expr)
+            }
+            Stmt::VarDecl(var_decl) => {
+                // Check if init expression modifies self
+                self.expr_modifies_self(&var_decl.init)
+            }
+            Stmt::Assign(assign) => {
+                // Check if we're assigning to a self field
+                self.expr_is_self_field(&assign.target)
+            }
+            Stmt::If(if_stmt) => {
+                // Check both branches
+                self.if_body_modifies_self(&if_stmt.then_branch)
+                    || if_stmt
+                        .else_branch
+                        .as_ref()
+                        .map_or(false, |eb| self.if_body_modifies_self(eb))
+            }
+            Stmt::While(while_stmt) => {
+                self.block_modifies_self(&while_stmt.body)
+            }
+            Stmt::For(for_stmt) => {
+                self.block_modifies_self(&for_stmt.body)
+            }
+            Stmt::Return(ret) => {
+                ret.expr.as_ref().map_or(false, |e| self.expr_modifies_self(e))
+            }
+            _ => false,
+        }
+    }
+    
+    /// Check if an if body modifies self
+    fn if_body_modifies_self(&self, body: &IfBody) -> bool {
+        match body {
+            IfBody::Block(block) => self.block_modifies_self(block),
+            IfBody::Stmt(stmt) => self.stmt_modifies_self(stmt),
+        }
+    }
+    
+    /// Check if an expression modifies self fields
+    fn expr_modifies_self(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Call(call) => {
+                // Check if any arguments modify self
+                call.args.iter().any(|arg| self.expr_modifies_self(arg))
+            }
+            Expr::MethodCall(method_call) => {
+                // Method calls might modify self indirectly, but we focus on direct modifications
+                method_call.args.iter().any(|arg| self.expr_modifies_self(arg))
+            }
+            _ => false,
+        }
+    }
+    
+    /// Check if an expression represents a self field (this.field or this.field[index])
+    fn expr_is_self_field(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Member { object, .. } => {
+                // Check if this is this.field
+                matches!(**object, Expr::Identifier(ref name) if name == "this")
+            }
+            Expr::Index { object, .. } => {
+                // Check if this is this.field[index]
+                self.expr_is_self_field(object)
+            }
+            _ => false,
+        }
+    }
+    
     /// Get a specific line from the source code
     fn get_source_line(&self, line_num: usize) -> Option<String> {
         self.source_code
@@ -2608,6 +2713,42 @@ impl SemanticAnalyzer {
         }
     }
 
+    fn infer_member_type(&self, object: &Expr, property: &str) -> Option<TypeRef> {
+        let base_type = self.infer_expr_type(object)?;
+        let base_type = Self::strip_optional(base_type);
+        
+        // Handle tuple member access (.0, .1, .2, etc.)
+        if let TypeRef::Tuple(types) = &base_type {
+            if let Ok(index) = property.parse::<usize>() {
+                if index < types.len() {
+                    return Some(types[index].clone());
+                }
+            }
+            return None;
+        }
+        
+        // Handle struct/class member access
+        if let TypeRef::Simple(ref type_name) = base_type {
+            if let Some(info) = self.types.get(type_name) {
+                if let Some((_, field_ty)) = info.fields.get(property) {
+                    return Some(field_ty.clone());
+                }
+            }
+        }
+        
+        // Handle generic types
+        if let TypeRef::Generic { ref base, args: _ } = base_type {
+            if let Some(info) = self.types.get(base) {
+                if let Some((_, field_ty)) = info.fields.get(property) {
+                    // Substitute type parameters if needed
+                    return Some(field_ty.clone());
+                }
+            }
+        }
+        
+        None
+    }
+
     fn expr_supports_length(&self, object: &Expr) -> bool {
         match object {
             Expr::ArrayLiteral(_) => true,
@@ -2615,6 +2756,16 @@ impl SemanticAnalyzer {
             Expr::StringTemplate { .. } => true,
             // Allow .length on identifiers - will be validated at codegen
             Expr::Identifier(_) => true,
+            // Allow .length on member access (e.g., this.items.length)
+            Expr::Member { object: inner_obj, property } => {
+                // First, try to infer the type of this member access
+                if let Some(ty) = self.infer_member_type(inner_obj, property) {
+                    self.type_supports_length(&Self::strip_optional(ty))
+                } else {
+                    // Fallback: allow it and let codegen validate
+                    true
+                }
+            }
             _ => self
                 .infer_expr_type(object)
                 .map(|ty| self.type_supports_length(&Self::strip_optional(ty)))

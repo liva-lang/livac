@@ -126,6 +126,7 @@ pub struct MethodDecl {
     pub expr_body: Option<Expr>,
     pub is_async_inferred: bool,
     pub contains_fail: bool,
+    pub requires_mut_self: bool,  // Whether method needs &mut self
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
