@@ -2403,6 +2403,13 @@ impl CodeGenerator {
                     } else {
                         // Non-Task normal binding (original behavior)
 
+                        // Check if initializing with a string literal - mark variable as string
+                        if let Expr::Literal(Literal::String(_)) = &var.init {
+                            if let Some(name) = binding.name() {
+                                self.string_vars.insert(name.to_string());
+                            }
+                        }
+
                         // Check if initializing with an object literal - mark variable for bracket notation
                         if let Expr::ObjectLiteral(_) = &var.init {
                             if let Some(name) = binding.name() {
@@ -2460,6 +2467,11 @@ impl CodeGenerator {
                         if let Some(type_ref) = &binding.type_ref {
                             let rust_type = self.expand_type_alias(type_ref);
                             write!(self.output, ": {}", rust_type).unwrap();
+                            
+                            // Track string type for .length -> .len() conversion
+                            if matches!(type_ref, TypeRef::Simple(name) if name == "string") {
+                                self.string_vars.insert(var_name.clone());
+                            }
                         }
 
                         self.output.push_str(" = ");
@@ -3145,14 +3157,18 @@ impl CodeGenerator {
                 self.output.push_str("})");
             }
             Expr::StructLiteral { type_name, fields } => {
-                // Generate constructor call with provided field values as arguments
-                // Assume the fields correspond to constructor parameters in the same order
-                write!(self.output, "{}::new(", type_name).unwrap();
+                // Generate Rust struct literal directly instead of constructor call
+                // This works for all cases: with or without explicit constructor
+                write!(self.output, "{} {{ ", type_name).unwrap();
 
-                for (i, (_key, value)) in fields.iter().enumerate() {
+                for (i, (key, value)) in fields.iter().enumerate() {
                     if i > 0 {
                         self.output.push_str(", ");
                     }
+                    // Convert field name to snake_case
+                    let field_name = self.sanitize_name(key);
+                    write!(self.output, "{}: ", field_name).unwrap();
+                    
                     // Add .to_string() for string literals
                     if let Expr::Literal(Literal::String(_)) = value {
                         self.generate_expr(value)?;
@@ -3162,7 +3178,7 @@ impl CodeGenerator {
                     }
                 }
 
-                self.output.push(')');
+                self.output.push_str(" }");
             }
             Expr::ArrayLiteral(elements) => {
                 self.output.push_str("vec![");
