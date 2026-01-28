@@ -59,6 +59,7 @@ pub struct CodeGenerator {
     pending_tasks: std::collections::HashMap<String, TaskInfo>, // Variables that hold unawaited Tasks
     // --- Phase 3: Error binding variables (Option<String> type)
     error_binding_vars: std::collections::HashSet<String>, // Variables from error binding (second variable in let x, err = ...)
+    string_error_vars: std::collections::HashSet<String>, // String error variables from HTTP/File calls (for `if err` sugar)
     option_value_vars: std::collections::HashSet<String>, // Variables from error binding (first variable in let value, err = ..., which is Option<T>)
     struct_destructured_vars: std::collections::HashSet<String>, // Variables from struct destructuring (may be Option<T>)
     rust_struct_vars: std::collections::HashSet<String>, // Variables that are Rust structs (HTTP response, etc.), not JsonValue
@@ -98,6 +99,7 @@ impl CodeGenerator {
             union_types: std::collections::HashSet::new(),
             pending_tasks: std::collections::HashMap::new(),
             error_binding_vars: std::collections::HashSet::new(),
+            string_error_vars: std::collections::HashSet::new(),
             option_value_vars: std::collections::HashSet::new(),
             struct_destructured_vars: std::collections::HashSet::new(),
             rust_struct_vars: std::collections::HashSet::new(),
@@ -2390,6 +2392,12 @@ impl CodeGenerator {
                                         self.rust_struct_vars.insert(self.sanitize_name(name));
                                     }
                                 }
+                                // Track the error variable as string_error_vars (for `if err` sugar)
+                                if var.bindings.len() >= 2 {
+                                    if let Some(name) = var.bindings[1].name() {
+                                        self.string_error_vars.insert(self.sanitize_name(name));
+                                    }
+                                }
                             } else if self.is_file_call(&var.init) {
                                 // File call - returns (Option<T>, String)
                                 // let content, err = File.read(path)
@@ -2397,6 +2405,12 @@ impl CodeGenerator {
                                 self.output.push_str(") = { let (opt, err) = ");
                                 self.generate_expr(&var.init)?;
                                 self.output.push_str("; (opt.unwrap_or_default(), err) };\n");
+                                // Track the error variable as string_error_vars (for `if err` sugar)
+                                if var.bindings.len() >= 2 {
+                                    if let Some(name) = var.bindings[1].name() {
+                                        self.string_error_vars.insert(self.sanitize_name(name));
+                                    }
+                                }
                             } else if returns_tuple {
                                 // Built-in conversion functions (parseInt, parseFloat) already return (value, Option<Error>)
                                 // Generate: let (value, err) = expr;
@@ -2848,6 +2862,11 @@ impl CodeGenerator {
                         let sanitized = self.sanitize_name(name);
                         if self.error_binding_vars.contains(&sanitized) {
                             write!(self.output, "{}.is_none()", sanitized).unwrap();
+                            return Ok(());
+                        }
+                        // String error vars (from HTTP/File): !err -> err.is_empty()
+                        if self.string_error_vars.contains(&sanitized) {
+                            write!(self.output, "{}.is_empty()", sanitized).unwrap();
                             return Ok(());
                         }
                     }
@@ -5415,6 +5434,11 @@ impl CodeGenerator {
             let sanitized = self.sanitize_name(name);
             if self.error_binding_vars.contains(&sanitized) {
                 write!(self.output, "{}.is_some()", sanitized).unwrap();
+                return Ok(());
+            }
+            // String error vars (from HTTP/File): if err -> !err.is_empty()
+            if self.string_error_vars.contains(&sanitized) {
+                write!(self.output, "!{}.is_empty()", sanitized).unwrap();
                 return Ok(());
             }
         }

@@ -311,7 +311,7 @@ mod liva_rt {
 
 fn main() {
     let (content, err) = { let (opt, err) = (match std::fs::read_to_string(&"test.txt") { Ok(content) => (Some(content), String::new()), Err(e) => (None, format!("File read error: {}", e)) }); (opt.unwrap_or_default(), err) };
-    if err {
+    if !err.is_empty() {
         println!("{}", format!("{}{}", "Read error: ", err.get_field("message").unwrap()));
     } else {
         println!("{}", format!("{}{}", "Content: ", content));
