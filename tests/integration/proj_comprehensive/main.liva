@@ -356,7 +356,7 @@ processData() {
 // Example 13: Generic Function (Concept)
 // ============================================
 
-max<T>(a: T, b: T): T = (a > b) ? a : b
+max<T: Ord>(a: T, b: T): T = (a > b) ? a : b
 
 testGenerics() {
   let maxInt = max(5, 10)

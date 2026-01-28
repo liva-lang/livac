@@ -284,16 +284,17 @@ mod tests {
         );
 
         let cli = Cli {
-            input,
+            input: Some(input.clone()),
             output: None,
             run: false,
             verbose: false,
             check: true,
             json: false,
+            lsp: false,
         };
 
         let _guard = EnvVarGuard::set("LIVAC_SKIP_CARGO", "1");
-        let result = compile(&cli);
+        let result = compile(&cli, &input);
         assert!(result.is_ok());
     }
 
@@ -311,16 +312,17 @@ mod tests {
         let output_dir = tempdir().unwrap();
 
         let cli = Cli {
-            input,
+            input: Some(input.clone()),
             output: Some(output_dir.path().to_path_buf()),
             run: false,
             verbose: true,
             check: false,
             json: false,
+            lsp: false,
         };
 
         let _guard = EnvVarGuard::set("LIVAC_SKIP_CARGO", "1");
-        compile(&cli).expect("compile should succeed");
+        compile(&cli, &input).expect("compile should succeed");
 
         let src_main = output_dir.path().join("src/main.rs");
         let cargo_toml = output_dir.path().join("Cargo.toml");
@@ -330,16 +332,18 @@ mod tests {
 
     #[test]
     fn test_compile_missing_file_error() {
+        let input = PathBuf::from("does_not_exist.liva");
         let cli = Cli {
-            input: PathBuf::from("does_not_exist.liva"),
+            input: Some(input.clone()),
             output: None,
             run: false,
             verbose: false,
             check: false,
             json: false,
+            lsp: false,
         };
 
-        let err = compile(&cli).expect_err("expected IO error");
+        let err = compile(&cli, &input).expect_err("expected IO error");
         match err {
             CompilerError::IoError(msg) => {
                 assert!(msg.contains("No such file"));

@@ -1,6 +1,7 @@
 use crate::ast::*;
 use crate::error::Result;
 use serde::Serialize;
+use std::collections::BTreeSet;
 
 #[derive(Serialize)]
 #[derive(Clone)]
@@ -9,7 +10,7 @@ pub struct DesugarContext {
     pub has_async: bool,
     pub has_parallel: bool,
     pub has_random: bool,  // true if Math.random() is used
-    pub async_functions: std::collections::HashSet<String>,  // Functions that are async
+    pub async_functions: BTreeSet<String>,  // Functions that are async (BTreeSet for deterministic order)
 }
 
 impl DesugarContext {
@@ -19,7 +20,7 @@ impl DesugarContext {
             has_async: false,
             has_parallel: false,
             has_random: false,
-            async_functions: std::collections::HashSet::new(),
+            async_functions: BTreeSet::new(),
         }
     }
 }

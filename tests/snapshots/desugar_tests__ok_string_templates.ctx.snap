@@ -6,5 +6,6 @@ expression: json
   "rust_crates": [],
   "has_async": false,
   "has_parallel": false,
-  "has_random": false
+  "has_random": false,
+  "async_functions": []
 }

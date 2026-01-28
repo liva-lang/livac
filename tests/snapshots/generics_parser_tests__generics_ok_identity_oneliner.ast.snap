@@ -15,7 +15,9 @@ expression: json
         ],
         "params": [
           {
-            "name": "value",
+            "pattern": {
+              "Identifier": "value"
+            },
             "type_ref": {
               "Simple": "T"
             },

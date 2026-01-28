@@ -22,7 +22,8 @@ expression: json
               "type_ref": {
                 "Simple": "T"
               },
-              "init": null
+              "init": null,
+              "is_optional": false
             }
           },
           {
@@ -32,7 +33,9 @@ expression: json
               "type_params": [],
               "params": [
                 {
-                  "name": "value",
+                  "pattern": {
+                    "Identifier": "value"
+                  },
                   "type_ref": {
                     "Simple": "T"
                   },

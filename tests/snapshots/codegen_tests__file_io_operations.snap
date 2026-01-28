@@ -7,7 +7,7 @@ mod liva_rt {
     use tokio::task::JoinHandle;
     
     /// Runtime error type for fallible operations
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, PartialEq)]
     pub struct Error {
         pub message: String,
     }
@@ -174,6 +174,9 @@ mod liva_rt {
             _ => return (None, format!("Unknown HTTP method: {}", method)),
         };
         
+        // Add User-Agent header required by GitHub and other APIs
+        let request_builder = request_builder.header("User-Agent", "Liva-HTTP-Client/1.0");
+        
         let response = match request_builder.send().await {
             Ok(resp) => resp,
             Err(e) => {
@@ -307,16 +310,16 @@ mod liva_rt {
 }
 
 fn main() {
-    let (content, err) = (match std::fs::read_to_string(&"test.txt") { Ok(content) => (Some(content), None), Err(e) => (None, Some(liva_rt::Error::from(format!("File read error: {}", e)))) });
+    let (content, err) = { let (opt, err) = (match std::fs::read_to_string(&"test.txt") { Ok(content) => (Some(content), String::new()), Err(e) => (None, format!("File read error: {}", e)) }); (opt.unwrap_or_default(), err) };
     if err {
         println!("{}", format!("{}{}", "Read error: ", err.get_field("message").unwrap()));
     } else {
         println!("{}", format!("{}{}", "Content: ", content));
     }
-    let (success, write_err) = (match std::fs::write(&"output.txt", &"Hello, Liva!") { Ok(_) => (Some(true), None), Err(e) => (Some(false), Some(liva_rt::Error::from(format!("File write error: {}", e)))) });
-    let (ok, append_err) = (match std::fs::OpenOptions::new().create(true).append(true).open(&"log.txt").and_then(|mut file| { use std::io::Write; file.write_all("New entry".as_bytes()) }) { Ok(_) => (Some(true), None), Err(e) => (Some(false), Some(liva_rt::Error::from(format!("File append error: {}", e)))) });
+    let (success, write_err) = { let (opt, err) = (match std::fs::write(&"output.txt", &"Hello, Liva!") { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!("File write error: {}", e)) }); (opt.unwrap_or_default(), err) };
+    let (ok, append_err) = { let (opt, err) = (match std::fs::OpenOptions::new().create(true).append(true).open(&"log.txt").and_then(|mut file| { use std::io::Write; file.write_all("New entry".as_bytes()) }) { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!("File append error: {}", e)) }); (opt.unwrap_or_default(), err) };
     if std::path::Path::new(&"config.json").exists() {
         println!("{}", "Config exists");
     }
-    let (deleted, del_err) = (match std::fs::remove_file(&"temp.txt") { Ok(_) => (Some(true), None), Err(e) => (Some(false), Some(liva_rt::Error::from(format!("File delete error: {}", e)))) });
+    let (deleted, del_err) = { let (opt, err) = (match std::fs::remove_file(&"temp.txt") { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!("File delete error: {}", e)) }); (opt.unwrap_or_default(), err) };
 }

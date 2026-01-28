@@ -17,14 +17,18 @@ expression: json
         ],
         "params": [
           {
-            "name": "a",
+            "pattern": {
+              "Identifier": "a"
+            },
             "type_ref": {
               "Simple": "T"
             },
             "default": null
           },
           {
-            "name": "b",
+            "pattern": {
+              "Identifier": "b"
+            },
             "type_ref": {
               "Simple": "T"
             },

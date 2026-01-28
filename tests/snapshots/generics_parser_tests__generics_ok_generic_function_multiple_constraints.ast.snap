@@ -21,14 +21,18 @@ expression: json
         ],
         "params": [
           {
-            "name": "first",
+            "pattern": {
+              "Identifier": "first"
+            },
             "type_ref": {
               "Simple": "T"
             },
             "default": null
           },
           {
-            "name": "second",
+            "pattern": {
+              "Identifier": "second"
+            },
             "type_ref": {
               "Simple": "U"
             },

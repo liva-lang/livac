@@ -11,5 +11,9 @@ expression: json
   ],
   "has_async": true,
   "has_parallel": false,
-  "has_random": false
+  "has_random": false,
+  "async_functions": [
+    "fetch",
+    "main"
+  ]
 }

@@ -70,7 +70,7 @@ pub struct CodeGenerator {
     // --- Phase 5: Generic constraints
     trait_registry: TraitRegistry, // Trait registry for constraint validation
     // --- Async user functions
-    async_functions: std::collections::HashSet<String>, // User-defined async functions
+    async_functions: std::collections::BTreeSet<String>, // User-defined async functions (BTreeSet from DesugarContext)
 }
 
 impl CodeGenerator {
@@ -178,6 +178,19 @@ impl CodeGenerator {
             Expr::MethodCall(mc) => {
                 if let Expr::Identifier(obj) = mc.object.as_ref() {
                     return obj == "HTTP" && matches!(mc.method.as_str(), "get" | "post" | "put" | "delete");
+                }
+                false
+            }
+            _ => false
+        }
+    }
+    
+    /// Check if expression is a File call (read/write/append/delete)
+    fn is_file_call(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::MethodCall(mc) => {
+                if let Expr::Identifier(obj) = mc.object.as_ref() {
+                    return obj == "File" && matches!(mc.method.as_str(), "read" | "write" | "append" | "delete");
                 }
                 false
             }
@@ -2377,6 +2390,13 @@ impl CodeGenerator {
                                         self.rust_struct_vars.insert(self.sanitize_name(name));
                                     }
                                 }
+                            } else if self.is_file_call(&var.init) {
+                                // File call - returns (Option<T>, String)
+                                // let content, err = File.read(path)
+                                // Generate: let (content, err) = { let (opt, err) = expr; (opt.unwrap_or_default(), err) };
+                                self.output.push_str(") = { let (opt, err) = ");
+                                self.generate_expr(&var.init)?;
+                                self.output.push_str("; (opt.unwrap_or_default(), err) };\n");
                             } else if returns_tuple {
                                 // Built-in conversion functions (parseInt, parseFloat) already return (value, Option<Error>)
                                 // Generate: let (value, err) = expr;
@@ -5062,7 +5082,8 @@ impl CodeGenerator {
         // File functions: read, write, append, exists, delete
         match method_call.method.as_str() {
             "read" => {
-                // File.read(path) returns (Option<String>, Option<Error>)
+                // File.read(path) returns (Option<String>, String)
+                // Error is "" on success, error message on failure
                 if method_call.args.len() != 1 {
                     return Err(CompilerError::CodegenError(
                         SemanticErrorInfo::new(
@@ -5075,10 +5096,11 @@ impl CodeGenerator {
                 
                 self.output.push_str("(match std::fs::read_to_string(&");
                 self.generate_expr(&method_call.args[0])?;
-                self.output.push_str(") { Ok(content) => (Some(content), None), Err(e) => (None, Some(liva_rt::Error::from(format!(\"File read error: {}\", e)))) })");
+                self.output.push_str(") { Ok(content) => (Some(content), String::new()), Err(e) => (None, format!(\"File read error: {}\", e)) })");
             }
             "write" => {
-                // File.write(path, content) returns (Option<bool>, Option<Error>)
+                // File.write(path, content) returns (Option<bool>, String)
+                // Error is "" on success, error message on failure
                 if method_call.args.len() != 2 {
                     return Err(CompilerError::CodegenError(
                         SemanticErrorInfo::new(
@@ -5093,10 +5115,11 @@ impl CodeGenerator {
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(", &");
                 self.generate_expr(&method_call.args[1])?;
-                self.output.push_str(") { Ok(_) => (Some(true), None), Err(e) => (Some(false), Some(liva_rt::Error::from(format!(\"File write error: {}\", e)))) })");
+                self.output.push_str(") { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"File write error: {}\", e)) })");
             }
             "append" => {
-                // File.append(path, content) returns (Option<bool>, Option<Error>)
+                // File.append(path, content) returns (Option<bool>, String)
+                // Error is "" on success, error message on failure
                 if method_call.args.len() != 2 {
                     return Err(CompilerError::CodegenError(
                         SemanticErrorInfo::new(
@@ -5111,7 +5134,7 @@ impl CodeGenerator {
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(").and_then(|mut file| { use std::io::Write; file.write_all(");
                 self.generate_expr(&method_call.args[1])?;
-                self.output.push_str(".as_bytes()) }) { Ok(_) => (Some(true), None), Err(e) => (Some(false), Some(liva_rt::Error::from(format!(\"File append error: {}\", e)))) })");
+                self.output.push_str(".as_bytes()) }) { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"File append error: {}\", e)) })");
             }
             "exists" => {
                 // File.exists(path) returns bool (no error binding)
@@ -5130,7 +5153,8 @@ impl CodeGenerator {
                 self.output.push_str(").exists()");
             }
             "delete" => {
-                // File.delete(path) returns (Option<bool>, Option<Error>)
+                // File.delete(path) returns (Option<bool>, String)
+                // Error is "" on success, error message on failure
                 if method_call.args.len() != 1 {
                     return Err(CompilerError::CodegenError(
                         SemanticErrorInfo::new(
@@ -5143,7 +5167,7 @@ impl CodeGenerator {
                 
                 self.output.push_str("(match std::fs::remove_file(&");
                 self.generate_expr(&method_call.args[0])?;
-                self.output.push_str(") { Ok(_) => (Some(true), None), Err(e) => (Some(false), Some(liva_rt::Error::from(format!(\"File delete error: {}\", e)))) })");
+                self.output.push_str(") { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"File delete error: {}\", e)) })");
             }
             _ => {
                 return Err(CompilerError::CodegenError(
@@ -8920,6 +8944,7 @@ mod tests {
             has_async: false,
             has_parallel: false,
             has_random: false,
+            async_functions: std::collections::BTreeSet::new(),
         });
 
         assert_eq!(gen.to_snake_case("CamelCase"), "camel_case");

@@ -7,7 +7,7 @@ mod liva_rt {
     use tokio::task::JoinHandle;
     
     /// Runtime error type for fallible operations
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, PartialEq)]
     pub struct Error {
         pub message: String,
     }
@@ -173,6 +173,9 @@ mod liva_rt {
             "DELETE" => client.delete(&url),
             _ => return (None, format!("Unknown HTTP method: {}", method)),
         };
+        
+        // Add User-Agent header required by GitHub and other APIs
+        let request_builder = request_builder.header("User-Agent", "Liva-HTTP-Client/1.0");
         
         let response = match request_builder.send().await {
             Ok(resp) => resp,
