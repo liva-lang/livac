@@ -44,6 +44,7 @@ pub struct CodeGenerator {
     class_instance_vars: std::collections::HashSet<String>,
     array_vars: std::collections::HashSet<String>, // Track which variables are arrays
     json_value_vars: std::collections::HashSet<String>, // Track which variables are JsonValue
+    string_vars: std::collections::HashSet<String>, // Track which variables are strings
     // --- Class/type metadata (for inheritance and field resolution)
     class_fields: std::collections::HashMap<String, std::collections::HashSet<String>>,
     class_optional_fields: std::collections::HashMap<String, std::collections::HashSet<String>>, // Track optional fields per class
@@ -84,6 +85,7 @@ impl CodeGenerator {
             class_instance_vars: std::collections::HashSet::new(),
             array_vars: std::collections::HashSet::new(),
             json_value_vars: std::collections::HashSet::new(),
+            string_vars: std::collections::HashSet::new(),
             class_fields: std::collections::HashMap::new(),
             class_optional_fields: std::collections::HashMap::new(),
             class_base: std::collections::HashMap::new(),
@@ -176,6 +178,83 @@ impl CodeGenerator {
                 false
             }
             _ => false
+        }
+    }
+    
+    /// Check if a method modifies self fields (requires &mut self)
+    fn method_modifies_self(&self, method: &MethodDecl) -> bool {
+        if let Some(body) = &method.body {
+            return self.block_modifies_self(body);
+        }
+        false
+    }
+    
+    /// Check if a block contains assignments to self fields
+    fn block_modifies_self(&self, block: &BlockStmt) -> bool {
+        for stmt in &block.stmts {
+            if self.stmt_modifies_self(stmt) {
+                return true;
+            }
+        }
+        false
+    }
+    
+    /// Check if a statement modifies self fields
+    fn stmt_modifies_self(&self, stmt: &Stmt) -> bool {
+        match stmt {
+            Stmt::Expr(expr_stmt) => self.expr_modifies_self(&expr_stmt.expr),
+            Stmt::Return(return_stmt) => {
+                return_stmt.expr.as_ref().map_or(false, |e| self.expr_modifies_self(e))
+            }
+            Stmt::VarDecl(var_decl) => self.expr_modifies_self(&var_decl.init),
+            Stmt::Assign(assign_stmt) => {
+                // Check if left side is this.field
+                if let Expr::Member { object, .. } = &assign_stmt.target {
+                    if let Expr::Identifier(obj) = object.as_ref() {
+                        if obj == "this" || obj == "self" {
+                            return true;
+                        }
+                    }
+                }
+                self.expr_modifies_self(&assign_stmt.value)
+            }
+            Stmt::If(if_stmt) => {
+                let cond_modifies = self.expr_modifies_self(&if_stmt.condition);
+                let then_modifies = match &if_stmt.then_branch {
+                    IfBody::Block(b) => self.block_modifies_self(b),
+                    IfBody::Stmt(s) => self.stmt_modifies_self(s),
+                };
+                let else_modifies = if_stmt.else_branch.as_ref().map_or(false, |eb| {
+                    match eb {
+                        IfBody::Block(b) => self.block_modifies_self(b),
+                        IfBody::Stmt(s) => self.stmt_modifies_self(s),
+                    }
+                });
+                cond_modifies || then_modifies || else_modifies
+            }
+            Stmt::While(while_stmt) => {
+                self.expr_modifies_self(&while_stmt.condition) || self.block_modifies_self(&while_stmt.body)
+            }
+            Stmt::For(for_stmt) => {
+                self.expr_modifies_self(&for_stmt.iterable) || self.block_modifies_self(&for_stmt.body)
+            }
+            _ => false,
+        }
+    }
+    
+    /// Check if an expression modifies self fields (assignment to this.field)
+    fn expr_modifies_self(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::MethodCall(mc) => {
+                self.expr_modifies_self(&mc.object) || mc.args.iter().any(|a| self.expr_modifies_self(a))
+            }
+            Expr::Call(call) => {
+                self.expr_modifies_self(&call.callee) || call.args.iter().any(|a| self.expr_modifies_self(a))
+            }
+            Expr::Binary { left, right, .. } => {
+                self.expr_modifies_self(left) || self.expr_modifies_self(right)
+            }
+            _ => false,
         }
     }
     
@@ -1229,6 +1308,7 @@ impl CodeGenerator {
                 false,
                 Some(class),
                 Some("constructor"),
+                None,
             )?;
             write!(self.output, "{}) -> Self {{\n", params_str).unwrap();
             self.indent();
@@ -1680,7 +1760,7 @@ impl CodeGenerator {
         let _async_kw = "";
         let _type_params = String::new();
 
-        let params_str = self.generate_params(&method.params, false, None, None)?; // false because constructor is not a method
+        let params_str = self.generate_params(&method.params, false, None, None, None)?; // false because constructor is not a method
 
         // Constructor returns Self
         let return_type = " -> Self".to_string();
@@ -1763,7 +1843,7 @@ impl CodeGenerator {
             String::new()
         };
 
-        let params_str = self.generate_params(&method.params, true, class, Some(&method.name))?;
+        let params_str = self.generate_params(&method.params, true, class, Some(&method.name), Some(method))?;
 
         let return_type = if let Some(ret) = &method.return_type {
             format!(" -> {}", ret.to_rust_type())
@@ -1845,7 +1925,7 @@ impl CodeGenerator {
         } else {
             String::new()
         };
-        let params_str = self.generate_params(&func.params, false, None, None)?;
+        let params_str = self.generate_params(&func.params, false, None, None, None)?;
 
         // Handle fallibility - wrap return type in Result if function contains fail
         let return_type = if func.contains_fail {
@@ -1984,13 +2064,16 @@ impl CodeGenerator {
         is_method: bool,
         class: Option<&ClassDecl>,
         method_name: Option<&str>,
+        method: Option<&MethodDecl>,
     ) -> Result<String> {
         let mut result = String::new();
 
         if is_method {
-            // Use &mut self for methods that modify fields (setters)
+            // Use &mut self for methods that modify fields
             let is_setter = method_name.map_or(false, |name| name.starts_with("set"));
-            if is_setter {
+            let modifies_self = method.map_or(false, |m| self.method_modifies_self(m));
+            
+            if is_setter || modifies_self {
                 result.push_str("&mut self");
             } else {
                 result.push_str("&self");
@@ -2022,13 +2105,17 @@ impl CodeGenerator {
                         TypeRef::Simple(name) => Some(name.clone()),
                         _ => None,
                     };
-                    if let Some(tname) = type_name {
+                    if let Some(tname) = &type_name {
+                        // Track string parameters for proper .length -> .len() translation
+                        if matches!(tname.as_str(), "string" | "String") {
+                            self.string_vars.insert(param_name.clone());
+                        }
                         // Check if this is a class type (starts with uppercase, not primitive)
-                        if !matches!(tname.as_str(), "string" | "String" | "number" | "i32" | "i64" | "f64" | "bool" | "char" | "Vec" | "Option") 
+                        else if !matches!(tname.as_str(), "number" | "i32" | "i64" | "f64" | "bool" | "char" | "Vec" | "Option") 
                            && tname.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) 
                         {
                             self.class_instance_vars.insert(param_name.clone());
-                            self.var_types.insert(param_name.clone(), tname);
+                            self.var_types.insert(param_name.clone(), tname.clone());
                         }
                     }
                 }
@@ -2406,7 +2493,12 @@ impl CodeGenerator {
                             self.generate_expr(&var.init)?;
                             self.output.push_str(".0.expect(\"JSON parse failed\")");
                         } else {
+                            // Auto-clone when assigning this.field to a local variable
+                            let needs_clone = self.expr_is_self_field(&var.init);
                             self.generate_expr(&var.init)?;
+                            if needs_clone {
+                                self.output.push_str(".clone()");
+                            }
                         }
                         
                         // Add .to_string() if needed for string literals
@@ -2610,6 +2702,17 @@ impl CodeGenerator {
         Ok(())
     }
 
+    /// Checks if an expression is a member access on 'this' (self.field)
+    /// Returns true if the expression needs .clone() when used in assignment or return
+    fn expr_is_self_field(&self, expr: &Expr) -> bool {
+        if let Expr::Member { object, property: _ } = expr {
+            if let Expr::Identifier(obj) = object.as_ref() {
+                return obj == "this" && self.in_method;
+            }
+        }
+        false
+    }
+
     /// Generate return expression with auto-clone for non-Copy types
     /// Detects when returning a field from self and automatically adds .clone()
     fn generate_return_expr(&mut self, expr: &Expr) -> Result<()> {
@@ -2621,23 +2724,8 @@ impl CodeGenerator {
         }
         
         // Check if this is a member access on 'this' (self.field)
-        let needs_clone = if let Expr::Member { object, property: _ } = expr {
-            if let Expr::Identifier(obj) = object.as_ref() {
-                // Returning this.field - check if it needs clone
-                if obj == "this" && self.in_method {
-                    // Types that need clone: String, Vec, custom structs (not i32, u32, bool, etc.)
-                    // For now, we'll be conservative and clone everything from self
-                    // TODO: Could check type registry to determine if type is Copy
-                    true
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
-        } else {
-            false
-        };
+        // Use the helper function for this check
+        let needs_clone = self.expr_is_self_field(expr);
 
         if needs_clone {
             self.generate_expr(expr)?;
@@ -2807,15 +2895,19 @@ impl CodeGenerator {
                 }
 
                 if property == "length" {
-                    // Check if this is a JsonValue (not an array or string)
+                    // Check if this is a JsonValue (not an array, string, or class instance)
                     // JsonValue uses .length(), Rust arrays/strings use .len()
                     match object.as_ref() {
                         Expr::Identifier(var_name) => {
-                            // If not in array_vars and not a class instance, might be JsonValue
-                            if !self.array_vars.contains(var_name) && !self.class_instance_vars.contains(var_name) {
-                                self.output.push_str(".length()");
-                            } else {
+                            // If it's a string, array, or class instance, use .len()
+                            if self.string_vars.contains(var_name) 
+                               || self.array_vars.contains(var_name) 
+                               || self.class_instance_vars.contains(var_name) 
+                            {
                                 self.output.push_str(".len()");
+                            } else {
+                                // Might be JsonValue - use .length()
+                                self.output.push_str(".length()");
                             }
                         }
                         _ => self.output.push_str(".len()"),
@@ -5842,9 +5934,16 @@ impl CodeGenerator {
     }
 
     fn sanitize_name(&self, name: &str) -> String {
-        // Convert to snake_case and remove visibility prefixes
-        let name = name.trim_start_matches('_');
-        self.to_snake_case(name)
+        // Convert to snake_case, preserving leading underscore for private fields
+        let has_leading_underscore = name.starts_with('_');
+        let name_without_prefix = name.trim_start_matches('_');
+        let snake = self.to_snake_case(name_without_prefix);
+        
+        if has_leading_underscore {
+            format!("_{}", snake)
+        } else {
+            snake
+        }
     }
 
     fn sanitize_test_name(&self, name: &str) -> String {
@@ -6027,6 +6126,17 @@ impl<'a> IrCodeGenerator<'a> {
             }
             _ => false,
         }
+    }
+
+    /// Checks if an expression is a member access on 'self' (self.field)
+    /// Returns true if the expression needs .clone() when used in assignment or return
+    fn expr_is_self_field(&self, expr: &ir::Expr) -> bool {
+        if let ir::Expr::Member { object, property: _ } = expr {
+            if let ir::Expr::Identifier(obj) = object.as_ref() {
+                return obj == "self" && self.in_method;
+            }
+        }
+        false
     }
 
     fn is_liva_rt_member(&self, expr: &ir::Expr) -> bool {
@@ -6687,7 +6797,12 @@ impl<'a> IrCodeGenerator<'a> {
                     self.record_from_expr(name, value);
                 }
                 self.output.push_str(" = ");
+                // Auto-clone when assigning self.field to a local variable
+                let needs_clone = self.expr_is_self_field(value);
                 self.generate_expr(value)?;
+                if needs_clone {
+                    self.output.push_str(".clone()");
+                }
                 self.output.push_str(";\n");
             }
             ir::Stmt::Const { name, ty, value } => {
