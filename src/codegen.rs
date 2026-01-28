@@ -639,6 +639,9 @@ impl CodeGenerator {
         self.dedent();
         self.writeln("};");
         self.writeln("");
+        self.writeln("// Add User-Agent header required by GitHub and other APIs");
+        self.writeln("let request_builder = request_builder.header(\"User-Agent\", \"Liva-HTTP-Client/1.0\");");
+        self.writeln("");
         self.writeln("let response = match request_builder.send().await {");
         self.indent();
         self.writeln("Ok(resp) => resp,");
@@ -2340,6 +2343,22 @@ impl CodeGenerator {
                                         }
                                     }
                                 }
+                            } else if is_json_parse && !has_type_hint {
+                                // Untyped JSON parsing with error binding: let data, err = JSON.parse(body)
+                                // JSON.parse returns (Option<JsonValue>, String)
+                                // Generate: let (data, err) = expr;
+                                self.output.push_str(") = ");
+                                self.generate_expr(&var.init)?;
+                                self.output.push_str(";\n");
+                                
+                                // Track this variable as Option<JsonValue> so we can unwrap it before field access
+                                if let Some(first_binding) = var.bindings.first() {
+                                    if let Some(name) = first_binding.name() {
+                                        let sanitized = self.sanitize_name(name);
+                                        self.option_value_vars.insert(sanitized.clone());
+                                        self.json_value_vars.insert(sanitized);
+                                    }
+                                }
                             } else if returns_tuple {
                                 // Built-in conversion functions (parseInt, parseFloat) already return (value, Option<Error>)
                                 // Generate: let (value, err) = expr;
@@ -2929,7 +2948,9 @@ impl CodeGenerator {
                     match object.as_ref() {
                         Expr::Identifier(var_name) => {
                             // Check if this is a Rust struct (HTTP response, etc.)
-                            let is_rust_struct = self.rust_struct_vars.contains(var_name);
+                            // Sanitize the name to match how it was stored in rust_struct_vars
+                            let sanitized_name = self.sanitize_name(var_name);
+                            let is_rust_struct = self.rust_struct_vars.contains(&sanitized_name);
                             
                             // Check if this is likely a JsonValue (not array, not class instance, not rust struct)
                             if !is_rust_struct
@@ -4232,8 +4253,22 @@ impl CodeGenerator {
             }
         }
         
+        // Check if the object is Option<JsonValue> (from JSON.parse with error binding)
+        // If so, we need to unwrap it before calling array methods
+        let is_option_json_value = if let Expr::Identifier(var_name) = method_call.object.as_ref() {
+            let sanitized = self.sanitize_name(var_name);
+            self.option_value_vars.contains(&sanitized) && self.json_value_vars.contains(&sanitized)
+        } else {
+            false
+        };
+        
         // Generate the object
         self.generate_expr(&method_call.object)?;
+        
+        // Unwrap Option<JsonValue> before calling methods
+        if is_option_json_value {
+            self.output.push_str(".as_ref().unwrap()");
+        }
         
         // Check if operating on JsonValue
         let is_json_value = self.is_json_value_expr(&method_call.object);
