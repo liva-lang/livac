@@ -200,6 +200,39 @@ impl CodeGenerator {
         }
     }
     
+    /// Check if expression is an await of a pending HTTP task
+    /// Returns the task variable name if it's an HTTP task await
+    fn is_await_http_task(&self, expr: &Expr) -> Option<String> {
+        if let Expr::Unary { op: crate::ast::UnOp::Await, operand } = expr {
+            if let Expr::Identifier(name) = operand.as_ref() {
+                let sanitized = self.sanitize_name(name);
+                if let Some(task_info) = self.pending_tasks.get(&sanitized) {
+                    if task_info.is_http_call {
+                        return Some(sanitized);
+                    }
+                }
+            }
+        }
+        None
+    }
+    
+    /// Check if an async expression contains an HTTP call
+    /// e.g., async HTTP.get(url) -> true
+    fn is_http_call_in_async(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Call(call) => {
+                // Check if callee is HTTP method call
+                if let Expr::MethodCall(mc) = call.callee.as_ref() {
+                    if let Expr::Identifier(obj) = mc.object.as_ref() {
+                        return obj == "HTTP" && matches!(mc.method.as_str(), "get" | "post" | "put" | "delete");
+                    }
+                }
+                false
+            }
+            _ => false,
+        }
+    }
+    
     /// Check if a method modifies self fields (requires &mut self)
     fn method_modifies_self(&self, method: &MethodDecl) -> bool {
         if let Some(body) = &method.body {
@@ -2231,15 +2264,19 @@ impl CodeGenerator {
                     // Check if the init expression returns a tuple directly (before tracking)
                     let returns_tuple = self.is_builtin_conversion_call(&var.init);
                     
+                    // Check if this is an await of HTTP task (also returns tuple with String error)
+                    let is_await_http = self.is_await_http_task(&var.init).is_some();
+                    
                     // Phase 1: Check if this is typed JSON.parse (returns direct values, not Option)
                     let is_typed_json_parse = self.is_json_parse_call(&var.init) 
                         && var.bindings.first().and_then(|b| b.type_ref.as_ref()).is_some();
 
                     // Phase 3: Track the error variable (second binding) as Option<String>
                     // BUT: Only track as Option if NOT a tuple-returning function AND NOT typed JSON.parse
+                    // AND NOT an await of HTTP task (which returns String error, not Option)
                     // Tuple functions return (Option<T>, String) - err is String, not Option
                     // Typed JSON.parse returns (T, String) - value is T, not Option<T>
-                    if binding_names.len() == 2 && !returns_tuple && !is_typed_json_parse {
+                    if binding_names.len() == 2 && !returns_tuple && !is_typed_json_parse && !is_await_http {
                         self.error_binding_vars.insert(binding_names[1].clone());
                         self.option_value_vars.insert(binding_names[0].clone()); // Also track the value (first binding)
                     } else if binding_names.len() == 2 && (returns_tuple || is_typed_json_parse) {
@@ -2411,6 +2448,28 @@ impl CodeGenerator {
                                         self.string_error_vars.insert(self.sanitize_name(name));
                                     }
                                 }
+                            } else if let Some(task_name) = self.is_await_http_task(&var.init) {
+                                // Await of pending HTTP task - unwrap JoinHandle and extract result
+                                // let res, err = await task1
+                                // Generate: let (res, err) = { let (opt, err) = task1_task.await.unwrap(); (opt.unwrap_or_default(), err) };
+                                write!(self.output, ") = {{ let (opt, err) = {}_task.await.unwrap(); (opt.unwrap_or_default(), err) }};\n", task_name).unwrap();
+                                
+                                // Track the response variable as rust_struct
+                                if let Some(first_binding) = var.bindings.first() {
+                                    if let Some(name) = first_binding.name() {
+                                        self.rust_struct_vars.insert(self.sanitize_name(name));
+                                    }
+                                }
+                                // Track the error variable as string_error_vars (for `if err` sugar)
+                                if var.bindings.len() >= 2 {
+                                    if let Some(name) = var.bindings[1].name() {
+                                        self.string_error_vars.insert(self.sanitize_name(name));
+                                    }
+                                }
+                                // Mark task as awaited
+                                if let Some(task_info) = self.pending_tasks.get_mut(&task_name) {
+                                    task_info.awaited = true;
+                                }
                             } else if returns_tuple {
                                 // Built-in conversion functions (parseInt, parseFloat) already return (value, Option<Error>)
                                 // Generate: let (value, err) = expr;
@@ -2459,6 +2518,9 @@ impl CodeGenerator {
                         self.generate_expr(&var.init)?;
                         self.output.push_str(";\n");
 
+                        // Check if the inner call is HTTP (for await unwrapping later)
+                        let is_http = self.is_http_call_in_async(&var.init);
+
                         // Register as pending task
                         self.pending_tasks.insert(
                             var_name.clone(),
@@ -2468,7 +2530,7 @@ impl CodeGenerator {
                                 awaited: false,
                                 exec_policy,
                                 returns_tuple: false, // Simple binding, no tuple destructuring
-                                is_http_call: false, // Simple binding doesn't use error handling
+                                is_http_call: is_http,
                             },
                         );
                     } else {
@@ -2853,6 +2915,15 @@ impl CodeGenerator {
             }
             Expr::Unary { op, operand } => match op {
                 crate::ast::UnOp::Await => {
+                    // Check if we're awaiting a pending task variable
+                    if let Expr::Identifier(name) = operand.as_ref() {
+                        let sanitized = self.sanitize_name(name);
+                        if self.pending_tasks.contains_key(&sanitized) {
+                            // Generate task_name_task.await instead of task_name.await
+                            write!(self.output, "{}_task.await", sanitized).unwrap();
+                            return Ok(());
+                        }
+                    }
                     self.generate_expr(operand)?;
                     self.output.push_str(".await");
                 }
