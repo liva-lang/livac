@@ -93,7 +93,7 @@ pub struct TypeAliasDecl {
 pub struct ClassDecl {
     pub name: String,
     pub type_params: Vec<TypeParameter>,  // Generic type parameters
-    pub base: Option<String>,
+    pub implements: Vec<String>,  // Interfaces this class implements
     pub members: Vec<Member>,
     #[serde(default)]
     pub needs_serde: bool,  // Phase 2: true if used with JSON.parse
@@ -205,6 +205,7 @@ impl TypeRef {
                 "bytes" => "Vec<u8>".to_string(),
                 "bool" => "bool".to_string(),
                 "char" => "char".to_string(),
+                "void" => "()".to_string(),
                 "array" => "Vec<serde_json::Value>".to_string(),
                 _ => name.clone(),
             },

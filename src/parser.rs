@@ -392,11 +392,15 @@ impl Parser {
             vec![]
         };
 
-        // Check for inheritance
-        let base = if self.match_token(&Token::Colon) {
-            Some(self.parse_identifier()?)
+        // Check for interface implementation (: Interface1, Interface2, ...)
+        let implements = if self.match_token(&Token::Colon) {
+            let mut interfaces = vec![self.parse_identifier()?];
+            while self.match_token(&Token::Comma) {
+                interfaces.push(self.parse_identifier()?);
+            }
+            interfaces
         } else {
-            None
+            vec![]
         };
 
         if self.match_token(&Token::LBrace) {
@@ -406,7 +410,7 @@ impl Parser {
             return Ok(TopLevel::Class(ClassDecl {
                 name,
                 type_params,
-                base,
+                implements,
                 members,
                 needs_serde: false,  // Will be set by semantic analyzer if used with JSON.parse
             }));
@@ -729,8 +733,8 @@ impl Parser {
 
                     // Consume optional semicolon for one-liner methods
                     self.match_token(&Token::Semicolon);
-                } else {
-                    // Block method
+                } else if self.check(&Token::LBrace) {
+                    // Block method with body
                     self.expect(Token::LBrace)?;
                     let body = self.parse_block_stmt()?;
                     self.expect(Token::RBrace)?;
@@ -747,6 +751,22 @@ impl Parser {
                     }));
 
                     // Consume optional semicolon for block methods
+                    self.match_token(&Token::Semicolon);
+                } else {
+                    // Interface method signature (no body)
+                    members.push(Member::Method(MethodDecl {
+                        name,
+                        visibility,
+                        type_params,
+                        params,
+                        return_type,
+                        body: None,
+                        expr_body: None,
+                        is_async_inferred: false,
+                        contains_fail: false,
+                    }));
+
+                    // Consume optional semicolon for interface method signatures
                     self.match_token(&Token::Semicolon);
                 }
             } else {

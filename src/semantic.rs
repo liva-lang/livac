@@ -1028,17 +1028,31 @@ impl SemanticAnalyzer {
             }
         }
 
-        // Check base class exists if specified
-        if let Some(base) = &class.base {
-            if !self.types.contains_key(base) {
-                // Generate suggestion for similar type names
+        // Check that each implemented interface exists and is actually an interface, not a class
+        // An interface is a type that does NOT have a constructor method
+        for iface_name in &class.implements {
+            if let Some(type_info) = self.types.get(iface_name) {
+                // If it has a constructor method, it's a class, not an interface
+                if type_info.methods.contains_key("constructor") {
+                    let error = SemanticErrorInfo::new(
+                        "E0003",
+                        "Cannot implement a class",
+                        &format!("'{}' is a class, not an interface. Liva does not support class inheritance.", iface_name)
+                    ).with_suggestion(&format!("Use composition instead: add a field of type '{}' to your class", iface_name));
+                    
+                    self.exit_type_param_scope();
+                    return Err(CompilerError::SemanticError(error));
+                }
+                // It's a valid interface - could add validation that all methods are implemented
+            } else {
+                // Interface not found
                 let available_types = self.get_all_types();
-                let suggestion = suggestions::find_suggestion(base, &available_types, 2);
+                let suggestion = suggestions::find_suggestion(iface_name, &available_types, 2);
                 
                 let mut error = SemanticErrorInfo::new(
                     "E2004",
-                    "Undefined base class",
-                    &format!("Base class '{}' not found", base)
+                    "Undefined interface",
+                    &format!("Interface '{}' not found", iface_name)
                 );
                 
                 if let Some(suggested) = suggestion {

@@ -45,10 +45,9 @@ pub struct CodeGenerator {
     array_vars: std::collections::HashSet<String>, // Track which variables are arrays
     json_value_vars: std::collections::HashSet<String>, // Track which variables are JsonValue
     string_vars: std::collections::HashSet<String>, // Track which variables are strings
-    // --- Class/type metadata (for inheritance and field resolution)
+    // --- Class/type metadata (for field resolution)
     class_fields: std::collections::HashMap<String, std::collections::HashSet<String>>,
     class_optional_fields: std::collections::HashMap<String, std::collections::HashSet<String>>, // Track optional fields per class
-    class_base: std::collections::HashMap<String, Option<String>>,
     var_types: std::collections::HashMap<String, String>, // var -> ClassName
     fallible_functions: std::collections::HashSet<String>, // Track which functions are fallible
     // --- Type aliases (for expansion during codegen)
@@ -72,6 +71,8 @@ pub struct CodeGenerator {
     trait_registry: TraitRegistry, // Trait registry for constraint validation
     // --- Async user functions
     async_functions: std::collections::BTreeSet<String>, // User-defined async functions (BTreeSet from DesugarContext)
+    // --- Phase 6: Interface method signatures (for type inference)
+    interface_methods: std::collections::HashMap<String, std::collections::HashMap<String, TypeRef>>, // interface_name -> (method_name -> return_type)
 }
 
 impl CodeGenerator {
@@ -92,7 +93,6 @@ impl CodeGenerator {
             string_vars: std::collections::HashSet::new(),
             class_fields: std::collections::HashMap::new(),
             class_optional_fields: std::collections::HashMap::new(),
-            class_base: std::collections::HashMap::new(),
             var_types: std::collections::HashMap::new(),
             fallible_functions: std::collections::HashSet::new(),
             type_aliases: std::collections::HashMap::new(),
@@ -108,6 +108,7 @@ impl CodeGenerator {
             awaitable_tasks: Vec::new(),
             trait_registry: TraitRegistry::new(),
             async_functions: async_funcs,
+            interface_methods: std::collections::HashMap::new(),
         }
     }
 
@@ -392,7 +393,6 @@ impl CodeGenerator {
         // Build class metadata maps
         self.class_fields.clear();
         self.class_optional_fields.clear();
-        self.class_base.clear();
         for item in &program.items {
             if let TopLevel::Class(cls) = item {
                 let mut fields = std::collections::HashSet::new();
@@ -407,7 +407,49 @@ impl CodeGenerator {
                 }
                 self.class_fields.insert(cls.name.clone(), fields);
                 self.class_optional_fields.insert(cls.name.clone(), optional_fields);
-                self.class_base.insert(cls.name.clone(), cls.base.clone());
+            }
+        }
+        
+        // Build interface method signatures map (for type inference in implementing classes)
+        // Note: Due to parser design, interfaces may be parsed as Class without constructor
+        self.interface_methods.clear();
+        for item in &program.items {
+            // Check TopLevel::Type (explicit interface syntax via 'type' keyword)
+            if let TopLevel::Type(type_decl) = item {
+                let mut methods: std::collections::HashMap<String, TypeRef> = std::collections::HashMap::new();
+                for member in &type_decl.members {
+                    if let Member::Method(m) = member {
+                        if let Some(ret_type) = &m.return_type {
+                            methods.insert(m.name.clone(), ret_type.clone());
+                        }
+                    }
+                }
+                if !methods.is_empty() {
+                    self.interface_methods.insert(type_decl.name.clone(), methods);
+                }
+            }
+            // Also check Class that is really an interface (no constructor, only method signatures)
+            if let TopLevel::Class(class) = item {
+                let has_constructor = class.members.iter().any(|m| {
+                    matches!(m, Member::Method(method) if method.name == "constructor")
+                });
+                let has_method_bodies = class.members.iter().any(|m| {
+                    matches!(m, Member::Method(method) if method.body.is_some() || method.expr_body.is_some())
+                });
+                // If no constructor and no method bodies, it's an interface
+                if !has_constructor && !has_method_bodies {
+                    let mut methods: std::collections::HashMap<String, TypeRef> = std::collections::HashMap::new();
+                    for member in &class.members {
+                        if let Member::Method(m) = member {
+                            if let Some(ret_type) = &m.return_type {
+                                methods.insert(m.name.clone(), ret_type.clone());
+                            }
+                        }
+                    }
+                    if !methods.is_empty() {
+                        self.interface_methods.insert(class.name.clone(), methods);
+                    }
+                }
             }
         }
 
@@ -1066,41 +1108,14 @@ impl CodeGenerator {
     }
 
     fn generate_type_decl(&mut self, type_decl: &TypeDecl) -> Result<()> {
-        // Generate struct
-        self.writeln(&format!("pub struct {} {{", type_decl.name));
-        self.indent();
-
-        for member in &type_decl.members {
-            if let Member::Field(field) = member {
-                self.generate_field(field, false, None)?;  // TypeDecl doesn't need serde
-            }
-        }
-
-        self.dedent();
-        self.writeln("}");
-        self.output.push('\n');
-
-        // Generate impl block for methods
-        let has_methods = type_decl
-            .members
-            .iter()
-            .any(|m| matches!(m, Member::Method(_)));
-
-        if has_methods {
-            self.writeln(&format!("impl {} {{", type_decl.name));
-            self.indent();
-
-            for member in &type_decl.members {
-                if let Member::Method(method) = member {
-                    self.generate_method(method, None)?;
-                    self.output.push('\n');
-                }
-            }
-
-            self.dedent();
-            self.writeln("}");
-        }
-
+        // Interfaces in Liva are compile-time only contracts.
+        // They are validated by the semantic analyzer but do NOT generate any Rust code.
+        // Classes implementing interfaces just need to have the required methods.
+        // Interface method signatures are collected in generate_program() for type inference.
+        
+        // Only generate a comment for documentation purposes
+        self.writeln(&format!("// Interface: {} (compile-time validation only)", type_decl.name));
+        
         Ok(())
     }
 
@@ -1253,6 +1268,25 @@ impl CodeGenerator {
 
 
     fn generate_class(&mut self, class: &ClassDecl) -> Result<()> {
+        // Check if this is actually an interface (no constructor, methods without bodies)
+        // Interfaces are compile-time only and don't generate Rust code
+        let has_constructor = class.members.iter().any(|m| {
+            matches!(m, Member::Method(method) if method.name == "constructor")
+        });
+        let all_methods_abstract = class.members.iter().all(|m| {
+            match m {
+                Member::Method(method) => method.body.is_none() && method.expr_body.is_none(),
+                Member::Field(_) => false, // Fields without init are fine for interfaces
+            }
+        });
+        let has_only_methods = class.members.iter().all(|m| matches!(m, Member::Method(_)));
+        
+        // If no constructor and all methods are abstract (no body), it's an interface
+        if !has_constructor && all_methods_abstract && has_only_methods {
+            self.writeln(&format!("// Interface: {} (compile-time validation only)", class.name));
+            return Ok(());
+        }
+
         // Generate default functions for optional fields with init values
         if class.needs_serde {
             for member in &class.members {
@@ -1287,18 +1321,13 @@ impl CodeGenerator {
             "#[derive(Debug, Clone, Default)]"
         };
         
-        // Handle inheritance with composition
-        if let Some(base) = &class.base {
-            self.writeln(&format!("// Class {} extends {}", class.name, base));
-            self.writeln(derives);
-            self.writeln(&format!("pub struct {}{} {{", class.name, type_params_str));
-            self.indent();
-            self.writeln(&format!("pub base: {},", base));
-        } else {
-            self.writeln(derives);
-            self.writeln(&format!("pub struct {}{} {{", class.name, type_params_str));
-            self.indent();
+        // Generate struct (interfaces are validated at compile-time, no runtime representation)
+        if !class.implements.is_empty() {
+            self.writeln(&format!("// {} implements {}", class.name, class.implements.join(", ")));
         }
+        self.writeln(derives);
+        self.writeln(&format!("pub struct {}{} {{", class.name, type_params_str));
+        self.indent();
 
         for member in &class.members {
             if let Member::Field(field) = member {
@@ -1371,66 +1400,16 @@ impl CodeGenerator {
             self.output.push_str("Self {\n");
             self.indent();
 
-            // Generate field assignments based on parameters
-            if let Some(base_name) = &class.base {
-                // Initialize base with matching parameters in base field order (by field names)
+            // Generate field assignments based on constructor parameters
+            for param in &constructor_method.params {
                 self.write_indent();
-                self.output.push_str("base: ");
-                write!(self.output, "{}::new(", base_name).unwrap();
-
-                // Pass params that coinciden por nombre con campos de la base
-                let mut first = true;
-                if let Some(base_fields) = self.class_fields.get(base_name) {
-                    for bf in base_fields {
-                        if let Some(p) = constructor_method.params.iter().find(|p| p.name() == Some(bf.as_str())) {
-                            if !first {
-                                self.output.push_str(", ");
-                            } else {
-                                first = false;
-                            }
-                            let param_name = p.name().unwrap();
-                            if param_name == "name" {
-                                // Common name-as-String convenience
-                                self.output.push_str(&format!(
-                                    "{}.to_string()",
-                                    self.sanitize_name(param_name)
-                                ));
-                            } else {
-                                self.output.push_str(&self.sanitize_name(param_name));
-                            }
-                        }
-                    }
-                }
-                self.output.push_str("),\n");
-
-                // Then handle own fields (excluding base fields)
-                for param in &constructor_method.params {
-                    if let Some(base_fields) = self.class_fields.get(base_name) {
-                        if base_fields.contains(param.name().unwrap()) {
-                            continue;
-                        }
-                    }
-                    self.write_indent();
-                    let field_name = self.sanitize_name(param.name().unwrap());
-                    if param.name().unwrap() == "name" {
-                        self.output
-                            .push_str(&format!("{}: {}.to_string(),\n", field_name, field_name));
-                    } else {
-                        self.output
-                            .push_str(&format!("{}: {},\n", field_name, field_name));
-                    }
-                }
-            } else {
-                for param in &constructor_method.params {
-                    self.write_indent();
-                    let field_name = self.sanitize_name(param.name().unwrap());
-                    if param.name().unwrap() == "name" {
-                        self.output
-                            .push_str(&format!("{}: {}.to_string(),\n", field_name, field_name));
-                    } else {
-                        self.output
-                            .push_str(&format!("{}: {},\n", field_name, field_name));
-                    }
+                let field_name = self.sanitize_name(param.name().unwrap());
+                if param.name().unwrap() == "name" {
+                    self.output
+                        .push_str(&format!("{}: {}.to_string(),\n", field_name, field_name));
+                } else {
+                    self.output
+                        .push_str(&format!("{}: {},\n", field_name, field_name));
                 }
             }
 
@@ -1778,32 +1757,23 @@ impl CodeGenerator {
             param_name.to_string()
         };
 
-        // Walk current class and its bases to find a matching field
-        let mut cls_name = class.name.clone();
-        loop {
-            if let Some(fields) = self.class_fields.get(&cls_name) {
-                if fields.contains(&field_name) || fields.contains(&format!("_{}", field_name)) {
-                    // Busca el tipo en los miembros de la clase actual
-                    for m in &class.members {
-                        if let Member::Field(f) = m {
-                            if f.name == field_name || f.name == format!("_{}", field_name) {
-                                return f.type_ref.as_ref().map(|t| t.to_rust_type());
-                            }
+        // Look for matching field in class
+        if let Some(fields) = self.class_fields.get(&class.name) {
+            if fields.contains(&field_name) || fields.contains(&format!("_{}", field_name)) {
+                // Search for type in class members
+                for m in &class.members {
+                    if let Member::Field(f) = m {
+                        if f.name == field_name || f.name == format!("_{}", field_name) {
+                            return f.type_ref.as_ref().map(|t| t.to_rust_type());
                         }
                     }
-                    // Fallback simple
-                    return Some(match field_name.as_str() {
-                        "name" => "String".to_string(),
-                        "age" => "i32".to_string(),
-                        _ => "i32".to_string(),
-                    });
                 }
-            }
-            // Move to base
-            if let Some(Some(base)) = self.class_base.get(&cls_name) {
-                cls_name = base.clone();
-            } else {
-                break;
+                // Fallback for common field names
+                return Some(match field_name.as_str() {
+                    "name" => "String".to_string(),
+                    "age" => "i32".to_string(),
+                    _ => "i32".to_string(),
+                });
             }
         }
         None
@@ -1902,12 +1872,28 @@ impl CodeGenerator {
 
         let return_type = if let Some(ret) = &method.return_type {
             format!(" -> {}", ret.to_rust_type())
-        } else if let Some(expr) = &method.expr_body {
-            // Try to infer return type from expression
-            self.infer_expr_type(expr, class)
-                .unwrap_or_else(|| " -> ()".to_string())
         } else {
-            String::new()
+            // First, try to find return type from implemented interfaces
+            let interface_return_type = class.and_then(|c| {
+                for iface_name in &c.implements {
+                    if let Some(methods) = self.interface_methods.get(iface_name) {
+                        if let Some(ret_type) = methods.get(&method.name) {
+                            return Some(format!(" -> {}", ret_type.to_rust_type()));
+                        }
+                    }
+                }
+                None
+            });
+            
+            if let Some(ret) = interface_return_type {
+                ret
+            } else if let Some(expr) = &method.expr_body {
+                // Try to infer return type from expression
+                self.infer_expr_type(expr, class)
+                    .unwrap_or_else(|| " -> ()".to_string())
+            } else {
+                String::new()
+            }
         };
 
         self.write_indent();
@@ -3100,49 +3086,6 @@ impl CodeGenerator {
                                 // Convert camelCase to snake_case for Rust structs
                                 let rust_field = self.to_snake_case(property);
                                 write!(self.output, ".{}", rust_field).unwrap();
-                                return Ok(());
-                            }
-                            
-                            // For class instances, use dot notation. For everything else (JSON), use bracket notation
-                            if self.is_class_instance(var_name)
-                                || var_name.contains("person")
-                                || var_name.contains("user")
-                            {
-                                // Prefer struct field access, but if the field lives in a base class, delegate via `.base`
-                                let prop = self.sanitize_name(property);
-                                if let Some(class_name) = self.var_types.get(var_name) {
-                                    // Walk up inheritance chain to find declaring class
-                                    let mut current = Some(class_name.clone());
-                                    let mut path = String::new();
-                                    let mut found = false;
-                                    while let Some(cls) = current.clone() {
-                                        if let Some(fields) = self.class_fields.get(&cls) {
-                                            if fields.contains(&prop) {
-                                                // Emit accumulated `.base` hops then `.prop`
-                                                self.output.push_str(&path);
-                                                write!(self.output, ".{}", prop).unwrap();
-                                                found = true;
-                                                break;
-                                            }
-                                        }
-                                        // Hop to base
-                                        if let Some(base_opt) = self.class_base.get(&cls) {
-                                            if let Some(base_name) = base_opt.clone() {
-                                                path.push_str(".base");
-                                                current = Some(base_name);
-                                                continue;
-                                            }
-                                        }
-                                        break;
-                                    }
-                                    if !found {
-                                        // default: assume field on current class
-                                        write!(self.output, ".{}", prop).unwrap();
-                                    }
-                                } else {
-                                    // default when type unknown
-                                    write!(self.output, ".{}", prop).unwrap();
-                                }
 
                                 // Clone common owned types when returning by value and not assigning
                                 if self.in_method
@@ -3156,25 +3099,26 @@ impl CodeGenerator {
                                 {
                                     self.output.push_str(".clone()");
                                 }
-                            } else {
-                                // For JSON access, generate bracket notation
-                                write!(self.output, "[\"{}\"]", property).unwrap();
+                                return Ok(());
+                            }
+                            
+                            // For JSON access, generate bracket notation
+                            write!(self.output, "[\"{}\"]", property).unwrap();
 
-                                // Convert numeric properties automatically (but not in string templates - format! handles it)
-                                if !self.in_string_template {
-                                    if property == "price"
-                                        || property == "age"
-                                        || property.contains("count")
-                                        || property.contains("total")
-                                        || property.contains("sum")
-                                    {
-                                        self.output.push_str(".as_f64().unwrap_or(0.0)");
-                                    } else if property == "name"
-                                        || property.contains("text")
-                                        || property.contains("data")
-                                    {
-                                        self.output.push_str(".as_str().unwrap_or(\"\")");
-                                    }
+                            // Convert numeric properties automatically (but not in string templates - format! handles it)
+                            if !self.in_string_template {
+                                if property == "price"
+                                    || property == "age"
+                                    || property.contains("count")
+                                    || property.contains("total")
+                                    || property.contains("sum")
+                                {
+                                    self.output.push_str(".as_f64().unwrap_or(0.0)");
+                                } else if property == "name"
+                                    || property.contains("text")
+                                    || property.contains("data")
+                                {
+                                    self.output.push_str(".as_str().unwrap_or(\"\")");
                                 }
                             }
                         }
