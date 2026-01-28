@@ -290,7 +290,7 @@ impl CodeGenerator {
 
         // Add Error type for fallibility system
         self.writeln("/// Runtime error type for fallible operations");
-        self.writeln("#[derive(Debug, Clone)]");
+        self.writeln("#[derive(Debug, Clone, PartialEq)]");
         self.writeln("pub struct Error {");
         self.indent();
         self.writeln("pub message: String,");
@@ -2014,7 +2014,26 @@ impl CodeGenerator {
             };
             
             let type_str = if let Some(type_ref) = &param.type_ref {
-                type_ref.to_rust_type()
+                let rust_type = type_ref.to_rust_type();
+                
+                // Register parameter as class instance if its type is a known class
+                if !param.is_destructuring() {
+                    let type_name = match type_ref {
+                        TypeRef::Simple(name) => Some(name.clone()),
+                        _ => None,
+                    };
+                    if let Some(tname) = type_name {
+                        // Check if this is a class type (starts with uppercase, not primitive)
+                        if !matches!(tname.as_str(), "string" | "String" | "number" | "i32" | "i64" | "f64" | "bool" | "char" | "Vec" | "Option") 
+                           && tname.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) 
+                        {
+                            self.class_instance_vars.insert(param_name.clone());
+                            self.var_types.insert(param_name.clone(), tname);
+                        }
+                    }
+                }
+                
+                rust_type
             } else if let Some(cls) = class {
                 // Try to infer from field types in the class
                 // For destructured params, use the type annotation if present
@@ -2594,6 +2613,13 @@ impl CodeGenerator {
     /// Generate return expression with auto-clone for non-Copy types
     /// Detects when returning a field from self and automatically adds .clone()
     fn generate_return_expr(&mut self, expr: &Expr) -> Result<()> {
+        // Check if this is a string literal - needs .to_string() for String return type
+        if let Expr::Literal(Literal::String(_)) = expr {
+            self.generate_expr(expr)?;
+            self.output.push_str(".to_string()");
+            return Ok(());
+        }
+        
         // Check if this is a member access on 'this' (self.field)
         let needs_clone = if let Expr::Member { object, property: _ } = expr {
             if let Expr::Identifier(obj) = object.as_ref() {
@@ -3089,6 +3115,8 @@ impl CodeGenerator {
                                     '\n' => self.output.push_str("\\n"),
                                     '\r' => self.output.push_str("\\r"),
                                     '\t' => self.output.push_str("\\t"),
+                                    '{' => self.output.push_str("{{"),
+                                    '}' => self.output.push_str("}}"),
                                     _ => self.output.push(ch),
                                 }
                             }
@@ -3706,6 +3734,15 @@ impl CodeGenerator {
             if let Expr::Literal(Literal::String(_)) = arg {
                 self.generate_expr(arg)?;
                 self.output.push_str(".to_string()");
+            } else if let Expr::Identifier(name) = arg {
+                // Clone class instances when passing to functions to avoid ownership issues
+                let sanitized = self.sanitize_name(name);
+                if self.class_instance_vars.contains(&sanitized) {
+                    self.generate_expr(arg)?;
+                    self.output.push_str(".clone()");
+                } else {
+                    self.generate_expr(arg)?;
+                }
             } else {
                 self.generate_expr(arg)?;
             }
@@ -5467,6 +5504,7 @@ impl CodeGenerator {
             }
             Literal::Char(c) => write!(self.output, "'{}'", c.escape_default()).unwrap(),
             Literal::Bool(b) => write!(self.output, "{}", b).unwrap(),
+            Literal::Null => self.output.push_str("None"),
         }
         Ok(())
     }
@@ -5478,6 +5516,7 @@ impl CodeGenerator {
             Expr::Literal(Literal::String(_)) => "&str".to_string(),
             Expr::Literal(Literal::Bool(_)) => "bool".to_string(),
             Expr::Literal(Literal::Char(_)) => "char".to_string(),
+            Expr::Literal(Literal::Null) => "Option<()>".to_string(),
             _ => "i32".to_string(),
         }
     }
@@ -7608,7 +7647,7 @@ impl<'a> IrCodeGenerator<'a> {
                 self.output.push('"');
             }
             ir::Literal::Char(c) => write!(self.output, "'{}'", c.escape_default()).unwrap(),
-            ir::Literal::Null => self.output.push_str("()"),
+            ir::Literal::Null => self.output.push_str("None"),
         }
         Ok(())
     }
@@ -7781,6 +7820,7 @@ impl<'a> IrCodeGenerator<'a> {
                 self.output.push('"');
             }
             Literal::Char(c) => write!(self.output, "'{}'", c.escape_default()).unwrap(),
+            Literal::Null => self.output.push_str("None"),
         }
         Ok(())
     }
@@ -8411,6 +8451,9 @@ pub fn generate_multifile_project(
 fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext) -> Result<String> {
     let mut codegen = CodeGenerator::new(ctx.clone());
     let mut output = String::new();
+    
+    // Modules need access to liva_rt from the crate root
+    output.push_str("use crate::liva_rt;\n\n");
     
     // Generate use statements from imports
     for import_decl in &module.imports {

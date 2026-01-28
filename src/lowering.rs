@@ -679,6 +679,7 @@ fn infer_expr_return_type_with_env(expr: &ast::Expr, vars: &HashMap<String, ir::
             ast::Literal::Bool(_) => ir::Type::Bool,
             ast::Literal::String(_) => ir::Type::String,
             ast::Literal::Char(_) => ir::Type::Char,
+            ast::Literal::Null => ir::Type::Inferred, // null is compatible with any Option type
         },
         ast::Expr::Identifier(name) => vars.get(name).cloned().unwrap_or(ir::Type::Inferred),
         ast::Expr::StringTemplate { .. } => ir::Type::String,
@@ -826,6 +827,7 @@ fn lower_literal(lit: &ast::Literal) -> ir::Literal {
         ast::Literal::Bool(v) => ir::Literal::Bool(*v),
         ast::Literal::String(s) => ir::Literal::String(s.clone()),
         ast::Literal::Char(c) => ir::Literal::Char(*c),
+        ast::Literal::Null => ir::Literal::Null,
     }
 }
 

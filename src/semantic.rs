@@ -2537,6 +2537,7 @@ impl SemanticAnalyzer {
                 Literal::Float(_) => Some(TypeRef::Simple("float".into())),
                 Literal::Bool(_) => Some(TypeRef::Simple("bool".into())),
                 Literal::Char(_) => Some(TypeRef::Simple("char".into())),
+                Literal::Null => None, // null is compatible with any Option type
             },
             Expr::StringTemplate { .. } => Some(TypeRef::Simple("string".into())),
             Expr::ArrayLiteral(elements) => {
@@ -3507,6 +3508,7 @@ impl SemanticAnalyzer {
                 Literal::String(_) => "string".to_string(),
                 Literal::Bool(_) => "bool".to_string(),
                 Literal::Char(_) => "char".to_string(),
+                Literal::Null => "null".to_string(),
             }),
             Pattern::Or(patterns) => {
                 // Check first sub-pattern in or-pattern

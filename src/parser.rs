@@ -2120,6 +2120,9 @@ impl Parser {
         if self.match_token(&Token::True) {
             return Ok(Expr::Literal(Literal::Bool(true)));
         }
+        if self.match_token(&Token::Null) {
+            return Ok(Expr::Literal(Literal::Null));
+        }
 
         if let Some(token) = self.peek() {
             match token {

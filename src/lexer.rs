@@ -104,6 +104,8 @@ pub enum Token {
     True,
     #[token("false")]
     False,
+    #[token("null")]
+    Null,
 
     // Logical operators (words)
     #[token("and")]

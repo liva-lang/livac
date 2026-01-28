@@ -780,6 +780,7 @@ pub enum Literal {
     String(String),
     Char(char),
     Bool(bool),
+    Null,
 }
 
 #[derive(Debug, Clone, PartialEq, Copy, serde::Serialize, serde::Deserialize)]
