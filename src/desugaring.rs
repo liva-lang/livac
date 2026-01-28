@@ -9,6 +9,7 @@ pub struct DesugarContext {
     pub has_async: bool,
     pub has_parallel: bool,
     pub has_random: bool,  // true if Math.random() is used
+    pub async_functions: std::collections::HashSet<String>,  // Functions that are async
 }
 
 impl DesugarContext {
@@ -18,6 +19,7 @@ impl DesugarContext {
             has_async: false,
             has_parallel: false,
             has_random: false,
+            async_functions: std::collections::HashSet::new(),
         }
     }
 }
@@ -49,6 +51,7 @@ fn check_concurrency(item: &TopLevel, ctx: &mut DesugarContext) {
         TopLevel::Function(func) => {
             if func.is_async_inferred {
                 ctx.has_async = true;
+                ctx.async_functions.insert(func.name.clone());
             }
             if let Some(body) = &func.body {
                 check_block_concurrency_block(body, ctx);
@@ -62,6 +65,8 @@ fn check_concurrency(item: &TopLevel, ctx: &mut DesugarContext) {
                 if let Member::Method(method) = member {
                     if method.is_async_inferred {
                         ctx.has_async = true;
+                        // Track as ClassName.methodName for method calls
+                        ctx.async_functions.insert(format!("{}.{}", class.name, method.name));
                     }
                     if let Some(body) = &method.body {
                         check_block_concurrency_block(body, ctx);

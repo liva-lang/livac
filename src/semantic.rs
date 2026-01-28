@@ -629,6 +629,16 @@ impl SemanticAnalyzer {
             Expr::Index { object, index } => {
                 self.expr_contains_async(object) || self.expr_contains_async(index)
             }
+            Expr::MethodCall(method_call) => {
+                // HTTP methods are async (HTTP.get, HTTP.post, HTTP.put, HTTP.delete)
+                if let Expr::Identifier(obj_name) = method_call.object.as_ref() {
+                    if obj_name == "HTTP" && matches!(method_call.method.as_str(), "get" | "post" | "put" | "delete") {
+                        return true;
+                    }
+                }
+                // Check args for async expressions
+                method_call.args.iter().any(|arg| self.expr_contains_async(arg))
+            }
             Expr::ObjectLiteral(fields) => fields.iter().any(|(_, v)| self.expr_contains_async(v)),
             Expr::ArrayLiteral(elements) => elements.iter().any(|e| self.expr_contains_async(e)),
             Expr::StringTemplate { parts } => parts.iter().any(|part| match part {

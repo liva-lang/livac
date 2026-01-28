@@ -69,10 +69,13 @@ pub struct CodeGenerator {
     awaitable_tasks: Vec<String>, // Tasks that can be combined with tokio::join!
     // --- Phase 5: Generic constraints
     trait_registry: TraitRegistry, // Trait registry for constraint validation
+    // --- Async user functions
+    async_functions: std::collections::HashSet<String>, // User-defined async functions
 }
 
 impl CodeGenerator {
     fn new(ctx: DesugarContext) -> Self {
+        let async_funcs = ctx.async_functions.clone();
         Self {
             output: String::new(),
             indent_level: 0,
@@ -102,6 +105,7 @@ impl CodeGenerator {
             current_lambda_element_type: None,
             awaitable_tasks: Vec::new(),
             trait_registry: TraitRegistry::new(),
+            async_functions: async_funcs,
         }
     }
 
@@ -2359,6 +2363,20 @@ impl CodeGenerator {
                                         self.json_value_vars.insert(sanitized);
                                     }
                                 }
+                            } else if self.is_http_call(&var.init) {
+                                // HTTP call without async - generate direct .await
+                                // let response, err = HTTP.get(url)
+                                // Generate: let (response, err) = { let (opt, err) = liva_http_get(url).await; (opt.unwrap_or_default(), err) };
+                                self.output.push_str(") = { let (opt, err) = ");
+                                self.generate_expr(&var.init)?;
+                                self.output.push_str(".await; (opt.unwrap_or_default(), err) };\n");
+                                
+                                // Track the response variable as rust_struct
+                                if let Some(first_binding) = var.bindings.first() {
+                                    if let Some(name) = first_binding.name() {
+                                        self.rust_struct_vars.insert(self.sanitize_name(name));
+                                    }
+                                }
                             } else if returns_tuple {
                                 // Built-in conversion functions (parseInt, parseFloat) already return (value, Option<Error>)
                                 // Generate: let (value, err) = expr;
@@ -3840,6 +3858,13 @@ impl CodeGenerator {
             }
         }
 
+        // Check if this is a call to a user-defined async function
+        let is_async_call = if let Expr::Identifier(name) = call.callee.as_ref() {
+            self.async_functions.contains(name)
+        } else {
+            false
+        };
+
         self.generate_expr(&call.callee)?;
         
         // Add type arguments if present (turbofish syntax)
@@ -3877,6 +3902,12 @@ impl CodeGenerator {
             }
         }
         self.output.push(')');
+        
+        // Add .await for async function calls
+        if is_async_call {
+            self.output.push_str(".await");
+        }
+        
         Ok(())
     }
 
