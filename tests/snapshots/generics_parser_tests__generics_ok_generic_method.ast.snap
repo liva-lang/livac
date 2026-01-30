@@ -8,7 +8,7 @@ expression: json
       "Class": {
         "name": "Container",
         "type_params": [],
-        "base": null,
+        "implements": [],
         "members": [
           {
             "Method": {

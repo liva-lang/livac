@@ -15,7 +15,7 @@ expression: json
             ]
           }
         ],
-        "base": null,
+        "implements": [],
         "members": [
           {
             "Field": {

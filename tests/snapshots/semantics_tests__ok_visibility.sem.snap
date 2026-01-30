@@ -8,7 +8,7 @@ expression: json
       "Class": {
         "name": "Persona",
         "type_params": [],
-        "base": null,
+        "implements": [],
         "members": [
           {
             "Field": {

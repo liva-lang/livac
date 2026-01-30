@@ -17,7 +17,7 @@ expression: json
             "constraints": []
           }
         ],
-        "base": null,
+        "implements": [],
         "members": [
           {
             "Field": {

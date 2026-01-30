@@ -2278,11 +2278,14 @@ impl CodeGenerator {
                         if is_typed_json_parse {
                             if let Some(first_binding) = var.bindings.first() {
                                 if let Some(type_ref) = &first_binding.type_ref {
-                                    // Check if it's an array type like [Post]
+                                    // Check if it's an array type like [Post] or [string]
                                     if let TypeRef::Array(element_type) = type_ref {
-                                        if let TypeRef::Simple(class_name) = element_type.as_ref() {
-                                            // Track that this variable is an array of this class type
-                                            self.typed_array_vars.insert(binding_names[0].clone(), class_name.clone());
+                                        match element_type.as_ref() {
+                                            TypeRef::Simple(type_name) => {
+                                                // Track arrays of classes and strings (both need .cloned())
+                                                self.typed_array_vars.insert(binding_names[0].clone(), type_name.clone());
+                                            }
+                                            _ => {}
                                         }
                                     }
                                 }
@@ -3042,20 +3045,21 @@ impl CodeGenerator {
                 if property == "length" {
                     // Check if this is a JsonValue (not an array, string, or class instance)
                     // JsonValue uses .length(), Rust arrays/strings use .len()
+                    // Note: .len() returns usize, but Liva uses i32 (number), so we cast
                     match object.as_ref() {
                         Expr::Identifier(var_name) => {
-                            // If it's a string, array, or class instance, use .len()
+                            // If it's a string, array, or class instance, use .len() as i32
                             if self.string_vars.contains(var_name) 
                                || self.array_vars.contains(var_name) 
                                || self.class_instance_vars.contains(var_name) 
                             {
-                                self.output.push_str(".len()");
+                                self.output.push_str(".len() as i32");
                             } else {
-                                // Might be JsonValue - use .length()
+                                // Might be JsonValue - use .length() (already returns i32)
                                 self.output.push_str(".length()");
                             }
                         }
-                        _ => self.output.push_str(".len()"),
+                        _ => self.output.push_str(".len() as i32"),
                     }
                 } else {
                     // Use bracket notation for JSON objects, dot notation for structs
@@ -4681,16 +4685,37 @@ impl CodeGenerator {
         // Add transformations after the method call
         let is_json_value = self.is_json_value_expr(&method_call.object);
         
+        // Determine if the array contains non-Copy types (String, classes, etc.)
+        // Non-Copy types need .cloned() instead of .copied()
+        // Copy types: number, int, i32, float, f64, bool, char
+        // Non-Copy types: string, String, and any class name
+        let needs_clone_not_copy = if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
+            if let Some(element_type) = self.typed_array_vars.get(&base_var_name) {
+                // Check if element type is a Copy type
+                !matches!(element_type.as_str(), "number" | "int" | "i32" | "float" | "f64" | "bool" | "char")
+            } else {
+                // If no type info, assume non-Copy (safer - will work for all cases)
+                // String vars explicitly need .cloned()
+                self.string_vars.contains(&base_var_name)
+            }
+        } else {
+            false
+        };
+        
         match (method_call.adapter, method_call.method.as_str()) {
             // Sequential map: just collect (lambda already returns owned values)
             (ArrayAdapter::Seq, "map") => {
                 self.output.push_str(".collect::<Vec<_>>()");
             }
-            // Sequential filter: copy values after filtering, then collect
-            // UNLESS it's JsonValue, which already returns owned values
+            // Sequential filter: copy/clone values after filtering, then collect
+            // - JsonValue: no copy needed (already returns owned values)
+            // - Non-Copy types (String, classes): use .cloned()
+            // - Copy types (i32, f64, bool, char): use .copied()
             (ArrayAdapter::Seq, "filter") => {
                 if is_json_value {
                     self.output.push_str(".collect::<Vec<_>>()");
+                } else if needs_clone_not_copy {
+                    self.output.push_str(".cloned().collect::<Vec<_>>()");
                 } else {
                     self.output.push_str(".copied().collect::<Vec<_>>()");
                 }
@@ -4704,11 +4729,17 @@ impl CodeGenerator {
                 // Filter returns references, need to clone before collecting
                 self.output.push_str(".cloned().collect::<Vec<_>>()");
             }
-            // Find returns Option<&T>, copy it
-            // UNLESS it's JsonValue, which already returns owned values
+            // Find returns Option<&T>, copy/clone it
+            // - JsonValue: no copy needed (already returns owned values)
+            // - Non-Copy types: use .cloned()
+            // - Copy types: use .copied()
             (_, "find") => {
                 if !is_json_value {
-                    self.output.push_str(".copied()");
+                    if needs_clone_not_copy {
+                        self.output.push_str(".cloned()");
+                    } else {
+                        self.output.push_str(".copied()");
+                    }
                 }
             }
             // indexOf/position returns Option<usize>
