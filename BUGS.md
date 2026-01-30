@@ -251,14 +251,18 @@ Use `!` instead of `not` for negation.
 ## Summary
 
 **Total bugs found**: 9
-**Fixed**: 4
+**Fixed**: 8
 - ✅ Bug #1: Private field underscore prefix
 - ✅ Bug #2: `.length` not translated to `.len()` for strings
 - ✅ Bug #3: Methods modifying self fields generated with `&self` instead of `&mut self`
 - ✅ Bug #4: Assigning `self.field` to local variable needs `.clone()`
+- ✅ Bug #5: `.filter()`/`.find()` using `.cloned()` for non-Copy types
+- ✅ Bug #6: `.length` returns `i32` (cast from `usize`)
+- ✅ Bug #7: String templates with ternary expressions (use single quotes)
+- ✅ Bug #8: JSON.parse error binding now tracks `err` in string_error_vars
 
 **Critical (High severity)**: 4 (all fixed!)
-**Medium severity**: 5 (remaining)
+**Medium severity**: 5 (4 fixed, 1 remaining: Bug #9 substring edge cases)
 **Documentation issues**: 3
 
 Most bugs are in the Rust code generation phase, particularly around:

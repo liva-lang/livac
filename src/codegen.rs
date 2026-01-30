@@ -2269,6 +2269,9 @@ impl CodeGenerator {
                         // For tuple-returning functions AND typed JSON.parse: response is T (not Option), err is String
                         // Don't add to option_value_vars or error_binding_vars
                         
+                        // Track the error variable (second binding) as string_error_vars for `if err` sugar
+                        self.string_error_vars.insert(binding_names[1].clone());
+                        
                         // Check if this is an HTTP call - mark first binding as rust_struct
                         if self.is_http_call(&var.init) {
                             self.rust_struct_vars.insert(binding_names[0].clone());
@@ -2287,6 +2290,10 @@ impl CodeGenerator {
                                             }
                                             _ => {}
                                         }
+                                    }
+                                    // Also track the data variable as an array for .length -> .len() conversion
+                                    if matches!(type_ref, TypeRef::Array(_)) {
+                                        self.array_vars.insert(binding_names[0].clone());
                                     }
                                 }
                             }
@@ -3348,6 +3355,18 @@ impl CodeGenerator {
                             }
                             // Index access uses Display
                             Expr::Index { .. } => {
+                                self.output.push_str("{}");
+                            }
+                            // Binary operations (including comparisons) use Display
+                            Expr::Binary { .. } => {
+                                self.output.push_str("{}");
+                            }
+                            // Ternary/If expressions with string results use Display
+                            Expr::Ternary { .. } => {
+                                self.output.push_str("{}");
+                            }
+                            // Function calls use Display
+                            Expr::Call { .. } | Expr::MethodCall { .. } => {
                                 self.output.push_str("{}");
                             }
                             // Arrays and objects use Debug

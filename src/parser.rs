@@ -2608,16 +2608,18 @@ fn parse_string_template_parts(raw: &str) -> Result<Vec<StringTemplatePart>> {
                         ),
                     ));
                 }
-                match parse_template_expression(expr_src_trimmed) {
+                // First, try to normalize single quotes to double quotes for string literals
+                // This allows $"Status: {age >= 18 ? 'adult' : 'minor'}" to work
+                let normalized = normalize_template_strings(expr_src_trimmed);
+                match parse_template_expression(&normalized) {
                     Ok(expr) => parts.push(StringTemplatePart::Expr(Box::new(expr))),
                     Err(_) => {
-                        let normalized = expr_src_trimmed.replace('\'', "\"");
-                        if normalized != expr_src_trimmed {
-                            if let Ok(expr) = parse_template_expression(&normalized) {
-                                parts.push(StringTemplatePart::Expr(Box::new(expr)));
-                                continue;
-                            }
+                        // If normalized version failed, try original
+                        if let Ok(expr) = parse_template_expression(expr_src_trimmed) {
+                            parts.push(StringTemplatePart::Expr(Box::new(expr)));
+                            continue;
                         }
+                        // Both failed - treat as literal text
                         parts.push(StringTemplatePart::Text(format!(
                             "{{{}}}",
                             expr_src_trimmed
@@ -2652,6 +2654,37 @@ fn parse_string_template_parts(raw: &str) -> Result<Vec<StringTemplatePart>> {
     }
 
     Ok(parts)
+}
+
+/// Normalize single-quoted strings to double-quoted strings in template expressions.
+/// This allows using 'string' syntax inside templates which is more natural
+/// since the template itself uses double quotes.
+/// Example: $"Status: {age >= 18 ? 'adult' : 'minor'}" -> age >= 18 ? "adult" : "minor"
+fn normalize_template_strings(input: &str) -> String {
+    let mut result = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+    let mut in_double_quote = false;
+    
+    while let Some(ch) = chars.next() {
+        match ch {
+            '"' => {
+                in_double_quote = !in_double_quote;
+                result.push(ch);
+            }
+            '\'' if !in_double_quote => {
+                // Convert single quote to double quote (string literal, not char)
+                result.push('"');
+            }
+            '\\' => {
+                result.push(ch);
+                if let Some(next) = chars.next() {
+                    result.push(next);
+                }
+            }
+            _ => result.push(ch),
+        }
+    }
+    result
 }
 
 fn parse_template_expression(fragment: &str) -> Result<Expr> {
