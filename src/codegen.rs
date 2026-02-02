@@ -301,6 +301,30 @@ impl CodeGenerator {
     fn expr_modifies_self(&self, expr: &Expr) -> bool {
         match expr {
             Expr::MethodCall(mc) => {
+                // Bug #20 fix: Check if calling mutating methods on self fields
+                // e.g., self.notes.push(note) means we modify self
+                let is_mutating_method = matches!(mc.method.as_str(), 
+                    "push" | "pop" | "remove" | "clear" | "insert" | 
+                    "sort" | "reverse" | "extend" | "retain" | "truncate"
+                );
+                
+                if is_mutating_method {
+                    // Check if the base is this.something
+                    if let Some(base_name) = self.get_base_var_name(&mc.object) {
+                        if base_name == "this" || base_name == "self" {
+                            return true;
+                        }
+                    }
+                    // Check if it's this.field.method()
+                    if let Expr::Member { object, .. } = mc.object.as_ref() {
+                        if let Expr::Identifier(obj_name) = object.as_ref() {
+                            if obj_name == "this" || obj_name == "self" {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                
                 self.expr_modifies_self(&mc.object) || mc.args.iter().any(|a| self.expr_modifies_self(a))
             }
             Expr::Call(call) => {
@@ -1479,77 +1503,85 @@ impl CodeGenerator {
             self.output.push_str("Self {\n");
             self.indent();
 
-            // Generate field assignments based on constructor parameters
-            for param in &constructor_method.params {
-                self.write_indent();
-                let field_name = self.sanitize_name(param.name().unwrap());
-                if param.name().unwrap() == "name" {
-                    self.output
-                        .push_str(&format!("{}: {}.to_string(),\n", field_name, field_name));
-                } else {
-                    self.output
-                        .push_str(&format!("{}: {},\n", field_name, field_name));
+            // Bug #19 fix: Parse constructor body to find this.field = value assignments
+            // Build a map of field_name -> assigned_value
+            let mut field_assignments: std::collections::HashMap<String, &Expr> = std::collections::HashMap::new();
+            
+            if let Some(body) = &constructor_method.body {
+                for stmt in &body.stmts {
+                    // Look for assignments like: this.field = value
+                    if let Stmt::Assign(assign) = stmt {
+                        if let Expr::Member { object, property } = &assign.target {
+                            if let Expr::Identifier(obj_name) = object.as_ref() {
+                                if obj_name == "this" {
+                                    // Found this.field = value
+                                    let field_name = self.sanitize_name(property);
+                                    field_assignments.insert(field_name, &assign.value);
+                                }
+                            }
+                        }
+                    }
                 }
             }
-
-            // Add default values for fields not covered by parameters
+            
+            // Generate field initializations from the body assignments
             for member in &class.members {
                 if let Member::Field(field) = member {
-                    if !constructor_method
-                        .params
-                        .iter()
-                        .any(|p| p.name() == Some(field.name.as_str()))
-                    {
+                    let field_name = self.sanitize_name(&field.name);
+                    
+                    if let Some(value_expr) = field_assignments.get(&field_name) {
+                        // Use the value from the constructor body
                         self.write_indent();
-                        let field_name = self.sanitize_name(&field.name);
+                        write!(self.output, "{}: ", field_name).unwrap();
                         
-                        // Use explicit init value if provided, otherwise use defaults
-                        if let Some(init_expr) = &field.init {
-                            write!(self.output, "{}: ", field_name).unwrap();
-                            
-                            // Check if we need to convert string literal to String
+                        // Check if value is a string literal and needs .to_string()
+                        let needs_to_string = matches!(value_expr, Expr::Literal(Literal::String(_)));
+                        
+                        self.generate_expr(value_expr)?;
+                        
+                        if needs_to_string {
+                            self.output.push_str(".to_string()");
+                        }
+                        self.output.push_str(",\n");
+                    } else {
+                        // Field not assigned in constructor - use default value
+                        let default_value = if field.is_optional {
+                            "None".to_string()
+                        } else if let Some(init_expr) = &field.init {
+                            // Field has an initializer in its definition
+                            let mut value = String::new();
                             let needs_string_conversion = matches!(init_expr, Expr::Literal(Literal::String(_)))
                                 && field.type_ref.as_ref().map(|t| matches!(t, TypeRef::Simple(s) if s == "string" || s == "String")).unwrap_or(false);
                             
-                            // If field is optional, wrap the init value in Some()
-                            if field.is_optional {
-                                self.output.push_str("Some(");
-                            }
+                            // Generate the init expression to a temporary buffer
+                            let old_output = std::mem::take(&mut self.output);
+                            self.generate_expr(init_expr)?;
+                            value = std::mem::replace(&mut self.output, old_output);
                             
                             if needs_string_conversion {
-                                self.generate_expr(init_expr)?;
-                                self.output.push_str(".to_string()");
+                                format!("{}.to_string()", value)
                             } else {
-                                self.generate_expr(init_expr)?;
+                                value
                             }
-                            
-                            if field.is_optional {
-                                self.output.push_str(")");
-                            }
-                            
-                            self.output.push_str(",\n");
                         } else {
-                            // Optional fields should default to None
-                            let default_value = if field.is_optional {
-                                "None".to_string()
-                            } else {
-                                match field.type_ref.as_ref() {
-                                    Some(type_ref) => match type_ref {
-                                        TypeRef::Simple(name) => match name.as_str() {
-                                            "number" | "int" => "0".to_string(),
-                                            "float" => "0.0".to_string(),
-                                            "string" => "String::new()".to_string(),
-                                            "bool" => "false".to_string(),
-                                            "char" => "'\\0'".to_string(),
-                                            _ => "Default::default()".to_string(),
-                                        },
+                            match field.type_ref.as_ref() {
+                                Some(type_ref) => match type_ref {
+                                    TypeRef::Simple(name) => match name.as_str() {
+                                        "number" | "int" => "0".to_string(),
+                                        "float" => "0.0".to_string(),
+                                        "string" => "String::new()".to_string(),
+                                        "bool" => "false".to_string(),
+                                        "char" => "'\\0'".to_string(),
                                         _ => "Default::default()".to_string(),
                                     },
-                                    None => "Default::default()".to_string(),
-                                }
-                            };
-                            self.writeln(&format!("{}: {},", field_name, default_value));
-                        }
+                                    TypeRef::Array(_) => "Vec::new()".to_string(),
+                                    _ => "Default::default()".to_string(),
+                                },
+                                None => "Default::default()".to_string(),
+                            }
+                        };
+                        self.write_indent();
+                        self.writeln(&format!("{}: {},", field_name, default_value));
                     }
                 }
             }
@@ -4817,7 +4849,8 @@ impl CodeGenerator {
                             // filter/find/some/every need different patterns based on whether we'll use .cloned() or .copied()
                             // - With .copied() (Copy types): filter(|&&x| ...) - double deref
                             // - With .cloned() (Clone types): filter(|x| x...) - no deref, closure receives &&T but cloned() handles it
-                            // map/forEach need & (closure takes &T)
+                            // map/forEach need & for Copy types (closure takes &T), but for non-Copy types,
+                            // we work with references directly to avoid moving
                             // UNLESS it's JsonValue, then no dereferencing at all
                             // ALSO: if parameter is destructured, don't add & because we'll clone inside
                             if !is_json_value && !param.is_destructuring() {
@@ -4828,6 +4861,13 @@ impl CodeGenerator {
                                     }
                                     // If will_use_cloned, no prefix needed - the closure will receive &&T 
                                     // but we just use it as a reference
+                                } else if method_call.method == "map" || method_call.method == "forEach" {
+                                    // Bug #22 fix: For non-Copy types (class instances), don't add &
+                                    // because we can't move out of a shared reference
+                                    if !will_use_cloned {
+                                        self.output.push('&');
+                                    }
+                                    // For non-Copy types (will_use_cloned = true), no prefix - work with &T directly
                                 } else {
                                     self.output.push('&');
                                 }
