@@ -37,10 +37,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Variables from `result["key"]` now properly tracked in `json_value_vars`
   - Enables correct `forEach`/`map`/`filter` lambda pattern generation
 
+- ✅ **Bug #16**: JSON access with string variable used wrong method
+  - **Problem**: `config[key]` where `key: string` generated `.get(key)` instead of `.get_field(&key)`
+  - Now detects if index variable is in `string_vars` and uses `get_field()` for object access
+  - Works for both `Option<JsonValue>` and direct `JsonValue`
+
 **Real-world testing:**
 - Built GitHub CLI helper tool in Liva
 - Commands: `user <username>`, `repos <username>`, `issues <owner/repo>`, `search <query>`
 - Successfully tested against live GitHub API
+- Built Config Tool testing File I/O + JSON combination
 
 ## [0.11.5] - 2026-02-02
 

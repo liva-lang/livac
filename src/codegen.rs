@@ -3312,6 +3312,19 @@ impl CodeGenerator {
                                 Expr::Literal(Literal::String(key)) => {
                                     write!(self.output, "{}.as_ref().unwrap().get_field(\"{}\").unwrap_or_default()", sanitized, key).unwrap();
                                 }
+                                Expr::Identifier(index_var) => {
+                                    // If the index is a variable, check if it's a string variable
+                                    let index_sanitized = self.sanitize_name(index_var);
+                                    if self.string_vars.contains(&index_sanitized) {
+                                        // String variable - use get_field for object access
+                                        write!(self.output, "{}.as_ref().unwrap().get_field(&{}).unwrap_or_default()", sanitized, index_sanitized).unwrap();
+                                    } else {
+                                        // Assume numeric index for array access
+                                        write!(self.output, "{}.as_ref().unwrap().get(", sanitized).unwrap();
+                                        self.generate_expr(index)?;
+                                        self.output.push_str(").unwrap_or_default()");
+                                    }
+                                }
                                 _ => {
                                     write!(self.output, "{}.as_ref().unwrap().get(", sanitized).unwrap();
                                     self.generate_expr(index)?;
@@ -3352,6 +3365,23 @@ impl CodeGenerator {
                             Expr::Literal(Literal::Int(num)) => {
                                 // Try JsonValue array access with numeric literal
                                 write!(self.output, ".get({}).unwrap_or_default()", num).unwrap();
+                                return Ok(());
+                            }
+                            Expr::Identifier(index_var) => {
+                                // If the index is a variable, check if it's a string variable
+                                // String variables should use get_field(), numeric should use get()
+                                let index_sanitized = self.sanitize_name(index_var);
+                                if self.string_vars.contains(&index_sanitized) {
+                                    // String variable - use get_field for object access
+                                    self.output.push_str(".get_field(&");
+                                    self.output.push_str(&index_sanitized);
+                                    self.output.push_str(").unwrap_or_default()");
+                                } else {
+                                    // Assume numeric index for array access
+                                    self.output.push_str(".get(");
+                                    self.generate_expr(index)?;
+                                    self.output.push_str(").unwrap_or_default()");
+                                }
                                 return Ok(());
                             }
                             _ => {
