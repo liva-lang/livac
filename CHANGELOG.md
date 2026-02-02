@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.4] - 2026-02-02
+
+### Fixed - Dogfooding Bug Fixes 🐛
+
+**Complete bug fixes from GitHub Dashboard dogfooding session:**
+
+**Array Methods with Non-Copy Types:**
+- ✅ `.filter()` and `.find()` now use `.cloned()` for class instances instead of `.copied()`
+- ✅ Track typed arrays from array literals containing class constructors
+- ✅ Lambda patterns adjusted: use `|x|` with `.cloned()` instead of `|&&x|` with `.copied()`
+
+**Option<T> Handling from .find():**
+- ✅ Variables from `.find()` now tracked as `Option<T>` in `option_value_vars`
+- ✅ `x != null` now transforms to `x.is_some()` 
+- ✅ `x == null` now transforms to `x.is_none()`
+- ✅ Field access on Option results auto-unwraps: `found.name` → `found.as_ref().unwrap().name`
+
+**Previous Fixes (v0.11.3):**
+- ✅ Private field underscore prefix preserved in snake_case conversion
+- ✅ `.length` on strings/arrays generates `.len() as i32`
+- ✅ Methods modifying `this.field` generate `&mut self`
+- ✅ Assigning from `this.field` auto-clones
+- ✅ String templates with ternary expressions (use Display format)
+- ✅ JSON.parse error binding tracks `err` in `string_error_vars`
+
+**Summary:** All 9 bugs from dogfooding session now fixed! 🎉
+
 ## [0.12.0] - In Development
 
 ### Added - Language Server Protocol (LSP) Planning 📝
