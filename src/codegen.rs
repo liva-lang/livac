@@ -45,6 +45,7 @@ pub struct CodeGenerator {
     array_vars: std::collections::HashSet<String>, // Track which variables are arrays
     json_value_vars: std::collections::HashSet<String>, // Track which variables are JsonValue
     string_vars: std::collections::HashSet<String>, // Track which variables are strings
+    native_vec_string_vars: std::collections::HashSet<String>, // Track Vec<String> from Sys.args() - use direct indexing
     // --- Class/type metadata (for field resolution)
     class_fields: std::collections::HashMap<String, std::collections::HashSet<String>>,
     class_optional_fields: std::collections::HashMap<String, std::collections::HashSet<String>>, // Track optional fields per class
@@ -91,6 +92,7 @@ impl CodeGenerator {
             array_vars: std::collections::HashSet::new(),
             json_value_vars: std::collections::HashSet::new(),
             string_vars: std::collections::HashSet::new(),
+            native_vec_string_vars: std::collections::HashSet::new(),
             class_fields: std::collections::HashMap::new(),
             class_optional_fields: std::collections::HashMap::new(),
             var_types: std::collections::HashMap::new(),
@@ -2667,6 +2669,17 @@ impl CodeGenerator {
                                     self.option_value_vars.insert(name.to_string());
                                 }
                             }
+                            // Sys.args() returns Vec<String> - need direct indexing
+                            else if method_call.method.as_str() == "args" {
+                                if let Expr::Identifier(obj_name) = method_call.object.as_ref() {
+                                    if obj_name == "Sys" {
+                                        if let Some(name) = binding.name() {
+                                            self.native_vec_string_vars.insert(name.to_string());
+                                            self.array_vars.insert(name.to_string());
+                                        }
+                                    }
+                                }
+                            }
                         }
                         // Mark instances created via constructor call: let x = ClassName(...)
                         else if let Expr::Call(call) = &var.init {
@@ -3302,6 +3315,17 @@ impl CodeGenerator {
                 
                 self.generate_expr(object)?;
                 
+                // For native Vec<String> (from Sys.args()), use direct indexing with .clone()
+                if let Expr::Identifier(var_name) = object.as_ref() {
+                    let sanitized = self.sanitize_name(var_name);
+                    if self.native_vec_string_vars.contains(&sanitized) {
+                        self.output.push('[');
+                        self.generate_expr(index)?;
+                        self.output.push_str("].clone()");
+                        return Ok(());
+                    }
+                }
+                
                 // For JsonValue direct access (not Option), check if object looks like JsonValue
                 // This is a heuristic: if object is an identifier that's not in our known sets,
                 // it might be a JsonValue. We'll generate .get_field() / .get() instead of []
@@ -3327,6 +3351,29 @@ impl CodeGenerator {
                                 self.output.push_str(").unwrap_or_default()");
                                 return Ok(());
                             }
+                        }
+                    }
+                }
+                
+                // Handle nested JSON access: when object is another Index expression (e.g., issue["user"]["login"])
+                // The object was already generated above, now we need to chain .get_field() for the nested access
+                if let Expr::Index { .. } = object.as_ref() {
+                    // Object is another Index, which means this is nested JSON access
+                    // Generate .get_field("key") for the next level
+                    match index.as_ref() {
+                        Expr::Literal(Literal::String(key)) => {
+                            write!(self.output, ".get_field(\"{}\").unwrap_or_default()", key).unwrap();
+                            return Ok(());
+                        }
+                        Expr::Literal(Literal::Int(num)) => {
+                            write!(self.output, ".get({}).unwrap_or_default()", num).unwrap();
+                            return Ok(());
+                        }
+                        _ => {
+                            self.output.push_str(".get(");
+                            self.generate_expr(index)?;
+                            self.output.push_str(").unwrap_or_default()");
+                            return Ok(());
                         }
                     }
                 }
@@ -4436,6 +4483,11 @@ impl CodeGenerator {
             if name == "HTTP" {
                 return self.generate_http_function_call(method_call);
             }
+            
+            // Check if this is a Sys function call (Sys.args, Sys.env, etc.)
+            if name == "Sys" {
+                return self.generate_sys_function_call(method_call);
+            }
         }
         
         // Check if this is a string method (no adapter means it's not an array method)
@@ -5485,6 +5537,61 @@ impl CodeGenerator {
                         "E3000",
                         &format!("Unknown HTTP function: {}", method_call.method),
                         "Available HTTP functions: get, post, put, delete"
+                    )
+                ));
+            }
+        }
+        
+        Ok(())
+    }
+
+    fn generate_sys_function_call(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
+        // Sys functions: args, env, exit
+        match method_call.method.as_str() {
+            "args" => {
+                // Sys.args() returns [string] - command line arguments
+                // Returns all args including program name at index 0
+                self.output.push_str("std::env::args().collect::<Vec<String>>()");
+            }
+            "env" => {
+                // Sys.env(key) returns string - environment variable value
+                // Returns empty string if not found
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            "Sys.env requires exactly 1 argument",
+                            "Usage: Sys.env(\"VAR_NAME\")"
+                        )
+                    ));
+                }
+                
+                self.output.push_str("std::env::var(");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(").unwrap_or_default()");
+            }
+            "exit" => {
+                // Sys.exit(code) - exit program with code
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(
+                        SemanticErrorInfo::new(
+                            "E3000",
+                            "Sys.exit requires exactly 1 argument",
+                            "Usage: Sys.exit(0)"
+                        )
+                    ));
+                }
+                
+                self.output.push_str("std::process::exit(");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(" as i32)");
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(
+                    SemanticErrorInfo::new(
+                        "E3000",
+                        &format!("Unknown Sys function: {}", method_call.method),
+                        "Available Sys functions: args, env, exit"
                     )
                 ));
             }

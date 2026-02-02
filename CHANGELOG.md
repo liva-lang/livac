@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.6] - 2026-02-02
+
+### Added - System Module & CLI Support 🖥️
+
+**New `Sys` module for CLI applications:**
+
+- ✅ **`Sys.args()`**: Returns command-line arguments as `Vec<String>`
+  - `let args = Sys.args()` → first element is program name
+  - Special `native_vec_string_vars` tracking for proper indexing
+
+- ✅ **`Sys.env(key)`**: Get environment variable value
+  - Returns empty string if not found
+  - `let home = Sys.env("HOME")`
+
+- ✅ **`Sys.exit(code)`**: Exit process with status code
+  - `Sys.exit(1)` for error exit
+
+### Fixed - JSON Nested Access 🐛
+
+- ✅ **Bug #14**: Nested JSON field access didn't work
+  - **Problem**: `issue["user"]["login"]` generated invalid Rust code
+  - **Before**: `issue.get_field("user").unwrap_or_default()["login"]` ❌
+  - **After**: `issue.get_field("user").unwrap_or_default().get_field("login").unwrap_or_default()` ✅
+  - Added detection for nested `Expr::Index` to chain `get_field()` calls
+
+**Real-world testing:**
+- Built GitHub CLI helper tool in Liva
+- Commands: `user <username>`, `repos <username>`, `issues <owner/repo>`
+- Successfully tested against live GitHub API
+
 ## [0.11.5] - 2026-02-02
 
 ### Fixed - JSON/HTTP Dogfooding Bug Fixes 🐛

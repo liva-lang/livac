@@ -88,7 +88,7 @@ fn compile(cli: &Cli, input: &PathBuf) -> Result<(), CompilerError> {
     let skip_cargo = std::env::var("LIVAC_SKIP_CARGO").is_ok();
 
     if !cli.json {
-        println!("{}", "🧩 Liva Compiler v0.11.3".cyan().bold());
+        println!("{}", "🧩 Liva Compiler v0.11.6".cyan().bold());
         println!("{} {}", "→ Compiling".green(), input.display());
     }
 
