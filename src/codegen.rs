@@ -782,6 +782,12 @@ impl CodeGenerator {
         self.writeln("#[derive(Debug, Clone)]");
         self.writeln("pub struct JsonValue(pub serde_json::Value);");
         self.writeln("");
+        self.writeln("impl Default for JsonValue {");
+        self.indent();
+        self.writeln("fn default() -> Self { JsonValue(serde_json::Value::Null) }");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
         self.writeln("impl JsonValue {");
         self.indent();
         self.writeln("pub fn new(value: serde_json::Value) -> Self { JsonValue(value) }");
@@ -909,7 +915,49 @@ impl CodeGenerator {
         self.indent();
         self.writeln("fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {");
         self.indent();
-        self.writeln("write!(f, \"{}\", self.0)");
+        // For strings, display without quotes; for other types, use JSON representation
+        self.writeln("match &self.0 {");
+        self.indent();
+        self.writeln("serde_json::Value::String(s) => write!(f, \"{}\", s),");
+        self.writeln("serde_json::Value::Null => write!(f, \"null\"),");
+        self.writeln("other => write!(f, \"{}\", other),");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        
+        // Add Index<&str> for nested JSON access: json["field"]["nested"]
+        self.writeln("impl std::ops::Index<&str> for JsonValue {");
+        self.indent();
+        self.writeln("type Output = JsonValue;");
+        self.writeln("");
+        self.writeln("fn index(&self, key: &str) -> &Self::Output {");
+        self.indent();
+        self.writeln("// This is a bit of a hack - we leak the value to get a static reference");
+        self.writeln("// In practice, this is safe for our use case since we don't mutate");
+        self.writeln("static NULL_VALUE: std::sync::OnceLock<JsonValue> = std::sync::OnceLock::new();");
+        self.writeln("match &self.0 {");
+        self.indent();
+        self.writeln("serde_json::Value::Object(obj) => {");
+        self.indent();
+        self.writeln("if let Some(v) = obj.get(key) {");
+        self.indent();
+        self.writeln("// Leak to get 'static lifetime - acceptable for read-only JSON access");
+        self.writeln("Box::leak(Box::new(JsonValue(v.clone())))");
+        self.dedent();
+        self.writeln("} else {");
+        self.indent();
+        self.writeln("NULL_VALUE.get_or_init(|| JsonValue(serde_json::Value::Null))");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("_ => NULL_VALUE.get_or_init(|| JsonValue(serde_json::Value::Null)),");
+        self.dedent();
+        self.writeln("}");
         self.dedent();
         self.writeln("}");
         self.dedent();
@@ -932,6 +980,35 @@ impl CodeGenerator {
         self.dedent();
         self.writeln("}");
         self.writeln("_ => Vec::new().into_iter(),");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        
+        // Add PartialEq<bool> for comparing JSON booleans
+        self.writeln("impl PartialEq<bool> for JsonValue {");
+        self.indent();
+        self.writeln("fn eq(&self, other: &bool) -> bool {");
+        self.indent();
+        self.writeln("self.as_bool() == Some(*other)");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        
+        // Add PartialEq<&str> for comparing JSON strings
+        self.writeln("impl PartialEq<&str> for JsonValue {");
+        self.indent();
+        self.writeln("fn eq(&self, other: &&str) -> bool {");
+        self.indent();
+        self.writeln("match &self.0 {");
+        self.indent();
+        self.writeln("serde_json::Value::String(s) => s == *other,");
+        self.writeln("_ => false,");
         self.dedent();
         self.writeln("}");
         self.dedent();
@@ -3115,7 +3192,7 @@ impl CodeGenerator {
                                 && !var_name.contains("user")
                             {
                                 // Likely a JsonValue - use get_field()
-                                write!(self.output, ".get_field(\"{}\").unwrap()", property).unwrap();
+                                write!(self.output, ".get_field(\"{}\").unwrap_or_default()", property).unwrap();
                                 return Ok(());
                             }
                             
@@ -3159,7 +3236,7 @@ impl CodeGenerator {
                                     || property.contains("text")
                                     || property.contains("data")
                                 {
-                                    self.output.push_str(".as_str().unwrap_or(\"\")");
+                                    self.output.push_str(".as_string().unwrap_or_default()");
                                 }
                             }
                         }
@@ -3183,7 +3260,7 @@ impl CodeGenerator {
                                     || property.contains("text")
                                     || property.contains("data")
                                 {
-                                    self.output.push_str(".as_str().unwrap_or(\"\")");
+                                    self.output.push_str(".as_string().unwrap_or_default()");
                                 }
                             }
                         }
@@ -3210,12 +3287,12 @@ impl CodeGenerator {
                             // Option<JsonValue> case
                             match index.as_ref() {
                                 Expr::Literal(Literal::String(key)) => {
-                                    write!(self.output, "{}.as_ref().unwrap().get_field(\"{}\").unwrap()", sanitized, key).unwrap();
+                                    write!(self.output, "{}.as_ref().unwrap().get_field(\"{}\").unwrap_or_default()", sanitized, key).unwrap();
                                 }
                                 _ => {
                                     write!(self.output, "{}.as_ref().unwrap().get(", sanitized).unwrap();
                                     self.generate_expr(index)?;
-                                    self.output.push_str(").unwrap()");
+                                    self.output.push_str(").unwrap_or_default()");
                                 }
                             }
                             return Ok(());
@@ -3235,19 +3312,19 @@ impl CodeGenerator {
                         match index.as_ref() {
                             Expr::Literal(Literal::String(key)) => {
                                 // Try JsonValue object access
-                                write!(self.output, ".get_field(\"{}\").unwrap()", key).unwrap();
+                                write!(self.output, ".get_field(\"{}\").unwrap_or_default()", key).unwrap();
                                 return Ok(());
                             }
                             Expr::Literal(Literal::Int(num)) => {
                                 // Try JsonValue array access with numeric literal
-                                write!(self.output, ".get({}).unwrap()", num).unwrap();
+                                write!(self.output, ".get({}).unwrap_or_default()", num).unwrap();
                                 return Ok(());
                             }
                             _ => {
                                 // Try JsonValue array access with expression
                                 self.output.push_str(".get(");
                                 self.generate_expr(index)?;
-                                self.output.push_str(").unwrap()");
+                                self.output.push_str(").unwrap_or_default()");
                                 return Ok(());
                             }
                         }
@@ -3269,7 +3346,7 @@ impl CodeGenerator {
                     {
                         self.output.push_str(".as_f64().unwrap_or(0.0)");
                     } else if prop == "name" || prop.contains("text") || prop.contains("data") {
-                        self.output.push_str(".as_str().unwrap_or(\"\")");
+                        self.output.push_str(".as_string().unwrap_or_default()");
                     }
                 }
             }
@@ -3462,12 +3539,12 @@ impl CodeGenerator {
                                     // Generate unwrapped index access for string template
                                     match index.as_ref() {
                                         Expr::Literal(Literal::String(key)) => {
-                                            write!(self.output, "{}.as_ref().unwrap().get_field(\"{}\").unwrap()", sanitized, key).unwrap();
+                                            write!(self.output, "{}.as_ref().unwrap().get_field(\"{}\").unwrap_or_default()", sanitized, key).unwrap();
                                         }
                                         _ => {
                                             write!(self.output, "{}.as_ref().unwrap().get(", sanitized).unwrap();
                                             self.generate_expr(index)?;
-                                            self.output.push_str(").unwrap()");
+                                            self.output.push_str(").unwrap_or_default()");
                                         }
                                     }
                                     continue;

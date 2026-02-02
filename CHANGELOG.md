@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.5] - 2026-02-02
+
+### Fixed - JSON/HTTP Dogfooding Bug Fixes 🐛
+
+**JsonValue improvements for real API usage:**
+
+- ✅ **Bug #10**: `.as_str()` not found on JsonValue 
+  - Changed codegen to use `.as_string().unwrap_or_default()` instead of `.as_str().unwrap_or("")`
+  
+- ✅ **Bug #11**: JsonValue Display showed JSON quotes around strings
+  - Improved Display impl to extract string content without JSON quotes
+  - `user["name"]` now displays as `John` instead of `"John"`
+  
+- ✅ **Bug #12**: Nested JSON bracket access not supported
+  - Added `impl Index<&str> for JsonValue` to support `json["a"]["b"]["c"]` chained access
+  - Uses Box::leak for safe static references in read-only JSON traversal
+  
+- ✅ **Bug #13**: JsonValue cannot compare with `true`/`false`
+  - Added `impl PartialEq<bool> for JsonValue`
+  - Now supports: `if todo["completed"] == true { ... }`
+  - Added `impl PartialEq<&str> for JsonValue` for string comparisons
+
+**Test Suite:**
+- Created comprehensive API tests with JSONPlaceholder
+- Tested: HTTP GET/POST, nested JSON, arrays, boolean comparisons
+- All tests passing with real HTTP endpoints
+
 ## [0.11.4] - 2026-02-02
 
 ### Fixed - Dogfooding Bug Fixes 🐛

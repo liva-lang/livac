@@ -250,8 +250,10 @@ Use `!` instead of `not` for negation.
 
 ## Summary
 
-**Total bugs found**: 9
-**Fixed**: 9 ✅ ALL FIXED!
+**Total bugs found**: 13
+**Fixed**: 13 ✅ ALL FIXED!
+
+### Session 1 (v0.11.3):
 - ✅ Bug #1: Private field underscore prefix
 - ✅ Bug #2: `.length` not translated to `.len()` for strings
 - ✅ Bug #3: Methods modifying self fields generated with `&self` instead of `&mut self`
@@ -262,8 +264,18 @@ Use `!` instead of `not` for negation.
 - ✅ Bug #8: JSON.parse error binding now tracks `err` in string_error_vars
 - ✅ Bug #9: `.find()` Option handling - `x != null` → `x.is_some()`, field access via `.as_ref().unwrap()`
 
+### Session 2 (v0.11.5):
+- ✅ Bug #10: `.as_str()` not found on JsonValue - changed to `.as_string().unwrap_or_default()`
+- ✅ Bug #11: JsonValue Display showed quotes around strings - improved Display impl to extract string value
+- ✅ Bug #12: Nested JSON bracket access `json["a"]["b"]` not supported - added Index<&str> impl
+- ✅ Bug #13: JsonValue cannot compare with `true/false` - added PartialEq<bool> impl
+
+### Known Limitations (not bugs):
+- `_` placeholder for ignored values in tuple destructuring not yet supported
+- Use `and`/`or` keywords instead of `&&`/`||`
+
 **Critical (High severity)**: 4 (all fixed!)
-**Medium severity**: 5 (all fixed!)
+**Medium severity**: 9 (all fixed!)
 **Documentation issues**: 3
 
 Most bugs were in the Rust code generation phase, particularly around:
@@ -273,3 +285,4 @@ Most bugs were in the Rust code generation phase, particularly around:
 4. Error type handling
 5. Borrow checker issues with self fields
 6. Option<T> handling for .find() results
+7. JsonValue wrapper methods and traits
