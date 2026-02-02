@@ -2611,10 +2611,16 @@ impl CodeGenerator {
                     } else {
                         // Non-Task normal binding (original behavior)
 
-                        // Check if initializing with a string literal - mark variable as string
+                        // Check if initializing with a string literal or string expression - mark variable as string
                         if let Expr::Literal(Literal::String(_)) = &var.init {
                             if let Some(name) = binding.name() {
-                                self.string_vars.insert(name.to_string());
+                                self.string_vars.insert(self.sanitize_name(name));
+                            }
+                        }
+                        // Also mark as string if initialized with a string concatenation
+                        else if self.expr_is_stringy(&var.init) {
+                            if let Some(name) = binding.name() {
+                                self.string_vars.insert(self.sanitize_name(name));
                             }
                         }
 
@@ -2725,11 +2731,17 @@ impl CodeGenerator {
                         self.output.push_str(" = ");
                         
                         // Check if we need to wrap in a union variant
-                        let (needs_union_close, needs_to_string) = if let Some(type_ref) = &binding.type_ref {
+                        let (needs_union_close, mut needs_to_string) = if let Some(type_ref) = &binding.type_ref {
                             self.maybe_wrap_in_union(type_ref, &var.init)
                         } else {
                             (false, false)
                         };
+                        
+                        // Bug #17 fix: String literals should always be converted to String
+                        // to avoid &str vs String type mismatch when variable is reassigned
+                        if matches!(&var.init, Expr::Literal(Literal::String(_))) {
+                            needs_to_string = true;
+                        }
                         
                         // Phase 1: Check if this is JSON.parse with type hint (typed parsing)
                         let is_json_parse = self.is_json_parse_call(&var.init);
@@ -6053,6 +6065,11 @@ impl CodeGenerator {
                 left,
                 right,
             } => self.expr_is_stringy(left) || self.expr_is_stringy(right),
+            // Bug #18 fix: Variables known to be strings should trigger format! usage
+            Expr::Identifier(name) => {
+                let sanitized = self.sanitize_name(name);
+                self.string_vars.contains(&sanitized)
+            }
             _ => false,
         }
     }
