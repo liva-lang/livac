@@ -2699,6 +2699,16 @@ impl CodeGenerator {
                                     .insert(name.to_string(), type_name.clone());
                             }
                         }
+                        // Mark variables initialized from JSON indexing as json_value
+                        // e.g., let items = result["items"] where result is a JsonValue
+                        else if let Expr::Index { object, .. } = &var.init {
+                            // Check if the object being indexed is a JsonValue
+                            if self.is_json_value_expr(object) {
+                                if let Some(name) = binding.name() {
+                                    self.json_value_vars.insert(name.to_string());
+                                }
+                            }
+                        }
 
                         write!(self.output, "let mut {}", var_name).unwrap();
 

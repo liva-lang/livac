@@ -32,9 +32,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **After**: `issue.get_field("user").unwrap_or_default().get_field("login").unwrap_or_default()` ✅
   - Added detection for nested `Expr::Index` to chain `get_field()` calls
 
+- ✅ **Bug #15**: Variables from JSON indexing not tracked as JsonValue
+  - **Problem**: `let items = result["items"]; items.forEach(...)` failed
+  - Variables from `result["key"]` now properly tracked in `json_value_vars`
+  - Enables correct `forEach`/`map`/`filter` lambda pattern generation
+
 **Real-world testing:**
 - Built GitHub CLI helper tool in Liva
-- Commands: `user <username>`, `repos <username>`, `issues <owner/repo>`
+- Commands: `user <username>`, `repos <username>`, `issues <owner/repo>`, `search <query>`
 - Successfully tested against live GitHub API
 
 ## [0.11.5] - 2026-02-02
