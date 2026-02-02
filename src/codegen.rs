@@ -2553,12 +2553,25 @@ impl CodeGenerator {
                                 
                                 // If array contains anonymous objects, mark as json_value
                                 // e.g., let users = [{ id: 1, name: "Alice" }, { id: 2, name: "Bob" }]
-                                if !elements.is_empty() && matches!(elements[0], Expr::ObjectLiteral(_)) {
-                                    self.json_value_vars.insert(name.to_string());
+                                if !elements.is_empty() {
+                                    if matches!(elements[0], Expr::ObjectLiteral(_)) {
+                                        self.json_value_vars.insert(name.to_string());
+                                    }
+                                    // If array contains class instances, track the element type
+                                    // e.g., let items = [Item("one", true), Item("two", false)]
+                                    else if let Expr::Call(call) = &elements[0] {
+                                        if let Expr::Identifier(class_name) = &*call.callee {
+                                            // Check if first letter is uppercase (likely a class)
+                                            if class_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
+                                                self.typed_array_vars.insert(name.to_string(), class_name.clone());
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
                         // Check if initializing with a method call that returns an array (map, filter, etc.)
+                        // or Option (find)
                         else if let Expr::MethodCall(method_call) = &var.init {
                             if matches!(method_call.method.as_str(), "map" | "filter") {
                                 if let Some(name) = binding.name() {
@@ -2569,6 +2582,12 @@ impl CodeGenerator {
                                     if self.is_json_value_expr(&method_call.object) {
                                         self.json_value_vars.insert(name.to_string());
                                     }
+                                }
+                            }
+                            // .find() returns Option<T> - mark variable as option_value_vars
+                            else if method_call.method.as_str() == "find" {
+                                if let Some(name) = binding.name() {
+                                    self.option_value_vars.insert(name.to_string());
                                 }
                             }
                         }
@@ -3025,15 +3044,26 @@ impl CodeGenerator {
                             return Ok(());
                         }
                         
+                        // Check if this is a JSON value (from JSON.parse, HTTP, etc.)
+                        let is_json_value = self.json_value_vars.contains(&sanitized);
+                        
                         // Check if this is a struct field access (not JSON)
                         // Common struct fields: status, statusText, body, headers, content, etc.
-                        let is_struct_field = matches!(
+                        let is_http_struct_field = matches!(
                             property.as_str(),
                             "status" | "statusText" | "body" | "headers" | "content" | "data"
                         );
                         
-                        if is_struct_field {
+                        if is_http_struct_field {
                             // Convert camelCase to snake_case for Rust structs
+                            let rust_field = self.to_snake_case(property);
+                            write!(self.output, "{}.as_ref().unwrap().{}", sanitized, rust_field).unwrap();
+                            return Ok(());
+                        }
+                        
+                        // For Option<T> from .find() on class arrays, unwrap before field access
+                        // If it's not a JSON value, it's a class instance wrapped in Option
+                        if !is_json_value {
                             let rust_field = self.to_snake_case(property);
                             write!(self.output, "{}.as_ref().unwrap().{}", sanitized, rust_field).unwrap();
                             return Ok(());
@@ -4524,10 +4554,30 @@ impl CodeGenerator {
             }
             
             // For map/filter/reduce/forEach/find/some/every with .iter(), we need to dereference in the lambda
-            // map: |&x| - filter: |&&x| - reduce: |acc, &x| - forEach: |&x| - find: |&&x| - some: |&&x| - every: |&&x|
+            // map: |&x| - filter: |&&x| (for .copied()) or |x| (for .cloned())
+            // reduce: |acc, &x| - forEach: |&x| - find: |&&x| or |x| - some: |&&x| or |x| - every: |&&x| or |x|
             // EXCEPTION: JsonValue.iter() and JsonValue.to_vec().into_par_iter() return owned values, so no dereferencing needed
             // For parallel: .par_iter() uses &T, but .into_par_iter() (from .to_vec()) uses T (owned)
             let is_json_value = self.is_json_value_expr(&method_call.object);
+            
+            // Determine if we'll use .cloned() (for non-Copy types) which changes the lambda pattern
+            // With .copied() (Copy types): filter(|&&x| ...) 
+            // With .cloned() (Clone but not Copy types): filter(|x| ...)
+            let will_use_cloned = if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
+                if let Some(element_type) = self.typed_array_vars.get(&base_var_name) {
+                    // Check if element type is a Copy type (class names are non-Copy)
+                    !matches!(element_type.as_str(), "number" | "int" | "i32" | "float" | "f64" | "bool" | "char")
+                } else if self.string_vars.contains(&base_var_name) {
+                    true
+                } else if self.array_vars.contains(&base_var_name) && !self.json_value_vars.contains(&base_var_name) {
+                    true
+                } else {
+                    false
+                }
+            } else {
+                true // Default to cloned for safety
+            };
+            
             let needs_lambda_pattern = 
                 (method_call.method == "map" || method_call.method == "filter" || method_call.method == "reduce" || method_call.method == "forEach" || method_call.method == "find" || method_call.method == "some" || method_call.method == "every")
                 && (matches!(method_call.adapter, ArrayAdapter::Seq) 
@@ -4583,13 +4633,20 @@ impl CodeGenerator {
                                 self.output.push_str(&param_name);
                             }
                         } else {
-                            // filter/find need && (closure takes &&T for filter/find)
-                            // map/forEach/some/every need & (closure takes &T)
+                            // filter/find/some/every need different patterns based on whether we'll use .cloned() or .copied()
+                            // - With .copied() (Copy types): filter(|&&x| ...) - double deref
+                            // - With .cloned() (Clone types): filter(|x| x...) - no deref, closure receives &&T but cloned() handles it
+                            // map/forEach need & (closure takes &T)
                             // UNLESS it's JsonValue, then no dereferencing at all
                             // ALSO: if parameter is destructured, don't add & because we'll clone inside
                             if !is_json_value && !param.is_destructuring() {
-                                if method_call.method == "filter" || method_call.method == "find" {
-                                    self.output.push_str("&&");
+                                if method_call.method == "filter" || method_call.method == "find" || method_call.method == "some" || method_call.method == "every" {
+                                    // For .cloned(), don't add any pattern - we work with references
+                                    if !will_use_cloned {
+                                        self.output.push_str("&&");
+                                    }
+                                    // If will_use_cloned, no prefix needed - the closure will receive &&T 
+                                    // but we just use it as a reference
                                 } else {
                                     self.output.push('&');
                                 }
@@ -4710,15 +4767,21 @@ impl CodeGenerator {
         // Non-Copy types: string, String, and any class name
         let needs_clone_not_copy = if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
             if let Some(element_type) = self.typed_array_vars.get(&base_var_name) {
-                // Check if element type is a Copy type
+                // Check if element type is a Copy type (class names are non-Copy)
                 !matches!(element_type.as_str(), "number" | "int" | "i32" | "float" | "f64" | "bool" | "char")
+            } else if self.string_vars.contains(&base_var_name) {
+                // String arrays explicitly need .cloned()
+                true
+            } else if self.array_vars.contains(&base_var_name) && !self.json_value_vars.contains(&base_var_name) {
+                // For arrays without explicit type info but not JsonValue,
+                // default to .cloned() as it's safer (works for both Copy and non-Copy)
+                true
             } else {
-                // If no type info, assume non-Copy (safer - will work for all cases)
-                // String vars explicitly need .cloned()
-                self.string_vars.contains(&base_var_name)
+                false
             }
         } else {
-            false
+            // No base variable name - default to .cloned() for safety
+            true
         };
         
         match (method_call.adapter, method_call.method.as_str()) {
@@ -5537,6 +5600,38 @@ impl CodeGenerator {
                     write!(self.output, "{}", self.sanitize_name(name)).unwrap();
                 }
 
+                if matches!(op, BinOp::Ne) {
+                    self.output.push_str(".is_some()");
+                } else {
+                    self.output.push_str(".is_none()");
+                }
+                return Ok(());
+            }
+            
+            // Special handling for Option variable comparison with null
+            // Transform: x != null -> x.is_some()
+            // Transform: x == null -> x.is_none()
+            let is_option_null_comparison = match (left, right) {
+                (Expr::Identifier(name), Expr::Literal(Literal::Null)) => {
+                    let sanitized = self.sanitize_name(name);
+                    self.option_value_vars.contains(&sanitized)
+                }
+                (Expr::Literal(Literal::Null), Expr::Identifier(name)) => {
+                    let sanitized = self.sanitize_name(name);
+                    self.option_value_vars.contains(&sanitized)
+                }
+                _ => false,
+            };
+            
+            if is_option_null_comparison {
+                // Generate x.is_some() or x.is_none()
+                let var_name = match (left, right) {
+                    (Expr::Identifier(name), _) => name,
+                    (_, Expr::Identifier(name)) => name,
+                    _ => unreachable!(),
+                };
+                write!(self.output, "{}", self.sanitize_name(var_name)).unwrap();
+                
                 if matches!(op, BinOp::Ne) {
                     self.output.push_str(".is_some()");
                 } else {
