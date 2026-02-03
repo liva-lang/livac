@@ -3241,10 +3241,9 @@ impl CodeGenerator {
                     }
                 }
 
-                self.generate_expr(object)?;
-
                 // v0.11.0: Tuple member access - check if property is numeric (tuple.0, tuple.1, etc.)
                 if property.parse::<usize>().is_ok() {
+                    self.generate_expr(object)?;
                     write!(self.output, ".{}", property).unwrap();
                     return Ok(());
                 }
@@ -3253,114 +3252,127 @@ impl CodeGenerator {
                     // Check if this is a JsonValue (not an array, string, or class instance)
                     // JsonValue uses .length(), Rust arrays/strings use .len()
                     // Note: .len() returns usize, but Liva uses i32 (number), so we cast
+                    // Bug #31 fix: Wrap in parens so .toString() works: (x.len() as i32).to_string()
                     match object.as_ref() {
                         Expr::Identifier(var_name) => {
-                            // If it's a string, array, or class instance, use .len() as i32
-                            if self.string_vars.contains(var_name) 
-                               || self.array_vars.contains(var_name) 
-                               || self.class_instance_vars.contains(var_name) 
-                            {
-                                self.output.push_str(".len() as i32");
-                            } else {
-                                // Might be JsonValue - use .length() (already returns i32)
+                            let sanitized = self.sanitize_name(var_name);
+                            // Check if this is a known JsonValue variable
+                            let is_json_value = self.json_value_vars.contains(&sanitized)
+                                || self.json_value_vars.contains(var_name);
+                            
+                            if is_json_value {
+                                // JsonValue uses .length() (already returns i32)
+                                self.generate_expr(object)?;
                                 self.output.push_str(".length()");
-                            }
-                        }
-                        _ => self.output.push_str(".len() as i32"),
-                    }
-                } else {
-                    // Use bracket notation for JSON objects, dot notation for structs
-                    match object.as_ref() {
-                        Expr::Identifier(var_name) => {
-                            // Check if this is a Rust struct (HTTP response, etc.)
-                            // Sanitize the name to match how it was stored in rust_struct_vars
-                            let sanitized_name = self.sanitize_name(var_name);
-                            let is_rust_struct = self.rust_struct_vars.contains(&sanitized_name);
-                            
-                            // Check if this is likely a JsonValue (not array, not class instance, not rust struct)
-                            if !is_rust_struct
-                                && !self.is_class_instance(var_name) 
-                                && !self.array_vars.contains(var_name)
-                                && !var_name.contains("person")
-                                && !var_name.contains("user")
-                            {
-                                // Likely a JsonValue - use get_field()
-                                write!(self.output, ".get_field(\"{}\").unwrap_or_default()", property).unwrap();
-                                return Ok(());
-                            }
-                            
-                            // For class instances and Rust structs, use dot notation
-                            if is_rust_struct || self.is_class_instance(var_name)
-                                || var_name.contains("person")
-                                || var_name.contains("user")
-                            {
-                                // Convert camelCase to snake_case for Rust structs
-                                let rust_field = self.to_snake_case(property);
-                                write!(self.output, ".{}", rust_field).unwrap();
-
-                                // Clone common owned types when returning by value and not assigning
-                                if self.in_method
-                                    && !self.in_assignment_target
-                                    && (property == "title"
-                                        || property == "author"
-                                        || property == "name"
-                                        || property.contains("dni")
-                                        || property.ends_with("text")
-                                        || property.ends_with("data"))
-                                {
-                                    self.output.push_str(".clone()");
-                                }
-                                return Ok(());
-                            }
-                            
-                            // For JSON access, generate bracket notation
-                            write!(self.output, "[\"{}\"]", property).unwrap();
-
-                            // Convert numeric properties automatically (but not in string templates - format! handles it)
-                            if !self.in_string_template {
-                                if property == "price"
-                                    || property == "age"
-                                    || property.contains("count")
-                                    || property.contains("total")
-                                    || property.contains("sum")
-                                {
-                                    self.output.push_str(".as_f64().unwrap_or(0.0)");
-                                } else if property == "name"
-                                    || property.contains("text")
-                                    || property.contains("data")
-                                {
-                                    self.output.push_str(".as_string().unwrap_or_default()");
-                                }
-                            }
-                        }
-                        Expr::Index { .. } => {
-                            // Indexed access like array[index] - the result is typically a JSON object
-                            // So property access should use bracket notation
-                            write!(self.output, "[\"{}\"]", property).unwrap();
-
-                            // For numeric fields in JSON objects, convert to appropriate type (but not in string templates)
-                            if !self.in_string_template {
-                                // Always convert price to f64 since it's commonly used in arithmetic
-                                if property == "price" {
-                                    self.output.push_str(".as_f64().unwrap_or(0.0)");
-                                } else if property == "age"
-                                    || property.contains("count")
-                                    || property.contains("total")
-                                    || property.contains("sum")
-                                {
-                                    self.output.push_str(".as_f64().unwrap_or(0.0)");
-                                } else if property == "name"
-                                    || property.contains("text")
-                                    || property.contains("data")
-                                {
-                                    self.output.push_str(".as_string().unwrap_or_default()");
-                                }
+                            } else {
+                                // Default to (obj.len() as i32) for strings, arrays, and other types
+                                self.output.push('(');
+                                self.generate_expr(object)?;
+                                self.output.push_str(".len() as i32)");
                             }
                         }
                         _ => {
-                            // For other expressions, use dot notation
-                            write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
+                            self.output.push('(');
+                            self.generate_expr(object)?;
+                            self.output.push_str(".len() as i32)");
                         }
+                    }
+                    return Ok(());
+                }
+                
+                self.generate_expr(object)?;
+                
+                // Use bracket notation for JSON objects, dot notation for structs
+                match object.as_ref() {
+                    Expr::Identifier(var_name) => {
+                        // Check if this is a Rust struct (HTTP response, etc.)
+                        // Sanitize the name to match how it was stored in rust_struct_vars
+                        let sanitized_name = self.sanitize_name(var_name);
+                        let is_rust_struct = self.rust_struct_vars.contains(&sanitized_name);
+                        
+                        // Check if this is likely a JsonValue (not array, not class instance, not rust struct)
+                        if !is_rust_struct
+                            && !self.is_class_instance(var_name) 
+                            && !self.array_vars.contains(var_name)
+                            && !var_name.contains("person")
+                            && !var_name.contains("user")
+                        {
+                            // Likely a JsonValue - use get_field()
+                            write!(self.output, ".get_field(\"{}\").unwrap_or_default()", property).unwrap();
+                            return Ok(());
+                        }
+                        
+                        // For class instances and Rust structs, use dot notation
+                        if is_rust_struct || self.is_class_instance(var_name)
+                            || var_name.contains("person")
+                            || var_name.contains("user")
+                        {
+                            // Convert camelCase to snake_case for Rust structs
+                            let rust_field = self.to_snake_case(property);
+                            write!(self.output, ".{}", rust_field).unwrap();
+
+                            // Clone common owned types when returning by value and not assigning
+                            if self.in_method
+                                && !self.in_assignment_target
+                                && (property == "title"
+                                    || property == "author"
+                                    || property == "name"
+                                    || property.contains("dni")
+                                    || property.ends_with("text")
+                                    || property.ends_with("data"))
+                            {
+                                self.output.push_str(".clone()");
+                            }
+                            return Ok(());
+                        }
+                        
+                        // For JSON access, generate bracket notation
+                        write!(self.output, "[\"{}\"]", property).unwrap();
+
+                        // Convert numeric properties automatically (but not in string templates - format! handles it)
+                        if !self.in_string_template {
+                            if property == "price"
+                                || property == "age"
+                                || property.contains("count")
+                                || property.contains("total")
+                                || property.contains("sum")
+                            {
+                                self.output.push_str(".as_f64().unwrap_or(0.0)");
+                            } else if property == "name"
+                                || property.contains("text")
+                                || property.contains("data")
+                            {
+                                self.output.push_str(".as_string().unwrap_or_default()");
+                            }
+                        }
+                    }
+                    Expr::Index { .. } => {
+                        // Indexed access like array[index] - the result is typically a JSON object
+                        // So property access should use bracket notation
+                        write!(self.output, "[\"{}\"]", property).unwrap();
+
+                        // For numeric fields in JSON objects, convert to appropriate type (but not in string templates)
+                        if !self.in_string_template {
+                            // Always convert price to f64 since it's commonly used in arithmetic
+                            if property == "price" {
+                                self.output.push_str(".as_f64().unwrap_or(0.0)");
+                            } else if property == "age"
+                                || property.contains("count")
+                                || property.contains("total")
+                                || property.contains("sum")
+                            {
+                                self.output.push_str(".as_f64().unwrap_or(0.0)");
+                            } else if property == "name"
+                                || property.contains("text")
+                                || property.contains("data")
+                            {
+                                self.output.push_str(".as_string().unwrap_or_default()");
+                            }
+                        }
+                    }
+                    _ => {
+                        // For other expressions, use dot notation
+                        write!(self.output, ".{}", self.sanitize_name(property)).unwrap();
                     }
                 }
             }
@@ -8233,12 +8245,15 @@ impl<'a> IrCodeGenerator<'a> {
                 Ok(())
             }
             ir::Expr::Member { object, property } => {
-                self.generate_expr(object)?;
-
                 if property == "length" {
-                    self.output.push_str(".len()");
+                    // Bug #31 fix: Wrap in parens so .toString() works: (x.len() as i32).to_string()
+                    self.output.push('(');
+                    self.generate_expr(object)?;
+                    self.output.push_str(".len() as i32)");
                     return Ok(());
                 }
+                
+                self.generate_expr(object)?;
 
                 // For liva_rt members, use dot notation
                 if self.is_liva_rt_member(object) {

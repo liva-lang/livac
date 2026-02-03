@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.13] - 2026-02-03
+
+### Fixed - Length Property Chain Method Calls 🐛
+
+**String length with method chaining:**
+
+- ✅ **Bug #31**: `text.length.toString()` now compiles correctly
+  - **Problem**: `text.length.toString()` generated `text.len() as i32.to_string()` which fails
+  - **Root Cause**: Rust's `as` operator has lower precedence than method calls
+  - **Fix**: Wrap the cast in parentheses: `(text.len() as i32).to_string()`
+  - Updated all three `.length` handlers in codegen.rs (lines ~3251, ~3280, ~8250)
+
+**Real-world testing (Dogfooding):**
+- String manipulation patterns with length conversion to string
+
+## [0.11.12] - 2026-02-03
+
+### Fixed - indexOf on Class Fields 🐛
+
+**String indexOf on this.field access:**
+
+- ✅ **Bug #30**: `this.url.indexOf(query)` now works correctly
+  - **Problem**: indexOf on class fields generated `.iter().position()` instead of `.find()`
+  - **Root Cause**: Detection logic only checked direct variable names, not member access
+  - **Fix**: Expanded `is_string_indexof` to handle `Expr::Member` with `this/self` object
+  - Also adds `&` prefix for String variable arguments (Pattern trait requirement)
+
+**Real-world testing (Dogfooding):**
+- Bookmark Manager CLI with class-based search functionality
+
 ## [0.11.11] - 2026-02-03
 
 ### Fixed - Switch with String Patterns 🐛
