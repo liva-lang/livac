@@ -2926,9 +2926,18 @@ impl CodeGenerator {
                 self.writeln("}");
             }
             Stmt::Switch(switch_stmt) => {
+                // Check if this is a string-based switch (if any case value is a string literal)
+                let is_string_switch = switch_stmt.cases.iter().any(|case| {
+                    matches!(&case.value, Expr::Literal(Literal::String(_)))
+                });
+                
                 self.write_indent();
                 self.output.push_str("match ");
                 self.generate_expr(&switch_stmt.discriminant)?;
+                // Add .as_str() for string-based switches so literals match
+                if is_string_switch {
+                    self.output.push_str(".as_str()");
+                }
                 self.output.push_str(" {\n");
                 self.indent();
 
