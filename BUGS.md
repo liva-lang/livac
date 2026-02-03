@@ -297,6 +297,15 @@ Use `!` instead of `not` for negation.
 ### Session 8 (v0.11.11):
 - ✅ Bug #29: Switch/match with string literals - discriminant now uses `.as_str()` to match `&str` cases
 
+### Session 9 (v0.11.12):
+- ✅ Bug #30: `indexOf` on class fields (`this.field.indexOf(query)`) - now correctly detected as string method and generates `.find(&query)` with proper reference
+
+### Known Bugs (not yet fixed):
+- Bug #31: `array.length.toString()` with `as i32` cast generates malformed `(len as i32.to_string())`
+- Bug #32: String parameters in class methods not cloned when used after passing to constructors
+- Bug #33: `forEach` closure capturing String variable needs `.clone()` when used multiple times
+- Bug #34: For loop index `i` (in `0..length`) is `i32` but array indexing needs `usize`
+
 ### Known Limitations (not bugs):
 - `_` placeholder for ignored values in tuple destructuring not yet supported
 - Use `and`/`or` keywords instead of `&&`/`||`
@@ -304,7 +313,7 @@ Use `!` instead of `not` for negation.
 - `match` keyword is `switch` in Liva with `case:/default:` syntax
 
 **Critical (High severity)**: 4 (all fixed!)
-**Medium severity**: 25 (all fixed!)
+**Medium severity**: 26 (all fixed!)
 **Documentation issues**: 3
 
 Most bugs were in the Rust code generation phase, particularly around:
@@ -319,3 +328,4 @@ Most bugs were in the Rust code generation phase, particularly around:
 9. Null comparison for JsonValue types
 10. UTF-8 string indexing
 11. Switch/match with string discriminants
+12. String indexOf detection on class fields

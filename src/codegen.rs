@@ -4617,10 +4617,24 @@ impl CodeGenerator {
         
         // Check if this is a string method (no adapter means it's not an array method)
         // Special case: indexOf can be both string and array method
-        // We detect string indexOf if the argument is a string literal
-        let is_string_indexof = method_call.method == "indexOf" 
-            && !method_call.args.is_empty()
-            && matches!(&method_call.args[0], Expr::Literal(Literal::String(_)));
+        // We detect string indexOf if:
+        // 1. The argument is a string literal, OR
+        // 2. The argument is a known string variable, OR
+        // 3. The object is a member access on 'this' (class field likely string)
+        let is_string_indexof = method_call.method == "indexOf" && !method_call.args.is_empty() && {
+            // Check if argument is string literal
+            let arg_is_string_lit = matches!(&method_call.args[0], Expr::Literal(Literal::String(_)));
+            // Check if argument is a known string variable
+            let arg_is_string_var = if let Expr::Identifier(var_name) = &method_call.args[0] {
+                self.string_vars.contains(&self.sanitize_name(var_name))
+            } else { false };
+            // Check if object is this.field (member access on this/self)
+            let object_is_this_field = if let Expr::Member { object, .. } = method_call.object.as_ref() {
+                matches!(object.as_ref(), Expr::Identifier(name) if name == "this" || name == "self")
+            } else { false };
+            
+            arg_is_string_lit || arg_is_string_var || object_is_this_field
+        };
         
         let is_string_method = (matches!(method_call.adapter, ArrayAdapter::Seq) 
             && matches!(
@@ -5134,6 +5148,19 @@ impl CodeGenerator {
                 self.generate_expr(&method_call.object)?;
                 self.output.push_str(".find(");
                 if !method_call.args.is_empty() {
+                    // If the argument is a String variable, we need &arg for find() to work
+                    // find() expects a Pattern, and &String implements Pattern but String doesn't
+                    let needs_ref = match &method_call.args[0] {
+                        Expr::Identifier(var_name) => {
+                            self.string_vars.contains(&self.sanitize_name(var_name))
+                        }
+                        Expr::Member { .. } => true, // Member access on fields - likely strings
+                        Expr::Literal(Literal::String(_)) => false, // String literals are fine
+                        _ => true, // Be safe and add & for other cases
+                    };
+                    if needs_ref {
+                        self.output.push('&');
+                    }
                     self.generate_expr(&method_call.args[0])?;
                 }
                 self.output.push_str(").map(|i| i as i32).unwrap_or(-1)");
