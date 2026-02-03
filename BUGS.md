@@ -291,6 +291,9 @@ Use `!` instead of `not` for negation.
 - ✅ Bug #26: Added `as_float()` method to JsonValue returning `f64` directly (unwrapped)
 - ✅ Bug #27: `Vec<JsonValue>` from `.as_array()` uses `.len()` instead of `.length()`
 
+### Session 7 (v0.11.10):
+- ✅ Bug #28: String indexing `s[i]` now uses `.chars().nth(i)` for UTF-8 safety
+
 ### Known Limitations (not bugs):
 - `_` placeholder for ignored values in tuple destructuring not yet supported
 - Use `and`/`or` keywords instead of `&&`/`||`
@@ -298,7 +301,7 @@ Use `!` instead of `not` for negation.
 - `match` keyword is `switch` in Liva with `case:/default:` syntax
 
 **Critical (High severity)**: 4 (all fixed!)
-**Medium severity**: 23 (all fixed!)
+**Medium severity**: 24 (all fixed!)
 **Documentation issues**: 3
 
 Most bugs were in the Rust code generation phase, particularly around:
@@ -311,3 +314,4 @@ Most bugs were in the Rust code generation phase, particularly around:
 7. JsonValue wrapper methods and traits
 8. Case sensitivity in module names (Http vs HTTP)
 9. Null comparison for JsonValue types
+10. UTF-8 string indexing

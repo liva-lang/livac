@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.10] - 2026-02-03
+
+### Fixed - String Indexing & Multi-File Imports 🐛
+
+**String character access:**
+
+- ✅ **Bug #28**: String indexing `s[i]` now works correctly
+  - **Problem**: `s[i]` generated `s.get(i)` which doesn't compile for Rust strings (UTF-8)
+  - **Fix**: Generates `s.chars().nth(i as usize).map(|c| c.to_string()).unwrap_or_default()`
+  - Check for `string_vars` BEFORE calling `generate_expr(object)` to avoid double output
+  - Full UTF-8 support for character-by-character string manipulation
+
+**Real-world testing (Dogfooding):**
+- Todo API Client with POST/PUT/DELETE - all working!
+- Modular App with math.liva + strings.liva imports - fully functional
+- String reverse, repeat, padLeft all working with char indexing
+
 ## [0.11.9] - 2026-02-03
 
 ### Fixed - JSON Null Comparison & Array Methods 🐛
