@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.8] - 2026-02-02
+
+### Fixed - HTTP Client & JSON Array Access 🐛
+
+**HTTP module naming:**
+
+- ✅ **Bug #23**: `Http.get()` not recognized, only `HTTP.get()` worked
+  - **Problem**: Case-sensitive module name matching excluded `Http` variant
+  - **Fix**: Added case-insensitive matching for HTTP module methods
+  - `Http.get()`, `HTTP.get()`, `http.get()` all now work correctly
+
+**JSON array access improvements:**
+
+- ✅ **Bug #24**: `as_array()` returned `Option<Vec<JsonValue>>` causing type mismatches
+  - **Problem**: Calling `.len()` on `as_array()` result failed (private field on Option)
+  - **Problem**: Calling `.get(0)` failed (method not found on Option type)
+  - **Fix**: `as_array()` now returns `Vec<JsonValue>` directly (empty vec for non-arrays)
+  - **Fix**: Array indexing uses `.get(n as usize).cloned().unwrap_or_default()`
+  - More ergonomic API - no unwrap needed for array iteration
+
+**Real-world testing (Dogfooding):**
+- Weather CLI fully functional with real Open-Meteo API calls
+- Geocoding + Weather data with nested JSON parsing
+- Tested with London, Tokyo, New York - all working!
+
 ## [0.11.7] - 2026-02-02
 
 ### Fixed - Class & String Handling Improvements 🐛
