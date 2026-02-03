@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.20] - 2026-02-03
+
+### Improved - Cleaner Generated Code 🧹
+
+**Smarter mutability analysis and dead code suppression:**
+
+- ✅ **Mutability Analysis**: Variables are now only declared as `mut` when actually mutated
+  - Pre-analyzes function body to detect assignments and mutating method calls
+  - Uses heuristics for class methods (getters vs mutating methods)
+  - Eliminates 12+ "variable does not need to be mutable" warnings
+  
+- ✅ **Conditional liva_rt import**: Modules only import `liva_rt` when they use it
+  - Eliminates "unused import: crate::liva_rt" warnings in simple modules
+  
+- ✅ **Dead code suppression for runtime**: `#[allow(dead_code)]` on `liva_rt` module
+  - Runtime library functions that aren't used no longer produce warnings
+  - User code still gets appropriate "unused" warnings
+
+**Result**: 67% reduction in Rust warnings (48 → 16 for github-dashboard)
+
 ## [0.11.19] - 2026-02-03
 
 ### Fixed - JSON Value Conversion Methods 🐛

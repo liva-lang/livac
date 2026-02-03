@@ -46,6 +46,7 @@ pub struct CodeGenerator {
     json_value_vars: std::collections::HashSet<String>, // Track which variables are JsonValue
     string_vars: std::collections::HashSet<String>, // Track which variables are strings
     native_vec_string_vars: std::collections::HashSet<String>, // Track Vec<String> from Sys.args() - use direct indexing
+    mutated_vars: std::collections::HashSet<String>, // Track variables that are assigned after declaration (need mut)
     // --- Class/type metadata (for field resolution)
     class_fields: std::collections::HashMap<String, std::collections::HashSet<String>>,
     class_optional_fields: std::collections::HashMap<String, std::collections::HashSet<String>>, // Track optional fields per class
@@ -93,6 +94,7 @@ impl CodeGenerator {
             json_value_vars: std::collections::HashSet::new(),
             string_vars: std::collections::HashSet::new(),
             native_vec_string_vars: std::collections::HashSet::new(),
+            mutated_vars: std::collections::HashSet::new(),
             class_fields: std::collections::HashMap::new(),
             class_optional_fields: std::collections::HashMap::new(),
             var_types: std::collections::HashMap::new(),
@@ -347,6 +349,122 @@ impl CodeGenerator {
         }
     }
     
+    /// Collect all variables that are mutated (assigned after declaration) in a block
+    fn collect_mutated_vars_in_block(&self, block: &BlockStmt, mutated: &mut std::collections::HashSet<String>) {
+        for stmt in &block.stmts {
+            self.collect_mutated_vars_in_stmt(stmt, mutated);
+        }
+    }
+    
+    /// Collect mutated variables from a statement
+    fn collect_mutated_vars_in_stmt(&self, stmt: &Stmt, mutated: &mut std::collections::HashSet<String>) {
+        match stmt {
+            Stmt::Assign(assign) => {
+                // This is an assignment - the target variable is mutated
+                if let Expr::Identifier(name) = &assign.target {
+                    mutated.insert(name.clone());
+                }
+                // Also check for compound assignments like arr[i] = x
+                if let Expr::Index { object, .. } = &assign.target {
+                    if let Expr::Identifier(name) = object.as_ref() {
+                        mutated.insert(name.clone());
+                    }
+                }
+            }
+            Stmt::If(if_stmt) => {
+                // Recurse into branches
+                match &if_stmt.then_branch {
+                    IfBody::Block(b) => self.collect_mutated_vars_in_block(b, mutated),
+                    IfBody::Stmt(s) => self.collect_mutated_vars_in_stmt(s, mutated),
+                }
+                if let Some(else_branch) = &if_stmt.else_branch {
+                    match else_branch {
+                        IfBody::Block(b) => self.collect_mutated_vars_in_block(b, mutated),
+                        IfBody::Stmt(s) => self.collect_mutated_vars_in_stmt(s, mutated),
+                    }
+                }
+            }
+            Stmt::While(while_stmt) => {
+                self.collect_mutated_vars_in_block(&while_stmt.body, mutated);
+            }
+            Stmt::For(for_stmt) => {
+                self.collect_mutated_vars_in_block(&for_stmt.body, mutated);
+            }
+            Stmt::Switch(switch_stmt) => {
+                for case in &switch_stmt.cases {
+                    // case.body is Vec<Stmt>, not BlockStmt
+                    for s in &case.body {
+                        self.collect_mutated_vars_in_stmt(s, mutated);
+                    }
+                }
+                if let Some(default) = &switch_stmt.default {
+                    for s in default {
+                        self.collect_mutated_vars_in_stmt(s, mutated);
+                    }
+                }
+            }
+            Stmt::Block(block) => {
+                self.collect_mutated_vars_in_block(block, mutated);
+            }
+            Stmt::Expr(expr_stmt) => {
+                self.collect_mutated_vars_in_expr(&expr_stmt.expr, mutated);
+            }
+            _ => {}
+        }
+    }
+    
+    /// Collect mutated variables from an expression (for compound ops like i += 1)
+    fn collect_mutated_vars_in_expr(&self, expr: &Expr, mutated: &mut std::collections::HashSet<String>) {
+        match expr {
+            Expr::MethodCall(mc) => {
+                // Mutating methods like push, pop, etc. for arrays
+                let is_mutating_array = matches!(mc.method.as_str(), 
+                    "push" | "pop" | "remove" | "clear" | "insert" | 
+                    "sort" | "reverse" | "extend" | "retain" | "truncate"
+                );
+                if is_mutating_array {
+                    if let Expr::Identifier(name) = mc.object.as_ref() {
+                        mutated.insert(name.clone());
+                    }
+                }
+                
+                // For class instances, any method call could potentially mutate
+                // We use a heuristic: if the method name doesn't start with "get", "is", "has", "to"
+                // it's likely a mutating method
+                let is_likely_getter = mc.method.starts_with("get") || 
+                    mc.method.starts_with("is") || 
+                    mc.method.starts_with("has") ||
+                    mc.method.starts_with("to") ||
+                    mc.method == "length" ||
+                    mc.method == "size" ||
+                    mc.method == "count" ||
+                    mc.method == "clone" ||
+                    mc.method == "toString";
+                
+                if !is_likely_getter && !is_mutating_array {
+                    // This could be a mutating method on a class instance
+                    if let Expr::Identifier(name) = mc.object.as_ref() {
+                        // Mark as potentially mutated
+                        mutated.insert(name.clone());
+                    }
+                }
+                
+                // Recurse into args
+                for arg in &mc.args {
+                    self.collect_mutated_vars_in_expr(arg, mutated);
+                }
+            }
+            Expr::Lambda(lambda) => {
+                // Recurse into lambda body
+                match &lambda.body {
+                    LambdaBody::Block(block) => self.collect_mutated_vars_in_block(block, mutated),
+                    LambdaBody::Expr(e) => self.collect_mutated_vars_in_expr(e, mutated),
+                }
+            }
+            _ => {}
+        }
+    }
+    
     /// Generate typed JSON parsing code (Phase 1: JSON Typed Parsing)
     /// Generates: serde_json::from_str::<Type>(&json_string)
     fn generate_typed_json_parse(&mut self, method_call: &MethodCallExpr, type_ref: &TypeRef) -> Result<()> {
@@ -481,6 +599,7 @@ impl CodeGenerator {
 
     // Always include concurrency runtime for now
     if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: Including liva_rt module"); }
+        self.writeln("#[allow(dead_code)]");
         self.writeln("mod liva_rt {");
         self.indent();
         self.writeln("use std::future::Future;");
@@ -2061,6 +2180,16 @@ impl CodeGenerator {
     }
 
     fn generate_function(&mut self, func: &FunctionDecl) -> Result<()> {
+        // Pre-analyze: collect variables that are mutated after declaration
+        self.mutated_vars.clear();
+        if let Some(body) = &func.body {
+            self.collect_mutated_vars_in_block(body, &mut self.mutated_vars.clone());
+            // Need to collect into a temp set first, then insert
+            let mut temp_mutated = std::collections::HashSet::new();
+            self.collect_mutated_vars_in_block(body, &mut temp_mutated);
+            self.mutated_vars = temp_mutated;
+        }
+        
         let (async_kw, tokio_attr) = if func.name == "main" && func.is_async_inferred {
             // For main function with async, use tokio::main attribute with async keyword
             ("async ", "#[tokio::main]\n")
@@ -2781,7 +2910,13 @@ impl CodeGenerator {
                             }
                         }
 
-                        write!(self.output, "let mut {}", var_name).unwrap();
+                        // Only add 'mut' if the variable is actually mutated after declaration
+                        let needs_mut = self.mutated_vars.contains(&var_name);
+                        if needs_mut {
+                            write!(self.output, "let mut {}", var_name).unwrap();
+                        } else {
+                            write!(self.output, "let {}", var_name).unwrap();
+                        }
 
                         if let Some(type_ref) = &binding.type_ref {
                             let rust_type = self.expand_type_alias(type_ref);
@@ -6958,6 +7093,7 @@ impl<'a> IrCodeGenerator<'a> {
 
     // Always include runtime for now
     if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: IR generator including liva_rt module"); }
+        self.writeln("#[allow(dead_code)]");
         self.writeln("mod liva_rt {");
         self.indent();
         self.writeln("use std::future::Future;");
@@ -7167,6 +7303,7 @@ impl<'a> IrCodeGenerator<'a> {
 
     #[allow(dead_code)]
     fn emit_runtime_module(&mut self, use_async: bool, use_parallel: bool) {
+        self.writeln("#[allow(dead_code)]");
         self.writeln("mod liva_rt {");
         self.indent();
 
@@ -9344,23 +9481,18 @@ pub fn generate_multifile_project(
 /// Generate Rust code for a single Liva module
 fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext) -> Result<String> {
     let mut codegen = CodeGenerator::new(ctx.clone());
-    let mut output = String::new();
     
-    // Modules need access to liva_rt from the crate root
-    output.push_str("use crate::liva_rt;\n\n");
-    
-    // Generate use statements from imports
+    // First, collect use statements from imports
+    let mut use_statements = String::new();
     for import_decl in &module.imports {
         let use_stmt = generate_use_statement(import_decl, &module.path)?;
-        output.push_str(&use_stmt);
-        output.push('\n');
+        use_statements.push_str(&use_stmt);
+        use_statements.push('\n');
     }
     
-    if !module.imports.is_empty() {
-        output.push('\n'); // Blank line after imports
-    }
+    // Generate code for each top-level item into a separate buffer
+    let mut module_body = String::new();
     
-    // Generate code for each top-level item
     for item in &module.ast.items {
         match item {
             TopLevel::Import(_) => {
@@ -9376,10 +9508,10 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext) ->
                 let func_code = codegen.output.clone();
                 
                 if is_public {
-                    output.push_str("pub ");
+                    module_body.push_str("pub ");
                 }
-                output.push_str(&func_code);
-                output.push('\n');
+                module_body.push_str(&func_code);
+                module_body.push('\n');
             }
             TopLevel::Class(class) => {
                 let is_public = !class.name.starts_with('_');
@@ -9394,12 +9526,12 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext) ->
                     let lines: Vec<&str> = class_code.lines().collect();
                     if let Some(first_line) = lines.first() {
                         if first_line.starts_with("struct") {
-                            output.push_str("pub ");
+                            module_body.push_str("pub ");
                         }
                     }
                 }
-                output.push_str(&class_code);
-                output.push('\n');
+                module_body.push_str(&class_code);
+                module_body.push('\n');
             }
             TopLevel::Type(type_decl) => {
                 let is_public = !type_decl.name.starts_with('_');
@@ -9410,10 +9542,10 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext) ->
                 let type_code = codegen.output.clone();
                 
                 if is_public {
-                    output.push_str("pub ");
+                    module_body.push_str("pub ");
                 }
-                output.push_str(&type_code);
-                output.push('\n');
+                module_body.push_str(&type_code);
+                module_body.push('\n');
             }
             TopLevel::TypeAlias(_) => {
                 // Type aliases are expanded inline, no code generation needed
@@ -9425,11 +9557,28 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext) ->
                 codegen.generate_top_level(item)?;
                 let code = codegen.output.clone();
                 
-                output.push_str(&code);
-                output.push('\n');
+                module_body.push_str(&code);
+                module_body.push('\n');
             }
         }
     }
+    
+    // Now build the final output, only adding liva_rt import if needed
+    let mut output = String::new();
+    
+    // Only add liva_rt import if the module actually uses it
+    if module_body.contains("liva_rt::") || use_statements.contains("liva_rt::") {
+        output.push_str("use crate::liva_rt;\n\n");
+    }
+    
+    // Add use statements
+    if !use_statements.is_empty() {
+        output.push_str(&use_statements);
+        output.push('\n');
+    }
+    
+    // Add module body
+    output.push_str(&module_body);
     
     Ok(output)
 }
