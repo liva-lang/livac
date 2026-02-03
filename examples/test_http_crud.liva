@@ -1,0 +1,74 @@
+// ============================================================================
+// HTTP CRUD Test - Using JSONPlaceholder API
+// Tests: POST, PUT, DELETE operations
+// ============================================================================
+
+main() {
+    print("HTTP CRUD Operations Test")
+    print("==========================")
+    print("")
+    
+    // Test 1: POST - Create a new resource
+    print("=== TEST 1: POST (Create) ===")
+    
+    let postData = JSON.stringify({
+        title: "Test Post from Liva",
+        body: "This is a test post created by Liva compiler",
+        userId: 1
+    })
+    
+    let postResponse, postErr = HTTP.post("https://jsonplaceholder.typicode.com/posts", postData)
+    
+    if postErr != "" {
+        print("POST Error: " + postErr)
+    } else {
+        print("Status: " + postResponse.status)
+        let created, parseErr = JSON.parse(postResponse.body)
+        if parseErr == "" {
+            print("Created post ID: " + created["id"])
+            print("Title: " + created["title"])
+        }
+    }
+    
+    print("")
+    
+    // Test 2: PUT - Update a resource
+    print("=== TEST 2: PUT (Update) ===")
+    
+    let putData = JSON.stringify({
+        id: 1,
+        title: "Updated Title from Liva",
+        body: "This post was updated by Liva",
+        userId: 1
+    })
+    
+    let putResponse, putErr = HTTP.put("https://jsonplaceholder.typicode.com/posts/1", putData)
+    
+    if putErr != "" {
+        print("PUT Error: " + putErr)
+    } else {
+        print("Status: " + putResponse.status)
+        let updated, parseErr2 = JSON.parse(putResponse.body)
+        if parseErr2 == "" {
+            print("Updated post ID: " + updated["id"])
+            print("New title: " + updated["title"])
+        }
+    }
+    
+    print("")
+    
+    // Test 3: DELETE - Remove a resource
+    print("=== TEST 3: DELETE ===")
+    
+    let deleteResponse, deleteErr = HTTP.delete("https://jsonplaceholder.typicode.com/posts/1")
+    
+    if deleteErr != "" {
+        print("DELETE Error: " + deleteErr)
+    } else {
+        print("Status: " + deleteResponse.status)
+        print("Delete successful!")
+    }
+    
+    print("")
+    print("All CRUD operations completed!")
+}

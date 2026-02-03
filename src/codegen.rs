@@ -170,6 +170,14 @@ impl CodeGenerator {
         }
     }
     
+    /// Check if expression is JSON.stringify method call (returns tuple)
+    fn is_json_stringify_call(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::MethodCall(mc) if matches!(&*mc.object, Expr::Identifier(id) if id == "JSON") && mc.method == "stringify" => true,
+            _ => false
+        }
+    }
+    
     /// Check if expression is an HTTP call (GET/POST/PUT/DELETE)
     fn is_http_call(&self, expr: &Expr) -> bool {
         match expr {
@@ -2973,6 +2981,12 @@ impl CodeGenerator {
                             // Generate: let posts = JSON.parse(body).0.expect("JSON parse failed");
                             self.generate_expr(&var.init)?;
                             self.output.push_str(".0.expect(\"JSON parse failed\")");
+                        } else if self.is_json_stringify_call(&var.init) {
+                            // Bug #39 fix: JSON.stringify without error binding
+                            // JSON.stringify returns (Option<String>, String), extract just the value
+                            // Generate: let json = JSON.stringify(obj).0.unwrap_or_default();
+                            self.generate_expr(&var.init)?;
+                            self.output.push_str(".0.unwrap_or_default()");
                         } else {
                             // Auto-clone when assigning this.field to a local variable
                             let needs_clone = self.expr_is_self_field(&var.init);
@@ -5721,9 +5735,9 @@ impl CodeGenerator {
                     ));
                 }
                 
-                self.output.push_str("(match serde_json::from_str::<serde_json::Value>(&");
+                self.output.push_str("match serde_json::from_str::<serde_json::Value>(&");
                 self.generate_expr(&method_call.args[0])?;
-                self.output.push_str(") { Ok(v) => (Some(liva_rt::JsonValue::new(v)), String::new()), Err(e) => (None, format!(\"JSON parse error: {}\", e)) })");
+                self.output.push_str(") { Ok(v) => (Some(liva_rt::JsonValue::new(v)), String::new()), Err(e) => (None, format!(\"JSON parse error: {}\", e)) }");
             }
             "stringify" => {
                 // JSON.stringify(value) returns (Option<String>, String)
@@ -5738,9 +5752,9 @@ impl CodeGenerator {
                     ));
                 }
                 
-                self.output.push_str("(match serde_json::to_string(&");
+                self.output.push_str("match serde_json::to_string(&");
                 self.generate_expr(&method_call.args[0])?;
-                self.output.push_str(") { Ok(s) => (Some(s), String::new()), Err(e) => (None, format!(\"JSON stringify error: {}\", e)) })");
+                self.output.push_str(") { Ok(s) => (Some(s), String::new()), Err(e) => (None, format!(\"JSON stringify error: {}\", e)) }");
             }
             _ => {
                 return Err(CompilerError::CodegenError(

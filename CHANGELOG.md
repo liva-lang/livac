@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.21] - 2026-02-03
+
+### Fixed - JSON.stringify Without Error Binding 🐛
+
+**Bug #39**: `JSON.stringify` without error binding now works correctly.
+
+- **Problem**: `let json = JSON.stringify(obj)` generated tuple instead of string
+- **Root Cause**: JSON.stringify returns `(Option<String>, String)` for error handling
+- **Fix**: When used without error binding, extract value with `.0.unwrap_or_default()`
+
+**Example fixed:**
+```liva
+let json = JSON.stringify({ title: "Test", userId: 1 })
+HTTP.post(url, json)  // Now works - json is String, not tuple
+```
+
+Also removed unnecessary parentheses around `match` expressions for cleaner generated code.
+
 ## [0.11.20] - 2026-02-03
 
 ### Improved - Cleaner Generated Code 🧹
