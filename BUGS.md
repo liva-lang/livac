@@ -294,6 +294,9 @@ Use `!` instead of `not` for negation.
 ### Session 7 (v0.11.10):
 - ✅ Bug #28: String indexing `s[i]` now uses `.chars().nth(i)` for UTF-8 safety
 
+### Session 8 (v0.11.11):
+- ✅ Bug #29: Switch/match with string literals - discriminant now uses `.as_str()` to match `&str` cases
+
 ### Known Limitations (not bugs):
 - `_` placeholder for ignored values in tuple destructuring not yet supported
 - Use `and`/`or` keywords instead of `&&`/`||`
@@ -301,7 +304,7 @@ Use `!` instead of `not` for negation.
 - `match` keyword is `switch` in Liva with `case:/default:` syntax
 
 **Critical (High severity)**: 4 (all fixed!)
-**Medium severity**: 24 (all fixed!)
+**Medium severity**: 25 (all fixed!)
 **Documentation issues**: 3
 
 Most bugs were in the Rust code generation phase, particularly around:
@@ -315,3 +318,4 @@ Most bugs were in the Rust code generation phase, particularly around:
 8. Case sensitivity in module names (Http vs HTTP)
 9. Null comparison for JsonValue types
 10. UTF-8 string indexing
+11. Switch/match with string discriminants

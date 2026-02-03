@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.11] - 2026-02-03
+
+### Fixed - Switch with String Patterns 🐛
+
+**Pattern matching with strings:**
+
+- ✅ **Bug #29**: Switch/match with string literals now works correctly
+  - **Problem**: `switch level { case "INFO": ... }` failed because `level` (String) couldn't match `"INFO"` (&str)
+  - **Fix**: Detect string-based switches (any case is a string literal) and add `.as_str()` to discriminant
+  - Generates: `match level.as_str() { "INFO" => ... }`
+
+**Real-world testing (Dogfooding):**
+- Log Analyzer CLI - Tests switch/match, File.exists, for loops with strings
+- All switch patterns with string literals working!
+
 ## [0.11.10] - 2026-02-03
 
 ### Fixed - String Indexing & Multi-File Imports 🐛
