@@ -909,12 +909,13 @@ impl CodeGenerator {
         self.writeln("}");
         self.writeln("");
         
-        self.writeln("pub fn as_array(&self) -> Option<Vec<JsonValue>> {");
+        // as_array() returns Vec<JsonValue> directly (unwraps automatically)
+        self.writeln("pub fn as_array(&self) -> Vec<JsonValue> {");
         self.indent();
         self.writeln("match &self.0 {");
         self.indent();
-        self.writeln("serde_json::Value::Array(arr) => Some(arr.iter().map(|v| JsonValue(v.clone())).collect()),");
-        self.writeln("_ => None,");
+        self.writeln("serde_json::Value::Array(arr) => arr.iter().map(|v| JsonValue(v.clone())).collect(),");
+        self.writeln("_ => Vec::new(),");
         self.dedent();
         self.writeln("}");
         self.dedent();
@@ -924,7 +925,7 @@ impl CodeGenerator {
         // Add to_vec and iter methods for array operations
         self.writeln("pub fn to_vec(&self) -> Vec<JsonValue> {");
         self.indent();
-        self.writeln("self.as_array().unwrap_or_else(Vec::new)");
+        self.writeln("self.as_array()");
         self.dedent();
         self.writeln("}");
         self.writeln("");
@@ -3408,7 +3409,7 @@ impl CodeGenerator {
                             }
                             Expr::Literal(Literal::Int(num)) => {
                                 // Try JsonValue array access with numeric literal
-                                write!(self.output, ".get({}).unwrap_or_default()", num).unwrap();
+                                write!(self.output, ".get({} as usize).cloned().unwrap_or_default()", num).unwrap();
                                 return Ok(());
                             }
                             Expr::Identifier(index_var) => {
@@ -3424,7 +3425,7 @@ impl CodeGenerator {
                                     // Assume numeric index for array access
                                     self.output.push_str(".get(");
                                     self.generate_expr(index)?;
-                                    self.output.push_str(").unwrap_or_default()");
+                                    self.output.push_str(" as usize).cloned().unwrap_or_default()");
                                 }
                                 return Ok(());
                             }
@@ -3432,7 +3433,7 @@ impl CodeGenerator {
                                 // Try JsonValue array access with expression
                                 self.output.push_str(".get(");
                                 self.generate_expr(index)?;
-                                self.output.push_str(").unwrap_or_default()");
+                                self.output.push_str(" as usize).cloned().unwrap_or_default()");
                                 return Ok(());
                             }
                         }
@@ -3450,13 +3451,13 @@ impl CodeGenerator {
                             return Ok(());
                         }
                         Expr::Literal(Literal::Int(num)) => {
-                            write!(self.output, ".get({}).unwrap_or_default()", num).unwrap();
+                            write!(self.output, ".get({} as usize).cloned().unwrap_or_default()", num).unwrap();
                             return Ok(());
                         }
                         _ => {
                             self.output.push_str(".get(");
                             self.generate_expr(index)?;
-                            self.output.push_str(").unwrap_or_default()");
+                            self.output.push_str(" as usize).cloned().unwrap_or_default()");
                             return Ok(());
                         }
                     }
