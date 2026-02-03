@@ -250,8 +250,8 @@ Use `!` instead of `not` for negation.
 
 ## Summary
 
-**Total bugs found**: 38
-**Fixed**: 38 ✅ ALL FIXED!
+**Total bugs found**: 39
+**Fixed**: 39 ✅ ALL FIXED!
 
 ### Session 1 (v0.11.3):
 - ✅ Bug #1: Private field underscore prefix
@@ -308,6 +308,7 @@ Use `!` instead of `not` for negation.
 - ✅ Bug #36: Method calls on binary expressions wrap in parens: `(a + b).method()`
 - ✅ Bug #37: `join()` keeps `&str` argument, doesn't add `.to_string()`
 - ✅ Bug #38: JSON `asString()`, `asBool()`, etc. add `.unwrap_or_default()` for direct values
+- ✅ Bug #39: `JSON.stringify` without error binding extracts value with `.0.unwrap_or_default()`
 
 ### Known Limitations (not bugs):
 - `_` placeholder for ignored values in tuple destructuring not yet supported
