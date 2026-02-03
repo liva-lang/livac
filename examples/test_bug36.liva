@@ -1,0 +1,10 @@
+// Bug #36 test: (expr).toString() precedence
+
+main() {
+    let arr: [string] = "a,b,c".split(",");
+    
+    // This should generate: ((arr.len() as i32) - 1).to_string()
+    // Not: ((arr.len() as i32)) - 1.to_string()
+    let result: string = (arr.length - 1).toString();
+    print("Result: " + result);
+}

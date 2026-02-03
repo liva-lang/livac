@@ -1,0 +1,6 @@
+// Bug #31 test: length.toString()
+main() {
+    let text: string = "Hello World";
+    let lenStr: string = text.length.toString();
+    print("Length: " + lenStr);
+}

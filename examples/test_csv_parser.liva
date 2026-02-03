@@ -1,0 +1,34 @@
+// CSV Parser - comprehensive test
+
+main() {
+    print("=== CSV Parser Test ===");
+    
+    let data: string = "name,age,city
+Alice,30,Paris
+Bob,25,London
+Charlie,35,Tokyo";
+    
+    let lines: [string] = data.split("\n");
+    let header: string = lines[0];
+    let columns: [string] = header.split(",");
+    
+    print("Columns:");
+    columns.forEach(col => {
+        print("  " + col);
+    });
+    
+    print("\nData:");
+    let i: int = 1;
+    while i < lines.length {
+        let line: string = lines[i];
+        let values: [string] = line.split(",");
+        print("  Row " + i.toString() + ":");
+        values.forEach(val => {
+            print("    " + val);
+        });
+        i = i + 1;
+    }
+    
+    // Now with Bug #36 fix
+    print("\nTotal rows: " + (lines.length - 1).toString());
+}

@@ -1,0 +1,9 @@
+// Bug #35 test: forEach on string array
+main() {
+    let text: string = "a,b,c";
+    let parts: [string] = text.split(",");
+    
+    parts.forEach(p => {
+        print("Part: " + p);
+    });
+}

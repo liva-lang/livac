@@ -1,0 +1,30 @@
+// Comprehensive string utility test
+// Tests: length, split, forEach, indexOf, toString
+
+main() {
+    print("=== String Utils Test ===");
+    
+    // Bug #31: length.toString()
+    let text: string = "Hello World";
+    let lenStr: string = text.length.toString();
+    print("Text length: " + lenStr);
+    
+    // Bug #35: forEach on [string]
+    let csv: string = "apple,banana,cherry";
+    let fruits: [string] = csv.split(",");
+    print("Fruits:");
+    fruits.forEach(fruit => {
+        print("  - " + fruit);
+    });
+    
+    // indexOf with string variable
+    let query: string = "ban";
+    let idx: int = csv.indexOf(query);
+    print("Index of '" + query + "': " + idx.toString());
+    
+    // Combined: length of each fruit
+    print("Fruit lengths:");
+    fruits.forEach(fruit => {
+        print("  " + fruit + ": " + fruit.length.toString());
+    });
+}
