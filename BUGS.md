@@ -250,8 +250,8 @@ Use `!` instead of `not` for negation.
 
 ## Summary
 
-**Total bugs found**: 13
-**Fixed**: 13 ✅ ALL FIXED!
+**Total bugs found**: 23
+**Fixed**: 23 ✅ ALL FIXED!
 
 ### Session 1 (v0.11.3):
 - ✅ Bug #1: Private field underscore prefix
@@ -270,12 +270,29 @@ Use `!` instead of `not` for negation.
 - ✅ Bug #12: Nested JSON bracket access `json["a"]["b"]` not supported - added Index<&str> impl
 - ✅ Bug #13: JsonValue cannot compare with `true/false` - added PartialEq<bool> impl
 
+### Session 3 (v0.11.6):
+- ✅ Bug #14: Nested JSON field access chained `get_field()` calls
+- ✅ Bug #15: Variables from JSON indexing tracked in `json_value_vars`
+- ✅ Bug #16: JSON access with string variable uses correct method
+
+### Session 4 (v0.11.7):
+- ✅ Bug #17: String literals generate `.to_string()` on variable init
+- ✅ Bug #18: String variables detected in concatenations via `expr_is_stringy()`
+- ✅ Bug #19: Constructor body parsing for `this.field = value` statements
+- ✅ Bug #20: Detect mutating methods (push/pop/etc) for `&mut self`
+- ✅ Bug #22: forEach lambda without `&` prefix for non-Copy class instances
+
+### Session 5 (v0.11.8):
+- ✅ Bug #23: `Http.get()` not recognized, only `HTTP.get()` was working
+
 ### Known Limitations (not bugs):
 - `_` placeholder for ignored values in tuple destructuring not yet supported
 - Use `and`/`or` keywords instead of `&&`/`||`
+- Top-level functions don't use `fn` keyword (only inside classes)
+- `match` keyword is `switch` in Liva with `case:/default:` syntax
 
 **Critical (High severity)**: 4 (all fixed!)
-**Medium severity**: 9 (all fixed!)
+**Medium severity**: 19 (all fixed!)
 **Documentation issues**: 3
 
 Most bugs were in the Rust code generation phase, particularly around:
@@ -286,3 +303,4 @@ Most bugs were in the Rust code generation phase, particularly around:
 5. Borrow checker issues with self fields
 6. Option<T> handling for .find() results
 7. JsonValue wrapper methods and traits
+8. Case sensitivity in module names (Http vs HTTP)
