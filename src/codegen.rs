@@ -175,14 +175,14 @@ impl CodeGenerator {
                 // Check if callee is HTTP method call (async HTTP.get, etc.)
                 if let Expr::MethodCall(mc) = call.callee.as_ref() {
                     if let Expr::Identifier(obj) = mc.object.as_ref() {
-                        return obj == "HTTP" && matches!(mc.method.as_str(), "get" | "post" | "put" | "delete");
+                        return (obj == "HTTP" || obj == "Http") && matches!(mc.method.as_str(), "get" | "post" | "put" | "delete");
                     }
                 }
                 false
             }
             Expr::MethodCall(mc) => {
                 if let Expr::Identifier(obj) = mc.object.as_ref() {
-                    return obj == "HTTP" && matches!(mc.method.as_str(), "get" | "post" | "put" | "delete");
+                    return (obj == "HTTP" || obj == "Http") && matches!(mc.method.as_str(), "get" | "post" | "put" | "delete");
                 }
                 false
             }
@@ -227,7 +227,7 @@ impl CodeGenerator {
                 // Check if callee is HTTP method call
                 if let Expr::MethodCall(mc) = call.callee.as_ref() {
                     if let Expr::Identifier(obj) = mc.object.as_ref() {
-                        return obj == "HTTP" && matches!(mc.method.as_str(), "get" | "post" | "put" | "delete");
+                        return (obj == "HTTP" || obj == "Http") && matches!(mc.method.as_str(), "get" | "post" | "put" | "delete");
                     }
                 }
                 false
@@ -4564,7 +4564,7 @@ impl CodeGenerator {
             }
             
             // Check if this is an HTTP function call (HTTP.get, HTTP.post, etc.)
-            if name == "HTTP" {
+            if name == "HTTP" || name == "Http" {
                 return self.generate_http_function_call(method_call);
             }
             
@@ -6068,7 +6068,7 @@ impl CodeGenerator {
                         return true;
                     }
                     // Check for HTTP methods (all return tuples)
-                    if object_name == "HTTP" && (
+                    if (object_name == "HTTP" || object_name == "Http") && (
                         method_call.method == "get" ||
                         method_call.method == "post" ||
                         method_call.method == "put" ||
