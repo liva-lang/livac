@@ -5205,6 +5205,14 @@ impl CodeGenerator {
             }
             // some, every, includes return bool - no transformation needed
             (_, "some") | (_, "every") | (_, "includes") => {}
+            // Bug #38: JsonValue conversion methods return Option<T>, unwrap to T
+            // asString -> as_string().unwrap_or_default()
+            // asBool -> as_bool().unwrap_or_default()
+            // asInt -> as_i32().unwrap_or_default()
+            // asFloat -> as_f64().unwrap_or_default()
+            (_, "asString") | (_, "asInt") | (_, "asFloat") | (_, "asBool") => {
+                self.output.push_str(".unwrap_or_default()");
+            }
             // Default: no transformation
             _ => {}
         }

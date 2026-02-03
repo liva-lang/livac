@@ -1,0 +1,35 @@
+// Simple Todo Manager - CLI App
+// Tests: File I/O, JSON, string operations
+
+main() {
+    print("=== Todo Manager ===")
+    
+    // Read tasks from file (or create empty array)
+    let content, readErr = File.read("todos.json")
+    
+    if readErr != "" {
+        print("No existing todos file, starting fresh")
+        let emptyTasks = "[]"
+        let result, writeErr = File.write("todos.json", emptyTasks)
+        if writeErr != "" {
+            print("Error creating todos file: " + writeErr)
+        }
+    } else {
+        // Parse and display existing todos
+        let items, parseErr = JSON.parse(content)
+        if parseErr == "" {
+            print("Current todos:")
+            print("Total: " + items.length.toString() + " items")
+            
+            // Use forEach to display items
+            items.forEach(item => {
+                let title = item["title"].asString()
+                print("  - " + title)
+            })
+        } else {
+            print("Error parsing todos: " + parseErr)
+        }
+    }
+    
+    print("=== Done ===")
+}

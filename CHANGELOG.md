@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.19] - 2026-02-03
+
+### Fixed - JSON Value Conversion Methods 🐛
+
+**JsonValue methods now return direct values:**
+
+- ✅ **Bug #38**: `item.asString()`, `item.asBool()`, etc. now return direct values
+  - **Problem**: `asString()` returned `Option<String>`, causing type errors in concatenation
+  - **Root Cause**: No automatic unwrap for JSON value conversion methods
+  - **Fix**: Add `.unwrap_or_default()` after `as_string()`, `as_bool()`, `as_i32()`, `as_f64()`
+
+**Example fixed:**
+```liva
+let title = item["title"].asString()  // Now returns String, not Option<String>
+print("Title: " + title)              // Works directly!
+```
+
 ## [0.11.18] - 2026-02-03
 
 ### Fixed - Array join() Method 🐛
