@@ -286,6 +286,11 @@ Use `!` instead of `not` for negation.
 - ✅ Bug #23: `Http.get()` not recognized, only `HTTP.get()` was working
 - ✅ Bug #24: `as_array()` returned `Option<Vec<JsonValue>>` causing `.len()` and `.get()` failures; now returns `Vec<JsonValue>` directly and array indexing uses `.cloned()`
 
+### Session 6 (v0.11.9):
+- ✅ Bug #25: JsonValue comparison with `null` now uses `.is_null()` - `coin != null` → `!coin.is_null()`
+- ✅ Bug #26: Added `as_float()` method to JsonValue returning `f64` directly (unwrapped)
+- ✅ Bug #27: `Vec<JsonValue>` from `.as_array()` uses `.len()` instead of `.length()`
+
 ### Known Limitations (not bugs):
 - `_` placeholder for ignored values in tuple destructuring not yet supported
 - Use `and`/`or` keywords instead of `&&`/`||`
@@ -293,7 +298,7 @@ Use `!` instead of `not` for negation.
 - `match` keyword is `switch` in Liva with `case:/default:` syntax
 
 **Critical (High severity)**: 4 (all fixed!)
-**Medium severity**: 19 (all fixed!)
+**Medium severity**: 23 (all fixed!)
 **Documentation issues**: 3
 
 Most bugs were in the Rust code generation phase, particularly around:
@@ -305,3 +310,4 @@ Most bugs were in the Rust code generation phase, particularly around:
 6. Option<T> handling for .find() results
 7. JsonValue wrapper methods and traits
 8. Case sensitivity in module names (Http vs HTTP)
+9. Null comparison for JsonValue types

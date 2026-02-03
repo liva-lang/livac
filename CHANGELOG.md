@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.9] - 2026-02-03
+
+### Fixed - JSON Null Comparison & Array Methods 🐛
+
+**JsonValue null comparison:**
+
+- ✅ **Bug #25**: JsonValue comparison with `null` now works correctly
+  - **Problem**: `coin != null` generated `coin != None` which doesn't compile
+  - **Fix**: Translate `jsonVar != null` to `!jsonVar.is_null()`
+  - Translate `jsonVar == null` to `jsonVar.is_null()`
+  - Works for all JsonValue variables tracked in `json_value_vars`
+
+**JsonValue convenience methods:**
+
+- ✅ **Bug #26**: Added `as_float()` method to JsonValue
+  - **Problem**: Users expected `.as_float()` but only `.as_f64()` existed
+  - **Fix**: Added `as_float()` returning `f64` directly (unwrapped with 0.0 default)
+  - More ergonomic for common use cases
+
+**Vec<JsonValue> length:**
+
+- ✅ **Bug #27**: `Vec<JsonValue>` from `.as_array()` now uses `.len()`
+  - **Problem**: `coinList.length` generated `.length()` (JsonValue method) instead of `.len()` (Vec method)
+  - **Fix**: Track variables initialized with `.as_array()` in `array_vars`
+  - Generates `.len() as i32` for proper type compatibility
+
+**Real-world testing (Dogfooding):**
+- Crypto Tracker CLI fully functional with CoinGecko API
+- Commands: `price <coin>`, `top`, `search <query>`
+- Live data for Bitcoin ($78,359), top 10 cryptos, coin search
+
 ## [0.11.8] - 2026-02-02
 
 ### Fixed - HTTP Client & JSON Array Access 🐛
