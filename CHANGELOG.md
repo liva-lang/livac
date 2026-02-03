@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.15] - 2026-02-03
+
+### Fixed - Array Indexing with Variables 🐛
+
+**Integer variables as array indexes:**
+
+- ✅ **Bug #34**: `lines[i]` now works when `i` is an `int` variable
+  - **Problem**: `lines[i]` generated `lines[i]` but Rust requires `usize` for Vec indexing
+  - **Fix**: Detect array indexing with non-literal indexes and add `as usize`
+  - Generates: `lines[i as usize]` for variable indexes
+
+**String array indexing returns clone:**
+
+- Also added `.clone()` when indexing `[string]` arrays
+  - **Problem**: `let line = lines[i]` fails because `lines[i]` returns `&String`, not `String`
+  - **Fix**: Detect string array indexing and add `.clone()`
+  - Generates: `lines[i as usize].clone()`
+
+**Real-world testing (Dogfooding):**
+- CSV Parser with split, while loops, and dynamic indexing now fully functional
+
 ## [0.11.14] - 2026-02-03
 
 ### Fixed - forEach/map on String Arrays 🐛

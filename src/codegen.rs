@@ -3541,9 +3541,45 @@ impl CodeGenerator {
                 }
                 
                 // Fall back to standard array indexing
+                // Bug #34: For arrays with non-literal index (e.g., lines[i] where i is int),
+                // we need to add `as usize` because Rust Vec indexing requires usize
                 self.output.push('[');
                 self.generate_expr(index)?;
+                
+                // Add `as usize` for non-literal indexes on arrays
+                // Literal integers (0, 1, 2) work fine, but variables (i) are i32 and need conversion
+                let needs_clone = if let Expr::Identifier(var_name) = object.as_ref() {
+                    let sanitized = self.sanitize_name(var_name);
+                    if self.array_vars.contains(&sanitized) {
+                        // Only add conversion for non-literal indexes
+                        match index.as_ref() {
+                            Expr::Literal(Literal::Int(_)) => {
+                                // Literal integers don't need conversion
+                            }
+                            _ => {
+                                // Variables and expressions need `as usize`
+                                self.output.push_str(" as usize");
+                            }
+                        }
+                        // Check if this is a string array - need .clone() for String
+                        if let Some(elem_type) = self.typed_array_vars.get(&sanitized) {
+                            elem_type == "string"
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
+                
                 self.output.push(']');
+                
+                // For string arrays, add .clone() because indexing returns &String
+                if needs_clone {
+                    self.output.push_str(".clone()");
+                }
 
                 // Convert numeric properties automatically
                 if let Expr::Literal(Literal::String(prop)) = index.as_ref() {
