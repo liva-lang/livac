@@ -284,6 +284,7 @@ Use `!` instead of `not` for negation.
 
 ### Session 5 (v0.11.8):
 - ✅ Bug #23: `Http.get()` not recognized, only `HTTP.get()` was working
+- ✅ Bug #24: `as_array()` returned `Option<Vec<JsonValue>>` causing `.len()` and `.get()` failures; now returns `Vec<JsonValue>` directly and array indexing uses `.cloned()`
 
 ### Known Limitations (not bugs):
 - `_` placeholder for ignored values in tuple destructuring not yet supported
