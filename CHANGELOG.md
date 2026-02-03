@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.22] - 2026-02-03
+
+### Fixed - Wildcard Imports with Alias 🐛
+
+**Bug #40**: Wildcard imports (`import * as alias`) now work correctly.
+
+- **Problem**: `alias.function()` generated field access syntax instead of module path
+- **Root Cause**: Module alias calls weren't recognized as module access
+- **Fix**: Added `module_aliases` HashMap to track alias → module_name mappings
+
+**Changes made:**
+1. Added `module_aliases: HashMap<String, String>` to CodeGenerator
+2. Register aliases when processing wildcard imports in `generate_entry_point()`
+3. New `generate_module_function_call()` generates `module::function()` syntax
+4. Proper type conversions for arguments (`.to_string()` for string literals)
+
+**Example fixed:**
+```liva
+import * as mathlib from "./lib/math.liva"
+import * as str from "./lib/strings.liva"
+
+main() {
+    print(mathlib.add(10, 20))        // Now works!
+    print(str.concat("foo", "bar"))   // Now works!
+}
+```
+
+### Tested - Import System Validation ✅
+
+Comprehensive import testing confirmed working:
+- ✅ Named function imports: `import { add, subtract } from "./math.liva"`
+- ✅ Named class imports: `import { Circle, Rectangle } from "./shapes.liva"` 
+- ✅ Wildcard with alias: `import * as math from "./lib/math.liva"`
+- ✅ Mixed import styles in same file
+- ✅ Private symbol rejection (E4007): `_prefixed` symbols cannot be imported
+- ✅ Cross-module imports from subdirectories (`./lib/`, `./utils/`)
+
 ## [0.11.21] - 2026-02-03
 
 ### Fixed - JSON.stringify Without Error Binding 🐛

@@ -310,6 +310,13 @@ Use `!` instead of `not` for negation.
 - ✅ Bug #38: JSON `asString()`, `asBool()`, etc. add `.unwrap_or_default()` for direct values
 - ✅ Bug #39: `JSON.stringify` without error binding extracts value with `.0.unwrap_or_default()`
 
+### Session 11 (v0.11.22):
+- ✅ Bug #40: Wildcard imports (`import * as alias`) generate incorrect code
+  - Was generating: `alias.function()` (field access syntax)
+  - Now generates: `module::function()` (Rust module path syntax)
+  - Added `module_aliases` HashMap to CodeGenerator to track alias → module_name mappings
+  - String literals in module function calls now properly convert with `.to_string()`
+
 ### Known Limitations (not bugs):
 - `_` placeholder for ignored values in tuple destructuring not yet supported
 - Use `and`/`or` keywords instead of `&&`/`||`

@@ -1,0 +1,45 @@
+// ============================================================================
+// Math Library - Simple version for import testing
+// ============================================================================
+
+// === PUBLIC FUNCTIONS ===
+
+add(a: number, b: number): number => a + b
+subtract(a: number, b: number): number => a - b
+multiply(a: number, b: number): number => a * b
+
+divide(a: number, b: number): number {
+    if b == 0 {
+        fail "Division by zero"
+    }
+    return a / b
+}
+
+square(n: number): number => n * n
+cube(n: number): number => n * n * n
+
+power(base: number, exp: number): number {
+    if exp == 0 {
+        return 1
+    }
+    let result = 1
+    let i = 0
+    while i < exp {
+        result = result * base
+        i = i + 1
+    }
+    return result
+}
+
+factorial(n: number): number {
+    if n <= 1 {
+        return 1
+    }
+    return n * factorial(n - 1)
+}
+
+// === PRIVATE FUNCTIONS (prefix underscore) ===
+
+_internalHelper(x: number): number => x * 2
+
+_validate(n: number): bool => n >= 0

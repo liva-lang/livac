@@ -1,0 +1,31 @@
+// ============================================================================
+// String Library - Simple version for import testing
+// ============================================================================
+
+// === PUBLIC FUNCTIONS ===
+
+concat(a: string, b: string): string => a + b
+
+repeat(s: string, n: number): string {
+    let result = ""
+    let i = 0
+    while i < n {
+        result = result + s
+        i = i + 1
+    }
+    return result
+}
+
+isEmpty(s: string): bool => s.length == 0
+
+length(s: string): number => s.length
+
+greet(name: string): string => $"Hello, {name}!"
+
+wrap(s: string, left: string, right: string): string => left + s + right
+
+// === PRIVATE FUNCTIONS ===
+
+_internalFormat(s: string): string => $"[{s}]"
+
+_validate(s: string): bool => s.length > 0

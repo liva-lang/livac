@@ -75,6 +75,8 @@ pub struct CodeGenerator {
     async_functions: std::collections::BTreeSet<String>, // User-defined async functions (BTreeSet from DesugarContext)
     // --- Phase 6: Interface method signatures (for type inference)
     interface_methods: std::collections::HashMap<String, std::collections::HashMap<String, TypeRef>>, // interface_name -> (method_name -> return_type)
+    // --- Module aliases for wildcard imports (alias -> actual_module_name)
+    module_aliases: std::collections::HashMap<String, String>,
 }
 
 impl CodeGenerator {
@@ -113,6 +115,7 @@ impl CodeGenerator {
             trait_registry: TraitRegistry::new(),
             async_functions: async_funcs,
             interface_methods: std::collections::HashMap::new(),
+            module_aliases: std::collections::HashMap::new(),
         }
     }
 
@@ -4847,6 +4850,12 @@ impl CodeGenerator {
             if name == "Sys" {
                 return self.generate_sys_function_call(method_call);
             }
+            
+            // Bug #40: Check if this is a module alias call (import * as alias from "...")
+            // Generate module::function() instead of alias.function()
+            if let Some(module_name) = self.module_aliases.get(name).cloned() {
+                return self.generate_module_function_call(&module_name, method_call);
+            }
         }
         
         // Check if this is a string method (no adapter means it's not an array method)
@@ -6012,6 +6021,46 @@ impl CodeGenerator {
                 ));
             }
         }
+        
+        Ok(())
+    }
+
+    /// Generate a function call through a module alias
+    /// e.g., `mathlib.add(1, 2)` -> `math::add(1, 2)`
+    fn generate_module_function_call(&mut self, module_name: &str, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
+        // Convert method name to snake_case for Rust
+        let rust_method = to_snake_case(&method_call.method);
+        
+        // Generate module::function(args)
+        self.output.push_str(module_name);
+        self.output.push_str("::");
+        self.output.push_str(&rust_method);
+        self.output.push('(');
+        
+        // Generate arguments with proper type conversions
+        for (i, arg) in method_call.args.iter().enumerate() {
+            if i > 0 {
+                self.output.push_str(", ");
+            }
+            // Add .to_string() for string literals to convert &str to String
+            if let Expr::Literal(Literal::String(_)) = arg {
+                self.generate_expr(arg)?;
+                self.output.push_str(".to_string()");
+            } else if let Expr::Identifier(var_name) = arg {
+                // Clone string variables when passing to module functions
+                let sanitized = self.sanitize_name(var_name);
+                if self.string_vars.contains(&sanitized) {
+                    self.generate_expr(arg)?;
+                    self.output.push_str(".clone()");
+                } else {
+                    self.generate_expr(arg)?;
+                }
+            } else {
+                self.generate_expr(arg)?;
+            }
+        }
+        
+        self.output.push(')');
         
         Ok(())
     }
@@ -9690,11 +9739,17 @@ fn generate_entry_point(
     }
     
     // Generate use statements from entry module's imports
-    // Skip wildcard imports that just reference the whole module (they're already available via mod)
+    // Also register module aliases for wildcard imports
     for import_decl in &entry_module.imports {
         if import_decl.is_wildcard && import_decl.alias.is_some() {
             // Wildcard import with alias like `import * as utils from "./utils.liva"`
-            // The module is already available via `mod utils;`, skip the use statement
+            // Register the alias -> module_name mapping for code generation
+            let source_path = std::path::Path::new(&import_decl.source);
+            if let Some(module_name) = source_path.file_stem().and_then(|s| s.to_str()) {
+                let alias = import_decl.alias.as_ref().unwrap();
+                codegen.module_aliases.insert(alias.clone(), module_name.to_string());
+            }
+            // The module is already available via `mod math;`, skip the use statement
             continue;
         }
         

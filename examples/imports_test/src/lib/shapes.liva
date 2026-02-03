@@ -1,0 +1,62 @@
+// ============================================================================
+// Shapes Library - Testing class exports
+// ============================================================================
+
+// === PUBLIC CLASSES ===
+
+Circle {
+    constructor(radius: number) {
+        this.radius = radius
+    }
+    
+    radius: number
+    
+    area(): number => 3 * this.radius * this.radius
+    
+    circumference(): number => 6 * this.radius
+    
+    describe(): string => $"Circle(r={this.radius})"
+}
+
+Rectangle {
+    constructor(width: number, height: number) {
+        this.width = width
+        this.height = height
+    }
+    
+    width: number
+    height: number
+    
+    area(): number => this.width * this.height
+    
+    perimeter(): number => 2 * (this.width + this.height)
+    
+    isSquare(): bool => this.width == this.height
+    
+    describe(): string {
+        if this.isSquare() {
+            return $"Square({this.width})"
+        }
+        return $"Rect({this.width}x{this.height})"
+    }
+}
+
+// === PUBLIC FACTORY FUNCTIONS ===
+
+createSquare(side: number): Rectangle => Rectangle(side, side)
+
+createUnitCircle(): Circle => Circle(1)
+
+// === PRIVATE CLASS ===
+
+_Counter {
+    constructor() {
+        this.count = 0
+    }
+    
+    count: number
+    
+    inc() {
+        this.count = this.count + 1
+    }
+}
