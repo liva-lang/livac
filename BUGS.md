@@ -250,8 +250,8 @@ Use `!` instead of `not` for negation.
 
 ## Summary
 
-**Total bugs found**: 23
-**Fixed**: 23 ✅ ALL FIXED!
+**Total bugs found**: 38
+**Fixed**: 38 ✅ ALL FIXED!
 
 ### Session 1 (v0.11.3):
 - ✅ Bug #1: Private field underscore prefix
@@ -300,11 +300,14 @@ Use `!` instead of `not` for negation.
 ### Session 9 (v0.11.12):
 - ✅ Bug #30: `indexOf` on class fields (`this.field.indexOf(query)`) - now correctly detected as string method and generates `.find(&query)` with proper reference
 
-### Known Bugs (not yet fixed):
-- Bug #31: `array.length.toString()` with `as i32` cast generates malformed `(len as i32.to_string())`
-- Bug #32: String parameters in class methods not cloned when used after passing to constructors
-- Bug #33: `forEach` closure capturing String variable needs `.clone()` when used multiple times
-- Bug #34: For loop index `i` (in `0..length`) is `i32` but array indexing needs `usize`
+### Session 10 (v0.11.13-v0.11.19):
+- ✅ Bug #31: `array.length.toString()` - wrap cast in parens: `(len as i32).to_string()`
+- ✅ Bug #32: String variables cloned when passed to constructors
+- ✅ Bug #34: Array indexing with int variables adds `as usize` and `.clone()` for strings
+- ✅ Bug #35: forEach on `[string]` uses `|p|` not `|&p|` - track string array types
+- ✅ Bug #36: Method calls on binary expressions wrap in parens: `(a + b).method()`
+- ✅ Bug #37: `join()` keeps `&str` argument, doesn't add `.to_string()`
+- ✅ Bug #38: JSON `asString()`, `asBool()`, etc. add `.unwrap_or_default()` for direct values
 
 ### Known Limitations (not bugs):
 - `_` placeholder for ignored values in tuple destructuring not yet supported
