@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.16] - 2026-02-03
+
+### Fixed - Method Calls on Binary Expressions 🐛
+
+**Operator precedence for chained method calls:**
+
+- ✅ **Bug #36**: `(arr.length - 1).toString()` now generates correct code
+  - **Problem**: Generated `((arr.len() as i32)) - 1.to_string()` where `.to_string()` binds to `1` not the whole expression
+  - **Root Cause**: Method call on binary expression needs extra parentheses for correct precedence
+  - **Fix**: Detect when method call object is a Binary expression and wrap in parentheses
+  - Generates: `(((arr.len() as i32)) - 1).to_string()`
+
+**Real-world testing (Dogfooding):**
+- CSV Parser fully functional with split, forEach, while loops, dynamic indexing, and arithmetic expressions
+
 ## [0.11.15] - 2026-02-03
 
 ### Fixed - Array Indexing with Variables 🐛

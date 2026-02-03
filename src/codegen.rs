@@ -4741,8 +4741,21 @@ impl CodeGenerator {
             false
         };
         
+        // Bug #36: For binary expressions as method call object, we need parentheses
+        // e.g., (arr.length - 1).toString() should generate ((arr.len() as i32) - 1).to_string()
+        // Without parens, `- 1.to_string()` has wrong precedence
+        let needs_parens_for_binary = matches!(method_call.object.as_ref(), Expr::Binary { .. });
+        
+        if needs_parens_for_binary {
+            self.output.push('(');
+        }
+        
         // Generate the object
         self.generate_expr(&method_call.object)?;
+        
+        if needs_parens_for_binary {
+            self.output.push(')');
+        }
         
         // Unwrap Option<JsonValue> before calling methods
         if is_option_json_value {
