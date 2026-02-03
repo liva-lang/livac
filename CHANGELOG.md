@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.7] - 2026-02-02
+
+### Fixed - Class & String Handling Improvements 🐛
+
+**String literal and concatenation fixes:**
+
+- ✅ **Bug #17**: String literals now generate `.to_string()` when initializing variables
+  - **Problem**: `let x = "["` inferred as `&str`, caused type mismatch on reassignment
+  - **Fix**: All string literal initializations now produce `String` type
+  - Prevents `&str vs String` type errors when variable is later reassigned
+
+- ✅ **Bug #18**: Variables initialized with strings now detected in concatenations
+  - `expr_is_stringy()` now checks `string_vars` for Identifier expressions
+  - Variable names properly sanitized (camelCase → snake_case) for tracking
+  - Variables initialized with string concatenations also tracked as strings
+  - Enables `format!()` usage for all string concatenations
+
+**Class constructor and method improvements:**
+
+- ✅ **Bug #19**: Constructor body parsing for field assignments
+  - **Problem**: `constructor(noteTitle)` with `this.title = noteTitle` generated wrong field names
+  - **Fix**: Parse `this.field = value` statements in constructor body
+  - Generate correct `Self { field: value, ... }` initializers
+  - Supports parameters with different names than fields
+
+- ✅ **Bug #20**: Detect mutating method calls on self fields
+  - **Problem**: Methods calling `this.notes.push(note)` used `&self` instead of `&mut self`
+  - **Fix**: Detect mutating methods (push/pop/remove/clear/insert/sort/reverse/extend/retain/truncate)
+  - Check `this.field.method()` pattern for mutation detection
+
+- ✅ **Bug #22**: forEach lambda pattern for non-Copy types
+  - **Problem**: `|&note|` pattern in forEach caused "cannot move out of shared reference"
+  - **Fix**: Don't add `&` prefix for class instances in forEach
+  - Properly handle typed arrays of objects
+
+**Real-world testing (Dogfooding):**
+- Built Task Manager CLI (File I/O + JSON + String handling)
+- Built Notes App CLI (Classes + Methods + Arrays + File I/O + JSON)
+- Both apps fully functional with add/list/clear commands
+
 ## [0.11.6] - 2026-02-02
 
 ### Added - System Module & CLI Support 🖥️
