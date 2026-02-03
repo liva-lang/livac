@@ -19,7 +19,7 @@ main() {
     
     let postResponse, postErr = HTTP.post("https://jsonplaceholder.typicode.com/posts", postData)
     
-    if postErr != "" {
+    if postErr {
         print("POST Error: " + postErr)
     } else {
         print("Status: " + postResponse.status)
@@ -44,7 +44,7 @@ main() {
     
     let putResponse, putErr = HTTP.put("https://jsonplaceholder.typicode.com/posts/1", putData)
     
-    if putErr != "" {
+    if putErr {
         print("PUT Error: " + putErr)
     } else {
         print("Status: " + putResponse.status)
@@ -62,7 +62,7 @@ main() {
     
     let deleteResponse, deleteErr = HTTP.delete("https://jsonplaceholder.typicode.com/posts/1")
     
-    if deleteErr != "" {
+    if deleteErr {
         print("DELETE Error: " + deleteErr)
     } else {
         print("Status: " + deleteResponse.status)
