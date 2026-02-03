@@ -4278,6 +4278,18 @@ impl CodeGenerator {
                     if let Expr::Literal(Literal::String(_)) = arg {
                         self.generate_expr(arg)?;
                         self.output.push_str(".to_string()");
+                    } else if let Expr::Identifier(var_name) = arg {
+                        // Bug #32: Clone string variables when passing to constructors
+                        // to allow them to be used after the constructor call
+                        let sanitized = self.sanitize_name(var_name);
+                        let is_string_var = self.string_vars.contains(&sanitized);
+                        let is_class_instance = self.class_instance_vars.contains(&sanitized);
+                        if is_string_var || is_class_instance {
+                            self.generate_expr(arg)?;
+                            self.output.push_str(".clone()");
+                        } else {
+                            self.generate_expr(arg)?;
+                        }
                     } else {
                         self.generate_expr(arg)?;
                     }

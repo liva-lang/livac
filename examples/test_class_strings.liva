@@ -1,0 +1,49 @@
+// Test: Classes with string fields and operations
+// Tests: constructors, field access, methods using string fields, forEach with capture
+
+Person {
+    name: string
+    email: string
+    
+    constructor(personName: string, personEmail: string) {
+        this.name = personName
+        this.email = personEmail
+    }
+    
+    greet(): string {
+        return "Hello, " + this.name
+    }
+    
+    getInitials(): string {
+        // Get first letter of name
+        let parts = this.name.split(" ")
+        let result = ""
+        parts.forEach(part => {
+            result = result + part.charAt(0)
+        })
+        return result
+    }
+}
+
+main() {
+    print("=== Class String Test ===")
+    
+    // Create people with string fields
+    let alice = Person("Alice Smith", "alice@example.com")
+    let bob = Person("Bob Jones", "bob@example.com")
+    
+    // Test field access
+    print("Person 1: " + alice.name)
+    print("Email: " + alice.email)
+    
+    // Test method that uses string fields
+    print(alice.greet())
+    
+    // Test method with forEach on split result
+    print("Initials: " + alice.getInitials())
+    
+    // Test bob's initials
+    print("Bob's initials: " + bob.getInitials())
+    
+    print("=== Test Complete ===")
+}

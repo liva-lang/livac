@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.17] - 2026-02-03
+
+### Fixed - String Variables in Constructor Calls 🐛
+
+**String ownership when passing to constructors:**
+
+- ✅ **Bug #32**: String variables are now cloned when passed to constructors
+  - **Problem**: `let p = Person(myName); print(myName)` failed because `myName` was moved
+  - **Root Cause**: String variables passed to class constructors transferred ownership
+  - **Fix**: Clone string variables when passed as constructor arguments
+  - This allows reusing string variables after passing them to constructors
+
+**Example fixed:**
+```liva
+let name = "Alice"
+let person = Person(name)
+print(name)  // Now works! 'name' was cloned
+```
+
 ## [0.11.16] - 2026-02-03
 
 ### Fixed - Method Calls on Binary Expressions 🐛

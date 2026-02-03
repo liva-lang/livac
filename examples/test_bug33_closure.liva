@@ -1,0 +1,26 @@
+// Test: Bug #33 - forEach with closure capturing String and modifying it
+// This tests if String capture in forEach closures works correctly
+
+main() {
+    print("=== Bug #33 Closure Capture Test ===")
+    
+    let names = ["Alice", "Bob", "Charlie"]
+    let result = ""
+    
+    // This closure captures 'result' and modifies it
+    names.forEach(name => {
+        result = result + name + ", "
+    })
+    
+    print("Result: " + result)
+    
+    // Another test: multiple captures
+    let prefix = "Hello "
+    let suffix = "!"
+    names.forEach(name => {
+        // Captures both prefix and suffix
+        print(prefix + name + suffix)
+    })
+    
+    print("=== Test Complete ===")
+}

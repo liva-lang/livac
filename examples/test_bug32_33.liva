@@ -1,0 +1,46 @@
+// Test: String ownership after constructor calls
+// This tests Bug #32 and #33
+
+Person {
+    name: string
+    
+    constructor(personName: string) {
+        this.name = personName
+    }
+    
+    greet(): string {
+        return "Hello, " + this.name
+    }
+}
+
+main() {
+    print("=== Bug #32/#33 Test ===")
+    
+    // Bug #32 scenario: Using a string variable after passing to constructor
+    let myName = "Alice"
+    let person = Person(myName)
+    
+    // Try to use myName AFTER passing it to the constructor
+    print("Original name: " + myName)  // This might fail if myName was moved
+    print("Person says: " + person.greet())
+    
+    // Test 2: Multiple uses of same string in constructors
+    let sharedName = "Bob"
+    let person1 = Person(sharedName)
+    let person2 = Person(sharedName)  // Same string used again
+    print("Person1: " + person1.greet())
+    print("Person2: " + person2.greet())
+    
+    // Bug #33 scenario: forEach closure capturing string
+    let names = ["Alice", "Bob", "Charlie"]
+    let greeting = "Hello"
+    names.forEach(name => {
+        // This closure captures 'greeting' from outer scope
+        print(greeting + ", " + name + "!")
+    })
+    
+    // Verify greeting is still usable after forEach
+    print("Greeting is still: " + greeting)
+    
+    print("=== Test Complete ===")
+}
