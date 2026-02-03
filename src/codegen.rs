@@ -3397,6 +3397,21 @@ impl CodeGenerator {
                     }
                 }
                 
+                // Special handling for string indexing: s[i] -> s.chars().nth(i).unwrap_or_default()
+                // Rust strings are UTF-8 and don't support direct indexing
+                // This must come BEFORE generate_expr(object) to prevent emitting the object first
+                if let Expr::Identifier(var_name) = object.as_ref() {
+                    let sanitized = self.sanitize_name(var_name);
+                    if self.string_vars.contains(&sanitized) {
+                        // String indexing - use .chars().nth(i)
+                        self.generate_expr(object)?;
+                        self.output.push_str(".chars().nth(");
+                        self.generate_expr(index)?;
+                        self.output.push_str(" as usize).map(|c| c.to_string()).unwrap_or_default()");
+                        return Ok(());
+                    }
+                }
+                
                 self.generate_expr(object)?;
                 
                 // For native Vec<String> (from Sys.args()), use direct indexing with .clone()
