@@ -867,6 +867,13 @@ impl CodeGenerator {
         self.dedent();
         self.writeln("}");
         self.writeln("");
+        // as_float is an alias for as_f64
+        self.writeln("pub fn as_float(&self) -> f64 {");
+        self.indent();
+        self.writeln("self.0.as_f64().unwrap_or(0.0)");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
         self.writeln("pub fn as_string(&self) -> Option<String> {");
         self.indent();
         self.writeln("match &self.0 {");
@@ -1043,6 +1050,9 @@ impl CodeGenerator {
         self.dedent();
         self.writeln("}");
         self.writeln("");
+        
+        // Add is_null check method and comparison - null generates .is_null() check
+        // No PartialEq needed - we'll translate `x != null` to `!x.is_null()`
 
         self.dedent();
         self.writeln("}");
@@ -2717,6 +2727,12 @@ impl CodeGenerator {
                                             self.array_vars.insert(name.to_string());
                                         }
                                     }
+                                }
+                            }
+                            // .as_array() returns Vec<JsonValue> - mark as array for .length -> .len()
+                            else if method_call.method.as_str() == "as_array" {
+                                if let Some(name) = binding.name() {
+                                    self.array_vars.insert(name.to_string());
                                 }
                             }
                         }
@@ -5914,6 +5930,36 @@ impl CodeGenerator {
                 } else {
                     self.output.push_str(".is_none()");
                 }
+                return Ok(());
+            }
+            
+            // Special handling for JsonValue comparison with null
+            // Transform: jsonVar != null -> !jsonVar.is_null()
+            // Transform: jsonVar == null -> jsonVar.is_null()
+            let is_json_null_comparison = match (left, right) {
+                (Expr::Identifier(name), Expr::Literal(Literal::Null)) => {
+                    let sanitized = self.sanitize_name(name);
+                    self.json_value_vars.contains(&sanitized)
+                }
+                (Expr::Literal(Literal::Null), Expr::Identifier(name)) => {
+                    let sanitized = self.sanitize_name(name);
+                    self.json_value_vars.contains(&sanitized)
+                }
+                _ => false,
+            };
+            
+            if is_json_null_comparison {
+                // Generate !x.is_null() or x.is_null()
+                let var_name = match (left, right) {
+                    (Expr::Identifier(name), _) => name,
+                    (_, Expr::Identifier(name)) => name,
+                    _ => unreachable!(),
+                };
+                
+                if matches!(op, BinOp::Ne) {
+                    self.output.push_str("!");
+                }
+                write!(self.output, "{}.is_null()", self.sanitize_name(var_name)).unwrap();
                 return Ok(());
             }
         }
