@@ -4906,10 +4906,10 @@ impl CodeGenerator {
             // Convert string literals to String for methods/functions
             // This avoids "expected String, found &str" errors
             if matches!(arg, Expr::Literal(Literal::String(_))) {
-                // For array methods and JsonValue methods (get/get_field), don't convert
+                // For array methods, JsonValue methods, and join (which expects &str), don't convert
                 let is_array_or_json_method = matches!(
                     method_call.method.as_str(),
-                    "map" | "filter" | "reduce" | "forEach" | "find" | "some" | "every" | "indexOf" | "includes" | "get" | "get_field"
+                    "map" | "filter" | "reduce" | "forEach" | "find" | "some" | "every" | "indexOf" | "includes" | "get" | "get_field" | "join"
                 );
                 
                 if !is_array_or_json_method {

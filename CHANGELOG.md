@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.18] - 2026-02-03
+
+### Fixed - Array join() Method 🐛
+
+**join() method argument handling:**
+
+- ✅ **Bug #37**: `array.join(", ")` no longer adds `.to_string()` to the separator
+  - **Problem**: Generated `arr.join(", ".to_string())` but Rust's join expects `&str`
+  - **Root Cause**: String literals were converted to String for all methods
+  - **Fix**: Added `join` to the list of methods that keep `&str` arguments
+
+**Example fixed:**
+```liva
+let names = ["a", "b", "c"]
+print(names.join(", "))  // Now works!
+```
+
 ## [0.11.17] - 2026-02-03
 
 ### Fixed - String Variables in Constructor Calls 🐛

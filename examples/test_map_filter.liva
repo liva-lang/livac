@@ -1,0 +1,18 @@
+// Test: Map and filter operations on arrays
+// Tests: map, filter, chained operations
+
+main() {
+    print("=== Map/Filter Test ===")
+    
+    // Test 1: Map on strings
+    let names = ["alice", "bob", "charlie"]
+    let uppercased = names.map(name => name.toUpperCase())
+    print("Uppercased: " + uppercased.join(", "))
+    
+    // Test 2: Simple forEach
+    names.forEach(name => {
+        print("Name: " + name)
+    })
+    
+    print("=== Test Complete ===")
+}
