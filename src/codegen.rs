@@ -2507,12 +2507,21 @@ impl CodeGenerator {
                                         }
                                     }
                                 } else if let TypeRef::Array(elem_type) = type_ref {
-                                    // Track array element type if it's a class
-                                    if let TypeRef::Simple(class_name) = elem_type.as_ref() {
-                                        if self.class_fields.contains_key(class_name) {
-                                            let binding = &var.bindings[0];
-                                            if let Some(name) = binding.name() {
-                                                self.array_vars.insert(self.sanitize_name(name));
+                                    // Track array variable and element type
+                                    let binding = &var.bindings[0];
+                                    if let Some(name) = binding.name() {
+                                        let sanitized_name = self.sanitize_name(name);
+                                        self.array_vars.insert(sanitized_name.clone());
+                                        
+                                        // Track element type (class, string, etc.) for proper forEach/map patterns
+                                        if let TypeRef::Simple(type_name) = elem_type.as_ref() {
+                                            // Track in typed_array_vars for both classes and primitives like "string"
+                                            // This ensures forEach uses correct lambda pattern |p| instead of |&p|
+                                            self.typed_array_vars.insert(sanitized_name.clone(), type_name.clone());
+                                            
+                                            // Also track class instances for member access
+                                            if self.class_fields.contains_key(type_name) {
+                                                // Already handled by typed_array_vars
                                             }
                                         }
                                     }
@@ -2712,6 +2721,13 @@ impl CodeGenerator {
                                     }
                                 }
                             }
+                            // Bug #35: .split() returns array of strings
+                            else if method_call.method.as_str() == "split" {
+                                if let Some(name) = binding.name() {
+                                    self.array_vars.insert(name.to_string());
+                                    self.typed_array_vars.insert(name.to_string(), "string".to_string());
+                                }
+                            }
                             // .find() returns Option<T> - mark variable as option_value_vars
                             else if method_call.method.as_str() == "find" {
                                 if let Some(name) = binding.name() {
@@ -2774,6 +2790,15 @@ impl CodeGenerator {
                             // Track string type for .length -> .len() conversion
                             if matches!(type_ref, TypeRef::Simple(name) if name == "string") {
                                 self.string_vars.insert(var_name.clone());
+                            }
+                            
+                            // Bug #35 fix: Track array types for proper forEach/map lambda patterns
+                            // e.g., let parts: [string] = text.split(",") should use |p| not |&p|
+                            if let TypeRef::Array(elem_type) = type_ref {
+                                self.array_vars.insert(var_name.clone());
+                                if let TypeRef::Simple(type_name) = elem_type.as_ref() {
+                                    self.typed_array_vars.insert(var_name.clone(), type_name.clone());
+                                }
                             }
                         }
 
@@ -4846,6 +4871,7 @@ impl CodeGenerator {
             let will_use_cloned = if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
                 if let Some(element_type) = self.typed_array_vars.get(&base_var_name) {
                     // Check if element type is a Copy type (class names are non-Copy)
+                    // Bug #35: "string" is not Copy, so forEach needs |p| not |&p|
                     !matches!(element_type.as_str(), "number" | "int" | "i32" | "float" | "f64" | "bool" | "char")
                 } else if self.string_vars.contains(&base_var_name) {
                     true
@@ -4929,8 +4955,8 @@ impl CodeGenerator {
                                     // If will_use_cloned, no prefix needed - the closure will receive &&T 
                                     // but we just use it as a reference
                                 } else if method_call.method == "map" || method_call.method == "forEach" {
-                                    // Bug #22 fix: For non-Copy types (class instances), don't add &
-                                    // because we can't move out of a shared reference
+                                    // Bug #22/#35 fix: For non-Copy types (class instances, strings),
+                                    // don't add & because we can't move out of a shared reference
                                     if !will_use_cloned {
                                         self.output.push('&');
                                     }

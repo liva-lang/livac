@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.14] - 2026-02-03
+
+### Fixed - forEach/map on String Arrays 🐛
+
+**Lambda pattern for string arrays:**
+
+- ✅ **Bug #35**: `parts.forEach(p => ...)` on `[string]` arrays now compiles correctly
+  - **Problem**: Generated `|&p|` which attempts to move String out of reference
+  - **Root Cause**: Variables declared as `[string]` weren't tracked in `typed_array_vars`
+  - **Fix**: 
+    1. Track array types from explicit type declarations (`let parts: [string]`)
+    2. Track `.split()` method results as returning `[string]`
+    3. When element type is "string", use `will_use_cloned = true` to generate `|p|` not `|&p|`
+
+**Real-world testing (Dogfooding):**
+- String manipulation with split, forEach now fully functional
+
 ## [0.11.13] - 2026-02-03
 
 ### Fixed - Length Property Chain Method Calls 🐛
