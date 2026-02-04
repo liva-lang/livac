@@ -77,6 +77,8 @@ pub struct CodeGenerator {
     interface_methods: std::collections::HashMap<String, std::collections::HashMap<String, TypeRef>>, // interface_name -> (method_name -> return_type)
     // --- Module aliases for wildcard imports (alias -> actual_module_name)
     module_aliases: std::collections::HashMap<String, String>,
+    // --- Current function return type (for casting division results)
+    current_return_type: Option<String>,
 }
 
 impl CodeGenerator {
@@ -116,6 +118,7 @@ impl CodeGenerator {
             async_functions: async_funcs,
             interface_methods: std::collections::HashMap::new(),
             module_aliases: std::collections::HashMap::new(),
+            current_return_type: None,
         }
     }
 
@@ -2298,6 +2301,13 @@ impl CodeGenerator {
             self.write_indent();
             let was_fallible = self.in_fallible_function;
             self.in_fallible_function = func.contains_fail;
+            
+            // Track return type for division casting (Bug #52)
+            let prev_return_type = self.current_return_type.take();
+            if let Some(ret) = &func.return_type {
+                self.current_return_type = Some(ret.to_rust_type());
+            }
+            
             if func.contains_fail {
                 // Check if the expression already returns a Result (like a fallible ternary)
                 let expr_returns_result = matches!(expr, Expr::Ternary { then_expr, else_expr, .. }
@@ -2314,6 +2324,7 @@ impl CodeGenerator {
                 self.generate_expr(expr)?;
             }
             self.in_fallible_function = was_fallible;
+            self.current_return_type = prev_return_type;
             self.output.push('\n');
 
             // Phase 4.2: Check for dead tasks
@@ -2331,6 +2342,13 @@ impl CodeGenerator {
             
             let was_fallible = self.in_fallible_function;
             self.in_fallible_function = func.contains_fail;
+            
+            // Track return type for division casting (Bug #52)
+            let prev_return_type = self.current_return_type.take();
+            if let Some(ret) = &func.return_type {
+                self.current_return_type = Some(ret.to_rust_type());
+            }
+            
             self.generate_block_inner(body)?;
             // If function is fallible and doesn't end with explicit return, add Ok(())
             if func.contains_fail && !self.block_ends_with_return(body) {
@@ -2338,6 +2356,7 @@ impl CodeGenerator {
                 self.writeln("Ok(())");
             }
             self.in_fallible_function = was_fallible;
+            self.current_return_type = prev_return_type;
 
             // Phase 4.2: Check for dead tasks (tasks that were never awaited)
             self.check_dead_tasks();
@@ -3240,12 +3259,34 @@ impl CodeGenerator {
 
     /// Generate return expression with auto-clone for non-Copy types
     /// Detects when returning a field from self and automatically adds .clone()
+    /// Bug #52: Also handles casting integer division to float when return type is f64
     fn generate_return_expr(&mut self, expr: &Expr) -> Result<()> {
         // Check if this is a string literal - needs .to_string() for String return type
         if let Expr::Literal(Literal::String(_)) = expr {
             self.generate_expr(expr)?;
             self.output.push_str(".to_string()");
             return Ok(());
+        }
+        
+        // Bug #52: Check if return type is float and expression contains integer division
+        // We need to generate proper float division, not cast after integer division
+        if self.current_return_type.as_ref().map_or(false, |t| t == "f64") {
+            if let Expr::Binary { op: BinOp::Div, left, right } = expr {
+                // For division with float return type, cast left operand to f64
+                self.output.push('(');
+                self.generate_expr(left)?;
+                self.output.push_str(") as f64 / (");
+                self.generate_expr(right)?;
+                self.output.push_str(") as f64");
+                return Ok(());
+            }
+            // For other integer expressions (not division), cast the whole thing
+            if self.expr_is_integer_expr(expr) {
+                self.output.push('(');
+                self.generate_expr(expr)?;
+                self.output.push_str(") as f64");
+                return Ok(());
+            }
         }
         
         // Check if this is a member access on 'this' (self.field)
@@ -3260,6 +3301,38 @@ impl CodeGenerator {
         }
         
         Ok(())
+    }
+    
+    /// Check if an expression evaluates to an integer type (i32)
+    /// Used for Bug #52 to detect when we need to cast to f64
+    fn expr_is_integer_expr(&self, expr: &Expr) -> bool {
+        match expr {
+            // Integer literals are i32
+            Expr::Literal(Literal::Int(_)) => true,
+            // Float literals are f64
+            Expr::Literal(Literal::Float(_)) => false,
+            // Identifiers - check against known float vars or assume int
+            Expr::Identifier(name) => {
+                // If it's a known float variable, return false
+                // Otherwise assume it could be int (conservative)
+                !self.is_known_float_var(name)
+            }
+            // Binary operations with arithmetic operators on integers produce integers
+            Expr::Binary { op, left, right } => {
+                matches!(op, BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod)
+                    && self.expr_is_integer_expr(left)
+                    && self.expr_is_integer_expr(right)
+            }
+            // Method calls - could return anything, assume not integer for safety
+            _ => false,
+        }
+    }
+    
+    /// Check if a variable is known to be a float type
+    fn is_known_float_var(&self, _name: &str) -> bool {
+        // For now, we don't have float var tracking, so return false
+        // This means we'll be conservative and cast when return type is f64
+        false
     }
 
     fn generate_expr(&mut self, expr: &Expr) -> Result<()> {

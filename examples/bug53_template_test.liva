@@ -1,0 +1,26 @@
+// Bug #53: Field access in string templates with array indexing
+
+Result {
+    constructor(value: string, score: number) {
+        this.value = value
+        this.score = score
+    }
+    value: string
+    score: number
+}
+
+main() {
+    let results: [Result] = [
+        Result("first", 100),
+        Result("second", 85),
+        Result("third", 70)
+    ]
+    
+    // Bug #53: This should work - accessing field in string template
+    print($"First result: {results[0].value}")
+    print($"Second score: {results[1].score}")
+    
+    // Also test with variable index
+    let idx = 2
+    print($"Third result: {results[idx].value}")
+}

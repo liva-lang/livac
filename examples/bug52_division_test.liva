@@ -1,0 +1,39 @@
+// Bug #52: Division int/int with float return type
+// Tests that integer division correctly casts to float when function returns float
+
+// Simple division
+divide(x: number, y: number): float {
+    return x / y
+}
+
+// Division with more complex expression
+average(a: number, b: number): float {
+    return (a + b) / 2
+}
+
+// Division with multiple operations
+weightedAverage(a: number, b: number, weight: number): float {
+    return (a * weight + b) / (weight + 1)
+}
+
+main() {
+    // Test simple division
+    let div1 = divide(7, 2)
+    print($"7 / 2 = {div1}")  // 3.5
+    
+    let div2 = divide(10, 4)
+    print($"10 / 4 = {div2}")  // 2.5
+    
+    // Test average (sum before division)
+    let avg1 = average(5, 3)
+    print($"Average of 5 and 3: {avg1}")  // 4.0
+    
+    let avg2 = average(7, 4)
+    print($"Average of 7 and 4: {avg2}")  // 5.5
+    
+    // Test weighted average
+    let wavg = weightedAverage(10, 20, 2)
+    print($"Weighted average: {wavg}")  // (10*2 + 20) / 3 = 40/3 ≈ 13.33
+    
+    print("Bug #52 validation complete!")
+}

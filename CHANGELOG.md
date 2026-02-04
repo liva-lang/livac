@@ -5,6 +5,25 @@ All notable changes to the Liva compiler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.24] - 2025-02-04
+
+### Fixed - Division & Template Bug Fixes 🐛
+
+**Bug #52: Integer division with float return type** ✅
+- Functions returning `float` but dividing integers now cast correctly
+- Added `current_return_type` tracking in CodeGenerator
+- Division `return x / y` in `-> f64` function generates `(x) as f64 / (y) as f64`
+- Complex expressions like `(a + b) / 2` also handled correctly
+
+**Bug #53: Field access in string templates** ✅
+- Already fixed by Bug #51 from v0.11.23
+- `$"{results[0].value}"` correctly generates `results[0].value`
+- No longer uses `get_field()` for typed arrays
+
+**Test files added:**
+- `bug52_division_test.liva` - Integer division to float
+- `bug53_template_test.liva` - Field access in templates
+
 ## [0.11.23] - 2025-02-03
 
 ### Fixed - Parallel & Filter Bug Fixes 🐛

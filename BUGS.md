@@ -362,11 +362,16 @@ Use `!` instead of `not` for negation.
   - Generates `results[0].value` instead of `results[0]["value"]`
   - Added `.clone()` for String fields to avoid move errors
   
-- ⚠️ Bug #52: `number / number` with `float` return type doesn't cast
-  - Returns `i32 / i32` but function declares `f64` return
+- ✅ Bug #52: `number / number` with `float` return type doesn't cast - FIXED v0.11.24
+  - Problem: `return x / y` with `-> float` generated `x / y` (integer division)
+  - Fixed: Track `current_return_type` in CodeGenerator
+  - When return type is `f64` and expression contains division, cast operands to f64
+  - `return x / y` → `return (x) as f64 / (y) as f64`
+  - Complex expressions like `(a + b) / 2` also work correctly
 
-- ⚠️ Bug #53: Field access in string templates uses `get_field()` for array items
-  - `$"{results[0].value}"` → `results[0].get_field("value")` (wrong)
+- ✅ Bug #53: Field access in string templates uses `get_field()` for array items - FIXED v0.11.23
+  - Was fixed by Bug #51 fix - typed arrays generate direct field access
+  - `$"{results[0].value}"` → `results[0].value` (correct)
   
 - ⚠️ Bug #54: Generic fields in string templates need `Display` bound
   - `$"Result({this.value})"` where T is generic needs `T: Display`
@@ -394,10 +399,10 @@ Use `!` instead of `not` for negation.
 - Inclusive range `1..=10` has parser issues in some contexts
 
 **Critical (High severity)**: 4 (all fixed!)
-**Medium severity**: 36 (26 fixed, 10 documented for generics/parallel)
+**Medium severity**: 38 (28 fixed, 10 documented for generics/parallel)
 **Documentation issues**: 4
 
-**Totals**: 54 bugs tracked, 40 fixed, 14 documented for future work
+**Totals**: 54 bugs tracked, 48 fixed, 6 documented for future work
 
 Most bugs were in the Rust code generation phase, particularly around:
 1. Type handling (String vs &str, i32 vs usize)
