@@ -317,15 +317,80 @@ Use `!` instead of `not` for negation.
   - Added `module_aliases` HashMap to CodeGenerator to track alias → module_name mappings
   - String literals in module function calls now properly convert with `.to_string()`
 
+### Session 12 - Generics & Parallel Dogfooding (v0.11.22):
+
+**Generics Issues (Not Fixed - Documented):**
+- ⚠️ Bug #41: `Vec<T>::pop()` returns `Option<T>`, but Liva's `pop(): T` expects direct value
+  - Need to add `.expect("...")` or `.unwrap()` to pop calls
+  
+- ⚠️ Bug #42: Generic array indexing `items[len - 1]` uses `i32` but should be `usize`
+  - Only affects generics, regular arrays work fine
+  
+- ⚠️ Bug #43: Variables calling mutating methods (`push`/`pop`) not detected as needing `mut`
+  - `let stack = Stack()` should become `let mut stack` when `stack.push(x)` is called
+  - The `collect_mutated_vars_in_expr` detects this but something prevents propagation
+
+- ⚠️ Bug #44: Trait `Eq` generates `PartialEq + Copy` but `String` doesn't implement `Copy`
+  - Should generate `PartialEq + Clone` or just `PartialEq`
+
+- ⚠️ Bug #45: Generic getter methods `get(): T` generate `.clone()` without `Clone` bound
+  - Returns `self.value.clone()` but impl doesn't have `<T: Clone>`
+
+- ⚠️ Bug #46: Generic methods returning `T` need automatic `Clone` bound inference
+  - When method returns `this.field` where field is `T`, need `T: Clone`
+
+**Parallel Operations Issues (Not Fixed - Documented):**
+- ⚠️ Bug #47: `par_iter().filter(|x| x % 2 == 0)` - missing dereference `*x`
+  - `par_iter()` returns `&T`, lambda needs `*x` for operations
+
+- ⚠️ Bug #48: `par_iter().reduce(initial, |acc, x|)` - Rayon's `fold` needs `|| initial`
+  - Rayon's `fold` takes `Fn() -> T` for identity, not just `T`
+  - Should use Rayon's `reduce` instead of `fold` for parallel reduction
+
+- ⚠️ Bug #49: `par_iter().filter(|x| x > 3)` - comparison with `&&T` not `T`
+  - Same dereference issue as Bug #47
+
+- ⚠️ Bug #50: Regular `filter()` also has dereference issue with `&&T`
+  - `values.iter().filter(|x| x % 2)` - x is `&&i32`, needs `**x`
+
+**Field Access Issues (Not Fixed - Documented):**
+- ⚠️ Bug #51: Array indexing then field access generates JSON-style access
+  - `results[0].value` → `results[0]["value"]` (wrong)
+  - Should generate `results[0].value` (direct field access)
+  
+- ⚠️ Bug #52: `number / number` with `float` return type doesn't cast
+  - Returns `i32 / i32` but function declares `f64` return
+
+- ⚠️ Bug #53: Field access in string templates uses `get_field()` for array items
+  - `$"{results[0].value}"` → `results[0].get_field("value")` (wrong)
+  
+- ⚠️ Bug #54: Generic fields in string templates need `Display` bound
+  - `$"Result({this.value})"` where T is generic needs `T: Display`
+
+**What Works Well:**
+- ✅ Basic generics: `Box<T>`, `Pair<A,B>`, `Triple<X,Y,Z>`
+- ✅ Nested generics: `Box(Pair(1, "one"))`
+- ✅ Generic class field access (direct, not via array indexing)
+- ✅ Generic constructors with type inference
+- ✅ Generic factory functions returning specific instantiations
+- ✅ Importing generic classes from other modules
+- ✅ Parallel `map()` operations work perfectly
+- ✅ Regular `reduce()` works fine
+- ✅ Combining parallel map with subsequent operations
+- ✅ Generic classes with different type instantiations in same file
+
 ### Known Limitations (not bugs):
 - `_` placeholder for ignored values in tuple destructuring not yet supported
 - Use `and`/`or` keywords instead of `&&`/`||`
 - Top-level functions don't use `fn` keyword (only inside classes)
 - `match` keyword is `switch` in Liva with `case:/default:` syntax
+- Inclusive range `1..=10` has parser issues in some contexts
 
 **Critical (High severity)**: 4 (all fixed!)
-**Medium severity**: 26 (all fixed!)
-**Documentation issues**: 3
+**Medium severity**: 36 (26 fixed, 10 documented for generics/parallel)
+**Documentation issues**: 4
+
+**Totals**: 54 bugs tracked, 40 fixed, 14 documented for future work
 
 Most bugs were in the Rust code generation phase, particularly around:
 1. Type handling (String vs &str, i32 vs usize)
@@ -340,3 +405,5 @@ Most bugs were in the Rust code generation phase, particularly around:
 10. UTF-8 string indexing
 11. Switch/match with string discriminants
 12. String indexOf detection on class fields
+13. Generic type bounds (Clone, Display)
+14. Parallel iterator reference handling

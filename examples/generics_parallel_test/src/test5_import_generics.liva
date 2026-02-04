@@ -1,0 +1,45 @@
+// Test 5: Importing generic classes from other modules
+
+import { Box, Pair, Tagged } from "./lib/containers.liva"
+import { boxInt, boxString, pairIntString } from "./lib/containers.liva"
+
+main() {
+    print("=== Imported Generic Box ===")
+    let intBox = Box(42)
+    let strBox = Box("hello")
+    let boolBox = Box(true)
+    
+    print($"Int box: {intBox.value}")
+    print($"String box: {strBox.value}")
+    print($"Bool box: {boolBox.value}")
+    
+    print("\n=== Imported Generic Pair ===")
+    let pair1 = Pair(10, "ten")
+    let pair2 = Pair("name", 100)
+    
+    print($"Pair1: ({pair1.first}, {pair1.second})")
+    print($"Pair2: ({pair2.first}, {pair2.second})")
+    
+    print("\n=== Imported Generic Tagged ===")
+    let tagged1 = Tagged(42, "answer")
+    let tagged2 = Tagged("hello", "greeting")
+    
+    print($"Tagged1: {tagged1.value} [{tagged1.tag}]")
+    print($"Tagged2: {tagged2.value} [{tagged2.tag}]")
+    
+    print("\n=== Factory Functions ===")
+    let boxedInt = boxInt(100)
+    let boxedStr = boxString("world")
+    let mixedPair = pairIntString(5, "five")
+    
+    print($"Boxed int: {boxedInt.value}")
+    print($"Boxed string: {boxedStr.value}")
+    print($"Mixed pair: ({mixedPair.first}, {mixedPair.second})")
+    
+    print("\n=== Nested Generics ===")
+    let nested = Box(Pair(1, "one"))
+    print($"Nested pair first: {nested.value.first}")
+    print($"Nested pair second: {nested.value.second}")
+    
+    print("\n✅ Multi-file generics import test complete!")
+}

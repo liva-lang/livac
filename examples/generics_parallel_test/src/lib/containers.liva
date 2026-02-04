@@ -1,0 +1,45 @@
+// Generic containers library
+
+// Simple Box - holds any value
+Box<T> {
+    value: T
+    
+    constructor(value: T) {
+        this.value = value
+    }
+}
+
+// Pair - holds two values of different types
+Pair<A, B> {
+    first: A
+    second: B
+    
+    constructor(first: A, second: B) {
+        this.first = first
+        this.second = second
+    }
+}
+
+// Wrapper with metadata
+Tagged<T> {
+    value: T
+    tag: string
+    
+    constructor(value: T, tag: string) {
+        this.value = value
+        this.tag = tag
+    }
+}
+
+// Helper functions for creating instances
+boxInt(n: number): Box<number> {
+    return Box(n)
+}
+
+boxString(s: string): Box<string> {
+    return Box(s)
+}
+
+pairIntString(n: number, s: string): Pair<number, string> {
+    return Pair(n, s)
+}

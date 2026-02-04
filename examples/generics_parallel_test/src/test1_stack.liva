@@ -1,0 +1,68 @@
+// Test 1: Generic Box<T> implementation (simplified)
+// Testing basic generics without trait constraints
+
+// Simple Box without equality check
+SimpleBox<T> {
+    value: T
+    
+    constructor(value: T) {
+        this.value = value
+    }
+}
+
+// Generic Pair - two different types
+Pair<A, B> {
+    first: A
+    second: B
+    
+    constructor(first: A, second: B) {
+        this.first = first
+        this.second = second
+    }
+}
+
+// Triple - three type parameters
+Triple<X, Y, Z> {
+    x: X
+    y: Y
+    z: Z
+    
+    constructor(x: X, y: Y, z: Z) {
+        this.x = x
+        this.y = y
+        this.z = z
+    }
+}
+
+main() {
+    print("=== SimpleBox<number> Test ===")
+    let intBox = SimpleBox(42)
+    print($"Int value: {intBox.value}")
+    
+    print("\n=== SimpleBox<string> Test ===")
+    let strBox = SimpleBox("hello")
+    print($"String value: {strBox.value}")
+    
+    print("\n=== SimpleBox<bool> Test ===")
+    let boolBox = SimpleBox(true)
+    print($"Bool value: {boolBox.value}")
+    
+    print("\n=== Pair<number, string> Test ===")
+    let pair1 = Pair(10, "ten")
+    print($"First: {pair1.first}, Second: {pair1.second}")
+    
+    print("\n=== Pair<string, bool> Test ===")
+    let pair2 = Pair("active", true)
+    print($"First: {pair2.first}, Second: {pair2.second}")
+    
+    print("\n=== Triple<number, string, bool> Test ===")
+    let triple = Triple(1, "one", true)
+    print($"X: {triple.x}, Y: {triple.y}, Z: {triple.z}")
+    
+    print("\n=== Nested generics Test ===")
+    let nested = SimpleBox(Pair(100, "hundred"))
+    print($"Nested pair first: {nested.value.first}")
+    print($"Nested pair second: {nested.value.second}")
+    
+    print("\n✅ Basic generic tests complete!")
+}

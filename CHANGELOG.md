@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Dogfooding - Generics & Parallel Testing 🧪
+
+Comprehensive testing of generics and parallel features revealed working functionality and documented areas for improvement.
+
+**What Works Well:**
+- ✅ Basic generics: `Box<T>`, `Pair<A,B>`, `Triple<X,Y,Z>`
+- ✅ Nested generics: `Box(Pair(1, "one"))`
+- ✅ Generic factory functions: `boxInt(n): Box<number>`
+- ✅ Importing generic classes from other modules
+- ✅ Parallel `map()` operations on arrays
+- ✅ Regular `reduce()` with accumulators
+- ✅ Generic classes with different type instantiations
+
+**Documented Issues for Future Work (Bugs #41-54):**
+- Generic Stack<T> with array operations needs more work
+- Parallel filter/reduce need reference handling improvements
+- Generic trait bounds need refinement (Clone, Display)
+- Array indexing + field access combination needs fixes
+
+**Test Files Created:**
+- `examples/generics_parallel_test/src/test1_stack.liva` - Box, Pair, Triple
+- `examples/generics_parallel_test/src/test2_pair_methods.liva` - CacheEntry
+- `examples/generics_parallel_test/src/test3_parallel.liva` - par.map
+- `examples/generics_parallel_test/src/test4_parallel_generics.liva` - Stats + parallel
+- `examples/generics_parallel_test/src/test5_import_generics.liva` - multi-file imports
+- `examples/generics_parallel_test/src/lib/containers.liva` - generic library
+
 ## [0.11.22] - 2026-02-03
 
 ### Fixed - Wildcard Imports with Alias 🐛
