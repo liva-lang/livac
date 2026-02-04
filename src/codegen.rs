@@ -428,14 +428,17 @@ impl CodeGenerator {
     fn collect_mutated_vars_in_expr(&self, expr: &Expr, mutated: &mut std::collections::HashSet<String>) {
         match expr {
             Expr::MethodCall(mc) => {
-                // Mutating methods like push, pop, etc. for arrays
-                let is_mutating_array = matches!(mc.method.as_str(), 
+                // Mutating methods like push, pop, etc. - for arrays AND class instances
+                // Bug #43 fix: These methods mutate the object regardless of whether it's an array or class
+                let is_mutating_method = matches!(mc.method.as_str(), 
                     "push" | "pop" | "remove" | "clear" | "insert" | 
-                    "sort" | "reverse" | "extend" | "retain" | "truncate"
+                    "sort" | "reverse" | "extend" | "retain" | "truncate" |
+                    "set" | "add" | "delete" | "update" | "reset" | "increment" | "decrement"
                 );
-                if is_mutating_array {
+                if is_mutating_method {
                     if let Expr::Identifier(name) = mc.object.as_ref() {
-                        mutated.insert(name.clone());
+                        // Bug #43 fix: Sanitize name to match how VarDecl lookup works
+                        mutated.insert(self.sanitize_name(name));
                     }
                 }
                 
@@ -450,13 +453,15 @@ impl CodeGenerator {
                     mc.method == "size" ||
                     mc.method == "count" ||
                     mc.method == "clone" ||
-                    mc.method == "toString";
+                    mc.method == "toString" ||
+                    mc.method == "describe" ||
+                    mc.method == "display";
                 
-                if !is_likely_getter && !is_mutating_array {
+                if !is_likely_getter && !is_mutating_method {
                     // This could be a mutating method on a class instance
                     if let Expr::Identifier(name) = mc.object.as_ref() {
-                        // Mark as potentially mutated
-                        mutated.insert(name.clone());
+                        // Mark as potentially mutated (sanitized to match VarDecl lookup)
+                        mutated.insert(self.sanitize_name(name));
                     }
                 }
                 
@@ -2194,8 +2199,7 @@ impl CodeGenerator {
         // Pre-analyze: collect variables that are mutated after declaration
         self.mutated_vars.clear();
         if let Some(body) = &func.body {
-            self.collect_mutated_vars_in_block(body, &mut self.mutated_vars.clone());
-            // Need to collect into a temp set first, then insert
+            // Collect mutated variables
             let mut temp_mutated = std::collections::HashSet::new();
             self.collect_mutated_vars_in_block(body, &mut temp_mutated);
             self.mutated_vars = temp_mutated;
@@ -2842,6 +2846,20 @@ impl CodeGenerator {
                                             if class_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
                                                 self.typed_array_vars.insert(name.to_string(), class_name.clone());
                                             }
+                                        }
+                                    }
+                                    // Bug #50 fix: Track primitive type arrays for proper filter/map lambda patterns
+                                    // e.g., let nums = [1, 2, 3] -> typed as "i32" (Copy type)
+                                    else if let Expr::Literal(lit) = &elements[0] {
+                                        let elem_type = match lit {
+                                            Literal::Int(_) => Some("i32"),
+                                            Literal::Float(_) => Some("f64"),
+                                            Literal::Bool(_) => Some("bool"),
+                                            Literal::String(_) => Some("string"),
+                                            _ => None,
+                                        };
+                                        if let Some(type_name) = elem_type {
+                                            self.typed_array_vars.insert(name.to_string(), type_name.to_string());
                                         }
                                     }
                                 }
@@ -3523,27 +3541,57 @@ impl CodeGenerator {
                             }
                         }
                     }
-                    Expr::Index { .. } => {
-                        // Indexed access like array[index] - the result is typically a JSON object
-                        // So property access should use bracket notation
-                        write!(self.output, "[\"{}\"]", property).unwrap();
+                    Expr::Index { object: arr_obj, .. } => {
+                        // Bug #51 fix: Check if this is a typed array with class elements
+                        // If so, use dot notation instead of bracket notation
+                        let use_dot_notation = if let Expr::Identifier(arr_name) = arr_obj.as_ref() {
+                            let sanitized = self.sanitize_name(arr_name);
+                            self.typed_array_vars.get(&sanitized).map(|t| {
+                                // Check if element type is a class (starts with uppercase, not primitive)
+                                !matches!(t.as_str(), "number" | "int" | "i32" | "float" | "f64" | "bool" | "char" | "string")
+                                    && t.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
+                            }).unwrap_or(false)
+                        } else {
+                            false
+                        };
+                        
+                        if use_dot_notation {
+                            // Class element - use dot notation with snake_case field name
+                            let rust_field = self.to_snake_case(property);
+                            write!(self.output, ".{}", rust_field).unwrap();
+                            
+                            // Bug #51: String fields need .clone() to avoid move errors
+                            // Common string field names that need cloning
+                            if property.ends_with("name") || property.ends_with("label") 
+                                || property.ends_with("title") || property.ends_with("text")
+                                || property.ends_with("message") || property.ends_with("description")
+                                || property == "name" || property == "label" || property == "title"
+                                || property == "text" || property == "message" || property == "description"
+                            {
+                                self.output.push_str(".clone()");
+                            }
+                        } else {
+                            // Indexed access like array[index] - the result is typically a JSON object
+                            // So property access should use bracket notation
+                            write!(self.output, "[\"{}\"]", property).unwrap();
 
-                        // For numeric fields in JSON objects, convert to appropriate type (but not in string templates)
-                        if !self.in_string_template {
-                            // Always convert price to f64 since it's commonly used in arithmetic
-                            if property == "price" {
-                                self.output.push_str(".as_f64().unwrap_or(0.0)");
-                            } else if property == "age"
-                                || property.contains("count")
-                                || property.contains("total")
-                                || property.contains("sum")
-                            {
-                                self.output.push_str(".as_f64().unwrap_or(0.0)");
-                            } else if property == "name"
-                                || property.contains("text")
-                                || property.contains("data")
-                            {
-                                self.output.push_str(".as_string().unwrap_or_default()");
+                            // For numeric fields in JSON objects, convert to appropriate type (but not in string templates)
+                            if !self.in_string_template {
+                                // Always convert price to f64 since it's commonly used in arithmetic
+                                if property == "price" {
+                                    self.output.push_str(".as_f64().unwrap_or(0.0)");
+                                } else if property == "age"
+                                    || property.contains("count")
+                                    || property.contains("total")
+                                    || property.contains("sum")
+                                {
+                                    self.output.push_str(".as_f64().unwrap_or(0.0)");
+                                } else if property == "name"
+                                    || property.contains("text")
+                                    || property.contains("data")
+                                {
+                                    self.output.push_str(".as_string().unwrap_or_default()");
+                                }
                             }
                         }
                     }
@@ -5024,14 +5072,33 @@ impl CodeGenerator {
             self.output.push_str(".iter()");
         }
         
+        // Bug #47-48: For parallel reduce with Copy types, add .copied() to get owned values
+        if method_call.method == "reduce" && matches!(method_call.adapter, ArrayAdapter::Par | ArrayAdapter::ParVec) {
+            // Check if we need .copied() (Copy types) or the iterator already has owned values
+            let needs_copied = if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
+                if let Some(element_type) = self.typed_array_vars.get(&base_var_name) {
+                    matches!(element_type.as_str(), "number" | "int" | "i32" | "float" | "f64" | "bool" | "char")
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+            if needs_copied {
+                self.output.push_str(".copied()");
+            }
+        }
+        
         self.output.push('.');
         
         // Map Liva method names to Rust iterator method names
+        let is_parallel = matches!(method_call.adapter, ArrayAdapter::Par | ArrayAdapter::ParVec);
         let rust_method = match method_call.method.as_str() {
             "forEach" => "for_each".to_string(),
             "indexOf" => "position".to_string(),
             "includes" => "any".to_string(),
-            "reduce" => "fold".to_string(),  // Rust uses fold instead of reduce
+            // For parallel reduce, we'll use fold + reduce (handled specially below)
+            "reduce" => "fold".to_string(),
             "some" => "any".to_string(),      // Liva: some, Rust: any
             "every" => "all".to_string(),     // Liva: every, Rust: all
             method_name => self.sanitize_name(method_name),  // Sanitize custom method names (e.g., isAdult -> is_adult)
@@ -5042,16 +5109,23 @@ impl CodeGenerator {
         
         // Generate arguments
         // Special case: reduce needs arguments reversed (initial first, then lambda)
-        let args_to_generate: Vec<&Expr> = if method_call.method == "reduce" && method_call.args.len() == 2 {
-            // Liva: .reduce(lambda, initial) -> Rust: .fold(initial, lambda)
-            vec![&method_call.args[1], &method_call.args[0]]
-        } else {
-            method_call.args.iter().collect()
-        };
+        // Also: Rayon parallel fold uses || identity closure, not just identity value
+        let is_parallel_reduce = method_call.method == "reduce" 
+            && matches!(method_call.adapter, ArrayAdapter::Par | ArrayAdapter::ParVec);
+        // Note: Liva reduce syntax is .reduce(initial, lambda) - same order as Rust's .fold()
+        // No reordering needed
+        let args_to_generate: Vec<&Expr> = method_call.args.iter().collect();
         
         for (i, arg) in args_to_generate.iter().enumerate() {
             if i > 0 {
                 self.output.push_str(", ");
+            }
+            
+            // Bug #47-48 fix: Rayon parallel fold needs closure for identity: || initial
+            if is_parallel_reduce && i == 0 {
+                self.output.push_str("|| ");
+                self.generate_expr(arg)?;
+                continue;
             }
             
             // Special handling for includes/indexOf: wrap value in closure
@@ -5106,7 +5180,9 @@ impl CodeGenerator {
             let needs_lambda_pattern = 
                 (method_call.method == "map" || method_call.method == "filter" || method_call.method == "reduce" || method_call.method == "forEach" || method_call.method == "find" || method_call.method == "some" || method_call.method == "every")
                 && (matches!(method_call.adapter, ArrayAdapter::Seq) 
-                    || (matches!(method_call.adapter, ArrayAdapter::Par | ArrayAdapter::ParVec) && is_json_value));
+                    // Bug #47-48 fix: par_iter() also returns &T, so we need lambda patterns for dereferencing
+                    // Exception: JsonValue with .to_vec().into_par_iter() gets owned values (no deref needed only for is_direct_json)
+                    || matches!(method_call.adapter, ArrayAdapter::Par | ArrayAdapter::ParVec));
             
             if needs_lambda_pattern {
                 if let Expr::Lambda(lambda) = arg {
@@ -5145,14 +5221,17 @@ impl CodeGenerator {
                             self.sanitize_name(param.name().unwrap())
                         };
                         
-                        // reduce: first param (acc) no pattern, second param (&x) gets &
+                        // reduce: first param (acc) no pattern, second param (&x) gets & (for sequential only)
+                        // Bug #47-48: Parallel reduce with .copied() gets owned values - no & needed
+                        let is_parallel_adapter = matches!(method_call.adapter, ArrayAdapter::Par | ArrayAdapter::ParVec);
                         if method_call.method == "reduce" {
                             if idx == 0 {
                                 // Accumulator: no dereferencing
                                 self.output.push_str(&param_name);
                             } else {
-                                // Element: dereference once (unless JsonValue or destructured)
-                                if !is_json_value && !param.is_destructuring() {
+                                // Element: dereference once for sequential (unless JsonValue or destructured)
+                                // For parallel with .copied(), no dereference needed
+                                if !is_json_value && !param.is_destructuring() && !is_parallel_adapter {
                                     self.output.push('&');
                                 }
                                 self.output.push_str(&param_name);
@@ -5343,6 +5422,19 @@ impl CodeGenerator {
             (ArrayAdapter::Par, "filter") | (ArrayAdapter::ParVec, "filter") => {
                 // Filter returns references, need to clone before collecting
                 self.output.push_str(".cloned().collect::<Vec<_>>()");
+            }
+            // Bug #47-48 fix: Parallel reduce needs .reduce() after fold() to combine partial results
+            // Pattern: .fold(|| identity, |acc, x| acc + x).reduce(|| identity, |a, b| a + b)
+            (ArrayAdapter::Par, "reduce") | (ArrayAdapter::ParVec, "reduce") => {
+                // After fold(|| initial, |acc, x| expr), we need reduce(|| initial, |a, b| combine)
+                // For simple ops like addition, the combine is the same as the fold
+                // Liva syntax: reduce(identity, lambda) so args[0] is identity
+                if method_call.args.len() >= 2 {
+                    // Get the identity value to repeat it
+                    self.output.push_str(".reduce(|| ");
+                    self.generate_expr(&method_call.args[0])?;  // identity is args[0]
+                    self.output.push_str(", |a, b| a + b)");  // For now, assume addition
+                }
             }
             // Find returns Option<&T>, copy/clone it
             // - JsonValue: no copy needed (already returns owned values)

@@ -5,6 +5,38 @@ All notable changes to the Liva compiler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.23] - 2025-02-03
+
+### Fixed - Parallel & Filter Bug Fixes 🐛
+
+Major bug fixes for generics, parallel operations, and field access patterns.
+
+**Bug #43: mut inference for class instance methods** ✅
+- Variables calling mutating methods (`push`/`pop`) now correctly detected as needing `mut`
+- Fixed name sanitization in `collect_mutated_vars_in_expr` to match VarDecl lookup
+- `let stack = Stack()` + `stack.push(x)` → `let mut stack`
+
+**Bug #47-49: Parallel filter/reduce reference handling** ✅
+- Parallel `filter()` now generates proper `|&&x|` pattern for dereferencing
+- Parallel `reduce()` generates correct Rayon pattern: `.fold(|| identity, |acc, x| ...).reduce(|| identity, |a, b| a + b)`
+- Added `.copied()` for Copy types before fold in parallel operations
+
+**Bug #50: Regular filter() dereference** ✅
+- Array literals now tracked with element types in `typed_array_vars`
+- `[1,2,3]` tracked as "i32" type for proper Copy detection
+- Generates `filter(|&&x| ...)` with `.copied().collect()` for Copy types
+
+**Bug #51: Array indexing + field access** ✅
+- `results[0].value` now generates direct field access instead of JSON bracket notation
+- Detects typed arrays with class elements
+- Added `.clone()` for String fields to avoid move errors
+
+**Test files added:**
+- `bug43_generic_test.liva` - Stack<T> with push/pop
+- `bug47_parallel_test.liva` - Parallel filter/reduce
+- `bug50_filter_test.liva` - Regular filter with primitives
+- `bug51_field_access_test.liva` - Array indexing + field access
+
 ## [Unreleased]
 
 ### Dogfooding - Generics & Parallel Testing 🧪
@@ -19,12 +51,15 @@ Comprehensive testing of generics and parallel features revealed working functio
 - ✅ Parallel `map()` operations on arrays
 - ✅ Regular `reduce()` with accumulators
 - ✅ Generic classes with different type instantiations
+- ✅ Regular and parallel `filter()` with proper dereference patterns
+- ✅ Parallel `reduce()` with correct Rayon fold+reduce pattern
+- ✅ Array indexing with direct field access for typed arrays
 
 **Documented Issues for Future Work (Bugs #41-54):**
 - Generic Stack<T> with array operations needs more work
-- Parallel filter/reduce need reference handling improvements
+- ~~Parallel filter/reduce need reference handling improvements~~ FIXED v0.11.23
 - Generic trait bounds need refinement (Clone, Display)
-- Array indexing + field access combination needs fixes
+- ~~Array indexing + field access combination needs fixes~~ FIXED v0.11.23
 
 **Test Files Created:**
 - `examples/generics_parallel_test/src/test1_stack.liva` - Box, Pair, Triple

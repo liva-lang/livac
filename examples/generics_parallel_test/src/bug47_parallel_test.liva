@@ -1,0 +1,22 @@
+// Bug #47-48 Test: Parallel filter and reduce
+// Expected: par().filter() and par().reduce() should work
+
+main() {
+    print("=== Bug #47-48: Parallel filter/reduce test ===")
+    
+    let nums = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    
+    // Parallel filter for even numbers
+    let evens = nums.par().filter(x => x % 2 == 0)
+    print($"Parallel evens: {evens}")
+    
+    // Parallel filter with comparison
+    let greaterThan5 = nums.par().filter(x => x > 5)
+    print($"Parallel > 5: {greaterThan5}")
+    
+    // Parallel reduce (sum)
+    let sum = nums.par().reduce(0, (acc, x) => acc + x)
+    print($"Parallel sum: {sum}")
+    
+    print("✅ Bug #47-48 parallel filter/reduce test passed!")
+}

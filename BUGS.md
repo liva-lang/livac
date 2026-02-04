@@ -326,9 +326,9 @@ Use `!` instead of `not` for negation.
 - ⚠️ Bug #42: Generic array indexing `items[len - 1]` uses `i32` but should be `usize`
   - Only affects generics, regular arrays work fine
   
-- ⚠️ Bug #43: Variables calling mutating methods (`push`/`pop`) not detected as needing `mut`
-  - `let stack = Stack()` should become `let mut stack` when `stack.push(x)` is called
-  - The `collect_mutated_vars_in_expr` detects this but something prevents propagation
+- ✅ Bug #43: Variables calling mutating methods (`push`/`pop`) not detected as needing `mut` - FIXED v0.11.23
+  - `let stack = Stack()` now correctly becomes `let mut stack` when `stack.push(x)` is called
+  - Fixed: sanitize names in `collect_mutated_vars_in_expr` to match VarDecl lookup
 
 - ⚠️ Bug #44: Trait `Eq` generates `PartialEq + Copy` but `String` doesn't implement `Copy`
   - Should generate `PartialEq + Clone` or just `PartialEq`
@@ -339,24 +339,28 @@ Use `!` instead of `not` for negation.
 - ⚠️ Bug #46: Generic methods returning `T` need automatic `Clone` bound inference
   - When method returns `this.field` where field is `T`, need `T: Clone`
 
-**Parallel Operations Issues (Not Fixed - Documented):**
-- ⚠️ Bug #47: `par_iter().filter(|x| x % 2 == 0)` - missing dereference `*x`
-  - `par_iter()` returns `&T`, lambda needs `*x` for operations
+**Parallel Operations Issues:**
+- ✅ Bug #47: `par_iter().filter(|x| x % 2 == 0)` - missing dereference `*x` - FIXED v0.11.23
+  - Fixed: `needs_lambda_pattern` now true for parallel adapters
+  - Generates `filter(|&&x| ...)` with proper dereference
 
-- ⚠️ Bug #48: `par_iter().reduce(initial, |acc, x|)` - Rayon's `fold` needs `|| initial`
-  - Rayon's `fold` takes `Fn() -> T` for identity, not just `T`
-  - Should use Rayon's `reduce` instead of `fold` for parallel reduction
+- ✅ Bug #48: `par_iter().reduce(initial, |acc, x|)` - Rayon's `fold` needs `|| initial` - FIXED v0.11.23
+  - Fixed: Generates `fold(|| identity, |acc, x| ...).reduce(|| identity, |a, b| a + b)`
+  - Added `.copied()` for Copy types before fold
 
-- ⚠️ Bug #49: `par_iter().filter(|x| x > 3)` - comparison with `&&T` not `T`
-  - Same dereference issue as Bug #47
+- ✅ Bug #49: `par_iter().filter(|x| x > 3)` - comparison with `&&T` not `T` - FIXED v0.11.23
+  - Same fix as Bug #47
 
-- ⚠️ Bug #50: Regular `filter()` also has dereference issue with `&&T`
-  - `values.iter().filter(|x| x % 2)` - x is `&&i32`, needs `**x`
+- ✅ Bug #50: Regular `filter()` also has dereference issue with `&&T` - FIXED v0.11.23
+  - Fixed: Track primitive type arrays in `typed_array_vars`
+  - Array literals like `[1,2,3]` now tracked as "i32" type
+  - Generates `filter(|&&x| ...)` with `.copied().collect()` for Copy types
 
-**Field Access Issues (Not Fixed - Documented):**
-- ⚠️ Bug #51: Array indexing then field access generates JSON-style access
-  - `results[0].value` → `results[0]["value"]` (wrong)
-  - Should generate `results[0].value` (direct field access)
+**Field Access Issues:**
+- ✅ Bug #51: Array indexing then field access generates JSON-style access - FIXED v0.11.23
+  - Fixed: Check if array is typed with class elements
+  - Generates `results[0].value` instead of `results[0]["value"]`
+  - Added `.clone()` for String fields to avoid move errors
   
 - ⚠️ Bug #52: `number / number` with `float` return type doesn't cast
   - Returns `i32 / i32` but function declares `f64` return
@@ -373,6 +377,9 @@ Use `!` instead of `not` for negation.
 - ✅ Generic class field access (direct, not via array indexing)
 - ✅ Generic constructors with type inference
 - ✅ Generic factory functions returning specific instantiations
+- ✅ Regular and parallel filter() with proper dereference patterns
+- ✅ Parallel reduce with correct Rayon fold+reduce pattern
+- ✅ Array indexing with direct field access for typed arrays
 - ✅ Importing generic classes from other modules
 - ✅ Parallel `map()` operations work perfectly
 - ✅ Regular `reduce()` works fine

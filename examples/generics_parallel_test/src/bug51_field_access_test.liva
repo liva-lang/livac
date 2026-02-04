@@ -1,0 +1,31 @@
+// Bug #51 Test: Array indexing then field access
+// Expected: results[0].value should generate direct field access, not JSON bracket notation
+
+Result {
+    value: number
+    label: string
+    
+    constructor(v: number, l: string) {
+        this.value = v
+        this.label = l
+    }
+}
+
+main() {
+    print("=== Bug #51: Array indexing + field access test ===")
+    
+    let results = [Result(10, "first"), Result(20, "second"), Result(30, "third")]
+    
+    // Direct field access after indexing
+    let firstValue = results[0].value
+    print($"First value: {firstValue}")
+    
+    let secondLabel = results[1].label
+    print($"Second label: {secondLabel}")
+    
+    // Field access in expression
+    let sum = results[0].value + results[1].value + results[2].value
+    print($"Sum: {sum}")
+    
+    print("✅ Bug #51 test passed!")
+}
