@@ -1,0 +1,22 @@
+// Bug #54: Generic fields in string templates need Display bound
+
+// Generic Box class that uses T in a template string
+Box<T> {
+    constructor(value: T) {
+        this.value = value
+    }
+    value: T
+    
+    // This should infer T: Display because we use this.value in template
+    toString(): string {
+        return $"Box({this.value})"
+    }
+}
+
+main() {
+    let intBox = Box<number>(42)
+    let strBox = Box<string>("hello")
+    
+    print(intBox.toString())
+    print(strBox.toString())
+}

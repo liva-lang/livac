@@ -2435,6 +2435,7 @@ impl SemanticAnalyzer {
     }
 
     /// Get all function names currently defined (for suggestions)
+    #[allow(dead_code)]
     fn get_all_functions(&self) -> Vec<String> {
         self.functions.keys().cloned().collect()
     }
@@ -3538,7 +3539,7 @@ impl SemanticAnalyzer {
                 // Check first sub-pattern in or-pattern
                 patterns.first().and_then(|p| self.infer_pattern_type(p))
             }
-            Pattern::Tuple(patterns) | Pattern::Array(patterns) => {
+            Pattern::Tuple(_patterns) | Pattern::Array(_patterns) => {
                 // For tuple/array, we'd need more complex type inference
                 // For now, we don't infer types from these
                 None
@@ -3597,7 +3598,7 @@ impl SemanticAnalyzer {
                     self.extract_int_literals(p, values, has_ranges);
                 }
             }
-            Pattern::Tuple(patterns) | Pattern::Array(patterns) => {
+            Pattern::Tuple(_patterns) | Pattern::Array(_patterns) => {
                 // Don't extract from nested structures for now
             }
             Pattern::Wildcard | Pattern::Binding(_) | Pattern::Typed { .. } => {

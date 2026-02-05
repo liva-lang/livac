@@ -252,6 +252,256 @@ impl CodeGenerator {
         }
     }
     
+    /// Bug #45-46: Detect which type parameters need Clone bound
+    /// Returns set of type param names that need Clone bound based on usage
+    fn infer_type_param_bounds(&self, class: &ClassDecl) -> std::collections::HashMap<String, std::collections::HashSet<String>> {
+        let mut bounds: std::collections::HashMap<String, std::collections::HashSet<String>> = std::collections::HashMap::new();
+        
+        // Initialize bounds for each type param
+        for tp in &class.type_params {
+            bounds.insert(tp.name.clone(), std::collections::HashSet::new());
+        }
+        
+        // Get set of type param names for quick lookup
+        let type_param_names: std::collections::HashSet<String> = class.type_params.iter().map(|tp| tp.name.clone()).collect();
+        
+        // Get field types to detect generic fields (only fields with explicit types)
+        let generic_fields: std::collections::HashMap<String, &TypeRef> = class.members.iter().filter_map(|m| {
+            if let Member::Field(f) = m {
+                // Only include fields that have explicit type annotations
+                f.type_ref.as_ref().map(|t| (f.name.clone(), t))
+            } else {
+                None
+            }
+        }).collect();
+        
+        // Analyze methods for patterns that need Clone/Display bounds
+        for member in &class.members {
+            if let Member::Method(method) = member {
+                // Bug #45-46: If method returns T and accesses this.field or this.items[i]
+                // where the field type involves T, we need Clone bound
+                if let Some(return_type) = &method.return_type {
+                    // Check if return type is or contains a type param
+                    for tp_name in &type_param_names {
+                        if self.type_contains_param(return_type, tp_name) {
+                            // Check if method body accesses self fields that need clone
+                            if self.method_returns_self_field_of_type(method, tp_name, &generic_fields) {
+                                bounds.get_mut(tp_name).unwrap().insert("Clone".to_string());
+                            }
+                        }
+                    }
+                }
+                
+                // Bug #54: Check for string templates using type params
+                if let Some(body) = &method.body {
+                    for tp_name in &type_param_names {
+                        if self.block_uses_type_in_template(body, tp_name, &generic_fields) {
+                            bounds.get_mut(tp_name).unwrap().insert("std::fmt::Display".to_string());
+                        }
+                    }
+                }
+                if let Some(expr_body) = &method.expr_body {
+                    for tp_name in &type_param_names {
+                        if self.expr_uses_type_in_template(expr_body, tp_name, &generic_fields) {
+                            bounds.get_mut(tp_name).unwrap().insert("std::fmt::Display".to_string());
+                        }
+                    }
+                }
+            }
+        }
+        
+        bounds
+    }
+    
+    /// Check if a TypeRef contains a type parameter
+    fn type_contains_param(&self, type_ref: &TypeRef, param_name: &str) -> bool {
+        match type_ref {
+            TypeRef::Simple(name) => name == param_name,
+            TypeRef::Array(inner) => self.type_contains_param(inner, param_name),
+            TypeRef::Optional(inner) => self.type_contains_param(inner, param_name),
+            TypeRef::Fallible(inner) => self.type_contains_param(inner, param_name),
+            TypeRef::Tuple(elems) => elems.iter().any(|e| self.type_contains_param(e, param_name)),
+            TypeRef::Generic { base, args } => {
+                base == param_name || args.iter().any(|a| self.type_contains_param(a, param_name))
+            }
+            TypeRef::Union(variants) => variants.iter().any(|v| self.type_contains_param(v, param_name)),
+        }
+    }
+    
+    /// Check if method returns from a self field that involves the type parameter
+    fn method_returns_self_field_of_type(&self, method: &MethodDecl, type_param: &str, generic_fields: &std::collections::HashMap<String, &TypeRef>) -> bool {
+        if let Some(body) = &method.body {
+            return self.block_returns_self_field_of_type(body, type_param, generic_fields);
+        }
+        if let Some(expr) = &method.expr_body {
+            return self.expr_returns_self_field_of_type(expr, type_param, generic_fields);
+        }
+        false
+    }
+    
+    fn block_returns_self_field_of_type(&self, block: &BlockStmt, type_param: &str, generic_fields: &std::collections::HashMap<String, &TypeRef>) -> bool {
+        for stmt in &block.stmts {
+            if self.stmt_returns_self_field_of_type(stmt, type_param, generic_fields) {
+                return true;
+            }
+        }
+        false
+    }
+    
+    fn stmt_returns_self_field_of_type(&self, stmt: &Stmt, type_param: &str, generic_fields: &std::collections::HashMap<String, &TypeRef>) -> bool {
+        match stmt {
+            Stmt::Return(ret) => {
+                if let Some(expr) = &ret.expr {
+                    return self.expr_returns_self_field_of_type(expr, type_param, generic_fields);
+                }
+                false
+            }
+            Stmt::If(if_stmt) => {
+                let then_returns = match &if_stmt.then_branch {
+                    IfBody::Block(b) => self.block_returns_self_field_of_type(b, type_param, generic_fields),
+                    IfBody::Stmt(s) => self.stmt_returns_self_field_of_type(s, type_param, generic_fields),
+                };
+                let else_returns = if_stmt.else_branch.as_ref().map_or(false, |eb| {
+                    match eb {
+                        IfBody::Block(b) => self.block_returns_self_field_of_type(b, type_param, generic_fields),
+                        IfBody::Stmt(s) => self.stmt_returns_self_field_of_type(s, type_param, generic_fields),
+                    }
+                });
+                then_returns || else_returns
+            }
+            _ => false,
+        }
+    }
+    
+    fn expr_returns_self_field_of_type(&self, expr: &Expr, type_param: &str, generic_fields: &std::collections::HashMap<String, &TypeRef>) -> bool {
+        match expr {
+            // Direct field access: this.value where value: T
+            Expr::Member { object, property } => {
+                if let Expr::Identifier(obj) = object.as_ref() {
+                    if obj == "this" || obj == "self" {
+                        // Check if this field has a type involving the type param
+                        if let Some(field_type) = generic_fields.get(property) {
+                            return self.type_contains_param(field_type, type_param);
+                        }
+                    }
+                }
+                false
+            }
+            // Array indexing: this.items[i] where items: [T]
+            Expr::Index { object, .. } => {
+                if let Expr::Member { object: base, property } = object.as_ref() {
+                    if let Expr::Identifier(obj) = base.as_ref() {
+                        if obj == "this" || obj == "self" {
+                            if let Some(field_type) = generic_fields.get(property) {
+                                // For arrays, check the element type
+                                if let TypeRef::Array(elem_type) = field_type {
+                                    return self.type_contains_param(elem_type, type_param);
+                                }
+                                return self.type_contains_param(field_type, type_param);
+                            }
+                        }
+                    }
+                }
+                false
+            }
+            _ => false,
+        }
+    }
+    
+    /// Bug #54: Check if block uses type param in string templates
+    fn block_uses_type_in_template(&self, block: &BlockStmt, type_param: &str, generic_fields: &std::collections::HashMap<String, &TypeRef>) -> bool {
+        for stmt in &block.stmts {
+            if self.stmt_uses_type_in_template(stmt, type_param, generic_fields) {
+                return true;
+            }
+        }
+        false
+    }
+    
+    fn stmt_uses_type_in_template(&self, stmt: &Stmt, type_param: &str, generic_fields: &std::collections::HashMap<String, &TypeRef>) -> bool {
+        match stmt {
+            Stmt::Expr(expr_stmt) => self.expr_uses_type_in_template(&expr_stmt.expr, type_param, generic_fields),
+            Stmt::Return(ret) => ret.expr.as_ref().map_or(false, |e| self.expr_uses_type_in_template(e, type_param, generic_fields)),
+            Stmt::VarDecl(var_decl) => self.expr_uses_type_in_template(&var_decl.init, type_param, generic_fields),
+            Stmt::If(if_stmt) => {
+                let cond = self.expr_uses_type_in_template(&if_stmt.condition, type_param, generic_fields);
+                let then_branch = match &if_stmt.then_branch {
+                    IfBody::Block(b) => self.block_uses_type_in_template(b, type_param, generic_fields),
+                    IfBody::Stmt(s) => self.stmt_uses_type_in_template(s, type_param, generic_fields),
+                };
+                let else_branch = if_stmt.else_branch.as_ref().map_or(false, |eb| {
+                    match eb {
+                        IfBody::Block(b) => self.block_uses_type_in_template(b, type_param, generic_fields),
+                        IfBody::Stmt(s) => self.stmt_uses_type_in_template(s, type_param, generic_fields),
+                    }
+                });
+                cond || then_branch || else_branch
+            }
+            Stmt::While(while_stmt) => {
+                self.expr_uses_type_in_template(&while_stmt.condition, type_param, generic_fields) ||
+                self.block_uses_type_in_template(&while_stmt.body, type_param, generic_fields)
+            }
+            Stmt::For(for_stmt) => {
+                self.expr_uses_type_in_template(&for_stmt.iterable, type_param, generic_fields) ||
+                self.block_uses_type_in_template(&for_stmt.body, type_param, generic_fields)
+            }
+            _ => false,
+        }
+    }
+    
+    fn expr_uses_type_in_template(&self, expr: &Expr, type_param: &str, generic_fields: &std::collections::HashMap<String, &TypeRef>) -> bool {
+        match expr {
+            Expr::StringTemplate { parts } => {
+                // Check if any part references a generic field
+                for part in parts {
+                    if let StringTemplatePart::Expr(inner_expr) = part {
+                        if let Expr::Member { object, property } = inner_expr.as_ref() {
+                            if let Expr::Identifier(obj) = object.as_ref() {
+                                if obj == "this" || obj == "self" {
+                                    if let Some(field_type) = generic_fields.get(property.as_str()) {
+                                        if self.type_contains_param(field_type, type_param) {
+                                            return true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        // Also check for array indexing in template
+                        if let Expr::Index { object, .. } = inner_expr.as_ref() {
+                            if let Expr::Member { object: base, property } = object.as_ref() {
+                                if let Expr::Identifier(obj) = base.as_ref() {
+                                    if obj == "this" || obj == "self" {
+                                        if let Some(field_type) = generic_fields.get(property.as_str()) {
+                                            if let TypeRef::Array(elem_type) = field_type {
+                                                if self.type_contains_param(elem_type, type_param) {
+                                                    return true;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                false
+            }
+            Expr::Call(call) => {
+                self.expr_uses_type_in_template(&call.callee, type_param, generic_fields) ||
+                call.args.iter().any(|a| self.expr_uses_type_in_template(a, type_param, generic_fields))
+            }
+            Expr::MethodCall(mc) => {
+                self.expr_uses_type_in_template(&mc.object, type_param, generic_fields) ||
+                mc.args.iter().any(|a| self.expr_uses_type_in_template(a, type_param, generic_fields))
+            }
+            Expr::Binary { left, right, .. } => {
+                self.expr_uses_type_in_template(left, type_param, generic_fields) ||
+                self.expr_uses_type_in_template(right, type_param, generic_fields)
+            }
+            _ => false,
+        }
+    }
+    
     /// Check if a method modifies self fields (requires &mut self)
     fn method_modifies_self(&self, method: &MethodDecl) -> bool {
         if let Some(body) = &method.body {
@@ -384,6 +634,11 @@ impl CodeGenerator {
                         mutated.insert(name.clone());
                     }
                 }
+            }
+            // Bug #41 fix: Check VarDecl for mutating method calls in initializer
+            // e.g., let x = arr.pop() should mark arr as mutated
+            Stmt::VarDecl(var_decl) => {
+                self.collect_mutated_vars_in_expr(&var_decl.init, mutated);
             }
             Stmt::If(if_stmt) => {
                 // Recurse into branches
@@ -1550,15 +1805,37 @@ impl CodeGenerator {
             }
         }
         
-        // Format type parameters
+        // Bug #45-46, #54: Infer bounds for type parameters based on usage
+        let inferred_bounds = self.infer_type_param_bounds(class);
+        
+        // Format type parameters with both explicit constraints and inferred bounds
         let type_params_str = if !class.type_params.is_empty() {
             let params: Vec<String> = class.type_params.iter().map(|tp| {
+                let mut all_bounds = Vec::new();
+                
+                // Add explicit constraints first
                 if !tp.constraints.is_empty() {
-                    // Use trait registry to get complete Rust trait bounds
                     let rust_bounds = self.trait_registry.generate_rust_bounds(&tp.constraints);
-                    format!("{}{}", tp.name, rust_bounds)
-                } else {
+                    // Remove leading ": " from rust_bounds
+                    let bounds_part = rust_bounds.trim_start_matches(": ");
+                    all_bounds.push(bounds_part.to_string());
+                }
+                
+                // Add inferred bounds
+                if let Some(inferred) = inferred_bounds.get(&tp.name) {
+                    for bound in inferred {
+                        // Check if bound is already included (from explicit constraints)
+                        let bound_str = bound.as_str();
+                        if !all_bounds.iter().any(|b| b.contains(bound_str)) {
+                            all_bounds.push(bound.clone());
+                        }
+                    }
+                }
+                
+                if all_bounds.is_empty() {
                     tp.name.clone()
+                } else {
+                    format!("{}: {}", tp.name, all_bounds.join(" + "))
                 }
             }).collect();
             format!("<{}>", params.join(", "))
@@ -1608,15 +1885,32 @@ impl CodeGenerator {
             }
         });
 
-        // Format type parameters for impl block
+        // Format type parameters for impl block (with same bounds as struct)
         let impl_type_params = if !class.type_params.is_empty() {
             let params: Vec<String> = class.type_params.iter().map(|tp| {
+                let mut all_bounds = Vec::new();
+                
+                // Add explicit constraints first
                 if !tp.constraints.is_empty() {
-                    // Use trait registry to get complete Rust trait bounds
                     let rust_bounds = self.trait_registry.generate_rust_bounds(&tp.constraints);
-                    format!("{}{}", tp.name, rust_bounds)
-                } else {
+                    let bounds_part = rust_bounds.trim_start_matches(": ");
+                    all_bounds.push(bounds_part.to_string());
+                }
+                
+                // Add inferred bounds (same as struct)
+                if let Some(inferred) = inferred_bounds.get(&tp.name) {
+                    for bound in inferred {
+                        let bound_str = bound.as_str();
+                        if !all_bounds.iter().any(|b| b.contains(bound_str)) {
+                            all_bounds.push(bound.clone());
+                        }
+                    }
+                }
+                
+                if all_bounds.is_empty() {
                     tp.name.clone()
+                } else {
+                    format!("{}: {}", tp.name, all_bounds.join(" + "))
                 }
             }).collect();
             format!("<{}>", params.join(", "))
@@ -1698,14 +1992,13 @@ impl CodeGenerator {
                             "None".to_string()
                         } else if let Some(init_expr) = &field.init {
                             // Field has an initializer in its definition
-                            let mut value = String::new();
                             let needs_string_conversion = matches!(init_expr, Expr::Literal(Literal::String(_)))
                                 && field.type_ref.as_ref().map(|t| matches!(t, TypeRef::Simple(s) if s == "string" || s == "String")).unwrap_or(false);
                             
                             // Generate the init expression to a temporary buffer
                             let old_output = std::mem::take(&mut self.output);
                             self.generate_expr(init_expr)?;
-                            value = std::mem::replace(&mut self.output, old_output);
+                            let value = std::mem::replace(&mut self.output, old_output);
                             
                             if needs_string_conversion {
                                 format!("{}.to_string()", value)
@@ -3246,12 +3539,22 @@ impl CodeGenerator {
         Ok(())
     }
 
-    /// Checks if an expression is a member access on 'this' (self.field)
+    /// Checks if an expression is a member access on 'this' (self.field) or array indexing (self.items[i])
     /// Returns true if the expression needs .clone() when used in assignment or return
+    /// Bug #45-46: Extended to handle array indexing of generic array fields
     fn expr_is_self_field(&self, expr: &Expr) -> bool {
+        // Direct field access: this.field
         if let Expr::Member { object, property: _ } = expr {
             if let Expr::Identifier(obj) = object.as_ref() {
                 return obj == "this" && self.in_method;
+            }
+        }
+        // Bug #45-46: Array indexing: this.items[i]
+        if let Expr::Index { object, .. } = expr {
+            if let Expr::Member { object: base, .. } = object.as_ref() {
+                if let Expr::Identifier(obj) = base.as_ref() {
+                    return obj == "this" && self.in_method;
+                }
             }
         }
         false
@@ -3816,25 +4119,45 @@ impl CodeGenerator {
                 // Fall back to standard array indexing
                 // Bug #34: For arrays with non-literal index (e.g., lines[i] where i is int),
                 // we need to add `as usize` because Rust Vec indexing requires usize
+                // Bug #42: Also handle this.field[idx] for generic class array fields
                 self.output.push('[');
-                self.generate_expr(index)?;
                 
-                // Add `as usize` for non-literal indexes on arrays
-                // Literal integers (0, 1, 2) work fine, but variables (i) are i32 and need conversion
+                // Determine if we need `as usize` conversion BEFORE generating the expression
+                // so we can wrap it in parentheses if needed
+                let needs_usize_conversion = match object.as_ref() {
+                    Expr::Identifier(var_name) => {
+                        let sanitized = self.sanitize_name(var_name);
+                        if self.array_vars.contains(&sanitized) {
+                            match index.as_ref() {
+                                Expr::Literal(Literal::Int(_)) => false,
+                                _ => true,
+                            }
+                        } else {
+                            false
+                        }
+                    }
+                    Expr::Member { .. } => {
+                        match index.as_ref() {
+                            Expr::Literal(Literal::Int(_)) => false,
+                            _ => true,
+                        }
+                    }
+                    _ => false,
+                };
+                
+                // Wrap in parentheses if we need usize conversion
+                if needs_usize_conversion {
+                    self.output.push('(');
+                }
+                self.generate_expr(index)?;
+                if needs_usize_conversion {
+                    self.output.push_str(") as usize");
+                }
+                
+                // Check if this is a string array - need .clone() for String
                 let needs_clone = if let Expr::Identifier(var_name) = object.as_ref() {
                     let sanitized = self.sanitize_name(var_name);
                     if self.array_vars.contains(&sanitized) {
-                        // Only add conversion for non-literal indexes
-                        match index.as_ref() {
-                            Expr::Literal(Literal::Int(_)) => {
-                                // Literal integers don't need conversion
-                            }
-                            _ => {
-                                // Variables and expressions need `as usize`
-                                self.output.push_str(" as usize");
-                            }
-                        }
-                        // Check if this is a string array - need .clone() for String
                         if let Some(elem_type) = self.typed_array_vars.get(&sanitized) {
                             elem_type == "string"
                         } else {
@@ -4407,7 +4730,7 @@ impl CodeGenerator {
                     self.generate_pattern(pat)?;
                 }
             }
-            Pattern::Typed { name, type_ref } => {
+            Pattern::Typed { name, type_ref: _ } => {
                 // Type pattern for union narrowing: name: type
                 // When used outside of union context, just bind the variable
                 // (Union context is handled in generate_union_pattern)
@@ -5165,7 +5488,7 @@ impl CodeGenerator {
         self.output.push('.');
         
         // Map Liva method names to Rust iterator method names
-        let is_parallel = matches!(method_call.adapter, ArrayAdapter::Par | ArrayAdapter::ParVec);
+        let _is_parallel = matches!(method_call.adapter, ArrayAdapter::Par | ArrayAdapter::ParVec);
         let rust_method = match method_call.method.as_str() {
             "forEach" => "for_each".to_string(),
             "indexOf" => "position".to_string(),
@@ -5267,7 +5590,7 @@ impl CodeGenerator {
                         None
                     };
                     
-                    if let Some(ref elem_type) = element_type {
+                    if let Some(ref _elem_type) = element_type {
                         // Track the lambda parameter as an instance of this class type
                         for param in &lambda.params {
                             if let Some(name) = param.name() {
@@ -5535,6 +5858,12 @@ impl CodeGenerator {
             // asFloat -> as_f64().unwrap_or_default()
             (_, "asString") | (_, "asInt") | (_, "asFloat") | (_, "asBool") => {
                 self.output.push_str(".unwrap_or_default()");
+            }
+            // Bug #41: Vec methods that return Option<T> need unwrap
+            // pop() -> Option<T>, unwrap to get T directly
+            // In Liva, pop() should return the element, not Option<T>
+            (ArrayAdapter::Seq, "pop") => {
+                self.output.push_str(".expect(\"pop from empty array\")");
             }
             // Default: no transformation
             _ => {}
@@ -7001,7 +7330,7 @@ impl CodeGenerator {
                         
                         // Check if this field is itself a class type, and register it as a class instance
                         // This is important for nested struct access (e.g., address.zipcode)
-                        if let Some(cls_name) = class_name {
+                        if let Some(_cls_name) = class_name {
                             // Try to get the field type from class_fields metadata
                             // For now, we'll use a heuristic: if the field name starts with lowercase
                             // and there's a corresponding capitalized class, mark it as class instance
@@ -7110,6 +7439,7 @@ impl CodeGenerator {
     }
 
     /// Check if a string is in camelCase (has uppercase letters that aren't at the start)
+    #[allow(dead_code)]
     fn is_camel_case(&self, s: &str) -> bool {
         s.chars().enumerate().any(|(i, ch)| i > 0 && ch.is_uppercase())
     }
@@ -9034,7 +9364,7 @@ impl<'a> IrCodeGenerator<'a> {
                     self.generate_pattern(pat)?;
                 }
             }
-            Pattern::Typed { name, type_ref } => {
+            Pattern::Typed { name, type_ref: _ } => {
                 // Type pattern for union narrowing: name: type
                 // This will be handled specially in generate_switch_expr
                 self.output.push_str(&self.sanitize_name(name));

@@ -1,6 +1,6 @@
 # Liva Language Quick Reference
 
-> **Version:** 0.11.3  
+> **Version:** 1.0.0  
 > **Liva** — Python's simplicity, TypeScript's clarity, Rust's performance
 
 ---

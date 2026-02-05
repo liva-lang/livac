@@ -1,0 +1,25 @@
+// Bug #44: Trait Eq should use Clone, not Copy
+
+// Generic Container with Eq constraint
+Container<T: Eq> {
+    constructor(value: T) {
+        this.value = value
+    }
+    value: T
+    
+    equals(other: T): bool {
+        return this.value == other
+    }
+}
+
+main() {
+    // This should work with String (which implements Clone but not Copy)
+    let strContainer = Container<string>("hello")
+    print($"Equals 'hello': {strContainer.equals(\"hello\")}")
+    print($"Equals 'world': {strContainer.equals(\"world\")}")
+    
+    // And with numbers
+    let numContainer = Container<number>(42)
+    print($"Equals 42: {numContainer.equals(42)}")
+    print($"Equals 99: {numContainer.equals(99)}")
+}

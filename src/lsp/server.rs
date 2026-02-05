@@ -276,7 +276,7 @@ impl LanguageServer for LivaLanguageServer {
     
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
         let uri = &params.text_document_position.text_document.uri;
-        let position = params.text_document_position.position;
+        let _position = params.text_document_position.position;
         
         let doc = match self.documents.get(uri) {
             Some(doc) => doc,

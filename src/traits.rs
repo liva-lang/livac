@@ -70,14 +70,16 @@ impl TraitRegistry {
         // Unary operators
         self.register(TraitDef {
             name: "Neg".to_string(),
-            rust_path: "std::ops::Neg<Output=T> + Copy".to_string(),
+            // Bug #44: Changed Copy to Clone since String and other types don't implement Copy
+            rust_path: "std::ops::Neg<Output=T> + Clone".to_string(),
             operators: vec!["unary-".to_string()],
             requires: vec![],
         });
 
         self.register(TraitDef {
             name: "Not".to_string(),
-            rust_path: "std::ops::Not<Output=T> + Copy".to_string(),
+            // Bug #44: Changed Copy to Clone since String and other types don't implement Copy
+            rust_path: "std::ops::Not<Output=T> + Clone".to_string(),
             operators: vec!["!".to_string()],
             requires: vec![],
         });
@@ -85,14 +87,16 @@ impl TraitRegistry {
         // Comparison operators
         self.register(TraitDef {
             name: "Eq".to_string(),
-            rust_path: "std::cmp::PartialEq + Copy".to_string(),
+            // Bug #44: Changed Copy to Clone since String doesn't implement Copy
+            rust_path: "std::cmp::PartialEq + Clone".to_string(),
             operators: vec!["==".to_string(), "!=".to_string()],
             requires: vec![],
         });
 
         self.register(TraitDef {
             name: "Ord".to_string(),
-            rust_path: "std::cmp::PartialOrd + Copy".to_string(),
+            // Bug #44: Changed Copy to Clone since String doesn't implement Copy
+            rust_path: "std::cmp::PartialOrd + Clone".to_string(),
             operators: vec![">".to_string(), "<".to_string(), ">=".to_string(), "<=".to_string()],
             requires: vec!["Eq".to_string()],  // Ord requires Eq
         });

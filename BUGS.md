@@ -319,25 +319,32 @@ Use `!` instead of `not` for negation.
 
 ### Session 12 - Generics & Parallel Dogfooding (v0.11.22):
 
-**Generics Issues (Not Fixed - Documented):**
-- ⚠️ Bug #41: `Vec<T>::pop()` returns `Option<T>`, but Liva's `pop(): T` expects direct value
-  - Need to add `.expect("...")` or `.unwrap()` to pop calls
+**Generics Issues (All Fixed in v0.11.25):**
+- ✅ Bug #41: `Vec<T>::pop()` returns `Option<T>`, but Liva's `pop(): T` expects direct value - FIXED v0.11.25
+  - Added `.expect("pop from empty array")` suffix for pop() method calls in codegen
+  - Added `Stmt::VarDecl` case to `collect_mutated_vars_in_stmt` for mutation detection
   
-- ⚠️ Bug #42: Generic array indexing `items[len - 1]` uses `i32` but should be `usize`
-  - Only affects generics, regular arrays work fine
+- ✅ Bug #42: Generic array indexing `items[len - 1]` uses `i32` but should be `usize` - FIXED v0.11.25
+  - Now wraps entire index expression in parentheses before adding `as usize`
+  - `self.items[len - 1]` → `self.items[(len - 1) as usize]`
+  - Also handles `Expr::Member` (self.items) not just `Expr::Identifier`
   
 - ✅ Bug #43: Variables calling mutating methods (`push`/`pop`) not detected as needing `mut` - FIXED v0.11.23
   - `let stack = Stack()` now correctly becomes `let mut stack` when `stack.push(x)` is called
   - Fixed: sanitize names in `collect_mutated_vars_in_expr` to match VarDecl lookup
 
-- ⚠️ Bug #44: Trait `Eq` generates `PartialEq + Copy` but `String` doesn't implement `Copy`
-  - Should generate `PartialEq + Clone` or just `PartialEq`
+- ✅ Bug #44: Trait `Eq` generates `PartialEq + Copy` but `String` doesn't implement `Copy` - FIXED v0.11.25
+  - Changed from `Copy` to `Clone` in trait bounds for Eq, Ord, Neg, Not traits
+  - Now generates `PartialEq + Clone` which works with String and other non-Copy types
 
-- ⚠️ Bug #45: Generic getter methods `get(): T` generate `.clone()` without `Clone` bound
-  - Returns `self.value.clone()` but impl doesn't have `<T: Clone>`
+- ✅ Bug #45: Generic getter methods `get(): T` generate `.clone()` without `Clone` bound - FIXED v0.11.25
+  - Extended `expr_is_self_field()` to also detect `this.items[i]` patterns
+  - Added `.clone()` suffix for array indexing on self fields
 
-- ⚠️ Bug #46: Generic methods returning `T` need automatic `Clone` bound inference
-  - When method returns `this.field` where field is `T`, need `T: Clone`
+- ✅ Bug #46: Generic methods returning `T` need automatic `Clone` bound inference - FIXED v0.11.25
+  - Added `infer_type_param_bounds()` function in codegen
+  - Analyzes methods to detect when they return `T` from `this.field` or `this.items[i]`
+  - Automatically adds `Clone` bound to type parameters when needed
 
 **Parallel Operations Issues:**
 - ✅ Bug #47: `par_iter().filter(|x| x % 2 == 0)` - missing dereference `*x` - FIXED v0.11.23
@@ -373,8 +380,11 @@ Use `!` instead of `not` for negation.
   - Was fixed by Bug #51 fix - typed arrays generate direct field access
   - `$"{results[0].value}"` → `results[0].value` (correct)
   
-- ⚠️ Bug #54: Generic fields in string templates need `Display` bound
-  - `$"Result({this.value})"` where T is generic needs `T: Display`
+- ✅ Bug #54: Generic fields in string templates need `Display` bound - FIXED v0.11.25
+  - Added `block_uses_type_in_template()` and `expr_uses_type_in_template()` functions
+  - Detects when `$"...{this.value}..."` uses a generic field
+  - Automatically adds `std::fmt::Display` bound to type parameter
+  - Example: `Box<T>` with `$"Box({this.value})"` → `impl<T: std::fmt::Display> Box<T>`
 
 **What Works Well:**
 - ✅ Basic generics: `Box<T>`, `Pair<A,B>`, `Triple<X,Y,Z>`
@@ -386,6 +396,9 @@ Use `!` instead of `not` for negation.
 - ✅ Parallel reduce with correct Rayon fold+reduce pattern
 - ✅ Array indexing with direct field access for typed arrays
 - ✅ Importing generic classes from other modules
+- ✅ Automatic Clone bound inference for methods returning T from this.field
+- ✅ Automatic Display bound inference for generic fields in string templates
+- ✅ Array indexing with (expr) as usize for non-literal indexes
 - ✅ Parallel `map()` operations work perfectly
 - ✅ Regular `reduce()` works fine
 - ✅ Combining parallel map with subsequent operations

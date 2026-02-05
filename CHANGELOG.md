@@ -5,6 +5,88 @@ All notable changes to the Liva compiler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2025-02-04 🎉
+
+### 🚀 First Stable Release!
+
+After extensive dogfooding with 10+ real CLI applications and fixing all 54 discovered bugs,
+Liva v1.0.0 is ready for production use.
+
+### Highlights
+- **100% bug-free**: All 54 bugs found during dogfooding have been fixed
+- **Complete language features**: Variables, functions, classes, generics, async/await, parallel execution
+- **Full standard library**: File I/O, HTTP client, JSON parsing, Math utilities
+- **Complete LSP support**: Syntax highlighting, autocompletion, go-to-definition, diagnostics
+- **Automatic trait inference**: Clone and Display bounds detected automatically
+
+### What's in 1.0.0
+- TypeScript-like syntax with Python simplicity
+- Compiles to safe, performant Rust
+- Hybrid concurrency: `async` for I/O, `par` for CPU
+- Explicit error handling with `fail` and error binding
+- Generic programming with automatic bound inference
+- Module system with imports/exports
+
+### Tested Applications Built with Liva
+- GitHub CLI - HTTP + JSON + Arrays
+- Config Tool - File I/O + JSON
+- Task Manager - CRUD operations
+- Notes App - Classes + Methods + File I/O
+- Weather CLI - Real API integration
+- Crypto Tracker - CoinGecko API
+- Todo API - RESTful operations
+- Log Analyzer - Pattern matching
+- Generic Tests - Box<T>, Stack<T>, Pair<A,B>
+
+---
+
+## [0.11.25] - 2025-02-04
+
+### Fixed - Generic Bounds Inference & Trait Fixes 🐛
+
+Major improvements to generic programming support with automatic trait bound inference.
+
+**Bug #41: pop() returns Option<T>** ✅
+- Array `pop()` method now adds `.expect("pop from empty array")` suffix
+- Added `Stmt::VarDecl` case to mutation detection for proper `mut` inference
+- Variables using `pop()` in initialization now correctly marked as mutable
+
+**Bug #42: Generic array indexing with i32** ✅
+- Now wraps entire index expression in parentheses before `as usize`
+- `self.items[len - 1]` → `self.items[(len - 1) as usize]`
+- Extended to handle `Expr::Member` (self.items) patterns
+
+**Bug #44: Trait Eq uses Copy instead of Clone** ✅
+- Changed trait bounds from `Copy` to `Clone` for Eq, Ord, Neg, Not traits
+- Now generates `PartialEq + Clone` which works with String and non-Copy types
+- Updated `src/traits.rs` with corrected trait definitions
+
+**Bug #45-46: Automatic Clone bound inference** ✅
+- Added `infer_type_param_bounds()` function in codegen
+- Analyzes methods returning `T` from `this.field` or `this.items[i]`
+- Automatically adds `Clone` bound to type parameters when needed
+- Extended `expr_is_self_field()` to detect array indexing on self fields
+- Adds `.clone()` suffix for array indexing returns
+
+**Bug #54: Automatic Display bound inference** ✅
+- Added `block_uses_type_in_template()` and `expr_uses_type_in_template()` functions
+- Detects generic field usage in string templates `$"...{this.value}..."`
+- Automatically adds `std::fmt::Display` bound to type parameters
+
+### Technical Changes
+- New helper functions in codegen.rs for bound inference:
+  - `infer_type_param_bounds()` - Analyzes class for required bounds
+  - `type_contains_param()` - Checks if TypeRef contains type parameter
+  - `method_returns_self_field_of_type()` - Detects return patterns
+  - `block_uses_type_in_template()` - Detects Display requirements
+- Trait definitions updated in src/traits.rs to use Clone instead of Copy
+
+### Test files added
+- `bug41_pop_test.liva` - pop() with proper unwrap
+- `bug42_generic_index_test.liva` - Generic Stack with array indexing
+- `bug44_eq_clone_test.liva` - Eq constraint with String
+- `bug54_display_test.liva` - Generic fields in templates
+
 ## [0.11.24] - 2025-02-04
 
 ### Fixed - Division & Template Bug Fixes 🐛

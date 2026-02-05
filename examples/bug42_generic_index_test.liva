@@ -1,0 +1,31 @@
+// Bug #42: Generic array indexing uses i32 instead of usize
+
+// Generic Stack class
+Stack<T> {
+    constructor() {
+        this.items = []
+    }
+    items: [T]
+    
+    push(item: T) {
+        this.items.push(item)
+    }
+    
+    // This method has the bug: items[len - 1] where len is i32
+    peek(): T {
+        let len = this.items.length
+        return this.items[len - 1]
+    }
+    
+    size(): number => this.items.length
+}
+
+main() {
+    let stack = Stack<number>()
+    stack.push(10)
+    stack.push(20)
+    stack.push(30)
+    
+    print($"Stack size: {stack.size()}")
+    print($"Top element: {stack.peek()}")
+}

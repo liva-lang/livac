@@ -217,6 +217,7 @@ pub struct ModuleResolver {
     entry_point: PathBuf,
     
     /// Root directory of the project
+    #[allow(dead_code)]
     root_dir: PathBuf,
     
     /// Dependency graph

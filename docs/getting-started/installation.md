@@ -55,7 +55,7 @@ livac --version
 
 You should see:
 ```
-livac 0.6.0
+🧩 Liva Compiler v1.0.0
 ```
 
 ## Setting Up Your First Project

@@ -1,0 +1,13 @@
+// Bug #41: pop() returns Option<T>, needs .unwrap()
+
+main() {
+    let numbers: [number] = [1, 2, 3, 4, 5]
+    
+    // This should work - pop returns Option<T> in Rust
+    let last = numbers.pop()
+    print($"Popped: {last}")
+    
+    // Multiple pops
+    let second = numbers.pop()
+    print($"Popped: {second}")
+}

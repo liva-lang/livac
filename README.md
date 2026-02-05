@@ -1,15 +1,22 @@
 # 🚀 Liva Programming Language
 
-> *A simple, modern programming language that compiles to Rust*
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](CHANGELOG.md)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-**Liva** is designed to be easy to learn while being powerful and safe. If you know any programming language, you'll feel at home with Liva.
+> **The simplicity of TypeScript, the expressiveness of Python, and the safety of Rust.**
+
+**Liva** is a modern programming language that compiles to Rust, giving you native performance with clean, intuitive syntax. If you know any programming language, you'll feel at home with Liva.
 
 ## ✨ Why Liva?
 
-- 🎯 **Simple syntax** - Easy to read and write
-- ⚡ **Fast performance** - Compiles to Rust for native speed
-- 🛡️ **Safe** - Catch errors at compile time
-- 🔧 **Practical** - Built for real-world applications
+| | Liva | TypeScript | Python | Rust |
+|---|:---:|:---:|:---:|:---:|
+| 🎯 Clean syntax | ✅ | ✅ | ✅ | ⚠️ |
+| 🛡️ Type safety | ✅ | ✅ | ⚠️ | ✅ |
+| ⚡ Native performance | ✅ | ❌ | ❌ | ✅ |
+| 🔒 Memory safety | ✅ | N/A | N/A | ✅ |
+| 📦 No garbage collector | ✅ | ❌ | ❌ | ✅ |
+| 📚 Easy to learn | ✅ | ✅ | ✅ | ⚠️ |
 
 ## 🚀 Installation
 
@@ -34,7 +41,7 @@ cargo install --path .
 livac --version
 ```
 
-You should see: `livac 0.8.0`
+You should see: `🧩 Liva Compiler v1.0.0`
 
 ## 👋 Your First Liva Program
 
