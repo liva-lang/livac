@@ -3391,7 +3391,7 @@ impl SemanticAnalyzer {
                 error.category = Some("Pattern Matching".to_string());
                 error.hint = Some("Ensure all alternatives in the or-pattern bind the same variable names".to_string());
                 error.example = Some("// ✅ Good:\n1 | 2 | 3 => \"small\"\n\n// ✅ Good with bindings:\nx | y => x  // Both bind one variable\n\n// ❌ Bad:\nSome(x) | None => x  // Inconsistent bindings".to_string());
-                error.doc_link = Some("https://liva-lang.org/docs/pattern-matching#or-patterns".to_string());
+                error.doc_link = Some("https://github.com/liva-lang/livac/blob/main/docs/language-reference/pattern-matching.md#or-patterns".to_string());
 
                 return Err(CompilerError::SemanticError(error));
             }
@@ -3489,7 +3489,7 @@ impl SemanticAnalyzer {
                         "switch value {{\n    true => \"yes\",\n    false => \"no\"\n}}\n// or\nswitch value {{\n    {} => \"...\",\n    _ => \"...\"\n}}",
                         if !has_true { "true" } else { "false" }
                     ));
-                    error.doc_link = Some("https://liva-lang.org/docs/pattern-matching#exhaustiveness".to_string());
+                    error.doc_link = Some("https://github.com/liva-lang/livac/blob/main/docs/language-reference/pattern-matching.md#exhaustiveness".to_string());
 
                     return Err(CompilerError::SemanticError(error));
                 }
@@ -3632,7 +3632,7 @@ impl SemanticAnalyzer {
             error.category = Some("Pattern Matching".to_string());
             error.hint = Some("Add wildcard pattern `_` to catch all other integer values".to_string());
             error.example = Some("switch num {\n    0 => \"zero\",\n    1 => \"one\",\n    _ => \"other\"  // Required\n}".to_string());
-            error.doc_link = Some("https://liva-lang.org/docs/pattern-matching#exhaustiveness".to_string());
+            error.doc_link = Some("https://github.com/liva-lang/livac/blob/main/docs/language-reference/pattern-matching.md#exhaustiveness".to_string());
             
             return Err(CompilerError::SemanticError(error));
         }
@@ -3648,7 +3648,7 @@ impl SemanticAnalyzer {
             error.category = Some("Pattern Matching".to_string());
             error.hint = Some("Add wildcard pattern `_` to catch all values not covered by explicit patterns or ranges".to_string());
             error.example = Some("switch num {\n    0..=10 => \"small\",\n    11..=100 => \"medium\",\n    _ => \"large\"  // Required\n}".to_string());
-            error.doc_link = Some("https://liva-lang.org/docs/pattern-matching#exhaustiveness".to_string());
+            error.doc_link = Some("https://github.com/liva-lang/livac/blob/main/docs/language-reference/pattern-matching.md#exhaustiveness".to_string());
             
             return Err(CompilerError::SemanticError(error));
         }
@@ -3671,7 +3671,7 @@ impl SemanticAnalyzer {
         error.category = Some("Pattern Matching".to_string());
         error.hint = Some("Add wildcard pattern `_` or binding pattern to catch all string values not explicitly matched".to_string());
         error.example = Some("switch text {\n    \"active\" => 1,\n    \"inactive\" => 2,\n    _ => 0  // Required\n}".to_string());
-        error.doc_link = Some("https://liva-lang.org/docs/pattern-matching#exhaustiveness".to_string());
+        error.doc_link = Some("https://github.com/liva-lang/livac/blob/main/docs/language-reference/pattern-matching.md#exhaustiveness".to_string());
         
         return Err(CompilerError::SemanticError(error));
     }

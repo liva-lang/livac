@@ -66,22 +66,13 @@ pub fn get_doc_link(error_code: &str) -> Option<String> {
         return None;
     }
     
-    // Extract category from error code
-    let category = match &error_code[1..2] {
-        "0" => "semantic",
-        "1" => "lexer",
-        "2" => "parser",
-        "3" => "codegen",
-        "4" => "modules",
-        "5" => "types",
-        "6" => "concurrency",
-        "7" => "error-handling",
-        _ => return None,
-    };
+    // Verify it looks like a valid error code (E followed by digits)
+    if !error_code.starts_with('E') {
+        return None;
+    }
     
     Some(format!(
-        "https://liva-lang.org/docs/errors/{}#{}",
-        category,
+        "https://github.com/liva-lang/livac/blob/main/docs/ERROR_CODES.md#{}",
         error_code.to_lowercase()
     ))
 }
@@ -152,11 +143,14 @@ mod tests {
     fn test_get_doc_link() {
         let link = get_doc_link(E2000_PARSE_ERROR);
         assert!(link.is_some());
-        assert!(link.unwrap().contains("parser"));
+        assert!(link.unwrap().contains("ERROR_CODES.md#e2000"));
         
         let link = get_doc_link(E4006_SYMBOL_NOT_FOUND);
         assert!(link.is_some());
-        assert!(link.unwrap().contains("modules"));
+        assert!(link.unwrap().contains("ERROR_CODES.md#e4006"));
+        
+        let link = get_doc_link("invalid");
+        assert!(link.is_none());
     }
 
     #[test]
