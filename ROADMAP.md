@@ -1,8 +1,9 @@
 # 🗺️ Liva Language Roadmap
 
-> **Current Version:** v0.13.0  
-> **Status:** Alpha - LSP Workspace Enhancement completed  
-> **Last Updated:** 2025-10-27
+> **Current Version:** v1.0.0  
+> **Status:** Stable Release — 54/54 bugs fixed, all features complete  
+> **Next Phase:** Phase 9 — Documentation & Public Presence  
+> **Last Updated:** 2026-02-10
 
 ---
 
@@ -1971,6 +1972,129 @@ type Pair<T, U> = (T, U)
 
 ---
 
+## � Phase 9: Documentation & Public Presence (v1.0.1)
+
+**Goal:** GitHub-ready documentation, working error links, and professional public presence  
+**Status:** 📋 Planned  
+**Estimated effort:** 4-6 hours  
+**Priority:** 🔴 High — Current docs are broken/duplicated and error links are dead
+
+### 📍 Current Issues Diagnosed (2026-02-10)
+
+#### Issue 1: README.md is DUPLICATED and outdated
+- The `livac/README.md` is **1507 lines** with two complete READMEs concatenated
+- **First half** (lines 1-500): v1.0.0 tutorial-style README (good content)
+- **Second half** (lines ~700-1507): Old v0.8.0-v0.9.6 README (outdated)
+- Version contradictions: says v1.0.0 at top, v0.9.6 at bottom
+- Duplicate installation sections with slightly different instructions
+- "Current Status" section says v0.9.6 — completely obsolete
+- "Roadmap" section lists v0.11.0 and v1.0.0 as "Planned" when already complete
+- Project Structure shows wrong file sizes (codegen.rs says ~4,700 lines, actually ~10,300)
+- Lists `fran@liva-lang.org` — email/domain doesn't exist
+
+#### Issue 2: ALL error doc links point to dead URLs (35 URLs)
+- `hints.rs:get_doc_link()` generates `https://liva-lang.org/docs/errors/{category}#{code}` for every error
+- Every compiler error shows `📚 Learn more: https://liva-lang.org/docs/errors/...` → **DEAD LINK**
+- `semantic.rs` has 5 hardcoded `https://liva-lang.org/docs/pattern-matching#...` → **DEAD LINK**
+- **The domain `liva-lang.org` does not exist** — no website deployed
+- The GitHub org `github.com/liva-lang` DOES exist with livac and vscode-extension repos
+
+#### Issue 3: Error code → category naming mismatch
+- Concurrency errors use `E0xxx` prefix but should be `E6xxx`:
+  - `E0602_DUPLICATE_EXEC_MODIFIER` → generates URL `/semantic#e0602` instead of `/concurrency#e0602`
+  - `E0701_FALLIBLE_WITHOUT_BINDING` → generates URL `/semantic#e0701` instead of `/error-handling#e0701`
+- The `get_doc_link()` function routes based on 2nd character of error code
+- Codes starting with `E0` all go to "semantic" regardless of actual category
+
+#### Issue 4: docs/README.md has incorrect syntax example
+- Quick Example uses non-existent Liva syntax:
+  - `import { HttpClient } from "http"` → HttpClient doesn't exist
+  - `interface User { name: string }` → Not valid Liva interface syntax
+  - `Json.parse_as(response.body)` → Should be `JSON.parse()`
+
+### 9.1 Clean Up README.md ✅ COMPLETED (~1.5h)
+
+**Goal:** Single, professional, v1.0.0 README that looks great on GitHub
+
+- [x] Remove the entire duplicated second half (lines ~700-1507)
+- [x] Keep and polish the v1.0.0 tutorial-style first half
+- [x] Update all version references to v1.0.0
+- [x] Fix project structure with correct file sizes
+- [x] Add proper badges (build status, version, license, tests)
+- [x] Add a polished "Features at a glance" section
+- [x] Update installation to reflect current state
+- [x] Fix contact info (remove non-existent email, use GitHub)
+- [x] Add section about real CLI apps built during dogfooding
+- [x] Ensure proper sections: Install → Quick Start → Features → Docs → Contributing
+
+**Result:** 1507 lines → 370 lines. Clean, professional README with badges, language tour, stdlib table, battle-tested section, and proper structure.
+
+### 9.2 Fix Error Documentation Links ✅ COMPLETED (~1h)
+
+**Goal:** Every `📚 Learn more:` link points to real, working documentation
+
+**Option A (implemented): Point to GitHub docs**
+- [x] Change `hints.rs:get_doc_link()` to generate GitHub URLs:
+  - Pattern: `https://github.com/liva-lang/livac/blob/main/docs/ERROR_CODES.md#{error_code}`
+  - Single page with all error codes and explanations
+- [x] Update hardcoded `semantic.rs` URLs to point to GitHub pattern-matching docs:
+  - `https://github.com/liva-lang/livac/blob/main/docs/language-reference/pattern-matching.md#or-patterns`
+  - `https://github.com/liva-lang/livac/blob/main/docs/language-reference/pattern-matching.md#exhaustiveness`
+- [x] Updated hints.rs unit tests to verify new URL format
+- [x] All 48/48 library tests pass
+
+**Result:** All 35 dead `liva-lang.org` URLs replaced with working GitHub links.
+
+### 9.3 Fix docs/README.md Example ✅ COMPLETED (~0.5h)
+
+**Goal:** Documentation index shows real, working Liva code
+
+- [x] Replace the fake Quick Example with a real working example
+- [x] Use actual Liva syntax (HTTP.get, JSON.parse, etc.)
+- [x] Example shows Weather CLI with async HTTP.get + JSON parsing
+
+**Result:** Fake HttpClient/Json.parse_as example replaced with real Liva weather CLI.
+
+### 9.4 Enhance docs/ for GitHub Rendering ✅ COMPLETED (~1h)
+
+**Goal:** The docs/ folder looks professional when browsing on GitHub
+
+- [x] Ensure all internal links between docs work (relative paths) — 38/38 verified ✅
+- [x] Remove outdated design docs from root docs/ (PHASE_*.md files moved)
+- [x] Organize: moved 11 PHASE docs to `docs/design/`
+- [x] Moved MIGRATION_DESTRUCTURING to `docs/guides/`
+- [x] Removed stale README.md.backup
+- [x] Expanded docs/README.md to link ALL documents (was ~18 orphan pages)
+- [x] Added stdlib detailed docs (arrays, strings, math, conversions, io)
+- [x] Added all compiler-internals pages (ast, semantic, grammar, etc.)
+- [x] Added all LSP pages
+- [x] Added collapsible sections for design docs and stdlib details
+- [x] Added v1.0.0-release.md to Getting Started section
+
+**Result:** docs/README.md now links to all 60+ documentation pages. Zero orphan documents.
+
+### 9.5 Error Code Category Fix (Optional, ~0.5h)
+
+**Goal:** Error codes match their documented categories
+
+- [ ] Audit `error_codes.rs` — verify all E0xxx codes are truly semantic
+- [ ] Consider renumbering concurrency errors (E0602→E6602, etc.)
+- [ ] Or fix `get_doc_link()` to use the constant name's category instead of code prefix
+- [ ] Update ERROR_CODES.md with correct categorization
+- [ ] Note: This is optional since changing codes is technically a breaking change
+
+### 9.6 Publish & Distribute (Optional, ~2h)
+
+**Goal:** Make Liva accessible to the public
+
+- [ ] Publish `livac` to crates.io
+- [ ] Publish VS Code extension to VS Code Marketplace
+- [ ] Set up GitHub Pages with docs (simple landing page)
+- [ ] Add GitHub Actions CI/CD (test + build on push)
+- [ ] Create GitHub Releases with prebuilt binaries
+
+---
+
 ## 📊 Milestones Summary
 
 | Version | Focus | Status | ETA |
@@ -1979,12 +2103,16 @@ type Pair<T, U> = (T, U)
 | **v0.7.0** | Standard Library | ✅ Completed | 2025-10-20 |
 | **v0.8.0** | Module System | ✅ Completed | 2025-10-21 |
 | **v0.8.1** | Enhanced Error Messages | ✅ Completed | 2025-10-23 |
-| **v0.9.0** | Generics System | 📋 Planned | 10-15 hours |
-| **v0.9.x** | Incremental Features | 📋 Planned | 2-4 hours each |
-| **v0.10.0** | Optimizations | 📋 Planned | 10-15 hours |
-| **v1.0.0** | Production Release | 📋 Planned | TBD |
+| **v0.9.0** | Generics System | ✅ Completed | 2025-10-24 |
+| **v0.9.x** | Incremental Features | ✅ Completed | 2025-10-25 |
+| **v0.10.x** | Destructuring & JSON | ✅ Completed | 2025-10-26 |
+| **v0.11.x** | Advanced Types & Tuples | ✅ Completed | 2025-10-27 |
+| **v0.12.0** | LSP (Language Server) | ✅ Completed | 2025-10-27 |
+| **v0.13.0** | LSP Workspace Enhancement | ✅ Completed | 2025-10-27 |
+| **v1.0.0** | Stable Release (54/54 bugs) | ✅ Completed | 2025-02-04 |
+| **v1.0.1** | Documentation & Public Presence | � In Progress | 9.1-9.4 done |
 
-**Total estimated effort to v1.0:** ~60-80 hours of focused development
+**Total effort completed:** ~80+ hours of focused development 🎉
 
 ---
 
