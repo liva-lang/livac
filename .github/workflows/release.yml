@@ -23,12 +23,12 @@ jobs:
             artifact: livac-linux-x64
             bin: livac
 
-          - os: macos-13
+          - os: macos-latest
             target: x86_64-apple-darwin
             artifact: livac-darwin-x64
             bin: livac
 
-          - os: macos-14
+          - os: macos-latest
             target: aarch64-apple-darwin
             artifact: livac-darwin-arm64
             bin: livac
