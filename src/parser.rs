@@ -1564,7 +1564,7 @@ impl Parser {
     fn parse_or(&mut self) -> Result<Expr> {
         let mut expr = self.parse_and()?;
 
-        while self.match_token(&Token::Or) {
+        while self.match_token(&Token::Or) || self.match_token(&Token::OrOr) {
             let right = self.parse_and()?;
             expr = Expr::Binary {
                 op: BinOp::Or,
@@ -1579,7 +1579,7 @@ impl Parser {
     fn parse_and(&mut self) -> Result<Expr> {
         let mut expr = self.parse_equality()?;
 
-        while self.match_token(&Token::And) {
+        while self.match_token(&Token::And) || self.match_token(&Token::AndAnd) {
             let right = self.parse_equality()?;
             expr = Expr::Binary {
                 op: BinOp::And,
@@ -1682,7 +1682,7 @@ impl Parser {
     }
 
     fn parse_unary(&mut self) -> Result<Expr> {
-        if self.match_token(&Token::Bang) {
+        if self.match_token(&Token::Bang) || self.match_token(&Token::Not) {
             let right = self.parse_unary()?;
             return Ok(Expr::Unary {
                 op: UnOp::Not,

@@ -39,7 +39,7 @@ impl Default for FormatOptions {
         FormatOptions {
             indent_size: 4,
             max_width: 100,
-            prefer_word_operators: false,
+            prefer_word_operators: true,
             trailing_newline: true,
         }
     }
@@ -496,6 +496,71 @@ impl Formatter {
         }
     }
 
+    /// Simplify condition expressions to idiomatic Liva:
+    /// - `expr != ""` → `expr` (truthy check)
+    /// - `expr == ""` → `not expr` / `!expr` (falsy check)
+    fn try_simplify_condition(&self, expr: &Expr) -> Option<String> {
+        if let Expr::Binary { op, left, right } = expr {
+            // Check if right side is an empty string literal
+            if let Expr::Literal(Literal::String(s)) = right.as_ref() {
+                if s.is_empty() {
+                    match op {
+                        BinOp::Ne => {
+                            // expr != "" → expr
+                            return Some(self.format_expr_readonly(left));
+                        }
+                        BinOp::Eq => {
+                            // expr == "" → not expr / !expr
+                            let inner = self.format_expr_readonly(left);
+                            if self.options.prefer_word_operators {
+                                return Some(format!("not {}", inner));
+                            } else {
+                                return Some(format!("!{}", inner));
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            // Also check left side ("" != expr, "" == expr)
+            if let Expr::Literal(Literal::String(s)) = left.as_ref() {
+                if s.is_empty() {
+                    match op {
+                        BinOp::Ne => {
+                            return Some(self.format_expr_readonly(right));
+                        }
+                        BinOp::Eq => {
+                            let inner = self.format_expr_readonly(right);
+                            if self.options.prefer_word_operators {
+                                return Some(format!("not {}", inner));
+                            } else {
+                                return Some(format!("!{}", inner));
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Format a condition expression with idiomatic simplifications applied
+    fn format_condition(&mut self, expr: &Expr) -> String {
+        if let Some(simplified) = self.try_simplify_condition(expr) {
+            return simplified;
+        }
+        self.format_expr(expr)
+    }
+
+    /// Format an expression without mutating self (for use in try_simplify_condition)
+    fn format_expr_readonly(&self, expr: &Expr) -> String {
+        // We need a temporary formatter to avoid borrow issues
+        let mut temp = Formatter::new(self.options.clone());
+        temp.indent_level = self.indent_level;
+        temp.format_expr(expr)
+    }
+
     // ======================================================================
     // Statements
     // ======================================================================
@@ -659,7 +724,7 @@ impl Formatter {
     }
 
     fn format_if(&mut self, if_stmt: &IfStmt) {
-        let cond = self.format_expr(&if_stmt.condition);
+        let cond = self.format_condition(&if_stmt.condition);
         match &if_stmt.then_branch {
             IfBody::Block(block) => {
                 self.write_line(&format!("if {} {{", cond));
@@ -693,7 +758,7 @@ impl Formatter {
             }
             IfBody::Stmt(stmt) => {
                 if let Stmt::If(inner_if) = stmt.as_ref() {
-                    let cond = self.format_expr(&inner_if.condition);
+                    let cond = self.format_condition(&inner_if.condition);
                     match &inner_if.then_branch {
                         IfBody::Block(block) => {
                             self.write_line(&format!("}} else if {} {{", cond));
@@ -725,7 +790,7 @@ impl Formatter {
     }
 
     fn format_while(&mut self, while_stmt: &WhileStmt) {
-        let cond = self.format_expr(&while_stmt.condition);
+        let cond = self.format_condition(&while_stmt.condition);
         self.write_line(&format!("while {} {{", cond));
         self.indent_level += 1;
         self.format_block(&while_stmt.body);
@@ -2025,6 +2090,33 @@ mod tests {
         assert!(
             output.contains("const API_BASE = \"https://api.github.com\""),
             "Top-level const should be formatted. Got: {}",
+            output
+        );
+    }
+
+    #[test]
+    fn test_format_simplify_ne_empty_string() {
+        let input = "main() {\n    if err != \"\" {\n        fail err\n    }\n}";
+        let output = fmt(input);
+        assert!(
+            output.contains("if err {"),
+            "Should simplify `err != \"\"` to `err`. Got:\n{}",
+            output
+        );
+        assert!(
+            !output.contains("!= \"\""),
+            "Should not contain != \"\". Got:\n{}",
+            output
+        );
+    }
+
+    #[test]
+    fn test_format_simplify_eq_empty_string() {
+        let input = "main() {\n    if name == \"\" {\n        fail \"empty\"\n    }\n}";
+        let output = fmt(input);
+        assert!(
+            output.contains("if not name {") || output.contains("if !name {"),
+            "Should simplify `name == \"\"` to `not name` or `!name`. Got:\n{}",
             output
         );
     }
