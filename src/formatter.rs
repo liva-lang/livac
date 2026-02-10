@@ -5,26 +5,17 @@
 /// - Consistent spacing around operators
 /// - Blank lines between top-level declarations
 /// - Consistent brace positioning (same-line opening braces)
-/// - Preserved comments
+/// - Preserved comments at their original positions
+/// - Line wrapping at max_width for long lines
+/// - Auto-simplification to Liva idioms (one-liners with =>)
 ///
 /// # Architecture
 ///
 /// The formatter works by:
-/// 1. Scanning the source to extract comments with their positions
+/// 1. Extracting comments with their line numbers from the original source
 /// 2. Parsing the source into an AST (reusing the compiler pipeline)
 /// 3. Pretty-printing the AST back to source with canonical formatting
-/// 4. Reinserting comments at appropriate locations
-///
-/// # Usage
-///
-/// ```rust,no_run
-/// use livac::formatter::{format_source, FormatOptions};
-///
-/// let source = "  let   x=10";
-/// let options = FormatOptions::default();
-/// let formatted = format_source(source, &options).unwrap();
-/// assert_eq!(formatted, "let x = 10\n");
-/// ```
+/// 4. Reinserting comments at their original relative positions
 
 use crate::ast::*;
 use crate::error::{CompilerError, Result};
@@ -54,28 +45,43 @@ impl Default for FormatOptions {
     }
 }
 
-/// Formatter state for tracking indentation and output
+/// A comment extracted from the original source
+#[derive(Debug, Clone)]
+struct SourceComment {
+    /// The comment text including // prefix
+    text: String,
+    /// Original line number (0-based)
+    line: usize,
+    /// Whether this comment is on its own line (standalone) vs after code (inline)
+    is_standalone: bool,
+    /// The trimmed code on the same line (only for inline comments)
+    code_on_line: String,
+}
+
+/// Formatter state
 struct Formatter {
     options: FormatOptions,
     output: String,
     indent_level: usize,
-    /// Current output line number (0-indexed)
-    current_line: usize,
 }
 
 impl Formatter {
-    fn new(options: FormatOptions, _source: &str) -> Self {
+    fn new(options: FormatOptions) -> Self {
         Formatter {
             options,
             output: String::new(),
             indent_level: 0,
-            current_line: 0,
         }
     }
 
     /// Get the current indentation string
     fn indent(&self) -> String {
         " ".repeat(self.options.indent_size * self.indent_level)
+    }
+
+    /// Current column position at the current indent level
+    fn current_indent_width(&self) -> usize {
+        self.options.indent_size * self.indent_level
     }
 
     /// Write a line with current indentation
@@ -87,16 +93,18 @@ impl Formatter {
             self.output.push_str(text);
             self.output.push('\n');
         }
-        self.current_line += 1;
     }
 
-    /// Write a blank line
+    /// Write a blank line (avoiding double blanks)
     fn blank_line(&mut self) {
-        // Avoid double blank lines
         if !self.output.ends_with("\n\n") {
             self.output.push('\n');
-            self.current_line += 1;
         }
+    }
+
+    /// Check if a string would exceed max_width at current indent
+    fn would_exceed_width(&self, text: &str) -> bool {
+        self.current_indent_width() + text.len() > self.options.max_width
     }
 
     // ======================================================================
@@ -107,13 +115,17 @@ impl Formatter {
         let total = program.items.len();
         for (i, item) in program.items.iter().enumerate() {
             self.format_top_level(item);
-            // Blank line between top-level items (but not after the last one)
+            // Add blank line between items, but group consecutive imports
             if i + 1 < total {
-                self.blank_line();
+                let next = &program.items[i + 1];
+                let both_imports = matches!(item, TopLevel::Import(_))
+                    && matches!(next, TopLevel::Import(_));
+                if !both_imports {
+                    self.blank_line();
+                }
             }
         }
 
-        // Ensure trailing newline
         if self.options.trailing_newline && !self.output.ends_with('\n') {
             self.output.push('\n');
         }
@@ -128,7 +140,7 @@ impl Formatter {
             TopLevel::Class(decl) => self.format_class(decl),
             TopLevel::Function(decl) => self.format_function(decl),
             TopLevel::Test(decl) => self.format_test(decl),
-            TopLevel::ConstDecl(decl) => self.format_const_decl(decl),
+            TopLevel::ConstDecl(decl) => self.format_const_decl_stmt(decl),
         }
     }
 
@@ -149,17 +161,16 @@ impl Formatter {
                 decl.imports[0], decl.source
             ));
         } else {
-            // Multiple imports - check if they fit on one line
             let single_line = format!(
                 "import {{ {} }} from \"{}\"",
                 decl.imports.join(", "),
                 decl.source
             );
-            if single_line.len() <= self.options.max_width {
+            if !self.would_exceed_width(&single_line) {
                 self.write_line(&single_line);
             } else {
                 // Multi-line imports
-                self.write_line(&format!("import {{"));
+                self.write_line("import {");
                 self.indent_level += 1;
                 for (i, import) in decl.imports.iter().enumerate() {
                     if i + 1 < decl.imports.len() {
@@ -221,25 +232,25 @@ impl Formatter {
     }
 
     fn format_members(&mut self, members: &[Member]) {
-        let mut last_was_field = false;
+        let mut last_kind: Option<&str> = None;
         let mut first = true;
 
         for member in members {
             match member {
                 Member::Field(field) => {
-                    // Fields grouped together, no extra blank line between fields
-                    if !first && !last_was_field {
+                    // Add blank line when transitioning from methods back to fields
+                    if !first && last_kind == Some("method") {
                         self.blank_line();
                     }
                     self.format_field(field);
-                    last_was_field = true;
+                    last_kind = Some("field");
                 }
                 Member::Method(method) => {
                     if !first {
                         self.blank_line();
                     }
                     self.format_method(method);
-                    last_was_field = false;
+                    last_kind = Some("method");
                 }
             }
             first = false;
@@ -267,34 +278,117 @@ impl Formatter {
 
     fn format_method(&mut self, method: &MethodDecl) {
         let type_params = self.format_type_params(&method.type_params);
-        let params = self.format_params(&method.params);
         let ret_type = method
             .return_type
             .as_ref()
             .map(|t| format!(": {}", self.format_type_ref(t)))
             .unwrap_or_default();
 
+        // Try to simplify { return expr } to => expr
+        if let Some(block) = &method.body {
+            if let Some(expr) = self.try_extract_single_return(block) {
+                let body = self.format_expr(&expr);
+                let params_str = self.format_params_simple(&method.params);
+                let line = format!(
+                    "{}{}({}){} => {}",
+                    method.name, type_params, params_str, ret_type, body
+                );
+                if self.would_exceed_width(&line) {
+                    self.write_method_multiline_params(
+                        &method.name,
+                        &type_params,
+                        &method.params,
+                        &ret_type,
+                        Some(&body),
+                        None,
+                    );
+                } else {
+                    self.write_line(&line);
+                }
+                return;
+            }
+        }
+
         if let Some(expr) = &method.expr_body {
             let body = self.format_expr(expr);
-            self.write_line(&format!(
-                "{}{}({}) => {}",
-                method.name, type_params, params, body
-            ));
+            let params_str = self.format_params_simple(&method.params);
+            let line = format!(
+                "{}{}({}){} => {}",
+                method.name, type_params, params_str, ret_type, body
+            );
+            if self.would_exceed_width(&line) {
+                self.write_method_multiline_params(
+                    &method.name,
+                    &type_params,
+                    &method.params,
+                    &ret_type,
+                    Some(&body),
+                    None,
+                );
+            } else {
+                self.write_line(&line);
+            }
         } else if let Some(block) = &method.body {
-            self.write_line(&format!(
+            let params_str = self.format_params_simple(&method.params);
+            let header = format!(
                 "{}{}({}){} {{",
-                method.name, type_params, params, ret_type
+                method.name, type_params, params_str, ret_type
+            );
+            if self.would_exceed_width(&header) {
+                self.write_method_multiline_params(
+                    &method.name,
+                    &type_params,
+                    &method.params,
+                    &ret_type,
+                    None,
+                    Some(block),
+                );
+            } else {
+                self.write_line(&header);
+                self.indent_level += 1;
+                self.format_block(block);
+                self.indent_level -= 1;
+                self.write_line("}");
+            }
+        } else {
+            // Interface method (no body)
+            let params_str = self.format_params_simple(&method.params);
+            self.write_line(&format!(
+                "{}{}({}){}",
+                method.name, type_params, params_str, ret_type
             ));
+        }
+    }
+
+    /// Write a method/function with multiline params when the header exceeds max_width
+    fn write_method_multiline_params(
+        &mut self,
+        name: &str,
+        type_params: &str,
+        params: &[Param],
+        ret_type: &str,
+        expr_body: Option<&str>,
+        block_body: Option<&BlockStmt>,
+    ) {
+        self.write_line(&format!("{}{}(", name, type_params));
+        self.indent_level += 1;
+        for (i, p) in params.iter().enumerate() {
+            let param_str = self.format_param(p);
+            if i + 1 < params.len() {
+                self.write_line(&format!("{},", param_str));
+            } else {
+                self.write_line(&param_str);
+            }
+        }
+        self.indent_level -= 1;
+        if let Some(body) = expr_body {
+            self.write_line(&format!("){} => {}", ret_type, body));
+        } else if let Some(block) = block_body {
+            self.write_line(&format!("){} {{", ret_type));
             self.indent_level += 1;
             self.format_block(block);
             self.indent_level -= 1;
             self.write_line("}");
-        } else {
-            // Interface method (no body)
-            self.write_line(&format!(
-                "{}{}({}){}", 
-                method.name, type_params, params, ret_type
-            ));
         }
     }
 
@@ -304,28 +398,78 @@ impl Formatter {
 
     fn format_function(&mut self, decl: &FunctionDecl) {
         let type_params = self.format_type_params(&decl.type_params);
-        let params = self.format_params(&decl.params);
         let ret_type = decl
             .return_type
             .as_ref()
             .map(|t| format!(": {}", self.format_type_ref(t)))
             .unwrap_or_default();
 
+        // Try to simplify { return expr } to => expr
+        if let Some(block) = &decl.body {
+            if let Some(expr) = self.try_extract_single_return(block) {
+                let body = self.format_expr(&expr);
+                let params_str = self.format_params_simple(&decl.params);
+                let line = format!(
+                    "{}{}({}){} => {}",
+                    decl.name, type_params, params_str, ret_type, body
+                );
+                if self.would_exceed_width(&line) {
+                    self.write_method_multiline_params(
+                        &decl.name,
+                        &type_params,
+                        &decl.params,
+                        &ret_type,
+                        Some(&body),
+                        None,
+                    );
+                } else {
+                    self.write_line(&line);
+                }
+                return;
+            }
+        }
+
         if let Some(expr) = &decl.expr_body {
             let body = self.format_expr(expr);
-            self.write_line(&format!(
+            let params_str = self.format_params_simple(&decl.params);
+            let line = format!(
                 "{}{}({}){} => {}",
-                decl.name, type_params, params, ret_type, body
-            ));
+                decl.name, type_params, params_str, ret_type, body
+            );
+            if self.would_exceed_width(&line) {
+                self.write_method_multiline_params(
+                    &decl.name,
+                    &type_params,
+                    &decl.params,
+                    &ret_type,
+                    Some(&body),
+                    None,
+                );
+            } else {
+                self.write_line(&line);
+            }
         } else if let Some(block) = &decl.body {
-            self.write_line(&format!(
+            let params_str = self.format_params_simple(&decl.params);
+            let header = format!(
                 "{}{}({}){} {{",
-                decl.name, type_params, params, ret_type
-            ));
-            self.indent_level += 1;
-            self.format_block(block);
-            self.indent_level -= 1;
-            self.write_line("}");
+                decl.name, type_params, params_str, ret_type
+            );
+            if self.would_exceed_width(&header) {
+                self.write_method_multiline_params(
+                    &decl.name,
+                    &type_params,
+                    &decl.params,
+                    &ret_type,
+                    None,
+                    Some(block),
+                );
+            } else {
+                self.write_line(&header);
+                self.indent_level += 1;
+                self.format_block(block);
+                self.indent_level -= 1;
+                self.write_line("}");
+            }
         }
     }
 
@@ -335,6 +479,21 @@ impl Formatter {
         self.format_block(&decl.body);
         self.indent_level -= 1;
         self.write_line("}");
+    }
+
+    // ======================================================================
+    // Simplification helpers
+    // ======================================================================
+
+    /// If a block is { return expr }, extract the expr for one-liner simplification
+    fn try_extract_single_return(&self, block: &BlockStmt) -> Option<Expr> {
+        if block.stmts.len() != 1 {
+            return None;
+        }
+        match &block.stmts[0] {
+            Stmt::Return(ret) => ret.expr.clone(),
+            _ => None,
+        }
     }
 
     // ======================================================================
@@ -350,7 +509,7 @@ impl Formatter {
     fn format_stmt(&mut self, stmt: &Stmt) {
         match stmt {
             Stmt::VarDecl(decl) => self.format_var_decl(decl),
-            Stmt::ConstDecl(decl) => self.format_const_decl(decl),
+            Stmt::ConstDecl(decl) => self.format_const_decl_stmt(decl),
             Stmt::Assign(assign) => self.format_assign(assign),
             Stmt::If(if_stmt) => self.format_if(if_stmt),
             Stmt::While(while_stmt) => self.format_while(while_stmt),
@@ -375,7 +534,12 @@ impl Formatter {
             }
             Stmt::Expr(expr_stmt) => {
                 let e = self.format_expr(&expr_stmt.expr);
-                self.write_line(&e);
+                // If the expression has embedded newlines (multiline call), handle it
+                if e.contains('\n') {
+                    self.write_multiline_expr(&e);
+                } else {
+                    self.write_line(&e);
+                }
             }
             Stmt::Block(block) => {
                 self.write_line("{");
@@ -383,6 +547,20 @@ impl Formatter {
                 self.format_block(block);
                 self.indent_level -= 1;
                 self.write_line("}");
+            }
+        }
+    }
+
+    /// Write an expression that already contains newlines (multiline calls etc.)
+    fn write_multiline_expr(&mut self, expr: &str) {
+        let lines: Vec<&str> = expr.lines().collect();
+        for (i, line) in lines.iter().enumerate() {
+            if i == 0 {
+                self.write_line(line);
+            } else {
+                // Inner lines already have their own indentation from format_call
+                self.output.push_str(line);
+                self.output.push('\n');
             }
         }
     }
@@ -397,9 +575,37 @@ impl Formatter {
                 .as_ref()
                 .map(|t| format!(": {}", self.format_type_ref(t)))
                 .unwrap_or_default();
-            self.write_line(&format!("let {}{} = {}", pattern, type_ann, init));
+            let line = format!("let {}{} = {}", pattern, type_ann, init);
+            if init.contains('\n') {
+                // Multiline init (e.g., multiline call)
+                let init_lines: Vec<&str> = init.lines().collect();
+                self.write_line(&format!("let {}{} = {}", pattern, type_ann, init_lines[0]));
+                for il in &init_lines[1..] {
+                    self.output.push_str(il);
+                    self.output.push('\n');
+                }
+            } else if self.would_exceed_width(&line) {
+                // Re-format the init at the indented level so calls can wrap properly
+                self.indent_level += 1;
+                let init_reformat = self.format_expr(&decl.init);
+                self.indent_level -= 1;
+                if init_reformat.contains('\n') {
+                    let init_lines: Vec<&str> = init_reformat.lines().collect();
+                    self.write_line(&format!("let {}{} = {}", pattern, type_ann, init_lines[0]));
+                    for il in &init_lines[1..] {
+                        self.output.push_str(il);
+                        self.output.push('\n');
+                    }
+                } else {
+                    self.write_line(&format!("let {}{} =", pattern, type_ann));
+                    self.indent_level += 1;
+                    self.write_line(&init_reformat);
+                    self.indent_level -= 1;
+                }
+            } else {
+                self.write_line(&line);
+            }
         } else {
-            // Multiple bindings (error binding): let value, err = expr
             let patterns: Vec<String> = decl
                 .bindings
                 .iter()
@@ -412,11 +618,21 @@ impl Formatter {
                     }
                 })
                 .collect();
-            self.write_line(&format!("let {} = {}", patterns.join(", "), init));
+            let line = format!("let {} = {}", patterns.join(", "), init);
+            if init.contains('\n') {
+                let init_lines: Vec<&str> = init.lines().collect();
+                self.write_line(&format!("let {} = {}", patterns.join(", "), init_lines[0]));
+                for il in &init_lines[1..] {
+                    self.output.push_str(il);
+                    self.output.push('\n');
+                }
+            } else {
+                self.write_line(&line);
+            }
         }
     }
 
-    fn format_const_decl(&mut self, decl: &ConstDecl) {
+    fn format_const_decl_stmt(&mut self, decl: &ConstDecl) {
         let init = self.format_expr(&decl.init);
         let type_ann = decl
             .type_ref
@@ -429,7 +645,17 @@ impl Formatter {
     fn format_assign(&mut self, assign: &AssignStmt) {
         let target = self.format_expr(&assign.target);
         let value = self.format_expr(&assign.value);
-        self.write_line(&format!("{} = {}", target, value));
+        let line = format!("{} = {}", target, value);
+        if value.contains('\n') {
+            let value_lines: Vec<&str> = value.lines().collect();
+            self.write_line(&format!("{} = {}", target, value_lines[0]));
+            for vl in &value_lines[1..] {
+                self.output.push_str(vl);
+                self.output.push('\n');
+            }
+        } else {
+            self.write_line(&line);
+        }
     }
 
     fn format_if(&mut self, if_stmt: &IfStmt) {
@@ -450,47 +676,7 @@ impl Formatter {
         }
 
         if let Some(else_branch) = &if_stmt.else_branch {
-            match else_branch {
-                IfBody::Block(block) => {
-                    self.write_line("} else {");
-                    self.indent_level += 1;
-                    self.format_block(block);
-                    self.indent_level -= 1;
-                    self.write_line("}");
-                }
-                IfBody::Stmt(stmt) => {
-                    // Check if it's an else-if chain
-                    if let Stmt::If(inner_if) = stmt.as_ref() {
-                        let inner_cond = self.format_expr(&inner_if.condition);
-                        match &inner_if.then_branch {
-                            IfBody::Block(block) => {
-                                self.write_line(&format!("}} else if {} {{", inner_cond));
-                                self.indent_level += 1;
-                                self.format_block(block);
-                                self.indent_level -= 1;
-                            }
-                            IfBody::Stmt(s) => {
-                                self.write_line(&format!("}} else if {} {{", inner_cond));
-                                self.indent_level += 1;
-                                self.format_stmt(s);
-                                self.indent_level -= 1;
-                            }
-                        }
-                        // Recurse for the else branch of the inner if
-                        if let Some(inner_else) = &inner_if.else_branch {
-                            self.format_else_branch(inner_else);
-                        } else {
-                            self.write_line("}");
-                        }
-                    } else {
-                        self.write_line("} else {");
-                        self.indent_level += 1;
-                        self.format_stmt(stmt);
-                        self.indent_level -= 1;
-                        self.write_line("}");
-                    }
-                }
-            }
+            self.format_else_branch(else_branch);
         } else {
             self.write_line("}");
         }
@@ -690,7 +876,6 @@ impl Formatter {
             Literal::Int(n) => n.to_string(),
             Literal::Float(f) => {
                 let s = f.to_string();
-                // Ensure we always have a decimal point
                 if s.contains('.') {
                     s
                 } else {
@@ -723,7 +908,11 @@ impl Formatter {
         let type_args = if call.type_args.is_empty() {
             String::new()
         } else {
-            let tas: Vec<String> = call.type_args.iter().map(|t| self.format_type_ref(t)).collect();
+            let tas: Vec<String> = call
+                .type_args
+                .iter()
+                .map(|t| self.format_type_ref(t))
+                .collect();
             format!("<{}>", tas.join(", "))
         };
 
@@ -737,7 +926,35 @@ impl Formatter {
             ExecPolicy::Normal => "",
         };
 
-        format!("{}{}{}({})", policy_prefix, callee, type_args, args.join(", "))
+        let single_line = format!(
+            "{}{}{}({})",
+            policy_prefix,
+            callee,
+            type_args,
+            args.join(", ")
+        );
+
+        // If it fits on one line at current indent, use it
+        let total_width = self.current_indent_width() + single_line.len();
+        if total_width <= self.options.max_width {
+            return single_line;
+        }
+
+        // Multi-line: one arg per line
+        let inner_indent = " ".repeat(self.options.indent_size * (self.indent_level + 1));
+        let outer_indent = " ".repeat(self.options.indent_size * self.indent_level);
+        let mut result = format!("{}{}{}(\n", policy_prefix, callee, type_args);
+        for (i, arg) in args.iter().enumerate() {
+            result.push_str(&inner_indent);
+            result.push_str(arg);
+            if i + 1 < args.len() {
+                result.push(',');
+            }
+            result.push('\n');
+        }
+        result.push_str(&outer_indent);
+        result.push(')');
+        result
     }
 
     fn format_method_call(&mut self, mc: &MethodCallExpr) -> String {
@@ -751,7 +968,50 @@ impl Formatter {
             ArrayAdapter::Seq => "",
         };
 
-        format!("{}{}.{}({})", obj, adapter, mc.method, args.join(", "))
+        let single_line = format!(
+            "{}{}.{}({})",
+            obj, adapter, mc.method, args.join(", ")
+        );
+
+        let total_width = self.current_indent_width() + single_line.len();
+        if total_width <= self.options.max_width {
+            return single_line;
+        }
+
+        // For method chains (obj is a method call or another call), break at the dot
+        let is_chain = matches!(&*mc.object, Expr::MethodCall(_) | Expr::Call(_));
+        let inner_indent = " ".repeat(self.options.indent_size * (self.indent_level + 1));
+
+        if is_chain {
+            let chain_call = format!(
+                ".{}({})",
+                mc.method, args.join(", ")
+            );
+            // If the chain part itself is short, just put it on new line
+            if inner_indent.len() + chain_call.len() <= self.options.max_width {
+                return format!("{}{}\n{}{}", obj, adapter, inner_indent, chain_call);
+            }
+        }
+
+        // Wrap args multi-line
+        if args.len() > 1 {
+            let outer_indent = " ".repeat(self.options.indent_size * self.indent_level);
+            let mut result = format!("{}{}.{}(\n", obj, adapter, mc.method);
+            for (i, arg) in args.iter().enumerate() {
+                result.push_str(&inner_indent);
+                result.push_str(arg);
+                if i + 1 < args.len() {
+                    result.push(',');
+                }
+                result.push('\n');
+            }
+            result.push_str(&outer_indent);
+            result.push(')');
+            return result;
+        }
+
+        // Fallback: keep single line even if long (for single-arg lambdas etc.)
+        single_line
     }
 
     fn format_object_literal(&mut self, fields: &[(String, Expr)]) -> String {
@@ -765,7 +1025,25 @@ impl Formatter {
                 format!("{}: {}", k, val)
             })
             .collect();
-        format!("{{ {} }}", items.join(", "))
+        let single_line = format!("{{ {} }}", items.join(", "));
+        if self.current_indent_width() + single_line.len() <= self.options.max_width {
+            single_line
+        } else {
+            let inner_indent = " ".repeat(self.options.indent_size * (self.indent_level + 1));
+            let outer_indent = " ".repeat(self.options.indent_size * self.indent_level);
+            let mut result = "{\n".to_string();
+            for (i, item) in items.iter().enumerate() {
+                result.push_str(&inner_indent);
+                result.push_str(item);
+                if i + 1 < items.len() {
+                    result.push(',');
+                }
+                result.push('\n');
+            }
+            result.push_str(&outer_indent);
+            result.push('}');
+            result
+        }
     }
 
     fn format_struct_literal(&mut self, type_name: &str, fields: &[(String, Expr)]) -> String {
@@ -779,7 +1057,25 @@ impl Formatter {
                 format!("{}: {}", k, val)
             })
             .collect();
-        format!("{} {{ {} }}", type_name, items.join(", "))
+        let single_line = format!("{} {{ {} }}", type_name, items.join(", "));
+        if self.current_indent_width() + single_line.len() <= self.options.max_width {
+            single_line
+        } else {
+            let inner_indent = " ".repeat(self.options.indent_size * (self.indent_level + 1));
+            let outer_indent = " ".repeat(self.options.indent_size * self.indent_level);
+            let mut result = format!("{} {{\n", type_name);
+            for (i, item) in items.iter().enumerate() {
+                result.push_str(&inner_indent);
+                result.push_str(item);
+                if i + 1 < items.len() {
+                    result.push(',');
+                }
+                result.push('\n');
+            }
+            result.push_str(&outer_indent);
+            result.push('}');
+            result
+        }
     }
 
     fn format_array_literal(&mut self, elements: &[Expr]) -> String {
@@ -789,23 +1085,21 @@ impl Formatter {
         let items: Vec<String> = elements.iter().map(|e| self.format_expr(e)).collect();
         let single_line = format!("[{}]", items.join(", "));
 
-        // If it fits on one line, use single-line format
-        if single_line.len() + self.options.indent_size * self.indent_level <= self.options.max_width
-        {
+        if self.current_indent_width() + single_line.len() <= self.options.max_width {
             single_line
         } else {
-            // Multi-line array
-            let indent = " ".repeat(self.options.indent_size * (self.indent_level + 1));
+            let inner_indent = " ".repeat(self.options.indent_size * (self.indent_level + 1));
+            let outer_indent = " ".repeat(self.options.indent_size * self.indent_level);
             let mut result = "[\n".to_string();
             for (i, item) in items.iter().enumerate() {
-                result.push_str(&indent);
+                result.push_str(&inner_indent);
                 result.push_str(item);
                 if i + 1 < items.len() {
                     result.push(',');
                 }
                 result.push('\n');
             }
-            result.push_str(&" ".repeat(self.options.indent_size * self.indent_level));
+            result.push_str(&outer_indent);
             result.push(']');
             result
         }
@@ -837,68 +1131,22 @@ impl Formatter {
                 format!("{} => {}", params_str, body)
             }
             LambdaBody::Block(block) => {
-                // For block lambdas, format the body at an increased indent level
+                // Try to simplify { return expr } to => expr
+                if let Some(expr) = self.try_extract_single_return(block) {
+                    let body = self.format_expr(&expr);
+                    return format!("{} => {}", params_str, body);
+                }
+
                 let saved_output = std::mem::take(&mut self.output);
-                let saved_line = self.current_line;
+                let saved_indent = self.indent_level;
                 self.indent_level += 1;
                 self.format_block(block);
                 self.indent_level -= 1;
                 let inner = std::mem::replace(&mut self.output, saved_output);
-                self.current_line = saved_line;
+                self.indent_level = saved_indent;
                 let outer_indent = " ".repeat(self.options.indent_size * self.indent_level);
                 format!("{} => {{\n{}{}}}", params_str, inner, outer_indent)
             }
-        }
-    }
-
-    /// Format a statement as a string (for use inside expressions like lambdas)
-    fn format_stmt_inline(&mut self, stmt: &Stmt) -> String {
-        match stmt {
-            Stmt::VarDecl(decl) => {
-                let init = self.format_expr(&decl.init);
-                if decl.bindings.len() == 1 {
-                    let b = &decl.bindings[0];
-                    let pat = self.format_binding_pattern(&b.pattern);
-                    let ty = b.type_ref.as_ref()
-                        .map(|t| format!(": {}", self.format_type_ref(t)))
-                        .unwrap_or_default();
-                    format!("let {}{} = {}", pat, ty, init)
-                } else {
-                    let pats: Vec<String> = decl.bindings.iter().map(|b| {
-                        let pat = self.format_binding_pattern(&b.pattern);
-                        if let Some(t) = &b.type_ref {
-                            format!("{}: {}", pat, self.format_type_ref(t))
-                        } else {
-                            pat
-                        }
-                    }).collect();
-                    format!("let {} = {}", pats.join(", "), init)
-                }
-            }
-            Stmt::ConstDecl(decl) => {
-                let init = self.format_expr(&decl.init);
-                format!("const {} = {}", decl.name, init)
-            }
-            Stmt::Assign(a) => {
-                let target = self.format_expr(&a.target);
-                let value = self.format_expr(&a.value);
-                format!("{} = {}", target, value)
-            }
-            Stmt::Return(ret) => {
-                if let Some(e) = &ret.expr {
-                    format!("return {}", self.format_expr(e))
-                } else {
-                    "return".to_string()
-                }
-            }
-            Stmt::Expr(es) => self.format_expr(&es.expr),
-            Stmt::Fail(f) => format!("fail {}", self.format_expr(&f.expr)),
-            Stmt::If(if_stmt) => {
-                let cond = self.format_expr(&if_stmt.condition);
-                // Simplified inline if - just the condition line
-                format!("if {} {{ ... }}", cond)
-            }
-            _ => "/* complex stmt */".to_string(),
         }
     }
 
@@ -924,7 +1172,7 @@ impl Formatter {
         let disc = self.format_expr(&switch_expr.discriminant);
         let indent = " ".repeat(self.options.indent_size * (self.indent_level + 1));
         let outer_indent = " ".repeat(self.options.indent_size * self.indent_level);
-        
+
         let mut result = format!("switch {} {{\n", disc);
         for arm in &switch_expr.arms {
             let pattern = self.format_pattern(&arm.pattern);
@@ -936,10 +1184,8 @@ impl Formatter {
             let body = match &arm.body {
                 SwitchBody::Expr(e) => self.format_expr(e),
                 SwitchBody::Block(stmts) => {
-                    let inner: Vec<String> = stmts
-                        .iter()
-                        .map(|s| self.format_stmt_inline(s))
-                        .collect();
+                    let inner: Vec<String> =
+                        stmts.iter().map(|s| self.format_stmt_inline(s)).collect();
                     format!("{{ {} }}", inner.join("; "))
                 }
             };
@@ -985,6 +1231,22 @@ impl Formatter {
                 let pats: Vec<String> = patterns.iter().map(|p| self.format_pattern(p)).collect();
                 pats.join(" | ")
             }
+        }
+    }
+
+    /// Format a statement inline (for switch expression bodies)
+    fn format_stmt_inline(&mut self, stmt: &Stmt) -> String {
+        match stmt {
+            Stmt::Return(ret) => {
+                if let Some(e) = &ret.expr {
+                    format!("return {}", self.format_expr(e))
+                } else {
+                    "return".to_string()
+                }
+            }
+            Stmt::Expr(es) => self.format_expr(&es.expr),
+            Stmt::Fail(f) => format!("fail {}", self.format_expr(&f.expr)),
+            _ => "/* ... */".to_string(),
         }
     }
 
@@ -1034,24 +1296,25 @@ impl Formatter {
         format!("<{}>", ps.join(", "))
     }
 
-    fn format_params(&mut self, params: &[Param]) -> String {
-        let ps: Vec<String> = params
-            .iter()
-            .map(|p| {
-                let pattern = self.format_binding_pattern(&p.pattern);
-                let type_ann = p
-                    .type_ref
-                    .as_ref()
-                    .map(|t| format!(": {}", self.format_type_ref(t)))
-                    .unwrap_or_default();
-                let default = p
-                    .default
-                    .as_ref()
-                    .map(|d| format!(" = {}", self.format_expr(d)))
-                    .unwrap_or_default();
-                format!("{}{}{}", pattern, type_ann, default)
-            })
-            .collect();
+    /// Format a single param
+    fn format_param(&mut self, p: &Param) -> String {
+        let pattern = self.format_binding_pattern(&p.pattern);
+        let type_ann = p
+            .type_ref
+            .as_ref()
+            .map(|t| format!(": {}", self.format_type_ref(t)))
+            .unwrap_or_default();
+        let default = p
+            .default
+            .as_ref()
+            .map(|d| format!(" = {}", self.format_expr(d)))
+            .unwrap_or_default();
+        format!("{}{}{}", pattern, type_ann, default)
+    }
+
+    /// Format params on a single line
+    fn format_params_simple(&mut self, params: &[Param]) -> String {
+        let ps: Vec<String> = params.iter().map(|p| self.format_param(p)).collect();
         ps.join(", ")
     }
 
@@ -1091,12 +1354,13 @@ impl Formatter {
 }
 
 // ======================================================================
-// Comment handling utilities
+// Comment handling
 // ======================================================================
 
 /// Find the position of a line comment (//), ignoring those inside strings
 fn find_line_comment(line: &str) -> Option<usize> {
     let mut in_string = false;
+    let mut in_template = false;
     let mut escape_next = false;
     let chars: Vec<char> = line.chars().collect();
 
@@ -1105,15 +1369,28 @@ fn find_line_comment(line: &str) -> Option<usize> {
             escape_next = false;
             continue;
         }
-        if chars[i] == '\\' && in_string {
+        if chars[i] == '\\' && (in_string || in_template) {
             escape_next = true;
             continue;
         }
-        if chars[i] == '"' {
+        if !in_template && chars[i] == '"' {
             in_string = !in_string;
             continue;
         }
-        if !in_string && i + 1 < chars.len() && chars[i] == '/' && chars[i + 1] == '/' {
+        if !in_string && !in_template && chars[i] == '$' && i + 1 < chars.len() && chars[i + 1] == '"' {
+            in_template = true;
+            continue;
+        }
+        if in_template && chars[i] == '"' {
+            in_template = false;
+            continue;
+        }
+        if !in_string
+            && !in_template
+            && i + 1 < chars.len()
+            && chars[i] == '/'
+            && chars[i + 1] == '/'
+        {
             return Some(i);
         }
     }
@@ -1121,24 +1398,310 @@ fn find_line_comment(line: &str) -> Option<usize> {
     None
 }
 
+/// Extract comments from source, keeping their line numbers
+fn extract_comments(source: &str) -> Vec<SourceComment> {
+    let mut comments = Vec::new();
+
+    for (line_num, line) in source.lines().enumerate() {
+        if let Some(comment_pos) = find_line_comment(line) {
+            let before = line[..comment_pos].trim_end();
+            let comment_text = line[comment_pos..].trim_end().to_string();
+
+            comments.push(SourceComment {
+                text: comment_text,
+                line: line_num,
+                is_standalone: before.is_empty(),
+                code_on_line: before.to_string(),
+            });
+        }
+    }
+
+    comments
+}
+
+/// Normalize code for comparison: collapse whitespace, trim
+fn normalize_code(code: &str) -> String {
+    code.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Get leading whitespace of a line
+fn get_line_indent(line: &str) -> String {
+    let trimmed = line.trim_start();
+    line[..line.len() - trimmed.len()].to_string()
+}
+
+/// Find the next non-empty, non-comment code line after line_num in the source
+fn find_next_code_line(source_lines: &[&str], line_num: usize) -> Option<String> {
+    for i in (line_num + 1)..source_lines.len() {
+        let trimmed = source_lines[i].trim();
+        if trimmed.is_empty() || trimmed.starts_with("//") {
+            continue;
+        }
+        let code = if let Some(pos) = find_line_comment(trimmed) {
+            trimmed[..pos].trim_end().to_string()
+        } else {
+            trimmed.to_string()
+        };
+        if !code.is_empty() {
+            return Some(code);
+        }
+    }
+    None
+}
+
+/// Find the previous non-empty, non-comment code line before line_num in the source
+fn find_prev_code_line(source_lines: &[&str], line_num: usize) -> Option<String> {
+    if line_num == 0 {
+        return None;
+    }
+    for i in (0..line_num).rev() {
+        let trimmed = source_lines[i].trim();
+        if trimmed.is_empty() || trimmed.starts_with("//") {
+            continue;
+        }
+        let code = if let Some(pos) = find_line_comment(trimmed) {
+            trimmed[..pos].trim_end().to_string()
+        } else {
+            trimmed.to_string()
+        };
+        if !code.is_empty() {
+            return Some(code);
+        }
+    }
+    None
+}
+
+/// Reinsert comments into formatted code.
+///
+/// Strategy:
+/// - For inline comments: match the code on the line and append the comment
+/// - For standalone comments: find the closest code anchor (the next code line
+///   in the original source) and insert the comment before that anchor in the
+///   formatted output. Uses both next and prev anchors plus sequential ordering
+///   to disambiguate duplicate code lines.
+fn reinsert_comments(source: &str, formatted: &str, _options: &FormatOptions) -> String {
+    let comments = extract_comments(source);
+    if comments.is_empty() {
+        return formatted.to_string();
+    }
+
+    let source_lines: Vec<&str> = source.lines().collect();
+    let mut result_lines: Vec<String> = formatted.lines().map(|l| l.to_string()).collect();
+
+    // Track which formatted lines have been used for anchoring
+    let mut used_lines: Vec<bool> = vec![false; result_lines.len()];
+
+    // Phase 1: Process inline comments (comments on the same line as code)
+    for comment in &comments {
+        if comment.is_standalone {
+            continue;
+        }
+        let normalized_code = normalize_code(&comment.code_on_line);
+        if normalized_code.is_empty() {
+            continue;
+        }
+        // Find matching code line in formatted output
+        for (i, line) in result_lines.iter_mut().enumerate() {
+            if used_lines[i] {
+                continue;
+            }
+            let norm_formatted = normalize_code(line.trim());
+            if norm_formatted == normalized_code {
+                *line = format!("{}  {}", line, comment.text);
+                used_lines[i] = true;
+                break;
+            }
+        }
+    }
+
+    // Phase 2: Process standalone comments
+    // Group consecutive standalone comments
+    let standalone: Vec<&SourceComment> = comments.iter().filter(|c| c.is_standalone).collect();
+    if standalone.is_empty() {
+        return finalize_lines(&result_lines, formatted);
+    }
+
+    let mut groups: Vec<Vec<&SourceComment>> = Vec::new();
+    let mut current_group: Vec<&SourceComment> = Vec::new();
+
+    for comment in &standalone {
+        if current_group.is_empty() {
+            current_group.push(comment);
+        } else {
+            let last = current_group.last().unwrap();
+            if comment.line == last.line + 1 {
+                current_group.push(comment);
+            } else {
+                groups.push(current_group);
+                current_group = vec![comment];
+            }
+        }
+    }
+    if !current_group.is_empty() {
+        groups.push(current_group);
+    }
+
+    // For each comment group, find anchor and insert position.
+    // Process groups in source order and track used formatted lines to avoid
+    // multiple comment groups anchoring to the same duplicate code line.
+    let mut insertions: Vec<(usize, Vec<String>)> = Vec::new();
+    // Track minimum search position: comments later in source should match
+    // formatted lines at or after previously matched positions
+    let mut min_search_pos: usize = 0;
+
+    for group in &groups {
+        let last_comment_line = group.last().unwrap().line;
+        let first_comment_line = group.first().unwrap().line;
+
+        // Primary anchor: the next code line after the comment group
+        let next_code = find_next_code_line(&source_lines, last_comment_line);
+        // Secondary anchor: the previous code line before the comment group
+        let prev_code = find_prev_code_line(&source_lines, first_comment_line);
+
+        let insert_pos = if let Some(ref code) = next_code {
+            let normalized = normalize_code(code);
+            // Search starting from min_search_pos to handle duplicates
+            find_line_in_formatted_from(&result_lines, &normalized, min_search_pos, &used_lines)
+                .or_else(|| {
+                    // Fallback: search from beginning
+                    find_line_in_formatted_from(&result_lines, &normalized, 0, &used_lines)
+                })
+                .or_else(|| {
+                    // Prefix match fallback: when the line got reformatted (e.g., multiline params),
+                    // try matching by the first few tokens
+                    find_line_by_prefix(&result_lines, &normalized, min_search_pos, &used_lines)
+                })
+                .or_else(|| {
+                    find_line_by_prefix(&result_lines, &normalized, 0, &used_lines)
+                })
+                .unwrap_or(result_lines.len())
+        } else if let Some(ref code) = prev_code {
+            let normalized = normalize_code(code);
+            find_line_in_formatted_from(&result_lines, &normalized, min_search_pos, &used_lines)
+                .map(|pos| pos + 1)
+                .unwrap_or_else(|| {
+                    find_line_in_formatted_from(&result_lines, &normalized, 0, &used_lines)
+                        .map(|pos| pos + 1)
+                        .unwrap_or(result_lines.len())
+                })
+        } else {
+            // No code context — put at beginning
+            0
+        };
+
+        // Update min_search_pos for next group
+        if insert_pos < result_lines.len() {
+            min_search_pos = insert_pos;
+        }
+
+        // Determine indent from the target position
+        let indent = if insert_pos < result_lines.len() {
+            get_line_indent(&result_lines[insert_pos])
+        } else if !result_lines.is_empty() {
+            get_line_indent(result_lines.last().unwrap())
+        } else {
+            String::new()
+        };
+
+        let comment_lines: Vec<String> = group
+            .iter()
+            .map(|c| format!("{}{}", indent, c.text))
+            .collect();
+
+        insertions.push((insert_pos, comment_lines));
+    }
+
+    // Apply insertions in reverse order so positions don't shift
+    insertions.sort_by(|a, b| b.0.cmp(&a.0));
+    for (pos, lines) in insertions {
+        let insert_at = pos.min(result_lines.len());
+        for line in lines.into_iter().rev() {
+            result_lines.insert(insert_at, line);
+        }
+    }
+
+    finalize_lines(&result_lines, formatted)
+}
+
+/// Find the first line in formatted output matching the normalized code,
+/// starting from a given position and skipping already-used lines.
+fn find_line_in_formatted_from(
+    lines: &[String],
+    normalized_code: &str,
+    start_from: usize,
+    used: &[bool],
+) -> Option<usize> {
+    if normalized_code.is_empty() {
+        return None;
+    }
+    for i in start_from..lines.len() {
+        if used[i] {
+            continue;
+        }
+        let norm_line = normalize_code(lines[i].trim());
+        if norm_line == *normalized_code {
+            return Some(i);
+        }
+    }
+    None
+}
+
+/// Find a line by prefix match when exact match fails.
+/// This handles cases where a function header got reformatted to multi-line:
+/// Original: `fetchRepoPullRequests(owner: string, ...)`
+/// Formatted: `fetchRepoPullRequests(`
+/// We match by the first significant token (identifier before '(' or '{').
+fn find_line_by_prefix(
+    lines: &[String],
+    normalized_code: &str,
+    start_from: usize,
+    used: &[bool],
+) -> Option<usize> {
+    // Extract the first "word" up to a delimiter like '(' or '{'
+    let prefix = extract_code_prefix(normalized_code);
+    if prefix.is_empty() || prefix.len() < 3 {
+        return None;
+    }
+    for i in start_from..lines.len() {
+        if used[i] {
+            continue;
+        }
+        let norm_line = normalize_code(lines[i].trim());
+        let line_prefix = extract_code_prefix(&norm_line);
+        if !line_prefix.is_empty() && line_prefix == prefix {
+            return Some(i);
+        }
+    }
+    None
+}
+
+/// Extract a meaningful prefix from a code line for fuzzy matching.
+/// Returns the content up to the first '(' or '{', normalized.
+fn extract_code_prefix(code: &str) -> String {
+    let end = code.find(|c: char| c == '(' || c == '{').unwrap_or(code.len());
+    code[..end].trim().to_string()
+}
+
+/// Find the first line in formatted output matching the normalized code
+fn find_line_in_formatted(lines: &[String], normalized_code: &str) -> Option<usize> {
+    let unused = vec![false; lines.len()];
+    find_line_in_formatted_from(lines, normalized_code, 0, &unused)
+}
+
+/// Finalize lines back into a string
+fn finalize_lines(lines: &[String], original_formatted: &str) -> String {
+    let mut result = lines.join("\n");
+    if original_formatted.ends_with('\n') && !result.ends_with('\n') {
+        result.push('\n');
+    }
+    result
+}
+
 // ======================================================================
 // Public API
 // ======================================================================
 
 /// Format Liva source code according to canonical style rules.
-///
-/// Parses the source code into an AST and re-emits it with consistent formatting.
-/// Comments are preserved and reinserted at their original relative positions.
-///
-/// # Arguments
-///
-/// * `source` - The Liva source code to format
-/// * `options` - Formatting options (indentation, line width, etc.)
-///
-/// # Returns
-///
-/// * `Ok(String)` - The formatted source code
-/// * `Err(CompilerError)` - If the source code has syntax errors
 pub fn format_source(source: &str, options: &FormatOptions) -> Result<String> {
     // 1. Tokenize
     let tokens = lexer::tokenize(source)?;
@@ -1146,8 +1709,8 @@ pub fn format_source(source: &str, options: &FormatOptions) -> Result<String> {
     // 2. Parse to AST
     let ast = parser::parse(tokens, source)?;
 
-    // 3. Pretty-print from AST (without comments)
-    let mut formatter = Formatter::new(options.clone(), source);
+    // 3. Pretty-print from AST
+    let mut formatter = Formatter::new(options.clone());
     formatter.format_program(&ast);
     let formatted_code = formatter.output;
 
@@ -1158,17 +1721,12 @@ pub fn format_source(source: &str, options: &FormatOptions) -> Result<String> {
 }
 
 /// Check if the source code is already formatted correctly.
-///
-/// Returns `Ok(true)` if the source is already formatted,
-/// `Ok(false)` if it needs formatting, or an error if the source has syntax errors.
 pub fn check_format(source: &str, options: &FormatOptions) -> Result<bool> {
     let formatted = format_source(source, options)?;
     Ok(formatted == source)
 }
 
 /// Format a Liva source file in place.
-///
-/// Reads the file, formats it, and writes it back.
 pub fn format_file(path: &std::path::Path, options: &FormatOptions) -> Result<()> {
     let source = std::fs::read_to_string(path)
         .map_err(|e| CompilerError::IoError(format!("Failed to read file: {}", e)))?;
@@ -1187,184 +1745,6 @@ pub fn check_file(path: &std::path::Path, options: &FormatOptions) -> Result<boo
         .map_err(|e| CompilerError::IoError(format!("Failed to read file: {}", e)))?;
 
     check_format(&source, options)
-}
-
-// ======================================================================
-// Comment reinsertion
-// ======================================================================
-
-/// Represents a comment with its context in the original source
-#[derive(Debug)]
-struct SourceComment {
-    /// The comment text (including // prefix)
-    text: String,
-    /// The code that preceded this comment on the same line (if any)
-    preceding_code: String,
-    /// Lines of code immediately before this comment (for matching position)
-    context_before: Vec<String>,
-    /// Whether this comment is standalone (own line) or inline (after code)
-    is_standalone: bool,
-}
-
-/// Extract comments with their surrounding context from the original source
-fn extract_source_comments(source: &str) -> Vec<SourceComment> {
-    let lines: Vec<&str> = source.lines().collect();
-    let mut comments = Vec::new();
-    
-    for (i, line) in lines.iter().enumerate() {
-        if let Some(comment_pos) = find_line_comment(line) {
-            let before_comment = line[..comment_pos].trim_end();
-            let comment_text = line[comment_pos..].trim_end();
-            let is_standalone = before_comment.is_empty();
-            
-            // Get preceding code lines for context matching
-            let mut context_before = Vec::new();
-            let start = if i >= 3 { i - 3 } else { 0 };
-            for j in start..i {
-                let ctx_line = lines[j].trim();
-                if !ctx_line.is_empty() && find_line_comment(ctx_line).map_or(true, |p| p > 0) {
-                    // Get code part only (without comments)
-                    let code = if let Some(cp) = find_line_comment(ctx_line) {
-                        ctx_line[..cp].trim().to_string()
-                    } else {
-                        ctx_line.to_string()
-                    };
-                    if !code.is_empty() {
-                        context_before.push(code);
-                    }
-                }
-            }
-            
-            comments.push(SourceComment {
-                text: comment_text.to_string(),
-                preceding_code: before_comment.to_string(),
-                context_before,
-                is_standalone,
-            });
-        }
-    }
-    
-    comments
-}
-
-/// Reinsert comments from the original source into the formatted code.
-///
-/// Strategy:
-/// - Standalone comments (on their own line): Find the best position by matching
-///   surrounding code context, then insert at the same relative position.
-/// - Inline comments (after code): Find the matching code line in formatted output
-///   and append the comment.
-fn reinsert_comments(original: &str, formatted: &str, _options: &FormatOptions) -> String {
-    let source_comments = extract_source_comments(original);
-    
-    if source_comments.is_empty() {
-        return formatted.to_string();
-    }
-    
-    let mut result_lines: Vec<String> = formatted.lines().map(|l| l.to_string()).collect();
-    
-    // Collect all insertions first
-    let mut standalone_insertions: Vec<(usize, String)> = Vec::new();
-    
-    // Track which formatted lines have been used for inline comments
-    let mut used_for_inline: Vec<bool> = vec![false; result_lines.len()];
-    
-    for comment in &source_comments {
-        if comment.is_standalone {
-            let best_pos = find_comment_position(&result_lines, comment);
-            
-            // Determine indentation from surrounding code
-            let indent = if best_pos < result_lines.len() {
-                get_line_indent(&result_lines[best_pos])
-            } else if best_pos > 0 {
-                get_line_indent(&result_lines[best_pos - 1])
-            } else {
-                String::new()
-            };
-            
-            standalone_insertions.push((best_pos, format!("{}{}", indent, comment.text)));
-        } else {
-            // Inline comment: find the matching code line
-            if let Some(pos) = find_matching_code_line_excluding(&result_lines, &comment.preceding_code, &used_for_inline) {
-                result_lines[pos] = format!("{}  {}", result_lines[pos], comment.text);
-                used_for_inline[pos] = true;
-            }
-        }
-    }
-    
-    // Apply standalone insertions in reverse order (to preserve correct positions)
-    standalone_insertions.sort_by(|a, b| b.0.cmp(&a.0));
-    for (pos, text) in standalone_insertions {
-        let insert_at = pos.min(result_lines.len());
-        result_lines.insert(insert_at, text);
-    }
-    
-    let mut result = result_lines.join("\n");
-    if formatted.ends_with('\n') && !result.ends_with('\n') {
-        result.push('\n');
-    }
-    result
-}
-
-/// Find the best position to insert a standalone comment in the formatted code
-fn find_comment_position(lines: &[String], comment: &SourceComment) -> usize {
-    if comment.context_before.is_empty() {
-        // Comment at the very beginning of the file
-        return 0;
-    }
-    
-    // Try to match the last context line
-    let last_context = comment.context_before.last().unwrap();
-    
-    for (i, line) in lines.iter().enumerate() {
-        let trimmed = line.trim();
-        if trimmed == last_context || code_matches(trimmed, last_context) {
-            return i + 1; // Insert after the matching line
-        }
-    }
-    
-    // Try partial matching with earlier context
-    for ctx in comment.context_before.iter().rev() {
-        for (i, line) in lines.iter().enumerate() {
-            let trimmed = line.trim();
-            if code_matches(trimmed, ctx) {
-                return i + 1;
-            }
-        }
-    }
-    
-    // Fallback: append at end
-    lines.len()
-}
-
-/// Check if two code lines match (allowing for formatting differences)
-fn code_matches(formatted: &str, original: &str) -> bool {
-    // Normalize whitespace for comparison
-    let norm_f: String = formatted.split_whitespace().collect::<Vec<_>>().join(" ");
-    let norm_o: String = original.split_whitespace().collect::<Vec<_>>().join(" ");
-    norm_f == norm_o
-}
-
-/// Find a matching code line, excluding already-used positions
-fn find_matching_code_line_excluding(lines: &[String], code: &str, used: &[bool]) -> Option<usize> {
-    let norm_code: String = code.split_whitespace().collect::<Vec<_>>().join(" ");
-    
-    for (i, line) in lines.iter().enumerate() {
-        if used[i] {
-            continue;
-        }
-        let norm_line: String = line.trim().split_whitespace().collect::<Vec<_>>().join(" ");
-        if norm_line == norm_code {
-            return Some(i);
-        }
-    }
-    None
-}
-
-/// Get the leading whitespace of a line
-fn get_line_indent(line: &str) -> String {
-    let trimmed = line.trim_start();
-    line[..line.len() - trimmed.len()].to_string()
 }
 
 // ======================================================================
@@ -1478,7 +1858,11 @@ mod tests {
     fn test_format_blank_lines_between_functions() {
         let input = "add(a,b)=>a+b\nsub(a,b)=>a-b";
         let output = fmt(input);
-        assert!(output.contains("add(a, b) => a + b\n\nsub(a, b) => a - b"));
+        assert!(
+            output.contains("add(a, b) => a + b\n\nsub(a, b) => a - b"),
+            "Should have blank line between functions. Got: {}",
+            output
+        );
     }
 
     #[test]
@@ -1496,10 +1880,14 @@ mod tests {
     }
 
     #[test]
-    fn test_format_return() {
-        let input = "add(a: number, b: number): number{return a + b}";
+    fn test_format_return_simplification() {
+        let input = "add(a: number, b: number): number {\n    return a + b\n}";
         let output = fmt(input);
-        assert!(output.contains("return a + b"));
+        assert!(
+            output.contains("=> a + b"),
+            "Should simplify single return to =>. Got: {}",
+            output
+        );
     }
 
     #[test]
@@ -1551,14 +1939,93 @@ mod tests {
     fn test_format_preserves_standalone_comments() {
         let input = "// Header comment\nmain() {\n// inner comment\nprint(\"hi\")\n}";
         let output = fmt(input);
-        assert!(output.contains("// Header comment"), "header comment should be preserved. Got: {}", output);
-        assert!(output.contains("// inner comment"), "inner comment should be preserved. Got: {}", output);
+        assert!(
+            output.contains("// Header comment"),
+            "header comment should be preserved. Got: {}",
+            output
+        );
+        assert!(
+            output.contains("// inner comment"),
+            "inner comment should be preserved. Got: {}",
+            output
+        );
     }
 
     #[test]
     fn test_format_preserves_inline_comments() {
         let input = "main() {\nlet x = 10 // the value\n}";
         let output = fmt(input);
-        assert!(output.contains("// the value"), "inline comment should be preserved. Got: {}", output);
+        assert!(
+            output.contains("// the value"),
+            "inline comment should be preserved. Got: {}",
+            output
+        );
+    }
+
+    #[test]
+    fn test_format_simplify_single_return_to_oneliner() {
+        let input = "add(a: number, b: number): number {\n    return a + b\n}";
+        let output = fmt(input);
+        assert!(
+            output.contains("=> a + b"),
+            "Should simplify {{ return expr }} to => expr. Got: {}",
+            output
+        );
+    }
+
+    #[test]
+    fn test_format_long_params_multiline() {
+        let input = "fetchRepoIssues(owner: string, repo: string, token: string, state: string, limit: number): [string] {\n    return []\n}";
+        let output = fmt(input);
+        assert!(
+            output.lines().all(|l| l.len() <= 100),
+            "All lines should be <= 100 chars. Got:\n{}",
+            output
+        );
+    }
+
+    #[test]
+    fn test_format_long_constructor_multiline() {
+        let input = "IssueStats {\n    constructor(total: number, open: number, closed: number, avgLabelsPerIssue: float, highPriorityCount: number) {\n        this.total = total\n    }\n    total: number\n}";
+        let output = fmt(input);
+        assert!(
+            output.lines().all(|l| l.len() <= 100),
+            "Constructor params should wrap. Got:\n{}",
+            output
+        );
+    }
+
+    #[test]
+    fn test_format_call_multiline_wrap() {
+        let input = "main() {\n    let x = PullRequest(item.id, item.number, item.title, item.body, item.state, item.draft, false, 0, 0, 0)\n}";
+        let output = fmt(input);
+        assert!(
+            output.lines().all(|l| l.len() <= 100),
+            "Long calls should wrap. Got:\n{}",
+            output
+        );
+    }
+
+    #[test]
+    fn test_format_groups_consecutive_imports() {
+        let input = "import { add } from \"./math.liva\"\nimport { sub } from \"./ops.liva\"\n\nmain() {\n    print(\"hi\")\n}";
+        let output = fmt(input);
+        // Imports should NOT have a blank line between them
+        assert!(
+            output.contains("import { add } from \"./math.liva\"\nimport { sub } from \"./ops.liva\""),
+            "Consecutive imports should be grouped. Got:\n{}",
+            output
+        );
+    }
+
+    #[test]
+    fn test_format_top_level_const() {
+        let input = "const API_BASE = \"https://api.github.com\"";
+        let output = fmt(input);
+        assert!(
+            output.contains("const API_BASE = \"https://api.github.com\""),
+            "Top-level const should be formatted. Got: {}",
+            output
+        );
     }
 }
