@@ -1,0 +1,46 @@
+// Test v1.1.0 features: or fail + => one-liners
+
+divide(a: number, b: number): number {
+    if b == 0 { fail "Division by zero" }
+    return a / b
+}
+
+validate(input: string): string {
+    if input == "" { fail "Empty input" }
+    return input
+}
+
+main() {
+    // or fail with user-defined fallible function
+    let result = divide(10, 2) or fail "Math error"
+    print($"10 / 2 = {result}")
+
+    let name = validate("Liva") or fail "Validation failed"
+    print($"Name: {name}")
+
+    // => one-liners
+    let x = 42
+    if x > 10 => print("x is big")
+    if x > 100 => print("huge") else => print("not huge")
+
+    // for => one-liner
+    let items = [1, 2, 3]
+    for item in items => print($"Item: {item}")
+
+    // while => one-liner
+    let i = 0
+    while i < 3 => i = i + 1
+    print($"Final i: {i}")
+
+    // Traditional syntax still works (backward compatibility)
+    let result2, err = divide(20, 4)
+    if err {
+        print("Error occurred")
+    } else {
+        print("Division succeeded")
+    }
+
+    for num in [10, 20, 30] {
+        print($"Num: {num}")
+    }
+}

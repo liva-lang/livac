@@ -1,0 +1,19 @@
+// Test: => one-liner syntax for if, for, while
+
+main() {
+    let x = 10
+
+    // if => one-liner
+    if x > 5 => print("big")
+
+    // if => with else =>
+    if x > 20 => print("huge") else => print("not huge")
+
+    // for => one-liner
+    let items = [1, 2, 3]
+    for item in items => print(item)
+
+    // while => one-liner
+    let i = 0
+    while i < 3 => i = i + 1
+}

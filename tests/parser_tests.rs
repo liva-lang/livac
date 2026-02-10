@@ -157,3 +157,13 @@ fn test_type_aliases() {
 fn test_union_types() {
     test_parser_ok("union_types");
 }
+
+#[test]
+fn test_or_fail() {
+    test_parser_ok("or_fail");
+}
+
+#[test]
+fn test_oneliner_arrow() {
+    test_parser_ok("oneliner_arrow");
+}

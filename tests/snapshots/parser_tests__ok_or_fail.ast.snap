@@ -1,0 +1,283 @@
+---
+source: tests/parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "divide",
+        "type_params": [],
+        "params": [
+          {
+            "pattern": {
+              "Identifier": "a"
+            },
+            "type_ref": {
+              "Simple": "number"
+            },
+            "default": null
+          },
+          {
+            "pattern": {
+              "Identifier": "b"
+            },
+            "type_ref": {
+              "Simple": "number"
+            },
+            "default": null
+          }
+        ],
+        "return_type": {
+          "Simple": "number"
+        },
+        "body": {
+          "stmts": [
+            {
+              "If": {
+                "condition": {
+                  "Binary": {
+                    "op": "Eq",
+                    "left": {
+                      "Identifier": "b"
+                    },
+                    "right": {
+                      "Literal": {
+                        "Int": 0
+                      }
+                    }
+                  }
+                },
+                "then_branch": {
+                  "Block": {
+                    "stmts": [
+                      {
+                        "Fail": {
+                          "expr": {
+                            "Literal": {
+                              "String": "Division by zero"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "else_branch": null
+              }
+            },
+            {
+              "Return": {
+                "expr": {
+                  "Binary": {
+                    "op": "Div",
+                    "left": {
+                      "Identifier": "a"
+                    },
+                    "right": {
+                      "Identifier": "b"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": true
+      }
+    },
+    {
+      "Function": {
+        "name": "validate",
+        "type_params": [],
+        "params": [
+          {
+            "pattern": {
+              "Identifier": "input"
+            },
+            "type_ref": {
+              "Simple": "string"
+            },
+            "default": null
+          }
+        ],
+        "return_type": {
+          "Simple": "string"
+        },
+        "body": {
+          "stmts": [
+            {
+              "If": {
+                "condition": {
+                  "Binary": {
+                    "op": "Eq",
+                    "left": {
+                      "Identifier": "input"
+                    },
+                    "right": {
+                      "Literal": {
+                        "String": ""
+                      }
+                    }
+                  }
+                },
+                "then_branch": {
+                  "Block": {
+                    "stmts": [
+                      {
+                        "Fail": {
+                          "expr": {
+                            "Literal": {
+                              "String": "Empty input"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "else_branch": null
+              }
+            },
+            {
+              "Return": {
+                "expr": {
+                  "Identifier": "input"
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": true
+      }
+    },
+    {
+      "Function": {
+        "name": "main",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "result"
+                    },
+                    "type_ref": null
+                  }
+                ],
+                "init": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "divide"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "Int": 10
+                        }
+                      },
+                      {
+                        "Literal": {
+                          "Int": 2
+                        }
+                      }
+                    ],
+                    "exec_policy": "normal",
+                    "type_args": []
+                  }
+                },
+                "is_fallible": true,
+                "or_fail_msg": {
+                  "Literal": {
+                    "String": "Math error"
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "name"
+                    },
+                    "type_ref": null
+                  }
+                ],
+                "init": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "validate"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "String": "hello"
+                        }
+                      }
+                    ],
+                    "exec_policy": "normal",
+                    "type_args": []
+                  }
+                },
+                "is_fallible": true,
+                "or_fail_msg": {
+                  "Literal": {
+                    "String": "Validation failed"
+                  }
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "print"
+                    },
+                    "args": [
+                      {
+                        "Identifier": "result"
+                      }
+                    ],
+                    "exec_policy": "normal",
+                    "type_args": []
+                  }
+                }
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "print"
+                    },
+                    "args": [
+                      {
+                        "Identifier": "name"
+                      }
+                    ],
+                    "exec_policy": "normal",
+                    "type_args": []
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": true
+      }
+    }
+  ]
+}

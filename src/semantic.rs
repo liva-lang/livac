@@ -702,7 +702,10 @@ impl SemanticAnalyzer {
                 .as_ref()
                 .map_or(false, |e| self.expr_contains_fail(e)),
             Stmt::Expr(expr_stmt) => self.expr_contains_fail(&expr_stmt.expr),
-            Stmt::VarDecl(var) => self.expr_contains_fail(&var.init),
+            Stmt::VarDecl(var) => {
+                // `or fail` makes the containing function fallible
+                var.or_fail_msg.is_some() || self.expr_contains_fail(&var.init)
+            },
             _ => false,
         }
     }

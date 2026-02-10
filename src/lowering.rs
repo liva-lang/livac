@@ -863,7 +863,7 @@ fn contains_fail_in_block(block: &ast::BlockStmt) -> bool {
 fn contains_fail_in_stmt(stmt: &ast::Stmt) -> bool {
     match stmt {
         ast::Stmt::Fail(_) => true,
-        ast::Stmt::VarDecl(var) => contains_fail_in_expr(&var.init),
+        ast::Stmt::VarDecl(var) => var.or_fail_msg.is_some() || contains_fail_in_expr(&var.init),
         ast::Stmt::Assign(assign) => contains_fail_in_expr(&assign.value),
         ast::Stmt::Return(ret) => ret
             .expr

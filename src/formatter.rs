@@ -632,6 +632,11 @@ impl Formatter {
 
     fn format_var_decl(&mut self, decl: &VarDecl) {
         let init = self.format_expr(&decl.init);
+        let or_fail_suffix = if let Some(msg) = &decl.or_fail_msg {
+            format!(" or fail {}", self.format_expr(msg))
+        } else {
+            String::new()
+        };
         if decl.bindings.len() == 1 {
             let binding = &decl.bindings[0];
             let pattern = self.format_binding_pattern(&binding.pattern);
@@ -640,15 +645,22 @@ impl Formatter {
                 .as_ref()
                 .map(|t| format!(": {}", self.format_type_ref(t)))
                 .unwrap_or_default();
-            let line = format!("let {}{} = {}", pattern, type_ann, init);
+            let line = format!("let {}{} = {}{}", pattern, type_ann, init, or_fail_suffix);
             if init.contains('\n') {
                 // Multiline init (e.g., multiline call)
                 let init_lines: Vec<&str> = init.lines().collect();
                 self.write_line(&format!("let {}{} = {}", pattern, type_ann, init_lines[0]));
-                for il in &init_lines[1..] {
+                for il in &init_lines[1..init_lines.len()-1] {
                     self.output.push_str(il);
                     self.output.push('\n');
                 }
+                // Append or_fail to last line of multiline init
+                let last = init_lines.last().unwrap_or(&"");
+                self.output.push_str(last);
+                if !or_fail_suffix.is_empty() {
+                    self.output.push_str(&or_fail_suffix);
+                }
+                self.output.push('\n');
             } else if self.would_exceed_width(&line) {
                 // Re-format the init at the indented level so calls can wrap properly
                 self.indent_level += 1;
@@ -657,14 +669,20 @@ impl Formatter {
                 if init_reformat.contains('\n') {
                     let init_lines: Vec<&str> = init_reformat.lines().collect();
                     self.write_line(&format!("let {}{} = {}", pattern, type_ann, init_lines[0]));
-                    for il in &init_lines[1..] {
+                    for il in &init_lines[1..init_lines.len()-1] {
                         self.output.push_str(il);
                         self.output.push('\n');
                     }
+                    let last = init_lines.last().unwrap_or(&"");
+                    self.output.push_str(last);
+                    if !or_fail_suffix.is_empty() {
+                        self.output.push_str(&or_fail_suffix);
+                    }
+                    self.output.push('\n');
                 } else {
                     self.write_line(&format!("let {}{} =", pattern, type_ann));
                     self.indent_level += 1;
-                    self.write_line(&init_reformat);
+                    self.write_line(&format!("{}{}", init_reformat, or_fail_suffix));
                     self.indent_level -= 1;
                 }
             } else {

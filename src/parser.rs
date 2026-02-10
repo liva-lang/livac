@@ -62,6 +62,14 @@ impl Parser {
         }
     }
 
+    /// Check if the token AFTER the current one matches (lookahead 1)
+    fn peek_next_is(&self, token: &Token) -> bool {
+        match self.peek_token(1) {
+            Some(t) => std::mem::discriminant(t) == std::mem::discriminant(token),
+            None => false,
+        }
+    }
+
     fn match_token(&mut self, token: &Token) -> bool {
         if self.check(token) {
             self.advance();
@@ -561,7 +569,7 @@ impl Parser {
     fn stmt_contains_fail(&self, stmt: &Stmt) -> bool {
         match stmt {
             Stmt::Fail(_) => true,
-            Stmt::VarDecl(var) => self.expr_contains_fail(&var.init),
+            Stmt::VarDecl(var) => var.or_fail_msg.is_some() || self.expr_contains_fail(&var.init),
             Stmt::Assign(assign) => self.expr_contains_fail(&assign.value),
             Stmt::Return(ret) => ret
                 .expr
@@ -1222,14 +1230,26 @@ impl Parser {
             let bindings = self.parse_let_bindings()?;
             self.expect(Token::Assign)?;
             let init = self.parse_expression()?;
+
+            // Check for `or fail "message"` — error propagation shorthand (v1.1.0)
+            let or_fail_msg = if self.check(&Token::Or) && self.peek_next_is(&Token::Fail) {
+                self.advance(); // consume `or`
+                self.advance(); // consume `fail`
+                let msg = self.parse_expression()?;
+                Some(Box::new(msg))
+            } else {
+                None
+            };
+
             self.match_token(&Token::Semicolon); // Optional semicolon
 
-            let is_fallible = bindings.len() > 1;
+            let is_fallible = bindings.len() > 1 || or_fail_msg.is_some();
 
             return Ok(Stmt::VarDecl(VarDecl {
                 bindings,
                 init,
                 is_fallible,
+                or_fail_msg,
             }));
         }
 
@@ -1299,14 +1319,15 @@ impl Parser {
                 self.parse_expression()?
             };
 
-            // Check if it's a simple statement (like if cond fail "msg")
+            // Check if it's a simple statement (like if cond fail "msg") or => one-liner
             let then_branch = if self.check(&Token::LBrace) {
                 self.expect(Token::LBrace)?;
                 let block = self.parse_block_stmt()?;
                 self.expect(Token::RBrace)?;
                 IfBody::Block(block)
             } else {
-                // Parse a simple statement
+                // Consume optional => for one-liner syntax: if cond => expr
+                self.match_token(&Token::Arrow);
                 let stmt = self.parse_simple_statement()?;
                 IfBody::Stmt(Box::new(stmt))
             };
@@ -1323,7 +1344,8 @@ impl Parser {
                     self.expect(Token::RBrace)?;
                     Some(IfBody::Block(block))
                 } else {
-                    // This is a simple else statement
+                    // Consume optional => for one-liner else: else => expr
+                    self.match_token(&Token::Arrow);
                     let stmt = self.parse_simple_statement()?;
                     Some(IfBody::Stmt(Box::new(stmt)))
                 }
@@ -1339,10 +1361,17 @@ impl Parser {
         }
 
         if self.match_token(&Token::While) {
-            let condition = self.parse_expression()?;
-            self.expect(Token::LBrace)?;
-            let body = self.parse_block_stmt()?;
-            self.expect(Token::RBrace)?;
+            let condition = self.parse_expression_no_lambda()?;
+            let body = if self.match_token(&Token::Arrow) {
+                // One-liner: while cond => stmt
+                let stmt = self.parse_simple_statement()?;
+                BlockStmt { stmts: vec![stmt] }
+            } else {
+                self.expect(Token::LBrace)?;
+                let body = self.parse_block_stmt()?;
+                self.expect(Token::RBrace)?;
+                body
+            };
             self.match_token(&Token::Semicolon); // Optional semicolon
             return Ok(Stmt::While(WhileStmt { condition, body }));
         }
@@ -1408,7 +1437,7 @@ impl Parser {
 
             let var = self.parse_identifier()?;
             self.expect(Token::In)?;
-            let iterable = self.parse_expression()?;
+            let iterable = self.parse_expression_no_lambda()?;
 
             let options = if self.match_token(&Token::With) {
                 self.parse_for_options()?
@@ -1416,9 +1445,16 @@ impl Parser {
                 ForPolicyOptions::default()
             };
 
-            self.expect(Token::LBrace)?;
-            let body = self.parse_block_stmt()?;
-            self.expect(Token::RBrace)?;
+            let body = if self.match_token(&Token::Arrow) {
+                // One-liner: for x in items => stmt
+                let stmt = self.parse_simple_statement()?;
+                BlockStmt { stmts: vec![stmt] }
+            } else {
+                self.expect(Token::LBrace)?;
+                let body = self.parse_block_stmt()?;
+                self.expect(Token::RBrace)?;
+                body
+            };
             self.match_token(&Token::Semicolon); // Optional semicolon
 
             let mut stmt = ForStmt::new(var, iterable, body);
@@ -1448,6 +1484,12 @@ impl Parser {
 
     fn parse_expression(&mut self) -> Result<Expr> {
         self.parse_lambda_expression()
+    }
+
+    /// Parse an expression without lambda detection — used in for/while contexts
+    /// where `=>` means the body arrow, not a lambda.
+    fn parse_expression_no_lambda(&mut self) -> Result<Expr> {
+        self.parse_assignment()
     }
 
     fn parse_lambda_expression(&mut self) -> Result<Expr> {
@@ -1564,7 +1606,8 @@ impl Parser {
     fn parse_or(&mut self) -> Result<Expr> {
         let mut expr = self.parse_and()?;
 
-        while self.match_token(&Token::Or) || self.match_token(&Token::OrOr) {
+        while (self.check(&Token::Or) && !self.peek_next_is(&Token::Fail)) || self.check(&Token::OrOr) {
+            self.advance(); // consume `or` / `||`
             let right = self.parse_and()?;
             expr = Expr::Binary {
                 op: BinOp::Or,

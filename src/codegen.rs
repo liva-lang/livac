@@ -2824,6 +2824,67 @@ impl CodeGenerator {
             Stmt::VarDecl(var) => {
                 self.write_indent();
 
+                // Handle `or fail "message"` — error propagation shorthand (v1.1.0)
+                if let Some(fail_msg) = &var.or_fail_msg {
+                    // let x = fallible_expr or fail "message"
+                    // Generates: let x = match fallible_expr { Ok(v) => v, Err(_) => return Err(liva_rt::Error::from("message")) };
+                    let binding = &var.bindings[0];
+                    let var_name = self.sanitize_name(binding.name().unwrap());
+                    
+                    // Check if the init is an HTTP call, File call, or user-fallible call
+                    let is_http = self.is_http_call(&var.init);
+                    let is_file = self.is_file_call(&var.init);
+                    let is_json_parse = self.is_json_parse_call(&var.init);
+                    let is_user_fallible = self.is_fallible_expr(&var.init);
+                    
+                    if is_http {
+                        // HTTP calls return (Option<Response>, String)
+                        // Generate: let var = { let (opt, err_str) = HTTP.get(...).await; if !err_str.is_empty() { return Err(liva_rt::Error::from("msg")); } opt.unwrap_or_default() };
+                        write!(self.output, "let {} = {{ let (opt, err_str) = ", var_name).unwrap();
+                        self.generate_expr(&var.init)?;
+                        self.output.push_str(".await; if !err_str.is_empty() { return Err(liva_rt::Error::from(");
+                        self.generate_expr(fail_msg)?;
+                        self.output.push_str(")); } opt.unwrap_or_default() };\n");
+                        
+                        // Track as rust_struct for member access
+                        self.rust_struct_vars.insert(var_name);
+                    } else if is_file {
+                        // File calls return (Option<T>, String)
+                        // Generate: let var = { let (opt, err_str) = File.read(...); if !err_str.is_empty() { return Err(liva_rt::Error::from("msg")); } opt.unwrap_or_default() };
+                        write!(self.output, "let {} = {{ let (opt, err_str) = ", var_name).unwrap();
+                        self.generate_expr(&var.init)?;
+                        self.output.push_str("; if !err_str.is_empty() { return Err(liva_rt::Error::from(");
+                        self.generate_expr(fail_msg)?;
+                        self.output.push_str(")); } opt.unwrap_or_default() };\n");
+                    } else if is_json_parse {
+                        // JSON.parse returns (Option<JsonValue>, String)
+                        // Generate: let var = { let (opt, err_str) = JSON.parse(...); if !err_str.is_empty() { return Err(liva_rt::Error::from("msg")); } opt.unwrap_or_default() };
+                        write!(self.output, "let {} = {{ let (opt, err_str) = ", var_name).unwrap();
+                        self.generate_expr(&var.init)?;
+                        self.output.push_str("; if !err_str.is_empty() { return Err(liva_rt::Error::from(");
+                        self.generate_expr(fail_msg)?;
+                        self.output.push_str(")); } opt.unwrap_or_default() };\n");
+                        
+                        // Track as json_value_var for indexed access
+                        self.json_value_vars.insert(var_name);
+                    } else if is_user_fallible {
+                        // User-defined fallible functions return Result<T, Error>
+                        // Generate: let var = match expr { Ok(v) => v, Err(_) => return Err(liva_rt::Error::from("msg")) };
+                        write!(self.output, "let {} = match ", var_name).unwrap();
+                        self.generate_expr(&var.init)?;
+                        self.output.push_str(" { Ok(v) => v, Err(_) => return Err(liva_rt::Error::from(");
+                        self.generate_expr(fail_msg)?;
+                        self.output.push_str(")) };\n");
+                    } else {
+                        // Non-fallible expression with or fail — just assign directly (or fail never triggers)
+                        write!(self.output, "let {} = ", var_name).unwrap();
+                        self.generate_expr(&var.init)?;
+                        self.output.push_str(";\n");
+                    }
+                    
+                    return Ok(());
+                }
+
                 // Phase 2: Check if init expression is a Task (async/par call)
                 let task_exec_policy = self.is_task_expr(&var.init);
 

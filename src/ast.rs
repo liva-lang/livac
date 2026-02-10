@@ -275,6 +275,11 @@ pub struct VarDecl {
     pub bindings: Vec<VarBinding>,
     pub init: Expr,
     pub is_fallible: bool,
+    /// `or fail "message"` — error propagation shorthand (v1.1.0)
+    /// When present, `let x = fallible_expr or fail "msg"` desugars to:
+    /// let x = match fallible_expr { Ok(v) => v, Err(_) => return Err("msg") };
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub or_fail_msg: Option<Box<Expr>>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

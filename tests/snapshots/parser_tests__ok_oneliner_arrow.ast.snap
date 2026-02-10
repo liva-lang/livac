@@ -1,0 +1,267 @@
+---
+source: tests/parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Function": {
+        "name": "main",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "x"
+                    },
+                    "type_ref": null
+                  }
+                ],
+                "init": {
+                  "Literal": {
+                    "Int": 10
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "If": {
+                "condition": {
+                  "Binary": {
+                    "op": "Gt",
+                    "left": {
+                      "Identifier": "x"
+                    },
+                    "right": {
+                      "Literal": {
+                        "Int": 5
+                      }
+                    }
+                  }
+                },
+                "then_branch": {
+                  "Stmt": {
+                    "Expr": {
+                      "expr": {
+                        "Call": {
+                          "callee": {
+                            "Identifier": "print"
+                          },
+                          "args": [
+                            {
+                              "Literal": {
+                                "String": "big"
+                              }
+                            }
+                          ],
+                          "exec_policy": "normal",
+                          "type_args": []
+                        }
+                      }
+                    }
+                  }
+                },
+                "else_branch": null
+              }
+            },
+            {
+              "If": {
+                "condition": {
+                  "Binary": {
+                    "op": "Gt",
+                    "left": {
+                      "Identifier": "x"
+                    },
+                    "right": {
+                      "Literal": {
+                        "Int": 20
+                      }
+                    }
+                  }
+                },
+                "then_branch": {
+                  "Stmt": {
+                    "Expr": {
+                      "expr": {
+                        "Call": {
+                          "callee": {
+                            "Identifier": "print"
+                          },
+                          "args": [
+                            {
+                              "Literal": {
+                                "String": "huge"
+                              }
+                            }
+                          ],
+                          "exec_policy": "normal",
+                          "type_args": []
+                        }
+                      }
+                    }
+                  }
+                },
+                "else_branch": {
+                  "Stmt": {
+                    "Expr": {
+                      "expr": {
+                        "Call": {
+                          "callee": {
+                            "Identifier": "print"
+                          },
+                          "args": [
+                            {
+                              "Literal": {
+                                "String": "not huge"
+                              }
+                            }
+                          ],
+                          "exec_policy": "normal",
+                          "type_args": []
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "items"
+                    },
+                    "type_ref": null
+                  }
+                ],
+                "init": {
+                  "ArrayLiteral": [
+                    {
+                      "Literal": {
+                        "Int": 1
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "Int": 2
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "Int": 3
+                      }
+                    }
+                  ]
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "For": {
+                "var": "item",
+                "iterable": {
+                  "Identifier": "items"
+                },
+                "policy": "seq",
+                "options": {
+                  "ordered": false
+                },
+                "body": {
+                  "stmts": [
+                    {
+                      "Expr": {
+                        "expr": {
+                          "Call": {
+                            "callee": {
+                              "Identifier": "print"
+                            },
+                            "args": [
+                              {
+                                "Identifier": "item"
+                              }
+                            ],
+                            "exec_policy": "normal",
+                            "type_args": []
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "i"
+                    },
+                    "type_ref": null
+                  }
+                ],
+                "init": {
+                  "Literal": {
+                    "Int": 0
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "While": {
+                "condition": {
+                  "Binary": {
+                    "op": "Lt",
+                    "left": {
+                      "Identifier": "i"
+                    },
+                    "right": {
+                      "Literal": {
+                        "Int": 3
+                      }
+                    }
+                  }
+                },
+                "body": {
+                  "stmts": [
+                    {
+                      "Assign": {
+                        "target": {
+                          "Identifier": "i"
+                        },
+                        "value": {
+                          "Binary": {
+                            "op": "Add",
+                            "left": {
+                              "Identifier": "i"
+                            },
+                            "right": {
+                              "Literal": {
+                                "Int": 1
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    }
+  ]
+}
