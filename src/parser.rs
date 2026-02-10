@@ -2495,12 +2495,21 @@ impl Parser {
         match self.advance() {
             Some(Token::Ident(s)) => Ok(s.clone()),
             Some(Token::PrivateIdent(s)) => Ok(s.clone()),
+            // Type keywords are valid identifiers in parameter/variable name contexts
+            Some(Token::Number) => Ok("number".to_string()),
+            Some(Token::Float) => Ok("float".to_string()),
+            Some(Token::Bool) => Ok("bool".to_string()),
+            Some(Token::String) => Ok("string".to_string()),
+            Some(Token::CharType) => Ok("char".to_string()),
+            Some(Token::Bytes) => Ok("bytes".to_string()),
+            Some(Token::Type) => Ok("type".to_string()),
             _ => Err(self.error("Expected identifier".into())),
         }
     }
     
-    /// Parse identifier or keyword token as method name
-    /// This allows reserved keywords like "par", "vec", "parvec" to be used as method names
+    /// Parse identifier or keyword token as method/field name
+    /// This allows reserved keywords like "par", "vec", "parvec" and type keywords
+    /// like "number", "float", "string", "bool" to be used as field/method names
     fn parse_method_name(&mut self) -> Result<String> {
         match self.advance() {
             Some(Token::Ident(s)) => Ok(s.clone()),
@@ -2509,6 +2518,16 @@ impl Parser {
             Some(Token::Vec) => Ok("vec".to_string()),
             Some(Token::ParVec) => Ok("parvec".to_string()),
             Some(Token::IntLiteral(n)) => Ok(n.to_string()),  // Tuple member access: .0, .1, .2
+            // Type keywords allowed as field/method names
+            Some(Token::Number) => Ok("number".to_string()),
+            Some(Token::Float) => Ok("float".to_string()),
+            Some(Token::Bool) => Ok("bool".to_string()),
+            Some(Token::String) => Ok("string".to_string()),
+            Some(Token::CharType) => Ok("char".to_string()),
+            Some(Token::Bytes) => Ok("bytes".to_string()),
+            // Other keywords that may appear as field names
+            Some(Token::Type) => Ok("type".to_string()),
+            Some(Token::Null) => Ok("null".to_string()),
             _ => Err(self.error("Expected method name".into())),
         }
     }
