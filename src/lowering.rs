@@ -35,6 +35,9 @@ pub fn lower_program(program: &ast::Program) -> ir::Module {
             ast::TopLevel::Import(_) => {
                 // Skip imports in IR
             }
+            ast::TopLevel::ConstDecl(_) => {
+                // Top-level constants are handled directly by codegen
+            }
         }
     }
 

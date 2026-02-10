@@ -56,6 +56,7 @@ pub enum TopLevel {
     Class(ClassDecl),
     Function(FunctionDecl),
     Test(TestDecl),
+    ConstDecl(ConstDecl),
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

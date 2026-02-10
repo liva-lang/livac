@@ -415,6 +415,9 @@ impl SemanticAnalyzer {
                         },
                     );
                 }
+                TopLevel::ConstDecl(_) => {
+                    // Top-level constants are simple values, no special registration needed
+                }
                 _ => {}
             }
         }

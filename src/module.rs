@@ -72,6 +72,13 @@ impl Module {
                 TopLevel::Import(import_decl) => {
                     imports.push(import_decl.clone());
                 }
+                TopLevel::ConstDecl(const_decl) => {
+                    if const_decl.name.starts_with('_') {
+                        private_symbols.insert(const_decl.name.clone());
+                    } else {
+                        public_symbols.insert(const_decl.name.clone());
+                    }
+                }
                 _ => {
                     // Type, UseRust, Test - ignore for now
                 }

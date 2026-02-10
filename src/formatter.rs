@@ -128,6 +128,7 @@ impl Formatter {
             TopLevel::Class(decl) => self.format_class(decl),
             TopLevel::Function(decl) => self.format_function(decl),
             TopLevel::Test(decl) => self.format_test(decl),
+            TopLevel::ConstDecl(decl) => self.format_const_decl(decl),
         }
     }
 

@@ -368,6 +368,26 @@ impl Parser {
             return Ok(TopLevel::Test(TestDecl { name, body }));
         }
 
+        // Top-level const declaration
+        if self.match_token(&Token::Const) {
+            let name = self.parse_identifier()?;
+            let span = self.previous_span();
+            let type_ref = if self.match_token(&Token::Colon) {
+                Some(self.parse_type()?)
+            } else {
+                None
+            };
+            self.expect(Token::Assign)?;
+            let value = self.parse_expression()?;
+            self.match_token(&Token::Semicolon);
+            return Ok(TopLevel::ConstDecl(ConstDecl {
+                name,
+                type_ref,
+                init: value,
+                span,
+            }));
+        }
+
         // Check if we have any tokens left to parse
         if self.is_at_end() {
             return Err(self.error("Unexpected end of file".into()));

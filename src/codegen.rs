@@ -1611,6 +1611,19 @@ impl CodeGenerator {
             }
             TopLevel::Function(func) => self.generate_function(func),
             TopLevel::Test(test) => self.generate_test(test),
+            TopLevel::ConstDecl(const_decl) => {
+                write!(self.output, "const {}: ", const_decl.name.to_uppercase()).unwrap();
+                let type_str = if let Some(type_ref) = &const_decl.type_ref {
+                    type_ref.to_rust_type()
+                } else {
+                    self.infer_const_type(&const_decl.init)
+                };
+                self.output.push_str(&type_str);
+                self.output.push_str(" = ");
+                self.generate_expr(&const_decl.init)?;
+                self.output.push_str(";\n");
+                Ok(())
+            }
         }
     }
 
@@ -10108,6 +10121,19 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext) ->
             TopLevel::TypeAlias(_) => {
                 // Type aliases are expanded inline, no code generation needed
                 continue;
+            }
+            TopLevel::ConstDecl(const_decl) => {
+                let is_public = !const_decl.name.starts_with('_');
+                
+                codegen.output.clear();
+                codegen.generate_top_level(item)?;
+                let code = codegen.output.clone();
+                
+                if is_public {
+                    module_body.push_str("pub ");
+                }
+                module_body.push_str(&code);
+                module_body.push('\n');
             }
             TopLevel::UseRust(_) | TopLevel::Test(_) => {
                 // Reset codegen output for this item

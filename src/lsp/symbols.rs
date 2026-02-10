@@ -75,7 +75,7 @@ impl SymbolTable {
             TopLevel::TypeAlias(type_alias) => {
                 self.visit_type_alias(type_alias);
             }
-            TopLevel::Import(_) | TopLevel::UseRust(_) | TopLevel::Test(_) => {
+            TopLevel::ConstDecl(_) | TopLevel::Import(_) | TopLevel::UseRust(_) | TopLevel::Test(_) => {
                 // Skip for now
             }
         }
