@@ -16,4 +16,18 @@ main() {
     // while => one-liner
     let i = 0
     while i < 3 => i = i + 1
+
+    // Point-free / bare identifier (no parentheses) — parsed as expression statement
+    for item in items => print
+    if x > 5 => print
+    while i < 3 => print
+
+    // => with assignment
+    let count = 0
+    for item in items => count = count + 1
+    if x > 5 => count = count + 10
+
+    // => with method call
+    let results: [number] = []
+    for item in items => results.push(item)
 }

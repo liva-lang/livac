@@ -255,6 +255,233 @@ expression: json
                   ]
                 }
               }
+            },
+            {
+              "For": {
+                "var": "item",
+                "iterable": {
+                  "Identifier": "items"
+                },
+                "policy": "seq",
+                "options": {
+                  "ordered": false
+                },
+                "body": {
+                  "stmts": [
+                    {
+                      "Expr": {
+                        "expr": {
+                          "Identifier": "print"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "If": {
+                "condition": {
+                  "Binary": {
+                    "op": "Gt",
+                    "left": {
+                      "Identifier": "x"
+                    },
+                    "right": {
+                      "Literal": {
+                        "Int": 5
+                      }
+                    }
+                  }
+                },
+                "then_branch": {
+                  "Stmt": {
+                    "Expr": {
+                      "expr": {
+                        "Identifier": "print"
+                      }
+                    }
+                  }
+                },
+                "else_branch": null
+              }
+            },
+            {
+              "While": {
+                "condition": {
+                  "Binary": {
+                    "op": "Lt",
+                    "left": {
+                      "Identifier": "i"
+                    },
+                    "right": {
+                      "Literal": {
+                        "Int": 3
+                      }
+                    }
+                  }
+                },
+                "body": {
+                  "stmts": [
+                    {
+                      "Expr": {
+                        "expr": {
+                          "Identifier": "print"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "count"
+                    },
+                    "type_ref": null
+                  }
+                ],
+                "init": {
+                  "Literal": {
+                    "Int": 0
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "For": {
+                "var": "item",
+                "iterable": {
+                  "Identifier": "items"
+                },
+                "policy": "seq",
+                "options": {
+                  "ordered": false
+                },
+                "body": {
+                  "stmts": [
+                    {
+                      "Assign": {
+                        "target": {
+                          "Identifier": "count"
+                        },
+                        "value": {
+                          "Binary": {
+                            "op": "Add",
+                            "left": {
+                              "Identifier": "count"
+                            },
+                            "right": {
+                              "Literal": {
+                                "Int": 1
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "If": {
+                "condition": {
+                  "Binary": {
+                    "op": "Gt",
+                    "left": {
+                      "Identifier": "x"
+                    },
+                    "right": {
+                      "Literal": {
+                        "Int": 5
+                      }
+                    }
+                  }
+                },
+                "then_branch": {
+                  "Stmt": {
+                    "Assign": {
+                      "target": {
+                        "Identifier": "count"
+                      },
+                      "value": {
+                        "Binary": {
+                          "op": "Add",
+                          "left": {
+                            "Identifier": "count"
+                          },
+                          "right": {
+                            "Literal": {
+                              "Int": 10
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "else_branch": null
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "results"
+                    },
+                    "type_ref": {
+                      "Array": {
+                        "Simple": "number"
+                      }
+                    }
+                  }
+                ],
+                "init": {
+                  "ArrayLiteral": []
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "For": {
+                "var": "item",
+                "iterable": {
+                  "Identifier": "items"
+                },
+                "policy": "seq",
+                "options": {
+                  "ordered": false
+                },
+                "body": {
+                  "stmts": [
+                    {
+                      "Expr": {
+                        "expr": {
+                          "MethodCall": {
+                            "object": {
+                              "Identifier": "results"
+                            },
+                            "method": "push",
+                            "args": [
+                              {
+                                "Identifier": "item"
+                              }
+                            ],
+                            "adapter": "seq",
+                            "adapter_options": {}
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
             }
           ]
         },
