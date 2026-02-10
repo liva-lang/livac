@@ -1104,7 +1104,7 @@ impl SemanticAnalyzer {
         if self.type_ref_contains_name(&alias.target_type, &alias.name) {
             self.exit_type_param_scope();
             return Err(CompilerError::SemanticError(
-                format!("E0701: Circular type alias: '{}' references itself", alias.name).into(),
+                format!("E0004: Circular type alias: '{}' references itself", alias.name).into(),
             ));
         }
         
@@ -1521,7 +1521,7 @@ impl SemanticAnalyzer {
                 self.validate_expr(object)?;
                 if property == "length" && !self.expr_supports_length(object) {
                     return Err(CompilerError::SemanticError(
-                        "E0701: `.length` is only available on strings, bytes, and arrays. Consider `.count()` for iterables."
+                        "E0005: `.length` is only available on strings, bytes, and arrays. Consider `.count()` for iterables."
                             .into(),
                     ));
                 }
@@ -1658,7 +1658,7 @@ impl SemanticAnalyzer {
                                                     context_before: None,
                                                     context_after: None,
                                                 }),
-                                                code: "E0902".to_string(),
+                                                code: "E0006".to_string(),
                                                 title: format!("Invalid HTTP.{} call", member),
                                                 message: format!(
                                                     "HTTP.{} requires exactly 1 argument (url: string), found {}",
@@ -1689,7 +1689,7 @@ impl SemanticAnalyzer {
                                                     context_before: None,
                                                     context_after: None,
                                                 }),
-                                                code: "E0902".to_string(),
+                                                code: "E0006".to_string(),
                                                 title: format!("Invalid HTTP.{} call", member),
                                                 message: format!(
                                                     "HTTP.{} requires exactly 2 arguments (url: string, body: string), found {}",
@@ -1722,7 +1722,7 @@ impl SemanticAnalyzer {
                                         context_before: None,
                                         context_after: None,
                                     }),
-                                    code: "E0902".to_string(),
+                                    code: "E0007".to_string(),
                                     title: "Unknown HTTP method".to_string(),
                                     message: format!(
                                         "HTTP.{} is not a valid HTTP method. Available methods: get, post, put, delete",
@@ -3285,7 +3285,7 @@ impl SemanticAnalyzer {
                     if args.len() != alias_type_params.len() {
                         return Err(CompilerError::SemanticError(
                             SemanticErrorInfo::new(
-                                "E0702",
+                                "E5003",
                                 "Type argument count mismatch",
                                 &format!(
                                     "Type alias `{}` expects {} type argument(s), but {} provided",

@@ -3,22 +3,80 @@
 /// This module centralizes all error codes used throughout the compiler.
 /// Error codes follow a structured numbering system:
 ///
-/// - E0xxx: General semantic errors (0000-0999)
+/// - E0xxx: General semantic errors
+///   - E0000-E0099: Core semantic (generic, interface, variables)
+///   - E0100-E0199: (reserved)
+///   - E0200-E0299: (reserved)
+///   - E0300-E0399: Destructuring & pattern bindings
+///   - E0400-E0499: Concurrency (concurrent exec, captures)
+///   - E0500-E0599: Concurrency (Send/Sync, exec modifiers)
+///   - E0600-E0699: Concurrency (awaitable, parallel loops)
+///   - E0700-E0799: Error handling & fallibility
+///   - E0800-E0899: (reserved)
+///   - E0900-E0999: Pattern matching exhaustiveness
 /// - E1xxx: Lexer errors (1000-1999)
 /// - E2xxx: Parser errors (2000-2999)
 /// - E3xxx: Code generation errors (3000-3999)
 /// - E4xxx: Module system errors (4000-4999)
 /// - E5xxx: Type system errors (5000-5999)
-/// - E6xxx: Concurrency errors (6000-6999)
-/// - E7xxx: Error handling errors (7000-7999)
 
 // ============================================================================
-// E0xxx: General Semantic Errors
+// E0xxx: General Semantic Errors (E0000-E0099)
 // ============================================================================
 
 pub const E0000_GENERIC: &str = "E0000";
 pub const E0001_INTERFACE_NOT_IMPL: &str = "E0001";
 pub const E0002_METHOD_SIGNATURE_MISMATCH: &str = "E0002";
+pub const E0003_CLASS_NOT_INTERFACE: &str = "E0003";
+pub const E0004_CIRCULAR_TYPE_ALIAS: &str = "E0004";
+pub const E0005_INVALID_LENGTH_ACCESS: &str = "E0005";
+pub const E0006_INVALID_HTTP_CALL: &str = "E0006";
+pub const E0007_UNKNOWN_HTTP_METHOD: &str = "E0007";
+
+// ============================================================================
+// E0xxx: Destructuring Errors (E0300-E0399)
+// ============================================================================
+
+pub const E0301_FIELD_NOT_FOUND: &str = "E0301";
+pub const E0302_DUPLICATE_BINDING: &str = "E0302";
+pub const E0303_ARRAY_DESTRUCTURE_MISMATCH: &str = "E0303";
+pub const E0304_TUPLE_DESTRUCTURE_MISMATCH: &str = "E0304";
+pub const E0310_DUPLICATE_PARAM: &str = "E0310";
+pub const E0311_PARAM_FIELD_NOT_FOUND: &str = "E0311";
+pub const E0312_PARAM_DUPLICATE_BINDING: &str = "E0312";
+
+// ============================================================================
+// E0xxx: Concurrency Errors (E0400-E0699)
+// ============================================================================
+
+pub const E0401_INVALID_CONCURRENT_EXEC: &str = "E0401";
+pub const E0402_UNSAFE_CONCURRENT_ACCESS: &str = "E0402";
+pub const E0510_NON_SEND_CAPTURE: &str = "E0510";
+pub const E0511_NON_SYNC_CAPTURE: &str = "E0511";
+pub const E0602_DUPLICATE_EXEC_MODIFIER: &str = "E0602";
+pub const E0603_NOT_AWAITABLE: &str = "E0603";
+pub const E0604_AWAIT_MULTIPLE_TIMES: &str = "E0604";
+pub const E0605_AWAIT_IN_PARALLEL_LOOP: &str = "E0605";
+
+// ============================================================================
+// E0xxx: Error Handling & Loop Options (E0700-E0799)
+// ============================================================================
+
+pub const E0701_FALLIBLE_WITHOUT_BINDING: &str = "E0701";
+pub const E0702_INVALID_CHUNK_SIZE: &str = "E0702";
+pub const E0703_INVALID_PREFETCH_SIZE: &str = "E0703";
+pub const E0704_INVALID_THREAD_COUNT: &str = "E0704";
+pub const E0705_SIMD_WITHOUT_VEC: &str = "E0705";
+pub const E0706_INVALID_SIMD_WIDTH: &str = "E0706";
+
+// ============================================================================
+// E0xxx: Pattern Matching Exhaustiveness (E0900-E0999)
+// ============================================================================
+
+pub const E0901_NON_EXHAUSTIVE_BOOL: &str = "E0901";
+pub const E0902_NON_EXHAUSTIVE_INT: &str = "E0902";
+pub const E0903_NON_EXHAUSTIVE_STRING: &str = "E0903";
+pub const E0906_INCOMPATIBLE_OR_BINDINGS: &str = "E0906";
 
 // ============================================================================
 // E1xxx: Lexer Errors
@@ -34,6 +92,7 @@ pub const E2000_PARSE_ERROR: &str = "E2000";
 pub const E2001_INVALID_EXEC_MODIFIER: &str = "E2001";
 pub const E2002_DUPLICATE_EXEC_MODIFIER: &str = "E2002";
 pub const E2003_INVALID_LOOP_POLICY: &str = "E2003";
+pub const E2004_UNDEFINED_INTERFACE: &str = "E2004";
 
 // ============================================================================
 // E3xxx: Code Generation Errors
@@ -60,30 +119,8 @@ pub const E4009_MODULE_NOT_EXPORTED: &str = "E4009";
 // ============================================================================
 
 pub const E5001_TYPE_MISMATCH: &str = "E5001";
-
-// ============================================================================
-// E6xxx: Concurrency Errors
-// ============================================================================
-
-pub const E0401_INVALID_CONCURRENT_EXEC: &str = "E0401";
-pub const E0402_UNSAFE_CONCURRENT_ACCESS: &str = "E0402";
-pub const E0510_NON_SEND_CAPTURE: &str = "E0510";
-pub const E0511_NON_SYNC_CAPTURE: &str = "E0511";
-pub const E0602_DUPLICATE_EXEC_MODIFIER: &str = "E0602";
-pub const E0603_NOT_AWAITABLE: &str = "E0603";
-pub const E0604_AWAIT_MULTIPLE_TIMES: &str = "E0604";
-pub const E0605_AWAIT_IN_PARALLEL_LOOP: &str = "E0605";
-
-// ============================================================================
-// E7xxx: Error Handling Errors
-// ============================================================================
-
-pub const E0701_FALLIBLE_WITHOUT_BINDING: &str = "E0701";
-pub const E0702_INVALID_CHUNK_SIZE: &str = "E0702";
-pub const E0703_INVALID_PREFETCH_SIZE: &str = "E0703";
-pub const E0704_INVALID_THREAD_COUNT: &str = "E0704";
-pub const E0705_SIMD_WITHOUT_VEC: &str = "E0705";
-pub const E0706_INVALID_SIMD_WIDTH: &str = "E0706";
+pub const E5002_MISSING_TRAIT_CONSTRAINT: &str = "E5002";
+pub const E5003_TYPE_ARG_COUNT_MISMATCH: &str = "E5003";
 
 // ============================================================================
 // Error Categories
@@ -108,16 +145,24 @@ impl ErrorCategory {
             return None;
         }
 
-        let num = &code[1..2];
+        // Parse the numeric part for sub-range classification
+        let num_str = &code[1..];
+        let num: u32 = num_str.parse().ok()?;
+
         match num {
-            "0" => Some(ErrorCategory::Semantic),
-            "1" => Some(ErrorCategory::Lexer),
-            "2" => Some(ErrorCategory::Parser),
-            "3" => Some(ErrorCategory::Codegen),
-            "4" => Some(ErrorCategory::Module),
-            "5" => Some(ErrorCategory::Type),
-            "6" => Some(ErrorCategory::Concurrency),
-            "7" => Some(ErrorCategory::ErrorHandling),
+            // E0xxx sub-ranges
+            0..=99 => Some(ErrorCategory::Semantic),         // E0000-E0099: Core semantic
+            100..=299 => Some(ErrorCategory::Semantic),       // E0100-E0299: Reserved semantic
+            300..=399 => Some(ErrorCategory::Semantic),        // E0300-E0399: Destructuring
+            400..=699 => Some(ErrorCategory::Concurrency),     // E0400-E0699: Concurrency
+            700..=799 => Some(ErrorCategory::ErrorHandling),   // E0700-E0799: Error handling
+            900..=999 => Some(ErrorCategory::Semantic),        // E0900-E0999: Pattern matching
+            // Major ranges
+            1000..=1999 => Some(ErrorCategory::Lexer),
+            2000..=2999 => Some(ErrorCategory::Parser),
+            3000..=3999 => Some(ErrorCategory::Codegen),
+            4000..=4999 => Some(ErrorCategory::Module),
+            5000..=5999 => Some(ErrorCategory::Type),
             _ => None,
         }
     }
@@ -157,26 +202,56 @@ mod tests {
 
     #[test]
     fn test_category_from_code() {
+        // Core semantic
         assert_eq!(
             ErrorCategory::from_code("E0001"),
             Some(ErrorCategory::Semantic)
         );
+        // Lexer
         assert_eq!(
             ErrorCategory::from_code("E1000"),
             Some(ErrorCategory::Lexer)
         );
+        // Parser
         assert_eq!(
             ErrorCategory::from_code("E2000"),
             Some(ErrorCategory::Parser)
         );
+        // Codegen
         assert_eq!(
             ErrorCategory::from_code("E3000"),
             Some(ErrorCategory::Codegen)
         );
+        // Module
         assert_eq!(
             ErrorCategory::from_code("E4000"),
             Some(ErrorCategory::Module)
         );
+        // Type system
+        assert_eq!(
+            ErrorCategory::from_code("E5001"),
+            Some(ErrorCategory::Type)
+        );
+        // Concurrency sub-range (E0400-E0699)
+        assert_eq!(
+            ErrorCategory::from_code("E0401"),
+            Some(ErrorCategory::Concurrency)
+        );
+        assert_eq!(
+            ErrorCategory::from_code("E0603"),
+            Some(ErrorCategory::Concurrency)
+        );
+        // Error handling sub-range (E0700-E0799)
+        assert_eq!(
+            ErrorCategory::from_code("E0701"),
+            Some(ErrorCategory::ErrorHandling)
+        );
+        // Pattern matching (E0900-E0999)
+        assert_eq!(
+            ErrorCategory::from_code("E0902"),
+            Some(ErrorCategory::Semantic)
+        );
+        // Invalid
         assert_eq!(ErrorCategory::from_code("E9999"), None);
         assert_eq!(ErrorCategory::from_code("invalid"), None);
     }
