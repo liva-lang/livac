@@ -35,6 +35,14 @@ struct Cli {
     /// Start Language Server Protocol mode
     #[arg(long)]
     lsp: bool,
+
+    /// Format source file(s) in place
+    #[arg(long)]
+    fmt: bool,
+
+    /// Check if files are formatted (exit 1 if not)
+    #[arg(long)]
+    fmt_check: bool,
 }
 
 #[tokio::main]
@@ -45,6 +53,20 @@ async fn main() {
     if cli.lsp {
         if let Err(e) = run_lsp_server().await {
             eprintln!("LSP server error: {}", e);
+            std::process::exit(1);
+        }
+        return;
+    }
+
+    // Format mode
+    if cli.fmt || cli.fmt_check {
+        let input = cli.input.as_ref().expect("input file required for formatting");
+        if let Err(e) = run_format(&cli, input) {
+            if cli.json {
+                eprintln!(r#"{{"error": "{}"}}"#, e);
+            } else {
+                eprintln!("{} {}", "Error:".red().bold(), e);
+            }
             std::process::exit(1);
         }
         return;
@@ -67,6 +89,68 @@ async fn main() {
         }
         std::process::exit(1);
     }
+}
+
+fn run_format(cli: &Cli, input: &PathBuf) -> Result<(), CompilerError> {
+    use livac::formatter::{format_source, check_format, FormatOptions};
+
+    let options = FormatOptions::default();
+    let source = std::fs::read_to_string(input)
+        .map_err(|e| CompilerError::IoError(format!("Failed to read file: {}", e)))?;
+
+    if cli.fmt_check {
+        // Check mode: report whether file is formatted
+        let is_formatted = check_format(&source, &options)?;
+        if is_formatted {
+            println!("{} {}", "✓".green(), input.display());
+        } else {
+            let formatted = format_source(&source, &options)?;
+            println!("{} {} (needs formatting)", "✗".red(), input.display());
+            
+            // Show a simple diff
+            if cli.verbose {
+                println!();
+                for diff in simple_diff(&source, &formatted) {
+                    println!("{}", diff);
+                }
+            }
+            
+            std::process::exit(1);
+        }
+    } else {
+        // Format in place
+        let formatted = format_source(&source, &options)?;
+        if formatted == source {
+            println!("{} {} (already formatted)", "✓".green(), input.display());
+        } else {
+            std::fs::write(input, &formatted)
+                .map_err(|e| CompilerError::IoError(format!("Failed to write file: {}", e)))?;
+            println!("{} {} (formatted)", "✓".green().bold(), input.display());
+        }
+    }
+
+    Ok(())
+}
+
+/// Simple line-by-line diff for format check output
+fn simple_diff(original: &str, formatted: &str) -> Vec<String> {
+    let orig_lines: Vec<&str> = original.lines().collect();
+    let fmt_lines: Vec<&str> = formatted.lines().collect();
+    let mut diffs = Vec::new();
+    let max_lines = orig_lines.len().max(fmt_lines.len());
+    
+    for i in 0..max_lines {
+        let orig = orig_lines.get(i).unwrap_or(&"");
+        let fmt = fmt_lines.get(i).unwrap_or(&"");
+        if orig != fmt {
+            diffs.push(format!("  L{}: {} → {}", i + 1, 
+                format!("- {}", orig).red(),
+                format!("+ {}", fmt).green()
+            ));
+        }
+    }
+    
+    diffs
 }
 
 async fn run_lsp_server() -> Result<(), Box<dyn std::error::Error>> {
@@ -291,6 +375,8 @@ mod tests {
             check: true,
             json: false,
             lsp: false,
+            fmt: false,
+            fmt_check: false,
         };
 
         let _guard = EnvVarGuard::set("LIVAC_SKIP_CARGO", "1");
@@ -319,6 +405,8 @@ mod tests {
             check: false,
             json: false,
             lsp: false,
+            fmt: false,
+            fmt_check: false,
         };
 
         let _guard = EnvVarGuard::set("LIVAC_SKIP_CARGO", "1");
@@ -341,6 +429,8 @@ mod tests {
             check: false,
             json: false,
             lsp: false,
+            fmt: false,
+            fmt_check: false,
         };
 
         let err = compile(&cli, &input).expect_err("expected IO error");

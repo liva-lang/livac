@@ -156,6 +156,7 @@ impl LanguageServer for LivaLanguageServer {
                 definition_provider: Some(OneOf::Left(true)),
                 references_provider: Some(OneOf::Left(true)),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
+                document_formatting_provider: Some(OneOf::Left(true)),
                 workspace: Some(WorkspaceServerCapabilities {
                     workspace_folders: Some(WorkspaceFoldersServerCapabilities {
                         supported: Some(true),
@@ -731,5 +732,67 @@ impl LanguageServer for LivaLanguageServer {
         }
         
         Ok(None)
+    }
+
+    async fn formatting(
+        &self,
+        params: DocumentFormattingParams,
+    ) -> Result<Option<Vec<TextEdit>>> {
+        let uri = &params.text_document.uri;
+
+        let doc = match self.documents.get(uri) {
+            Some(doc) => doc,
+            None => return Ok(None),
+        };
+
+        // Get formatting options from the request
+        let indent_size = params.options.tab_size as usize;
+
+        let options = crate::formatter::FormatOptions {
+            indent_size,
+            ..Default::default()
+        };
+
+        // Format the document
+        match crate::formatter::format_source(&doc.text, &options) {
+            Ok(formatted) => {
+                if formatted == doc.text {
+                    // Already formatted
+                    return Ok(None);
+                }
+
+                // Replace the entire document
+                let line_count = doc.text.lines().count();
+                let last_line = doc.text.lines().last().unwrap_or("");
+                let edit = TextEdit {
+                    range: Range {
+                        start: Position {
+                            line: 0,
+                            character: 0,
+                        },
+                        end: Position {
+                            line: line_count as u32,
+                            character: last_line.len() as u32,
+                        },
+                    },
+                    new_text: formatted,
+                };
+
+                self.client
+                    .log_message(MessageType::INFO, format!("Formatted {}", uri))
+                    .await;
+
+                Ok(Some(vec![edit]))
+            }
+            Err(e) => {
+                self.client
+                    .log_message(
+                        MessageType::WARNING,
+                        format!("Format failed for {}: {}", uri, e),
+                    )
+                    .await;
+                Ok(None)
+            }
+        }
     }
 }
