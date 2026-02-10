@@ -1,9 +1,11 @@
 ---
 source: tests/codegen_ir_tests.rs
+assertion_line: 68
 expression: rust_code
 ---
 use tokio;
 
+#[allow(dead_code)]
 mod liva_rt {
     use std::future::Future;
     use tokio::task::JoinHandle;
@@ -212,6 +214,10 @@ mod liva_rt {
     #[derive(Debug, Clone)]
     pub struct JsonValue(pub serde_json::Value);
     
+    impl Default for JsonValue {
+        fn default() -> Self { JsonValue(serde_json::Value::Null) }
+    }
+    
     impl JsonValue {
         pub fn new(value: serde_json::Value) -> Self { JsonValue(value) }
         
@@ -246,6 +252,10 @@ mod liva_rt {
             self.0.as_f64()
         }
         
+        pub fn as_float(&self) -> f64 {
+            self.0.as_f64().unwrap_or(0.0)
+        }
+        
         pub fn as_string(&self) -> Option<String> {
             match &self.0 {
                 serde_json::Value::String(s) => Some(s.clone()),
@@ -273,15 +283,15 @@ mod liva_rt {
             self.0.to_string()
         }
         
-        pub fn as_array(&self) -> Option<Vec<JsonValue>> {
+        pub fn as_array(&self) -> Vec<JsonValue> {
             match &self.0 {
-                serde_json::Value::Array(arr) => Some(arr.iter().map(|v| JsonValue(v.clone())).collect()),
-                _ => None,
+                serde_json::Value::Array(arr) => arr.iter().map(|v| JsonValue(v.clone())).collect(),
+                _ => Vec::new(),
             }
         }
         
         pub fn to_vec(&self) -> Vec<JsonValue> {
-            self.as_array().unwrap_or_else(Vec::new)
+            self.as_array()
         }
         
         pub fn iter(&self) -> std::vec::IntoIter<JsonValue> {
@@ -291,7 +301,32 @@ mod liva_rt {
     
     impl std::fmt::Display for JsonValue {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "{}", self.0)
+            match &self.0 {
+                serde_json::Value::String(s) => write!(f, "{}", s),
+                serde_json::Value::Null => write!(f, "null"),
+                other => write!(f, "{}", other),
+            }
+        }
+    }
+    
+    impl std::ops::Index<&str> for JsonValue {
+        type Output = JsonValue;
+        
+        fn index(&self, key: &str) -> &Self::Output {
+            // This is a bit of a hack - we leak the value to get a static reference
+            // In practice, this is safe for our use case since we don't mutate
+            static NULL_VALUE: std::sync::OnceLock<JsonValue> = std::sync::OnceLock::new();
+            match &self.0 {
+                serde_json::Value::Object(obj) => {
+                    if let Some(v) = obj.get(key) {
+                        // Leak to get 'static lifetime - acceptable for read-only JSON access
+                        Box::leak(Box::new(JsonValue(v.clone())))
+                    } else {
+                        NULL_VALUE.get_or_init(|| JsonValue(serde_json::Value::Null))
+                    }
+                }
+                _ => NULL_VALUE.get_or_init(|| JsonValue(serde_json::Value::Null)),
+            }
         }
     }
     
@@ -305,6 +340,21 @@ mod liva_rt {
                     arr.into_iter().map(|v| JsonValue(v)).collect::<Vec<_>>().into_iter()
                 }
                 _ => Vec::new().into_iter(),
+            }
+        }
+    }
+    
+    impl PartialEq<bool> for JsonValue {
+        fn eq(&self, other: &bool) -> bool {
+            self.as_bool() == Some(*other)
+        }
+    }
+    
+    impl PartialEq<&str> for JsonValue {
+        fn eq(&self, other: &&str) -> bool {
+            match &self.0 {
+                serde_json::Value::String(s) => s == *other,
+                _ => false,
             }
         }
     }

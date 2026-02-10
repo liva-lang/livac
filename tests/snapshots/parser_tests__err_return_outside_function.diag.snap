@@ -1,7 +1,9 @@
 ---
 source: tests/parser_tests.rs
+assertion_line: 32
 expression: error_msg
 ---
+
 ● E2000: Parse Error [Parser]
 ────────────────────────────────────────────────────────────
   → <input>:2:8
@@ -16,5 +18,5 @@ expression: error_msg
 
   💡 Check for missing semicolons, parentheses, or keywords
 
-  📚 Learn more: https://liva-lang.org/docs/errors/parser#e2000
+  📚 Learn more: https://github.com/liva-lang/livac/blob/main/docs/ERROR_CODES.md#e2000
 ────────────────────────────────────────────────────────────

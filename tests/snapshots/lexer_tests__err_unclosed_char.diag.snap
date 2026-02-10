@@ -1,5 +1,6 @@
 ---
 source: tests/lexer_tests.rs
+assertion_line: 32
 expression: error_msg
 ---
 
@@ -17,5 +18,5 @@ expression: error_msg
 
   💡 Check for unexpected characters or typos in your code
 
-  📚 Learn more: https://liva-lang.org/docs/errors/lexer#e1000
+  📚 Learn more: https://github.com/liva-lang/livac/blob/main/docs/ERROR_CODES.md#e1000
 ────────────────────────────────────────────────────────────

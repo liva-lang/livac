@@ -349,10 +349,10 @@ mod tests {
         assert!(bounds.contains("Sub<Output=T>"));
         assert!(bounds.contains("Copy"));
         
-        // Ord automatically includes PartialEq and Copy
+        // Bug #44: Ord/Eq now use Clone instead of Copy (String doesn't implement Copy)
         let bounds = registry.generate_rust_bounds(&["Ord".to_string()]);
         assert!(bounds.contains("std::cmp::PartialOrd"));
-        assert!(bounds.contains("Copy"));
+        assert!(bounds.contains("Clone"));
         
         // Multiple constraints with + operator
         let bounds = registry.generate_rust_bounds(&vec!["Add".to_string(), "Ord".to_string()]);

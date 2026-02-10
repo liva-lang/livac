@@ -8,6 +8,7 @@ use std::cmp::min;
 /// # Examples
 ///
 /// ```
+/// use livac::suggestions::levenshtein_distance;
 /// assert_eq!(levenshtein_distance("kitten", "sitting"), 3);
 /// assert_eq!(levenshtein_distance("saturday", "sunday"), 3);
 /// assert_eq!(levenshtein_distance("hello", "hello"), 0);
@@ -67,7 +68,8 @@ pub fn levenshtein_distance(a: &str, b: &str) -> usize {
 /// # Examples
 ///
 /// ```
-/// let vars = vec!["userName", "userAge", "userId"];
+/// use livac::suggestions::find_suggestion;
+/// let vars: Vec<String> = vec!["userName".into(), "userAge".into(), "userId".into()];
 /// assert_eq!(find_suggestion("usrName", &vars, 2), Some("userName".to_string()));
 /// assert_eq!(find_suggestion("xyz", &vars, 2), None);
 /// ```
@@ -105,7 +107,8 @@ pub fn find_suggestion(input: &str, candidates: &[String], max_distance: usize) 
 /// # Examples
 ///
 /// ```
-/// let funcs = vec!["calculate", "calibrate", "consolidate"];
+/// use livac::suggestions::find_multiple_suggestions;
+/// let funcs: Vec<String> = vec!["calculate".into(), "calibrate".into(), "consolidate".into()];
 /// let suggestions = find_multiple_suggestions("calulate", &funcs, 3, 2);
 /// // Returns ["calculate", "calibrate"]
 /// ```
@@ -141,6 +144,7 @@ pub fn find_multiple_suggestions(
 /// # Examples
 ///
 /// ```
+/// use livac::suggestions::similarity_score;
 /// assert_eq!(similarity_score("hello", "hello"), 100);
 /// assert!(similarity_score("kitten", "sitting") > 50);
 /// assert!(similarity_score("abc", "xyz") < 30);
