@@ -2124,7 +2124,113 @@ New `src/formatter.rs` module (~1500 lines) providing:
 
 ---
 
-## 📊 Milestones Summary
+## 🍬 Phase 11: Syntax Sugar & Ergonomics (v1.1.0) — PLANNED
+
+**Goal:** Reduce boilerplate with ergonomic syntax sugar while maintaining full backward compatibility  
+**Status:** 📋 Planned  
+**Estimated effort:** ~8-12 hours  
+**Backward compatibility:** ✅ All existing syntax continues to work. These are ADDITIONAL alternatives.
+
+### 11.1 `or fail` — Error Propagation Operator
+
+**Goal:** One-liner error propagation for fallible expressions
+
+**Before (still valid):**
+```liva
+let response, err = HTTP.get(url)
+if err != "" { fail "Connection error" }
+```
+
+**After (new alternative):**
+```liva
+let response = HTTP.get(url) or fail "Connection error"
+```
+
+**More examples:**
+```liva
+let content = File.read("config.json") or fail "Cannot read config"
+let data = JSON.parse(content) or fail "Invalid JSON"
+let user = data["user"]["name"] or fail "Missing user name"
+```
+
+**Implementation:**
+- [ ] AST: New `OrFail { expr, message }` node
+- [ ] Parser: Detect `expr or fail <string>` pattern
+- [ ] Semantic: Verify left side is fallible expression
+- [ ] Codegen: Generate Rust `match` / `unwrap_or_else` pattern
+- [ ] Tests: Unit + integration tests
+- [ ] Formatter: Support formatting `or fail` expressions
+
+**Difficulty:** ⭐⭐ Medium
+
+### 11.2 One-liner `=>` for `if`, `for`, `while`
+
+**Goal:** Use `=>` (already used in functions, lambdas, switch) for single-expression control flow
+
+**Before (still valid):**
+```liva
+if age >= 18 { print("Adult") }
+for item in items { print(item) }
+while running { tick() }
+```
+
+**After (new alternative):**
+```liva
+if age >= 18 => print("Adult")
+for item in items => print(item)
+while running => tick()
+```
+
+**With else:**
+```liva
+if age >= 18 => print("Adult") else => print("Minor")
+```
+
+**Note:** Block `{}` syntax remains the only option for multi-line bodies.
+
+**Implementation:**
+- [ ] Parser: In `parse_if`, `parse_for`, `parse_while` — accept `=>` as alternative to `{`
+- [ ] Parser: Parse single expression as body (wrap in block AST node)
+- [ ] Parser: Handle `if => expr else => expr` pattern
+- [ ] Tests: Unit tests for all three constructs
+- [ ] Formatter: Support one-liner formatting
+
+**Difficulty:** ⭐ Easy
+
+### 11.3 Point-Free / Function References
+
+**Goal:** Pass function names directly where a callback is expected
+
+**Before (still valid):**
+```liva
+items.forEach(item => print(item))
+nums.map(n => toString(n))
+names.filter(name => isValid(name))
+```
+
+**After (new alternative):**
+```liva
+items.forEach(print)
+nums.map(toString)
+names.filter(isValid)
+```
+
+**With for one-liner:**
+```liva
+for item in items => print    // equivalent to print(item)
+```
+
+**Implementation:**
+- [ ] AST: New `FunctionRef` node or extend `Identifier` handling
+- [ ] Parser: Detect bare identifier where closure/callback expected
+- [ ] Semantic: Verify function exists and arity matches (1 argument)
+- [ ] Codegen: Generate closure wrapper `|x| function(x)`
+- [ ] Tests: Unit + integration tests with array methods
+- [ ] Handle method references vs function references
+
+**Difficulty:** ⭐⭐⭐ Complex
+
+---
 
 | Version | Focus | Status | ETA |
 |---------|-------|--------|-----|
@@ -2142,6 +2248,7 @@ New `src/formatter.rs` module (~1500 lines) providing:
 | **v1.0.1** | Documentation & Public Presence | 📋 In Progress | 9.1-9.4 done |
 
 | **v1.0.2** | Code Formatter (CLI + LSP) | ✅ Completed | 2025-02-11 |
+| **v1.1.0** | Syntax Sugar & Ergonomics | 📋 Planned | TBD |
 **Total effort completed:** ~85+ hours of focused development 🎉
 
 ---

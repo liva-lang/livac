@@ -297,6 +297,62 @@ main() {
 }
 ```
 
+## `or fail` — Error Propagation Shorthand *(Planned v1.1.0)*
+
+The `or fail` operator provides a concise way to propagate errors without explicit error binding:
+
+### Basic Usage
+
+```liva
+// New shorthand
+let response = HTTP.get(url) or fail "Connection error"
+let content = File.read("config.json") or fail "Cannot read config"
+let data = JSON.parse(content) or fail "Invalid JSON"
+```
+
+### Equivalent Traditional Syntax
+
+Both forms are fully valid — `or fail` is syntactic sugar:
+
+```liva
+// Traditional (still works)
+let response, err = HTTP.get(url)
+if err != "" { fail "Connection error" }
+
+// Shorthand (equivalent)
+let response = HTTP.get(url) or fail "Connection error"
+```
+
+### Chained Pipeline
+
+```liva
+// Before: verbose error propagation
+pipeline(data: string): string {
+  let step1, err1 = validate(data)
+  if err1 != "" fail $"Step 1: {err1}"
+  
+  let step2, err2 = transform(step1)
+  if err2 != "" fail $"Step 2: {err2}"
+  
+  let step3, err3 = save(step2)
+  if err3 != "" fail $"Step 3: {err3}"
+  
+  return "Pipeline success"
+}
+
+// After: concise with or fail
+pipeline(data: string): string {
+  let step1 = validate(data) or fail "Validation failed"
+  let step2 = transform(step1) or fail "Transform failed"
+  let step3 = save(step2) or fail "Save failed"
+  return "Pipeline success"
+}
+```
+
+> **Note:** When you need to inspect or log the error value (not just replace it), use the traditional `let value, err = ...` pattern.
+
+---
+
 ## Multiple Error Handling
 
 ### Sequential Errors
@@ -759,6 +815,7 @@ let (result, err) = match divide(10, 2) {
 
 Planned features for future versions:
 
+- **`or fail` operator** *(v1.1.0)*: `let data = HTTP.get(url) or fail "error"` — shorthand error propagation
 - **Custom error types**: `fail MyError("message")`
 - **Error variants**: `fail NotFound | InvalidInput`
 - **Result helpers**: `unwrap()`, `expect()`, `?` operator

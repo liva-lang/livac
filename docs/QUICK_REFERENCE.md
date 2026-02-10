@@ -219,6 +219,20 @@ if x > 0 {
 }
 ```
 
+### One-liner `=>` Syntax *(Planned v1.1.0)*
+
+For single-expression bodies, use `=>` instead of `{}`:
+
+```liva
+if age >= 18 => print("Adult")
+if age >= 18 => print("Adult") else => print("Minor")
+for item in items => print(item)
+while running => tick()
+```
+
+> **Note:** Block `{}` syntax remains the standard for multi-line bodies. Both forms are valid.
+```
+
 ### Ternary Operator
 
 ```liva
@@ -478,6 +492,24 @@ if err {
 divide(a: number, b: number) => b == 0 ? fail "Division by zero" : a / b
 ```
 
+### Or Fail *(Planned v1.1.0)*
+
+Shorthand error propagation — fails immediately if the expression returns an error:
+
+```liva
+let response = HTTP.get(url) or fail "Connection error"
+let content = File.read("config.json") or fail "Cannot read config"
+let data = JSON.parse(content) or fail "Invalid JSON"
+```
+
+Equivalent to:
+```liva
+let response, err = HTTP.get(url)
+if err { fail "Connection error" }
+```
+
+> **Note:** The traditional `let value, err = expr` + `if err` pattern continues to work.
+
 ---
 
 ## Concurrency
@@ -593,6 +625,18 @@ let result = numbers
     .map(x => x * 2)
     .reduce((acc, x) => acc + x, 0)  // 24
 ```
+
+### Function References *(Planned v1.1.0)*
+
+Pass function names directly where a single-argument callback is expected:
+
+```liva
+items.forEach(print)           // instead of: items.forEach(x => print(x))
+nums.map(toString)             // instead of: nums.map(n => toString(n))
+names.filter(isValid)          // instead of: names.filter(n => isValid(n))
+```
+
+> **Note:** Lambda syntax `x => expr` continues to work and is required for multi-argument or complex expressions.
 
 ---
 

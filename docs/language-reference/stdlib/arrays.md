@@ -217,6 +217,11 @@ let numbers = [1, 2, 3]
 // Sequential
 numbers.forEach(x => print(x))
 
+// Point-free / function reference (Planned v1.1.0)
+numbers.forEach(print)          // equivalent to: x => print(x)
+numbers.map(toString)           // equivalent to: x => toString(x)
+names.filter(isValid)           // equivalent to: x => isValid(x)
+
 // Parallel (unordered execution)
 numbers.par().forEach(x => {
   print($"Processing {x}")

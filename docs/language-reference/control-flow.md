@@ -74,6 +74,24 @@ if age < 18 {
 }
 ```
 
+### One-liner `=>` Syntax *(Planned v1.1.0)*
+
+For single-expression bodies, use `=>` instead of `{}` — consistent with functions, lambdas, and switch arms:
+
+```liva
+if age >= 18 => print("Adult")
+if age >= 18 => print("Adult") else => print("Minor")
+```
+
+Also works with `for` and `while`:
+
+```liva
+for item in items => print(item)
+while running => tick()
+```
+
+> **Note:** Block `{}` syntax remains the standard for multi-line bodies. Both forms are valid.
+
 ### If as Expression (Ternary)
 
 ```liva
@@ -531,6 +549,7 @@ for vec value in numbers {  // SIMD: vectorized
 | Statement | Syntax | Use Case |
 |-----------|--------|----------|
 | **If** | `if cond { }` | Conditional execution |
+| **If =>** | `if cond => expr` | One-liner *(v1.1.0)* |
 | **If-Else** | `if cond { } else { }` | Binary choice |
 | **If-Else-If** | `if cond { } else if { }` | Multiple conditions |
 | **While** | `while cond { }` | Repeat while true |
