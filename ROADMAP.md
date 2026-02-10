@@ -2095,6 +2095,35 @@ type Pair<T, U> = (T, U)
 
 ---
 
+## 🎨 Phase 10: Code Formatter (v1.0.2) ✅ COMPLETED
+
+**Goal:** Canonical code formatter for Liva, integrated into CLI and LSP  
+**Status:** ✅ Completed  
+**Estimated effort:** ~4 hours
+
+### Implementation
+
+New `src/formatter.rs` module (~1500 lines) providing:
+
+- **AST-based pretty-printing** — Parse → AST → canonical output with consistent style
+- **Comment preservation** — Standalone and inline comments reinserted using context matching
+- **Configurable options** — indent_size (default: 4), max_width (100), operator style, trailing newline
+- **Full language coverage** — All Liva constructs: functions, classes, interfaces, imports, control flow, switch/match, lambdas (expression + block bodies), string templates, generics, error binding, async/parallel
+- **24 unit tests** — Covering all language constructs + idempotency
+
+### CLI Integration
+
+- `livac file.liva --fmt` — Format file in place
+- `livac file.liva --fmt-check` — Check formatting (exit code 1 if not formatted)
+
+### LSP Integration
+
+- `textDocument/formatting` handler — Uses editor's tab_size setting
+- Full-document replacement with formatted output
+- Works automatically in VS Code / Cursor via the extension
+
+---
+
 ## 📊 Milestones Summary
 
 | Version | Focus | Status | ETA |
@@ -2110,9 +2139,10 @@ type Pair<T, U> = (T, U)
 | **v0.12.0** | LSP (Language Server) | ✅ Completed | 2025-10-27 |
 | **v0.13.0** | LSP Workspace Enhancement | ✅ Completed | 2025-10-27 |
 | **v1.0.0** | Stable Release (54/54 bugs) | ✅ Completed | 2025-02-04 |
-| **v1.0.1** | Documentation & Public Presence | � In Progress | 9.1-9.4 done |
+| **v1.0.1** | Documentation & Public Presence | 📋 In Progress | 9.1-9.4 done |
 
-**Total effort completed:** ~80+ hours of focused development 🎉
+| **v1.0.2** | Code Formatter (CLI + LSP) | ✅ Completed | 2025-02-11 |
+**Total effort completed:** ~85+ hours of focused development 🎉
 
 ---
 
