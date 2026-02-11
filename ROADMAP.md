@@ -2400,8 +2400,8 @@ Time:   0.12s
 
 ```liva
 // tests/math.test.liva
-import "liva/test" { describe, test, expect }
-import "../src/math"
+import { describe, test, expect } from "liva/test"
+import { add } from "../src/math.liva"
 
 describe("Math operations", () => {
     test("add returns correct sum", () => {
@@ -2438,7 +2438,7 @@ describe("Math operations", () => {
 **Goal:** Setup and teardown for test suites
 
 ```liva
-import "liva/test" { describe, test, expect, beforeEach, afterEach }
+import { describe, test, expect, beforeEach, afterEach } from "liva/test"
 
 describe("Database", () => {
     let db = null
@@ -2472,7 +2472,7 @@ describe("Database", () => {
 **Goal:** Test async functions natively
 
 ```liva
-import "liva/test" { describe, test, expect }
+import { describe, test, expect } from "liva/test"
 
 describe("HTTP Client", () => {
     test("fetches user data", async () => {
