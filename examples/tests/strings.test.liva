@@ -1,0 +1,27 @@
+// String utility tests
+
+test "strings are equal" {
+    let a = "hello"
+    let b = "hello"
+    if a != b {
+        throw "expected strings to be equal"
+    }
+}
+
+test "string concatenation" {
+    let result = "hello" + " " + "world"
+    if result != "hello world" {
+        throw $"expected 'hello world', got '{result}'"
+    }
+}
+
+test "string length" {
+    let s = "hello"
+    if s.length() != 5 {
+        throw "expected length 5"
+    }
+}
+
+main() {
+    print("String tests")
+}

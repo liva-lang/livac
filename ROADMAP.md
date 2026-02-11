@@ -1,9 +1,9 @@
 # 🗺️ Liva Language Roadmap
 
-> **Current Version:** v1.1.0-dev (tag: v1.0.2)  
-> **Status:** Phase 11.1-11.3 complete — `or fail` + `=>` one-liners + point-free function references  
-> **Next Phase:** Phase 12 — Test Framework  
-> **Planned:** Phase 12 — Test Framework (`liva/test`)  
+> **Current Version:** v1.2.0-dev (tag: v1.0.2)  
+> **Status:** Phase 11 complete, Phase 12.1 complete — Test Runner  
+> **Next Phase:** Phase 12.2 — Test Library (`liva/test`)  
+> **Planned:** Phase 12 — Test Framework  
 > **Last Updated:** 2026-02-11
 
 ---
@@ -2333,10 +2333,10 @@ ejecutar(Utils::log)
 
 ---
 
-## 🧪 Phase 12: Test Framework (v1.2.0) — PLANNED
+## 🧪 Phase 12: Test Framework (v1.2.0) — IN PROGRESS
 
 **Goal:** Built-in test runner + standard library `liva/test` for testing Liva projects  
-**Status:** 📋 Planned  
+**Status:** 🚧 In Progress (12.1 ✅)  
 **Estimated effort:** ~15-20 hours  
 **Philosophy:** Testing is a **library** (not keywords), but the **compiler** provides the test runner infrastructure.
 
@@ -2385,14 +2385,15 @@ Time:   0.12s
 ```
 
 **Implementation:**
-- [ ] CLI: Add `--test` flag
-- [ ] Discovery: Find `*.test.liva` files recursively
-- [ ] Runner: Compile and execute test files
-- [ ] Reporter: Format results with colors (pass/fail/skip)
-- [ ] Exit code: 0 = all pass, 1 = any failure
-- [ ] Filter: `--filter` flag for substring matching
+- [x] CLI: Add `--test` flag
+- [x] Discovery: Find `*.test.liva` files recursively
+- [x] Runner: Compile and execute test files
+- [x] Reporter: Format results with colors (pass/fail/skip)
+- [x] Exit code: 0 = all pass, 1 = any failure
+- [x] Filter: `--filter` flag for substring matching
+- [x] Codegen fix: `throw` in test blocks generates `panic!()` instead of `return Err()`
 
-**Difficulty:** ⭐⭐ Medium
+**Difficulty:** ⭐⭐ Medium — ✅ COMPLETE
 
 ### 12.2 Test Library (`liva/test`)
 
@@ -2511,8 +2512,8 @@ describe("HTTP Client", () => {
 | **v0.13.0** | LSP Workspace Enhancement | ✅ Completed | 2025-10-27 |
 | **v1.0.0** | Stable Release (54/54 bugs) | ✅ Completed | 2026-02-04 |
 | **v1.0.2** | Code Formatter (CLI + LSP) | ✅ Completed | 2026-02-06 |
-| **v1.1.0** | Syntax Sugar & Ergonomics | 🚧 In Progress | 11.1 & 11.2 done |
-| **v1.2.0** | Test Framework (`liva/test`) | 📋 Planned | — |
+| **v1.1.0** | Syntax Sugar & Ergonomics | ✅ Completed | 2026-02-11 |
+| **v1.2.0** | Test Framework (`liva/test`) | 🚧 In Progress | 12.1 done |
 **Total effort completed:** ~85+ hours of focused development 🎉
 
 ---

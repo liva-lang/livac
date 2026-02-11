@@ -37,6 +37,9 @@ livac file.liva --run         # Compile and run
 livac file.liva --check       # Syntax check only
 livac file.liva --fmt         # Format file in place (v1.0.2+)
 livac file.liva --fmt-check   # Check if file needs formatting
+livac --test                  # Run all *.test.liva files (v1.2.0+)
+livac --test file.test.liva   # Run specific test file
+livac --test --filter "name"  # Filter tests by name
 livac file.liva --verbose     # Show generated Rust code
 livac file.liva --output dir  # Set output directory
 livac file.liva --json        # Output errors as JSON (IDE integration)

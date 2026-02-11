@@ -39,6 +39,7 @@ pub struct CodeGenerator {
     in_method: bool,
     in_assignment_target: bool,
     in_fallible_function: bool,
+    in_test_block: bool,
     in_string_template: bool, // Track if we're inside a string template
     bracket_notation_vars: std::collections::HashSet<String>,
     class_instance_vars: std::collections::HashSet<String>,
@@ -91,6 +92,7 @@ impl CodeGenerator {
             in_method: false,
             in_assignment_target: false,
             in_fallible_function: false,
+            in_test_block: false,
             in_string_template: false,
             bracket_notation_vars: std::collections::HashSet::new(),
             class_instance_vars: std::collections::HashSet::new(),
@@ -2686,7 +2688,10 @@ impl CodeGenerator {
             self.sanitize_test_name(&test.name)
         ));
         self.indent();
+        let was_in_test = self.in_test_block;
+        self.in_test_block = true;
         self.generate_block_inner(&test.body)?;
+        self.in_test_block = was_in_test;
         self.dedent();
         self.writeln("}");
         Ok(())
@@ -3621,9 +3626,16 @@ impl CodeGenerator {
             }
             Stmt::Throw(throw_stmt) => {
                 self.write_indent();
-                self.output.push_str("return Err(");
-                self.generate_expr(&throw_stmt.expr)?;
-                self.output.push_str(".into());\n");
+                if self.in_test_block {
+                    self.output.push_str("panic!(\"{}\", ");
+                    self.generate_expr(&throw_stmt.expr)?;
+                    self.output.push_str(");");
+                } else {
+                    self.output.push_str("return Err(");
+                    self.generate_expr(&throw_stmt.expr)?;
+                    self.output.push_str(".into());");
+                }
+                self.output.push('\n');
             }
             Stmt::Return(ret) => {
                 self.write_indent();
@@ -7712,6 +7724,8 @@ struct IrCodeGenerator<'a> {
     #[allow(dead_code)]
     in_method: bool,
     #[allow(dead_code)]
+    in_test_block: bool,
+    #[allow(dead_code)]
     error_binding_vars: HashSet<String>,
 }
 
@@ -7741,6 +7755,7 @@ impl<'a> IrCodeGenerator<'a> {
             ctx,
             scope_formats: vec![HashMap::new()],
             in_method: false,
+            in_test_block: false,
             error_binding_vars: HashSet::new(),
         }
     }
@@ -8500,7 +8515,10 @@ impl<'a> IrCodeGenerator<'a> {
             self.sanitize_test_name(&test.name)
         ));
         self.indent();
+        let was_in_test = self.in_test_block;
+        self.in_test_block = true;
         self.generate_block(&test.body)?;
+        self.in_test_block = was_in_test;
         self.dedent();
         self.writeln("}");
         Ok(())
@@ -8571,9 +8589,16 @@ impl<'a> IrCodeGenerator<'a> {
             }
             ir::Stmt::Throw(expr) => {
                 self.write_indent();
-                self.output.push_str("return Err(");
-                self.generate_expr(expr)?;
-                self.output.push_str(".into());\n");
+                if self.in_test_block {
+                    self.output.push_str("panic!(\"{}\", ");
+                    self.generate_expr(expr)?;
+                    self.output.push_str(");");
+                } else {
+                    self.output.push_str("return Err(");
+                    self.generate_expr(expr)?;
+                    self.output.push_str(".into());");
+                }
+                self.output.push('\n');
             }
             ir::Stmt::Expr(expr) => {
                 self.write_indent();

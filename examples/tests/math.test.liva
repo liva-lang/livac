@@ -1,0 +1,33 @@
+// Math test suite
+
+sum(a: int, b: int): int => a + b
+
+factorial(n: int): int {
+    if n <= 1 => return 1
+    return n * factorial(n - 1)
+}
+
+test "sum works correctly" {
+    let result = sum(2, 3)
+    if result != 5 {
+        throw "expected 5"
+    }
+}
+
+test "sum with negatives" {
+    let result = sum(-1, 1)
+    if result != 0 {
+        throw "expected 0"
+    }
+}
+
+test "factorial of 5" {
+    let result = factorial(5)
+    if result != 120 {
+        throw $"expected 120, got {result}"
+    }
+}
+
+main() {
+    print("Math tests should be run with: livac --test")
+}

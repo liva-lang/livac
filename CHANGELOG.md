@@ -5,6 +5,29 @@ All notable changes to the Liva compiler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v1.2.0-dev
+
+### Added - Phase 12: Test Framework 🧪
+
+**12.1 Test Runner** ✅
+- New `livac --test` CLI flag to discover and run test files
+- Auto-discovery: finds `*.test.liva` files recursively
+- `--filter <name>` to run only tests matching a substring
+- Colorized output: PASS (green), FAIL (red), SKIP (yellow)
+- Verbose mode: `--verbose` shows individual test results (✓/✗)
+- Summary: test count, file count, total time
+- Exit code: 0 = all pass, 1 = any failure
+- Build directory cleanup after test runs
+- Codegen fix: `throw` in `test` blocks generates `panic!()` instead of `return Err()`
+- Examples:
+  ```bash
+  livac --test                          # Run all *.test.liva
+  livac --test tests/math.test.liva     # Run specific file
+  livac --test --filter "sum"           # Filter by test name
+  ```
+
+---
+
 ## [Unreleased] - v1.1.0-dev
 
 ### Added - Phase 11: Syntax Sugar & Ergonomics 🍬
