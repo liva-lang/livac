@@ -126,6 +126,9 @@ let data = File.read("config.json") or fail "Cannot read"
 items.forEach(print)           // instead of: items.forEach(x => print(x))
 nums.map(toString)             // instead of: nums.map(n => toString(n))
 names.filter(isValid)          // instead of: names.filter(n => isValid(n))
+
+// Also works with for => loops
+for item in items => print     // instead of: for item in items => print(item)
 ```
 
 ### Clases

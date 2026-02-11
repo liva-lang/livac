@@ -818,6 +818,26 @@ impl Formatter {
 
     fn format_for(&mut self, for_stmt: &ForStmt) {
         let iterable = self.format_expr(&for_stmt.iterable);
+        
+        // Phase 11.3: Detect point-free body (single bare identifier as body)
+        // for item in items => print  →  for item in items { print(item) }
+        // for item in items => myFunc →  for item in items { myFunc(item) }
+        let is_point_free = for_stmt.body.stmts.len() == 1
+            && matches!(&for_stmt.body.stmts[0], Stmt::Expr(expr_stmt) if matches!(&expr_stmt.expr, Expr::Identifier(_)));
+        
+        if is_point_free {
+            if let Stmt::Expr(expr_stmt) = &for_stmt.body.stmts[0] {
+                if let Expr::Identifier(func_name) = &expr_stmt.expr {
+                    self.write_line(&format!("for {} in {} {{", for_stmt.var, iterable));
+                    self.indent_level += 1;
+                    self.write_line(&format!("{}({})", func_name, for_stmt.var));
+                    self.indent_level -= 1;
+                    self.write_line("}");
+                    return;
+                }
+            }
+        }
+        
         self.write_line(&format!("for {} in {} {{", for_stmt.var, iterable));
         self.indent_level += 1;
         self.format_block(&for_stmt.body);

@@ -1,8 +1,9 @@
 # 🗺️ Liva Language Roadmap
 
 > **Current Version:** v1.1.0-dev (tag: v1.0.2)  
-> **Status:** Phase 11 complete — `or fail` + `=>` one-liners + point-free function references  
-> **Next Phase:** Phase 12 — Test Framework (`liva/test`)  
+> **Status:** Phase 11.1-11.3 complete — `or fail` + `=>` one-liners + point-free function references  
+> **Next Phase:** Phase 11.4 — Generalized Function References & `::` Syntax  
+> **Planned:** Phase 12 — Test Framework (`liva/test`)  
 > **Last Updated:** 2026-02-11
 
 ---
@@ -2124,10 +2125,10 @@ New `src/formatter.rs` module (~1500 lines) providing:
 
 ---
 
-## 🍬 Phase 11: Syntax Sugar & Ergonomics (v1.1.0) — COMPLETE
+## 🍬 Phase 11: Syntax Sugar & Ergonomics (v1.1.0) — IN PROGRESS
 
 **Goal:** Reduce boilerplate with ergonomic syntax sugar while maintaining full backward compatibility  
-**Status:** ✅ 11.1, 11.2 & 11.3 Complete  
+**Status:** ✅ 11.1, 11.2 & 11.3 Complete | 📋 11.4 Planned  
 **Estimated effort:** ~8-12 hours  
 **Backward compatibility:** ✅ All existing syntax continues to work. These are ADDITIONAL alternatives.
 
@@ -2217,6 +2218,12 @@ names.filter(isValid)
 
 **Supported methods:** `forEach`, `map`, `filter`, `find`, `some`, `every`
 
+**Also works with `for =>` loops:**
+```liva
+for item in items => print       // instead of: for item in items => print(item)
+for item in items => showItem    // instead of: for item in items => showItem(item)
+```
+
 **Implementation approach:** Pure codegen transformation — no AST or parser changes needed.
 When a callback argument is an `Expr::Identifier` instead of a lambda, codegen generates
 the appropriate closure wrapper with correct `&`/`&&` borrow patterns:
@@ -2225,10 +2232,101 @@ the appropriate closure wrapper with correct `&`/`&&` borrow patterns:
 - [x] Codegen: Generate `|&&_x| func(_x)` for `filter`/`find`/`some`/`every` with Copy types
 - [x] Codegen: Handle built-in `print` → `println!("{}", _x)` and `toString` → `format!("{}", _x)`
 - [x] Codegen: Handle non-Copy types (strings, classes) without borrow prefix
-- [x] Tests: Codegen snapshot test + integration test with array methods
-- [x] Formatter: Works without changes (identifier args already supported)
+- [x] Codegen: Point-free in `for =>` loops — detect bare identifier body and generate call with loop var
+- [x] Formatter: Expand `for x in arr => func` to `for x in arr { func(x) }`
+- [x] Tests: Codegen snapshot tests + integration tests for array methods and for loops
 
 **Difficulty:** ⭐⭐ Medium (simpler than expected — codegen-only change)
+
+### 11.4 Generalized Function References & `::` Syntax — PLANNED
+
+**Goal:** Extend point-free to support class methods, instance methods, constructors, and any parameter expecting a callback
+
+**Syntax Summary:**
+
+| Type | Syntax | Example |
+|------|--------|---------|
+| Free function | `func` (bare) | `nums.map(double)` |
+| Built-in | `print` / `toString` | `nums.forEach(print)` |
+| Static method | `Class::method` | `names.filter(Utils::validate)` |
+| Instance method | `object::method` | `names.forEach(logger::log)` |
+| Constructor | `Class::new` | `names.map(User::new)` |
+
+**Works in:**
+- `.forEach` / `.map` / `.filter` / `.find` / `.some` / `.every`
+- `for item in arr => func`
+- Any parameter of type `(T) -> R` (function types)
+
+**Examples:**
+
+```liva
+// ── Free functions (already works in 11.3) ──
+double(n: number) => n * 2
+isEven(n: number) => n % 2 == 0
+
+let nums = [1, 2, 3, 4, 5]
+nums.map(double)
+nums.filter(isEven)
+nums.forEach(print)
+for n in nums => print
+
+// ── Static methods (NEW) ──
+Utils {
+    static validate(s: string) => s.length > 0
+    static format(s: string) => $"[{s}]"
+    static log(s: string) { print($"LOG: {s}") }
+}
+
+let names = ["Alice", "", "Bob"]
+names.filter(Utils::validate)
+names.map(Utils::format)
+names.forEach(Utils::log)
+
+// ── Instance methods (NEW) ──
+Logger {
+    prefix: string
+    constructor(prefix: string) { this.prefix = prefix }
+    log(msg: string) { print($"{this.prefix}: {msg}") }
+}
+
+let logger = Logger("APP")
+names.forEach(logger::log)
+for name in names => logger::log
+
+// ── Constructors (NEW) ──
+User {
+    name: string
+    constructor(name: string) { this.name = name }
+}
+
+let users = names.map(User::new)
+
+// ── Generic callback parameters (NEW) ──
+ejecutar(callback: (number) -> void) {
+    callback(42)
+}
+ejecutar(print)
+ejecutar(Utils::log)
+```
+
+**Implementation:**
+- [ ] AST: New `Expr::MethodRef { class, method }` node for `Clase::metodo` syntax
+- [ ] Parser: Parse `Identifier :: Identifier` as `MethodRef` expression
+- [ ] Parser: Support `Clase::new` as constructor reference
+- [ ] Semantic: Verify referenced method/function exists and arity matches
+- [ ] Codegen: Generate closure wrappers for `MethodRef` (static → `|_x| Class::method(_x)`, instance → `|_x| obj.method(_x)`)
+- [ ] Codegen: Generalize bare identifier detection beyond 6 array methods
+- [ ] Types: Introduce function type syntax `(T) -> R` for callback parameters
+- [ ] Tests: Unit + integration tests for all reference types
+- [ ] Formatter: Support `::` syntax formatting
+- [ ] Docs: Update `docs/QUICK_REFERENCE.md` with `::` syntax and examples
+- [ ] Docs: Update `docs/README.md` index with function references entry
+- [ ] Docs: Update `docs/language-reference/` with function references section
+- [ ] Docs: Update `docs/guides/` with usage examples and best practices
+- [ ] Docs: Update `.github/copilot-instructions.md` (livac + workspace)
+- [ ] Docs: Update `CHANGELOG.md` with new feature
+
+**Difficulty:** ⭐⭐⭐ Complex (requires parser + semantic + type system changes)
 
 ---
 

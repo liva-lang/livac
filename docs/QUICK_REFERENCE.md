@@ -639,6 +639,13 @@ names.filter(isValid)          // instead of: names.filter(n => isValid(n))
 
 **Supported methods:** `forEach`, `map`, `filter`, `find`, `some`, `every`
 
+Also works with `for =>` loops:
+
+```liva
+for item in items => print      // instead of: for item in items => print(item)
+for item in items => showItem   // instead of: for item in items => showItem(item)
+```
+
 > **Note:** Lambda syntax `x => expr` continues to work and is required for multi-argument or complex expressions.
 
 ---

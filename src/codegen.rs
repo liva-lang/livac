@@ -3502,7 +3502,35 @@ impl CodeGenerator {
                 self.generate_expr(&for_stmt.iterable)?;
                 self.output.push_str(" {\n");
                 self.indent();
-                self.generate_block_inner(&for_stmt.body)?;
+                
+                // Phase 11.3: Point-free in for loops
+                // for item in items => print  →  for item in items { print(item) }
+                // for item in items => mifuncion  →  for item in items { mifuncion(item) }
+                let is_point_free_body = for_stmt.body.stmts.len() == 1 
+                    && matches!(&for_stmt.body.stmts[0], Stmt::Expr(expr_stmt) if matches!(&expr_stmt.expr, Expr::Identifier(_)));
+                
+                if is_point_free_body {
+                    if let Stmt::Expr(expr_stmt) = &for_stmt.body.stmts[0] {
+                        if let Expr::Identifier(func_name) = &expr_stmt.expr {
+                            self.write_indent();
+                            match func_name.as_str() {
+                                "print" => {
+                                    write!(self.output, "println!(\"{{}}\", {});\n", var_name).unwrap();
+                                }
+                                "toString" => {
+                                    write!(self.output, "format!(\"{{}}\", {});\n", var_name).unwrap();
+                                }
+                                _ => {
+                                    let sanitized = self.sanitize_name(func_name);
+                                    write!(self.output, "{}({});\n", sanitized, var_name).unwrap();
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    self.generate_block_inner(&for_stmt.body)?;
+                }
+                
                 self.dedent();
                 self.writeln("}");
             }

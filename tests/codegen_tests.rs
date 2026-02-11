@@ -206,3 +206,27 @@ main() {
     let rust_code = compile_and_generate(source);
     assert_snapshot!("point_free_function_refs", rust_code);
 }
+
+#[test]
+fn test_point_free_for_loop() {
+    let source = r#"
+showItem(n: number) {
+    print($"Item: {n}")
+}
+
+main() {
+    let items = [1, 2, 3, 4, 5]
+    
+    // Point-free in for loop with print
+    for item in items => print
+    
+    let items2 = [10, 20, 30]
+    
+    // Point-free in for loop with user function
+    for item in items2 => showItem
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("point_free_for_loop", rust_code);
+}
