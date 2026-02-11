@@ -5,7 +5,71 @@ All notable changes to the Liva compiler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2025-02-04 🎉
+## [Unreleased] - v1.1.0-dev
+
+### Added - Phase 11: Syntax Sugar & Ergonomics 🍬
+
+**11.1 `or fail` Operator** ✅
+- New error propagation syntax: `let x = expr or fail "message"`
+- Shorthand for fallible expressions that should fail on error
+- Works with HTTP, File, JSON and any fallible function
+- Examples:
+  ```liva
+  let response = HTTP.get(url) or fail "Connection error"
+  let content = File.read("config.json") or fail "Cannot read config"
+  let data = JSON.parse(text) or fail "Invalid JSON"
+  ```
+
+**11.2 One-liner `=>` for Control Flow** ✅
+- `if condition => expr` - Single expression if
+- `for item in items => expr` - Single expression for loop  
+- `while condition => expr` - Single expression while loop
+- `if cond => expr else => expr` - If-else one-liner
+- Examples:
+  ```liva
+  if age >= 18 => print("Adult")
+  for item in items => print(item)
+  while running => tick()
+  if valid => save() else => fail "Invalid"
+  ```
+
+**Additional Improvements**
+- Top-level `const` declarations now supported
+- `not` keyword works as unary operator (same as `!`)
+- `&&` and `||` accepted alongside `and`/`or`
+- Formatter simplifies `if err != ""` to `if err`
+
+---
+
+## [1.0.2] - 2026-02-06 🎨
+
+### Added - Phase 10: Code Formatter
+
+**New `src/formatter.rs` module (~1500 lines)**
+- AST-based pretty-printing with canonical style
+- Comment preservation (standalone and inline)
+- Configurable: indent_size, max_width, operator style
+- Full language coverage: all Liva constructs
+- 24 unit tests covering all patterns
+
+**CLI Integration**
+- `livac file.liva --fmt` - Format file in place
+- `livac file.liva --fmt-check` - Check if formatting needed (exit 1 if not)
+
+**LSP Integration**
+- `textDocument/formatting` handler
+- Uses editor's tab_size setting
+- Works in VS Code / Cursor via extension
+
+**CI Modernization**
+- Updated to actions/checkout@v4
+- Multi-platform release workflow
+- Builds for: Linux x64, macOS x64, macOS ARM64, Windows x64
+- Automatic GitHub releases with SHA256 checksums
+
+---
+
+## [1.0.0] - 2026-02-04 🎉
 
 ### 🚀 First Stable Release!
 

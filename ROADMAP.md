@@ -1,9 +1,9 @@
 # 🗺️ Liva Language Roadmap
 
-> **Current Version:** v1.0.0  
-> **Status:** Stable Release — 54/54 bugs fixed, all features complete  
-> **Next Phase:** Phase 9 — Documentation & Public Presence  
-> **Last Updated:** 2026-02-10
+> **Current Version:** v1.1.0-dev (tag: v1.0.2)  
+> **Status:** Phase 11.1 & 11.2 complete — `or fail` + `=>` one-liners  
+> **Next Phase:** Phase 11.3 — Point-free / Function References  
+> **Last Updated:** 2026-02-11
 
 ---
 
@@ -2124,14 +2124,14 @@ New `src/formatter.rs` module (~1500 lines) providing:
 
 ---
 
-## 🍬 Phase 11: Syntax Sugar & Ergonomics (v1.1.0) — PLANNED
+## 🍬 Phase 11: Syntax Sugar & Ergonomics (v1.1.0) — IN PROGRESS
 
 **Goal:** Reduce boilerplate with ergonomic syntax sugar while maintaining full backward compatibility  
-**Status:** 📋 Planned  
+**Status:** 🚧 11.1 & 11.2 Complete, 11.3 Pending  
 **Estimated effort:** ~8-12 hours  
 **Backward compatibility:** ✅ All existing syntax continues to work. These are ADDITIONAL alternatives.
 
-### 11.1 `or fail` — Error Propagation Operator
+### 11.1 `or fail` — Error Propagation Operator ✅ COMPLETED
 
 **Goal:** One-liner error propagation for fallible expressions
 
@@ -2154,16 +2154,16 @@ let user = data["user"]["name"] or fail "Missing user name"
 ```
 
 **Implementation:**
-- [ ] AST: New `OrFail { expr, message }` node
-- [ ] Parser: Detect `expr or fail <string>` pattern
-- [ ] Semantic: Verify left side is fallible expression
-- [ ] Codegen: Generate Rust `match` / `unwrap_or_else` pattern
-- [ ] Tests: Unit + integration tests
-- [ ] Formatter: Support formatting `or fail` expressions
+- [x] AST: New `OrFail { expr, message }` node
+- [x] Parser: Detect `expr or fail <string>` pattern
+- [x] Semantic: Verify left side is fallible expression
+- [x] Codegen: Generate Rust `match` / `unwrap_or_else` pattern
+- [x] Tests: Unit + integration tests
+- [x] Formatter: Support formatting `or fail` expressions
 
 **Difficulty:** ⭐⭐ Medium
 
-### 11.2 One-liner `=>` for `if`, `for`, `while`
+### 11.2 One-liner `=>` for `if`, `for`, `while` ✅ COMPLETED
 
 **Goal:** Use `=>` (already used in functions, lambdas, switch) for single-expression control flow
 
@@ -2189,11 +2189,11 @@ if age >= 18 => print("Adult") else => print("Minor")
 **Note:** Block `{}` syntax remains the only option for multi-line bodies.
 
 **Implementation:**
-- [ ] Parser: In `parse_if`, `parse_for`, `parse_while` — accept `=>` as alternative to `{`
-- [ ] Parser: Parse single expression as body (wrap in block AST node)
-- [ ] Parser: Handle `if => expr else => expr` pattern
-- [ ] Tests: Unit tests for all three constructs
-- [ ] Formatter: Support one-liner formatting
+- [x] Parser: In `parse_if`, `parse_for`, `parse_while` — accept `=>` as alternative to `{`
+- [x] Parser: Parse single expression as body (wrap in block AST node)
+- [x] Parser: Handle `if => expr else => expr` pattern
+- [x] Tests: Unit tests for all three constructs
+- [x] Formatter: Support one-liner formatting
 
 **Difficulty:** ⭐ Easy
 
@@ -2244,11 +2244,9 @@ for item in items => print    // equivalent to print(item)
 | **v0.11.x** | Advanced Types & Tuples | ✅ Completed | 2025-10-27 |
 | **v0.12.0** | LSP (Language Server) | ✅ Completed | 2025-10-27 |
 | **v0.13.0** | LSP Workspace Enhancement | ✅ Completed | 2025-10-27 |
-| **v1.0.0** | Stable Release (54/54 bugs) | ✅ Completed | 2025-02-04 |
-| **v1.0.1** | Documentation & Public Presence | 📋 In Progress | 9.1-9.4 done |
-
-| **v1.0.2** | Code Formatter (CLI + LSP) | ✅ Completed | 2025-02-11 |
-| **v1.1.0** | Syntax Sugar & Ergonomics | 📋 Planned | TBD |
+| **v1.0.0** | Stable Release (54/54 bugs) | ✅ Completed | 2026-02-04 |
+| **v1.0.2** | Code Formatter (CLI + LSP) | ✅ Completed | 2026-02-06 |
+| **v1.1.0** | Syntax Sugar & Ergonomics | 🚧 In Progress | 11.1 & 11.2 done |
 **Total effort completed:** ~85+ hours of focused development 🎉
 
 ---
@@ -2298,5 +2296,5 @@ For roadmap discussions, open an issue with the `roadmap` label.
 
 ---
 
-**Last Updated:** 2025-10-19  
+**Last Updated:** 2026-02-11  
 **Maintainer:** Fran Nadal

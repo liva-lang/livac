@@ -1,6 +1,6 @@
 # Liva Language Quick Reference
 
-> **Version:** 1.0.0  
+> **Version:** 1.1.0-dev  
 > **Liva** — Python's simplicity, TypeScript's clarity, Rust's performance
 
 ---
@@ -35,6 +35,8 @@
 livac file.liva               # Compile to Rust project
 livac file.liva --run         # Compile and run
 livac file.liva --check       # Syntax check only
+livac file.liva --fmt         # Format file in place (v1.0.2+)
+livac file.liva --fmt-check   # Check if file needs formatting
 livac file.liva --verbose     # Show generated Rust code
 livac file.liva --output dir  # Set output directory
 livac file.liva --json        # Output errors as JSON (IDE integration)
@@ -219,7 +221,7 @@ if x > 0 {
 }
 ```
 
-### One-liner `=>` Syntax *(Planned v1.1.0)*
+### One-liner `=>` Syntax *(v1.1.0)* 🆕
 
 For single-expression bodies, use `=>` instead of `{}`:
 
@@ -231,7 +233,6 @@ while running => tick()
 ```
 
 > **Note:** Block `{}` syntax remains the standard for multi-line bodies. Both forms are valid.
-```
 
 ### Ternary Operator
 
@@ -492,7 +493,7 @@ if err {
 divide(a: number, b: number) => b == 0 ? fail "Division by zero" : a / b
 ```
 
-### Or Fail *(Planned v1.1.0)*
+### Or Fail *(v1.1.0)* 🆕
 
 Shorthand error propagation — fails immediately if the expression returns an error:
 
