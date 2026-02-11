@@ -1,0 +1,28 @@
+// HTTP API Client - Consumir APIs REST
+// Ejecutar: livac http-api/main.liva --run
+
+class User {
+    id: Int
+    name: String
+    email: String
+}
+
+async fn main() {
+    print("=== Liva HTTP Client Demo ===\n")
+    
+    // GET request
+    let response = await http.get("https://jsonplaceholder.typicode.com/users/1") or fail
+    let user = response.json::<User>() or fail
+    
+    print("Usuario: ${user.name}")
+    print("Email: ${user.email}")
+    
+    // POST request
+    let newUser = {
+        "name": "Liva User",
+        "email": "liva@example.com"
+    }
+    
+    let postResponse = await http.post("https://jsonplaceholder.typicode.com/users", newUser) or fail
+    print("\nUsuario creado con ID: ${postResponse.json().get("id")}")
+}

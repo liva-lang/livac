@@ -1,0 +1,42 @@
+// Concurrency - Async y Parallel en Liva
+// Ejecutar: livac concurrency/main.liva --run
+
+async fn fetchUser(id: Int) -> String {
+    let response = await http.get("https://jsonplaceholder.typicode.com/users/${id}") or fail
+    return response.json().get("name").as_string()
+}
+
+async fn main() {
+    print("=== Liva Concurrency Demo ===\n")
+    
+    // Async: Ejecutar tareas concurrentemente
+    print("Cargando usuarios en paralelo...")
+    
+    let task1 = fire fetchUser(1)
+    let task2 = fire fetchUser(2)
+    let task3 = fire fetchUser(3)
+    
+    let user1 = await task1 or fail
+    let user2 = await task2 or fail
+    let user3 = await task3 or fail
+    
+    print("Usuario 1: ${user1}")
+    print("Usuario 2: ${user2}")
+    print("Usuario 3: ${user3}")
+    
+    // Parallel: Procesar datos en paralelo con múltiples cores
+    print("\nProcesando números en paralelo...")
+    
+    let numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    let results: Vec<Int> = []
+    
+    for par num in numbers {
+        results.push(num * num)
+    }
+    
+    print("Cuadrados: ${results}")
+    
+    // ParVec: Map paralelo
+    let doubled = numbers.par_map(n => n * 2)
+    print("Duplicados: ${doubled}")
+}

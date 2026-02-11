@@ -1,0 +1,39 @@
+// JSON Processing - Trabajar con datos JSON
+// Ejecutar: livac json-processing/main.liva --run
+
+class Product {
+    id: Int
+    name: String
+    price: Float
+    inStock: Bool
+}
+
+fn main() {
+    print("=== Liva JSON Demo ===\n")
+    
+    // Crear JSON
+    let products = [
+        Product { id: 1, name: "Laptop", price: 999.99, inStock: true },
+        Product { id: 2, name: "Mouse", price: 29.99, inStock: true },
+        Product { id: 3, name: "Keyboard", price: 79.99, inStock: false }
+    ]
+    
+    // Filtrar productos en stock
+    let available = products.filter(p => p.inStock)
+    print("Productos disponibles: ${available.len()}")
+    
+    // Calcular precio total
+    let total = products
+        .filter(p => p.inStock)
+        .map(p => p.price)
+        .reduce(0.0, (acc, price) => acc + price)
+    
+    print("Precio total disponible: $${total}")
+    
+    // Iterar con foreach
+    print("\nLista de productos:")
+    products.foreach(p => {
+        let status = if p.inStock => "✓" else => "✗"
+        print("  ${status} ${p.name}: $${p.price}")
+    })
+}
