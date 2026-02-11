@@ -3,6 +3,7 @@
 > **Current Version:** v1.1.0-dev (tag: v1.0.2)  
 > **Status:** Phase 11.1 & 11.2 complete — `or fail` + `=>` one-liners  
 > **Next Phase:** Phase 11.3 — Point-free / Function References  
+> **Planned:** Phase 12 — Test Framework (`liva/test`)  
 > **Last Updated:** 2026-02-11
 
 ---
@@ -2232,6 +2233,170 @@ for item in items => print    // equivalent to print(item)
 
 ---
 
+## 🧪 Phase 12: Test Framework (v1.2.0) — PLANNED
+
+**Goal:** Built-in test runner + standard library `liva/test` for testing Liva projects  
+**Status:** 📋 Planned  
+**Estimated effort:** ~15-20 hours  
+**Philosophy:** Testing is a **library** (not keywords), but the **compiler** provides the test runner infrastructure.
+
+### Architecture
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Compiler (livac)                                        │
+│  • Recognizes *.test.liva files                          │
+│  • --test flag to run tests                              │
+│  • Test runner: discover, execute, report                │
+│  • Excludes tests from production builds                 │
+└──────────────────────┬───────────────────────────────────┘
+                       │ uses
+┌──────────────────────▼───────────────────────────────────┐
+│  Standard Library (liva/test)                            │
+│  • describe(), test(), expect()                          │
+│  • beforeEach(), afterEach(), beforeAll(), afterAll()    │
+│  • Matchers: toBe, toContain, toThrow, toBeGreaterThan   │
+└──────────────────────────────────────────────────────────┘
+```
+
+### 12.1 Test Runner (Compiler)
+
+**Goal:** `livac --test` discovers and runs `*.test.liva` files
+
+```bash
+livac --test                          # Run all *.test.liva
+livac --test tests/math.test.liva     # Run specific file
+livac --test --filter "add"           # Filter by test name
+```
+
+**Output:**
+```
+ PASS  tests/math.test.liva
+  Math operations
+    ✓ add returns correct sum (1ms)
+    ✓ handles negatives (0ms)
+
+ PASS  tests/http.test.liva
+  HTTP Client
+    ✓ fetches user data (45ms)
+
+Tests:  3 passed, 0 failed
+Time:   0.12s
+```
+
+**Implementation:**
+- [ ] CLI: Add `--test` flag
+- [ ] Discovery: Find `*.test.liva` files recursively
+- [ ] Runner: Compile and execute test files
+- [ ] Reporter: Format results with colors (pass/fail/skip)
+- [ ] Exit code: 0 = all pass, 1 = any failure
+- [ ] Filter: `--filter` flag for substring matching
+
+**Difficulty:** ⭐⭐ Medium
+
+### 12.2 Test Library (`liva/test`)
+
+**Goal:** Jest-like testing API as standard library
+
+```liva
+// tests/math.test.liva
+import "liva/test" { describe, test, expect }
+import "../src/math"
+
+describe("Math operations", () => {
+    test("add returns correct sum", () => {
+        expect(add(2, 3)).toBe(5)
+        expect(add(-1, 1)).toBe(0)
+    })
+
+    test("handles negative numbers", () => {
+        expect(add(-5, -3)).toBe(-8)
+    })
+
+    describe("edge cases", () => {
+        test("add with zero", () => {
+            expect(add(0, 100)).toBe(100)
+        })
+    })
+})
+```
+
+**Implementation:**
+- [ ] `describe(name, callback)` — Group tests
+- [ ] `test(name, callback)` — Define a test case
+- [ ] `expect(value)` — Create expectation
+- [ ] Matchers: `.toBe()`, `.toEqual()`, `.toContain()`, `.toThrow()`
+- [ ] Matchers: `.toBeGreaterThan()`, `.toBeLessThan()`, `.toBeTruthy()`, `.toBeFalsy()`
+- [ ] Negation: `expect(x).not.toBe(y)`
+- [ ] Nested `describe` support
+- [ ] Descriptive error messages on failure
+
+**Difficulty:** ⭐⭐ Medium
+
+### 12.3 Lifecycle Hooks
+
+**Goal:** Setup and teardown for test suites
+
+```liva
+import "liva/test" { describe, test, expect, beforeEach, afterEach }
+
+describe("Database", () => {
+    let db = null
+
+    beforeEach(() => {
+        db = Database.connect("test.db")
+    })
+
+    afterEach(() => {
+        db.close()
+    })
+
+    test("inserts record", () => {
+        db.insert("users", { name: "Alice" })
+        expect(db.count("users")).toBe(1)
+    })
+})
+```
+
+**Implementation:**
+- [ ] `beforeEach(callback)` — Run before each test
+- [ ] `afterEach(callback)` — Run after each test
+- [ ] `beforeAll(callback)` — Run once before all tests in describe
+- [ ] `afterAll(callback)` — Run once after all tests in describe
+- [ ] Proper scoping with nested describes
+
+**Difficulty:** ⭐⭐ Medium
+
+### 12.4 Async Test Support
+
+**Goal:** Test async functions natively
+
+```liva
+import "liva/test" { describe, test, expect }
+
+describe("HTTP Client", () => {
+    test("fetches user data", async () => {
+        let response = await http.get("https://api.example.com/users/1") or fail
+        expect(response.status).toBe(200)
+        expect(response.json().get("name")).toBe("John")
+    })
+
+    test("handles errors gracefully", async () => {
+        let response = await http.get("https://invalid.url")
+        expect(response).toThrow()
+    })
+})
+```
+
+**Implementation:**
+- [ ] Async test callback support
+- [ ] Timeout handling for async tests
+- [ ] Proper error reporting for async failures
+
+**Difficulty:** ⭐⭐ Medium
+
+---
+
 | Version | Focus | Status | ETA |
 |---------|-------|--------|-----|
 | **v0.6.1** | Consolidation & Quality | ✅ Completed | 2025-10-20 |
@@ -2247,6 +2412,7 @@ for item in items => print    // equivalent to print(item)
 | **v1.0.0** | Stable Release (54/54 bugs) | ✅ Completed | 2026-02-04 |
 | **v1.0.2** | Code Formatter (CLI + LSP) | ✅ Completed | 2026-02-06 |
 | **v1.1.0** | Syntax Sugar & Ergonomics | 🚧 In Progress | 11.1 & 11.2 done |
+| **v1.2.0** | Test Framework (`liva/test`) | 📋 Planned | — |
 **Total effort completed:** ~85+ hours of focused development 🎉
 
 ---
