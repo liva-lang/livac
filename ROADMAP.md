@@ -1,9 +1,8 @@
 # 🗺️ Liva Language Roadmap
 
 > **Current Version:** v1.1.0-dev (tag: v1.0.2)  
-> **Status:** Phase 11.1 & 11.2 complete — `or fail` + `=>` one-liners  
-> **Next Phase:** Phase 11.3 — Point-free / Function References  
-> **Planned:** Phase 12 — Test Framework (`liva/test`)  
+> **Status:** Phase 11 complete — `or fail` + `=>` one-liners + point-free function references  
+> **Next Phase:** Phase 12 — Test Framework (`liva/test`)  
 > **Last Updated:** 2026-02-11
 
 ---
@@ -2125,10 +2124,10 @@ New `src/formatter.rs` module (~1500 lines) providing:
 
 ---
 
-## 🍬 Phase 11: Syntax Sugar & Ergonomics (v1.1.0) — IN PROGRESS
+## 🍬 Phase 11: Syntax Sugar & Ergonomics (v1.1.0) — COMPLETE
 
 **Goal:** Reduce boilerplate with ergonomic syntax sugar while maintaining full backward compatibility  
-**Status:** 🚧 11.1 & 11.2 Complete, 11.3 Pending  
+**Status:** ✅ 11.1, 11.2 & 11.3 Complete  
 **Estimated effort:** ~8-12 hours  
 **Backward compatibility:** ✅ All existing syntax continues to work. These are ADDITIONAL alternatives.
 
@@ -2198,7 +2197,7 @@ if age >= 18 => print("Adult") else => print("Minor")
 
 **Difficulty:** ⭐ Easy
 
-### 11.3 Point-Free / Function References
+### 11.3 Point-Free / Function References ✅ COMPLETED
 
 **Goal:** Pass function names directly where a callback is expected
 
@@ -2216,20 +2215,20 @@ nums.map(toString)
 names.filter(isValid)
 ```
 
-**With for one-liner:**
-```liva
-for item in items => print    // equivalent to print(item)
-```
+**Supported methods:** `forEach`, `map`, `filter`, `find`, `some`, `every`
 
-**Implementation:**
-- [ ] AST: New `FunctionRef` node or extend `Identifier` handling
-- [ ] Parser: Detect bare identifier where closure/callback expected
-- [ ] Semantic: Verify function exists and arity matches (1 argument)
-- [ ] Codegen: Generate closure wrapper `|x| function(x)`
-- [ ] Tests: Unit + integration tests with array methods
-- [ ] Handle method references vs function references
+**Implementation approach:** Pure codegen transformation — no AST or parser changes needed.
+When a callback argument is an `Expr::Identifier` instead of a lambda, codegen generates
+the appropriate closure wrapper with correct `&`/`&&` borrow patterns:
+- [x] Codegen: Detect `Identifier` as callback arg in array method calls
+- [x] Codegen: Generate `|&_x| func(_x)` for `map`/`forEach` with Copy types
+- [x] Codegen: Generate `|&&_x| func(_x)` for `filter`/`find`/`some`/`every` with Copy types
+- [x] Codegen: Handle built-in `print` → `println!("{}", _x)` and `toString` → `format!("{}", _x)`
+- [x] Codegen: Handle non-Copy types (strings, classes) without borrow prefix
+- [x] Tests: Codegen snapshot test + integration test with array methods
+- [x] Formatter: Works without changes (identifier args already supported)
 
-**Difficulty:** ⭐⭐⭐ Complex
+**Difficulty:** ⭐⭐ Medium (simpler than expected — codegen-only change)
 
 ---
 

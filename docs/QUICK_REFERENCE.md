@@ -627,7 +627,7 @@ let result = numbers
     .reduce((acc, x) => acc + x, 0)  // 24
 ```
 
-### Function References *(Planned v1.1.0)*
+### Point-Free Function References *(v1.1.0)*
 
 Pass function names directly where a single-argument callback is expected:
 
@@ -636,6 +636,8 @@ items.forEach(print)           // instead of: items.forEach(x => print(x))
 nums.map(toString)             // instead of: nums.map(n => toString(n))
 names.filter(isValid)          // instead of: names.filter(n => isValid(n))
 ```
+
+**Supported methods:** `forEach`, `map`, `filter`, `find`, `some`, `every`
 
 > **Note:** Lambda syntax `x => expr` continues to work and is required for multi-argument or complex expressions.
 

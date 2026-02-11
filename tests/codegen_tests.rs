@@ -180,3 +180,29 @@ main() {
     let rust_code = compile_and_generate(source);
     assert_snapshot!("file_io_operations", rust_code);
 }
+
+#[test]
+fn test_point_free_function_references() {
+    let source = r#"
+double(x) => x * 2
+isPositive(n) => n > 0
+
+main() {
+    let items = [1, 2, 3, 4, 5]
+    
+    // Point-free: pass function name directly
+    items.forEach(print)
+    
+    let doubled = items.map(double)
+    let positives = items.filter(isPositive)
+    
+    let names = ["Alice", "Bob", "Charlie"]
+    names.forEach(print)
+    
+    let strs = items.map(toString)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("point_free_function_refs", rust_code);
+}

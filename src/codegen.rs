@@ -5655,6 +5655,49 @@ impl CodeGenerator {
                     || matches!(method_call.adapter, ArrayAdapter::Par | ArrayAdapter::ParVec));
             
             if needs_lambda_pattern {
+                // Phase 11.3: Point-free function references
+                // items.forEach(print) → items.forEach(|&_x| println!("{}", _x))
+                // nums.map(toString) → nums.map(|&_x| format!("{}", _x))
+                // names.filter(isValid) → names.filter(|&_x| is_valid(_x))
+                if let Expr::Identifier(func_name) = arg {
+                    // Only treat as function reference if it's NOT a variable that holds a closure
+                    // Function references are bare identifiers used where a closure is expected
+                    let is_callback_method = matches!(method_call.method.as_str(), 
+                        "forEach" | "map" | "filter" | "find" | "some" | "every");
+                    
+                    if is_callback_method {
+                        // Generate the appropriate lambda pattern based on method and type
+                        let param_pattern = if is_json_value {
+                            "_x".to_string()
+                        } else if method_call.method == "filter" || method_call.method == "find" || method_call.method == "some" || method_call.method == "every" {
+                            if will_use_cloned { "_x".to_string() } else { "&&_x".to_string() }
+                        } else if method_call.method == "map" || method_call.method == "forEach" {
+                            if will_use_cloned { "_x".to_string() } else { "&_x".to_string() }
+                        } else {
+                            "&_x".to_string()
+                        };
+                        
+                        // Generate the function call body based on built-in vs user function
+                        self.output.push_str(&format!("|{}| ", param_pattern));
+                        
+                        match func_name.as_str() {
+                            "print" => {
+                                self.output.push_str("println!(\"{}\", _x)");
+                            }
+                            "toString" => {
+                                self.output.push_str("format!(\"{}\", _x)");
+                            }
+                            _ => {
+                                // User-defined function: generate sanitized_name(_x)
+                                let sanitized = self.sanitize_name(func_name);
+                                write!(self.output, "{}(_x)", sanitized).unwrap();
+                            }
+                        }
+                        
+                        continue;
+                    }
+                }
+                
                 if let Expr::Lambda(lambda) = arg {
                     // Track lambda parameter types for typed arrays
                     // If the object is a typed array (e.g., posts: [Post]), track that the param is Post

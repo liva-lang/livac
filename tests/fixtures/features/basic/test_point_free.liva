@@ -1,0 +1,28 @@
+// Phase 11.3 - Point-free function references
+// items.forEach(print) instead of items.forEach(item => print(item))
+double(x) => x * 2
+
+isEven(n) => n % 2 == 0
+
+main() {
+    let nums = [1, 2, 3, 4, 5]
+    // Point-free with built-in print
+    print("--- forEach with print ---")
+    nums.forEach(print)
+    // Point-free with user function in map
+    print("--- map with double ---")
+    let doubled = nums.map(double)
+    doubled.forEach(print)
+    // Point-free with user function in filter
+    print("--- filter with isEven ---")
+    let evens = nums.filter(isEven)
+    evens.forEach(print)
+    // Point-free with toString
+    print("--- map with toString ---")
+    let strs = nums.map(toString)
+    strs.forEach(print)
+    // String arrays
+    print("--- string forEach with print ---")
+    let names = ["Alice", "Bob", "Charlie"]
+    names.forEach(print)
+}

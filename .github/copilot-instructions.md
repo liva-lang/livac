@@ -120,6 +120,14 @@ if err { fail "Error occurred" }
 let data = File.read("config.json") or fail "Cannot read"
 ```
 
+### Point-Free Function References (v1.1.0)
+```liva
+// Pass function names directly as callbacks
+items.forEach(print)           // instead of: items.forEach(x => print(x))
+nums.map(toString)             // instead of: nums.map(n => toString(n))
+names.filter(isValid)          // instead of: names.filter(n => isValid(n))
+```
+
 ### Clases
 ```liva
 Person {
@@ -157,7 +165,7 @@ Person {
 - **Phase 10** (Formatter): ✅ Completado
 - **Phase 11.1** (`or fail`): ✅ Completado  
 - **Phase 11.2** (`=>` one-liners): ✅ Completado
-- **Phase 11.3** (Point-free): 📋 Pendiente
+- **Phase 11.3** (Point-free): ✅ Completado
 
 ---
 
