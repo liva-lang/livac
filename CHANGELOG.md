@@ -26,6 +26,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   livac --test --filter "sum"           # Filter by test name
   ```
 
+**12.2 Test Library (`liva/test`)** ✅
+- Virtual built-in module `liva/test` — no filesystem files needed
+- Jest-like API: `describe`, `test`, `expect` with fluent matchers
+- Import syntax: `import { describe, test, expect } from "liva/test"`
+- **`describe(name, callback)`** — groups tests into `#[cfg(test)] mod`
+- **`test(name, callback)`** — defines a `#[test] fn`
+- **Matchers:**
+  - `expect(x).toBe(y)` → `assert_eq!(x, y)`
+  - `expect(x).toEqual(y)` → `assert_eq!(x, y)`
+  - `expect(x).toBeTruthy()` → `assert!(x)`
+  - `expect(x).toBeFalsy()` → `assert!(!(x))`
+  - `expect(x).toBeGreaterThan(y)` → `assert!(x > y)`
+  - `expect(x).toBeLessThan(y)` → `assert!(x < y)`
+  - `expect(x).toBeGreaterThanOrEqual(y)` → `assert!(x >= y)`
+  - `expect(x).toBeLessThanOrEqual(y)` → `assert!(x <= y)`
+  - `expect(x).toContain(y)` → `assert!(x.contains(&y))`
+  - `expect(x).toBeNull()` → `assert!(x.is_none())`
+  - `expect(x).toThrow()` → `assert!(std::panic::catch_unwind(|| { x }).is_err())`
+- **Negation:** `expect(x).not.toBe(y)` → `assert_ne!(x, y)` (all matchers support `.not`)
+- **Lifecycle hooks:** `beforeEach`, `afterEach`, `beforeAll`, `afterAll`
+- Virtual module system: `is_virtual_module()`, sentinel paths, semantic validation
+- Parser changes: `Token::Test` as identifier in expression contexts, `Token::Not` as method name for `.not` chains
+- New AST variant: `TopLevel::ExprStmt(Expr)` for top-level expression statements
+- Example:
+  ```liva
+  import { describe, test, expect } from "liva/test"
+
+  add(a: int, b: int): int => a + b
+
+  describe("Math", () => {
+      test("addition", () => {
+          expect(add(2, 3)).toBe(5)
+          expect(add(-1, 1)).toBe(0)
+      })
+
+      test("negation", () => {
+          expect(add(1, 1)).not.toBe(3)
+      })
+  })
+  ```
+
 ---
 
 ## [Unreleased] - v1.1.0-dev

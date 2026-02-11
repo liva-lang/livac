@@ -190,6 +190,50 @@ impl SemanticAnalyzer {
     fn validate_import(&mut self, import: &crate::ast::ImportDecl) -> Result<()> {
         use std::path::Path;
         
+        // Virtual modules (liva/test, etc.) — use sentinel path lookup
+        if crate::module::is_virtual_module(&import.source) {
+            let vpath = crate::module::virtual_module_path(&import.source);
+            let module_info = self.imported_modules.get(&vpath);
+            
+            let (public_symbols, _private_symbols) = module_info
+                .ok_or_else(|| {
+                    CompilerError::SemanticError(SemanticErrorInfo::new(
+                        "E4004",
+                        "Unknown virtual module",
+                        &format!("Module '{}' is not a known built-in module.\nAvailable modules: liva/test", import.source),
+                    ))
+                })?;
+
+            // Validate named imports against virtual module's symbols
+            if !import.is_wildcard {
+                for symbol in &import.imports {
+                    if !public_symbols.contains(symbol) {
+                        return Err(CompilerError::SemanticError(SemanticErrorInfo::new(
+                            "E4006",
+                            "Symbol not found in module",
+                            &format!(
+                                "'{}' is not exported by '{}'.\nAvailable symbols: {}",
+                                symbol,
+                                import.source,
+                                public_symbols.iter().cloned().collect::<Vec<_>>().join(", ")
+                            ),
+                        )));
+                    }
+                    self.imported_symbols.insert(symbol.clone());
+                    self.functions.insert(
+                        symbol.clone(),
+                        FunctionSignature {
+                            params: vec![],
+                            return_type: None,
+                            is_async: false,
+                            defaults: vec![],
+                        },
+                    );
+                }
+            }
+            return Ok(());
+        }
+
         // Resolve the import path relative to the current file
         let current_file = Path::new(&self.source_file);
         let current_dir = current_file.parent().unwrap_or_else(|| Path::new("."));

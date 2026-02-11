@@ -221,6 +221,17 @@ fn compile_with_modules(
         );
     }
     
+    // Add virtual modules (liva/test, etc.) to the module map
+    // Scan entry module imports for virtual module references
+    for import in &entry_module.imports {
+        if module::is_virtual_module(&import.source) {
+            if let Some(symbols) = module::virtual_module_symbols(&import.source) {
+                let vpath = module::virtual_module_path(&import.source);
+                module_map.insert(vpath, (symbols, std::collections::HashSet::new()));
+            }
+        }
+    }
+    
     // 2. Semantic analysis with module context
     let analyzed_ast = semantic::analyze_with_modules(
         entry_module.ast.clone(),

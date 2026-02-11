@@ -1613,6 +1613,10 @@ impl CodeGenerator {
             }
             TopLevel::Function(func) => self.generate_function(func),
             TopLevel::Test(test) => self.generate_test(test),
+            TopLevel::ExprStmt(expr) => {
+                self.generate_expr(expr)?;
+                Ok(())
+            }
             TopLevel::ConstDecl(const_decl) => {
                 write!(self.output, "const {}: ", const_decl.name.to_uppercase()).unwrap();
                 let type_str = if let Some(type_ref) = &const_decl.type_ref {
@@ -2697,6 +2701,305 @@ impl CodeGenerator {
         Ok(())
     }
 
+    // ─── liva/test virtual library codegen ───────────────────────────
+    
+    /// Generate a describe() block → #[cfg(test)] mod test_name { use super::*; ... }
+    fn generate_test_describe(&mut self, call: &CallExpr) -> Result<()> {
+        // describe("name", () => { ... })
+        if call.args.len() < 2 {
+            return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                "E3000",
+                "describe() requires 2 arguments",
+                "describe(name: string, callback: () => void)",
+            )));
+        }
+        
+        // Extract the name string
+        let mod_name = match &call.args[0] {
+            Expr::Literal(Literal::String(s)) => self.sanitize_test_name(s),
+            _ => "unnamed".to_string(),
+        };
+        
+        // Extract the lambda body
+        let lambda_body = match &call.args[1] {
+            Expr::Lambda(lambda) => &lambda.body,
+            _ => {
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3000",
+                    "describe() second argument must be a function",
+                    "describe(\"name\", () => { ... })",
+                )));
+            }
+        };
+        
+        self.writeln("#[cfg(test)]");
+        self.writeln(&format!("mod test_{} {{", mod_name));
+        self.indent();
+        self.writeln("use super::*;");
+        self.output.push('\n');
+        
+        let was_in_test = self.in_test_block;
+        self.in_test_block = true;
+        
+        match lambda_body {
+            LambdaBody::Block(block) => {
+                self.generate_block_inner(block)?;
+            }
+            LambdaBody::Expr(expr) => {
+                self.write_indent();
+                self.generate_expr(expr)?;
+                self.output.push_str(";\n");
+            }
+        }
+        
+        self.in_test_block = was_in_test;
+        self.dedent();
+        self.writeln("}");
+        Ok(())
+    }
+    
+    /// Generate a test() call → #[test] fn test_name() { ... }
+    fn generate_test_case(&mut self, call: &CallExpr) -> Result<()> {
+        // test("name", () => { ... })
+        if call.args.len() < 2 {
+            return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                "E3000",
+                "test() requires 2 arguments",
+                "test(name: string, callback: () => void)",
+            )));
+        }
+        
+        // Extract the name string
+        let test_name = match &call.args[0] {
+            Expr::Literal(Literal::String(s)) => self.sanitize_test_name(s),
+            _ => "unnamed".to_string(),
+        };
+        
+        // Extract the lambda body
+        let lambda_body = match &call.args[1] {
+            Expr::Lambda(lambda) => &lambda.body,
+            _ => {
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3000",
+                    "test() second argument must be a function",
+                    "test(\"name\", () => { ... })",
+                )));
+            }
+        };
+        
+        self.writeln("#[test]");
+        self.writeln(&format!("fn test_{}() {{", test_name));
+        self.indent();
+        
+        let was_in_test = self.in_test_block;
+        self.in_test_block = true;
+        
+        match lambda_body {
+            LambdaBody::Block(block) => {
+                self.generate_block_inner(block)?;
+            }
+            LambdaBody::Expr(expr) => {
+                self.write_indent();
+                self.generate_expr(expr)?;
+                self.output.push_str(";\n");
+            }
+        }
+        
+        self.in_test_block = was_in_test;
+        self.dedent();
+        self.writeln("}");
+        Ok(())
+    }
+    
+    /// Generate lifecycle hooks (beforeEach, afterEach, etc.)
+    /// These are emitted as comments since Rust's test framework doesn't have built-in hooks
+    fn generate_test_lifecycle(&mut self, hook_name: &str, call: &CallExpr) -> Result<()> {
+        // For now, lifecycle hooks generate inline code as a helper function
+        // that gets called at the start/end of each test
+        if call.args.is_empty() {
+            return Ok(());
+        }
+        
+        let fn_name = self.to_snake_case(hook_name);
+        
+        let lambda_body = match &call.args[0] {
+            Expr::Lambda(lambda) => &lambda.body,
+            _ => return Ok(()),
+        };
+        
+        self.writeln(&format!("fn {}() {{", fn_name));
+        self.indent();
+        
+        match lambda_body {
+            LambdaBody::Block(block) => {
+                self.generate_block_inner(block)?;
+            }
+            LambdaBody::Expr(expr) => {
+                self.write_indent();
+                self.generate_expr(expr)?;
+                self.output.push_str(";\n");
+            }
+        }
+        
+        self.dedent();
+        self.writeln("}");
+        Ok(())
+    }
+    
+    /// Try to generate an expect() chain: expect(x).toBe(y) -> assert_eq!(x, y)
+    /// Returns Some(code) if this is an expect chain, None otherwise
+    fn try_generate_expect_chain(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<Option<String>> {
+        // Pattern: expect(actual).matcher(expected)
+        // Object is Call(expect, [actual]) and method is the matcher name
+        
+        // Check for negated: expect(x).not.toBe(y)
+        // Parsed as MethodCall { object: Member { Call(expect, [x]), "not" }, method: "toBe" }
+        let (actual_expr, matcher, is_negated) = match method_call.object.as_ref() {
+            // Direct: expect(x).toBe(y)
+            Expr::Call(call) => {
+                if let Expr::Identifier(name) = call.callee.as_ref() {
+                    if name == "expect" && !call.args.is_empty() {
+                        (&call.args[0], &method_call.method, false)
+                    } else {
+                        return Ok(None);
+                    }
+                } else {
+                    return Ok(None);
+                }
+            }
+            // Negated: expect(x).not.toBe(y)
+            Expr::Member { object, property } if property == "not" => {
+                if let Expr::Call(call) = object.as_ref() {
+                    if let Expr::Identifier(name) = call.callee.as_ref() {
+                        if name == "expect" && !call.args.is_empty() {
+                            (&call.args[0], &method_call.method, true)
+                        } else {
+                            return Ok(None);
+                        }
+                    } else {
+                        return Ok(None);
+                    }
+                } else {
+                    return Ok(None);
+                }
+            }
+            _ => return Ok(None),
+        };
+        
+        // Generate actual expression into a buffer
+        let actual_code = {
+            let saved = std::mem::take(&mut self.output);
+            self.generate_expr(actual_expr)?;
+            let code = std::mem::replace(&mut self.output, saved);
+            code
+        };
+        
+        // Helper to generate expected arg
+        let gen_expected = |this: &mut Self| -> Result<String> {
+            if method_call.args.is_empty() {
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3000",
+                    "Matcher requires 1 argument",
+                    "expect(actual).toBe(expected)",
+                )));
+            }
+            let saved = std::mem::take(&mut this.output);
+            this.generate_expr(&method_call.args[0])?;
+            let code = std::mem::replace(&mut this.output, saved);
+            Ok(code)
+        };
+        
+        let result = match matcher.as_str() {
+            "toBe" | "toEqual" => {
+                let expected = gen_expected(self)?;
+                if is_negated {
+                    format!("assert_ne!({}, {})", actual_code, expected)
+                } else {
+                    format!("assert_eq!({}, {})", actual_code, expected)
+                }
+            }
+            "toBeTruthy" => {
+                if is_negated {
+                    format!("assert!(!({}))", actual_code)
+                } else {
+                    format!("assert!({})", actual_code)
+                }
+            }
+            "toBeFalsy" => {
+                if is_negated {
+                    format!("assert!({})", actual_code)
+                } else {
+                    format!("assert!(!({}))", actual_code)
+                }
+            }
+            "toBeGreaterThan" => {
+                let expected = gen_expected(self)?;
+                if is_negated {
+                    format!("assert!({} <= {})", actual_code, expected)
+                } else {
+                    format!("assert!({} > {})", actual_code, expected)
+                }
+            }
+            "toBeLessThan" => {
+                let expected = gen_expected(self)?;
+                if is_negated {
+                    format!("assert!({} >= {})", actual_code, expected)
+                } else {
+                    format!("assert!({} < {})", actual_code, expected)
+                }
+            }
+            "toBeGreaterThanOrEqual" => {
+                let expected = gen_expected(self)?;
+                if is_negated {
+                    format!("assert!({} < {})", actual_code, expected)
+                } else {
+                    format!("assert!({} >= {})", actual_code, expected)
+                }
+            }
+            "toBeLessThanOrEqual" => {
+                let expected = gen_expected(self)?;
+                if is_negated {
+                    format!("assert!({} > {})", actual_code, expected)
+                } else {
+                    format!("assert!({} <= {})", actual_code, expected)
+                }
+            }
+            "toContain" => {
+                let expected = gen_expected(self)?;
+                if is_negated {
+                    format!("assert!(!{}.contains(&{}))", actual_code, expected)
+                } else {
+                    format!("assert!({}.contains(&{}))", actual_code, expected)
+                }
+            }
+            "toBeNull" => {
+                if is_negated {
+                    format!("assert!({}.is_some())", actual_code)
+                } else {
+                    format!("assert!({}.is_none())", actual_code)
+                }
+            }
+            "toThrow" => {
+                if is_negated {
+                    format!("assert!(std::panic::catch_unwind(|| {{ {} }}).is_ok())", actual_code)
+                } else {
+                    format!("assert!(std::panic::catch_unwind(|| {{ {} }}).is_err())", actual_code)
+                }
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3000",
+                    &format!("Unknown matcher: {}", matcher),
+                    "Available: toBe, toEqual, toBeTruthy, toBeFalsy, toBeGreaterThan, toBeLessThan, toContain, toBeNull, toThrow",
+                )));
+            }
+        };
+        
+        Ok(Some(result))
+    }
+    
+    // ─── End liva/test codegen ───────────────────────────────────────
+
     fn generate_params(
         &mut self,
         params: &[Param],
@@ -3653,9 +3956,24 @@ impl CodeGenerator {
                 self.output.push_str(";\n");
             }
             Stmt::Expr(expr_stmt) => {
-                self.write_indent();
-                self.generate_expr(&expr_stmt.expr)?;
-                self.output.push_str(";\n");
+                // liva/test: describe(), test(), lifecycle hooks generate blocks — no trailing ;
+                let is_test_block_call = if let Expr::Call(call) = &expr_stmt.expr {
+                    if let Expr::Identifier(name) = call.callee.as_ref() {
+                        matches!(name.as_str(), "describe" | "test" | "beforeEach" | "afterEach" | "beforeAll" | "afterAll")
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
+                
+                if is_test_block_call {
+                    self.generate_expr(&expr_stmt.expr)?;
+                } else {
+                    self.write_indent();
+                    self.generate_expr(&expr_stmt.expr)?;
+                    self.output.push_str(";\n");
+                }
             }
             Stmt::Block(block) => {
                 self.writeln("{");
@@ -4912,6 +5230,29 @@ impl CodeGenerator {
 
     fn generate_normal_call(&mut self, call: &CallExpr) -> Result<()> {
         if let Expr::Identifier(name) = call.callee.as_ref() {
+            // ─── liva/test virtual library ───────────────────────────
+            // describe("name", () => { ... }) → mod test_name { use super::*; ... }
+            if name == "describe" {
+                return self.generate_test_describe(call);
+            }
+            // test("name", () => { ... }) → #[test] fn test_name() { ... }
+            if name == "test" {
+                return self.generate_test_case(call);
+            }
+            // expect(value) → handled as part of method chain (expect(x).toBe(y))
+            // The actual codegen happens in generate_method_call_expr
+            if name == "expect" {
+                // expect() by itself is a no-op; it's always used with a matcher
+                // If called standalone (no method chain), treat as no-op
+                self.output.push_str("/* expect() */()");
+                return Ok(());
+            }
+            // beforeEach/afterEach/beforeAll/afterAll → setup/teardown helpers
+            if name == "beforeEach" || name == "afterEach" || name == "beforeAll" || name == "afterAll" {
+                return self.generate_test_lifecycle(name, call);
+            }
+            // ─────────────────────────────────────────────────────────
+
             // Handle parseInt(str) -> (i32, Option<Error>)
             if name == "parseInt" {
                 if call.args.is_empty() {
@@ -5421,6 +5762,13 @@ impl CodeGenerator {
     /// Generate code for method calls (stdlib Phase 2 - array methods)
     fn generate_method_call_expr(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
         use crate::ast::ArrayAdapter;
+        
+        // ─── liva/test: expect(x).toBe(y) chain ─────────────────────
+        if let Some(result) = self.try_generate_expect_chain(method_call)? {
+            self.output.push_str(&result);
+            return Ok(());
+        }
+        // ─────────────────────────────────────────────────────────────
         
         // Check if this is a Math function call (Math.sqrt, Math.pow, etc.)
         if let Expr::Identifier(name) = method_call.object.as_ref() {
@@ -10404,7 +10752,7 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext) ->
                 module_body.push_str(&code);
                 module_body.push('\n');
             }
-            TopLevel::UseRust(_) | TopLevel::Test(_) => {
+            TopLevel::UseRust(_) | TopLevel::Test(_) | TopLevel::ExprStmt(_) => {
                 // Reset codegen output for this item
                 codegen.output.clear();
                 codegen.generate_top_level(item)?;
@@ -10442,6 +10790,11 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext) ->
 /// - `import * as math from "./math.liva"` → `use crate::math;`
 fn generate_use_statement(import_decl: &ImportDecl, _current_module_path: &std::path::Path) -> Result<String> {
     use std::path::Path;
+    
+    // Virtual modules (liva/test, etc.) don't generate use statements
+    if crate::module::is_virtual_module(&import_decl.source) {
+        return Ok(String::new());
+    }
     
     // Parse the source path and resolve relative to current module
     let source_path = Path::new(&import_decl.source);

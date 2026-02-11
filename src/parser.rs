@@ -401,6 +401,29 @@ impl Parser {
             return Err(self.error("Unexpected end of file".into()));
         }
 
+        // Detect top-level expression statements (e.g., describe(...) from liva/test)
+        // Heuristic: identifier followed by ( and then a string literal → function call, not declaration
+        // Function declarations have: name(param: Type, ...) → params are identifiers with colons
+        // Function calls have: name("string", () => { ... }) → args are expressions
+        if let Some(token) = self.peek() {
+            let is_potential_call = match token {
+                Token::Ident(_) | Token::Test => {
+                    // Check: ident ( stringLiteral
+                    if let Some(Token::LParen) = self.peek_token(1) {
+                        matches!(self.peek_token(2), Some(Token::StringLiteral(_)))
+                    } else {
+                        false
+                    }
+                }
+                _ => false,
+            };
+            
+            if is_potential_call {
+                let expr = self.parse_expression()?;
+                return Ok(TopLevel::ExprStmt(expr));
+            }
+        }
+
         // Try to parse as class or function
         if let Some(token) = self.peek() {
             if Self::is_exec_modifier(token) {
@@ -2251,6 +2274,11 @@ impl Parser {
                     self.advance();
                     return Ok(Expr::Identifier(value));
                 }
+                // Allow 'test' keyword as identifier in expression context (liva/test library)
+                Token::Test => {
+                    self.advance();
+                    return Ok(Expr::Identifier("test".to_string()));
+                }
                 _ => {}
             }
         }
@@ -2557,6 +2585,8 @@ impl Parser {
             Some(Token::CharType) => Ok("char".to_string()),
             Some(Token::Bytes) => Ok("bytes".to_string()),
             Some(Token::Type) => Ok("type".to_string()),
+            // Allow 'test' as identifier in import contexts (liva/test library)
+            Some(Token::Test) => Ok("test".to_string()),
             _ => Err(self.error("Expected identifier".into())),
         }
     }
@@ -2582,6 +2612,7 @@ impl Parser {
             // Other keywords that may appear as field names
             Some(Token::Type) => Ok("type".to_string()),
             Some(Token::Null) => Ok("null".to_string()),
+            Some(Token::Not) => Ok("not".to_string()),
             _ => Err(self.error("Expected method name".into())),
         }
     }

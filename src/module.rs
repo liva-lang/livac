@@ -10,6 +10,30 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::fs;
 
+/// Check if an import source refers to a virtual (built-in) module
+pub fn is_virtual_module(source: &str) -> bool {
+    source.starts_with("liva/")
+}
+
+/// Symbols exported by the "liva/test" virtual module
+pub const LIVA_TEST_SYMBOLS: &[&str] = &[
+    "describe", "test", "expect",
+    "beforeEach", "afterEach", "beforeAll", "afterAll",
+];
+
+/// Get the public symbols for a virtual module
+pub fn virtual_module_symbols(source: &str) -> Option<HashSet<String>> {
+    match source {
+        "liva/test" => Some(LIVA_TEST_SYMBOLS.iter().map(|s| s.to_string()).collect()),
+        _ => None,
+    }
+}
+
+/// Create a sentinel PathBuf for a virtual module
+pub fn virtual_module_path(source: &str) -> PathBuf {
+    PathBuf::from(format!("<virtual:{}>" , source))
+}
+
 /// Represents a single Liva module (file)
 #[derive(Debug, Clone)]
 pub struct Module {
@@ -295,6 +319,11 @@ impl ModuleResolver {
     
     /// Load a module and all its dependencies recursively
     fn load_module_recursive(&mut self, path: &Path) -> Result<()> {
+        // Skip virtual modules (they don't have filesystem paths)
+        if path.to_str().map_or(false, |s| s.starts_with("<virtual:")) {
+            return Ok(());
+        }
+
         // Canonicalize path
         let canonical_path = path.canonicalize().map_err(|e| {
             CompilerError::CodegenError(SemanticErrorInfo::new(
@@ -332,6 +361,11 @@ impl ModuleResolver {
     
     /// Resolve an import path relative to the current file
     fn resolve_import_path(&self, current_file: &Path, import_path: &str) -> Result<PathBuf> {
+        // Virtual modules (liva/test, etc.) — return sentinel path
+        if is_virtual_module(import_path) {
+            return Ok(virtual_module_path(import_path));
+        }
+
         // Get the directory of the current file
         let current_dir = current_file.parent().ok_or_else(|| {
             CompilerError::CodegenError(SemanticErrorInfo::new(

@@ -38,6 +38,9 @@ pub fn lower_program(program: &ast::Program) -> ir::Module {
             ast::TopLevel::ConstDecl(_) => {
                 // Top-level constants are handled directly by codegen
             }
+            ast::TopLevel::ExprStmt(_) => {
+                // Top-level expressions (liva/test describe) handled by AST codegen
+            }
         }
     }
 

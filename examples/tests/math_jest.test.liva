@@ -1,0 +1,39 @@
+import { describe, test, expect } from "liva/test"
+
+add(a: int, b: int): int => a + b
+
+multiply(a: int, b: int): int => a * b
+
+isPositive(n: int): bool => n > 0
+
+describe("Math operations", () => {
+    test("addition works correctly", () => {
+        expect(add(2, 3)).toBe(5)
+        expect(add(-1, 1)).toBe(0)
+        expect(add(0, 0)).toBe(0)
+    })
+
+    test("multiplication works correctly", () => {
+        expect(multiply(3, 4)).toBe(12)
+        expect(multiply(-2, 5)).toBe(-10)
+        expect(multiply(0, 100)).toBe(0)
+    })
+
+    test("isPositive detects positive numbers", () => {
+        expect(isPositive(5)).toBeTruthy()
+        expect(isPositive(-3)).toBeFalsy()
+        expect(isPositive(0)).toBeFalsy()
+    })
+
+    test("comparison matchers work", () => {
+        expect(10).toBeGreaterThan(5)
+        expect(3).toBeLessThan(7)
+        expect(5).toBeGreaterThanOrEqual(5)
+        expect(5).toBeLessThanOrEqual(5)
+    })
+
+    test("negated matchers work", () => {
+        expect(add(2, 3)).not.toBe(6)
+        expect(isPositive(5)).not.toBeFalsy()
+    })
+})

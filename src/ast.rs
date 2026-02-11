@@ -57,6 +57,8 @@ pub enum TopLevel {
     Function(FunctionDecl),
     Test(TestDecl),
     ConstDecl(ConstDecl),
+    /// Top-level expression statement (e.g., describe(...) from liva/test)
+    ExprStmt(Expr),
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

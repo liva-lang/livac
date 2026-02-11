@@ -1,8 +1,8 @@
 # 🗺️ Liva Language Roadmap
 
 > **Current Version:** v1.2.0-dev (tag: v1.0.2)  
-> **Status:** Phase 11 complete, Phase 12.1 complete — Test Runner  
-> **Next Phase:** Phase 12.2 — Test Library (`liva/test`)  
+> **Status:** Phase 11 complete, Phase 12.1-12.2 complete — Test Runner + Test Library  
+> **Next Phase:** Phase 12.3 — Lifecycle Hooks  
 > **Planned:** Phase 12 — Test Framework  
 > **Last Updated:** 2026-02-11
 
@@ -2423,16 +2423,19 @@ describe("Math operations", () => {
 ```
 
 **Implementation:**
-- [ ] `describe(name, callback)` — Group tests
-- [ ] `test(name, callback)` — Define a test case
-- [ ] `expect(value)` — Create expectation
-- [ ] Matchers: `.toBe()`, `.toEqual()`, `.toContain()`, `.toThrow()`
-- [ ] Matchers: `.toBeGreaterThan()`, `.toBeLessThan()`, `.toBeTruthy()`, `.toBeFalsy()`
-- [ ] Negation: `expect(x).not.toBe(y)`
-- [ ] Nested `describe` support
-- [ ] Descriptive error messages on failure
+- [x] `describe(name, callback)` — Group tests
+- [x] `test(name, callback)` — Define a test case
+- [x] `expect(value)` — Create expectation
+- [x] Matchers: `.toBe()`, `.toEqual()`, `.toContain()`, `.toThrow()`
+- [x] Matchers: `.toBeGreaterThan()`, `.toBeLessThan()`, `.toBeTruthy()`, `.toBeFalsy()`
+- [x] Negation: `expect(x).not.toBe(y)`
+- [x] Nested `describe` support
+- [x] Descriptive error messages on failure
+- [x] Virtual module system: `import { ... } from "liva/test"` without filesystem files
+- [x] `TopLevel::ExprStmt` — top-level expression statements for `describe(...)` blocks
+- [x] Parser: `test` keyword usable as identifier in import/expression contexts
 
-**Difficulty:** ⭐⭐ Medium
+**Difficulty:** ⭐⭐ Medium — ✅ COMPLETE
 
 ### 12.3 Lifecycle Hooks
 
@@ -2460,13 +2463,14 @@ describe("Database", () => {
 ```
 
 **Implementation:**
-- [ ] `beforeEach(callback)` — Run before each test
-- [ ] `afterEach(callback)` — Run after each test
-- [ ] `beforeAll(callback)` — Run once before all tests in describe
-- [ ] `afterAll(callback)` — Run once after all tests in describe
+- [x] `beforeEach(callback)` — Run before each test (generates helper function)
+- [x] `afterEach(callback)` — Run after each test (generates helper function)
+- [x] `beforeAll(callback)` — Run once before all tests in describe (generates helper function)
+- [x] `afterAll(callback)` — Run once after all tests in describe (generates helper function)
 - [ ] Proper scoping with nested describes
+- [ ] Auto-invocation of hooks in generated test functions
 
-**Difficulty:** ⭐⭐ Medium
+**Difficulty:** ⭐⭐ Medium — 🚧 PARTIAL (hooks importable, codegen generates functions but no auto-invocation yet)
 
 ### 12.4 Async Test Support
 

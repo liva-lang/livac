@@ -141,6 +141,7 @@ impl Formatter {
             TopLevel::Function(decl) => self.format_function(decl),
             TopLevel::Test(decl) => self.format_test(decl),
             TopLevel::ConstDecl(decl) => self.format_const_decl_stmt(decl),
+            TopLevel::ExprStmt(_) => { /* top-level expressions don't need formatting */ }
         }
     }
 

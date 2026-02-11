@@ -1,6 +1,6 @@
 # Liva Language Quick Reference
 
-> **Version:** 1.1.0-dev  
+> **Version:** 1.2.0-dev  
 > **Liva** — Python's simplicity, TypeScript's clarity, Rust's performance
 
 ---
@@ -24,6 +24,7 @@
 - [Collections (Arrays)](#collections-arrays)
 - [Strings](#strings)
 - [Modules](#modules)
+- [Testing](#testing)
 - [Standard Library](#standard-library)
 - [Complete Example](#complete-example)
 
@@ -742,6 +743,96 @@ import * as math from "./math.liva"
 main() {
     print(math.add(10, 5))
 }
+```
+
+---
+
+## Testing
+
+### Test Library (`liva/test`) *(v1.2.0+)*
+
+Liva includes a built-in test library with a Jest-like API.
+
+```liva
+import { describe, test, expect } from "liva/test"
+```
+
+### Writing Tests
+
+```liva
+import { describe, test, expect } from "liva/test"
+
+add(a: int, b: int): int => a + b
+
+describe("Math operations", () => {
+    test("addition works", () => {
+        expect(add(2, 3)).toBe(5)
+        expect(add(-1, 1)).toBe(0)
+    })
+
+    test("negative results", () => {
+        expect(add(-5, 2)).toBe(-3)
+    })
+})
+```
+
+### Matchers
+
+```liva
+// Equality
+expect(x).toBe(y)                    // assert_eq!
+expect(x).toEqual(y)                 // assert_eq! (alias)
+
+// Truthiness
+expect(x).toBeTruthy()               // assert!(x)
+expect(x).toBeFalsy()                // assert!(!(x))
+
+// Comparison
+expect(x).toBeGreaterThan(y)         // assert!(x > y)
+expect(x).toBeLessThan(y)            // assert!(x < y)
+expect(x).toBeGreaterThanOrEqual(y)  // assert!(x >= y)
+expect(x).toBeLessThanOrEqual(y)     // assert!(x <= y)
+
+// Collections
+expect(x).toContain(y)               // assert!(x.contains(&y))
+
+// Null
+expect(x).toBeNull()                 // assert!(x.is_none())
+
+// Errors
+expect(x).toThrow()                  // assert!(catch_unwind(x).is_err())
+```
+
+### Negation (`.not`)
+
+```liva
+expect(x).not.toBe(y)               // assert_ne!
+expect(x).not.toBeTruthy()           // assert!(!(x))
+expect(x).not.toContain(y)           // assert!(!x.contains(&y))
+```
+
+### Lifecycle Hooks
+
+```liva
+describe("Suite", () => {
+    beforeAll(() => { /* runs once before all tests */ })
+    afterAll(() => { /* runs once after all tests */ })
+    beforeEach(() => { /* runs before each test */ })
+    afterEach(() => { /* runs after each test */ })
+
+    test("example", () => {
+        expect(true).toBeTruthy()
+    })
+})
+```
+
+### Running Tests
+
+```bash
+livac --test                          # Run all *.test.liva files
+livac --test file.test.liva           # Run specific test file
+livac --test --filter "math"          # Filter tests by name
+livac --test --verbose                # Show individual test results
 ```
 
 ---
