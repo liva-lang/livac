@@ -39,6 +39,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `&&` and `||` accepted alongside `and`/`or`
 - Formatter simplifies `if err != ""` to `if err`
 
+**11.3 Point-Free Function References** ✅
+- Pass function names directly as callbacks: `items.forEach(print)`
+- Works with `map`, `filter`, `forEach`, `find`, `some`, `every`
+- Point-free `for =>` loops: `for item in items => print`
+- Eliminates boilerplate lambdas for single-argument callbacks
+
+**11.4 Method References with `::`** ✅
+- New `object::method` syntax for instance method references
+- Binds a method to a specific instance as a callback
+- Works with `map`, `filter`, `forEach`, `find`, `some`, `every`
+- Examples:
+  ```liva
+  let fmt = Formatter("Hello")
+  let greetings = names.map(fmt::format)  // ["Hello: Alice", ...]
+  names.forEach(fmt::format)
+  ```
+- Lexer: `::` DoubleColon token
+- AST: `Expr::MethodRef { object, method }` node
+- Semantic validation: checks class & method existence
+- Codegen: generates closures with proper type conversions
+
 ---
 
 ## [1.0.2] - 2026-02-06 🎨

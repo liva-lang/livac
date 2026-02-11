@@ -131,6 +131,17 @@ names.filter(isValid)          // instead of: names.filter(n => isValid(n))
 for item in items => print     // instead of: for item in items => print(item)
 ```
 
+### Method References with `::` (v1.1.0)
+```liva
+// Reference an instance method as a callback
+let fmt = Formatter("Hello")
+let greetings = names.map(fmt::format)    // ["Hello: Alice", ...]
+names.forEach(fmt::format)
+
+// object::method binds the method to the specific instance
+// Works with: map, filter, forEach, find, some, every
+```
+
 ### Clases
 ```liva
 Person {
@@ -169,6 +180,7 @@ Person {
 - **Phase 11.1** (`or fail`): ✅ Completado  
 - **Phase 11.2** (`=>` one-liners): ✅ Completado
 - **Phase 11.3** (Point-free): ✅ Completado
+- **Phase 11.4** (Method refs `::`): ✅ Completado
 
 ---
 

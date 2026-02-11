@@ -167,3 +167,8 @@ fn test_or_fail() {
 fn test_oneliner_arrow() {
     test_parser_ok("oneliner_arrow");
 }
+
+#[test]
+fn test_method_references() {
+    test_parser_ok("method_references");
+}

@@ -1,0 +1,24 @@
+// Phase 11.4 - Method references with :: syntax
+
+Formatter {
+    prefix: string
+
+    constructor(prefix: string) {
+        this.prefix = prefix
+    }
+
+    format(s: string) => $"{this.prefix}: {s}"
+}
+
+main() {
+    let names = ["Alice", "Bob", "Charlie"]
+    let formatter = Formatter("Hello")
+
+    // Instance method reference with map
+    let formatted = names.map(formatter::format)
+    formatted.forEach(print)
+
+    // Instance method reference with forEach
+    let greeter = Formatter("Hi")
+    names.forEach(greeter::format)
+}

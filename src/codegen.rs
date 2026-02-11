@@ -2290,6 +2290,8 @@ impl CodeGenerator {
                 }
                 None
             }
+            // String templates ($"...{expr}...") always return String
+            Expr::StringTemplate { .. } => Some(" -> String".to_string()),
             _ => None,
         }
     }
@@ -3507,24 +3509,43 @@ impl CodeGenerator {
                 // for item in items => print  →  for item in items { print(item) }
                 // for item in items => mifuncion  →  for item in items { mifuncion(item) }
                 let is_point_free_body = for_stmt.body.stmts.len() == 1 
-                    && matches!(&for_stmt.body.stmts[0], Stmt::Expr(expr_stmt) if matches!(&expr_stmt.expr, Expr::Identifier(_)));
+                    && matches!(&for_stmt.body.stmts[0], Stmt::Expr(expr_stmt) 
+                        if matches!(&expr_stmt.expr, Expr::Identifier(_) | Expr::MethodRef { .. }));
                 
                 if is_point_free_body {
                     if let Stmt::Expr(expr_stmt) = &for_stmt.body.stmts[0] {
-                        if let Expr::Identifier(func_name) = &expr_stmt.expr {
-                            self.write_indent();
-                            match func_name.as_str() {
-                                "print" => {
-                                    write!(self.output, "println!(\"{{}}\", {});\n", var_name).unwrap();
-                                }
-                                "toString" => {
-                                    write!(self.output, "format!(\"{{}}\", {});\n", var_name).unwrap();
-                                }
-                                _ => {
-                                    let sanitized = self.sanitize_name(func_name);
-                                    write!(self.output, "{}({});\n", sanitized, var_name).unwrap();
+                        match &expr_stmt.expr {
+                            Expr::Identifier(func_name) => {
+                                self.write_indent();
+                                match func_name.as_str() {
+                                    "print" => {
+                                        write!(self.output, "println!(\"{{}}\", {});\n", var_name).unwrap();
+                                    }
+                                    "toString" => {
+                                        write!(self.output, "format!(\"{{}}\", {});\n", var_name).unwrap();
+                                    }
+                                    _ => {
+                                        let sanitized = self.sanitize_name(func_name);
+                                        write!(self.output, "{}({});\n", sanitized, var_name).unwrap();
+                                    }
                                 }
                             }
+                            Expr::MethodRef { object, method } => {
+                                // Phase 11.4: for item in items => Utils::log
+                                self.write_indent();
+                                let sanitized_obj = self.sanitize_name(object);
+                                let sanitized_method = self.sanitize_name(method);
+                                let is_class = object.chars().next().map_or(false, |c| c.is_uppercase());
+                                
+                                if method == "new" {
+                                    write!(self.output, "{}::new({});\n", sanitized_obj, var_name).unwrap();
+                                } else if is_class {
+                                    write!(self.output, "{}::{}({});\n", sanitized_obj, sanitized_method, var_name).unwrap();
+                                } else {
+                                    write!(self.output, "{}.{}({});\n", sanitized_obj, sanitized_method, var_name).unwrap();
+                                }
+                            }
+                            _ => {}
                         }
                     }
                 } else {
@@ -4659,6 +4680,29 @@ impl CodeGenerator {
             Expr::Switch(switch_expr) => {
                 self.generate_switch_expr(switch_expr)?;
             }
+            Expr::MethodRef { object, method } => {
+                // Phase 11.4: Generate closure wrapper for method references
+                // Utils::validate → |_x| Utils::validate(_x)
+                // User::new → |_x| User::new(_x)
+                // logger::log → |_x| logger.log(_x)
+                let sanitized_obj = self.sanitize_name(object);
+                let sanitized_method = self.sanitize_name(method);
+                
+                let is_class = object.chars().next().map_or(false, |c| c.is_uppercase());
+                
+                if method == "new" {
+                    // Constructor reference: User::new → User::new("_x")
+                    // Will be wrapped in closure by array method codegen
+                    write!(self.output, "{}::new", sanitized_obj).unwrap();
+                } else if is_class {
+                    // Static method reference: Utils::validate → Utils::validate
+                    write!(self.output, "{}::{}", sanitized_obj, sanitized_method).unwrap();
+                } else {
+                    // Instance method reference: logger::log → |_x| logger.log(_x)
+                    // For now, output as a closure that calls the instance method
+                    write!(self.output, "|_x| {}.{}(_x)", sanitized_obj, sanitized_method).unwrap();
+                }
+            }
         }
         Ok(())
     }
@@ -5720,6 +5764,74 @@ impl CodeGenerator {
                                 let sanitized = self.sanitize_name(func_name);
                                 write!(self.output, "{}(_x)", sanitized).unwrap();
                             }
+                        }
+                        
+                        continue;
+                    }
+                }
+                
+                // Phase 11.4: Method references with :: syntax in array methods
+                // items.filter(Utils::validate) → items.filter(|&_x| Utils::validate(_x))
+                // items.map(User::new) → items.map(|&_x| User::new(_x))
+                // items.forEach(logger::log) → items.forEach(|&_x| logger.log(_x))
+                if let Expr::MethodRef { object, method } = arg {
+                    let is_callback_method = matches!(method_call.method.as_str(), 
+                        "forEach" | "map" | "filter" | "find" | "some" | "every");
+                    
+                    if is_callback_method {
+                        let param_pattern = if is_json_value {
+                            "_x".to_string()
+                        } else if method_call.method == "filter" || method_call.method == "find" || method_call.method == "some" || method_call.method == "every" {
+                            if will_use_cloned { "_x".to_string() } else { "&&_x".to_string() }
+                        } else if method_call.method == "map" || method_call.method == "forEach" {
+                            if will_use_cloned { "_x".to_string() } else { "&_x".to_string() }
+                        } else {
+                            "&_x".to_string()
+                        };
+                        
+                        self.output.push_str(&format!("|{}| ", param_pattern));
+                        
+                        let sanitized_obj = self.sanitize_name(object);
+                        let sanitized_method = self.sanitize_name(method);
+                        let is_class = object.chars().next().map_or(false, |c| c.is_uppercase());
+                        
+                        // Determine if we need .to_string() conversion for the argument
+                        // Methods take String params, but iterators yield &str for string arrays
+                        // Only skip conversion for class-typed arrays (not primitive types like "string")
+                        let is_class_typed_array = if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
+                            self.typed_array_vars.get(&base_var_name)
+                                .map(|t| !matches!(t.as_str(), "string" | "String" | "int" | "i32" | "float" | "f64" | "bool" | "number"))
+                                .unwrap_or(false)
+                        } else {
+                            false
+                        };
+                        let arg_expr = if is_class_typed_array || is_json_value {
+                            "_x".to_string()
+                        } else {
+                            "_x.to_string()".to_string()
+                        };
+                        
+                        // For forEach, we need to discard the return value since for_each expects ()
+                        let is_for_each = method_call.method == "forEach";
+                        
+                        if is_for_each {
+                            self.output.push_str("{ ");
+                        }
+                        
+                        if method == "new" {
+                            // Constructor: User::new → User::new(_x.to_string())
+                            write!(self.output, "{}::new({})", sanitized_obj, arg_expr).unwrap();
+                        } else if is_class {
+                            // Static method: Utils::validate → Utils::validate(_x.to_string())
+                            write!(self.output, "{}::{}({})", sanitized_obj, sanitized_method, arg_expr).unwrap();
+                        } else {
+                            // Instance method: logger::log → logger.log(_x.to_string())
+                            write!(self.output, "{}.{}({})", sanitized_obj, sanitized_method, arg_expr).unwrap();
+                        }
+                        
+                        // forEach closures must return (), so wrap in block with semicolon
+                        if is_for_each {
+                            self.output.push_str("; }");
                         }
                         
                         continue;

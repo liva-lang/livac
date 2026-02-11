@@ -1622,6 +1622,30 @@ impl SemanticAnalyzer {
                 
                 Ok(())
             }
+            Expr::MethodRef { object, method } => {
+                // Phase 11.4: Validate method references
+                let is_class = object.chars().next().map_or(false, |c| c.is_uppercase());
+                
+                if is_class {
+                    // Check if the class/type exists
+                    if !self.types.contains_key(object) {
+                        return Err(CompilerError::SemanticError(
+                            format!("E0301: Type '{}' not found in '{}::{}'", object, object, method).into(),
+                        ));
+                    }
+                    // Check if method exists on the type (skip 'new' which is constructor)
+                    if method != "new" {
+                        if let Some(type_info) = self.types.get(object) {
+                            if !type_info.methods.contains_key(method) {
+                                return Err(CompilerError::SemanticError(
+                                    format!("E0302: Method '{}' not found on type '{}'", method, object).into(),
+                                ));
+                            }
+                        }
+                    }
+                }
+                Ok(())
+            }
         }
     }
 
@@ -2224,6 +2248,7 @@ impl SemanticAnalyzer {
             }),
             Expr::Literal(_) | Expr::Identifier(_) => false,
             Expr::Fail(expr) => Self::expr_contains_await(expr),
+            Expr::MethodRef { .. } => false,
             Expr::MethodCall(method_call) => {
                 Self::expr_contains_await(&method_call.object)
                     || method_call.args.iter().any(Self::expr_contains_await)

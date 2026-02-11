@@ -230,3 +230,30 @@ main() {
     let rust_code = compile_and_generate(source);
     assert_snapshot!("point_free_for_loop", rust_code);
 }
+
+#[test]
+fn test_method_ref_double_colon() {
+    let source = r#"
+Formatter {
+    prefix: string
+    constructor(prefix: string) { this.prefix = prefix }
+    format(s: string) => $"{this.prefix}: {s}"
+}
+
+main() {
+    let names = ["Alice", "Bob", "Charlie"]
+    let formatter = Formatter("Hello")
+
+    // Method reference with :: in map
+    let formatted = names.map(formatter::format)
+    formatted.forEach(print)
+
+    // Method reference with :: in forEach
+    let greeter = Formatter("Hi")
+    names.forEach(greeter::format)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("method_ref_double_colon", rust_code);
+}

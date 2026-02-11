@@ -2,7 +2,7 @@
 
 > **Current Version:** v1.1.0-dev (tag: v1.0.2)  
 > **Status:** Phase 11.1-11.3 complete — `or fail` + `=>` one-liners + point-free function references  
-> **Next Phase:** Phase 11.4 — Generalized Function References & `::` Syntax  
+> **Next Phase:** Phase 12 — Test Framework  
 > **Planned:** Phase 12 — Test Framework (`liva/test`)  
 > **Last Updated:** 2026-02-11
 
@@ -2128,7 +2128,7 @@ New `src/formatter.rs` module (~1500 lines) providing:
 ## 🍬 Phase 11: Syntax Sugar & Ergonomics (v1.1.0) — IN PROGRESS
 
 **Goal:** Reduce boilerplate with ergonomic syntax sugar while maintaining full backward compatibility  
-**Status:** ✅ 11.1, 11.2 & 11.3 Complete | 📋 11.4 Planned  
+**Status:** ✅ 11.1, 11.2, 11.3 & 11.4 Complete  
 **Estimated effort:** ~8-12 hours  
 **Backward compatibility:** ✅ All existing syntax continues to work. These are ADDITIONAL alternatives.
 
@@ -2238,7 +2238,7 @@ the appropriate closure wrapper with correct `&`/`&&` borrow patterns:
 
 **Difficulty:** ⭐⭐ Medium (simpler than expected — codegen-only change)
 
-### 11.4 Generalized Function References & `::` Syntax — PLANNED
+### 11.4 Method References with `::` Syntax ✅ COMPLETED
 
 **Goal:** Extend point-free to support class methods, instance methods, constructors, and any parameter expecting a callback
 
@@ -2310,21 +2310,24 @@ ejecutar(Utils::log)
 ```
 
 **Implementation:**
-- [ ] AST: New `Expr::MethodRef { class, method }` node for `Clase::metodo` syntax
-- [ ] Parser: Parse `Identifier :: Identifier` as `MethodRef` expression
-- [ ] Parser: Support `Clase::new` as constructor reference
-- [ ] Semantic: Verify referenced method/function exists and arity matches
-- [ ] Codegen: Generate closure wrappers for `MethodRef` (static → `|_x| Class::method(_x)`, instance → `|_x| obj.method(_x)`)
-- [ ] Codegen: Generalize bare identifier detection beyond 6 array methods
-- [ ] Types: Introduce function type syntax `(T) -> R` for callback parameters
-- [ ] Tests: Unit + integration tests for all reference types
-- [ ] Formatter: Support `::` syntax formatting
-- [ ] Docs: Update `docs/QUICK_REFERENCE.md` with `::` syntax and examples
-- [ ] Docs: Update `docs/README.md` index with function references entry
-- [ ] Docs: Update `docs/language-reference/` with function references section
-- [ ] Docs: Update `docs/guides/` with usage examples and best practices
-- [ ] Docs: Update `.github/copilot-instructions.md` (livac + workspace)
-- [ ] Docs: Update `CHANGELOG.md` with new feature
+- [x] Lexer: `::` DoubleColon token
+- [x] AST: New `Expr::MethodRef { object, method }` node
+- [x] Parser: Parse `Identifier :: Identifier` as `MethodRef` expression
+- [x] Semantic: Verify referenced class/method exists
+- [x] Codegen: Generate closure wrappers for instance method refs
+- [x] Codegen: Handle `.to_string()` conversion for primitive arrays
+- [x] Codegen: Handle `forEach` return type with `{ expr; }` wrapping
+- [x] Codegen: Fix `infer_expr_type` for `StringTemplate` → `-> String`
+- [x] Formatter: Support `::` syntax formatting
+- [x] Lowering: `MethodRef` as `ir::Expr::Unsupported`
+- [x] Tests: Parser + codegen snapshot tests
+- [x] Tests: Integration test (`test_method_ref.liva`)
+- [x] Docs: Update `docs/QUICK_REFERENCE.md` with `::` syntax
+- [x] Docs: Update `.github/copilot-instructions.md`
+- [x] Docs: Update `CHANGELOG.md` with new feature
+- [ ] Future: `Class::new` constructor references
+- [ ] Future: Static method references
+- [ ] Future: Function type syntax `(T) -> R` for callback parameters
 
 **Difficulty:** ⭐⭐⭐ Complex (requires parser + semantic + type system changes)
 

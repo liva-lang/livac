@@ -1,0 +1,324 @@
+---
+source: tests/parser_tests.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "Class": {
+        "name": "Formatter",
+        "type_params": [],
+        "implements": [],
+        "members": [
+          {
+            "Field": {
+              "name": "prefix",
+              "visibility": "Public",
+              "type_ref": {
+                "Simple": "string"
+              },
+              "init": null,
+              "is_optional": false
+            }
+          },
+          {
+            "Method": {
+              "name": "constructor",
+              "visibility": "Public",
+              "type_params": [],
+              "params": [
+                {
+                  "pattern": {
+                    "Identifier": "prefix"
+                  },
+                  "type_ref": {
+                    "Simple": "string"
+                  },
+                  "default": null
+                }
+              ],
+              "return_type": null,
+              "body": {
+                "stmts": [
+                  {
+                    "Assign": {
+                      "target": {
+                        "Member": {
+                          "object": {
+                            "Identifier": "this"
+                          },
+                          "property": "prefix"
+                        }
+                      },
+                      "value": {
+                        "Identifier": "prefix"
+                      }
+                    }
+                  }
+                ]
+              },
+              "expr_body": null,
+              "is_async_inferred": false,
+              "contains_fail": false
+            }
+          },
+          {
+            "Method": {
+              "name": "format",
+              "visibility": "Public",
+              "type_params": [],
+              "params": [
+                {
+                  "pattern": {
+                    "Identifier": "s"
+                  },
+                  "type_ref": {
+                    "Simple": "string"
+                  },
+                  "default": null
+                }
+              ],
+              "return_type": null,
+              "body": {
+                "stmts": [
+                  {
+                    "Return": {
+                      "expr": {
+                        "StringTemplate": {
+                          "parts": [
+                            {
+                              "Expr": {
+                                "Member": {
+                                  "object": {
+                                    "Identifier": "this"
+                                  },
+                                  "property": "prefix"
+                                }
+                              }
+                            },
+                            {
+                              "Text": ": "
+                            },
+                            {
+                              "Expr": {
+                                "Identifier": "s"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "expr_body": {
+                "StringTemplate": {
+                  "parts": [
+                    {
+                      "Expr": {
+                        "Member": {
+                          "object": {
+                            "Identifier": "this"
+                          },
+                          "property": "prefix"
+                        }
+                      }
+                    },
+                    {
+                      "Text": ": "
+                    },
+                    {
+                      "Expr": {
+                        "Identifier": "s"
+                      }
+                    }
+                  ]
+                }
+              },
+              "is_async_inferred": false,
+              "contains_fail": false
+            }
+          }
+        ],
+        "needs_serde": false
+      }
+    },
+    {
+      "Function": {
+        "name": "main",
+        "type_params": [],
+        "params": [],
+        "return_type": null,
+        "body": {
+          "stmts": [
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "names"
+                    },
+                    "type_ref": null
+                  }
+                ],
+                "init": {
+                  "ArrayLiteral": [
+                    {
+                      "Literal": {
+                        "String": "Alice"
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "String": "Bob"
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "String": "Charlie"
+                      }
+                    }
+                  ]
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "formatter"
+                    },
+                    "type_ref": null
+                  }
+                ],
+                "init": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "Formatter"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "String": "Hello"
+                        }
+                      }
+                    ],
+                    "exec_policy": "normal",
+                    "type_args": []
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "formatted"
+                    },
+                    "type_ref": null
+                  }
+                ],
+                "init": {
+                  "MethodCall": {
+                    "object": {
+                      "Identifier": "names"
+                    },
+                    "method": "map",
+                    "args": [
+                      {
+                        "MethodRef": {
+                          "object": "formatter",
+                          "method": "format"
+                        }
+                      }
+                    ],
+                    "adapter": "seq",
+                    "adapter_options": {}
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "MethodCall": {
+                    "object": {
+                      "Identifier": "formatted"
+                    },
+                    "method": "forEach",
+                    "args": [
+                      {
+                        "Identifier": "print"
+                      }
+                    ],
+                    "adapter": "seq",
+                    "adapter_options": {}
+                  }
+                }
+              }
+            },
+            {
+              "VarDecl": {
+                "bindings": [
+                  {
+                    "pattern": {
+                      "Identifier": "greeter"
+                    },
+                    "type_ref": null
+                  }
+                ],
+                "init": {
+                  "Call": {
+                    "callee": {
+                      "Identifier": "Formatter"
+                    },
+                    "args": [
+                      {
+                        "Literal": {
+                          "String": "Hi"
+                        }
+                      }
+                    ],
+                    "exec_policy": "normal",
+                    "type_args": []
+                  }
+                },
+                "is_fallible": false
+              }
+            },
+            {
+              "Expr": {
+                "expr": {
+                  "MethodCall": {
+                    "object": {
+                      "Identifier": "names"
+                    },
+                    "method": "forEach",
+                    "args": [
+                      {
+                        "MethodRef": {
+                          "object": "greeter",
+                          "method": "format"
+                        }
+                      }
+                    ],
+                    "adapter": "seq",
+                    "adapter_options": {}
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "expr_body": null,
+        "is_async_inferred": false,
+        "contains_fail": false
+      }
+    }
+  ]
+}

@@ -390,6 +390,10 @@ fn lower_expr(expr: &ast::Expr) -> ir::Expr {
             // They will be handled directly in codegen
             ir::Expr::Unsupported(expr.clone())
         }
+        ast::Expr::MethodRef { .. } => {
+            // Method references are handled directly in codegen
+            ir::Expr::Unsupported(expr.clone())
+        }
     }
 }
 

@@ -2014,6 +2014,17 @@ impl Parser {
                     object: Box::new(expr),
                     index: Box::new(index),
                 };
+            } else if self.match_token(&Token::DoubleColon) {
+                // Phase 11.4: Method references — Utils::validate, logger::log, User::new
+                if let Expr::Identifier(object_name) = &expr {
+                    let method = self.parse_identifier()?;
+                    expr = Expr::MethodRef {
+                        object: object_name.clone(),
+                        method,
+                    };
+                } else {
+                    return Err(self.error("Expected identifier before '::'".to_string()));
+                }
             } else {
                 break;
             }

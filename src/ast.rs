@@ -610,6 +610,12 @@ pub enum Expr {
     Fail(Box<Expr>),
     MethodCall(MethodCallExpr),
     Switch(SwitchExpr),  // Enhanced pattern matching (v0.9.5)
+    /// Method/function reference with `::` syntax (v1.1.0 Phase 11.4)
+    /// Examples: `Utils::validate`, `logger::log`, `User::new`
+    MethodRef {
+        object: String,   // Class name or variable name
+        method: String,   // Method name or "new" for constructors
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

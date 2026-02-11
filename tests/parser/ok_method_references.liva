@@ -1,0 +1,18 @@
+Formatter {
+    prefix: string
+    constructor(prefix: string) { this.prefix = prefix }
+    format(s: string) => $"{this.prefix}: {s}"
+}
+
+main() {
+    let names = ["Alice", "Bob", "Charlie"]
+    let formatter = Formatter("Hello")
+
+    // Method reference with ::
+    let formatted = names.map(formatter::format)
+    formatted.forEach(print)
+
+    // Method reference in forEach
+    let greeter = Formatter("Hi")
+    names.forEach(greeter::format)
+}

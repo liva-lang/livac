@@ -646,6 +646,34 @@ for item in items => print      // instead of: for item in items => print(item)
 for item in items => showItem   // instead of: for item in items => showItem(item)
 ```
 
+### Method References with `::` *(v1.1.0)*
+
+Reference an instance method using the `object::method` syntax:
+
+```liva
+Formatter {
+    prefix: string
+    constructor(prefix: string) { this.prefix = prefix }
+    format(s: string) => $"{this.prefix}: {s}"
+}
+
+main() {
+    let names = ["Alice", "Bob", "Charlie"]
+    let fmt = Formatter("Hello")
+
+    // Method reference: pass instance method as callback
+    let greetings = names.map(fmt::format)     // ["Hello: Alice", "Hello: Bob", ...]
+    greetings.forEach(print)
+
+    // Also works with forEach, filter, find, some, every
+    names.forEach(fmt::format)
+}
+```
+
+**Supported methods:** `forEach`, `map`, `filter`, `find`, `some`, `every`
+
+> **Note:** `object::method` binds the method to the specific instance. The method must accept a single argument matching the array element type.
+
 > **Note:** Lambda syntax `x => expr` continues to work and is required for multi-argument or complex expressions.
 
 ---

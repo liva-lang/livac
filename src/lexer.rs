@@ -180,6 +180,8 @@ pub enum Token {
     Comma,
     #[token(":")]
     Colon,
+    #[token("::")]
+    DoubleColon,
     #[token(";")]
     Semicolon,
     #[token("_")]
