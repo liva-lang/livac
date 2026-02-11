@@ -12,6 +12,7 @@ Complete reference for function declarations, syntax variations, and best practi
 - [Async Inference](#async-inference)
 - [Fallibility](#fallibility)
 - [Visibility](#visibility)
+- [Function References](#function-references) ⭐ NEW!
 - [Best Practices](#best-practices)
 
 ---
@@ -719,6 +720,81 @@ main() {
 
 ---
 
+## Function References
+
+**⭐ New in v1.1.0**
+
+Pass function names or instance methods directly as callbacks, without writing a lambda wrapper.
+
+### Point-Free Function References
+
+When an array method expects a single-argument callback, you can pass the function name directly:
+
+```liva
+double(x) => x * 2
+isPositive(n) => n > 0
+
+main() {
+    let nums = [1, 2, 3, 4, 5]
+
+    // Point-free: pass function name directly
+    nums.forEach(print)              // instead of: nums.forEach(x => print(x))
+    let doubled = nums.map(double)   // instead of: nums.map(x => double(x))
+    let pos = nums.filter(isPositive) // instead of: nums.filter(x => isPositive(x))
+    let strs = nums.map(toString)    // instead of: nums.map(x => toString(x))
+}
+```
+
+**Supported methods:** `forEach`, `map`, `filter`, `find`, `some`, `every`
+
+Also works with `for =>` one-liner loops:
+
+```liva
+for item in items => print         // instead of: for item in items => print(item)
+for item in items => process       // instead of: for item in items => process(item)
+```
+
+### Method References with `::`
+
+Reference an instance method using `object::method` syntax. The method is bound to the specific instance:
+
+```liva
+Formatter {
+    prefix: string
+    constructor(prefix: string) { this.prefix = prefix }
+    format(s: string) => $"{this.prefix}: {s}"
+}
+
+main() {
+    let names = ["Alice", "Bob", "Charlie"]
+    let fmt = Formatter("Hello")
+
+    // Method reference: binds fmt.format as a callback
+    let greetings = names.map(fmt::format)
+    // Result: ["Hello: Alice", "Hello: Bob", "Hello: Charlie"]
+
+    greetings.forEach(print)
+
+    // Also works with forEach, filter, find, some, every
+    let validator = Validator(3)
+    let valid = names.filter(validator::isValid)
+}
+```
+
+### When to Use
+
+| Scenario | Syntax | Example |
+|----------|--------|---------|
+| Built-in function | bare name | `items.forEach(print)` |
+| User-defined function | bare name | `nums.map(double)` |
+| Instance method | `object::method` | `names.map(fmt::format)` |
+| Complex expression | lambda | `nums.map(x => x * 2 + 1)` |
+| Multi-argument | lambda | `nums.reduce((a, b) => a + b, 0)` |
+
+> **Note:** Function references work for single-argument callbacks only. For multi-argument or complex expressions, use the standard lambda syntax `x => expr`.
+
+---
+
 ## Best Practices
 
 ### Function Naming
@@ -825,8 +901,8 @@ createConnection(host, port, timeout) {  // What's the default timeout?
 | **Return Type** | `name(): type` | `add(): number` |
 | **Default Param** | `name(x = val)` | `greet(name = "Guest")` |
 | **Fallible** | Uses `fail` | `divide(a, b) => b == 0 ? fail "..." : a / b` |
-| **Async** | Auto-inferred | Compiler detects async calls |
-
+| **Async** | Auto-inferred | Compiler detects async calls || **Point-free** | bare name | `items.forEach(print)` |
+| **Method ref** | `object::method` | `names.map(fmt::format)` |
 ### Quick Reference
 
 ```liva

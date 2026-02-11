@@ -313,6 +313,14 @@ x *= 2       // Multiply and assign (future)
 x /= 4       // Divide and assign (future)
 ```
 
+### Method Reference
+
+```liva
+// :: binds an instance method as a callback (v1.1.0)
+let fmt = Formatter("Hello")
+names.map(fmt::format)     // equivalent to: names.map(x => fmt.format(x))
+```
+
 ## String Templates
 
 ```liva
@@ -343,6 +351,15 @@ let last = numbers[numbers.length - 1]
 
 // Length
 print($"Length: {numbers.length}")
+
+// Functional methods
+let doubled = numbers.map(x => x * 2)
+let evens = numbers.filter(x => x % 2 == 0)
+numbers.forEach(print)                       // point-free (v1.1.0)
+
+// Method references with :: (v1.1.0)
+let fmt = Formatter("Item")
+let labels = names.map(fmt::format)
 ```
 
 ### Objects

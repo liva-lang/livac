@@ -86,6 +86,13 @@ let numbers = [1, 2, 3, 4, 5]
 let doubled = numbers.map(x => x * 2)
 // Result: [2, 4, 6, 8, 10]
 
+// Point-free function reference (v1.1.0)
+let strs = numbers.map(toString)        // equivalent to: x => toString(x)
+
+// Instance method reference with :: (v1.1.0)
+let fmt = Formatter("Item")
+let labels = numbers.map(fmt::format)   // equivalent to: x => fmt.format(x)
+
 // With arrow function body
 let squared = numbers.map(x => {
   let result = x * x
@@ -141,6 +148,13 @@ let numbers = [1, 2, 3, 4, 5, 6]
 // Sequential
 let evens = numbers.filter(x => x % 2 == 0)
 // Result: [2, 4, 6]
+
+// Point-free function reference (v1.1.0)
+let valid = names.filter(isValid)           // equivalent to: x => isValid(x)
+
+// Instance method reference with :: (v1.1.0)
+let checker = Validator(3)
+let ok = names.filter(checker::isValid)     // equivalent to: x => checker.isValid(x)
 
 // Parallel
 let large = numbers.par().filter(x => x > 3)
@@ -217,10 +231,12 @@ let numbers = [1, 2, 3]
 // Sequential
 numbers.forEach(x => print(x))
 
-// Point-free / function reference (Planned v1.1.0)
+// Point-free function reference (v1.1.0)
 numbers.forEach(print)          // equivalent to: x => print(x)
-numbers.map(toString)           // equivalent to: x => toString(x)
-names.filter(isValid)           // equivalent to: x => isValid(x)
+
+// Instance method reference with :: (v1.1.0)
+let logger = Logger("APP")
+numbers.forEach(logger::log)    // equivalent to: x => logger.log(x)
 
 // Parallel (unordered execution)
 numbers.par().forEach(x => {
@@ -254,6 +270,12 @@ let firstEven = numbers.find(x => x % 2 == 0)
 
 let firstLarge = numbers.find(x => x > 10)
 // Result: null
+
+// Point-free function reference (v1.1.0)
+let found = names.find(isAdmin)
+
+// Instance method reference with :: (v1.1.0)
+let found = names.find(matcher::matches)
 ```
 
 ---
@@ -273,6 +295,9 @@ let numbers = [1, 2, 3, 4, 5]
 
 let hasEven = numbers.some(x => x % 2 == 0)
 // Result: true
+
+// Point-free (v1.1.0)
+let hasAdmin = users.some(isAdmin)
 
 // Parallel check
 let hasLarge = numbers.par().some(x => x > 100)
@@ -299,6 +324,12 @@ let allEven = numbers.every(x => x % 2 == 0)
 
 let allPositive = numbers.every(x => x > 0)
 // Result: true
+
+// Point-free (v1.1.0)
+let allValid = names.every(isValid)
+
+// Instance method reference with :: (v1.1.0)
+let allMatch = names.every(validator::check)
 
 // Parallel check
 let allLarge = numbers.par().every(x => x > 100)

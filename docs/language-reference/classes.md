@@ -7,6 +7,7 @@ Complete reference for object-oriented programming in Liva: classes, constructor
 - [Constructors](#constructors)
 - [Fields](#fields)
 - [Methods](#methods)
+- [Method References (`::` Syntax)](#method-references--syntax) ⭐ NEW!
 - [Visibility](#visibility)
 - [Instantiation](#instantiation)
 - [Interfaces](#interfaces)
@@ -298,6 +299,62 @@ UserService {
   }
 }
 ```
+
+---
+
+## Method References (`::` Syntax)
+
+**⭐ New in v1.1.0**
+
+Pass an instance method as a callback using `object::method` syntax. The method is bound to the specific instance.
+
+### Basic Usage
+
+```liva
+Formatter {
+    prefix: string
+    constructor(prefix: string) { this.prefix = prefix }
+    format(s: string) => $"{this.prefix}: {s}"
+}
+
+main() {
+    let names = ["Alice", "Bob", "Charlie"]
+    let fmt = Formatter("Hello")
+
+    // Method reference: pass fmt.format as callback
+    let greetings = names.map(fmt::format)
+    // Result: ["Hello: Alice", "Hello: Bob", "Hello: Charlie"]
+
+    greetings.forEach(print)
+}
+```
+
+### How It Works
+
+`object::method` creates a closure that calls the instance method on the given object:
+
+```liva
+// These two are equivalent:
+let greetings = names.map(fmt::format)
+let greetings = names.map(name => fmt.format(name))
+```
+
+### Supported Array Methods
+
+Method references work with all callback-accepting array methods:
+
+```liva
+let checker = Validator(3)
+
+names.forEach(logger::log)         // Side effects
+let labels = names.map(fmt::format) // Transform
+let valid = names.filter(checker::isValid)  // Filter
+let found = names.find(checker::matches)    // Search
+let any = names.some(checker::isValid)      // Test any
+let all = names.every(checker::isValid)     // Test all
+```
+
+> **Note:** The referenced method must accept a single argument matching the array element type. For multi-argument or complex expressions, use the standard lambda syntax.
 
 ---
 
@@ -892,6 +949,7 @@ UserService : Loggable {
 | **Constructor** | `constructor(params) { }` | `constructor(name: string) { }` |
 | **Field** | `fieldName: type` | `name: string` |
 | **Method** | `methodName() { }` | `greet() => "Hi"` |
+| **Method ref** | `object::method` | `names.map(fmt::format)` |
 | **Interface** | `InterfaceName { signatures }` | `Animal { makeSound(): string }` |
 | **Implements** | `Class : Interface { }` | `Dog : Animal { }` |
 | **Multiple** | `Class : I1, I2 { }` | `Dog : Animal, Named { }` |

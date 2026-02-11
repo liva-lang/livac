@@ -181,6 +181,12 @@ let numbers = [1, 2, 3, 4, 5]
 for num in numbers {
   print(num)
 }
+
+// One-liner with => (v1.1.0)
+for num in numbers => print(num)
+
+// Point-free (v1.1.0)
+for num in numbers => print
 ```
 
 ### Iterating with Index

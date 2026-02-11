@@ -74,7 +74,7 @@ if age < 18 {
 }
 ```
 
-### One-liner `=>` Syntax *(Planned v1.1.0)*
+### One-liner `=>` Syntax *(v1.1.0)*
 
 For single-expression bodies, use `=>` instead of `{}` — consistent with functions, lambdas, and switch arms:
 
@@ -88,6 +88,10 @@ Also works with `for` and `while`:
 ```liva
 for item in items => print(item)
 while running => tick()
+
+// Point-free: pass function name directly (v1.1.0)
+for item in items => print         // no parentheses needed
+for item in items => process       // calls process(item)
 ```
 
 > **Note:** Block `{}` syntax remains the standard for multi-line bodies. Both forms are valid.
@@ -555,6 +559,8 @@ for vec value in numbers {  // SIMD: vectorized
 | **While** | `while cond { }` | Repeat while true |
 | **For** | `for item in items { }` | Iterate collection |
 | **For Range** | `for i in 1..10 { }` | Iterate range |
+| **For =>** | `for item in items => expr` | One-liner *(v1.1.0)* |
+| **For => (point-free)** | `for item in items => func` | Point-free *(v1.1.0)* |
 | **For Parallel** | `for par item in items { }` | Parallel iteration |
 | **Switch** | `switch val { case x: }` | Multiple discrete cases |
 | **Try-Catch** | `try { } catch (e) { }` | Exception handling |

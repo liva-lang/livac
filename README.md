@@ -1,6 +1,6 @@
 # 🚀 Liva Programming Language
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.1.0--dev-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-110%2B%20passing-brightgreen.svg)]()
 [![Bugs Fixed](https://img.shields.io/badge/dogfooding%20bugs-54%2F54%20fixed-success.svg)]()
@@ -143,6 +143,14 @@ let evens = nums.filter(x => x % 2 == 0)        // [2, 4]
 let sum = nums.reduce((acc, x) => acc + x, 0)    // 15
 let found = nums.find(x => x > 3)               // Some(4)
 let hasEven = nums.some(x => x % 2 == 0)        // true
+
+// Point-free: pass functions directly (v1.1.0)
+nums.forEach(print)                              // no lambda needed
+let strs = nums.map(toString)
+
+// Method references with :: (v1.1.0)
+let fmt = Formatter("Item")
+let labels = nums.map(fmt::format)               // ["Item: 1", "Item: 2", ...]
 ```
 
 ### Classes & Interfaces

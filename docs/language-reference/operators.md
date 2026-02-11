@@ -275,6 +275,22 @@ let fullName = user.profile.name.toUpperCase()
 let firstItem = items[0].name.toLowerCase()
 ```
 
+### Method Reference Operator (`::`)
+
+**New in v1.1.0.** The `::` operator creates a reference to an instance method, binding it to a specific object:
+
+```liva
+let fmt = Formatter("Hello")
+
+// :: binds fmt.format as a callback
+let greetings = names.map(fmt::format)
+// Equivalent to: names.map(x => fmt.format(x))
+
+// Works with forEach, filter, find, some, every
+names.forEach(logger::log)
+names.filter(validator::isValid)
+```
+
 ---
 
 ## Index Access
@@ -310,7 +326,7 @@ let value = numbers[index]  // 30
 
 | Precedence | Operator | Description | Associativity |
 |------------|----------|-------------|---------------|
-| 1 | `()` `[]` `.` | Grouping, indexing, member access | Left-to-right |
+| 1 | `()` `[]` `.` `::` | Grouping, indexing, member access, method ref | Left-to-right |
 | 2 | `-` `!` `not` `await` | Unary operators | Right-to-left |
 | 3 | `*` `/` `%` | Multiplication, division, modulo | Left-to-right |
 | 4 | `+` `-` | Addition, subtraction | Left-to-right |
