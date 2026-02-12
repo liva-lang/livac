@@ -32,6 +32,17 @@ struct TaskInfo {
     is_http_call: bool,
 }
 
+/// Tracks lifecycle hooks (beforeEach, afterEach, etc.) active at a given describe() scope.
+#[derive(Debug, Clone, Default)]
+struct TestHookScope {
+    has_before_each: bool,
+    has_after_each: bool,
+    has_before_all: bool,
+    has_after_all: bool,
+    /// Depth index — used to generate unique fn names for nested describes
+    depth: usize,
+}
+
 pub struct CodeGenerator {
     pub(crate) output: String,
     indent_level: usize,
@@ -40,6 +51,8 @@ pub struct CodeGenerator {
     in_assignment_target: bool,
     in_fallible_function: bool,
     in_test_block: bool,
+    /// Stack of test lifecycle hooks per describe() scope (for auto-invocation)
+    test_hooks_stack: Vec<TestHookScope>,
     in_string_template: bool, // Track if we're inside a string template
     bracket_notation_vars: std::collections::HashSet<String>,
     class_instance_vars: std::collections::HashSet<String>,
@@ -121,6 +134,7 @@ impl CodeGenerator {
             interface_methods: std::collections::HashMap::new(),
             module_aliases: std::collections::HashMap::new(),
             current_return_type: None,
+            test_hooks_stack: Vec::new(),
         }
     }
 
@@ -2703,6 +2717,60 @@ impl CodeGenerator {
 
     // ─── liva/test virtual library codegen ───────────────────────────
     
+    /// Scan a describe block's statements to detect which lifecycle hooks are present.
+    /// This is called before generating the block so we know what hooks to auto-invoke.
+    fn scan_describe_for_hooks(&self, block: &BlockStmt) -> TestHookScope {
+        let depth = self.test_hooks_stack.len();
+        let mut scope = TestHookScope { depth, ..Default::default() };
+        for stmt in &block.stmts {
+            if let Stmt::Expr(expr_stmt) = stmt {
+                if let Expr::Call(call) = &expr_stmt.expr {
+                    if let Expr::Identifier(name) = call.callee.as_ref() {
+                        match name.as_str() {
+                            "beforeEach" => scope.has_before_each = true,
+                            "afterEach" => scope.has_after_each = true,
+                            "beforeAll" => scope.has_before_all = true,
+                            "afterAll" => scope.has_after_all = true,
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+        scope
+    }
+    
+    /// Collect all hook function names that should be called for each test,
+    /// traversing the entire hooks stack (parent describes + current).
+    fn collect_before_each_hooks(&self) -> Vec<String> {
+        let mut hooks = Vec::new();
+        for (i, scope) in self.test_hooks_stack.iter().enumerate() {
+            if scope.has_before_each {
+                if i == 0 {
+                    hooks.push("before_each".to_string());
+                } else {
+                    hooks.push(format!("before_each_{}", i));
+                }
+            }
+        }
+        hooks
+    }
+    
+    fn collect_after_each_hooks(&self) -> Vec<String> {
+        // After hooks run in reverse order (innermost first)
+        let mut hooks = Vec::new();
+        for (i, scope) in self.test_hooks_stack.iter().enumerate().rev() {
+            if scope.has_after_each {
+                if i == 0 {
+                    hooks.push("after_each".to_string());
+                } else {
+                    hooks.push(format!("after_each_{}", i));
+                }
+            }
+        }
+        hooks
+    }
+    
     /// Generate a describe() block → #[cfg(test)] mod test_name { use super::*; ... }
     fn generate_test_describe(&mut self, call: &CallExpr) -> Result<()> {
         // describe("name", () => { ... })
@@ -2743,12 +2811,26 @@ impl CodeGenerator {
         
         match lambda_body {
             LambdaBody::Block(block) => {
+                // Pre-scan for lifecycle hooks and push scope
+                let hook_scope = self.scan_describe_for_hooks(block);
+                self.test_hooks_stack.push(hook_scope);
                 self.generate_block_inner(block)?;
+                
+                // Generate beforeAll() call at module level if present
+                // (beforeAll runs once when the module is loaded — we use a static + sync_once pattern,
+                //  but for simplicity in Rust's test framework we rely on the function being there 
+                //  for tests to call; actually beforeAll/afterAll are best effort with #[ctor])
+                // For now, beforeAll/afterAll functions are generated and we skip module-level call
+                // since Rust tests don't have module-level setup. Users call them explicitly if needed.
+                
+                self.test_hooks_stack.pop();
             }
             LambdaBody::Expr(expr) => {
+                self.test_hooks_stack.push(TestHookScope::default());
                 self.write_indent();
                 self.generate_expr(expr)?;
                 self.output.push_str(";\n");
+                self.test_hooks_stack.pop();
             }
         }
         
@@ -2794,6 +2876,12 @@ impl CodeGenerator {
         let was_in_test = self.in_test_block;
         self.in_test_block = true;
         
+        // Auto-invoke beforeEach hooks (from all parent describe scopes + current)
+        let before_hooks = self.collect_before_each_hooks();
+        for hook_fn in &before_hooks {
+            self.writeln(&format!("{}();", hook_fn));
+        }
+        
         match lambda_body {
             LambdaBody::Block(block) => {
                 self.generate_block_inner(block)?;
@@ -2805,22 +2893,37 @@ impl CodeGenerator {
             }
         }
         
+        // Auto-invoke afterEach hooks (innermost first, then parent scopes)
+        let after_hooks = self.collect_after_each_hooks();
+        for hook_fn in &after_hooks {
+            self.writeln(&format!("{}();", hook_fn));
+        }
+        
         self.in_test_block = was_in_test;
         self.dedent();
         self.writeln("}");
         Ok(())
     }
     
-    /// Generate lifecycle hooks (beforeEach, afterEach, etc.)
-    /// These are emitted as comments since Rust's test framework doesn't have built-in hooks
+    /// Generate lifecycle hooks (beforeEach, afterEach, beforeAll, afterAll)
+    /// Generates a helper function that test cases auto-invoke
     fn generate_test_lifecycle(&mut self, hook_name: &str, call: &CallExpr) -> Result<()> {
-        // For now, lifecycle hooks generate inline code as a helper function
-        // that gets called at the start/end of each test
         if call.args.is_empty() {
             return Ok(());
         }
         
-        let fn_name = self.to_snake_case(hook_name);
+        // Generate unique fn name based on nesting depth
+        let base_name = self.to_snake_case(hook_name);
+        let depth = if self.test_hooks_stack.is_empty() {
+            0
+        } else {
+            self.test_hooks_stack.last().map_or(0, |s| s.depth)
+        };
+        let fn_name = if depth == 0 {
+            base_name
+        } else {
+            format!("{}_{}", base_name, depth)
+        };
         
         let lambda_body = match &call.args[0] {
             Expr::Lambda(lambda) => &lambda.body,

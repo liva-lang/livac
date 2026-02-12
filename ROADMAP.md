@@ -1,10 +1,10 @@
 # 🗺️ Liva Language Roadmap
 
 > **Current Version:** v1.2.0-dev (tag: v1.0.2)  
-> **Status:** Phase 11 complete, Phase 12.1-12.2 complete — Test Runner + Test Library  
-> **Next Phase:** Phase 12.3 — Lifecycle Hooks  
+> **Status:** Phase 11 complete, Phase 12.1-12.3 complete — Test Runner + Test Library + Lifecycle Hooks  
+> **Next Phase:** Phase 12.4 — Async Test Support  
 > **Planned:** Phase 12 — Test Framework  
-> **Last Updated:** 2026-02-11
+> **Last Updated:** 2026-02-12
 
 ---
 
@@ -2467,10 +2467,10 @@ describe("Database", () => {
 - [x] `afterEach(callback)` — Run after each test (generates helper function)
 - [x] `beforeAll(callback)` — Run once before all tests in describe (generates helper function)
 - [x] `afterAll(callback)` — Run once after all tests in describe (generates helper function)
-- [ ] Proper scoping with nested describes
-- [ ] Auto-invocation of hooks in generated test functions
+- [x] Proper scoping with nested describes — `test_hooks_stack` tracks hooks per describe depth
+- [x] Auto-invocation of hooks in generated test functions — `beforeEach`/`afterEach` injected into every `#[test] fn`
 
-**Difficulty:** ⭐⭐ Medium — 🚧 PARTIAL (hooks importable, codegen generates functions but no auto-invocation yet)
+**Difficulty:** ⭐⭐ Medium — ✅ COMPLETE
 
 ### 12.4 Async Test Support
 

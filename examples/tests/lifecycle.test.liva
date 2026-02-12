@@ -1,0 +1,37 @@
+// Lifecycle hooks E2E test
+// Tests that beforeEach/afterEach are auto-invoked in each test
+
+import { describe, test, expect, beforeEach, afterEach } from "liva/test"
+
+add(a: int, b: int): int => a + b
+multiply(a: int, b: int): int => a * b
+
+describe("Lifecycle hooks", () => {
+    beforeEach(() => {
+        print("  [beforeEach] setting up")
+    })
+
+    afterEach(() => {
+        print("  [afterEach] cleaning up")
+    })
+
+    test("addition", () => {
+        expect(add(2, 3)).toBe(5)
+        expect(add(-1, 1)).toBe(0)
+    })
+
+    test("multiplication", () => {
+        expect(multiply(3, 4)).toBe(12)
+        expect(multiply(0, 5)).toBe(0)
+    })
+
+    describe("nested group", () => {
+        beforeEach(() => {
+            print("    [inner beforeEach] extra setup")
+        })
+
+        test("nested addition", () => {
+            expect(add(10, 20)).toBe(30)
+        })
+    })
+})

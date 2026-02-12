@@ -257,3 +257,185 @@ main() {
     let rust_code = compile_and_generate(source);
     assert_snapshot!("method_ref_double_colon", rust_code);
 }
+
+// ─── Phase 12.3: Lifecycle Hooks Auto-Invocation ──────────────────────
+
+#[test]
+fn test_lifecycle_before_each_auto_invocation() {
+    let source = r#"
+import { describe, test, expect, beforeEach } from "liva/test"
+
+add(a: int, b: int): int => a + b
+
+describe("Math", () => {
+    beforeEach(() => {
+        print("setup")
+    })
+
+    test("addition", () => {
+        expect(add(1, 2)).toBe(3)
+    })
+})
+"#;
+
+    let rust_code = compile_and_generate(source);
+    // Should generate a before_each function
+    assert!(rust_code.contains("fn before_each()"), "should generate before_each fn:\n{}", rust_code);
+    // The test should auto-invoke before_each()
+    assert!(rust_code.contains("before_each();"), "test should call before_each():\n{}", rust_code);
+    // before_each() should appear BEFORE the assertion
+    let before_pos = rust_code.find("before_each();").unwrap();
+    let assert_pos = rust_code.find("assert_eq!").unwrap();
+    assert!(before_pos < assert_pos, "before_each() should come before assertions");
+}
+
+#[test]
+fn test_lifecycle_after_each_auto_invocation() {
+    let source = r#"
+import { describe, test, expect, afterEach } from "liva/test"
+
+add(a: int, b: int): int => a + b
+
+describe("Math", () => {
+    afterEach(() => {
+        print("teardown")
+    })
+
+    test("addition", () => {
+        expect(add(1, 2)).toBe(3)
+    })
+})
+"#;
+
+    let rust_code = compile_and_generate(source);
+    // Should generate an after_each function
+    assert!(rust_code.contains("fn after_each()"), "should generate after_each fn:\n{}", rust_code);
+    // The test should auto-invoke after_each()
+    assert!(rust_code.contains("after_each();"), "test should call after_each():\n{}", rust_code);
+    // after_each() should appear AFTER the assertion
+    let assert_pos = rust_code.find("assert_eq!").unwrap();
+    let after_pos = rust_code.find("after_each();").unwrap();
+    assert!(after_pos > assert_pos, "after_each() should come after assertions");
+}
+
+#[test]
+fn test_lifecycle_both_hooks() {
+    let source = r#"
+import { describe, test, expect, beforeEach, afterEach } from "liva/test"
+
+add(a: int, b: int): int => a + b
+
+describe("Calculator", () => {
+    beforeEach(() => {
+        print("setup")
+    })
+
+    afterEach(() => {
+        print("cleanup")
+    })
+
+    test("add works", () => {
+        expect(add(2, 3)).toBe(5)
+    })
+
+    test("add negatives", () => {
+        expect(add(-1, 1)).toBe(0)
+    })
+})
+"#;
+
+    let rust_code = compile_and_generate(source);
+    // Both hooks should exist
+    assert!(rust_code.contains("fn before_each()"), "should generate before_each fn");
+    assert!(rust_code.contains("fn after_each()"), "should generate after_each fn");
+    
+    // Count occurrences of hook calls — should be 2 each (one per test)
+    let before_count = rust_code.matches("before_each();").count();
+    let after_count = rust_code.matches("after_each();").count();
+    assert_eq!(before_count, 2, "before_each() should be called in each test, found {}", before_count);
+    assert_eq!(after_count, 2, "after_each() should be called in each test, found {}", after_count);
+}
+
+#[test]
+fn test_lifecycle_nested_describe_inherits_hooks() {
+    let source = r#"
+import { describe, test, expect, beforeEach } from "liva/test"
+
+add(a: int, b: int): int => a + b
+
+describe("Outer", () => {
+    beforeEach(() => {
+        print("outer setup")
+    })
+
+    describe("Inner", () => {
+        beforeEach(() => {
+            print("inner setup")
+        })
+
+        test("nested test", () => {
+            expect(add(1, 1)).toBe(2)
+        })
+    })
+})
+"#;
+
+    let rust_code = compile_and_generate(source);
+    // Should have both hook functions (with depth-based naming)
+    assert!(rust_code.contains("fn before_each()"), "outer before_each fn should exist:\n{}", rust_code);
+    assert!(rust_code.contains("fn before_each_1()"), "inner before_each_1 fn should exist:\n{}", rust_code);
+    // The nested test should call BOTH hooks (parent first, then inner)
+    assert!(rust_code.contains("before_each();"), "nested test should call parent before_each:\n{}", rust_code);
+    assert!(rust_code.contains("before_each_1();"), "nested test should call inner before_each_1:\n{}", rust_code);
+}
+
+#[test]
+fn test_lifecycle_no_hooks_no_calls() {
+    let source = r#"
+import { describe, test, expect } from "liva/test"
+
+add(a: int, b: int): int => a + b
+
+describe("Simple", () => {
+    test("basic", () => {
+        expect(add(1, 1)).toBe(2)
+    })
+})
+"#;
+
+    let rust_code = compile_and_generate(source);
+    // No hook calls should be generated when no hooks are defined
+    assert!(!rust_code.contains("before_each"), "no before_each when none defined:\n{}", rust_code);
+    assert!(!rust_code.contains("after_each"), "no after_each when none defined:\n{}", rust_code);
+}
+
+#[test]
+fn test_lifecycle_before_all_after_all() {
+    let source = r#"
+import { describe, test, expect, beforeAll, afterAll } from "liva/test"
+
+add(a: int, b: int): int => a + b
+
+describe("Suite", () => {
+    beforeAll(() => {
+        print("suite setup")
+    })
+
+    afterAll(() => {
+        print("suite teardown")
+    })
+
+    test("first", () => {
+        expect(add(1, 1)).toBe(2)
+    })
+})
+"#;
+
+    let rust_code = compile_and_generate(source);
+    // beforeAll and afterAll should generate functions  
+    assert!(rust_code.contains("fn before_all()"), "should generate before_all fn:\n{}", rust_code);
+    assert!(rust_code.contains("fn after_all()"), "should generate after_all fn:\n{}", rust_code);
+    // They should NOT be auto-invoked in test functions (they're module-level)
+    assert!(!rust_code.contains("before_all();"), "before_all should not be auto-invoked in tests");
+    assert!(!rust_code.contains("after_all();"), "after_all should not be auto-invoked in tests");
+}

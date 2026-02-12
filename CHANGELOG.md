@@ -49,6 +49,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Virtual module system: `is_virtual_module()`, sentinel paths, semantic validation
 - Parser changes: `Token::Test` as identifier in expression contexts, `Token::Not` as method name for `.not` chains
 - New AST variant: `TopLevel::ExprStmt(Expr)` for top-level expression statements
+
+**12.3 Lifecycle Hooks** ✅
+- **Auto-invocation**: `beforeEach`/`afterEach` are automatically called at the start/end of every `test()` in the same `describe()` scope
+- **Nested describe scoping**: hooks from parent `describe()` blocks are inherited by nested `describe()` blocks
+  - Parent `beforeEach` runs first, then inner `beforeEach`
+  - Inner `afterEach` runs first, then parent `afterEach`
+- **Hook stack**: `test_hooks_stack` in CodeGenerator tracks active hooks per describe depth
+- **Depth-based naming**: nested hooks generate unique function names (`before_each`, `before_each_1`, etc.)
+- `beforeAll`/`afterAll` generate helper functions (module-level setup/teardown)
+- 6 new codegen tests covering all hook scenarios
+- E2E example: `examples/tests/lifecycle.test.liva`
 - Example:
   ```liva
   import { describe, test, expect } from "liva/test"
