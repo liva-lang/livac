@@ -39,6 +39,10 @@ struct TestHookScope {
     has_after_each: bool,
     has_before_all: bool,
     has_after_all: bool,
+    /// Whether beforeEach hook body contains async calls
+    before_each_is_async: bool,
+    /// Whether afterEach hook body contains async calls
+    after_each_is_async: bool,
     /// Depth index — used to generate unique fn names for nested describes
     depth: usize,
 }
@@ -2727,8 +2731,18 @@ impl CodeGenerator {
                 if let Expr::Call(call) = &expr_stmt.expr {
                     if let Expr::Identifier(name) = call.callee.as_ref() {
                         match name.as_str() {
-                            "beforeEach" => scope.has_before_each = true,
-                            "afterEach" => scope.has_after_each = true,
+                            "beforeEach" => {
+                                scope.has_before_each = true;
+                                if let Some(Expr::Lambda(lambda)) = call.args.first() {
+                                    scope.before_each_is_async = ast_lambda_body_has_async(&lambda.body);
+                                }
+                            }
+                            "afterEach" => {
+                                scope.has_after_each = true;
+                                if let Some(Expr::Lambda(lambda)) = call.args.first() {
+                                    scope.after_each_is_async = ast_lambda_body_has_async(&lambda.body);
+                                }
+                            }
                             "beforeAll" => scope.has_before_all = true,
                             "afterAll" => scope.has_after_all = true,
                             _ => {}
@@ -2742,30 +2756,33 @@ impl CodeGenerator {
     
     /// Collect all hook function names that should be called for each test,
     /// traversing the entire hooks stack (parent describes + current).
-    fn collect_before_each_hooks(&self) -> Vec<String> {
+    /// Returns (fn_name, is_async) pairs.
+    fn collect_before_each_hooks(&self) -> Vec<(String, bool)> {
         let mut hooks = Vec::new();
         for (i, scope) in self.test_hooks_stack.iter().enumerate() {
             if scope.has_before_each {
-                if i == 0 {
-                    hooks.push("before_each".to_string());
+                let name = if i == 0 {
+                    "before_each".to_string()
                 } else {
-                    hooks.push(format!("before_each_{}", i));
-                }
+                    format!("before_each_{}", i)
+                };
+                hooks.push((name, scope.before_each_is_async));
             }
         }
         hooks
     }
     
-    fn collect_after_each_hooks(&self) -> Vec<String> {
+    fn collect_after_each_hooks(&self) -> Vec<(String, bool)> {
         // After hooks run in reverse order (innermost first)
         let mut hooks = Vec::new();
         for (i, scope) in self.test_hooks_stack.iter().enumerate().rev() {
             if scope.has_after_each {
-                if i == 0 {
-                    hooks.push("after_each".to_string());
+                let name = if i == 0 {
+                    "after_each".to_string()
                 } else {
-                    hooks.push(format!("after_each_{}", i));
-                }
+                    format!("after_each_{}", i)
+                };
+                hooks.push((name, scope.after_each_is_async));
             }
         }
         hooks
@@ -2841,6 +2858,7 @@ impl CodeGenerator {
     }
     
     /// Generate a test() call → #[test] fn test_name() { ... }
+    /// If the lambda body contains async calls, generates #[tokio::test] async fn instead
     fn generate_test_case(&mut self, call: &CallExpr) -> Result<()> {
         // test("name", () => { ... })
         if call.args.len() < 2 {
@@ -2869,8 +2887,16 @@ impl CodeGenerator {
             }
         };
         
-        self.writeln("#[test]");
-        self.writeln(&format!("fn test_{}() {{", test_name));
+        // Detect if the test body contains async calls or await expressions
+        let is_async = ast_lambda_body_has_async(lambda_body);
+        
+        if is_async {
+            self.writeln("#[tokio::test]");
+            self.writeln(&format!("async fn test_{}() {{", test_name));
+        } else {
+            self.writeln("#[test]");
+            self.writeln(&format!("fn test_{}() {{", test_name));
+        }
         self.indent();
         
         let was_in_test = self.in_test_block;
@@ -2878,8 +2904,12 @@ impl CodeGenerator {
         
         // Auto-invoke beforeEach hooks (from all parent describe scopes + current)
         let before_hooks = self.collect_before_each_hooks();
-        for hook_fn in &before_hooks {
-            self.writeln(&format!("{}();", hook_fn));
+        for (hook_fn, hook_is_async) in &before_hooks {
+            if is_async && *hook_is_async {
+                self.writeln(&format!("{}().await;", hook_fn));
+            } else {
+                self.writeln(&format!("{}();", hook_fn));
+            }
         }
         
         match lambda_body {
@@ -2895,8 +2925,12 @@ impl CodeGenerator {
         
         // Auto-invoke afterEach hooks (innermost first, then parent scopes)
         let after_hooks = self.collect_after_each_hooks();
-        for hook_fn in &after_hooks {
-            self.writeln(&format!("{}();", hook_fn));
+        for (hook_fn, hook_is_async) in &after_hooks {
+            if is_async && *hook_is_async {
+                self.writeln(&format!("{}().await;", hook_fn));
+            } else {
+                self.writeln(&format!("{}();", hook_fn));
+            }
         }
         
         self.in_test_block = was_in_test;
@@ -2930,7 +2964,14 @@ impl CodeGenerator {
             _ => return Ok(()),
         };
         
-        self.writeln(&format!("fn {}() {{", fn_name));
+        // Detect if the hook body contains async calls
+        let is_async = ast_lambda_body_has_async(lambda_body);
+        
+        if is_async {
+            self.writeln(&format!("async fn {}() {{", fn_name));
+        } else {
+            self.writeln(&format!("fn {}() {{", fn_name));
+        }
         self.indent();
         
         match lambda_body {
@@ -5594,6 +5635,15 @@ impl CodeGenerator {
                     false
                 }
             }),
+            Expr::MethodCall(mc) => {
+                self.expr_uses_var(&mc.object, var_name)
+                    || mc.args.iter().any(|arg| self.expr_uses_var(arg, var_name))
+            }
+            Expr::Ternary { condition, then_expr, else_expr } => {
+                self.expr_uses_var(condition, var_name)
+                    || self.expr_uses_var(then_expr, var_name)
+                    || self.expr_uses_var(else_expr, var_name)
+            }
             _ => false,
         }
     }
@@ -10698,6 +10748,125 @@ fn expr_has_parallel_concurrency(expr: &ir::Expr) -> bool {
         },
         &ir::Expr::Await(_) => false,
         &ir::Expr::Literal(_) | &ir::Expr::Identifier(_) | &ir::Expr::Unsupported(_) => false,
+    }
+}
+
+// ===== AST-level async detection (for test framework) =====
+
+/// Check if an AST LambdaBody contains any async calls or await expressions
+fn ast_lambda_body_has_async(body: &LambdaBody) -> bool {
+    match body {
+        LambdaBody::Block(block) => block.stmts.iter().any(ast_stmt_has_async),
+        LambdaBody::Expr(expr) => ast_expr_has_async(expr),
+    }
+}
+
+fn ast_stmt_has_async(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::VarDecl(decl) => ast_expr_has_async(&decl.init),
+        Stmt::ConstDecl(decl) => ast_expr_has_async(&decl.init),
+        Stmt::Assign(assign) => {
+            ast_expr_has_async(&assign.target) || ast_expr_has_async(&assign.value)
+        }
+        Stmt::Return(ret) => ret.expr.as_ref().map(ast_expr_has_async).unwrap_or(false),
+        Stmt::Throw(t) => ast_expr_has_async(&t.expr),
+        Stmt::Fail(f) => ast_expr_has_async(&f.expr),
+        Stmt::Expr(e) => ast_expr_has_async(&e.expr),
+        Stmt::If(if_stmt) => {
+            ast_expr_has_async(&if_stmt.condition)
+                || ast_if_body_has_async(&if_stmt.then_branch)
+                || if_stmt
+                    .else_branch
+                    .as_ref()
+                    .map(ast_if_body_has_async)
+                    .unwrap_or(false)
+        }
+        Stmt::While(w) => {
+            ast_expr_has_async(&w.condition)
+                || w.body.stmts.iter().any(ast_stmt_has_async)
+        }
+        Stmt::For(f) => {
+            ast_expr_has_async(&f.iterable)
+                || f.body.stmts.iter().any(ast_stmt_has_async)
+        }
+        Stmt::Block(block) => block.stmts.iter().any(ast_stmt_has_async),
+        Stmt::TryCatch(tc) => {
+            tc.try_block.stmts.iter().any(ast_stmt_has_async)
+                || tc.catch_block.stmts.iter().any(ast_stmt_has_async)
+        }
+        Stmt::Switch(sw) => {
+            ast_expr_has_async(&sw.discriminant)
+                || sw.cases.iter().any(|c| {
+                    ast_expr_has_async(&c.value) || c.body.iter().any(ast_stmt_has_async)
+                })
+                || sw
+                    .default
+                    .as_ref()
+                    .map(|stmts| stmts.iter().any(ast_stmt_has_async))
+                    .unwrap_or(false)
+        }
+    }
+}
+
+fn ast_if_body_has_async(body: &IfBody) -> bool {
+    match body {
+        IfBody::Block(block) => block.stmts.iter().any(ast_stmt_has_async),
+        IfBody::Stmt(stmt) => ast_stmt_has_async(stmt),
+    }
+}
+
+fn ast_expr_has_async(expr: &Expr) -> bool {
+    match expr {
+        // Direct async indicators
+        Expr::Call(call) if call.exec_policy == ExecPolicy::Async
+            || call.exec_policy == ExecPolicy::TaskAsync
+            || call.exec_policy == ExecPolicy::FireAsync => true,
+        Expr::Unary { op: UnOp::Await, .. } => true,
+        // Recursive traversal
+        Expr::Call(call) => {
+            ast_expr_has_async(&call.callee) || call.args.iter().any(ast_expr_has_async)
+        }
+        Expr::MethodCall(mc) => {
+            ast_expr_has_async(&mc.object) || mc.args.iter().any(ast_expr_has_async)
+        }
+        Expr::Binary { left, right, .. } => {
+            ast_expr_has_async(left) || ast_expr_has_async(right)
+        }
+        Expr::Unary { operand, .. } => ast_expr_has_async(operand),
+        Expr::Ternary {
+            condition,
+            then_expr,
+            else_expr,
+        } => {
+            ast_expr_has_async(condition)
+                || ast_expr_has_async(then_expr)
+                || ast_expr_has_async(else_expr)
+        }
+        Expr::Member { object, .. } => ast_expr_has_async(object),
+        Expr::Index { object, index } => {
+            ast_expr_has_async(object) || ast_expr_has_async(index)
+        }
+        Expr::ObjectLiteral(fields) => fields.iter().any(|(_, v)| ast_expr_has_async(v)),
+        Expr::StructLiteral { fields, .. } => fields.iter().any(|(_, v)| ast_expr_has_async(v)),
+        Expr::ArrayLiteral(elements) => elements.iter().any(ast_expr_has_async),
+        Expr::Tuple(elements) => elements.iter().any(ast_expr_has_async),
+        Expr::StringTemplate { parts } => parts.iter().any(|part| match part {
+            StringTemplatePart::Text(_) => false,
+            StringTemplatePart::Expr(e) => ast_expr_has_async(e),
+        }),
+        Expr::Fail(inner) => ast_expr_has_async(inner),
+        Expr::Lambda(lambda) => ast_lambda_body_has_async(&lambda.body),
+        Expr::Switch(sw) => {
+            ast_expr_has_async(&sw.discriminant)
+                || sw.arms.iter().any(|arm| {
+                    arm.guard.as_ref().map(|g| ast_expr_has_async(g)).unwrap_or(false)
+                        || match &arm.body {
+                            SwitchBody::Expr(e) => ast_expr_has_async(e),
+                            SwitchBody::Block(stmts) => stmts.iter().any(ast_stmt_has_async),
+                        }
+                })
+        }
+        Expr::Literal(_) | Expr::Identifier(_) | Expr::MethodRef { .. } => false,
     }
 }
 

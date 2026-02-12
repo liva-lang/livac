@@ -1,0 +1,38 @@
+// Async Test Support Example (Phase 12.4)
+// Tests with async calls automatically use #[tokio::test]
+
+import { describe, test, expect, beforeEach } from "liva/test"
+
+// Simulated async function
+fetchUser(id: int): string => "User " + id.toString()
+fetchScore(id: int): int => id * 100
+
+describe("Async Test Support", () => {
+    test("sync test stays normal", () => {
+        let result = 2 + 3
+        expect(result).toBe(5)
+    })
+
+    test("async fetch produces correct data", () => {
+        let user = async fetchUser(1)
+        expect(user).toBe("User 1")
+    })
+
+    test("multiple async calls", () => {
+        let user = async fetchUser(42)
+        let score = async fetchScore(42)
+        expect(user).toBe("User 42")
+        expect(score).toBe(4200)
+    })
+})
+
+describe("Async with Lifecycle Hooks", () => {
+    beforeEach(() => {
+        print("setup for async test")
+    })
+
+    test("async test with sync hook", () => {
+        let data = async fetchUser(7)
+        expect(data).toBe("User 7")
+    })
+})

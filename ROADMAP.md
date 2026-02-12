@@ -1,9 +1,9 @@
 # 🗺️ Liva Language Roadmap
 
 > **Current Version:** v1.2.0-dev (tag: v1.0.2)  
-> **Status:** Phase 11 complete, Phase 12.1-12.3 complete — Test Runner + Test Library + Lifecycle Hooks  
-> **Next Phase:** Phase 12.4 — Async Test Support  
-> **Planned:** Phase 12 — Test Framework  
+> **Status:** Phase 12 complete — Test Framework (Test Runner + Test Library + Lifecycle Hooks + Async Tests)  
+> **Next Phase:** Phase 13 — Advanced Features  
+> **Planned:** Phase 13 — Advanced Language Features  
 > **Last Updated:** 2026-02-12
 
 ---
@@ -2333,10 +2333,10 @@ ejecutar(Utils::log)
 
 ---
 
-## 🧪 Phase 12: Test Framework (v1.2.0) — IN PROGRESS
+## 🧪 Phase 12: Test Framework (v1.2.0) — ✅ COMPLETE
 
 **Goal:** Built-in test runner + standard library `liva/test` for testing Liva projects  
-**Status:** 🚧 In Progress (12.1 ✅)  
+**Status:** ✅ Complete (12.1-12.4 all done)  
 **Estimated effort:** ~15-20 hours  
 **Philosophy:** Testing is a **library** (not keywords), but the **compiler** provides the test runner infrastructure.
 
@@ -2494,11 +2494,15 @@ describe("HTTP Client", () => {
 ```
 
 **Implementation:**
-- [ ] Async test callback support
-- [ ] Timeout handling for async tests
-- [ ] Proper error reporting for async failures
+- [x] Async test callback support — auto-detect `async` calls / `await` in test body
+- [x] `#[tokio::test]` + `async fn` generation when async content detected
+- [x] Async lifecycle hooks — `beforeEach`/`afterEach` with async bodies generate `async fn` + `.await` invocation
+- [x] Mixed sync/async tests in same `describe` block
+- [x] Proper error reporting for async failures (via `panic!()` in test context)
+- [x] Test runner counts both `#[test]` and `#[tokio::test]`
+- [x] Fixed `expr_uses_var` to support `MethodCall` (expect chains with pending async tasks)
 
-**Difficulty:** ⭐⭐ Medium
+**Difficulty:** ⭐⭐ Medium — ✅ COMPLETE
 
 ---
 
@@ -2517,7 +2521,7 @@ describe("HTTP Client", () => {
 | **v1.0.0** | Stable Release (54/54 bugs) | ✅ Completed | 2026-02-04 |
 | **v1.0.2** | Code Formatter (CLI + LSP) | ✅ Completed | 2026-02-06 |
 | **v1.1.0** | Syntax Sugar & Ergonomics | ✅ Completed | 2026-02-11 |
-| **v1.2.0** | Test Framework (`liva/test`) | 🚧 In Progress | 12.1 done |
+| **v1.2.0** | Test Framework (`liva/test`) | ✅ Completed | 2026-02-12 |
 **Total effort completed:** ~85+ hours of focused development 🎉
 
 ---

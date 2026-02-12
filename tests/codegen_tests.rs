@@ -439,3 +439,136 @@ describe("Suite", () => {
     assert!(!rust_code.contains("before_all();"), "before_all should not be auto-invoked in tests");
     assert!(!rust_code.contains("after_all();"), "after_all should not be auto-invoked in tests");
 }
+
+// ===== Phase 12.4: Async Test Support =====
+
+#[test]
+fn test_async_test_generates_tokio_test() {
+    let source = r#"
+import { describe, test, expect } from "liva/test"
+
+fetchData(): string => "data"
+
+describe("Async Tests", () => {
+    test("fetches data", () => {
+        let result = async fetchData()
+        expect(result).toBe("data")
+    })
+})
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("#[tokio::test]"), "should generate #[tokio::test] for async test:\n{}", rust_code);
+    assert!(rust_code.contains("async fn test_fetches_data()"), "should generate async fn:\n{}", rust_code);
+}
+
+#[test]
+fn test_sync_test_stays_normal() {
+    let source = r#"
+import { describe, test, expect } from "liva/test"
+
+add(a: int, b: int): int => a + b
+
+describe("Sync Tests", () => {
+    test("adds numbers", () => {
+        expect(add(1, 2)).toBe(3)
+    })
+})
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("#[test]"), "sync test should use #[test]:\n{}", rust_code);
+    assert!(rust_code.contains("fn test_adds_numbers()"), "sync test should use plain fn:\n{}", rust_code);
+    assert!(!rust_code.contains("#[tokio::test]"), "sync test should NOT use tokio::test:\n{}", rust_code);
+    assert!(!rust_code.contains("async fn test_"), "sync test should NOT be async:\n{}", rust_code);
+}
+
+#[test]
+fn test_mixed_sync_and_async_tests() {
+    let source = r#"
+import { describe, test, expect } from "liva/test"
+
+add(a: int, b: int): int => a + b
+fetchData(): string => "data"
+
+describe("Mixed Tests", () => {
+    test("sync test", () => {
+        expect(add(1, 2)).toBe(3)
+    })
+
+    test("async test", () => {
+        let result = async fetchData()
+        expect(result).toBe("data")
+    })
+})
+"#;
+
+    let rust_code = compile_and_generate(source);
+    // Should have both #[test] and #[tokio::test]
+    assert!(rust_code.contains("#[test]"), "should have sync test:\n{}", rust_code);
+    assert!(rust_code.contains("#[tokio::test]"), "should have async test:\n{}", rust_code);
+    assert!(rust_code.contains("fn test_sync_test()"), "sync test should use plain fn:\n{}", rust_code);
+    assert!(rust_code.contains("async fn test_async_test()"), "async test should use async fn:\n{}", rust_code);
+}
+
+#[test]
+fn test_async_test_with_lifecycle_hooks() {
+    let source = r#"
+import { describe, test, expect, beforeEach, afterEach } from "liva/test"
+
+fetchData(): string => "data"
+
+describe("Async with hooks", () => {
+    beforeEach(() => {
+        print("setup")
+    })
+
+    afterEach(() => {
+        print("teardown")
+    })
+
+    test("async fetch", () => {
+        let result = async fetchData()
+        expect(result).toBe("data")
+    })
+})
+"#;
+
+    let rust_code = compile_and_generate(source);
+    // The test should be async
+    assert!(rust_code.contains("#[tokio::test]"), "async test should use tokio::test:\n{}", rust_code);
+    assert!(rust_code.contains("async fn test_async_fetch()"), "should be async fn:\n{}", rust_code);
+    // Sync hooks should be called without .await in async test
+    assert!(rust_code.contains("before_each();"), "sync hook should be called without await:\n{}", rust_code);
+    assert!(rust_code.contains("after_each();"), "sync hook should be called without await:\n{}", rust_code);
+}
+
+#[test]
+fn test_async_lifecycle_hooks() {
+    let source = r#"
+import { describe, test, expect, beforeEach } from "liva/test"
+
+fetchData(): string => "data"
+setupDb(): string => "ready"
+
+describe("Async hooks", () => {
+    beforeEach(() => {
+        let db = async setupDb()
+        print(db)
+    })
+
+    test("async test with async hook", () => {
+        let result = async fetchData()
+        expect(result).toBe("data")
+    })
+})
+"#;
+
+    let rust_code = compile_and_generate(source);
+    // The hook itself should be async
+    assert!(rust_code.contains("async fn before_each()"), "async hook should generate async fn:\n{}", rust_code);
+    // The test should be async
+    assert!(rust_code.contains("#[tokio::test]"), "test should use tokio::test:\n{}", rust_code);
+    // Async hook should be called with .await in async test
+    assert!(rust_code.contains("before_each().await;"), "async hook should be awaited in async test:\n{}", rust_code);
+}

@@ -78,6 +78,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   })
   ```
 
+**12.4 Async Test Support** ✅
+- **Auto-detection**: tests with `async` calls or `await` expressions automatically generate `#[tokio::test]` + `async fn`
+- **Mixed sync/async**: sync tests use `#[test]`, async tests use `#[tokio::test]` — within the same `describe` block
+- **Async lifecycle hooks**: `beforeEach`/`afterEach` containing async calls generate `async fn` + `.await` on invocation
+- **Pending task resolution in expect chains**: fixed `expr_uses_var` to traverse `MethodCall` expressions (enables `expect(asyncResult).toBe(...)`)
+- **Test runner**: counts both `#[test]` and `#[tokio::test]` for test discovery
+- AST-level async detection: `ast_lambda_body_has_async`, `ast_stmt_has_async`, `ast_expr_has_async` helper functions
+- 5 new codegen tests for async test scenarios
+- E2E example: `examples/tests/async.test.liva`
+- Example:
+  ```liva
+  import { describe, test, expect } from "liva/test"
+
+  fetchUser(id: int): string => "User " + id.toString()
+
+  describe("Async Tests", () => {
+      test("sync test", () => {
+          expect(2 + 3).toBe(5)
+      })
+
+      test("async fetch", () => {
+          let user = async fetchUser(1)
+          expect(user).toBe("User 1")
+      })
+  })
+  ```
+
+**Phase 12 Complete** ✅ — Full Jest-like test framework for Liva
+
 ---
 
 ## [Unreleased] - v1.1.0-dev

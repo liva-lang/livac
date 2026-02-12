@@ -299,7 +299,8 @@ fn run_tests(cli: &Cli) -> i32 {
         let cargo_toml = result.cargo_toml.unwrap_or_default();
 
         // Check if the generated code actually contains test functions
-        let test_count = main_rs.matches("#[test]").count();
+        let test_count = main_rs.matches("#[test]").count()
+            + main_rs.matches("#[tokio::test]").count();
         if test_count == 0 {
             println!(
                 " {} {} (no test blocks found)",
