@@ -962,7 +962,7 @@ impl CodeGenerator {
         self.dedent();
         self.writeln("}");
 
-        self.writeln("/// Spawn a parallel task");
+        self.writeln("/// Spawn a parallel task on a dedicated blocking thread");
         self.writeln("pub fn spawn_parallel<F, T>(f: F) -> JoinHandle<T>");
         self.writeln("where");
         self.indent();
@@ -971,10 +971,7 @@ impl CodeGenerator {
         self.dedent();
         self.writeln("{");
         self.indent();
-        self.writeln("// For simplicity, just execute synchronously and wrap in JoinHandle");
-        self.writeln("// In a real implementation, this would use rayon or std::thread");
-        self.writeln("let result = f();");
-        self.writeln("tokio::spawn(async move { result })");
+        self.writeln("tokio::task::spawn_blocking(f)");
         self.dedent();
         self.writeln("}");
 
@@ -8456,7 +8453,7 @@ impl<'a> IrCodeGenerator<'a> {
         self.dedent();
         self.writeln("}");
 
-        self.writeln("/// Spawn a parallel task");
+        self.writeln("/// Spawn a parallel task on a dedicated blocking thread");
         self.writeln("pub fn spawn_parallel<F, T>(f: F) -> JoinHandle<T>");
         self.writeln("where");
         self.indent();
@@ -8465,10 +8462,7 @@ impl<'a> IrCodeGenerator<'a> {
         self.dedent();
         self.writeln("{");
         self.indent();
-        self.writeln("// For simplicity, just execute synchronously and wrap in JoinHandle");
-        self.writeln("// In a real implementation, this would use rayon or std::thread");
-        self.writeln("let result = f();");
-        self.writeln("tokio::spawn(async move { result })");
+        self.writeln("tokio::task::spawn_blocking(f)");
         self.dedent();
         self.writeln("}");
 
