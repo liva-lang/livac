@@ -1538,7 +1538,13 @@ impl SemanticAnalyzer {
     fn validate_expr(&mut self, expr: &Expr) -> Result<()> {
         match expr {
             Expr::Literal(_) => Ok(()),
-            Expr::Identifier(_name) => Ok(()),
+            Expr::Identifier(name) => {
+                // When a task variable is used (referenced by name), mark it as awaited
+                // because the codegen will auto-await it before first use.
+                // Use try-mark (silent) — don't error if already awaited or not an awaitable.
+                self.try_mark_identifier_used(name);
+                Ok(())
+            }
             Expr::Fail(expr) => self.validate_expr(expr),
             Expr::Binary { left, right, op } => {
                 self.validate_expr(left)?;
@@ -1548,11 +1554,12 @@ impl SemanticAnalyzer {
                 self.validate_binary_op_constraints(left, right, op)
             }
             Expr::Unary { op, operand } => {
-                self.validate_expr(operand)?;
-                
                 if *op == UnOp::Await {
+                    // For await, delegate entirely to validate_await_expr
+                    // which handles marking and validation in the right order
                     self.validate_await_expr(operand)
                 } else {
+                    self.validate_expr(operand)?;
                     // Check constraints for unary operators on generic types
                     self.validate_unary_op_constraints(operand, op)
                 }
@@ -1819,7 +1826,9 @@ impl SemanticAnalyzer {
         // E0701: Check if calling fallible function without error binding
         // This validation applies to ALL call expressions, including those nested in other expressions
         // Exception: if we're in an error binding context (let result, err = ...), allow fallible calls
-        if !self.in_error_binding {
+        // Exception: task async/par calls defer error handling to the await point
+        let is_task_call = matches!(call.exec_policy, ExecPolicy::TaskAsync | ExecPolicy::TaskPar);
+        if !self.in_error_binding && !is_task_call {
             let func_name = match &*call.callee {
                 Expr::Identifier(name) => Some(name.clone()),
                 Expr::Member { object, property: member } => {
@@ -1915,10 +1924,15 @@ impl SemanticAnalyzer {
     }
 
     fn validate_await_expr(&mut self, operand: &Expr) -> Result<()> {
-        self.validate_expr(operand)?;
-
+        // Mark awaitable BEFORE validating inner expression to avoid double-marking
+        // (validate_expr on Identifier would auto-mark, then we'd try to mark again)
         match operand {
-            Expr::Identifier(name) => self.mark_identifier_awaited(name),
+            Expr::Identifier(name) => {
+                self.mark_identifier_awaited(name)?;
+                // Still validate the expression for other checks
+                self.validate_expr(operand)?;
+                Ok(())
+            }
             Expr::Call(call) => {
                 if self.classify_call_awaitable(call).is_some() {
                     return Ok(());
@@ -2614,6 +2628,19 @@ impl SemanticAnalyzer {
         Err(CompilerError::SemanticError(
             format!("E0603: expression '{}' is not awaitable.", name).into(),
         ))
+    }
+
+    /// Silently mark a task variable as used/awaited if it's a pending task.
+    /// This is called when an identifier is referenced (auto-await will handle it in codegen).
+    /// Does not error if not an awaitable or already awaited.
+    fn try_mark_identifier_used(&mut self, name: &str) {
+        if let Some(index) = self.find_symbol_scope(name) {
+            if let Some(info) = self.awaitable_scopes[index].get_mut(name) {
+                if info.state == AwaitState::Pending {
+                    info.state = AwaitState::Awaited;
+                }
+            }
+        }
     }
 
     fn handle_assignment(&mut self, target: &Expr, value: &Expr) -> Result<()> {

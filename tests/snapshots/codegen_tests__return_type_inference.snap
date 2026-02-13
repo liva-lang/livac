@@ -1,6 +1,5 @@
 ---
 source: tests/codegen_tests.rs
-assertion_line: 69
 expression: rust_code
 ---
 #[allow(dead_code)]
@@ -45,16 +44,13 @@ mod liva_rt {
     {
         tokio::spawn(future);
     }
-    /// Spawn a parallel task
+    /// Spawn a parallel task on a dedicated blocking thread
     pub fn spawn_parallel<F, T>(f: F) -> JoinHandle<T>
     where
         F: FnOnce() -> T + Send + 'static,
         T: Send + 'static,
     {
-        // For simplicity, just execute synchronously and wrap in JoinHandle
-        // In a real implementation, this would use rayon or std::thread
-        let result = f();
-        tokio::spawn(async move { result })
+        tokio::task::spawn_blocking(f)
     }
     /// Fire and forget parallel task
     pub fn fire_parallel<F>(f: F)

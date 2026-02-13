@@ -3363,11 +3363,19 @@ impl CodeGenerator {
                     // Phase 3: Track the error variable (second binding) as Option<String>
                     // BUT: Only track as Option if NOT a tuple-returning function AND NOT typed JSON.parse
                     // AND NOT an await of HTTP task (which returns String error, not Option)
+                    // AND NOT a task/concurrency call (match unwrap yields direct values, not Option)
                     // Tuple functions return (Option<T>, String) - err is String, not Option
                     // Typed JSON.parse returns (T, String) - value is T, not Option<T>
-                    if binding_names.len() == 2 && !returns_tuple && !is_typed_json_parse && !is_await_http {
+                    let is_task = task_exec_policy.is_some();
+                    let is_await_task = self.is_await_of_pending_task(&var.init).is_some();
+                    if binding_names.len() == 2 && !returns_tuple && !is_typed_json_parse && !is_await_http && !is_task && !is_await_task {
                         self.error_binding_vars.insert(binding_names[1].clone());
                         self.option_value_vars.insert(binding_names[0].clone()); // Also track the value (first binding)
+                    } else if binding_names.len() == 2 && (is_task || is_await_task) {
+                        // Task error bindings: match { Ok(v) => (v, None), Err(e) => (Default, Some(e)) }
+                        // value is T (direct), err is Option<Error>
+                        self.error_binding_vars.insert(binding_names[1].clone());
+                        // Do NOT add to option_value_vars - value is direct, not Option
                     } else if binding_names.len() == 2 && (returns_tuple || is_typed_json_parse) {
                         // For tuple-returning functions AND typed JSON.parse: response is T (not Option), err is String
                         // Don't add to option_value_vars or error_binding_vars
@@ -3584,6 +3592,19 @@ impl CodeGenerator {
                                 self.output.push_str(") = ");
                                 self.generate_expr(&var.init)?;
                                 self.output.push_str(";\n");
+                            } else if self.is_await_of_pending_task(&var.init).is_some() {
+                                // Explicit await of a pending task with error binding
+                                // let result, err = await calcTask
+                                // The task function is fallible (returns Result<T, Error>)
+                                // Generate: let (result, err) = match calcTask_task.await.unwrap() { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };
+                                let task_name = self.is_await_of_pending_task(&var.init).unwrap();
+                                self.output.push_str(") = match ");
+                                write!(self.output, "{}_task.await.unwrap()", task_name).unwrap();
+                                self.output.push_str(" { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };\n");
+                                // Mark task as awaited
+                                if let Some(task_info) = self.pending_tasks.get_mut(&task_name) {
+                                    task_info.awaited = true;
+                                }
                             } else {
                                 // Non-fallible function called with fallible binding pattern
                                 // Generate: let (value, err) = (expr, None);
@@ -4269,8 +4290,13 @@ impl CodeGenerator {
                     if let Expr::Identifier(name) = operand.as_ref() {
                         let sanitized = self.sanitize_name(name);
                         if self.pending_tasks.contains_key(&sanitized) {
-                            // Generate task_name_task.await instead of task_name.await
-                            write!(self.output, "{}_task.await", sanitized).unwrap();
+                            // Generate task_name_task.await.unwrap() instead of task_name.await
+                            // JoinHandle.await returns Result<T, JoinError>, needs unwrap
+                            write!(self.output, "{}_task.await.unwrap()", sanitized).unwrap();
+                            // Mark task as explicitly awaited
+                            if let Some(task_info) = self.pending_tasks.get_mut(&sanitized) {
+                                task_info.awaited = true;
+                            }
                             return Ok(());
                         }
                     }
@@ -5593,10 +5619,35 @@ impl CodeGenerator {
         match expr {
             Expr::Call(call) => match call.exec_policy {
                 ExecPolicy::Async | ExecPolicy::Par => Some(call.exec_policy.clone()),
+                ExecPolicy::TaskAsync => Some(ExecPolicy::TaskAsync),
+                ExecPolicy::TaskPar => Some(ExecPolicy::TaskPar),
                 _ => None,
             },
             _ => None,
         }
+    }
+
+    /// Check if an expression is an explicit `await taskVar` for a pending task
+    fn is_explicit_await_of_task(&self, expr: &Expr, task_var_name: &str) -> bool {
+        if let Expr::Unary { op: crate::ast::UnOp::Await, operand } = expr {
+            if let Expr::Identifier(name) = operand.as_ref() {
+                return self.sanitize_name(name) == task_var_name;
+            }
+        }
+        false
+    }
+
+    /// Check if an expression is `await taskVar` where taskVar is a pending task. Returns the task name.
+    fn is_await_of_pending_task(&self, expr: &Expr) -> Option<String> {
+        if let Expr::Unary { op: crate::ast::UnOp::Await, operand } = expr {
+            if let Expr::Identifier(name) = operand.as_ref() {
+                let sanitized = self.sanitize_name(name);
+                if self.pending_tasks.contains_key(&sanitized) {
+                    return Some(sanitized);
+                }
+            }
+        }
+        None
     }
 
     /// Check if an expression uses a variable (recursively)
@@ -5675,6 +5726,15 @@ impl CodeGenerator {
                 Stmt::Assign(assign) => check_vars.iter().any(|v| {
                     self.expr_uses_var(&assign.target, v) || self.expr_uses_var(&assign.value, v)
                 }),
+                Stmt::VarDecl(var) => {
+                    // Skip if init is an explicit await of this pending task
+                    // (the VarDecl handler will generate the await+destructure directly)
+                    if self.is_explicit_await_of_task(&var.init, var_name) {
+                        false
+                    } else {
+                        check_vars.iter().any(|v| self.expr_uses_var(&var.init, v))
+                    }
+                }
                 _ => false,
             };
 
@@ -5717,6 +5777,15 @@ impl CodeGenerator {
                 Stmt::Assign(assign) => check_vars.iter().any(|v| {
                     self.expr_uses_var(&assign.target, v) || self.expr_uses_var(&assign.value, v)
                 }),
+                Stmt::VarDecl(var) => {
+                    // Skip if init is an explicit await of this pending task
+                    // (the VarDecl handler will generate the await+destructure directly)
+                    if self.is_explicit_await_of_task(&var.init, var_name) {
+                        false
+                    } else {
+                        check_vars.iter().any(|v| self.expr_uses_var(&var.init, v))
+                    }
+                }
                 _ => false,
             };
 
@@ -7404,7 +7473,13 @@ impl CodeGenerator {
                     if i > 0 {
                         self.output.push_str(", ");
                     }
-                    self.generate_expr(arg)?;
+                    // Convert string literals to String automatically
+                    if let Expr::Literal(Literal::String(_)) = arg {
+                        self.generate_expr(arg)?;
+                        self.output.push_str(".to_string()");
+                    } else {
+                        self.generate_expr(arg)?;
+                    }
                 }
                 self.output.push_str(") })");
             }
@@ -7415,7 +7490,13 @@ impl CodeGenerator {
                     if i > 0 {
                         self.output.push_str(", ");
                     }
-                    self.generate_expr(arg)?;
+                    // Convert string literals to String automatically
+                    if let Expr::Literal(Literal::String(_)) = arg {
+                        self.generate_expr(arg)?;
+                        self.output.push_str(".to_string()");
+                    } else {
+                        self.generate_expr(arg)?;
+                    }
                 }
                 self.output.push_str(") })");
             }
@@ -7444,7 +7525,13 @@ impl CodeGenerator {
                     if i > 0 {
                         self.output.push_str(", ");
                     }
-                    self.generate_expr(arg)?;
+                    // Convert string literals to String automatically
+                    if let Expr::Literal(Literal::String(_)) = arg {
+                        self.generate_expr(arg)?;
+                        self.output.push_str(".to_string()");
+                    } else {
+                        self.generate_expr(arg)?;
+                    }
                 }
                 self.output.push_str("); })");
             }
@@ -7456,7 +7543,13 @@ impl CodeGenerator {
                     if i > 0 {
                         self.output.push_str(", ");
                     }
-                    self.generate_expr(arg)?;
+                    // Convert string literals to String automatically
+                    if let Expr::Literal(Literal::String(_)) = arg {
+                        self.generate_expr(arg)?;
+                        self.output.push_str(".to_string()");
+                    } else {
+                        self.generate_expr(arg)?;
+                    }
                 }
                 self.output.push_str("); })");
             }
