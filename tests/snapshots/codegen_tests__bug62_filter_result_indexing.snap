@@ -355,20 +355,37 @@ mod liva_rt {
     
 }
 
-fn double(x: i32) -> i32 {
-    x * 2
+#[derive(Debug, Clone, Default)]
+pub struct Library {
+    pub books: Vec<String>,
 }
 
-fn is_positive(n: i32) -> bool {
-    n > 0
+impl Library {
+    pub fn new() -> Self {
+        Self {
+            books: vec![],
+        }
+    }
+
+    // Generating method: addBook
+    pub fn add_book(&mut self, title: String) {
+        self.books.push(title);
+    }
+
+    // Generating method: findFirst
+    pub fn find_first(&self, query: String) -> String {
+        let found = self.books.iter().filter(|&book| *book == query).cloned().collect::<Vec<_>>();
+        if ((found.len() as i32)) > 0 {
+            return found[0].clone();
+        }
+        return "".to_string();
+    }
+
 }
 
 fn main() {
-    let mut items = vec![1, 2, 3, 4, 5];
-    items.iter().for_each(|&_x| println!("{}", _x));
-    let doubled = items.iter().map(|&_x| double(_x)).collect::<Vec<_>>();
-    let positives = items.iter().filter(|&&_x| is_positive(_x)).copied().collect::<Vec<_>>();
-    let mut names = vec!["Alice".to_string(), "Bob".to_string(), "Charlie".to_string()];
-    names.iter().for_each(|_x| println!("{}", _x));
-    let strs = items.iter().map(|&_x| format!("{}", _x)).collect::<Vec<_>>();
+    let mut lib = Library::new();
+    lib.add_book("Rust Book".to_string());
+    let result = lib.find_first("Rust Book".to_string());
+    println!("{}", result);
 }

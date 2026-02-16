@@ -70,6 +70,8 @@ pub struct CodeGenerator {
     class_optional_fields: std::collections::HashMap<String, std::collections::HashSet<String>>, // Track optional fields per class
     var_types: std::collections::HashMap<String, String>, // var -> ClassName
     fallible_functions: std::collections::HashSet<String>, // Track which functions are fallible
+    array_returning_functions: std::collections::HashSet<String>, // Track functions that return [T] (Vec)
+    ref_lambda_params: std::collections::HashSet<String>, // Lambda params that are &T references (need *deref in comparisons)
     // --- Type aliases (for expansion during codegen)
     type_aliases: std::collections::HashMap<String, (Vec<TypeParameter>, TypeRef)>,
     // --- Union types (for enum generation)
@@ -122,6 +124,8 @@ impl CodeGenerator {
             class_optional_fields: std::collections::HashMap::new(),
             var_types: std::collections::HashMap::new(),
             fallible_functions: std::collections::HashSet::new(),
+            array_returning_functions: std::collections::HashSet::new(),
+            ref_lambda_params: std::collections::HashSet::new(),
             type_aliases: std::collections::HashMap::new(),
             union_types: std::collections::HashSet::new(),
             pending_tasks: std::collections::HashMap::new(),
@@ -624,11 +628,22 @@ impl CodeGenerator {
     }
     
     /// Extract the base variable name from an expression
-    /// e.g., posts.parvec() -> "posts", myArray -> "myArray"
+    /// e.g., posts.parvec() -> "posts", myArray -> "myArray", this.items -> "items"
     fn get_base_var_name(&self, expr: &Expr) -> Option<String> {
         match expr {
             Expr::Identifier(name) => Some(name.clone()),
             Expr::MethodCall(mc) => self.get_base_var_name(&mc.object),
+            // Handle this.field (Member expression) — return the property name
+            // so that typed_array_vars lookup works for class field arrays
+            Expr::Member { object, property } => {
+                if let Expr::Identifier(name) = object.as_ref() {
+                    if name == "this" || name == "self" {
+                        return Some(property.clone());
+                    }
+                }
+                // For other member expressions, try the property name
+                Some(property.clone())
+            }
             _ => None
         }
     }
@@ -2138,6 +2153,27 @@ impl CodeGenerator {
         }
 
         // Generate other methods (excluding constructor)
+        // First, register class field types so method codegen can resolve this.field types
+        for member in &class.members {
+            if let Member::Field(field) = member {
+                let field_name = self.sanitize_name(&field.name);
+                if let Some(type_ref) = &field.type_ref {
+                    // Track array-typed fields: this.items where items: [string]
+                    if let TypeRef::Array(elem_type) = type_ref {
+                        self.array_vars.insert(field_name.clone());
+                        let elem_type_name = match elem_type.as_ref() {
+                            TypeRef::Simple(name) => name.clone(),
+                            _ => "i32".to_string(),
+                        };
+                        self.typed_array_vars.insert(field_name.clone(), elem_type_name);
+                    }
+                    // Track string-typed fields
+                    if matches!(type_ref, TypeRef::Simple(s) if s == "string" || s == "String") {
+                        self.string_vars.insert(field_name.clone());
+                    }
+                }
+            }
+        }
         for member in &class.members {
             if let Member::Method(method) = member {
                 if method.name != "constructor" {
@@ -3201,6 +3237,21 @@ impl CodeGenerator {
                             self.var_types.insert(param_name.clone(), tname.clone());
                         }
                     }
+                    // Track array-typed parameters in typed_array_vars and array_vars
+                    // so that forEach/map/filter generate correct lambda patterns
+                    // e.g., segments: [string] → typed_array_vars["segments"] = "string"
+                    if let TypeRef::Array(elem_type) = type_ref {
+                        self.array_vars.insert(param_name.clone());
+                        let elem_type_name = match elem_type.as_ref() {
+                            TypeRef::Simple(name) => name.clone(),
+                            _ => "i32".to_string(),
+                        };
+                        self.typed_array_vars.insert(param_name.clone(), elem_type_name.clone());
+                        // If element type is "string", also track for proper string handling
+                        if matches!(elem_type_name.as_str(), "string" | "String") {
+                            // Array of strings - tracked for forEach |s| pattern
+                        }
+                    }
                 }
                 
                 rust_type
@@ -3730,6 +3781,13 @@ impl CodeGenerator {
                                 if let Some(name) = binding.name() {
                                     self.array_vars.insert(name.to_string());
                                     
+                                    // Propagate element type from source array to filter/map result
+                                    if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
+                                        if let Some(elem_type) = self.typed_array_vars.get(&base_var_name).cloned() {
+                                            self.typed_array_vars.insert(name.to_string(), elem_type);
+                                        }
+                                    }
+                                    
                                     // If the method is called on a JsonValue, the result is also Vec<JsonValue>
                                     // BUT we need to mark it as json_value for proper forEach iteration
                                     if self.is_json_value_expr(&method_call.object) {
@@ -3772,9 +3830,14 @@ impl CodeGenerator {
                         else if let Expr::Call(call) = &var.init {
                             if let Expr::Identifier(class_name) = &*call.callee {
                                 if let Some(name) = binding.name() {
-                                    self.class_instance_vars.insert(name.to_string());
-                                    self.var_types
-                                        .insert(name.to_string(), class_name.clone());
+                                    // Check if this is an array-returning function
+                                    if self.array_returning_functions.contains(class_name) {
+                                        self.array_vars.insert(name.to_string());
+                                    } else {
+                                        self.class_instance_vars.insert(name.to_string());
+                                        self.var_types
+                                            .insert(name.to_string(), class_name.clone());
+                                    }
                                 }
                             }
                         }
@@ -4858,7 +4921,14 @@ impl CodeGenerator {
                     if i > 0 {
                         self.output.push_str(", ");
                     }
-                    self.generate_expr(elem)?;
+                    // String literals in array literals need .to_string() to produce Vec<String>
+                    // instead of Vec<&str>, which is incompatible with Liva's string type
+                    if matches!(elem, Expr::Literal(Literal::String(_))) {
+                        self.generate_expr(elem)?;
+                        self.output.push_str(".to_string()");
+                    } else {
+                        self.generate_expr(elem)?;
+                    }
                 }
                 self.output.push(']');
             }
@@ -5499,9 +5569,23 @@ impl CodeGenerator {
                     self.output.push_str("println!()");
                 } else {
                     self.output.push_str("println!(\"");
-                    for _arg in call.args.iter() {
-                        // print() uses Display format {} for clean, user-facing output
-                        self.output.push_str("{}");
+                    for arg in call.args.iter() {
+                        // Check if argument is an array type — use {:?} (Debug) for arrays
+                        let is_array_arg = match arg {
+                            Expr::Identifier(var_name) => {
+                                let sanitized = self.sanitize_name(var_name);
+                                self.array_vars.contains(&sanitized)
+                                    || self.array_vars.contains(var_name)
+                            }
+                            Expr::ArrayLiteral(_) => true,
+                            _ => false,
+                        };
+                        if is_array_arg {
+                            self.output.push_str("{:?}");
+                        } else {
+                            // print() uses Display format {} for clean, user-facing output
+                            self.output.push_str("{}");
+                        }
                     }
                     self.output.push_str("\", ");
                     for (i, arg) in call.args.iter().enumerate() {
@@ -6478,12 +6562,17 @@ impl CodeGenerator {
                             // ALSO: if parameter is destructured, don't add & because we'll clone inside
                             if !is_json_value && !param.is_destructuring() {
                                 if method_call.method == "filter" || method_call.method == "find" || method_call.method == "some" || method_call.method == "every" {
-                                    // For .cloned(), don't add any pattern - we work with references
+                                    // For .cloned() (non-Copy types like String, class instances):
+                                    // closure receives &&T, use |&item| to destructure to &T
+                                    // which can compare with T via PartialEq
                                     if !will_use_cloned {
                                         self.output.push_str("&&");
+                                    } else {
+                                        self.output.push('&');
+                                        // Track this param as a &T reference so we dereference it
+                                        // in comparisons (e.g., *item == query instead of item == query)
+                                        self.ref_lambda_params.insert(param_name.clone());
                                     }
-                                    // If will_use_cloned, no prefix needed - the closure will receive &&T 
-                                    // but we just use it as a reference
                                 } else if method_call.method == "map" || method_call.method == "forEach" {
                                     // Bug #22/#35 fix: For non-Copy types (class instances, strings),
                                     // don't add & because we can't move out of a shared reference
@@ -6569,6 +6658,8 @@ impl CodeGenerator {
                             self.output.push('}');
                         }
                     }
+                    // Clear ref_lambda_params after lambda body is generated
+                    self.ref_lambda_params.clear();
                     continue;
                 }
             }
@@ -6712,28 +6803,31 @@ impl CodeGenerator {
         // Special handling for substring and charAt - they need different syntax
         match method_call.method.as_str() {
             "substring" => {
-                // substring(start, end) -> &str[start..end].to_string()
+                // substring(start, end) -> &str[(start) as usize..(end) as usize].to_string()
                 self.generate_expr(&method_call.object)?;
                 self.output.push('[');
                 if method_call.args.len() >= 1 {
+                    // Wrap in parens to handle expressions like (maxLen - 3) as usize
+                    self.output.push('(');
                     self.generate_expr(&method_call.args[0])?;
-                    self.output.push_str(" as usize");
+                    self.output.push_str(") as usize");
                 }
                 self.output.push_str("..");
                 if method_call.args.len() >= 2 {
+                    self.output.push('(');
                     self.generate_expr(&method_call.args[1])?;
-                    self.output.push_str(" as usize");
+                    self.output.push_str(") as usize");
                 }
                 self.output.push_str("].to_string()");
                 return Ok(());
             }
             "charAt" => {
-                // charAt(index) -> str.chars().nth(index).unwrap_or(' ')
+                // charAt(index) -> str.chars().nth((index) as usize).unwrap_or(' ')
                 self.generate_expr(&method_call.object)?;
-                self.output.push_str(".chars().nth(");
+                self.output.push_str(".chars().nth((");
                 if !method_call.args.is_empty() {
                     self.generate_expr(&method_call.args[0])?;
-                    self.output.push_str(" as usize");
+                    self.output.push_str(") as usize");
                 }
                 self.output.push_str(").unwrap_or(' ')");
                 return Ok(());
@@ -7674,6 +7768,26 @@ impl CodeGenerator {
             }
         }
 
+        // Special handling for ref_lambda_params: when comparing &T with T,
+        // dereference the lambda param: *item == query
+        if matches!(op, BinOp::Eq | BinOp::Ne) && !self.ref_lambda_params.is_empty() {
+            let left_is_ref = if let Expr::Identifier(name) = left {
+                self.ref_lambda_params.contains(name)
+            } else { false };
+            let right_is_ref = if let Expr::Identifier(name) = right {
+                self.ref_lambda_params.contains(name)
+            } else { false };
+            
+            if left_is_ref || right_is_ref {
+                if left_is_ref { self.output.push('*'); }
+                self.generate_expr(left)?;
+                write!(self.output, " {} ", op).unwrap();
+                if right_is_ref { self.output.push('*'); }
+                self.generate_expr(right)?;
+                return Ok(());
+            }
+        }
+
         // Special handling for string multiplication (String * int or int * String)
         if matches!(op, BinOp::Mul) {
             let has_string_literal = matches!(left, Expr::Literal(Literal::String(_)))
@@ -7866,6 +7980,20 @@ impl CodeGenerator {
             Expr::Identifier(name) => {
                 let sanitized = self.sanitize_name(name);
                 self.string_vars.contains(&sanitized)
+            }
+            // Detect string-returning method calls: .toString(), .toUpperCase(), .toLowerCase(), etc.
+            Expr::MethodCall(mc) => {
+                matches!(mc.method.as_str(),
+                    "toString" | "toUpperCase" | "toLowerCase" | "trim" | "trimStart" | "trimEnd" |
+                    "replace" | "substring" | "join" | "split" | "charAt")
+            }
+            // Detect string-returning function calls like toString(x)
+            Expr::Call(call) => {
+                if let Expr::Identifier(name) = call.callee.as_ref() {
+                    name == "toString"
+                } else {
+                    false
+                }
             }
             _ => false,
         }
@@ -11273,11 +11401,17 @@ fn generate_entry_point(
 pub fn generate_with_ast(program: &Program, ctx: DesugarContext) -> Result<(String, String)> {
     let mut generator = CodeGenerator::new(ctx);
 
-    // First pass: collect fallible functions
+    // First pass: collect fallible functions and array-returning functions
     for item in &program.items {
         if let TopLevel::Function(func) = item {
             if func.contains_fail {
                 generator.fallible_functions.insert(func.name.clone());
+            }
+            // Track functions that return [T] (arrays)
+            if let Some(ret_type) = &func.return_type {
+                if matches!(ret_type, TypeRef::Array(_)) {
+                    generator.array_returning_functions.insert(func.name.clone());
+                }
             }
         }
     }

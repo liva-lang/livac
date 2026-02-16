@@ -355,20 +355,20 @@ mod liva_rt {
     
 }
 
-fn double(x: i32) -> i32 {
-    x * 2
-}
-
-fn is_positive(n: i32) -> bool {
-    n > 0
-}
-
 fn main() {
-    let mut items = vec![1, 2, 3, 4, 5];
-    items.iter().for_each(|&_x| println!("{}", _x));
-    let doubled = items.iter().map(|&_x| double(_x)).collect::<Vec<_>>();
-    let positives = items.iter().filter(|&&_x| is_positive(_x)).copied().collect::<Vec<_>>();
-    let mut names = vec!["Alice".to_string(), "Bob".to_string(), "Charlie".to_string()];
-    names.iter().for_each(|_x| println!("{}", _x));
-    let strs = items.iter().map(|&_x| format!("{}", _x)).collect::<Vec<_>>();
+    let mut nums = vec![1, 2, 3, 4, 5];
+    let doubled = nums.iter().map(|&x| x * 2).collect::<Vec<_>>();
+    let evens = nums.iter().filter(|&&x| x % 2 == 0).copied().collect::<Vec<_>>();
+    let sum = nums.iter().fold(0, |acc, &x| acc + x);
+    let found = nums.iter().find(|&&x| x > 3).copied();
+    let has_evens = nums.iter().any(|&&x| x % 2 == 0);
+    let all_positive = nums.iter().all(|&&x| x > 0);
+    nums.iter().for_each(|&n| println!("{}", n));
+    let has_three = nums.iter().any(|&x| x == 3);
+    let pos = nums.iter().position(|&x| x == 3).map(|i| i as i32).unwrap_or(-1);
+    let len = (nums.len() as i32);
+    println!("{:?}", doubled);
+    println!("{:?}", evens);
+    println!("{}", sum);
+    println!("{}", len);
 }

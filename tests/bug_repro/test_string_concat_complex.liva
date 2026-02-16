@@ -1,0 +1,59 @@
+// Bug repro: String concat with this.field
+// Bug repro: Error comparison with ""
+// Bug repro: substring type issues
+
+Config {
+    defaultUser: string
+    apiUrl: string
+    
+    constructor(user: string, url: string) {
+        this.defaultUser = user
+        this.apiUrl = url
+    }
+    
+    toJson(): string {
+        let json = "{\"defaultUser\":\"" + this.defaultUser + "\",\"apiUrl\":\"" + this.apiUrl + "\"}"
+        return json
+    }
+    
+    getEndpoint(path: string): string {
+        let url = this.apiUrl + "/" + path
+        return url
+    }
+    
+    getShortName(): string {
+        let name = this.defaultUser
+        if name.length > 10 {
+            return name.substring(0, 7) + "..."
+        }
+        return name
+    }
+}
+
+processData(input: string): string {
+    let result = input.toUpperCase()
+    return result
+}
+
+main() {
+    let config = Config("admin", "https://api.example.com")
+    let json = config.toJson()
+    print(json)
+    
+    let endpoint = config.getEndpoint("users")
+    print(endpoint)
+    
+    let short = config.getShortName()
+    print(short)
+    
+    // Test string concat with variables
+    let prefix = "Hello"
+    let suffix = "World"
+    let combined = prefix + " " + suffix
+    print(combined)
+    
+    // Test string concat with method results
+    let processed = processData("test")
+    let output = "Result: " + processed
+    print(output)
+}

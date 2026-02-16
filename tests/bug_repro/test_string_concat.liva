@@ -1,0 +1,21 @@
+// Bug #5: String concatenation produces wrong types
+// When concatenating strings with +, the generated Rust code
+// should produce correct String/&str handling
+
+greet(name: string): string {
+    let greeting = "Hello, " + name + "!"
+    return greeting
+}
+
+buildJson(key: string, value: string): string {
+    let json = "{\"" + key + "\":\"" + value + "\"}"
+    return json
+}
+
+main() {
+    let result = greet("World")
+    print(result)
+    
+    let json = buildJson("name", "Liva")
+    print(json)
+}

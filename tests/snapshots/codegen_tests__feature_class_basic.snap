@@ -355,20 +355,35 @@ mod liva_rt {
     
 }
 
-fn double(x: i32) -> i32 {
-    x * 2
+#[derive(Debug, Clone, Default)]
+pub struct Person {
+    pub name: String,
+    pub age: i32,
 }
 
-fn is_positive(n: i32) -> bool {
-    n > 0
+impl Person {
+    pub fn new(name: String, age: i32) -> Self {
+        Self {
+            name: name,
+            age: age,
+        }
+    }
+
+    // Generating method: greet
+    pub fn greet(&self) -> String {
+        return format!("{}{}", "Hi, I'm ", self.name.clone());
+    }
+
+    // Generating method: isAdult
+    pub fn is_adult(&self) -> bool {
+        (self.age) >= 18
+    }
+
 }
 
 fn main() {
-    let mut items = vec![1, 2, 3, 4, 5];
-    items.iter().for_each(|&_x| println!("{}", _x));
-    let doubled = items.iter().map(|&_x| double(_x)).collect::<Vec<_>>();
-    let positives = items.iter().filter(|&&_x| is_positive(_x)).copied().collect::<Vec<_>>();
-    let mut names = vec!["Alice".to_string(), "Bob".to_string(), "Charlie".to_string()];
-    names.iter().for_each(|_x| println!("{}", _x));
-    let strs = items.iter().map(|&_x| format!("{}", _x)).collect::<Vec<_>>();
+    let p = Person::new("Alice".to_string(), 30);
+    println!("{}", p.greet());
+    println!("{}", p.is_adult());
+    println!("{}", p.name);
 }

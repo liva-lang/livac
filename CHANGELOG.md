@@ -7,6 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - v1.2.0-dev
 
+### Added - Comprehensive Feature Test Coverage 🧪
+
+**44 new snapshot tests documenting ALL supported Liva syntax (tests/codegen_tests.rs):**
+
+Total tests: 264 (up from 220). Codegen snapshot tests: 72 (up from 28).
+
+| Category | Tests | Features Covered |
+|----------|-------|-----------------|
+| Variables & Constants | 2 | `let`, `const`, type annotations, mutability, top-level `const` |
+| Types | 2 | Primitives (`number`, `float`, `bool`, `string`, `char`), Rust types (`i8`, `i16`, `i64`, `u64`, `f32`, `usize`) |
+| Operators | 3 | Arithmetic (`+`, `-`, `*`, `/`, `%`), comparison (`==`, `!=`, `<`, `>`, `<=`, `>=`), logical (`and`/`or`/`not`, `&&`/`||`/`!`) |
+| Functions | 2 | One-liner `=>`, block, default params, type annotations, lambdas/closures |
+| Control Flow | 3 | `if`/`else`, ternary `? :`, one-liner ternary in `=>` |
+| Pattern Matching | 3 | Switch statement (`case X:`), switch expression (`X => val`), or-patterns (`1 \| 2 \| 3`) |
+| Loops | 4 | `while`, `for` range (`0..5`), `for` array, one-liner `=>` for, `for par` parallel |
+| Classes & Interfaces | 2 | Class with constructor/fields/methods, interface declaration, one-liner methods |
+| Error Handling | 3 | `fail`, error binding (`let x, err = ...`), `or fail`, `try`/`catch` |
+| Concurrency | 3 | `async` calls, `par` concurrent, `task async`, `fire async` |
+| Collections | 3 | `map`, `filter`, `reduce`, `find`, `some`, `every`, `forEach`, `includes`, `indexOf`, `length`, `push`, `pop`, chaining |
+| Strings | 3 | Template strings (`$"..."`), all string methods, concatenation patterns |
+| Console & IO | 1 | `print`, `console.log`, `console.error`, `console.warn`, `console.success` |
+| Math & Conversions | 2 | `Math.sqrt/pow/abs/floor/ceil/round/min/max/random`, `parseInt`, `parseFloat`, `toString` |
+| JSON & HTTP | 2 | `JSON.parse`, `JSON.stringify`, `HTTP.get`, `HTTP.post` |
+| Visibility | 1 | `_` prefix private fields/methods |
+| Test Framework | 1 | `expect().toBe/toEqual/toBeTruthy/toBeFalsy/toBeGreaterThan/toBeLessThan/toBeGreaterThanOrEqual/toBeLessThanOrEqual`, `.not` negation |
+| Generics | 1 | Generic functions `<T>` |
+| Tuples | 1 | Tuple literals, types, access (`.0`, `.1`), return tuples |
+| Type Aliases | 1 | `type X = Y` |
+| String Concat | 1 | String + String, String + Number auto-conversion |
+
+**Syntax discoveries documented via tests:**
+- Switch **statements** use `case X:` (colon), switch **expressions** use `X =>` (arrow, no `case` keyword)
+- `try`/`catch` requires parentheses: `catch (err) { }`
+- Ternary is an expression; `if` is a statement only
+- `for` ranges only support exclusive `..` (not `..=`)
+- JSON typed parse uses `int` not `number`: `let x: [int], err = JSON.parse(...)`
+- `describe` is reserved for test framework — don't use as function name
+
+### Fixed - Session 13: Edge Case Codegen Bugs 🐛
+
+**8 codegen bugs found and fixed via dogfooding (Bugs #55-#62):**
+
+- **Bug #55**: `substring(start, maxLen - 3)` generated `max_len - 3 as usize` (wrong operator precedence). Fixed: wrap args in `(expr) as usize`.
+- **Bug #56**: `forEach` on `[string]` function parameters generated `|&s|` causing move error on String. Fixed: track `TypeRef::Array` params in `typed_array_vars`/`array_vars`.
+- **Bug #57**: Array literals `["hello", "world"]` generated `vec!["hello", "world"]` (`Vec<&str>` instead of `Vec<String>`). Fixed: add `.to_string()` suffix to string elements.
+- **Bug #58**: `char.toString() + char.toString()` used `+` operator instead of `format!()`. Fixed: `expr_is_stringy()` now detects `.toString()`, `.toUpperCase()`, `.toLowerCase()`, `.trim()` calls.
+- **Bug #59**: `this.items.filter(...)` in class methods failed — `get_base_var_name()` didn't handle `Expr::Member`. Fixed: extract property name from `this.field` + register class field types before method codegen.
+- **Bug #60**: `filter(|&item| item == query)` failed: `&String == String`. Fixed: added `ref_lambda_params` tracking — lambda params declared with `&` get `*` dereference in `==`/`!=` comparisons.
+- **Bug #61**: `print(reversed)` where `reversed` is `Vec<i32>` from a function used `{}` instead of `{:?}`. Fixed: added `array_returning_functions` tracking — variables from array-returning calls are tracked in `array_vars`.
+- **Bug #62**: `found[0]` on filter result `Vec<String>` failed (cannot move out of index). Fixed: propagate element type from source array through `filter()`/`map()` results, auto `.clone()` for string arrays.
+
+**New CodeGenerator fields:**
+- `ref_lambda_params: HashSet<String>` — lambda params that are `&T` references (need `*` dereference in comparisons)
+- `array_returning_functions: HashSet<String>` — functions that return `[T]` (for tracking result variables as arrays)
+
+**Improved tracking:**
+- `get_base_var_name()` handles `Expr::Member` (`this.field` → field name)
+- Class fields registered in `array_vars`, `typed_array_vars`, `string_vars` before method generation
+- Filter/map results inherit element type from source array via `typed_array_vars`
+- `expr_is_stringy()` detects string-returning method calls (`.toString()`, etc.)
+- `generate_params()` tracks array parameters in `typed_array_vars`
+- Print handler uses `{:?}` for variables in `array_vars`
+
 ### Added - Phase 12: Test Framework 🧪
 
 **12.1 Test Runner** ✅

@@ -359,16 +359,23 @@ fn double(x: i32) -> i32 {
     x * 2
 }
 
-fn is_positive(n: i32) -> bool {
-    n > 0
+fn square(x: i32) -> i32 {
+    x * x
+}
+
+fn greet(name: String) -> String {
+    let msg = format!("{}{}", format!("{}{}", "Hello, ", name), "!");
+    return msg;
+}
+
+fn connect(host: String, port: i32) -> String {
+    return format!("{}{}", format!("{}{}", host, ":"), port);
 }
 
 fn main() {
-    let mut items = vec![1, 2, 3, 4, 5];
-    items.iter().for_each(|&_x| println!("{}", _x));
-    let doubled = items.iter().map(|&_x| double(_x)).collect::<Vec<_>>();
-    let positives = items.iter().filter(|&&_x| is_positive(_x)).copied().collect::<Vec<_>>();
-    let mut names = vec!["Alice".to_string(), "Bob".to_string(), "Charlie".to_string()];
-    names.iter().for_each(|_x| println!("{}", _x));
-    let strs = items.iter().map(|&_x| format!("{}", _x)).collect::<Vec<_>>();
+    println!("{}", double(5));
+    println!("{}", square(4));
+    println!("{}", greet("World".to_string()));
+    println!("{}", connect("localhost".to_string()));
+    println!("{}", connect("localhost".to_string(), 3000));
 }

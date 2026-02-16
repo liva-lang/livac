@@ -355,20 +355,21 @@ mod liva_rt {
     
 }
 
-fn double(x: i32) -> i32 {
-    x * 2
-}
-
-fn is_positive(n: i32) -> bool {
-    n > 0
+fn risky() -> Result<i32, liva_rt::Error> {
+    return Err(liva_rt::Error::from("something went wrong"));
 }
 
 fn main() {
-    let mut items = vec![1, 2, 3, 4, 5];
-    items.iter().for_each(|&_x| println!("{}", _x));
-    let doubled = items.iter().map(|&_x| double(_x)).collect::<Vec<_>>();
-    let positives = items.iter().filter(|&&_x| is_positive(_x)).copied().collect::<Vec<_>>();
-    let mut names = vec!["Alice".to_string(), "Bob".to_string(), "Charlie".to_string()];
-    names.iter().for_each(|_x| println!("{}", _x));
-    let strs = items.iter().map(|&_x| format!("{}", _x)).collect::<Vec<_>>();
+    match (|| -> Result<(), Box<dyn std::error::Error>> {
+        let (val, err) = match risky() { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };
+        if err.is_none() {
+            println!("{}", val);
+        }
+        Ok(())
+    })() {
+        Ok(_) => {},
+        Err(err) => {
+            println!("{}", format!("{}{}", "Caught: ", err.as_ref().map(|e| e.message.as_str()).unwrap_or("")));
+        }
+    }
 }

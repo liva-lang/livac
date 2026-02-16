@@ -355,20 +355,23 @@ mod liva_rt {
     
 }
 
-fn double(x: i32) -> i32 {
-    x * 2
-}
-
-fn is_positive(n: i32) -> bool {
-    n > 0
-}
-
 fn main() {
-    let mut items = vec![1, 2, 3, 4, 5];
-    items.iter().for_each(|&_x| println!("{}", _x));
-    let doubled = items.iter().map(|&_x| double(_x)).collect::<Vec<_>>();
-    let positives = items.iter().filter(|&&_x| is_positive(_x)).copied().collect::<Vec<_>>();
-    let mut names = vec!["Alice".to_string(), "Bob".to_string(), "Charlie".to_string()];
-    names.iter().for_each(|_x| println!("{}", _x));
-    let strs = items.iter().map(|&_x| format!("{}", _x)).collect::<Vec<_>>();
+    let sq = 16_f64.sqrt();
+    let pw = 2_f64.powf(3_f64);
+    let ab = (-10.5_f64).abs();
+    let fl = 3.7_f64.floor() as i32;
+    let cl = 3.2_f64.ceil() as i32;
+    let rn = 3.5_f64.round() as i32;
+    let mn = 10.5_f64.min(20.3_f64);
+    let mx = 10.5_f64.max(20.3_f64);
+    let rd = rand::random::<f64>();
+    println!("{}", sq);
+    println!("{}", pw);
+    println!("{}", ab);
+    println!("{}", fl);
+    println!("{}", cl);
+    println!("{}", rn);
+    println!("{}", mn);
+    println!("{}", mx);
+    println!("{}", rd);
 }

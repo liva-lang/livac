@@ -1,0 +1,93 @@
+// Comprehensive bug reproduction test
+// Tests all the patterns that were reported as buggy
+
+// ============================================
+// Bug #5: String concatenation type mismatches
+// ============================================
+buildPath(base: string, segments: [string]): string {
+    let path = base
+    segments.forEach(s => {
+        path = path + "/" + s
+    })
+    return path
+}
+
+// Test: multiple string concat in assignment with this.field
+App {
+    name: string
+    version: string
+    
+    constructor(name: string, version: string) {
+        this.name = name
+        this.version = version
+    }
+    
+    getInfo(): string {
+        // Multi-part concat with this fields
+        let info = this.name + " v" + this.version
+        return info
+    }
+    
+    serialize(): string {
+        // Chain of 4+ concats with this fields  
+        let json = "{\"name\":\"" + this.name + "\",\"version\":\"" + this.version + "\"}"
+        return json
+    }
+}
+
+// ============================================
+// Bug: substring with expression indices
+// ============================================
+truncate(text: string, maxLen: number): string {
+    if text.length > maxLen {
+        return text.substring(0, maxLen - 3) + "..."
+    }
+    return text
+}
+
+// Substring with variable indices
+getMiddle(text: string, start: number, end: number): string {
+    return text.substring(start, end)
+}
+
+// ============================================  
+// Bug: String concat with number.toString()
+// ============================================
+formatScore(name: string, score: number): string {
+    let result = name + ": " + score.toString()
+    return result
+}
+
+main() {
+    // Test string concatenation
+    let app = App("Liva", "1.0")
+    print(app.getInfo())
+    print(app.serialize())
+    
+    // Test buildPath
+    let path = buildPath("/api", ["v1", "users", "123"])
+    print(path)
+    
+    // Test truncate
+    let short = truncate("Hello World, this is a long string!", 15)
+    print(short)
+    
+    let full = truncate("Short", 15)
+    print(full)
+    
+    // Test getMiddle
+    let mid = getMiddle("Hello World", 6, 11)
+    print(mid)
+    
+    // Test formatScore
+    let score = formatScore("Player 1", 42)
+    print(score)
+    
+    // Multiple variable concat
+    let a = "Hello"
+    let b = " "
+    let c = "World"
+    let d = "!"
+    let message = a + b + c + d
+    print(message)
+}

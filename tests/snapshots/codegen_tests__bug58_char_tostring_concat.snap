@@ -355,20 +355,17 @@ mod liva_rt {
     
 }
 
-fn double(x: i32) -> i32 {
-    x * 2
-}
-
-fn is_positive(n: i32) -> bool {
-    n > 0
+fn get_initials(name: String) -> String {
+    let first = name.chars().nth((0) as usize).unwrap_or(' ');
+    let space_idx = name.find(" ").map(|i| i as i32).unwrap_or(-1);
+    if space_idx > 0 {
+        let second = name.chars().nth((space_idx + 1) as usize).unwrap_or(' ');
+        return format!("{}{}", first.to_string(), second.to_string());
+    }
+    return first.to_string();
 }
 
 fn main() {
-    let mut items = vec![1, 2, 3, 4, 5];
-    items.iter().for_each(|&_x| println!("{}", _x));
-    let doubled = items.iter().map(|&_x| double(_x)).collect::<Vec<_>>();
-    let positives = items.iter().filter(|&&_x| is_positive(_x)).copied().collect::<Vec<_>>();
-    let mut names = vec!["Alice".to_string(), "Bob".to_string(), "Charlie".to_string()];
-    names.iter().for_each(|_x| println!("{}", _x));
-    let strs = items.iter().map(|&_x| format!("{}", _x)).collect::<Vec<_>>();
+    let initials = get_initials("John Doe".to_string());
+    println!("{}", initials);
 }

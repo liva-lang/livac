@@ -355,20 +355,17 @@ mod liva_rt {
     
 }
 
-fn double(x: i32) -> i32 {
-    x * 2
-}
-
-fn is_positive(n: i32) -> bool {
-    n > 0
+fn load_config(path: String) -> Result<String, liva_rt::Error> {
+    let (content, err) = { let (opt, err) = (match std::fs::read_to_string(&path) { Ok(content) => (Some(content), String::new()), Err(e) => (None, format!("File read error: {}", e)) }); (opt.unwrap_or_default(), err) };
+    let data = content;
+    return Ok(data);
 }
 
 fn main() {
-    let mut items = vec![1, 2, 3, 4, 5];
-    items.iter().for_each(|&_x| println!("{}", _x));
-    let doubled = items.iter().map(|&_x| double(_x)).collect::<Vec<_>>();
-    let positives = items.iter().filter(|&&_x| is_positive(_x)).copied().collect::<Vec<_>>();
-    let mut names = vec!["Alice".to_string(), "Bob".to_string(), "Charlie".to_string()];
-    names.iter().for_each(|_x| println!("{}", _x));
-    let strs = items.iter().map(|&_x| format!("{}", _x)).collect::<Vec<_>>();
+    let (config, err) = match load_config("config.json".to_string()) { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };
+    if err.is_some() {
+        println!("{}", format!("{}{}", "Failed: ", err.as_ref().map(|e| e.message.as_str()).unwrap_or("")));
+    } else {
+        println!("{}", config);
+    }
 }

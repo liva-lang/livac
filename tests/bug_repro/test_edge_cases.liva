@@ -1,0 +1,98 @@
+// Edge case test: More complex patterns
+
+// Class with array fields
+TodoList {
+    items: [string]
+    
+    constructor() {
+        this.items = []
+    }
+    
+    add(item: string) {
+        this.items.push(item)
+    }
+    
+    getAll(): [string] {
+        return this.items
+    }
+    
+    printAll() {
+        this.items.forEach(item => {
+            print("- " + item)
+        })
+    }
+    
+    findItem(query: string): string {
+        let found = this.items.filter(item => item == query)
+        if found.length > 0 {
+            return found[0]
+        }
+        return ""
+    }
+}
+
+// Functions that take and return arrays
+joinWords(words: [string], separator: string): string {
+    let result = ""
+    let i = 0
+    words.forEach(word => {
+        if i > 0 {
+            result = result + separator
+        }
+        result = result + word
+        i = i + 1
+    })
+    return result
+}
+
+reverseNumbers(nums: [number]): [number] {
+    let result: [number] = []
+    let len = nums.length
+    let i = len - 1
+    while i >= 0 {
+        result.push(nums[i])
+        i = i - 1
+    }
+    return result
+}
+
+// Nested substring and charAt
+getInitials(name: string): string {
+    let first = name.charAt(0)
+    let spaceIdx = name.indexOf(" ")
+    if spaceIdx > 0 {
+        let second = name.charAt(spaceIdx + 1)
+        return first.toString() + second.toString()
+    }
+    return first.toString()
+}
+
+main() {
+    // Test TodoList
+    let todos = TodoList()
+    todos.add("Buy groceries")
+    todos.add("Write code")
+    todos.add("Read a book")
+    print("=== Todo List ===")
+    todos.printAll()
+    
+    let found = todos.findItem("Write code")
+    print("Found: " + found)
+    
+    // Test joinWords
+    let words = ["Hello", "beautiful", "world"]
+    let sentence = joinWords(words, " ")
+    print(sentence)
+    
+    // Test reverseNumbers
+    let nums = [1, 2, 3, 4, 5]
+    let reversed = reverseNumbers(nums)
+    print(reversed)
+    
+    // Test getInitials
+    let initials = getInitials("John Doe")
+    print("Initials: " + initials)
+    
+    let initials2 = getInitials("Madonna")
+    print("Initials: " + initials2)
+}

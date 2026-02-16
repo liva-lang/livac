@@ -2,6 +2,8 @@
 source: tests/codegen_tests.rs
 expression: rust_code
 ---
+use tokio;
+
 #[allow(dead_code)]
 mod liva_rt {
     use std::future::Future;
@@ -355,20 +357,19 @@ mod liva_rt {
     
 }
 
-fn double(x: i32) -> i32 {
-    x * 2
+fn fetch_user(id: i32) -> String {
+    return format!("{}{}", "user_", id);
 }
 
-fn is_positive(n: i32) -> bool {
-    n > 0
+fn log_event(msg: String) {
+    println!("{}", msg);
 }
 
-fn main() {
-    let mut items = vec![1, 2, 3, 4, 5];
-    items.iter().for_each(|&_x| println!("{}", _x));
-    let doubled = items.iter().map(|&_x| double(_x)).collect::<Vec<_>>();
-    let positives = items.iter().filter(|&&_x| is_positive(_x)).copied().collect::<Vec<_>>();
-    let mut names = vec!["Alice".to_string(), "Bob".to_string(), "Charlie".to_string()];
-    names.iter().for_each(|_x| println!("{}", _x));
-    let strs = items.iter().map(|&_x| format!("{}", _x)).collect::<Vec<_>>();
+#[tokio::main]
+async fn main() {
+    let result_task = liva_rt::spawn_async(async move { fetch_user(1) });
+    liva_rt::fire_async(async move { log_event("app started".to_string()); });
+    let mut result = result_task.await.unwrap();
+    println!("{}", result);
+    println!("{}", "done");
 }

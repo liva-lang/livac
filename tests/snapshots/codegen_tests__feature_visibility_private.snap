@@ -355,20 +355,33 @@ mod liva_rt {
     
 }
 
-fn double(x: i32) -> i32 {
-    x * 2
+#[derive(Debug, Clone, Default)]
+pub struct Counter {
+    _count: i32,
 }
 
-fn is_positive(n: i32) -> bool {
-    n > 0
+impl Counter {
+    pub fn new() -> Self {
+        Self {
+            _count: 0,
+        }
+    }
+
+    // Generating method: increment
+    pub fn increment(&mut self) {
+        self._count = (self._count) + 1;
+    }
+
+    // Generating method: getCount
+    pub fn get_count(&self) -> i32 {
+        return self._count.clone();
+    }
+
 }
 
 fn main() {
-    let mut items = vec![1, 2, 3, 4, 5];
-    items.iter().for_each(|&_x| println!("{}", _x));
-    let doubled = items.iter().map(|&_x| double(_x)).collect::<Vec<_>>();
-    let positives = items.iter().filter(|&&_x| is_positive(_x)).copied().collect::<Vec<_>>();
-    let mut names = vec!["Alice".to_string(), "Bob".to_string(), "Charlie".to_string()];
-    names.iter().for_each(|_x| println!("{}", _x));
-    let strs = items.iter().map(|&_x| format!("{}", _x)).collect::<Vec<_>>();
+    let mut c = Counter::new();
+    c.increment();
+    c.increment();
+    println!("{}", c.get_count());
 }

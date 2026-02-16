@@ -375,7 +375,7 @@ impl Formatter {
 }
 
 fn main() {
-    let mut names = vec!["Alice", "Bob", "Charlie"];
+    let mut names = vec!["Alice".to_string(), "Bob".to_string(), "Charlie".to_string()];
     let formatter = Formatter::new("Hello".to_string());
     let mut formatted = names.iter().map(|_x| formatter.format(_x.to_string())).collect::<Vec<_>>();
     formatted.iter().for_each(|_x| println!("{}", _x));

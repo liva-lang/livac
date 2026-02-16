@@ -355,20 +355,24 @@ mod liva_rt {
     
 }
 
-fn double(x: i32) -> i32 {
-    x * 2
-}
-
-fn is_positive(n: i32) -> bool {
-    n > 0
-}
-
 fn main() {
-    let mut items = vec![1, 2, 3, 4, 5];
-    items.iter().for_each(|&_x| println!("{}", _x));
-    let doubled = items.iter().map(|&_x| double(_x)).collect::<Vec<_>>();
-    let positives = items.iter().filter(|&&_x| is_positive(_x)).copied().collect::<Vec<_>>();
-    let mut names = vec!["Alice".to_string(), "Bob".to_string(), "Charlie".to_string()];
-    names.iter().for_each(|_x| println!("{}", _x));
-    let strs = items.iter().map(|&_x| format!("{}", _x)).collect::<Vec<_>>();
+    let mut text = "Hello, World!".to_string();
+    let upper = text.to_uppercase();
+    let lower = text.to_lowercase();
+    let trimmed = "  spaced  ".trim();
+    let parts = "a,b,c".split(",").map(|s| s.to_string()).collect::<Vec<String>>();
+    let replaced = text.replace("World", "Liva");
+    let starts = text.starts_with("Hello");
+    let ends = text.ends_with("!");
+    let sub = text[(0) as usize..(5) as usize].to_string();
+    let ch = text.chars().nth((0) as usize).unwrap_or(' ');
+    let idx = text.find("World").map(|i| i as i32).unwrap_or(-1);
+    let len = (text.len() as i32);
+    println!("{}", upper);
+    println!("{}", lower);
+    println!("{}", trimmed);
+    println!("{}", replaced);
+    println!("{}", starts);
+    println!("{}", sub);
+    println!("{}", len);
 }

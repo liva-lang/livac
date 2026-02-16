@@ -355,20 +355,19 @@ mod liva_rt {
     
 }
 
-fn double(x: i32) -> i32 {
-    x * 2
-}
-
-fn is_positive(n: i32) -> bool {
-    n > 0
+fn classify(score: i32) -> String {
+    let result = match score {
+        1 | 2 | 3 => "low",
+        4 | 5 | 6 => "medium",
+        7 | 8 | 9 | 10 => "high",
+        _ => "invalid",
+    };
+    return result;
 }
 
 fn main() {
-    let mut items = vec![1, 2, 3, 4, 5];
-    items.iter().for_each(|&_x| println!("{}", _x));
-    let doubled = items.iter().map(|&_x| double(_x)).collect::<Vec<_>>();
-    let positives = items.iter().filter(|&&_x| is_positive(_x)).copied().collect::<Vec<_>>();
-    let mut names = vec!["Alice".to_string(), "Bob".to_string(), "Charlie".to_string()];
-    names.iter().for_each(|_x| println!("{}", _x));
-    let strs = items.iter().map(|&_x| format!("{}", _x)).collect::<Vec<_>>();
+    println!("{}", classify(2));
+    println!("{}", classify(5));
+    println!("{}", classify(9));
+    println!("{}", classify(0));
 }

@@ -1,0 +1,118 @@
+// Comprehensive test: exercises all bug fixes from session 13
+
+// === Bug #55: substring/charAt with expression indices ===
+truncate(text: string, maxLen: number): string {
+    if text.length > maxLen {
+        return text.substring(0, maxLen - 3) + "..."
+    }
+    return text
+}
+
+// === Bug #56: forEach on [string] function parameters ===
+printLines(lines: [string]) {
+    lines.forEach(line => {
+        print("> " + line)
+    })
+}
+
+// === Bug #57: Array literals with strings ===
+getColors(): [string] {
+    return ["red", "green", "blue"]
+}
+
+// === Bug #58: char.toString() concatenation ===
+getInitials(name: string): string {
+    let first = name.charAt(0)
+    let spaceIdx = name.indexOf(" ")
+    if spaceIdx > 0 {
+        let second = name.charAt(spaceIdx + 1)
+        return first.toString() + second.toString()
+    }
+    return first.toString()
+}
+
+// === Bug #59-62: Class with array fields, filter, print, indexing ===
+Library {
+    books: [string]
+    
+    constructor() {
+        this.books = []
+    }
+    
+    addBook(title: string) {
+        this.books.push(title)
+    }
+    
+    search(query: string): [string] {
+        return this.books.filter(book => book == query)
+    }
+    
+    getFirst(): string {
+        if this.books.length > 0 {
+            return this.books[0]
+        }
+        return ""
+    }
+    
+    printBooks() {
+        this.books.forEach(book => {
+            print("  - " + book)
+        })
+    }
+    
+    count(): number {
+        return this.books.length
+    }
+}
+
+// === Bug #61: Array-returning functions + print ===
+doubleNumbers(nums: [number]): [number] {
+    let result: [number] = []
+    nums.forEach(n => {
+        result.push(n * 2)
+    })
+    return result
+}
+
+main() {
+    // Bug #55: substring with expression
+    let long = "Hello, beautiful world!"
+    let short = truncate(long, 15)
+    print("Truncated: " + short)
+    
+    // Bug #56: forEach on string params  
+    let items = ["Line 1", "Line 2", "Line 3"]
+    printLines(items)
+    
+    // Bug #57: Array literals with strings
+    let colors = getColors()
+    print("Colors: " + colors.length.toString())
+    
+    // Bug #58: char.toString() + char.toString()
+    let initials = getInitials("John Doe")
+    print("Initials: " + initials)
+    
+    // Bug #59-62: Class array operations
+    let lib = Library()
+    lib.addBook("Rust Programming")
+    lib.addBook("TypeScript Handbook")
+    lib.addBook("Liva Guide")
+    
+    print("Library has " + lib.count().toString() + " books:")
+    lib.printBooks()
+    
+    let found = lib.search("Liva Guide")
+    if found.length > 0 {
+        print("Found: " + found[0])
+    }
+    
+    let first = lib.getFirst()
+    print("First book: " + first)
+    
+    // Bug #61: print(array) with {:?}
+    let nums = [1, 2, 3, 4, 5]
+    let doubled = doubleNumbers(nums)
+    print(doubled)
+    
+    print("All tests passed!")
+}

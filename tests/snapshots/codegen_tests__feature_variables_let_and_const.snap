@@ -355,20 +355,18 @@ mod liva_rt {
     
 }
 
-fn double(x: i32) -> i32 {
-    x * 2
-}
-
-fn is_positive(n: i32) -> bool {
-    n > 0
-}
-
 fn main() {
-    let mut items = vec![1, 2, 3, 4, 5];
-    items.iter().for_each(|&_x| println!("{}", _x));
-    let doubled = items.iter().map(|&_x| double(_x)).collect::<Vec<_>>();
-    let positives = items.iter().filter(|&&_x| is_positive(_x)).copied().collect::<Vec<_>>();
-    let mut names = vec!["Alice".to_string(), "Bob".to_string(), "Charlie".to_string()];
-    names.iter().for_each(|_x| println!("{}", _x));
-    let strs = items.iter().map(|&_x| format!("{}", _x)).collect::<Vec<_>>();
+    let x = 10;
+    let name = "Alice".to_string();
+    let pi = 3.14_f64;
+    let active = true;
+    const MAX: i32 = 100;
+    const GREETING: &str = "Hello";
+    let count: i32 = 42;
+    let label: String = "test".to_string();
+    let ratio: f64 = 0.5_f64;
+    let flag: bool = false;
+    println!("{}", x);
+    println!("{}", name);
+    println!("{}", MAX);
 }

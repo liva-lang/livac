@@ -108,48 +108,25 @@ fn run(&mut self) {
 
 ---
 
-### Bug #5: String concatenation produces wrong types
+### Bug #5: String concatenation produces wrong types ✅ FIXED
 **Severity**: High
 **Location**: Code generation (Rust backend)
+**Status**: FIXED in v0.11.7 (Bug #18: `expr_is_stringy()` detection)
 
 **Description**: When concatenating strings with `+` operator, the generated Rust code produces type mismatches between `String` and `&str`.
 
-**Example**:
-```liva
-json = json + "\"defaultUser\":\"" + this.defaultUser + "\","
-```
-
-**Expected**: Type-safe string concatenation
-
-**Actual**: Type error: expected `&str`, found `String`
+**Fix Applied**: String concatenation now uses `format!("{}{}", ...)` instead of `+` operator.
 
 ---
 
-### Bug #4: Error type comparison with empty string
+### Bug #4b: Error type comparison with empty string ✅ FIXED
 **Severity**: High  
 **Location**: Code generation (Rust backend)
+**Status**: FIXED in v0.11.3 (Bug #8: error binding vars tracked)
 
 **Description**: The `let value, err = ...` pattern generates code that compares `Option<Error>` with `""` string.
 
-**Example**:
-```liva
-let content, err = File.read(path)
-if err != "" {
-    ...
-}
-```
-
-**Expected Rust**:
-```rust
-if err.is_some() { ... }
-// or
-if let Some(e) = err { ... }
-```
-
-**Actual Rust**:
-```rust
-if err != "" {  // Error: cannot compare Option<Error> with &str
-```
+**Fix Applied**: Error binding variables are tracked in `error_binding_vars`. Comparisons with `""` are transformed to `.is_some()`/`.is_none()`.
 
 ---
 
@@ -193,29 +170,30 @@ pluralize("repo".to_string(), repos.len())
 
 ---
 
-### Bug #7: String template with complex expressions
+### Bug #7: String template with complex expressions ✅ FIXED
 **Severity**: Medium
 **Location**: Parser or code generation
+**Status**: FIXED in v0.11.3 (Bug #7: string templates with ternary expressions)
 
 **Description**: String templates `$"..."` with complex expressions may produce incorrect Rust code.
 
-**Workaround**: Use string concatenation with `+` instead of templates.
-
 ---
 
-### Bug #8: JSON.parse returns Option but code treats as value
+### Bug #8: JSON.parse returns Option but code treats as value ✅ FIXED
 **Severity**: Medium
 **Location**: Code generation (Rust backend)
+**Status**: FIXED in v0.11.3 (Bug #8: JSON.parse error binding tracking)
 
 **Description**: `JSON.parse` returns an Option, but field access like `parsed.get_field()` is called directly on the Option.
 
 ---
 
-### Bug #9: Substring/slice syntax generates wrong types
+### Bug #9: Substring/slice syntax generates wrong types ✅ FIXED
 **Severity**: Medium
 **Location**: Code generation (Rust backend)
+**Status**: FIXED in v1.2.0 (Bug #55: substring/charAt expression precedence)
 
-**Description**: `str.substring(0, maxLen - 3)` generates Rust code with type mismatches in slice indices.
+**Description**: `str.substring(0, maxLen - 3)` generates Rust code with type mismatches in slice indices. Fixed by wrapping arguments in parentheses before `as usize` cast.
 
 ---
 
@@ -411,11 +389,57 @@ Use `!` instead of `not` for negation.
 - `match` keyword is `switch` in Liva with `case:/default:` syntax
 - Inclusive range `1..=10` has parser issues in some contexts
 
+### Session 13 - Edge Case Dogfooding (v1.2.0):
+
+**Substring/charAt Expression Precedence:**
+- ✅ Bug #55: `substring(start, maxLen - 3)` generates `max_len - 3 as usize` (wrong precedence)
+  - Fixed: Wrap arguments in parentheses before `as usize` cast: `(max_len - 3) as usize`
+  - Affects both `substring()` and `charAt()` with expression arguments
+
+**forEach on Function Parameters:**
+- ✅ Bug #56: `forEach` on `[string]` function parameters generates `|&s|` (move error on String)
+  - Fixed: `generate_params()` now tracks `TypeRef::Array` parameters in `typed_array_vars` and `array_vars`
+  - Enables correct iterator pattern selection for string array parameters
+
+**Array Literals with Strings:**
+- ✅ Bug #57: `let words = ["Hello", "world"]` generates `vec!["Hello", "world"]` (Vec<&str> not Vec<String>)
+  - Fixed: String literals in `Expr::ArrayLiteral` now get `.to_string()` suffix
+  - Generates `vec!["Hello".to_string(), "world".to_string()]`
+
+**char.toString() Concatenation:**
+- ✅ Bug #58: `first.toString() + second.toString()` uses `+` instead of `format!()`
+  - Fixed: `expr_is_stringy()` now detects `.toString()`, `.toUpperCase()`, `.toLowerCase()`, `.trim()` method calls
+  - String concatenation with `+` correctly generates `format!("{}{}", ...)`
+
+**Class Field Array Operations:**
+- ✅ Bug #59: `this.items.filter(item => item == query)` fails with `&&String == String`
+  - Root cause: `get_base_var_name()` didn't handle `Expr::Member` (this.field)
+  - Fixed: `get_base_var_name()` now extracts property name from Member expressions
+  - Also: Class fields registered in tracking maps (array_vars, typed_array_vars, string_vars) before method generation
+
+**Filter Lambda Comparison Types:**
+- ✅ Bug #60: `filter(|&item| item == query)` fails: `&String == String`
+  - Fixed: Added `ref_lambda_params: HashSet<String>` to track lambda params declared with `&` prefix
+  - When a `ref_lambda_param` is used in `==`/`!=` comparison, automatically adds `*` dereference
+  - Generates `*item == query` (derefs &String to String)
+
+**Print Array Variables:**
+- ✅ Bug #61: `print(reversed)` where `reversed` is `Vec<i32>` from function return uses `{}`
+  - Fixed: Added `array_returning_functions: HashSet<String>` to track functions that return `[T]`
+  - Variables assigned from array-returning function calls are now tracked in `array_vars`
+  - Print handler uses `{:?}` (Debug format) for array variables
+
+**Filter Result Indexing:**
+- ✅ Bug #62: `found[0]` on filter result `Vec<String>` fails: cannot move out of index
+  - Fixed: Propagate element type from source array through filter/map results
+  - When `this.items.filter(...)` produces a result, and `items` is `[string]`, the result is also tracked as string array
+  - Array indexing on string arrays now generates `.clone()` suffix
+
 **Critical (High severity)**: 4 (all fixed!)
-**Medium severity**: 38 (28 fixed, 10 documented for generics/parallel)
+**Medium severity**: 46 (all fixed!)
 **Documentation issues**: 4
 
-**Totals**: 54 bugs tracked, 48 fixed, 6 documented for future work
+**Totals**: 62 bugs tracked, 56 fixed, 6 documented for future work
 
 Most bugs were in the Rust code generation phase, particularly around:
 1. Type handling (String vs &str, i32 vs usize)

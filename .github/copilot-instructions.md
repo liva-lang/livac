@@ -207,7 +207,8 @@ describe("Calculator", () => {
 
 ## 🔄 Estado Actual
 
-- **54/54 bugs** del dogfooding corregidos
+- **62/62 bugs** del dogfooding corregidos (Session 13: +8 edge case codegen bugs)
+- **264 tests** totales (72 snapshot codegen tests documentando TODA la sintaxis)
 - **Phase 10** (Formatter): ✅ Completado
 - **Phase 11.1** (`or fail`): ✅ Completado  
 - **Phase 11.2** (`=>` one-liners): ✅ Completado
@@ -217,6 +218,41 @@ describe("Calculator", () => {
 - **Phase 12.2** (Test Library): ✅ Completado
 - **Phase 12.3** (Lifecycle Hooks): ✅ Completado
 - **Phase 12.4** (Async Test Support): ✅ Completado
+
+### Comprehensive Feature Test Coverage (codegen_tests.rs — 72 tests):
+Snapshot tests serve as **source of truth** for all supported Liva syntax:
+- Variables: `let`, `const`, type annotations, top-level `const`
+- Types: primitives, Rust native types (`i8`-`i128`, `u64`, `f32`, `usize`)
+- Operators: arithmetic, comparison, logical (`and`/`or`/`not` + `&&`/`||`/`!`)
+- Functions: one-liner `=>`, block, default params, lambdas, generics `<T>`
+- Control flow: `if`/`else`, ternary `? :`, one-liner ternary in `=>`
+- Pattern matching: switch statement (`case X:`), switch expression (`X => val`), or-patterns
+- Loops: `while`, `for` range, `for` array, one-liner `=>`, `for par` parallel
+- Classes & interfaces: constructor, fields, methods, visibility `_prefix`
+- Error handling: `fail`, error binding, `or fail`, `try`/`catch (err)`
+- Concurrency: `async`, `par`, `task`, `fire`, `await`
+- Collections: `map`/`filter`/`reduce`/`find`/`some`/`every`/`forEach`/`includes`/`indexOf`/`push`/`pop`, chaining
+- Strings: templates `$"..."`, all methods, concatenation patterns
+- Stdlib: `print`, `console.*`, `Math.*`, `parseInt`/`parseFloat`/`toString`, `JSON.*`, `HTTP.*`
+- Advanced: tuples, type aliases, generics, test matchers
+
+### Important Syntax Notes (discovered via testing):
+- Switch **statements** use `case X:` (colon); switch **expressions** use `X =>` (arrow, no `case` keyword)
+- `try`/`catch` requires parentheses: `catch (err) { }`
+- Ternary is an expression; `if` is a statement only (can't use in `=>` one-liners)
+- `for` ranges only support exclusive `..` (not `..=` in loop expressions)
+- JSON typed parse uses `int` not `number`: `let x: [int], err = JSON.parse(...)`
+- `describe` is reserved for test framework — don't use as function name
+
+### Session 13 Bug Fixes (codegen.rs):
+- `ref_lambda_params: HashSet<String>` — dereference `&T` lambda params in comparisons
+- `array_returning_functions: HashSet<String>` — track functions returning `[T]`
+- `get_base_var_name()` — handles `this.field` (Member expressions)
+- Class fields registered in tracking maps before method codegen
+- `expr_is_stringy()` — detects `.toString()` method calls
+- Filter/map results inherit element type from source array
+- Array literal strings get `.to_string()`
+- `substring()`/`charAt()` wrap args in `(expr) as usize`
 
 ---
 
