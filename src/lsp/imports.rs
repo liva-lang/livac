@@ -159,6 +159,7 @@ mod tests {
     use super::*;
     
     #[test]
+    #[cfg(unix)] // file:///workspace/... URIs require Unix-style paths
     fn test_relative_import_resolution() {
         let workspace_roots = vec![];
         let resolver = ImportResolver::new(workspace_roots);
@@ -172,6 +173,7 @@ mod tests {
     }
     
     #[test]
+    #[cfg(unix)] // file:///workspace/... URIs require Unix-style paths
     fn test_parent_directory_import() {
         let workspace_roots = vec![];
         let resolver = ImportResolver::new(workspace_roots);
@@ -185,6 +187,7 @@ mod tests {
     }
     
     #[test]
+    #[cfg(unix)] // file:///workspace/... URIs require Unix-style paths
     fn test_auto_extension() {
         let workspace_roots = vec![];
         let resolver = ImportResolver::new(workspace_roots);
