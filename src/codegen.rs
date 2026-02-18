@@ -100,6 +100,10 @@ pub struct CodeGenerator {
     module_aliases: std::collections::HashMap<String, String>,
     // --- Current function return type (for casting division results)
     current_return_type: Option<String>,
+    // --- Enum metadata (enum_name -> variant_names with field info)
+    enum_names: std::collections::HashSet<String>,
+    enum_variants:
+        std::collections::HashMap<String, std::collections::HashMap<String, Vec<String>>>, // enum_name -> (variant_name -> [field_names])
 }
 
 impl CodeGenerator {
@@ -144,6 +148,8 @@ impl CodeGenerator {
             module_aliases: std::collections::HashMap::new(),
             current_return_type: None,
             test_hooks_stack: Vec::new(),
+            enum_names: std::collections::HashSet::new(),
+            enum_variants: std::collections::HashMap::new(),
         }
     }
 
@@ -1072,6 +1078,23 @@ impl CodeGenerator {
             }
         }
 
+        // Build enum metadata maps
+        self.enum_names.clear();
+        self.enum_variants.clear();
+        for item in &program.items {
+            if let TopLevel::Enum(enum_decl) = item {
+                self.enum_names.insert(enum_decl.name.clone());
+                let mut variants_map = std::collections::HashMap::new();
+                for variant in &enum_decl.variants {
+                    let field_names: Vec<String> =
+                        variant.fields.iter().map(|f| f.name.clone()).collect();
+                    variants_map.insert(variant.name.clone(), field_names);
+                }
+                self.enum_variants
+                    .insert(enum_decl.name.clone(), variants_map);
+            }
+        }
+
         // Always include concurrency runtime for now
         if std::env::var("LIVA_DEBUG").is_ok() {
             println!("DEBUG: Including liva_rt module");
@@ -1859,6 +1882,7 @@ impl CodeGenerator {
                 }
                 self.generate_class(class)
             }
+            TopLevel::Enum(enum_decl) => self.generate_enum(enum_decl),
             TopLevel::Function(func) => self.generate_function(func),
             TopLevel::Test(test) => self.generate_test(test),
             TopLevel::ExprStmt(expr) => {
@@ -2944,6 +2968,93 @@ impl CodeGenerator {
         }
         self.in_fallible_function = prev_fallible;
         self.in_method = false;
+
+        Ok(())
+    }
+
+    fn generate_enum(&mut self, enum_decl: &EnumDecl) -> Result<()> {
+        // Generate Rust enum with derive macros
+        self.writeln("#[derive(Debug, Clone, PartialEq)]");
+
+        // Type parameters
+        if enum_decl.type_params.is_empty() {
+            writeln!(self.output, "enum {} {{", enum_decl.name).unwrap();
+        } else {
+            let params: Vec<String> = enum_decl
+                .type_params
+                .iter()
+                .map(|tp| tp.name.clone())
+                .collect();
+            writeln!(
+                self.output,
+                "enum {}<{}> {{",
+                enum_decl.name,
+                params.join(", ")
+            )
+            .unwrap();
+        }
+
+        self.indent();
+
+        for variant in &enum_decl.variants {
+            self.write_indent();
+            if variant.fields.is_empty() {
+                // Unit variant: Red,
+                writeln!(self.output, "{},", variant.name).unwrap();
+            } else {
+                // Named fields variant: Circle { radius: f64 },
+                write!(self.output, "{} {{ ", variant.name).unwrap();
+                for (i, field) in variant.fields.iter().enumerate() {
+                    if i > 0 {
+                        self.output.push_str(", ");
+                    }
+                    write!(
+                        self.output,
+                        "{}: {}",
+                        self.sanitize_name(&field.name),
+                        field.type_ref.to_rust_type()
+                    )
+                    .unwrap();
+                }
+                self.output.push_str(" },\n");
+            }
+        }
+
+        self.dedent();
+        self.writeln("}");
+        self.output.push('\n');
+
+        // Generate Display impl for simple enums (all unit variants)
+        let all_unit = enum_decl.variants.iter().all(|v| v.fields.is_empty());
+        if all_unit && enum_decl.type_params.is_empty() {
+            writeln!(
+                self.output,
+                "impl std::fmt::Display for {} {{",
+                enum_decl.name
+            )
+            .unwrap();
+            self.indent();
+            self.writeln("fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {");
+            self.indent();
+            self.writeln("match self {");
+            self.indent();
+            for variant in &enum_decl.variants {
+                self.write_indent();
+                writeln!(
+                    self.output,
+                    "{}::{} => write!(f, \"{}\"),",
+                    enum_decl.name, variant.name, variant.name
+                )
+                .unwrap();
+            }
+            self.dedent();
+            self.writeln("}");
+            self.dedent();
+            self.writeln("}");
+            self.dedent();
+            self.writeln("}");
+            self.output.push('\n');
+        }
 
         Ok(())
     }
@@ -4983,6 +5094,12 @@ impl CodeGenerator {
                             _ => {} // Fall through to method call handling
                         }
                     }
+
+                    // Enum variant access: Color.Red → Color::Red
+                    if self.enum_names.contains(name) {
+                        write!(self.output, "{}::{}", name, property).unwrap();
+                        return Ok(());
+                    }
                 }
 
                 // Phase 3.5: Special handling for error.message
@@ -6117,6 +6234,41 @@ impl CodeGenerator {
                 // (Union context is handled in generate_union_pattern)
                 self.output.push_str(&self.sanitize_name(name));
             }
+            Pattern::EnumVariant {
+                enum_name,
+                variant_name,
+                bindings,
+            } => {
+                write!(self.output, "{}::{}", enum_name, variant_name).unwrap();
+                if !bindings.is_empty() {
+                    self.output.push_str(" { ");
+                    // Look up field names for this variant
+                    let field_names = self
+                        .enum_variants
+                        .get(enum_name)
+                        .and_then(|v| v.get(variant_name))
+                        .cloned()
+                        .unwrap_or_default();
+                    for (i, binding) in bindings.iter().enumerate() {
+                        if i > 0 {
+                            self.output.push_str(", ");
+                        }
+                        if i < field_names.len() && field_names[i] != *binding {
+                            // Field name differs from binding: field_name: binding
+                            write!(
+                                self.output,
+                                "{}: {}",
+                                self.sanitize_name(&field_names[i]),
+                                self.sanitize_name(binding)
+                            )
+                            .unwrap();
+                        } else {
+                            self.output.push_str(&self.sanitize_name(binding));
+                        }
+                    }
+                    self.output.push_str(" }");
+                }
+            }
         }
         Ok(())
     }
@@ -6134,6 +6286,32 @@ impl CodeGenerator {
     }
 
     fn generate_normal_call(&mut self, call: &CallExpr) -> Result<()> {
+        // Enum variant construction: Shape.Circle(5.0) → Shape::Circle { radius: 5.0 }
+        if let Expr::Member { object, property } = call.callee.as_ref() {
+            if let Expr::Identifier(enum_name) = object.as_ref() {
+                if let Some(variants) = self.enum_variants.get(enum_name).cloned() {
+                    if let Some(field_names) = variants.get(property) {
+                        write!(self.output, "{}::{}", enum_name, property).unwrap();
+                        if !field_names.is_empty() {
+                            self.output.push_str(" { ");
+                            for (i, (field_name, arg)) in
+                                field_names.iter().zip(call.args.iter()).enumerate()
+                            {
+                                if i > 0 {
+                                    self.output.push_str(", ");
+                                }
+                                write!(self.output, "{}: ", self.sanitize_name(field_name))
+                                    .unwrap();
+                                self.generate_expr(arg)?;
+                            }
+                            self.output.push_str(" }");
+                        }
+                        return Ok(());
+                    }
+                }
+            }
+        }
+
         if let Expr::Identifier(name) = call.callee.as_ref() {
             // ─── liva/test virtual library ───────────────────────────
             // describe("name", () => { ... }) → mod test_name { use super::*; ... }
@@ -6788,6 +6966,27 @@ impl CodeGenerator {
             // Generate module::function() instead of alias.function()
             if let Some(module_name) = self.module_aliases.get(name).cloned() {
                 return self.generate_module_function_call(&module_name, method_call);
+            }
+
+            // Enum variant construction: Shape.Circle(5.0) → Shape::Circle { radius: 5.0 }
+            if let Some(variants) = self.enum_variants.get(name).cloned() {
+                if let Some(field_names) = variants.get(&method_call.method) {
+                    write!(self.output, "{}::{}", name, method_call.method).unwrap();
+                    if !field_names.is_empty() {
+                        self.output.push_str(" { ");
+                        for (i, (field_name, arg)) in
+                            field_names.iter().zip(method_call.args.iter()).enumerate()
+                        {
+                            if i > 0 {
+                                self.output.push_str(", ");
+                            }
+                            write!(self.output, "{}: ", self.sanitize_name(field_name)).unwrap();
+                            self.generate_expr(arg)?;
+                        }
+                        self.output.push_str(" }");
+                    }
+                    return Ok(());
+                }
             }
         }
 
@@ -11253,6 +11452,23 @@ impl<'a> IrCodeGenerator<'a> {
                 // This will be handled specially in generate_switch_expr
                 self.output.push_str(&self.sanitize_name(name));
             }
+            Pattern::EnumVariant {
+                enum_name,
+                variant_name,
+                bindings,
+            } => {
+                write!(self.output, "{}::{}", enum_name, variant_name).unwrap();
+                if !bindings.is_empty() {
+                    self.output.push_str(" { ");
+                    for (i, binding) in bindings.iter().enumerate() {
+                        if i > 0 {
+                            self.output.push_str(", ");
+                        }
+                        self.output.push_str(&self.sanitize_name(binding));
+                    }
+                    self.output.push_str(" }");
+                }
+            }
         }
         Ok(())
     }
@@ -12142,7 +12358,10 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext) ->
                 module_body.push_str(&code);
                 module_body.push('\n');
             }
-            TopLevel::UseRust(_) | TopLevel::Test(_) | TopLevel::ExprStmt(_) => {
+            TopLevel::UseRust(_)
+            | TopLevel::Test(_)
+            | TopLevel::ExprStmt(_)
+            | TopLevel::Enum(_) => {
                 // Reset codegen output for this item
                 codegen.output.clear();
                 codegen.generate_top_level(item)?;

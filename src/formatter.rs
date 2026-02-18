@@ -137,6 +137,7 @@ impl Formatter {
             TopLevel::Type(decl) => self.format_type_decl(decl),
             TopLevel::TypeAlias(decl) => self.format_type_alias(decl),
             TopLevel::Class(decl) => self.format_class(decl),
+            TopLevel::Enum(decl) => self.format_enum_decl(decl),
             TopLevel::Function(decl) => self.format_function(decl),
             TopLevel::Test(decl) => self.format_test(decl),
             TopLevel::ConstDecl(decl) => self.format_const_decl_stmt(decl),
@@ -215,6 +216,28 @@ impl Formatter {
     // ======================================================================
     // Class declarations
     // ======================================================================
+
+    fn format_enum_decl(&mut self, decl: &EnumDecl) {
+        let type_params = self.format_type_params(&decl.type_params);
+        self.write_line(&format!("enum {}{} {{", decl.name, type_params));
+        self.indent_level += 1;
+
+        for variant in &decl.variants {
+            if variant.fields.is_empty() {
+                self.write_line(&variant.name);
+            } else {
+                let fields: Vec<String> = variant
+                    .fields
+                    .iter()
+                    .map(|f| format!("{}: {}", f.name, self.format_type_ref(&f.type_ref)))
+                    .collect();
+                self.write_line(&format!("{}({})", variant.name, fields.join(", ")));
+            }
+        }
+
+        self.indent_level -= 1;
+        self.write_line("}");
+    }
 
     fn format_class(&mut self, decl: &ClassDecl) {
         let type_params = self.format_type_params(&decl.type_params);
@@ -1352,6 +1375,17 @@ impl Formatter {
             Pattern::Or(patterns) => {
                 let pats: Vec<String> = patterns.iter().map(|p| self.format_pattern(p)).collect();
                 pats.join(" | ")
+            }
+            Pattern::EnumVariant {
+                enum_name,
+                variant_name,
+                bindings,
+            } => {
+                if bindings.is_empty() {
+                    format!("{}.{}", enum_name, variant_name)
+                } else {
+                    format!("{}.{}({})", enum_name, variant_name, bindings.join(", "))
+                }
             }
         }
     }

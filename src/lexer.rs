@@ -22,6 +22,8 @@ pub enum Token {
     Rust,
     #[token("type")]
     Type,
+    #[token("enum")]
+    Enum,
     #[token("test")]
     Test,
     #[token("if")]

@@ -1,0 +1,49 @@
+// Enum types in Liva
+
+// Simple enum (unit variants only)
+enum Color {
+    Red,
+    Green,
+    Blue
+}
+
+// Enum with associated data
+enum Shape {
+    Circle(radius: number),
+    Rectangle(width: number, height: number),
+    Point
+}
+
+// Function that takes an enum parameter
+area(shape: Shape): number {
+    return switch shape {
+        Shape.Circle(r) => 3 * r * r
+        Shape.Rectangle(w, h) => w * h
+        Shape.Point => 0
+    }
+}
+
+// Function that returns an enum
+favoriteColor(): Color {
+    return Color.Blue
+}
+
+main() {
+    // Simple enum usage
+    let color = Color.Red
+    print(color)
+
+    // Enum with data
+    let circle = Shape.Circle(5)
+    let rect = Shape.Rectangle(10, 20)
+    let point = Shape.Point
+
+    // Pattern matching with data extraction
+    print("Circle area: " + area(circle))
+    print("Rectangle area: " + area(rect))
+    print("Point area: " + area(point))
+
+    // Enum as return value
+    let fav = favoriteColor()
+    print("Favorite: " + fav)
+}

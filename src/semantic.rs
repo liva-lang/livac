@@ -466,6 +466,17 @@ impl SemanticAnalyzer {
                 TopLevel::ConstDecl(_) => {
                     // Top-level constants are simple values, no special registration needed
                 }
+                TopLevel::Enum(enum_decl) => {
+                    // Register enum as a type (with no fields/methods for now)
+                    self.types.insert(
+                        enum_decl.name.clone(),
+                        TypeInfo {
+                            name: enum_decl.name.clone(),
+                            fields: HashMap::new(),
+                            methods: HashMap::new(),
+                        },
+                    );
+                }
                 _ => {}
             }
         }
@@ -950,6 +961,7 @@ impl SemanticAnalyzer {
             TopLevel::Class(class) => self.validate_class(class),
             TopLevel::Type(type_decl) => self.validate_type_decl(type_decl),
             TopLevel::TypeAlias(alias) => self.validate_type_alias(alias),
+            TopLevel::Enum(_) => Ok(()), // Enums are validated at parse time
             _ => Ok(()),
         }
     }
@@ -3608,6 +3620,14 @@ impl SemanticAnalyzer {
             Pattern::Literal(_) | Pattern::Wildcard | Pattern::Range(_) => {
                 // No bindings
             }
+            Pattern::EnumVariant {
+                bindings: variant_bindings,
+                ..
+            } => {
+                for b in variant_bindings {
+                    bindings.push(b.clone());
+                }
+            }
         }
     }
 
@@ -3685,6 +3705,9 @@ impl SemanticAnalyzer {
                 // Validate the type annotation
                 let empty_type_params = std::collections::HashSet::new();
                 self.validate_type_ref(type_ref, &empty_type_params)?;
+            }
+            Pattern::EnumVariant { .. } => {
+                // Enum variant patterns are validated at parse time
             }
         }
         Ok(())
@@ -3815,6 +3838,7 @@ impl SemanticAnalyzer {
                 // These don't give us type info directly
                 None
             }
+            Pattern::EnumVariant { enum_name, .. } => Some(enum_name.clone()),
         }
     }
 
@@ -3871,6 +3895,9 @@ impl SemanticAnalyzer {
             }
             Pattern::Wildcard | Pattern::Binding(_) | Pattern::Typed { .. } => {
                 // These don't contribute to coverage
+            }
+            Pattern::EnumVariant { .. } => {
+                // Enum variants don't contribute to integer coverage
             }
         }
     }

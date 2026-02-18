@@ -17,6 +17,7 @@
 - [Pattern Matching](#pattern-matching)
 - [Loops](#loops)
 - [Classes](#classes)
+- [Enums](#enums)
 - [Interfaces](#interfaces)
 - [Visibility](#visibility)
 - [Error Handling](#error-handling)
@@ -405,6 +406,67 @@ data Color {
 
 let c = Color(255, 128, 0)
 print(c.sum())  // 383
+```
+
+---
+
+## Enums
+
+Enums define types with a fixed set of variants:
+
+### Simple Enums
+
+```liva
+enum Color {
+    Red,
+    Green,
+    Blue
+}
+
+let c = Color.Red
+print(c)              // "Red"
+```
+
+### Enums with Data
+
+```liva
+enum Shape {
+    Circle(radius: number),
+    Rectangle(width: number, height: number),
+    Point
+}
+
+let s = Shape.Circle(5)
+let r = Shape.Rectangle(10, 20)
+let p = Shape.Point
+```
+
+### Pattern Matching on Enums
+
+```liva
+area(shape: Shape): number {
+    return switch shape {
+        Shape.Circle(r) => 3 * r * r
+        Shape.Rectangle(w, h) => w * h
+        Shape.Point => 0
+    }
+}
+```
+
+### Enums as Parameters and Return Types
+
+```liva
+enum SearchResult {
+    Found(value: number),
+    NotFound
+}
+
+findItem(id: number): SearchResult {
+    if id > 0 {
+        return SearchResult.Found(id * 10)
+    }
+    return SearchResult.NotFound
+}
 ```
 
 ---

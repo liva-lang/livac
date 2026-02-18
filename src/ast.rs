@@ -51,6 +51,7 @@ pub enum TopLevel {
     Type(TypeDecl),
     TypeAlias(TypeAliasDecl),
     Class(ClassDecl),
+    Enum(EnumDecl),
     Function(FunctionDecl),
     Test(TestDecl),
     ConstDecl(ConstDecl),
@@ -99,6 +100,30 @@ pub struct ClassDecl {
     pub needs_serde: bool, // Phase 2: true if used with JSON.parse
     #[serde(default)]
     pub is_data: bool, // true for "data class" declarations
+}
+
+/// Enum declaration: enum Color { Red, Green, Blue }
+/// or with associated data: enum Shape { Circle(radius: number), Point }
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct EnumDecl {
+    pub name: String,
+    pub type_params: Vec<TypeParameter>,
+    pub variants: Vec<EnumVariant>,
+}
+
+/// A single variant of an enum
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct EnumVariant {
+    pub name: String,
+    /// Associated data fields (empty for unit variants like `Red`)
+    pub fields: Vec<EnumField>,
+}
+
+/// A field inside an enum variant: Circle(radius: number, color: string)
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct EnumField {
+    pub name: String,
+    pub type_ref: TypeRef,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -526,6 +551,12 @@ pub enum Pattern {
     Array(Vec<Pattern>),
     /// Or pattern: 1 | 2 | 3
     Or(Vec<Pattern>),
+    /// Enum variant pattern: Shape.Circle(r, g) or Color.Red
+    EnumVariant {
+        enum_name: String,
+        variant_name: String,
+        bindings: Vec<String>,
+    },
 }
 
 /// Range pattern for numeric matching
@@ -914,6 +945,17 @@ impl fmt::Display for Pattern {
             }
             Pattern::Typed { name, type_ref } => {
                 write!(f, "{}: {}", name, type_ref.to_rust_type())
+            }
+            Pattern::EnumVariant {
+                enum_name,
+                variant_name,
+                bindings,
+            } => {
+                if bindings.is_empty() {
+                    write!(f, "{}.{}", enum_name, variant_name)
+                } else {
+                    write!(f, "{}.{}({})", enum_name, variant_name, bindings.join(", "))
+                }
             }
         }
     }

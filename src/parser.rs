@@ -355,6 +355,11 @@ impl Parser {
             }
         }
 
+        // Enum declaration: enum Color { Red, Green, Blue }
+        if self.match_token(&Token::Enum) {
+            return self.parse_enum_decl();
+        }
+
         if self.match_token(&Token::Test) {
             let is_string_name = if let Some(Token::StringLiteral(_)) = self.peek() {
                 true
@@ -740,6 +745,64 @@ impl Parser {
         self.expect(Token::Gt)?;
 
         Ok(type_params)
+    }
+
+    /// Parse enum declaration: enum Color { Red, Green, Blue }
+    /// or with associated data: enum Shape { Circle(radius: number), Point }
+    fn parse_enum_decl(&mut self) -> Result<TopLevel> {
+        let name = self.parse_identifier()?;
+
+        // Optional type parameters: enum Option<T> { Some(value: T), None }
+        let type_params = if self.check(&Token::Lt) {
+            self.advance();
+            self.parse_type_parameters()?
+        } else {
+            vec![]
+        };
+
+        self.expect(Token::LBrace)?;
+
+        let mut variants = Vec::new();
+        while !self.is_at_end() && !self.check(&Token::RBrace) {
+            let variant_name = self.parse_identifier()?;
+
+            // Check for associated data: Circle(radius: number, color: string)
+            let fields = if self.match_token(&Token::LParen) {
+                let mut fields = Vec::new();
+                while !self.check(&Token::RParen) && !self.is_at_end() {
+                    let field_name = self.parse_identifier()?;
+                    self.expect(Token::Colon)?;
+                    let type_ref = self.parse_type()?;
+                    fields.push(EnumField {
+                        name: field_name,
+                        type_ref,
+                    });
+                    if !self.check(&Token::RParen) {
+                        self.expect(Token::Comma)?;
+                    }
+                }
+                self.expect(Token::RParen)?;
+                fields
+            } else {
+                vec![]
+            };
+
+            variants.push(EnumVariant {
+                name: variant_name,
+                fields,
+            });
+
+            // Allow optional comma or newline between variants
+            self.match_token(&Token::Comma);
+        }
+
+        self.expect(Token::RBrace)?;
+
+        Ok(TopLevel::Enum(EnumDecl {
+            name,
+            type_params,
+            variants,
+        }))
     }
 
     fn parse_members(&mut self) -> Result<Vec<Member>> {
@@ -2604,13 +2667,33 @@ impl Parser {
         match expr {
             Expr::Literal(lit) => Ok(Pattern::Literal(lit)),
             Expr::Identifier(name) => {
-                // Check if this is a type pattern: name: type
-                if self.match_token(&Token::Colon) {
+                // Check for enum variant pattern: EnumName.Variant or EnumName.Variant(bindings)
+                if self.match_token(&Token::Dot) {
+                    let variant_name = self.parse_identifier()?;
+                    let bindings = if self.match_token(&Token::LParen) {
+                        let mut bindings = Vec::new();
+                        while !self.check(&Token::RParen) && !self.is_at_end() {
+                            bindings.push(self.parse_identifier()?);
+                            if !self.check(&Token::RParen) {
+                                self.expect(Token::Comma)?;
+                            }
+                        }
+                        self.expect(Token::RParen)?;
+                        bindings
+                    } else {
+                        vec![]
+                    };
+                    Ok(Pattern::EnumVariant {
+                        enum_name: name,
+                        variant_name,
+                        bindings,
+                    })
+                } else if self.match_token(&Token::Colon) {
+                    // Type pattern: name: type
                     let type_ref = self.parse_type()?;
                     Ok(Pattern::Typed { name, type_ref })
                 } else {
                     // Identifiers can be bindings (lowercase) or enum variants (capitalized)
-                    // For now, treat all as bindings since we don't have enums yet
                     Ok(Pattern::Binding(name))
                 }
             }

@@ -1,10 +1,10 @@
 # 🗺️ Liva Language Roadmap
 
-> **Current Version:** v1.2.0-dev (tag: v1.0.2)  
-> **Status:** Session 16 complete — CI/CD & Cross-Platform Releases, all platforms green  
+> **Current Version:** v1.3.0-dev (tag: v1.2.0)  
+> **Status:** Session 17 complete — Enum Types (Algebraic Data Types)  
 > **Next Phase:** Phase 13 — Advanced Features  
 > **Planned:** Phase 13 — Advanced Language Features  
-> **Last Updated:** 2026-02-18
+> **Last Updated:** 2026-02-19
 
 ---
 
@@ -45,6 +45,7 @@ Each phase is broken into sub-tasks with time estimates and clear deliverables.
 - ✅ Functions (one-liner, block, typed parameters/returns)
 - ✅ Classes (constructors, fields, methods)
 - ✅ Interfaces (method signatures, multiple implementation)
+- ✅ Enum types (algebraic data types with pattern matching)
 - ✅ Control flow (`if`, `while`, `for`, `switch`, ternary)
 - ✅ Operators (arithmetic, logical, comparison, bitwise)
 - ✅ String templates with interpolation

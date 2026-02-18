@@ -2379,3 +2379,132 @@ main() {
     let rust_code = compile_and_generate(source);
     assert_snapshot!("bug74_for_loop_ownership", rust_code);
 }
+
+// ====================================================================
+// Enum tests
+// ====================================================================
+
+#[test]
+fn test_enum_simple() {
+    let source = r#"
+enum Color {
+    Red,
+    Green,
+    Blue
+}
+
+main() {
+    let c = Color.Red
+    print(c)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("enum_simple", rust_code);
+}
+
+#[test]
+fn test_enum_with_data() {
+    let source = r#"
+enum Shape {
+    Circle(radius: number),
+    Rectangle(width: number, height: number),
+    Point
+}
+
+main() {
+    let s = Shape.Circle(5.0)
+    let r = Shape.Rectangle(10.0, 20.0)
+    let p = Shape.Point
+    print(s)
+    print(r)
+    print(p)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("enum_with_data", rust_code);
+}
+
+#[test]
+fn test_enum_switch_simple() {
+    let source = r#"
+enum Direction {
+    North,
+    South,
+    East,
+    West
+}
+
+directionName(direction: Direction): string {
+    return switch direction {
+        Direction.North => "Going north"
+        Direction.South => "Going south"
+        Direction.East => "Going east"
+        Direction.West => "Going west"
+    }
+}
+
+main() {
+    let d = Direction.North
+    print(directionName(d))
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("enum_switch_simple", rust_code);
+}
+
+#[test]
+fn test_enum_switch_with_data() {
+    let source = r#"
+enum Shape {
+    Circle(radius: number),
+    Rectangle(width: number, height: number),
+    Point
+}
+
+area(shape: Shape): number {
+    return switch shape {
+        Shape.Circle(r) => 3.14159 * r * r
+        Shape.Rectangle(w, h) => w * h
+        Shape.Point => 0.0
+    }
+}
+
+main() {
+    let circle = Shape.Circle(5.0)
+    let rect = Shape.Rectangle(10.0, 20.0)
+    print(area(circle))
+    print(area(rect))
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("enum_switch_with_data", rust_code);
+}
+
+#[test]
+fn test_enum_as_param_and_return() {
+    let source = r#"
+enum SearchResult {
+    Found(value: number),
+    NotFound
+}
+
+findItem(id: number): SearchResult {
+    if id > 0 {
+        return SearchResult.Found(id * 10)
+    }
+    return SearchResult.NotFound
+}
+
+main() {
+    let result = findItem(5)
+    print(result)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("enum_as_param_return", rust_code);
+}

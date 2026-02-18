@@ -79,7 +79,8 @@ impl SymbolTable {
             | TopLevel::Import(_)
             | TopLevel::UseRust(_)
             | TopLevel::Test(_)
-            | TopLevel::ExprStmt(_) => {
+            | TopLevel::ExprStmt(_)
+            | TopLevel::Enum(_) => {
                 // Skip for now
             }
         }

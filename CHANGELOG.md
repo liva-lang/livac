@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - v1.2.0-dev
 
+### Added - Session 17: Enum Types & Release v1.2.0 🎯
+
+**Enum Types (algebraic data types):**
+- `enum` keyword for defining sum types with variants
+- Unit variants: `enum Color { Red, Green, Blue }`
+- Data variants with named fields: `enum Shape { Circle(radius: number), Rectangle(width: number, height: number), Point }`
+- Enum variant construction: `Color.Red`, `Shape.Circle(5)`
+- Pattern matching on enums in `switch` expressions
+- Destructuring bindings: `Shape.Circle(r) => r * r`
+- Auto-generated `#[derive(Debug, Clone, PartialEq)]` for all enums
+- Auto-generated `Display` impl for unit-only enums
+- Enum as function parameters and return types
+- Full formatter support (`--fmt`)
+- 5 snapshot tests + end-to-end test
+
+**Release v1.2.0 published:**
+- Fixed RPM path in release workflow (dynamic `find` instead of hardcoded path)
+- All 7 release assets: `.deb`, `.rpm`, `.tar.gz` (Linux/macOS), `.zip` (Windows), checksums
+- Rustfmt enforced in CI (removed `continue-on-error`)
+- All 5 CI jobs green (Ubuntu, macOS, Windows, Clippy, Rustfmt)
+
+**Files modified:**
+- `src/lexer.rs` — Added `Token::Enum` keyword
+- `src/ast.rs` — `TopLevel::Enum`, `EnumDecl`, `EnumVariant`, `EnumField`, `Pattern::EnumVariant`
+- `src/parser.rs` — `parse_enum_decl` method, enum variant pattern parsing
+- `src/semantic.rs` — Register enums in type system, pattern handling
+- `src/lowering.rs` — Skip enums (bypass IR like classes)
+- `src/codegen.rs` — `generate_enum`, enum variant construction, pattern matching
+- `src/formatter.rs` — `format_enum_decl`, enum variant patterns
+- `src/lsp/symbols.rs` — Handle `TopLevel::Enum` variant
+- `.github/workflows/ci.yml` — Rustfmt enforced
+- `.github/workflows/release.yml` — Fixed RPM path
+- `tests/codegen_tests.rs` — 5 new snapshot tests
+
 ### Added - Session 16: CI/CD & Cross-Platform Releases 📦
 
 **GitHub Actions CI hardened for cross-platform support:**

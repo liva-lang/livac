@@ -208,7 +208,7 @@ describe("Calculator", () => {
 ## 🔄 Estado Actual
 
 - **71/71 bugs** del dogfooding corregidos (Session 15: +9 bugs from Student Grade Tracker)
-- **278 tests** totales (86 snapshot codegen tests documentando TODA la sintaxis)
+- **283 tests** totales (91 snapshot codegen tests documentando TODA la sintaxis)
 - **Phase 10** (Formatter): ✅ Completado
 - **Phase 11.1** (`or fail`): ✅ Completado  
 - **Phase 11.2** (`=>` one-liners): ✅ Completado
@@ -221,6 +221,20 @@ describe("Calculator", () => {
 - **Session 14** (5 Language Features): ✅ Completado
 - **Session 15** (Dogfooding + 9 Bug Fixes): ✅ Completado
 - **Session 16** (CI/CD & Cross-Platform Releases): ✅ Completado
+- **Session 17** (Enum Types): ✅ Completado
+
+### Session 17: Enum Types (Algebraic Data Types) 🏷️
+**Full enum support across the entire compiler pipeline.**
+- Lexer: `enum` hard keyword token
+- AST: `EnumDecl`, `EnumVariant`, `EnumField`, `Pattern::EnumVariant`
+- Parser: `parse_enum_decl` (variants with named fields), enum variant pattern parsing
+- Semantic: enum registration in types, pattern validation
+- Lowering: bypass IR (like classes)
+- Codegen: `generate_enum` with `#[derive(Debug, Clone, PartialEq)]`, variant construction (`Color.Red` → `Color::Red`, `Shape.Circle(5)` → `Shape::Circle { radius: 5 }`), pattern matching with destructuring
+- Formatter: `format_enum_decl`, `Pattern::EnumVariant` support
+- LSP: enum handling in symbol visitor
+- Tests: 5 snapshot tests (simple, with data, switch, destructuring, param/return) + 1 e2e test
+- Documentation: CHANGELOG, QUICK_REFERENCE, ROADMAP updated
 
 ### Session 16: CI/CD & Cross-Platform Releases 📦
 **GitHub Actions CI fully green on Ubuntu, macOS, and Windows.**
@@ -258,6 +272,7 @@ Snapshot tests serve as **source of truth** for all supported Liva syntax:
 - Pattern matching: switch statement (`case X:`), switch expression (`X => val`), or-patterns
 - Loops: `while`, `for` range, `for` array, one-liner `=>`, `for par` parallel, `break`/`continue`
 - Classes & interfaces: constructor, fields, methods, visibility `_prefix`, `data` classes
+- Enums: simple (`Color { Red, Green, Blue }`), with data (`Shape { Circle(radius: number) }`), pattern matching
 - Error handling: `fail`, error binding, `or fail`, `try`/`catch (err)`
 - Concurrency: `async`, `par`, `task`, `fire`, `await`
 - Collections: `map`/`filter`/`reduce`/`find`/`some`/`every`/`forEach`/`includes`/`indexOf`/`push`/`pop`/`join`, chaining

@@ -32,6 +32,9 @@ pub fn lower_program(program: &ast::Program) -> ir::Module {
             ast::TopLevel::TypeAlias(_) => {
                 // Type aliases are expanded inline during type checking, skip in IR
             }
+            ast::TopLevel::Enum(_) => {
+                // Enums bypass IR, handled directly by AST codegen (like Class)
+            }
             ast::TopLevel::Import(_) => {
                 // Skip imports in IR
             }
