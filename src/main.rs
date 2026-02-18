@@ -832,7 +832,11 @@ mod tests {
         let err = compile(&cli, &input).expect_err("expected IO error");
         match err {
             CompilerError::IoError(msg) => {
-                assert!(msg.contains("No such file"));
+                // "No such file" on Unix, "cannot find" on Windows
+                assert!(
+                    msg.contains("No such file") || msg.contains("cannot find"),
+                    "unexpected IO error message: {msg}"
+                );
             }
             other => panic!("unexpected error: {other:?}"),
         }
