@@ -6,6 +6,8 @@ use std::fs;
 fn test_desugar_ok(test_name: &str) {
     let source = fs::read_to_string(format!("tests/desugar/ok_{}.liva", test_name))
         .unwrap_or_else(|_| panic!("Failed to read test file: ok_{}.liva", test_name));
+    // Normalize line endings for cross-platform snapshot consistency
+    let source = source.replace("\r\n", "\n");
 
     let tokens = tokenize(&source).unwrap();
     let ast = parse(tokens, &source).unwrap();

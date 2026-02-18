@@ -6,6 +6,8 @@ use std::fs;
 fn test_lexer_ok(test_name: &str) {
     let source = fs::read_to_string(format!("tests/lexer/ok_{}.liva", test_name))
         .unwrap_or_else(|_| panic!("Failed to read test file: ok_{}.liva", test_name));
+    // Normalize line endings for cross-platform snapshot consistency
+    let source = source.replace("\r\n", "\n");
 
     let tokens = tokenize(&source).unwrap();
 
@@ -20,6 +22,8 @@ fn test_lexer_ok(test_name: &str) {
 fn test_lexer_err(test_name: &str) {
     let source = fs::read_to_string(format!("tests/lexer/err_{}.liva", test_name))
         .unwrap_or_else(|_| panic!("Failed to read test file: err_{}.liva", test_name));
+    // Normalize line endings for cross-platform snapshot consistency
+    let source = source.replace("\r\n", "\n");
 
     let result = tokenize(&source);
     assert!(
