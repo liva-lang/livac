@@ -220,6 +220,17 @@ describe("Calculator", () => {
 - **Phase 12.4** (Async Test Support): ✅ Completado
 - **Session 14** (5 Language Features): ✅ Completado
 - **Session 15** (Dogfooding + 9 Bug Fixes): ✅ Completado
+- **Session 16** (CI/CD & Cross-Platform Releases): ✅ Completado
+
+### Session 16: CI/CD & Cross-Platform Releases 📦
+**GitHub Actions CI fully green on Ubuntu, macOS, and Windows.**
+- CI: Tests on 3 OSes, Clippy (advisory), Rustfmt (continue-on-error)
+- Release workflow: Triggered on `v*` tags, builds 4 targets
+- Packages: `.deb` (cargo-deb), `.rpm` (cargo-generate-rpm), `.tar.gz`, `.zip`
+- SHA-256 checksums, auto-generated release notes
+- Cross-platform test fixes: `\r\n` normalization, Windows error messages, `#[cfg(unix)]` for LSP URI tests
+- `Cargo.toml`: packaging metadata, MIT license, homepage/repository
+- `README.md`: CI badges, installation instructions for 5 platforms, uninstall, build from source
 
 ### Session 15: Dogfooding — Student Grade Tracker
 **Comprehensive ~300-line program exercising ALL major features.**

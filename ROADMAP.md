@@ -1,10 +1,10 @@
 # 🗺️ Liva Language Roadmap
 
 > **Current Version:** v1.2.0-dev (tag: v1.0.2)  
-> **Status:** Session 15 complete — Dogfooding: Student Grade Tracker, 9 bugs fixed (#63-#74), 278 tests  
+> **Status:** Session 16 complete — CI/CD & Cross-Platform Releases, all platforms green  
 > **Next Phase:** Phase 13 — Advanced Features  
 > **Planned:** Phase 13 — Advanced Language Features  
-> **Last Updated:** 2026-02-12
+> **Last Updated:** 2026-02-18
 
 ---
 
@@ -2091,8 +2091,8 @@ type Pair<T, U> = (T, U)
 - [ ] Publish `livac` to crates.io
 - [ ] Publish VS Code extension to VS Code Marketplace
 - [ ] Set up GitHub Pages with docs (simple landing page)
-- [ ] Add GitHub Actions CI/CD (test + build on push)
-- [ ] Create GitHub Releases with prebuilt binaries
+- [x] Add GitHub Actions CI/CD (test + build on push) ✅ (Session 16)
+- [x] Create GitHub Releases with prebuilt binaries ✅ (Session 16: .deb, .rpm, .tar.gz, .zip)
 
 ---
 
