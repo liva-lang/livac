@@ -48,6 +48,10 @@ pub enum Token {
     Catch,
     #[token("return")]
     Return,
+    #[token("break")]
+    Break,
+    #[token("continue")]
+    Continue,
     #[token("async")]
     Async,
     #[token("parallel")]
@@ -106,6 +110,8 @@ pub enum Token {
     False,
     #[token("null")]
     Null,
+    // Note: 'data' is a contextual keyword, handled in parser via identifier check
+    // Not a hard keyword - allows 'data' as variable name
 
     // Logical operators (words)
     #[token("and")]

@@ -167,7 +167,8 @@ expression: json
             }
           }
         ],
-        "needs_serde": false
+        "needs_serde": false,
+        "is_data": false
       }
     }
   ]

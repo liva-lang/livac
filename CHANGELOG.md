@@ -7,6 +7,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - v1.2.0-dev
 
+### Added - Session 14: 5 New Language Features 🚀
+
+**5 pending language features implemented, tested, and documented:**
+
+1. **`break` / `continue`** — Loop control flow statements
+   - `break` exits the innermost loop immediately
+   - `continue` skips to the next iteration
+   - Works in `while` and `for` loops
+   - Full pipeline: lexer → parser → AST → IR → lowering → codegen → formatter → LSP completions
+
+2. **`..=` inclusive range in expressions** — `for i in 1..=10 { ... }`
+   - Previously only supported in `switch` pattern matching
+   - Now works as an expression range (e.g., `for` loops)
+   - New `BinOp::RangeInclusive` in AST and `ir::Expr::RangeInclusive` in IR
+   - Generates Rust `..=` operator
+
+3. **`Math.PI` / `Math.E`** — Mathematical constants
+   - `Math.PI` → `std::f64::consts::PI` (3.141592653589793)
+   - `Math.E` → `std::f64::consts::E` (2.718281828459045)
+   - Detected as member access on `Math` object
+
+4. **`[string].join(separator)`** — Array join method
+   - `words.join(", ")` → `words.join(", ")`
+   - Works on string arrays, generates Rust's native `.join()` 
+
+5. **`data` class sugar** — Auto-generated constructors and derives
+   - `data Point { x: number, y: number }` — no constructor needed
+   - Auto-generates: constructor, `PartialEq`, and `Display` impl
+   - `data` is a **contextual keyword** — can still be used as a variable name
+   - Supports methods: `data Color { r: number; sum() => r + g + b }`
+   - `Display` auto-formats as `ClassName { field1: v1, field2: v2 }`
+
+**8 new snapshot tests (tests/codegen_tests.rs):**
+- `test_feature_math_constants` — Math.PI, Math.E usage
+- `test_feature_array_join` — [string].join(sep)
+- `test_feature_inclusive_range` — for i in 1..=5
+- `test_feature_break` — while loop with break
+- `test_feature_continue` — for loop with continue
+- `test_feature_break_continue_combined` — both in same loop
+- `test_feature_data_class` — basic data class
+- `test_feature_data_class_with_methods` — data class with methods
+
+**Total tests: 272** (up from 264). Codegen snapshot tests: 80 (up from 72).
+
+**Files modified (10 source files):**
+- `src/lexer.rs` — Added `Break`, `Continue` tokens; `data` as contextual keyword
+- `src/ast.rs` — `BinOp::RangeInclusive`, `Stmt::Break/Continue`, `ClassDecl.is_data`
+- `src/parser.rs` — Range expression parsing, break/continue, contextual `data` detection
+- `src/ir.rs` — `ir::Expr::RangeInclusive`, `ir::Stmt::Break/Continue`
+- `src/lowering.rs` — AST → IR for inclusive range, break, continue
+- `src/codegen.rs` — All 5 features: Math.PI/E, join(), ..=, break/continue, data class
+- `src/semantic.rs` — Break/continue validation
+- `src/formatter.rs` — Break/continue formatting, data class prefix
+- `src/lsp/server.rs` — break/continue keyword completions
+- `tests/codegen_tests.rs` — 8 new snapshot tests
+
 ### Added - Comprehensive Feature Test Coverage 🧪
 
 **44 new snapshot tests documenting ALL supported Liva syntax (tests/codegen_tests.rs):**

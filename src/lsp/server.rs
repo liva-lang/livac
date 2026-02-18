@@ -291,6 +291,7 @@ impl LanguageServer for LivaLanguageServer {
             "let", "const", "fn", "return", "if", "else", "while", "for", "switch",
             "async", "await", "task", "fire", "import", "from", "export", "type",
             "true", "false", "print", "console", "Math", "JSON", "File", "HTTP",
+            "break", "continue",
         ];
         
         for keyword in keywords {

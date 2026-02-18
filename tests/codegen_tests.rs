@@ -1885,3 +1885,182 @@ main() {
     let rust_code = compile_and_generate(source);
     assert_snapshot!("feature_for_parallel", rust_code);
 }
+
+// ===========================================================================
+// New Language Features (v1.3.0)
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// 23. Math.PI / Math.E Constants
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_feature_math_constants() {
+    let source = r#"
+main() {
+    let pi = Math.PI
+    let e = Math.E
+    let circumference = 2.0 * Math.PI * 5.0
+    print(pi)
+    print(e)
+    print(circumference)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("feature_math_constants", rust_code);
+}
+
+// ---------------------------------------------------------------------------
+// 24. [string].join(separator)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_feature_array_join() {
+    let source = r#"
+main() {
+    let words: [string] = ["hello", "world", "foo"]
+    let result = words.join(", ")
+    let dashed = words.join("-")
+    print(result)
+    print(dashed)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("feature_array_join", rust_code);
+}
+
+// ---------------------------------------------------------------------------
+// 25. Inclusive Range ..= in For Loops
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_feature_inclusive_range() {
+    let source = r#"
+main() {
+    for i in 1..=5 {
+        print(i)
+    }
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("feature_inclusive_range", rust_code);
+}
+
+// ---------------------------------------------------------------------------
+// 26. Break Statement
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_feature_break() {
+    let source = r#"
+main() {
+    let i = 0
+    while i < 100 {
+        if i == 5 {
+            break
+        }
+        print(i)
+        i = i + 1
+    }
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("feature_break", rust_code);
+}
+
+// ---------------------------------------------------------------------------
+// 27. Continue Statement
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_feature_continue() {
+    let source = r#"
+main() {
+    for i in 0..10 {
+        if i == 3 {
+            continue
+        }
+        print(i)
+    }
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("feature_continue", rust_code);
+}
+
+// ---------------------------------------------------------------------------
+// 28. Break and Continue Combined
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_feature_break_continue_combined() {
+    let source = r#"
+main() {
+    for i in 0..20 {
+        if i == 15 {
+            break
+        }
+        if i % 2 == 0 {
+            continue
+        }
+        print(i)
+    }
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("feature_break_continue_combined", rust_code);
+}
+
+// ---------------------------------------------------------------------------
+// 29. Data Class
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_feature_data_class() {
+    let source = r#"
+data Point {
+    x: number
+    y: number
+}
+
+main() {
+    let p = Point(1, 2)
+    print(p)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("feature_data_class", rust_code);
+}
+
+// ---------------------------------------------------------------------------
+// 30. Data Class with Methods
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_feature_data_class_with_methods() {
+    let source = r#"
+data Color {
+    r: number
+    g: number
+    b: number
+
+    sum() => r + g + b
+}
+
+main() {
+    let c = Color(255, 128, 0)
+    print(c)
+    print(c.sum())
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("feature_data_class_with_methods", rust_code);
+}

@@ -195,6 +195,8 @@ fn lower_stmt(stmt: &ast::Stmt) -> ir::Stmt {
             value: lower_expr(&assign.value),
         },
         ast::Stmt::Return(ret) => ir::Stmt::Return(ret.expr.as_ref().map(lower_expr)),
+        ast::Stmt::Break => ir::Stmt::Break,
+        ast::Stmt::Continue => ir::Stmt::Continue,
         ast::Stmt::Throw(throw_stmt) => ir::Stmt::Throw(lower_expr(&throw_stmt.expr)),
         ast::Stmt::Expr(expr_stmt) => ir::Stmt::Expr(lower_expr(&expr_stmt.expr)),
         ast::Stmt::If(if_stmt) => ir::Stmt::If {
@@ -283,6 +285,12 @@ fn lower_expr(expr: &ast::Expr) -> ir::Expr {
                 ast::BinOp::Or => ir::BinaryOp::Or,
                 ast::BinOp::Range => {
                     return ir::Expr::Range {
+                        start: Box::new(lower_expr(left)),
+                        end: Box::new(lower_expr(right)),
+                    }
+                }
+                ast::BinOp::RangeInclusive => {
+                    return ir::Expr::RangeInclusive {
                         start: Box::new(lower_expr(left)),
                         end: Box::new(lower_expr(right)),
                     }
@@ -714,7 +722,7 @@ fn infer_expr_return_type_with_env(expr: &ast::Expr, vars: &HashMap<String, ir::
             ast::BinOp::Sub | ast::BinOp::Mul | ast::BinOp::Div | ast::BinOp::Mod => {
                 infer_numeric_result_type_with_env(left, right, vars)
             }
-            ast::BinOp::Range => ir::Type::Array(Box::new(ir::Type::Number)),
+            ast::BinOp::Range | ast::BinOp::RangeInclusive => ir::Type::Array(Box::new(ir::Type::Number)),
         },
         ast::Expr::Ternary {
             then_expr,

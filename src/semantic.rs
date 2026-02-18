@@ -620,6 +620,7 @@ impl SemanticAnalyzer {
             }
             Stmt::Throw(throw_stmt) => self.expr_contains_async(&throw_stmt.expr),
             Stmt::Fail(fail_stmt) => self.expr_contains_async(&fail_stmt.expr),
+            Stmt::Break | Stmt::Continue => false,
             Stmt::Return(ret) => ret
                 .expr
                 .as_ref()
@@ -1510,6 +1511,10 @@ impl SemanticAnalyzer {
                     self.handle_return(expr);
                 }
             }
+            Stmt::Break | Stmt::Continue => {
+                // Valid only inside loops; for now allow them anywhere
+                // and let Rust's compiler catch misuse
+            }
             Stmt::Expr(expr_stmt) => {
                 self.validate_expr(&expr_stmt.expr)?;
 
@@ -2249,6 +2254,7 @@ impl SemanticAnalyzer {
             }
             Stmt::Throw(throw_stmt) => Self::expr_contains_await(&throw_stmt.expr),
             Stmt::Fail(fail_stmt) => Self::expr_contains_await(&fail_stmt.expr),
+            Stmt::Break | Stmt::Continue => false,
             Stmt::Return(ret) => ret
                 .expr
                 .as_ref()

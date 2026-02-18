@@ -1,7 +1,7 @@
 # 🗺️ Liva Language Roadmap
 
 > **Current Version:** v1.2.0-dev (tag: v1.0.2)  
-> **Status:** Phase 12 complete — Test Framework (Test Runner + Test Library + Lifecycle Hooks + Async Tests)  
+> **Status:** Session 14 complete — 5 New Language Features (break/continue, ..=, Math.PI/E, join(), data class)  
 > **Next Phase:** Phase 13 — Advanced Features  
 > **Planned:** Phase 13 — Advanced Language Features  
 > **Last Updated:** 2026-02-12
@@ -243,7 +243,7 @@ Each phase is broken into sub-tasks with time estimates and clear deliverables.
   - [x] Tested: 4, 16, 31, -1 (not found) ✅
 - [x] All 11 string methods complete! 🎉
 - [x] Comprehensive tests created (4 test files)
-- [ ] Implement `join(separator)` on string arrays (future enhancement)
+- [x] Implement `join(separator)` on string arrays ✅ (Session 14)
 - [ ] Add comprehensive unit tests in tests/stdlib_tests.rs
 - [ ] Update documentation with working examples
 
@@ -273,7 +273,7 @@ Each phase is broken into sub-tasks with time estimates and clear deliverables.
 - [x] Implement `Math.random()` - Random number ✅ **WORKING!**
   - Example: `Math.random()` → `0.8025414370953201` ✅
   - Auto-adds `rand` crate dependency
-- [ ] Add constants: `Math.PI`, `Math.E` - **Future enhancement**
+- [x] Add constants: `Math.PI`, `Math.E` ✅ (Session 14)
 - [x] Add tests for all math functions ✅
   - Created `test_math_complete.liva` with all 9 functions
 - [x] Update documentation ✅

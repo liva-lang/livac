@@ -433,6 +433,20 @@ impl Parser {
                 )));
             }
         }
+        // Check for 'data' modifier (contextual keyword - data class)
+        // 'data' is not a reserved keyword, so it can be used as a variable name.
+        // We detect it here by checking: current token is Ident("data") AND next token is also Ident.
+        let is_data = if let Some(Token::Ident(name)) = self.peek() {
+            if name == "data" && self.peek_next_is(&Token::Ident(String::new())) {
+                self.advance(); // consume 'data' identifier
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
         let name = self.parse_identifier()?;
 
         // Check for type parameters
@@ -464,6 +478,7 @@ impl Parser {
                 implements,
                 members,
                 needs_serde: false,  // Will be set by semantic analyzer if used with JSON.parse
+                is_data,
             }));
         }
 
@@ -1229,6 +1244,10 @@ impl Parser {
                 None
             };
             Ok(Stmt::Return(ReturnStmt { expr: value }))
+        } else if self.match_token(&Token::Break) {
+            Ok(Stmt::Break)
+        } else if self.match_token(&Token::Continue) {
+            Ok(Stmt::Continue)
         } else if self.match_token(&Token::Fail) {
             let value = self.parse_expression()?;
             Ok(Stmt::Fail(FailStmt { expr: value }))
@@ -1302,6 +1321,14 @@ impl Parser {
                 None
             };
             return Ok(Stmt::Return(ReturnStmt { expr: value }));
+        }
+
+        if self.match_token(&Token::Break) {
+            return Ok(Stmt::Break);
+        }
+
+        if self.match_token(&Token::Continue) {
+            return Ok(Stmt::Continue);
         }
 
         if self.match_token(&Token::Throw) {
@@ -1601,6 +1628,15 @@ impl Parser {
 
     fn parse_assignment(&mut self) -> Result<Expr> {
         let expr = self.parse_or()?;
+
+        if self.match_token(&Token::DotDotEq) {
+            let right = self.parse_assignment()?;
+            return Ok(Expr::Binary {
+                op: BinOp::RangeInclusive,
+                left: Box::new(expr),
+                right: Box::new(right),
+            });
+        }
 
         if self.match_token(&Token::DotDot) {
             let right = self.parse_assignment()?;

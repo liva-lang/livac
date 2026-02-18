@@ -1893,7 +1893,12 @@ impl CodeGenerator {
         };
         
         // Phase 2: Generate serde derives if class is used with JSON.parse
-        let derives = if class.needs_serde {
+        // Data classes also get PartialEq
+        let derives = if class.is_data && class.needs_serde {
+            "#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]"
+        } else if class.is_data {
+            "#[derive(Debug, Clone, Default, PartialEq)]"
+        } else if class.needs_serde {
             "#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]"
         } else {
             "#[derive(Debug, Clone, Default)]"
@@ -2187,6 +2192,44 @@ impl CodeGenerator {
 
         self.dedent();
         self.writeln("}");
+
+        // Data class: auto-generate Display impl
+        if class.is_data {
+            self.output.push('\n');
+            self.writeln(&format!("impl{} std::fmt::Display for {}{} {{", impl_type_params, class.name, impl_type_args));
+            self.indent();
+            self.writeln("fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {");
+            self.indent();
+            
+            let fields: Vec<&FieldDecl> = class.members.iter().filter_map(|m| {
+                if let Member::Field(field) = m { Some(field) } else { None }
+            }).collect();
+            
+            if fields.is_empty() {
+                self.writeln(&format!("write!(f, \"{}\")", class.name));
+            } else {
+                self.write_indent();
+                write!(self.output, "write!(f, \"{} {{ ", class.name).unwrap();
+                for (i, field) in fields.iter().enumerate() {
+                    if i > 0 {
+                        self.output.push_str(", ");
+                    }
+                    let field_name = self.sanitize_name(&field.name);
+                    write!(self.output, "{}: {{}}", field_name).unwrap();
+                }
+                self.output.push_str(" }\"");
+                for field in &fields {
+                    let field_name = self.sanitize_name(&field.name);
+                    write!(self.output, ", self.{}", field_name).unwrap();
+                }
+                self.output.push_str(")\n");
+            }
+            
+            self.dedent();
+            self.writeln("}");
+            self.dedent();
+            self.writeln("}");
+        }
 
         Ok(())
     }
@@ -4180,6 +4223,14 @@ impl CodeGenerator {
                 }
                 self.output.push_str(";\n");
             }
+            Stmt::Break => {
+                self.write_indent();
+                self.output.push_str("break;\n");
+            }
+            Stmt::Continue => {
+                self.write_indent();
+                self.output.push_str("continue;\n");
+            }
             Stmt::Expr(expr_stmt) => {
                 // liva/test: describe(), test(), lifecycle hooks generate blocks — no trailing ;
                 let is_test_block_call = if let Expr::Call(call) = &expr_stmt.expr {
@@ -4446,6 +4497,17 @@ impl CodeGenerator {
                 self.generate_call_expr(call)?;
             }
             Expr::Member { object, property } => {
+                // Math constants: Math.PI, Math.E
+                if let Expr::Identifier(name) = object.as_ref() {
+                    if name == "Math" {
+                        match property.as_str() {
+                            "PI" => { self.output.push_str("std::f64::consts::PI"); return Ok(()); }
+                            "E" => { self.output.push_str("std::f64::consts::E"); return Ok(()); }
+                            _ => {} // Fall through to method call handling
+                        }
+                    }
+                }
+
                 // Phase 3.5: Special handling for error.message
                 if let Expr::Identifier(name) = object.as_ref() {
                     let sanitized = self.sanitize_name(name);
@@ -6143,6 +6205,19 @@ impl CodeGenerator {
         if is_string_method {
             // Handle string methods
             return self.generate_string_method_call(method_call);
+        }
+        
+        // Handle [string].join(separator) — array method that produces a string
+        if method_call.method == "join" {
+            self.generate_expr(&method_call.object)?;
+            self.output.push_str(".join(");
+            if !method_call.args.is_empty() {
+                self.generate_expr(&method_call.args[0])?;
+            } else {
+                self.output.push_str("\"\"");
+            }
+            self.output.push(')');
+            return Ok(());
         }
         
         // Check if this is a method on HTTP Response (e.g., response.json())
@@ -7849,7 +7924,7 @@ impl CodeGenerator {
             BinOp::Eq | BinOp::Ne => 70,
             BinOp::And => 60,
             BinOp::Or => 50,
-            BinOp::Range => 40,
+            BinOp::Range | BinOp::RangeInclusive => 40,
         }
     }
 
@@ -9303,6 +9378,14 @@ impl<'a> IrCodeGenerator<'a> {
                     self.output.push_str("return;\n");
                 }
             }
+            ir::Stmt::Break => {
+                self.write_indent();
+                self.output.push_str("break;\n");
+            }
+            ir::Stmt::Continue => {
+                self.write_indent();
+                self.output.push_str("continue;\n");
+            }
             ir::Stmt::Throw(expr) => {
                 self.write_indent();
                 if self.in_test_block {
@@ -10032,6 +10115,12 @@ impl<'a> IrCodeGenerator<'a> {
                 self.generate_expr(end)?;
                 Ok(())
             }
+            ir::Expr::RangeInclusive { start, end } => {
+                self.generate_expr(start)?;
+                self.output.push_str(" ..= ");
+                self.generate_expr(end)?;
+                Ok(())
+            }
             ir::Expr::Member { object, property } => {
                 if property == "length" {
                     // Bug #31 fix: Wrap in parens so .toString() works: (x.len() as i32).to_string()
@@ -10584,6 +10673,7 @@ fn stmt_has_unsupported(stmt: &ir::Stmt) -> bool {
             expr_has_unsupported(target) || expr_has_unsupported(value)
         }
         ir::Stmt::Return(expr) => expr.as_ref().map(expr_has_unsupported).unwrap_or(false),
+        ir::Stmt::Break | ir::Stmt::Continue => false,
         ir::Stmt::Throw(expr) => expr_has_unsupported(expr),
         ir::Stmt::Expr(expr) => expr_has_unsupported(expr),
         ir::Stmt::TryCatch {
@@ -10642,7 +10732,7 @@ fn expr_has_unsupported(expr: &ir::Expr) -> bool {
         ir::Expr::Index { object, index } => {
             expr_has_unsupported(object) || expr_has_unsupported(index)
         }
-        ir::Expr::Range { start, end } => expr_has_unsupported(start) || expr_has_unsupported(end),
+        ir::Expr::Range { start, end } | ir::Expr::RangeInclusive { start, end } => expr_has_unsupported(start) || expr_has_unsupported(end),
         ir::Expr::ObjectLiteral(fields) => {
             fields.iter().any(|(_, value)| expr_has_unsupported(value))
         }
@@ -10702,6 +10792,7 @@ fn stmt_has_async_concurrency(stmt: &ir::Stmt) -> bool {
             .as_ref()
             .map(expr_has_async_concurrency)
             .unwrap_or(false),
+        ir::Stmt::Break | ir::Stmt::Continue => false,
         ir::Stmt::Throw(expr) | ir::Stmt::Expr(expr) => expr_has_async_concurrency(expr),
         ir::Stmt::If {
             condition,
@@ -10758,6 +10849,7 @@ fn stmt_has_parallel_concurrency(stmt: &ir::Stmt) -> bool {
             .as_ref()
             .map(expr_has_parallel_concurrency)
             .unwrap_or(false),
+        ir::Stmt::Break | ir::Stmt::Continue => false,
         ir::Stmt::Throw(expr) | ir::Stmt::Expr(expr) => expr_has_parallel_concurrency(expr),
         ir::Stmt::If {
             condition,
@@ -10870,7 +10962,7 @@ fn expr_has_async_concurrency(expr: &ir::Expr) -> bool {
             expr_has_async_concurrency(object.as_ref())
                 || expr_has_async_concurrency(index.as_ref())
         }
-        &ir::Expr::Range { ref start, ref end } => {
+        &ir::Expr::Range { ref start, ref end } | &ir::Expr::RangeInclusive { ref start, ref end } => {
             expr_has_async_concurrency(start.as_ref()) || expr_has_async_concurrency(end.as_ref())
         }
         &ir::Expr::ObjectLiteral(ref fields) => fields
@@ -10945,7 +11037,7 @@ fn expr_has_parallel_concurrency(expr: &ir::Expr) -> bool {
             expr_has_parallel_concurrency(object.as_ref())
                 || expr_has_parallel_concurrency(index.as_ref())
         }
-        &ir::Expr::Range { ref start, ref end } => {
+        &ir::Expr::Range { ref start, ref end } | &ir::Expr::RangeInclusive { ref start, ref end } => {
             expr_has_parallel_concurrency(start.as_ref())
                 || expr_has_parallel_concurrency(end.as_ref())
         }
@@ -10984,6 +11076,7 @@ fn ast_stmt_has_async(stmt: &Stmt) -> bool {
             ast_expr_has_async(&assign.target) || ast_expr_has_async(&assign.value)
         }
         Stmt::Return(ret) => ret.expr.as_ref().map(ast_expr_has_async).unwrap_or(false),
+        Stmt::Break | Stmt::Continue => false,
         Stmt::Throw(t) => ast_expr_has_async(&t.expr),
         Stmt::Fail(f) => ast_expr_has_async(&f.expr),
         Stmt::Expr(e) => ast_expr_has_async(&e.expr),

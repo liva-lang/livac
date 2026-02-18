@@ -225,7 +225,8 @@ impl Formatter {
             format!(" : {}", decl.implements.join(", "))
         };
 
-        self.write_line(&format!("{}{}{} {{", decl.name, type_params, implements));
+        let prefix = if decl.is_data { "data " } else { "" };
+        self.write_line(&format!("{}{}{}{} {{", prefix, decl.name, type_params, implements));
         self.indent_level += 1;
         self.format_members(&decl.members);
         self.indent_level -= 1;
@@ -597,6 +598,12 @@ impl Formatter {
                 } else {
                     self.write_line("return");
                 }
+            }
+            Stmt::Break => {
+                self.write_line("break");
+            }
+            Stmt::Continue => {
+                self.write_line("continue");
             }
             Stmt::Expr(expr_stmt) => {
                 let e = self.format_expr(&expr_stmt.expr);
@@ -1363,6 +1370,8 @@ impl Formatter {
                     "return".to_string()
                 }
             }
+            Stmt::Break => "break".to_string(),
+            Stmt::Continue => "continue".to_string(),
             Stmt::Expr(es) => self.format_expr(&es.expr),
             Stmt::Fail(f) => format!("fail {}", self.format_expr(&f.expr)),
             _ => "/* ... */".to_string(),

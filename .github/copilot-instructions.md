@@ -208,7 +208,7 @@ describe("Calculator", () => {
 ## 🔄 Estado Actual
 
 - **62/62 bugs** del dogfooding corregidos (Session 13: +8 edge case codegen bugs)
-- **264 tests** totales (72 snapshot codegen tests documentando TODA la sintaxis)
+- **272 tests** totales (80 snapshot codegen tests documentando TODA la sintaxis)
 - **Phase 10** (Formatter): ✅ Completado
 - **Phase 11.1** (`or fail`): ✅ Completado  
 - **Phase 11.2** (`=>` one-liners): ✅ Completado
@@ -218,8 +218,17 @@ describe("Calculator", () => {
 - **Phase 12.2** (Test Library): ✅ Completado
 - **Phase 12.3** (Lifecycle Hooks): ✅ Completado
 - **Phase 12.4** (Async Test Support): ✅ Completado
+- **Session 14** (5 Language Features): ✅ Completado
 
-### Comprehensive Feature Test Coverage (codegen_tests.rs — 72 tests):
+### Session 14: 5 New Language Features
+1. **`break` / `continue`** — Loop control flow (while/for)
+2. **`..=` inclusive range** — `for i in 1..=10` (expression context, not just pattern matching)
+3. **`Math.PI` / `Math.E`** — Mathematical constants
+4. **`[string].join(sep)`** — Array join method
+5. **`data` class sugar** — `data Point { x: number, y: number }` with auto constructor, PartialEq, Display
+   - `data` is a **contextual keyword** — can still be used as a variable name
+
+### Comprehensive Feature Test Coverage (codegen_tests.rs — 80 tests):
 Snapshot tests serve as **source of truth** for all supported Liva syntax:
 - Variables: `let`, `const`, type annotations, top-level `const`
 - Types: primitives, Rust native types (`i8`-`i128`, `u64`, `f32`, `usize`)
@@ -227,22 +236,23 @@ Snapshot tests serve as **source of truth** for all supported Liva syntax:
 - Functions: one-liner `=>`, block, default params, lambdas, generics `<T>`
 - Control flow: `if`/`else`, ternary `? :`, one-liner ternary in `=>`
 - Pattern matching: switch statement (`case X:`), switch expression (`X => val`), or-patterns
-- Loops: `while`, `for` range, `for` array, one-liner `=>`, `for par` parallel
-- Classes & interfaces: constructor, fields, methods, visibility `_prefix`
+- Loops: `while`, `for` range, `for` array, one-liner `=>`, `for par` parallel, `break`/`continue`
+- Classes & interfaces: constructor, fields, methods, visibility `_prefix`, `data` classes
 - Error handling: `fail`, error binding, `or fail`, `try`/`catch (err)`
 - Concurrency: `async`, `par`, `task`, `fire`, `await`
-- Collections: `map`/`filter`/`reduce`/`find`/`some`/`every`/`forEach`/`includes`/`indexOf`/`push`/`pop`, chaining
+- Collections: `map`/`filter`/`reduce`/`find`/`some`/`every`/`forEach`/`includes`/`indexOf`/`push`/`pop`/`join`, chaining
 - Strings: templates `$"..."`, all methods, concatenation patterns
-- Stdlib: `print`, `console.*`, `Math.*`, `parseInt`/`parseFloat`/`toString`, `JSON.*`, `HTTP.*`
-- Advanced: tuples, type aliases, generics, test matchers
+- Stdlib: `print`, `console.*`, `Math.*` (including `PI`/`E`), `parseInt`/`parseFloat`/`toString`, `JSON.*`, `HTTP.*`
+- Advanced: tuples, type aliases, generics, test matchers, inclusive range `..=`
 
 ### Important Syntax Notes (discovered via testing):
 - Switch **statements** use `case X:` (colon); switch **expressions** use `X =>` (arrow, no `case` keyword)
 - `try`/`catch` requires parentheses: `catch (err) { }`
 - Ternary is an expression; `if` is a statement only (can't use in `=>` one-liners)
-- `for` ranges only support exclusive `..` (not `..=` in loop expressions)
+- `for` ranges support both `..` (exclusive) and `..=` (inclusive)
 - JSON typed parse uses `int` not `number`: `let x: [int], err = JSON.parse(...)`
 - `describe` is reserved for test framework — don't use as function name
+- `data` is a contextual keyword — only treated as keyword before a class name identifier
 
 ### Session 13 Bug Fixes (codegen.rs):
 - `ref_lambda_params: HashSet<String>` — dereference `&T` lambda params in comparisons

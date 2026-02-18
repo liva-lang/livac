@@ -83,6 +83,8 @@ pub enum Stmt {
         value: Expr,
     },
     Return(Option<Expr>),
+    Break,
+    Continue,
     Throw(Expr),
     Expr(Expr),
     If {
@@ -179,6 +181,10 @@ pub enum Expr {
     ArrayLiteral(Vec<Expr>),
     TupleLiteral(Vec<Expr>),
     Range {
+        start: Box<Expr>,
+        end: Box<Expr>,
+    },
+    RangeInclusive {
         start: Box<Expr>,
         end: Box<Expr>,
     },

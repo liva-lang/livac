@@ -378,20 +378,33 @@ main() {
 }
 ```
 
-### Data Class (No Methods)
+### Data Class (Sugar Syntax)
 
 ```liva
-Point {
-    constructor(x: number, y: number) {
-        this.x = x
-        this.y = y
-    }
+// data keyword auto-generates constructor, fields, PartialEq, and Display
+data Point {
     x: number
     y: number
 }
 
 let p = Point(10, 20)
-print($"({p.x}, {p.y})")
+print(p)  // "Point { x: 10, y: 20 }" (auto Display)
+print(p == Point(10, 20))  // true (auto PartialEq)
+```
+
+### Data Class with Methods
+
+```liva
+data Color {
+    r: number
+    g: number
+    b: number
+
+    sum() => r + g + b
+}
+
+let c = Color(255, 128, 0)
+print(c.sum())  // 383
 ```
 
 ---
@@ -620,6 +633,11 @@ let allPos = numbers.every(x => x > 0)       // true
 // Search
 let idx = numbers.indexOf(3)                 // 2
 let exists = numbers.includes(5)             // true
+
+// Join
+let words: [string] = ["hello", "world"]
+let sentence = words.join(" ")               // "hello world"
+let csv = words.join(",")                    // "hello,world"
 ```
 
 ### Chaining
@@ -854,6 +872,8 @@ let input = console.input("Name: ") // Read user input
 ### Math
 
 ```liva
+Math.PI              // 3.141592653589793
+Math.E               // 2.718281828459045
 Math.sqrt(16.0)      // 4.0
 Math.pow(2.0, 3.0)   // 8.0
 Math.abs(-10.5)      // 10.5

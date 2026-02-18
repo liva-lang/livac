@@ -100,6 +100,8 @@ pub struct ClassDecl {
     pub members: Vec<Member>,
     #[serde(default)]
     pub needs_serde: bool,  // Phase 2: true if used with JSON.parse
+    #[serde(default)]
+    pub is_data: bool,  // true for "data class" declarations
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -263,6 +265,8 @@ pub enum Stmt {
     Throw(ThrowStmt),
     Fail(FailStmt),
     Return(ReturnStmt),
+    Break,
+    Continue,
     Expr(ExprStmt),
     Block(BlockStmt),
 }
@@ -814,6 +818,7 @@ pub enum BinOp {
     And,
     Or,
     Range,
+    RangeInclusive,
 }
 
 impl fmt::Display for BinOp {
@@ -833,6 +838,7 @@ impl fmt::Display for BinOp {
             BinOp::And => write!(f, "&&"),
             BinOp::Or => write!(f, "||"),
             BinOp::Range => write!(f, ".."),
+            BinOp::RangeInclusive => write!(f, "..="),
         }
     }
 }

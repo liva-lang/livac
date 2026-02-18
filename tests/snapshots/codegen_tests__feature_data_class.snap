@@ -1,0 +1,383 @@
+---
+source: tests/codegen_tests.rs
+expression: rust_code
+---
+#[allow(dead_code)]
+mod liva_rt {
+    use std::future::Future;
+    use tokio::task::JoinHandle;
+    
+    /// Runtime error type for fallible operations
+    #[derive(Debug, Clone, PartialEq)]
+    pub struct Error {
+        pub message: String,
+    }
+    
+    impl Error {
+        pub fn from<S: Into<String>>(message: S) -> Self {
+            Error {
+                message: message.into(),
+            }
+        }
+    }
+    
+    impl std::fmt::Display for Error {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.message)
+        }
+    }
+    
+    impl std::error::Error for Error {}
+    
+    /// Spawn an async task
+    pub fn spawn_async<F, T>(future: F) -> JoinHandle<T>
+    where
+        F: Future<Output = T> + Send + 'static,
+        T: Send + 'static,
+    {
+        tokio::spawn(future)
+    }
+    /// Fire and forget async task
+    pub fn fire_async<F>(future: F)
+    where
+        F: Future<Output = ()> + Send + 'static,
+    {
+        tokio::spawn(future);
+    }
+    /// Spawn a parallel task on a dedicated blocking thread
+    pub fn spawn_parallel<F, T>(f: F) -> JoinHandle<T>
+    where
+        F: FnOnce() -> T + Send + 'static,
+        T: Send + 'static,
+    {
+        tokio::task::spawn_blocking(f)
+    }
+    /// Fire and forget parallel task
+    pub fn fire_parallel<F>(f: F)
+    where
+        F: FnOnce() + Send + 'static,
+    {
+        // For simplicity, just spawn a thread
+        std::thread::spawn(f);
+    }
+    
+    /// String multiplication helper
+    /// Supports both String*int and int*String patterns
+    pub fn string_mul<L: StringOrInt, R: StringOrInt>(left: L, right: R) -> String {
+        match (left.as_string_or_int(), right.as_string_or_int()) {
+            (StringOrIntValue::String(s), StringOrIntValue::Int(n)) => {
+                if n <= 0 { String::new() } else { s.repeat(n as usize) }
+            }
+            (StringOrIntValue::Int(n), StringOrIntValue::String(s)) => {
+                if n <= 0 { String::new() } else { s.repeat(n as usize) }
+            }
+            (StringOrIntValue::Int(a), StringOrIntValue::Int(b)) => {
+                (a * b).to_string()
+            }
+            (StringOrIntValue::String(_), StringOrIntValue::String(_)) => {
+                panic!("Cannot multiply two strings")
+            }
+        }
+    }
+    
+    pub enum StringOrIntValue {
+        String(String),
+        Int(i64),
+    }
+    
+    pub trait StringOrInt {
+        fn as_string_or_int(self) -> StringOrIntValue;
+    }
+    
+    impl StringOrInt for String {
+        fn as_string_or_int(self) -> StringOrIntValue { StringOrIntValue::String(self) }
+    }
+    impl StringOrInt for &str {
+        fn as_string_or_int(self) -> StringOrIntValue { StringOrIntValue::String(self.to_string()) }
+    }
+    impl StringOrInt for i32 {
+        fn as_string_or_int(self) -> StringOrIntValue { StringOrIntValue::Int(self as i64) }
+    }
+    impl StringOrInt for i64 {
+        fn as_string_or_int(self) -> StringOrIntValue { StringOrIntValue::Int(self) }
+    }
+    impl StringOrInt for f64 {
+        fn as_string_or_int(self) -> StringOrIntValue { StringOrIntValue::Int(self as i64) }
+    }
+    impl StringOrInt for usize {
+        fn as_string_or_int(self) -> StringOrIntValue { StringOrIntValue::Int(self as i64) }
+    }
+    
+    // HTTP Client
+    #[derive(Debug, Clone, Default)]
+    pub struct LivaHttpResponse {
+        pub status: i32,
+        pub status_text: String,
+        pub body: String,
+        pub headers: Vec<String>,
+    }
+    
+    impl LivaHttpResponse {
+        pub fn json(&self) -> (JsonValue, String) {
+            match serde_json::from_str(&self.body) {
+                Ok(value) => (JsonValue(value), String::new()),
+                Err(e) => (JsonValue(serde_json::Value::Null), format!("JSON parse error: {}", e)),
+            }
+        }
+    }
+    
+    pub async fn liva_http_get(url: String) -> (Option<LivaHttpResponse>, String) {
+        liva_http_request("GET", url, None).await
+    }
+    
+    pub async fn liva_http_post(url: String, body: String) -> (Option<LivaHttpResponse>, String) {
+        liva_http_request("POST", url, Some(body)).await
+    }
+    
+    pub async fn liva_http_put(url: String, body: String) -> (Option<LivaHttpResponse>, String) {
+        liva_http_request("PUT", url, Some(body)).await
+    }
+    
+    pub async fn liva_http_delete(url: String) -> (Option<LivaHttpResponse>, String) {
+        liva_http_request("DELETE", url, None).await
+    }
+    
+    async fn liva_http_request(method: &str, url: String, body: Option<String>) -> (Option<LivaHttpResponse>, String) {
+        if !url.starts_with("http://") && !url.starts_with("https://") {
+            return (None, format!("Invalid URL format: '{}'. URLs must start with http:// or https://", url));
+        }
+        
+        let client = match reqwest::Client::builder().timeout(std::time::Duration::from_secs(30)).build() {
+            Ok(c) => c,
+            Err(e) => return (None, format!("Failed to create HTTP client: {}", e)),
+        };
+        
+        let request_builder = match method {
+            "GET" => client.get(&url),
+            "POST" => {
+                let mut builder = client.post(&url);
+                if let Some(body_content) = body {
+                    builder = builder.header("Content-Type", "application/json").body(body_content);
+                }
+                builder
+            }
+            "PUT" => {
+                let mut builder = client.put(&url);
+                if let Some(body_content) = body {
+                    builder = builder.header("Content-Type", "application/json").body(body_content);
+                }
+                builder
+            }
+            "DELETE" => client.delete(&url),
+            _ => return (None, format!("Unknown HTTP method: {}", method)),
+        };
+        
+        // Add User-Agent header required by GitHub and other APIs
+        let request_builder = request_builder.header("User-Agent", "Liva-HTTP-Client/1.0");
+        
+        let response = match request_builder.send().await {
+            Ok(resp) => resp,
+            Err(e) => {
+                let error_msg = if e.is_timeout() { "Request timeout (30s)".to_string() }
+                else if e.is_connect() { format!("Connection error: {}", e) }
+                else { format!("Network error: {}", e) };
+                return (None, error_msg);
+            }
+        };
+        
+        let status = response.status();
+        let status_code = status.as_u16() as i32;
+        let status_text = status.canonical_reason().unwrap_or("Unknown").to_string();
+        
+        let mut headers = Vec::new();
+        for (key, value) in response.headers() {
+            if let Ok(value_str) = value.to_str() {
+                headers.push(format!("{}: {}", key.as_str(), value_str));
+            }
+        }
+        
+        let body = match response.text().await {
+            Ok(text) => text,
+            Err(e) => return (None, format!("Failed to read response body: {}", e)),
+        };
+        
+        (Some(LivaHttpResponse { status: status_code, status_text, body, headers }), String::new())
+    }
+    
+    // JSON Support
+    #[derive(Debug, Clone)]
+    pub struct JsonValue(pub serde_json::Value);
+    
+    impl Default for JsonValue {
+        fn default() -> Self { JsonValue(serde_json::Value::Null) }
+    }
+    
+    impl JsonValue {
+        pub fn new(value: serde_json::Value) -> Self { JsonValue(value) }
+        
+        pub fn length(&self) -> usize {
+            match &self.0 {
+                serde_json::Value::Array(arr) => arr.len(),
+                serde_json::Value::Object(obj) => obj.len(),
+                serde_json::Value::String(s) => s.len(),
+                _ => 0,
+            }
+        }
+        
+        pub fn get(&self, index: usize) -> Option<JsonValue> {
+            match &self.0 {
+                serde_json::Value::Array(arr) => arr.get(index).map(|v| JsonValue(v.clone())),
+                _ => None,
+            }
+        }
+        
+        pub fn get_field(&self, key: &str) -> Option<JsonValue> {
+            match &self.0 {
+                serde_json::Value::Object(obj) => obj.get(key).map(|v| JsonValue(v.clone())),
+                _ => None,
+            }
+        }
+        
+        pub fn as_i32(&self) -> Option<i32> {
+            self.0.as_i64().map(|n| n as i32)
+        }
+        
+        pub fn as_f64(&self) -> Option<f64> {
+            self.0.as_f64()
+        }
+        
+        pub fn as_float(&self) -> f64 {
+            self.0.as_f64().unwrap_or(0.0)
+        }
+        
+        pub fn as_string(&self) -> Option<String> {
+            match &self.0 {
+                serde_json::Value::String(s) => Some(s.clone()),
+                _ => None,
+            }
+        }
+        
+        pub fn as_bool(&self) -> Option<bool> {
+            self.0.as_bool()
+        }
+        
+        pub fn is_null(&self) -> bool {
+            self.0.is_null()
+        }
+        
+        pub fn is_array(&self) -> bool {
+            self.0.is_array()
+        }
+        
+        pub fn is_object(&self) -> bool {
+            self.0.is_object()
+        }
+        
+        pub fn to_json_string(&self) -> String {
+            self.0.to_string()
+        }
+        
+        pub fn as_array(&self) -> Vec<JsonValue> {
+            match &self.0 {
+                serde_json::Value::Array(arr) => arr.iter().map(|v| JsonValue(v.clone())).collect(),
+                _ => Vec::new(),
+            }
+        }
+        
+        pub fn to_vec(&self) -> Vec<JsonValue> {
+            self.as_array()
+        }
+        
+        pub fn iter(&self) -> std::vec::IntoIter<JsonValue> {
+            self.to_vec().into_iter()
+        }
+    }
+    
+    impl std::fmt::Display for JsonValue {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match &self.0 {
+                serde_json::Value::String(s) => write!(f, "{}", s),
+                serde_json::Value::Null => write!(f, "null"),
+                other => write!(f, "{}", other),
+            }
+        }
+    }
+    
+    impl std::ops::Index<&str> for JsonValue {
+        type Output = JsonValue;
+        
+        fn index(&self, key: &str) -> &Self::Output {
+            // This is a bit of a hack - we leak the value to get a static reference
+            // In practice, this is safe for our use case since we don't mutate
+            static NULL_VALUE: std::sync::OnceLock<JsonValue> = std::sync::OnceLock::new();
+            match &self.0 {
+                serde_json::Value::Object(obj) => {
+                    if let Some(v) = obj.get(key) {
+                        // Leak to get 'static lifetime - acceptable for read-only JSON access
+                        Box::leak(Box::new(JsonValue(v.clone())))
+                    } else {
+                        NULL_VALUE.get_or_init(|| JsonValue(serde_json::Value::Null))
+                    }
+                }
+                _ => NULL_VALUE.get_or_init(|| JsonValue(serde_json::Value::Null)),
+            }
+        }
+    }
+    
+    impl IntoIterator for JsonValue {
+        type Item = JsonValue;
+        type IntoIter = std::vec::IntoIter<JsonValue>;
+        
+        fn into_iter(self) -> Self::IntoIter {
+            match self.0 {
+                serde_json::Value::Array(arr) => {
+                    arr.into_iter().map(|v| JsonValue(v)).collect::<Vec<_>>().into_iter()
+                }
+                _ => Vec::new().into_iter(),
+            }
+        }
+    }
+    
+    impl PartialEq<bool> for JsonValue {
+        fn eq(&self, other: &bool) -> bool {
+            self.as_bool() == Some(*other)
+        }
+    }
+    
+    impl PartialEq<&str> for JsonValue {
+        fn eq(&self, other: &&str) -> bool {
+            match &self.0 {
+                serde_json::Value::String(s) => s == *other,
+                _ => false,
+            }
+        }
+    }
+    
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Point {
+    pub x: i32,
+    pub y: i32,
+}
+
+impl Point {
+    pub fn new() -> Self {
+        Self {
+                        x: 0,
+                        y: 0,
+        }
+    }
+
+}
+
+impl std::fmt::Display for Point {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Point { x: {}, y: {} }", self.x, self.y)
+    }
+}
+
+fn main() {
+    let p = Point::new(1, 2);
+    println!("{}", p);
+}
