@@ -46,29 +46,94 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: release-${{ runner.os }}-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: release-${{ runner.os }}-${{ matrix.target }}-
+
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Set Cargo.toml version from tag
+        shell: bash
+        run: |
+          sed -i.bak "s/^version = \".*\"/version = \"${{ steps.version.outputs.version }}\"/" Cargo.toml
+          rm -f Cargo.toml.bak
+
+      - name: Run tests
+        if: matrix.target != 'aarch64-apple-darwin'
+        run: cargo test
+
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Prepare artifact (Unix)
+      # --- Binary artifact (.tar.gz / .zip) ---
+
+      - name: Package binary (Unix)
         if: runner.os != 'Windows'
         run: |
           cd target/${{ matrix.target }}/release
           tar czf ../../../${{ matrix.artifact }}.tar.gz ${{ matrix.bin }}
 
-      - name: Prepare artifact (Windows)
+      - name: Package binary (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           cd target/${{ matrix.target }}/release
           Compress-Archive -Path ${{ matrix.bin }} -DestinationPath ../../../${{ matrix.artifact }}.zip
 
-      - name: Upload artifact
+      - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: |
             ${{ matrix.artifact }}.tar.gz
             ${{ matrix.artifact }}.zip
+
+      # --- Linux packages (.deb + .rpm) ---
+
+      - name: Install cargo-deb
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: cargo install cargo-deb
+
+      - name: Build .deb package
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: |
+          cargo deb --no-build --target ${{ matrix.target }}
+          cp target/${{ matrix.target }}/debian/livac_*.deb livac_amd64.deb
+          ls -la livac_amd64.deb
+
+      - name: Upload .deb artifact
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        uses: actions/upload-artifact@v4
+        with:
+          name: livac-deb
+          path: livac_amd64.deb
+
+      - name: Install cargo-generate-rpm
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: cargo install cargo-generate-rpm
+
+      - name: Build .rpm package
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: |
+          cargo generate-rpm --target ${{ matrix.target }}
+          cp target/generate-rpm/livac-*.rpm livac.x86_64.rpm
+          ls -la livac.x86_64.rpm
+
+      - name: Upload .rpm artifact
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        uses: actions/upload-artifact@v4
+        with:
+          name: livac-rpm
+          path: livac.x86_64.rpm
 
   release:
     name: Create Release
@@ -85,12 +150,17 @@ jobs:
       - name: List artifacts
         run: find artifacts -type f | sort
 
+      - name: Flatten artifacts
+        run: |
+          mkdir -p release
+          find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.deb' -o -name '*.rpm' \) \
+            -exec cp {} release/ \;
+          ls -la release/
+
       - name: Generate checksums
         run: |
-          cd artifacts
-          find . -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec sh -c '
-            for f; do sha256sum "$f"; done
-          ' _ {} + | sed 's|  \./[^/]*/|  |' > ../checksums.txt
+          cd release
+          sha256sum * > ../checksums.txt
           cat ../checksums.txt
 
       - name: Extract version from tag
@@ -100,11 +170,29 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Liva ${{ steps.version.outputs.version }}
+          name: "Liva ${{ steps.version.outputs.version }}"
           draft: false
           prerelease: ${{ contains(github.ref, '-rc') || contains(github.ref, '-beta') || contains(github.ref, '-alpha') }}
-          generate_release_notes: true
+          body: |
+            ## 📦 Installation
+
+            | Platform | Package | Command |
+            |----------|---------|---------|
+            | **Ubuntu/Debian** | `.deb` | `sudo dpkg -i livac_amd64.deb` |
+            | **Fedora/RHEL** | `.rpm` | `sudo rpm -i livac.x86_64.rpm` |
+            | **Linux** (x64) | `.tar.gz` | `tar xzf livac-linux-x64.tar.gz && sudo mv livac /usr/local/bin/` |
+            | **macOS** (Apple Silicon) | `.tar.gz` | `tar xzf livac-darwin-arm64.tar.gz && sudo mv livac /usr/local/bin/` |
+            | **macOS** (Intel) | `.tar.gz` | `tar xzf livac-darwin-x64.tar.gz && sudo mv livac /usr/local/bin/` |
+            | **Windows** (x64) | `.zip` | Extract `livac.exe` and add to PATH |
+
+            ---
+
+            **Verify installation:**
+            ```bash
+            livac --version
+            ```
+
+            **Checksums:** See `checksums.txt` below for SHA-256 verification.
           files: |
-            artifacts/**/*.tar.gz
-            artifacts/**/*.zip
+            release/*
             checksums.txt

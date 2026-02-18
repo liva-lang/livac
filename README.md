@@ -1,9 +1,9 @@
 # 🚀 Liva Programming Language
 
-[![Version](https://img.shields.io/badge/version-1.1.0--dev-blue.svg)](CHANGELOG.md)
+[![CI](https://github.com/liva-lang/livac/actions/workflows/ci.yml/badge.svg)](https://github.com/liva-lang/livac/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/liva-lang/livac?include_prereleases&label=latest)](https://github.com/liva-lang/livac/releases/latest)
+[![Tests](https://img.shields.io/badge/tests-278%20passing-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-110%2B%20passing-brightgreen.svg)]()
-[![Bugs Fixed](https://img.shields.io/badge/dogfooding%20bugs-54%2F54%20fixed-success.svg)]()
 
 > **The simplicity of TypeScript, the expressiveness of Python, and the safety of Rust.**
 
@@ -26,23 +26,78 @@
 
 ## 🚀 Installation
 
-### Prerequisites
+### Pre-built Binaries (Recommended)
 
-- **Rust** 1.70 or newer ([Install Rust](https://rustup.rs/))
-- **Git**
+Download the latest release from [**GitHub Releases**](https://github.com/liva-lang/livac/releases/latest):
 
-### Install from Source
+#### 🐧 Linux (Ubuntu/Debian)
 
 ```bash
-# Clone and build
+curl -LO https://github.com/liva-lang/livac/releases/latest/download/livac_amd64.deb
+sudo dpkg -i livac_amd64.deb
+livac --version
+```
+
+#### 🎩 Linux (Fedora/RHEL)
+
+```bash
+curl -LO https://github.com/liva-lang/livac/releases/latest/download/livac.x86_64.rpm
+sudo rpm -i livac.x86_64.rpm
+livac --version
+```
+
+#### 🐧 Linux (Generic)
+
+```bash
+curl -L https://github.com/liva-lang/livac/releases/latest/download/livac-linux-x64.tar.gz | tar xz
+sudo mv livac /usr/local/bin/
+livac --version
+```
+
+#### 🍎 macOS
+
+```bash
+# Apple Silicon (M1/M2/M3/M4)
+curl -L https://github.com/liva-lang/livac/releases/latest/download/livac-darwin-arm64.tar.gz | tar xz
+sudo mv livac /usr/local/bin/
+
+# Intel Mac
+curl -L https://github.com/liva-lang/livac/releases/latest/download/livac-darwin-x64.tar.gz | tar xz
+sudo mv livac /usr/local/bin/
+
+livac --version
+```
+
+#### 🪟 Windows
+
+1. Download [`livac-windows-x64.zip`](https://github.com/liva-lang/livac/releases/latest/download/livac-windows-x64.zip)
+2. Extract `livac.exe`
+3. Add the folder to your `PATH`
+4. Open a terminal: `livac --version`
+
+#### Uninstall
+
+```bash
+# Debian/Ubuntu
+sudo apt remove livac
+
+# Fedora/RHEL
+sudo rpm -e livac
+
+# macOS / Linux (tar.gz)
+sudo rm /usr/local/bin/livac
+```
+
+### Build from Source
+
+Requires [Rust](https://rustup.rs/) 1.70+:
+
+```bash
 git clone https://github.com/liva-lang/livac.git
 cd livac
 cargo build --release
 cargo install --path .
-
-# Verify
 livac --version
-# 🧩 Liva Compiler v1.0.0
 ```
 
 ---
@@ -337,7 +392,7 @@ Liva Source (.liva)
 
 ## 🧪 Battle-Tested
 
-Liva v1.0.0 was built through extensive **dogfooding** — 10+ real CLI applications were built with Liva, uncovering and fixing **54 bugs** (100% resolved):
+Liva was built through extensive **dogfooding** — 10+ real applications were built with Liva, uncovering and fixing **71 bugs** (100% resolved):
 
 | App | What it tests |
 |-----|--------------|
@@ -351,6 +406,7 @@ Liva v1.0.0 was built through extensive **dogfooding** — 10+ real CLI applicat
 | 🔧 Log Analyzer | Pattern matching + File.exists |
 | 🔧 Modular App | Multi-file imports |
 | 🔧 Generics Tests | Box\<T\>, Stack\<T\>, Pair\<A,B\> |
+| 🎓 Student Grade Tracker | Data classes + Interfaces + Switch ranges + Error handling |
 
 ---
 
@@ -370,7 +426,7 @@ livac --help              # Show all options
 ## 🧪 Testing
 
 ```bash
-cargo test                 # Run all 110+ tests
+cargo test                 # Run all 278 tests
 cargo test lexer           # Run lexer tests
 cargo test codegen         # Run codegen tests
 cargo test -- --nocapture  # With output

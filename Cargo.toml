@@ -1,9 +1,15 @@
 [package]
 name = "livac"
-version = "1.0.0"
+version = "1.2.0"
 edition = "2021"
 authors = ["Fran Nadal"]
 description = "Liva to Rust compiler - combining TypeScript simplicity, Python expressiveness, and Rust safety"
+homepage = "https://github.com/liva-lang/livac"
+repository = "https://github.com/liva-lang/livac"
+license = "MIT"
+readme = "README.md"
+keywords = ["compiler", "language", "liva", "rust", "transpiler"]
+categories = ["compilers", "development-tools"]
 
 [lib]
 name = "livac"
@@ -61,3 +67,25 @@ opt-level = 3
 lto = true
 codegen-units = 1
 strip = true
+
+# === Packaging Metadata ===
+
+[package.metadata.deb]
+maintainer = "Fran Nadal"
+copyright = "2024-2026 Fran Nadal"
+extended-description = """\
+Liva is a modern programming language that compiles to Rust. \
+It combines the simplicity of TypeScript, the expressiveness of Python, \
+and the safety and performance of Rust."""
+depends = "$auto"
+section = "devel"
+priority = "optional"
+assets = [
+    ["target/release/livac", "usr/bin/", "755"],
+]
+
+[package.metadata.generate-rpm]
+assets = [
+    { source = "target/release/livac", dest = "/usr/bin/livac", mode = "0755" },
+]
+[package.metadata.generate-rpm.requires]
