@@ -1,6 +1,6 @@
 use std::future::Future;
-use tokio::task::spawn as tokio_spawn;
 use std::time::Duration;
+use tokio::task::spawn as tokio_spawn;
 
 // Placeholder types for advanced parallelism features
 pub enum ThreadOption {
@@ -247,7 +247,10 @@ impl LivaHttpResponse {
     pub fn json(&self) -> (JsonValue, String) {
         match serde_json::from_str(&self.body) {
             Ok(value) => (JsonValue(value), String::new()),
-            Err(e) => (JsonValue(serde_json::Value::Null), format!("JSON parse error: {}", e)),
+            Err(e) => (
+                JsonValue(serde_json::Value::Null),
+                format!("JSON parse error: {}", e),
+            ),
         }
     }
 }
@@ -280,7 +283,13 @@ async fn liva_http_request(
 ) -> (Option<LivaHttpResponse>, String) {
     // Validate URL format
     if !url.starts_with("http://") && !url.starts_with("https://") {
-        return (None, format!("Invalid URL format: '{}'. URLs must start with http:// or https://", url));
+        return (
+            None,
+            format!(
+                "Invalid URL format: '{}'. URLs must start with http:// or https://",
+                url
+            ),
+        );
     }
 
     // Create reqwest client with 30s timeout
@@ -378,7 +387,7 @@ impl JsonValue {
     pub fn new(value: serde_json::Value) -> Self {
         JsonValue(value)
     }
-    
+
     /// Get length of array or object
     pub fn length(&self) -> usize {
         match &self.0 {
@@ -388,7 +397,7 @@ impl JsonValue {
             _ => 0,
         }
     }
-    
+
     /// Get element by index (for arrays)
     pub fn get(&self, index: usize) -> Option<JsonValue> {
         match &self.0 {
@@ -396,7 +405,7 @@ impl JsonValue {
             _ => None,
         }
     }
-    
+
     /// Get field by key (for objects)
     pub fn get_field(&self, key: &str) -> Option<JsonValue> {
         match &self.0 {
@@ -404,17 +413,17 @@ impl JsonValue {
             _ => None,
         }
     }
-    
+
     /// Convert to i32 if possible
     pub fn as_i32(&self) -> Option<i32> {
         self.0.as_i64().map(|n| n as i32)
     }
-    
+
     /// Convert to f64 if possible
     pub fn as_f64(&self) -> Option<f64> {
         self.0.as_f64()
     }
-    
+
     /// Convert to String
     pub fn as_string(&self) -> Option<String> {
         match &self.0 {
@@ -422,32 +431,32 @@ impl JsonValue {
             _ => None,
         }
     }
-    
+
     /// Convert to bool
     pub fn as_bool(&self) -> Option<bool> {
         self.0.as_bool()
     }
-    
+
     /// Check if null
     pub fn is_null(&self) -> bool {
         self.0.is_null()
     }
-    
+
     /// Check if array
     pub fn is_array(&self) -> bool {
         self.0.is_array()
     }
-    
+
     /// Check if object
     pub fn is_object(&self) -> bool {
         self.0.is_object()
     }
-    
+
     /// Convert entire value to string (JSON representation)
     pub fn to_json_string(&self) -> String {
         self.0.to_string()
     }
-    
+
     /// Get as vector for iteration (if array)
     pub fn as_array(&self) -> Option<Vec<JsonValue>> {
         match &self.0 {
@@ -457,12 +466,12 @@ impl JsonValue {
             _ => None,
         }
     }
-    
+
     /// Convert to Vec for array operations (unwraps to empty vec if not array)
     pub fn to_vec(&self) -> Vec<JsonValue> {
         self.as_array().unwrap_or_else(Vec::new)
     }
-    
+
     /// Iterator method for array operations (forEach, map, filter)
     /// Always returns a Vec iterator for consistency
     pub fn iter(&self) -> std::vec::IntoIter<JsonValue> {
@@ -483,9 +492,11 @@ impl IntoIterator for JsonValue {
 
     fn into_iter(self) -> Self::IntoIter {
         match self.0 {
-            serde_json::Value::Array(arr) => {
-                arr.into_iter().map(|v| JsonValue(v)).collect::<Vec<_>>().into_iter()
-            }
+            serde_json::Value::Array(arr) => arr
+                .into_iter()
+                .map(|v| JsonValue(v))
+                .collect::<Vec<_>>()
+                .into_iter(),
             _ => Vec::new().into_iter(), // Empty iterator for non-arrays
         }
     }

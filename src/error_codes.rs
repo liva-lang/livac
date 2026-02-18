@@ -151,12 +151,12 @@ impl ErrorCategory {
 
         match num {
             // E0xxx sub-ranges
-            0..=99 => Some(ErrorCategory::Semantic),         // E0000-E0099: Core semantic
-            100..=299 => Some(ErrorCategory::Semantic),       // E0100-E0299: Reserved semantic
-            300..=399 => Some(ErrorCategory::Semantic),        // E0300-E0399: Destructuring
-            400..=699 => Some(ErrorCategory::Concurrency),     // E0400-E0699: Concurrency
-            700..=799 => Some(ErrorCategory::ErrorHandling),   // E0700-E0799: Error handling
-            900..=999 => Some(ErrorCategory::Semantic),        // E0900-E0999: Pattern matching
+            0..=99 => Some(ErrorCategory::Semantic), // E0000-E0099: Core semantic
+            100..=299 => Some(ErrorCategory::Semantic), // E0100-E0299: Reserved semantic
+            300..=399 => Some(ErrorCategory::Semantic), // E0300-E0399: Destructuring
+            400..=699 => Some(ErrorCategory::Concurrency), // E0400-E0699: Concurrency
+            700..=799 => Some(ErrorCategory::ErrorHandling), // E0700-E0799: Error handling
+            900..=999 => Some(ErrorCategory::Semantic), // E0900-E0999: Pattern matching
             // Major ranges
             1000..=1999 => Some(ErrorCategory::Lexer),
             2000..=2999 => Some(ErrorCategory::Parser),
@@ -228,10 +228,7 @@ mod tests {
             Some(ErrorCategory::Module)
         );
         // Type system
-        assert_eq!(
-            ErrorCategory::from_code("E5001"),
-            Some(ErrorCategory::Type)
-        );
+        assert_eq!(ErrorCategory::from_code("E5001"), Some(ErrorCategory::Type));
         // Concurrency sub-range (E0400-E0699)
         assert_eq!(
             ErrorCategory::from_code("E0401"),

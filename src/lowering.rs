@@ -64,14 +64,14 @@ fn lower_function(func: &ast::FunctionDecl) -> ir::Function {
             } else {
                 ir::Type::Inferred
             };
-            
+
             // For destructured parameters, use temporary names
             let param_name = if let Some(name) = param.name() {
                 name.to_string()
             } else {
                 format!("_param_{}", i)
             };
-            
+
             ir::Param {
                 name: param_name,
                 ty,
@@ -331,9 +331,7 @@ fn lower_expr(expr: &ast::Expr) -> ir::Expr {
         ast::Expr::ArrayLiteral(items) => {
             ir::Expr::ArrayLiteral(items.iter().map(lower_expr).collect())
         }
-        ast::Expr::Tuple(items) => {
-            ir::Expr::TupleLiteral(items.iter().map(lower_expr).collect())
-        }
+        ast::Expr::Tuple(items) => ir::Expr::TupleLiteral(items.iter().map(lower_expr).collect()),
         ast::Expr::ObjectLiteral(fields) => ir::Expr::ObjectLiteral(
             fields
                 .iter()
@@ -366,7 +364,10 @@ fn lower_expr(expr: &ast::Expr) -> ir::Expr {
                 .iter()
                 .enumerate()
                 .map(|(idx, param)| ir::LambdaParam {
-                    name: param.name().map(|s| s.to_string()).unwrap_or_else(|| format!("_param_{}", idx)),
+                    name: param
+                        .name()
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| format!("_param_{}", idx)),
                     type_ref: param.type_ref.as_ref().map(|tr| tr.to_rust_type()),
                 })
                 .collect();
@@ -722,7 +723,9 @@ fn infer_expr_return_type_with_env(expr: &ast::Expr, vars: &HashMap<String, ir::
             ast::BinOp::Sub | ast::BinOp::Mul | ast::BinOp::Div | ast::BinOp::Mod => {
                 infer_numeric_result_type_with_env(left, right, vars)
             }
-            ast::BinOp::Range | ast::BinOp::RangeInclusive => ir::Type::Array(Box::new(ir::Type::Number)),
+            ast::BinOp::Range | ast::BinOp::RangeInclusive => {
+                ir::Type::Array(Box::new(ir::Type::Number))
+            }
         },
         ast::Expr::Ternary {
             then_expr,

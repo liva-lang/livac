@@ -94,7 +94,8 @@ pub struct CodeGenerator {
     // --- Async user functions
     async_functions: std::collections::BTreeSet<String>, // User-defined async functions (BTreeSet from DesugarContext)
     // --- Phase 6: Interface method signatures (for type inference)
-    interface_methods: std::collections::HashMap<String, std::collections::HashMap<String, TypeRef>>, // interface_name -> (method_name -> return_type)
+    interface_methods:
+        std::collections::HashMap<String, std::collections::HashMap<String, TypeRef>>, // interface_name -> (method_name -> return_type)
     // --- Module aliases for wildcard imports (alias -> actual_module_name)
     module_aliases: std::collections::HashMap<String, String>,
     // --- Current function return type (for casting division results)
@@ -165,12 +166,13 @@ impl CodeGenerator {
             Expr::Identifier(var_name) => self.json_value_vars.contains(var_name),
             Expr::MethodCall(mc) => {
                 // If the method returns a JsonValue (e.g., .get_field(), .get())
-                matches!(mc.method.as_str(), "get" | "get_field") || self.is_json_value_expr(&mc.object)
+                matches!(mc.method.as_str(), "get" | "get_field")
+                    || self.is_json_value_expr(&mc.object)
             }
             _ => false,
         }
     }
-    
+
     /// Check if an expression is a DIRECT JsonValue (not Vec<JsonValue>)
     /// Direct means: from JSON.parse(), .get(), .get_field()
     /// Not from: .map(), .filter() (those return Vec<JsonValue>)
@@ -188,26 +190,36 @@ impl CodeGenerator {
             _ => false,
         }
     }
-    
+
     /// Check if expression is JSON.parse method call (Phase 1: JSON Typed Parsing)
     fn is_json_parse_call(&self, expr: &Expr) -> bool {
         match expr {
             // JSON.parse() call
-            Expr::MethodCall(mc) if matches!(&*mc.object, Expr::Identifier(id) if id == "JSON") && mc.method == "parse" => true,
+            Expr::MethodCall(mc)
+                if matches!(&*mc.object, Expr::Identifier(id) if id == "JSON")
+                    && mc.method == "parse" =>
+            {
+                true
+            }
             // response.json() or any object's .json() method
             Expr::MethodCall(mc) if mc.method == "json" => true,
-            _ => false
+            _ => false,
         }
     }
-    
+
     /// Check if expression is JSON.stringify method call (returns tuple)
     fn is_json_stringify_call(&self, expr: &Expr) -> bool {
         match expr {
-            Expr::MethodCall(mc) if matches!(&*mc.object, Expr::Identifier(id) if id == "JSON") && mc.method == "stringify" => true,
-            _ => false
+            Expr::MethodCall(mc)
+                if matches!(&*mc.object, Expr::Identifier(id) if id == "JSON")
+                    && mc.method == "stringify" =>
+            {
+                true
+            }
+            _ => false,
         }
     }
-    
+
     /// Check if expression is an HTTP call (GET/POST/PUT/DELETE)
     fn is_http_call(&self, expr: &Expr) -> bool {
         match expr {
@@ -215,38 +227,45 @@ impl CodeGenerator {
                 // Check if callee is HTTP method call (async HTTP.get, etc.)
                 if let Expr::MethodCall(mc) = call.callee.as_ref() {
                     if let Expr::Identifier(obj) = mc.object.as_ref() {
-                        return (obj == "HTTP" || obj == "Http") && matches!(mc.method.as_str(), "get" | "post" | "put" | "delete");
+                        return (obj == "HTTP" || obj == "Http")
+                            && matches!(mc.method.as_str(), "get" | "post" | "put" | "delete");
                     }
                 }
                 false
             }
             Expr::MethodCall(mc) => {
                 if let Expr::Identifier(obj) = mc.object.as_ref() {
-                    return (obj == "HTTP" || obj == "Http") && matches!(mc.method.as_str(), "get" | "post" | "put" | "delete");
+                    return (obj == "HTTP" || obj == "Http")
+                        && matches!(mc.method.as_str(), "get" | "post" | "put" | "delete");
                 }
                 false
             }
-            _ => false
+            _ => false,
         }
     }
-    
+
     /// Check if expression is a File call (read/write/append/delete)
     fn is_file_call(&self, expr: &Expr) -> bool {
         match expr {
             Expr::MethodCall(mc) => {
                 if let Expr::Identifier(obj) = mc.object.as_ref() {
-                    return obj == "File" && matches!(mc.method.as_str(), "read" | "write" | "append" | "delete");
+                    return obj == "File"
+                        && matches!(mc.method.as_str(), "read" | "write" | "append" | "delete");
                 }
                 false
             }
-            _ => false
+            _ => false,
         }
     }
-    
+
     /// Check if expression is an await of a pending HTTP task
     /// Returns the task variable name if it's an HTTP task await
     fn is_await_http_task(&self, expr: &Expr) -> Option<String> {
-        if let Expr::Unary { op: crate::ast::UnOp::Await, operand } = expr {
+        if let Expr::Unary {
+            op: crate::ast::UnOp::Await,
+            operand,
+        } = expr
+        {
             if let Expr::Identifier(name) = operand.as_ref() {
                 let sanitized = self.sanitize_name(name);
                 if let Some(task_info) = self.pending_tasks.get(&sanitized) {
@@ -258,7 +277,7 @@ impl CodeGenerator {
         }
         None
     }
-    
+
     /// Check if an async expression contains an HTTP call
     /// e.g., async HTTP.get(url) -> true
     fn is_http_call_in_async(&self, expr: &Expr) -> bool {
@@ -267,7 +286,8 @@ impl CodeGenerator {
                 // Check if callee is HTTP method call
                 if let Expr::MethodCall(mc) = call.callee.as_ref() {
                     if let Expr::Identifier(obj) = mc.object.as_ref() {
-                        return (obj == "HTTP" || obj == "Http") && matches!(mc.method.as_str(), "get" | "post" | "put" | "delete");
+                        return (obj == "HTTP" || obj == "Http")
+                            && matches!(mc.method.as_str(), "get" | "post" | "put" | "delete");
                     }
                 }
                 false
@@ -275,30 +295,39 @@ impl CodeGenerator {
             _ => false,
         }
     }
-    
+
     /// Bug #45-46: Detect which type parameters need Clone bound
     /// Returns set of type param names that need Clone bound based on usage
-    fn infer_type_param_bounds(&self, class: &ClassDecl) -> std::collections::HashMap<String, std::collections::HashSet<String>> {
-        let mut bounds: std::collections::HashMap<String, std::collections::HashSet<String>> = std::collections::HashMap::new();
-        
+    fn infer_type_param_bounds(
+        &self,
+        class: &ClassDecl,
+    ) -> std::collections::HashMap<String, std::collections::HashSet<String>> {
+        let mut bounds: std::collections::HashMap<String, std::collections::HashSet<String>> =
+            std::collections::HashMap::new();
+
         // Initialize bounds for each type param
         for tp in &class.type_params {
             bounds.insert(tp.name.clone(), std::collections::HashSet::new());
         }
-        
+
         // Get set of type param names for quick lookup
-        let type_param_names: std::collections::HashSet<String> = class.type_params.iter().map(|tp| tp.name.clone()).collect();
-        
+        let type_param_names: std::collections::HashSet<String> =
+            class.type_params.iter().map(|tp| tp.name.clone()).collect();
+
         // Get field types to detect generic fields (only fields with explicit types)
-        let generic_fields: std::collections::HashMap<String, &TypeRef> = class.members.iter().filter_map(|m| {
-            if let Member::Field(f) = m {
-                // Only include fields that have explicit type annotations
-                f.type_ref.as_ref().map(|t| (f.name.clone(), t))
-            } else {
-                None
-            }
-        }).collect();
-        
+        let generic_fields: std::collections::HashMap<String, &TypeRef> = class
+            .members
+            .iter()
+            .filter_map(|m| {
+                if let Member::Field(f) = m {
+                    // Only include fields that have explicit type annotations
+                    f.type_ref.as_ref().map(|t| (f.name.clone(), t))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
         // Analyze methods for patterns that need Clone/Display bounds
         for member in &class.members {
             if let Member::Method(method) = member {
@@ -309,34 +338,44 @@ impl CodeGenerator {
                     for tp_name in &type_param_names {
                         if self.type_contains_param(return_type, tp_name) {
                             // Check if method body accesses self fields that need clone
-                            if self.method_returns_self_field_of_type(method, tp_name, &generic_fields) {
+                            if self.method_returns_self_field_of_type(
+                                method,
+                                tp_name,
+                                &generic_fields,
+                            ) {
                                 bounds.get_mut(tp_name).unwrap().insert("Clone".to_string());
                             }
                         }
                     }
                 }
-                
+
                 // Bug #54: Check for string templates using type params
                 if let Some(body) = &method.body {
                     for tp_name in &type_param_names {
                         if self.block_uses_type_in_template(body, tp_name, &generic_fields) {
-                            bounds.get_mut(tp_name).unwrap().insert("std::fmt::Display".to_string());
+                            bounds
+                                .get_mut(tp_name)
+                                .unwrap()
+                                .insert("std::fmt::Display".to_string());
                         }
                     }
                 }
                 if let Some(expr_body) = &method.expr_body {
                     for tp_name in &type_param_names {
                         if self.expr_uses_type_in_template(expr_body, tp_name, &generic_fields) {
-                            bounds.get_mut(tp_name).unwrap().insert("std::fmt::Display".to_string());
+                            bounds
+                                .get_mut(tp_name)
+                                .unwrap()
+                                .insert("std::fmt::Display".to_string());
                         }
                     }
                 }
             }
         }
-        
+
         bounds
     }
-    
+
     /// Check if a TypeRef contains a type parameter
     fn type_contains_param(&self, type_ref: &TypeRef, param_name: &str) -> bool {
         match type_ref {
@@ -344,16 +383,25 @@ impl CodeGenerator {
             TypeRef::Array(inner) => self.type_contains_param(inner, param_name),
             TypeRef::Optional(inner) => self.type_contains_param(inner, param_name),
             TypeRef::Fallible(inner) => self.type_contains_param(inner, param_name),
-            TypeRef::Tuple(elems) => elems.iter().any(|e| self.type_contains_param(e, param_name)),
+            TypeRef::Tuple(elems) => elems
+                .iter()
+                .any(|e| self.type_contains_param(e, param_name)),
             TypeRef::Generic { base, args } => {
                 base == param_name || args.iter().any(|a| self.type_contains_param(a, param_name))
             }
-            TypeRef::Union(variants) => variants.iter().any(|v| self.type_contains_param(v, param_name)),
+            TypeRef::Union(variants) => variants
+                .iter()
+                .any(|v| self.type_contains_param(v, param_name)),
         }
     }
-    
+
     /// Check if method returns from a self field that involves the type parameter
-    fn method_returns_self_field_of_type(&self, method: &MethodDecl, type_param: &str, generic_fields: &std::collections::HashMap<String, &TypeRef>) -> bool {
+    fn method_returns_self_field_of_type(
+        &self,
+        method: &MethodDecl,
+        type_param: &str,
+        generic_fields: &std::collections::HashMap<String, &TypeRef>,
+    ) -> bool {
         if let Some(body) = &method.body {
             return self.block_returns_self_field_of_type(body, type_param, generic_fields);
         }
@@ -362,8 +410,13 @@ impl CodeGenerator {
         }
         false
     }
-    
-    fn block_returns_self_field_of_type(&self, block: &BlockStmt, type_param: &str, generic_fields: &std::collections::HashMap<String, &TypeRef>) -> bool {
+
+    fn block_returns_self_field_of_type(
+        &self,
+        block: &BlockStmt,
+        type_param: &str,
+        generic_fields: &std::collections::HashMap<String, &TypeRef>,
+    ) -> bool {
         for stmt in &block.stmts {
             if self.stmt_returns_self_field_of_type(stmt, type_param, generic_fields) {
                 return true;
@@ -371,8 +424,13 @@ impl CodeGenerator {
         }
         false
     }
-    
-    fn stmt_returns_self_field_of_type(&self, stmt: &Stmt, type_param: &str, generic_fields: &std::collections::HashMap<String, &TypeRef>) -> bool {
+
+    fn stmt_returns_self_field_of_type(
+        &self,
+        stmt: &Stmt,
+        type_param: &str,
+        generic_fields: &std::collections::HashMap<String, &TypeRef>,
+    ) -> bool {
         match stmt {
             Stmt::Return(ret) => {
                 if let Some(expr) = &ret.expr {
@@ -382,13 +440,19 @@ impl CodeGenerator {
             }
             Stmt::If(if_stmt) => {
                 let then_returns = match &if_stmt.then_branch {
-                    IfBody::Block(b) => self.block_returns_self_field_of_type(b, type_param, generic_fields),
-                    IfBody::Stmt(s) => self.stmt_returns_self_field_of_type(s, type_param, generic_fields),
+                    IfBody::Block(b) => {
+                        self.block_returns_self_field_of_type(b, type_param, generic_fields)
+                    }
+                    IfBody::Stmt(s) => {
+                        self.stmt_returns_self_field_of_type(s, type_param, generic_fields)
+                    }
                 };
-                let else_returns = if_stmt.else_branch.as_ref().map_or(false, |eb| {
-                    match eb {
-                        IfBody::Block(b) => self.block_returns_self_field_of_type(b, type_param, generic_fields),
-                        IfBody::Stmt(s) => self.stmt_returns_self_field_of_type(s, type_param, generic_fields),
+                let else_returns = if_stmt.else_branch.as_ref().map_or(false, |eb| match eb {
+                    IfBody::Block(b) => {
+                        self.block_returns_self_field_of_type(b, type_param, generic_fields)
+                    }
+                    IfBody::Stmt(s) => {
+                        self.stmt_returns_self_field_of_type(s, type_param, generic_fields)
                     }
                 });
                 then_returns || else_returns
@@ -396,8 +460,13 @@ impl CodeGenerator {
             _ => false,
         }
     }
-    
-    fn expr_returns_self_field_of_type(&self, expr: &Expr, type_param: &str, generic_fields: &std::collections::HashMap<String, &TypeRef>) -> bool {
+
+    fn expr_returns_self_field_of_type(
+        &self,
+        expr: &Expr,
+        type_param: &str,
+        generic_fields: &std::collections::HashMap<String, &TypeRef>,
+    ) -> bool {
         match expr {
             // Direct field access: this.value where value: T
             Expr::Member { object, property } => {
@@ -413,7 +482,11 @@ impl CodeGenerator {
             }
             // Array indexing: this.items[i] where items: [T]
             Expr::Index { object, .. } => {
-                if let Expr::Member { object: base, property } = object.as_ref() {
+                if let Expr::Member {
+                    object: base,
+                    property,
+                } = object.as_ref()
+                {
                     if let Expr::Identifier(obj) = base.as_ref() {
                         if obj == "this" || obj == "self" {
                             if let Some(field_type) = generic_fields.get(property) {
@@ -431,9 +504,14 @@ impl CodeGenerator {
             _ => false,
         }
     }
-    
+
     /// Bug #54: Check if block uses type param in string templates
-    fn block_uses_type_in_template(&self, block: &BlockStmt, type_param: &str, generic_fields: &std::collections::HashMap<String, &TypeRef>) -> bool {
+    fn block_uses_type_in_template(
+        &self,
+        block: &BlockStmt,
+        type_param: &str,
+        generic_fields: &std::collections::HashMap<String, &TypeRef>,
+    ) -> bool {
         for stmt in &block.stmts {
             if self.stmt_uses_type_in_template(stmt, type_param, generic_fields) {
                 return true;
@@ -441,39 +519,66 @@ impl CodeGenerator {
         }
         false
     }
-    
-    fn stmt_uses_type_in_template(&self, stmt: &Stmt, type_param: &str, generic_fields: &std::collections::HashMap<String, &TypeRef>) -> bool {
+
+    fn stmt_uses_type_in_template(
+        &self,
+        stmt: &Stmt,
+        type_param: &str,
+        generic_fields: &std::collections::HashMap<String, &TypeRef>,
+    ) -> bool {
         match stmt {
-            Stmt::Expr(expr_stmt) => self.expr_uses_type_in_template(&expr_stmt.expr, type_param, generic_fields),
-            Stmt::Return(ret) => ret.expr.as_ref().map_or(false, |e| self.expr_uses_type_in_template(e, type_param, generic_fields)),
-            Stmt::VarDecl(var_decl) => self.expr_uses_type_in_template(&var_decl.init, type_param, generic_fields),
+            Stmt::Expr(expr_stmt) => {
+                self.expr_uses_type_in_template(&expr_stmt.expr, type_param, generic_fields)
+            }
+            Stmt::Return(ret) => ret.expr.as_ref().map_or(false, |e| {
+                self.expr_uses_type_in_template(e, type_param, generic_fields)
+            }),
+            Stmt::VarDecl(var_decl) => {
+                self.expr_uses_type_in_template(&var_decl.init, type_param, generic_fields)
+            }
             Stmt::If(if_stmt) => {
-                let cond = self.expr_uses_type_in_template(&if_stmt.condition, type_param, generic_fields);
+                let cond =
+                    self.expr_uses_type_in_template(&if_stmt.condition, type_param, generic_fields);
                 let then_branch = match &if_stmt.then_branch {
-                    IfBody::Block(b) => self.block_uses_type_in_template(b, type_param, generic_fields),
-                    IfBody::Stmt(s) => self.stmt_uses_type_in_template(s, type_param, generic_fields),
+                    IfBody::Block(b) => {
+                        self.block_uses_type_in_template(b, type_param, generic_fields)
+                    }
+                    IfBody::Stmt(s) => {
+                        self.stmt_uses_type_in_template(s, type_param, generic_fields)
+                    }
                 };
-                let else_branch = if_stmt.else_branch.as_ref().map_or(false, |eb| {
-                    match eb {
-                        IfBody::Block(b) => self.block_uses_type_in_template(b, type_param, generic_fields),
-                        IfBody::Stmt(s) => self.stmt_uses_type_in_template(s, type_param, generic_fields),
+                let else_branch = if_stmt.else_branch.as_ref().map_or(false, |eb| match eb {
+                    IfBody::Block(b) => {
+                        self.block_uses_type_in_template(b, type_param, generic_fields)
+                    }
+                    IfBody::Stmt(s) => {
+                        self.stmt_uses_type_in_template(s, type_param, generic_fields)
                     }
                 });
                 cond || then_branch || else_branch
             }
             Stmt::While(while_stmt) => {
-                self.expr_uses_type_in_template(&while_stmt.condition, type_param, generic_fields) ||
-                self.block_uses_type_in_template(&while_stmt.body, type_param, generic_fields)
+                self.expr_uses_type_in_template(&while_stmt.condition, type_param, generic_fields)
+                    || self.block_uses_type_in_template(
+                        &while_stmt.body,
+                        type_param,
+                        generic_fields,
+                    )
             }
             Stmt::For(for_stmt) => {
-                self.expr_uses_type_in_template(&for_stmt.iterable, type_param, generic_fields) ||
-                self.block_uses_type_in_template(&for_stmt.body, type_param, generic_fields)
+                self.expr_uses_type_in_template(&for_stmt.iterable, type_param, generic_fields)
+                    || self.block_uses_type_in_template(&for_stmt.body, type_param, generic_fields)
             }
             _ => false,
         }
     }
-    
-    fn expr_uses_type_in_template(&self, expr: &Expr, type_param: &str, generic_fields: &std::collections::HashMap<String, &TypeRef>) -> bool {
+
+    fn expr_uses_type_in_template(
+        &self,
+        expr: &Expr,
+        type_param: &str,
+        generic_fields: &std::collections::HashMap<String, &TypeRef>,
+    ) -> bool {
         match expr {
             Expr::StringTemplate { parts } => {
                 // Check if any part references a generic field
@@ -482,7 +587,8 @@ impl CodeGenerator {
                         if let Expr::Member { object, property } = inner_expr.as_ref() {
                             if let Expr::Identifier(obj) = object.as_ref() {
                                 if obj == "this" || obj == "self" {
-                                    if let Some(field_type) = generic_fields.get(property.as_str()) {
+                                    if let Some(field_type) = generic_fields.get(property.as_str())
+                                    {
                                         if self.type_contains_param(field_type, type_param) {
                                             return true;
                                         }
@@ -492,10 +598,16 @@ impl CodeGenerator {
                         }
                         // Also check for array indexing in template
                         if let Expr::Index { object, .. } = inner_expr.as_ref() {
-                            if let Expr::Member { object: base, property } = object.as_ref() {
+                            if let Expr::Member {
+                                object: base,
+                                property,
+                            } = object.as_ref()
+                            {
                                 if let Expr::Identifier(obj) = base.as_ref() {
                                     if obj == "this" || obj == "self" {
-                                        if let Some(field_type) = generic_fields.get(property.as_str()) {
+                                        if let Some(field_type) =
+                                            generic_fields.get(property.as_str())
+                                        {
                                             if let TypeRef::Array(elem_type) = field_type {
                                                 if self.type_contains_param(elem_type, type_param) {
                                                     return true;
@@ -511,21 +623,27 @@ impl CodeGenerator {
                 false
             }
             Expr::Call(call) => {
-                self.expr_uses_type_in_template(&call.callee, type_param, generic_fields) ||
-                call.args.iter().any(|a| self.expr_uses_type_in_template(a, type_param, generic_fields))
+                self.expr_uses_type_in_template(&call.callee, type_param, generic_fields)
+                    || call
+                        .args
+                        .iter()
+                        .any(|a| self.expr_uses_type_in_template(a, type_param, generic_fields))
             }
             Expr::MethodCall(mc) => {
-                self.expr_uses_type_in_template(&mc.object, type_param, generic_fields) ||
-                mc.args.iter().any(|a| self.expr_uses_type_in_template(a, type_param, generic_fields))
+                self.expr_uses_type_in_template(&mc.object, type_param, generic_fields)
+                    || mc
+                        .args
+                        .iter()
+                        .any(|a| self.expr_uses_type_in_template(a, type_param, generic_fields))
             }
             Expr::Binary { left, right, .. } => {
-                self.expr_uses_type_in_template(left, type_param, generic_fields) ||
-                self.expr_uses_type_in_template(right, type_param, generic_fields)
+                self.expr_uses_type_in_template(left, type_param, generic_fields)
+                    || self.expr_uses_type_in_template(right, type_param, generic_fields)
             }
             _ => false,
         }
     }
-    
+
     /// Check if a method modifies self fields (requires &mut self)
     fn method_modifies_self(&self, method: &MethodDecl) -> bool {
         if let Some(body) = &method.body {
@@ -533,7 +651,7 @@ impl CodeGenerator {
         }
         false
     }
-    
+
     /// Check if a block contains assignments to self fields
     fn block_modifies_self(&self, block: &BlockStmt) -> bool {
         for stmt in &block.stmts {
@@ -543,14 +661,15 @@ impl CodeGenerator {
         }
         false
     }
-    
+
     /// Check if a statement modifies self fields
     fn stmt_modifies_self(&self, stmt: &Stmt) -> bool {
         match stmt {
             Stmt::Expr(expr_stmt) => self.expr_modifies_self(&expr_stmt.expr),
-            Stmt::Return(return_stmt) => {
-                return_stmt.expr.as_ref().map_or(false, |e| self.expr_modifies_self(e))
-            }
+            Stmt::Return(return_stmt) => return_stmt
+                .expr
+                .as_ref()
+                .map_or(false, |e| self.expr_modifies_self(e)),
             Stmt::VarDecl(var_decl) => self.expr_modifies_self(&var_decl.init),
             Stmt::Assign(assign_stmt) => {
                 // Check if left side is this.field
@@ -569,35 +688,44 @@ impl CodeGenerator {
                     IfBody::Block(b) => self.block_modifies_self(b),
                     IfBody::Stmt(s) => self.stmt_modifies_self(s),
                 };
-                let else_modifies = if_stmt.else_branch.as_ref().map_or(false, |eb| {
-                    match eb {
-                        IfBody::Block(b) => self.block_modifies_self(b),
-                        IfBody::Stmt(s) => self.stmt_modifies_self(s),
-                    }
+                let else_modifies = if_stmt.else_branch.as_ref().map_or(false, |eb| match eb {
+                    IfBody::Block(b) => self.block_modifies_self(b),
+                    IfBody::Stmt(s) => self.stmt_modifies_self(s),
                 });
                 cond_modifies || then_modifies || else_modifies
             }
             Stmt::While(while_stmt) => {
-                self.expr_modifies_self(&while_stmt.condition) || self.block_modifies_self(&while_stmt.body)
+                self.expr_modifies_self(&while_stmt.condition)
+                    || self.block_modifies_self(&while_stmt.body)
             }
             Stmt::For(for_stmt) => {
-                self.expr_modifies_self(&for_stmt.iterable) || self.block_modifies_self(&for_stmt.body)
+                self.expr_modifies_self(&for_stmt.iterable)
+                    || self.block_modifies_self(&for_stmt.body)
             }
             _ => false,
         }
     }
-    
+
     /// Check if an expression modifies self fields (assignment to this.field)
     fn expr_modifies_self(&self, expr: &Expr) -> bool {
         match expr {
             Expr::MethodCall(mc) => {
                 // Bug #20 fix: Check if calling mutating methods on self fields
                 // e.g., self.notes.push(note) means we modify self
-                let is_mutating_method = matches!(mc.method.as_str(), 
-                    "push" | "pop" | "remove" | "clear" | "insert" | 
-                    "sort" | "reverse" | "extend" | "retain" | "truncate"
+                let is_mutating_method = matches!(
+                    mc.method.as_str(),
+                    "push"
+                        | "pop"
+                        | "remove"
+                        | "clear"
+                        | "insert"
+                        | "sort"
+                        | "reverse"
+                        | "extend"
+                        | "retain"
+                        | "truncate"
                 );
-                
+
                 if is_mutating_method {
                     // Check if the base is this.something
                     if let Some(base_name) = self.get_base_var_name(&mc.object) {
@@ -614,11 +742,13 @@ impl CodeGenerator {
                         }
                     }
                 }
-                
-                self.expr_modifies_self(&mc.object) || mc.args.iter().any(|a| self.expr_modifies_self(a))
+
+                self.expr_modifies_self(&mc.object)
+                    || mc.args.iter().any(|a| self.expr_modifies_self(a))
             }
             Expr::Call(call) => {
-                self.expr_modifies_self(&call.callee) || call.args.iter().any(|a| self.expr_modifies_self(a))
+                self.expr_modifies_self(&call.callee)
+                    || call.args.iter().any(|a| self.expr_modifies_self(a))
             }
             Expr::Binary { left, right, .. } => {
                 self.expr_modifies_self(left) || self.expr_modifies_self(right)
@@ -626,7 +756,7 @@ impl CodeGenerator {
             _ => false,
         }
     }
-    
+
     /// Extract the base variable name from an expression
     /// e.g., posts.parvec() -> "posts", myArray -> "myArray", this.items -> "items"
     fn get_base_var_name(&self, expr: &Expr) -> Option<String> {
@@ -644,19 +774,27 @@ impl CodeGenerator {
                 // For other member expressions, try the property name
                 Some(property.clone())
             }
-            _ => None
+            _ => None,
         }
     }
-    
+
     /// Collect all variables that are mutated (assigned after declaration) in a block
-    fn collect_mutated_vars_in_block(&self, block: &BlockStmt, mutated: &mut std::collections::HashSet<String>) {
+    fn collect_mutated_vars_in_block(
+        &self,
+        block: &BlockStmt,
+        mutated: &mut std::collections::HashSet<String>,
+    ) {
         for stmt in &block.stmts {
             self.collect_mutated_vars_in_stmt(stmt, mutated);
         }
     }
-    
+
     /// Collect mutated variables from a statement
-    fn collect_mutated_vars_in_stmt(&self, stmt: &Stmt, mutated: &mut std::collections::HashSet<String>) {
+    fn collect_mutated_vars_in_stmt(
+        &self,
+        stmt: &Stmt,
+        mutated: &mut std::collections::HashSet<String>,
+    ) {
         match stmt {
             Stmt::Assign(assign) => {
                 // This is an assignment - the target variable is mutated
@@ -716,17 +854,36 @@ impl CodeGenerator {
             _ => {}
         }
     }
-    
+
     /// Collect mutated variables from an expression (for compound ops like i += 1)
-    fn collect_mutated_vars_in_expr(&self, expr: &Expr, mutated: &mut std::collections::HashSet<String>) {
+    fn collect_mutated_vars_in_expr(
+        &self,
+        expr: &Expr,
+        mutated: &mut std::collections::HashSet<String>,
+    ) {
         match expr {
             Expr::MethodCall(mc) => {
                 // Mutating methods like push, pop, etc. - for arrays AND class instances
                 // Bug #43 fix: These methods mutate the object regardless of whether it's an array or class
-                let is_mutating_method = matches!(mc.method.as_str(), 
-                    "push" | "pop" | "remove" | "clear" | "insert" | 
-                    "sort" | "reverse" | "extend" | "retain" | "truncate" |
-                    "set" | "add" | "delete" | "update" | "reset" | "increment" | "decrement"
+                let is_mutating_method = matches!(
+                    mc.method.as_str(),
+                    "push"
+                        | "pop"
+                        | "remove"
+                        | "clear"
+                        | "insert"
+                        | "sort"
+                        | "reverse"
+                        | "extend"
+                        | "retain"
+                        | "truncate"
+                        | "set"
+                        | "add"
+                        | "delete"
+                        | "update"
+                        | "reset"
+                        | "increment"
+                        | "decrement"
                 );
                 if is_mutating_method {
                     if let Expr::Identifier(name) = mc.object.as_ref() {
@@ -734,22 +891,22 @@ impl CodeGenerator {
                         mutated.insert(self.sanitize_name(name));
                     }
                 }
-                
+
                 // For class instances, any method call could potentially mutate
                 // We use a heuristic: if the method name doesn't start with "get", "is", "has", "to"
                 // it's likely a mutating method
-                let is_likely_getter = mc.method.starts_with("get") || 
-                    mc.method.starts_with("is") || 
-                    mc.method.starts_with("has") ||
-                    mc.method.starts_with("to") ||
-                    mc.method == "length" ||
-                    mc.method == "size" ||
-                    mc.method == "count" ||
-                    mc.method == "clone" ||
-                    mc.method == "toString" ||
-                    mc.method == "describe" ||
-                    mc.method == "display";
-                
+                let is_likely_getter = mc.method.starts_with("get")
+                    || mc.method.starts_with("is")
+                    || mc.method.starts_with("has")
+                    || mc.method.starts_with("to")
+                    || mc.method == "length"
+                    || mc.method == "size"
+                    || mc.method == "count"
+                    || mc.method == "clone"
+                    || mc.method == "toString"
+                    || mc.method == "describe"
+                    || mc.method == "display";
+
                 if !is_likely_getter && !is_mutating_method {
                     // This could be a mutating method on a class instance
                     if let Expr::Identifier(name) = mc.object.as_ref() {
@@ -757,7 +914,7 @@ impl CodeGenerator {
                         mutated.insert(self.sanitize_name(name));
                     }
                 }
-                
+
                 // Recurse into args
                 for arg in &mc.args {
                     self.collect_mutated_vars_in_expr(arg, mutated);
@@ -773,20 +930,26 @@ impl CodeGenerator {
             _ => {}
         }
     }
-    
+
     /// Generate typed JSON parsing code (Phase 1: JSON Typed Parsing)
     /// Generates: serde_json::from_str::<Type>(&json_string)
-    fn generate_typed_json_parse(&mut self, method_call: &MethodCallExpr, type_ref: &TypeRef) -> Result<()> {
+    fn generate_typed_json_parse(
+        &mut self,
+        method_call: &MethodCallExpr,
+        type_ref: &TypeRef,
+    ) -> Result<()> {
         // Convert Liva type to Rust type
         let rust_type = type_ref.to_rust_type();
-        
+
         // Generate: serde_json::from_str::<RustType>(&json_arg)
         self.output.push_str("serde_json::from_str::<");
         self.output.push_str(&rust_type);
         self.output.push_str(">(&");
-        
+
         // Check if this is JSON.parse() or response.json()
-        if method_call.method == "json" && !matches!(&*method_call.object, Expr::Identifier(id) if id == "JSON") {
+        if method_call.method == "json"
+            && !matches!(&*method_call.object, Expr::Identifier(id) if id == "JSON")
+        {
             // This is response.json() - use the response body
             self.generate_expr(&method_call.object)?;
             self.output.push_str(".body");
@@ -795,16 +958,14 @@ impl CodeGenerator {
             if let Some(arg) = method_call.args.first() {
                 self.generate_expr(arg)?;
             } else {
-                return Err(CompilerError::CodegenError(
-                    SemanticErrorInfo::new(
-                        "E3001",
-                        "JSON.parse requires a string argument",
-                        "JSON.parse must be called with a JSON string"
-                    )
-                ));
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3001",
+                    "JSON.parse requires a string argument",
+                    "JSON.parse must be called with a JSON string",
+                )));
             }
         }
-        
+
         self.output.push(')');
         Ok(())
     }
@@ -859,17 +1020,19 @@ impl CodeGenerator {
                     }
                 }
                 self.class_fields.insert(cls.name.clone(), fields);
-                self.class_optional_fields.insert(cls.name.clone(), optional_fields);
+                self.class_optional_fields
+                    .insert(cls.name.clone(), optional_fields);
             }
         }
-        
+
         // Build interface method signatures map (for type inference in implementing classes)
         // Note: Due to parser design, interfaces may be parsed as Class without constructor
         self.interface_methods.clear();
         for item in &program.items {
             // Check TopLevel::Type (explicit interface syntax via 'type' keyword)
             if let TopLevel::Type(type_decl) = item {
-                let mut methods: std::collections::HashMap<String, TypeRef> = std::collections::HashMap::new();
+                let mut methods: std::collections::HashMap<String, TypeRef> =
+                    std::collections::HashMap::new();
                 for member in &type_decl.members {
                     if let Member::Method(m) = member {
                         if let Some(ret_type) = &m.return_type {
@@ -878,20 +1041,23 @@ impl CodeGenerator {
                     }
                 }
                 if !methods.is_empty() {
-                    self.interface_methods.insert(type_decl.name.clone(), methods);
+                    self.interface_methods
+                        .insert(type_decl.name.clone(), methods);
                 }
             }
             // Also check Class that is really an interface (no constructor, only method signatures)
             if let TopLevel::Class(class) = item {
-                let has_constructor = class.members.iter().any(|m| {
-                    matches!(m, Member::Method(method) if method.name == "constructor")
-                });
+                let has_constructor = class
+                    .members
+                    .iter()
+                    .any(|m| matches!(m, Member::Method(method) if method.name == "constructor"));
                 let has_method_bodies = class.members.iter().any(|m| {
                     matches!(m, Member::Method(method) if method.body.is_some() || method.expr_body.is_some())
                 });
                 // If no constructor and no method bodies, it's an interface
                 if !has_constructor && !has_method_bodies {
-                    let mut methods: std::collections::HashMap<String, TypeRef> = std::collections::HashMap::new();
+                    let mut methods: std::collections::HashMap<String, TypeRef> =
+                        std::collections::HashMap::new();
                     for member in &class.members {
                         if let Member::Method(m) = member {
                             if let Some(ret_type) = &m.return_type {
@@ -906,8 +1072,10 @@ impl CodeGenerator {
             }
         }
 
-    // Always include concurrency runtime for now
-    if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: Including liva_rt module"); }
+        // Always include concurrency runtime for now
+        if std::env::var("LIVA_DEBUG").is_ok() {
+            println!("DEBUG: Including liva_rt module");
+        }
         self.writeln("#[allow(dead_code)]");
         self.writeln("mod liva_rt {");
         self.indent();
@@ -1007,7 +1175,9 @@ impl CodeGenerator {
         // String multiplication helper
         self.writeln("/// String multiplication helper");
         self.writeln("/// Supports both String*int and int*String patterns");
-        self.writeln("pub fn string_mul<L: StringOrInt, R: StringOrInt>(left: L, right: R) -> String {");
+        self.writeln(
+            "pub fn string_mul<L: StringOrInt, R: StringOrInt>(left: L, right: R) -> String {",
+        );
         self.indent();
         self.writeln("match (left.as_string_or_int(), right.as_string_or_int()) {");
         self.indent();
@@ -1051,7 +1221,9 @@ impl CodeGenerator {
         self.writeln("");
         self.writeln("impl StringOrInt for String {");
         self.indent();
-        self.writeln("fn as_string_or_int(self) -> StringOrIntValue { StringOrIntValue::String(self) }");
+        self.writeln(
+            "fn as_string_or_int(self) -> StringOrIntValue { StringOrIntValue::String(self) }",
+        );
         self.dedent();
         self.writeln("}");
         self.writeln("impl StringOrInt for &str {");
@@ -1061,22 +1233,30 @@ impl CodeGenerator {
         self.writeln("}");
         self.writeln("impl StringOrInt for i32 {");
         self.indent();
-        self.writeln("fn as_string_or_int(self) -> StringOrIntValue { StringOrIntValue::Int(self as i64) }");
+        self.writeln(
+            "fn as_string_or_int(self) -> StringOrIntValue { StringOrIntValue::Int(self as i64) }",
+        );
         self.dedent();
         self.writeln("}");
         self.writeln("impl StringOrInt for i64 {");
         self.indent();
-        self.writeln("fn as_string_or_int(self) -> StringOrIntValue { StringOrIntValue::Int(self) }");
+        self.writeln(
+            "fn as_string_or_int(self) -> StringOrIntValue { StringOrIntValue::Int(self) }",
+        );
         self.dedent();
         self.writeln("}");
         self.writeln("impl StringOrInt for f64 {");
         self.indent();
-        self.writeln("fn as_string_or_int(self) -> StringOrIntValue { StringOrIntValue::Int(self as i64) }");
+        self.writeln(
+            "fn as_string_or_int(self) -> StringOrIntValue { StringOrIntValue::Int(self as i64) }",
+        );
         self.dedent();
         self.writeln("}");
         self.writeln("impl StringOrInt for usize {");
         self.indent();
-        self.writeln("fn as_string_or_int(self) -> StringOrIntValue { StringOrIntValue::Int(self as i64) }");
+        self.writeln(
+            "fn as_string_or_int(self) -> StringOrIntValue { StringOrIntValue::Int(self as i64) }",
+        );
         self.dedent();
         self.writeln("}");
         self.writeln("");
@@ -1093,7 +1273,7 @@ impl CodeGenerator {
         self.dedent();
         self.writeln("}");
         self.writeln("");
-        
+
         // Add impl block with json() method
         self.writeln("impl LivaHttpResponse {");
         self.indent();
@@ -1102,7 +1282,9 @@ impl CodeGenerator {
         self.writeln("match serde_json::from_str(&self.body) {");
         self.indent();
         self.writeln("Ok(value) => (JsonValue(value), String::new()),");
-        self.writeln("Err(e) => (JsonValue(serde_json::Value::Null), format!(\"JSON parse error: {}\", e)),");
+        self.writeln(
+            "Err(e) => (JsonValue(serde_json::Value::Null), format!(\"JSON parse error: {}\", e)),",
+        );
         self.dedent();
         self.writeln("}");
         self.dedent();
@@ -1110,35 +1292,39 @@ impl CodeGenerator {
         self.dedent();
         self.writeln("}");
         self.writeln("");
-        
-        self.writeln("pub async fn liva_http_get(url: String) -> (Option<LivaHttpResponse>, String) {");
+
+        self.writeln(
+            "pub async fn liva_http_get(url: String) -> (Option<LivaHttpResponse>, String) {",
+        );
         self.indent();
         self.writeln("liva_http_request(\"GET\", url, None).await");
         self.dedent();
         self.writeln("}");
         self.writeln("");
-        
+
         self.writeln("pub async fn liva_http_post(url: String, body: String) -> (Option<LivaHttpResponse>, String) {");
         self.indent();
         self.writeln("liva_http_request(\"POST\", url, Some(body)).await");
         self.dedent();
         self.writeln("}");
         self.writeln("");
-        
+
         self.writeln("pub async fn liva_http_put(url: String, body: String) -> (Option<LivaHttpResponse>, String) {");
         self.indent();
         self.writeln("liva_http_request(\"PUT\", url, Some(body)).await");
         self.dedent();
         self.writeln("}");
         self.writeln("");
-        
-        self.writeln("pub async fn liva_http_delete(url: String) -> (Option<LivaHttpResponse>, String) {");
+
+        self.writeln(
+            "pub async fn liva_http_delete(url: String) -> (Option<LivaHttpResponse>, String) {",
+        );
         self.indent();
         self.writeln("liva_http_request(\"DELETE\", url, None).await");
         self.dedent();
         self.writeln("}");
         self.writeln("");
-        
+
         self.writeln("async fn liva_http_request(method: &str, url: String, body: Option<String>) -> (Option<LivaHttpResponse>, String) {");
         self.indent();
         self.writeln("if !url.starts_with(\"http://\") && !url.starts_with(\"https://\") {");
@@ -1162,7 +1348,9 @@ impl CodeGenerator {
         self.writeln("let mut builder = client.post(&url);");
         self.writeln("if let Some(body_content) = body {");
         self.indent();
-        self.writeln("builder = builder.header(\"Content-Type\", \"application/json\").body(body_content);");
+        self.writeln(
+            "builder = builder.header(\"Content-Type\", \"application/json\").body(body_content);",
+        );
         self.dedent();
         self.writeln("}");
         self.writeln("builder");
@@ -1173,7 +1361,9 @@ impl CodeGenerator {
         self.writeln("let mut builder = client.put(&url);");
         self.writeln("if let Some(body_content) = body {");
         self.indent();
-        self.writeln("builder = builder.header(\"Content-Type\", \"application/json\").body(body_content);");
+        self.writeln(
+            "builder = builder.header(\"Content-Type\", \"application/json\").body(body_content);",
+        );
         self.dedent();
         self.writeln("}");
         self.writeln("builder");
@@ -1203,7 +1393,9 @@ impl CodeGenerator {
         self.writeln("");
         self.writeln("let status = response.status();");
         self.writeln("let status_code = status.as_u16() as i32;");
-        self.writeln("let status_text = status.canonical_reason().unwrap_or(\"Unknown\").to_string();");
+        self.writeln(
+            "let status_text = status.canonical_reason().unwrap_or(\"Unknown\").to_string();",
+        );
         self.writeln("");
         self.writeln("let mut headers = Vec::new();");
         self.writeln("for (key, value) in response.headers() {");
@@ -1227,7 +1419,7 @@ impl CodeGenerator {
         self.dedent();
         self.writeln("}");
         self.writeln("");
-        
+
         // JSON Support - JsonValue wrapper
         self.writeln("// JSON Support");
         self.writeln("#[derive(Debug, Clone)]");
@@ -1260,7 +1452,9 @@ impl CodeGenerator {
         self.indent();
         self.writeln("match &self.0 {");
         self.indent();
-        self.writeln("serde_json::Value::Array(arr) => arr.get(index).map(|v| JsonValue(v.clone())),");
+        self.writeln(
+            "serde_json::Value::Array(arr) => arr.get(index).map(|v| JsonValue(v.clone())),",
+        );
         self.writeln("_ => None,");
         self.dedent();
         self.writeln("}");
@@ -1271,14 +1465,16 @@ impl CodeGenerator {
         self.indent();
         self.writeln("match &self.0 {");
         self.indent();
-        self.writeln("serde_json::Value::Object(obj) => obj.get(key).map(|v| JsonValue(v.clone())),");
+        self.writeln(
+            "serde_json::Value::Object(obj) => obj.get(key).map(|v| JsonValue(v.clone())),",
+        );
         self.writeln("_ => None,");
         self.dedent();
         self.writeln("}");
         self.dedent();
         self.writeln("}");
         self.writeln("");
-        
+
         // Type conversion methods
         self.writeln("pub fn as_i32(&self) -> Option<i32> {");
         self.indent();
@@ -1340,20 +1536,22 @@ impl CodeGenerator {
         self.dedent();
         self.writeln("}");
         self.writeln("");
-        
+
         // as_array() returns Vec<JsonValue> directly (unwraps automatically)
         self.writeln("pub fn as_array(&self) -> Vec<JsonValue> {");
         self.indent();
         self.writeln("match &self.0 {");
         self.indent();
-        self.writeln("serde_json::Value::Array(arr) => arr.iter().map(|v| JsonValue(v.clone())).collect(),");
+        self.writeln(
+            "serde_json::Value::Array(arr) => arr.iter().map(|v| JsonValue(v.clone())).collect(),",
+        );
         self.writeln("_ => Vec::new(),");
         self.dedent();
         self.writeln("}");
         self.dedent();
         self.writeln("}");
         self.writeln("");
-        
+
         // Add to_vec and iter methods for array operations
         self.writeln("pub fn to_vec(&self) -> Vec<JsonValue> {");
         self.indent();
@@ -1369,7 +1567,7 @@ impl CodeGenerator {
         self.dedent();
         self.writeln("}");
         self.writeln("");
-        
+
         self.writeln("impl std::fmt::Display for JsonValue {");
         self.indent();
         self.writeln("fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {");
@@ -1387,7 +1585,7 @@ impl CodeGenerator {
         self.dedent();
         self.writeln("}");
         self.writeln("");
-        
+
         // Add Index<&str> for nested JSON access: json["field"]["nested"]
         self.writeln("impl std::ops::Index<&str> for JsonValue {");
         self.indent();
@@ -1397,7 +1595,9 @@ impl CodeGenerator {
         self.indent();
         self.writeln("// This is a bit of a hack - we leak the value to get a static reference");
         self.writeln("// In practice, this is safe for our use case since we don't mutate");
-        self.writeln("static NULL_VALUE: std::sync::OnceLock<JsonValue> = std::sync::OnceLock::new();");
+        self.writeln(
+            "static NULL_VALUE: std::sync::OnceLock<JsonValue> = std::sync::OnceLock::new();",
+        );
         self.writeln("match &self.0 {");
         self.indent();
         self.writeln("serde_json::Value::Object(obj) => {");
@@ -1422,7 +1622,7 @@ impl CodeGenerator {
         self.dedent();
         self.writeln("}");
         self.writeln("");
-        
+
         // Add IntoIterator for for...in loop support
         self.writeln("impl IntoIterator for JsonValue {");
         self.indent();
@@ -1446,7 +1646,7 @@ impl CodeGenerator {
         self.dedent();
         self.writeln("}");
         self.writeln("");
-        
+
         // Add PartialEq<bool> for comparing JSON booleans
         self.writeln("impl PartialEq<bool> for JsonValue {");
         self.indent();
@@ -1458,7 +1658,7 @@ impl CodeGenerator {
         self.dedent();
         self.writeln("}");
         self.writeln("");
-        
+
         // Add PartialEq<&str> for comparing JSON strings
         self.writeln("impl PartialEq<&str> for JsonValue {");
         self.indent();
@@ -1475,7 +1675,7 @@ impl CodeGenerator {
         self.dedent();
         self.writeln("}");
         self.writeln("");
-        
+
         // Add is_null check method and comparison - null generates .is_null() check
         // No PartialEq needed - we'll translate `x != null` to `!x.is_null()`
 
@@ -1495,7 +1695,7 @@ impl CodeGenerator {
             if let TopLevel::TypeAlias(alias) = item {
                 self.type_aliases.insert(
                     alias.name.clone(),
-                    (alias.type_params.clone(), alias.target_type.clone())
+                    (alias.type_params.clone(), alias.target_type.clone()),
                 );
             }
         }
@@ -1505,11 +1705,25 @@ impl CodeGenerator {
 
         // Generate top-level items (first pass to collect unions)
         for item in &program.items {
-            if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: Processing top-level item: {:?}", item); }
+            if std::env::var("LIVA_DEBUG").is_ok() {
+                println!("DEBUG: Processing top-level item: {:?}", item);
+            }
             match item {
-                TopLevel::Class(cls) => if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: Found class: {}", cls.name) },
-                TopLevel::Function(func) => if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: Found function: {}", func.name) },
-                _ => if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: Found other item: {:?}", item) },
+                TopLevel::Class(cls) => {
+                    if std::env::var("LIVA_DEBUG").is_ok() {
+                        println!("DEBUG: Found class: {}", cls.name)
+                    }
+                }
+                TopLevel::Function(func) => {
+                    if std::env::var("LIVA_DEBUG").is_ok() {
+                        println!("DEBUG: Found function: {}", func.name)
+                    }
+                }
+                _ => {
+                    if std::env::var("LIVA_DEBUG").is_ok() {
+                        println!("DEBUG: Found other item: {:?}", item)
+                    }
+                }
             }
             self.generate_top_level(item)?;
             self.output.push('\n');
@@ -1521,36 +1735,40 @@ impl CodeGenerator {
             // Insert union enums before the generated code
             let mut union_defs = String::new();
             union_defs.push_str("\n// Union type definitions\n");
-            
+
             for union_types in unions_to_generate {
                 let enum_name = format!("Union_{}", union_types.join("_"));
                 union_defs.push_str(&format!("#[derive(Debug, Clone)]\n"));
                 union_defs.push_str(&format!("enum {} {{\n", enum_name));
-                
+
                 // Generate variant for each type in the union
                 for (_i, rust_type) in union_types.iter().enumerate() {
                     let variant_name = self.type_to_variant_name(rust_type);
                     union_defs.push_str(&format!("    {}({}),\n", variant_name, rust_type));
                 }
-                
+
                 union_defs.push_str("}\n\n");
-                
+
                 // Implement Display for the union enum
                 union_defs.push_str(&format!("impl std::fmt::Display for {} {{\n", enum_name));
-                union_defs.push_str("    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n");
+                union_defs.push_str(
+                    "    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n",
+                );
                 union_defs.push_str("        match self {\n");
-                
+
                 for rust_type in &union_types {
                     let variant_name = self.type_to_variant_name(rust_type);
-                    union_defs.push_str(&format!("            {}::{}(val) => write!(f, \"{{}}\", val),\n", 
-                        enum_name, variant_name));
+                    union_defs.push_str(&format!(
+                        "            {}::{}(val) => write!(f, \"{{}}\", val),\n",
+                        enum_name, variant_name
+                    ));
                 }
-                
+
                 union_defs.push_str("        }\n");
                 union_defs.push_str("    }\n");
                 union_defs.push_str("}\n\n");
             }
-            
+
             // Find where to insert (after liva_rt module, before first function)
             // For now, prepend to output (will fix positioning later)
             let temp = self.output.clone();
@@ -1601,21 +1819,19 @@ impl CodeGenerator {
             if let Some(type_with_arrow) = self.infer_expr_type(expr, None) {
                 // Extract type from " -> i32" format
                 let expr_type = type_with_arrow.trim_start_matches(" -> ").to_string();
-                
+
                 // Generate the union type name
-                let expanded_members: Vec<String> = members
-                    .iter()
-                    .map(|m| self.expand_type_alias(m))
-                    .collect();
+                let expanded_members: Vec<String> =
+                    members.iter().map(|m| self.expand_type_alias(m)).collect();
                 let union_name = format!("Union_{}", expanded_members.join("_"));
-                
+
                 // Find which variant to use
                 let variant = self.type_to_variant_name(&expr_type);
-                
+
                 // Check if this is a string literal that needs .to_string()
-                let needs_to_string = expr_type == "String" 
-                    && matches!(expr, Expr::Literal(Literal::String(_)));
-                
+                let needs_to_string =
+                    expr_type == "String" && matches!(expr, Expr::Literal(Literal::String(_)));
+
                 // Generate wrapper
                 write!(self.output, "{}::{}(", union_name, variant).unwrap();
                 return (true, needs_to_string);
@@ -1638,7 +1854,9 @@ impl CodeGenerator {
             TopLevel::Type(type_decl) => self.generate_type_decl(type_decl),
             TopLevel::TypeAlias(alias) => self.generate_type_alias(alias),
             TopLevel::Class(class) => {
-                if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: Generating class {}", class.name); }
+                if std::env::var("LIVA_DEBUG").is_ok() {
+                    println!("DEBUG: Generating class {}", class.name);
+                }
                 self.generate_class(class)
             }
             TopLevel::Function(func) => self.generate_function(func),
@@ -1668,10 +1886,13 @@ impl CodeGenerator {
         // They are validated by the semantic analyzer but do NOT generate any Rust code.
         // Classes implementing interfaces just need to have the required methods.
         // Interface method signatures are collected in generate_program() for type inference.
-        
+
         // Only generate a comment for documentation purposes
-        self.writeln(&format!("// Interface: {} (compile-time validation only)", type_decl.name));
-        
+        self.writeln(&format!(
+            "// Interface: {} (compile-time validation only)",
+            type_decl.name
+        ));
+
         Ok(())
     }
 
@@ -1679,7 +1900,7 @@ impl CodeGenerator {
         // Store type alias for expansion during type annotation generation
         self.type_aliases.insert(
             alias.name.clone(),
-            (alias.type_params.clone(), alias.target_type.clone())
+            (alias.type_params.clone(), alias.target_type.clone()),
         );
         // Type aliases in Liva are expanded inline during type checking
         // We don't generate Rust type aliases to keep codegen simple
@@ -1706,18 +1927,13 @@ impl CodeGenerator {
                 // Check if the base is a type alias
                 if let Some((alias_params, target_type)) = self.type_aliases.get(base).cloned() {
                     // Substitute type parameters
-                    let substituted = self.substitute_type_params_codegen(
-                        &target_type,
-                        &alias_params,
-                        args,
-                    );
+                    let substituted =
+                        self.substitute_type_params_codegen(&target_type, &alias_params, args);
                     return self.expand_type_alias(&substituted);
                 }
                 // Not a type alias, recursively expand arguments
-                let expanded_args: Vec<String> = args
-                    .iter()
-                    .map(|arg| self.expand_type_alias(arg))
-                    .collect();
+                let expanded_args: Vec<String> =
+                    args.iter().map(|arg| self.expand_type_alias(arg)).collect();
                 format!("{}<{}>", base, expanded_args.join(", "))
             }
             TypeRef::Array(inner) => {
@@ -1730,10 +1946,8 @@ impl CodeGenerator {
                 format!("Result<{}, liva_rt::Error>", self.expand_type_alias(inner))
             }
             TypeRef::Tuple(types) => {
-                let types_str: Vec<String> = types
-                    .iter()
-                    .map(|t| self.expand_type_alias(t))
-                    .collect();
+                let types_str: Vec<String> =
+                    types.iter().map(|t| self.expand_type_alias(t)).collect();
                 // Rust requires trailing comma for single-element tuples
                 if types.len() == 1 {
                     format!("({},)", types_str.join(", "))
@@ -1743,14 +1957,12 @@ impl CodeGenerator {
             }
             TypeRef::Union(types) => {
                 // For union types, register and generate a Rust enum
-                let type_names: Vec<String> = types
-                    .iter()
-                    .map(|t| self.expand_type_alias(t))
-                    .collect();
-                
+                let type_names: Vec<String> =
+                    types.iter().map(|t| self.expand_type_alias(t)).collect();
+
                 // Register this union for enum generation
                 self.union_types.insert(type_names.clone());
-                
+
                 // Generate union enum name
                 format!("Union_{}", type_names.join("_"))
             }
@@ -1775,32 +1987,31 @@ impl CodeGenerator {
                 // Not a type parameter, return as-is
                 type_ref.clone()
             }
-            TypeRef::Array(inner) => {
-                TypeRef::Array(Box::new(self.substitute_type_params_codegen(inner, params, args)))
-            }
-            TypeRef::Optional(inner) => {
-                TypeRef::Optional(Box::new(self.substitute_type_params_codegen(inner, params, args)))
-            }
-            TypeRef::Fallible(inner) => {
-                TypeRef::Fallible(Box::new(self.substitute_type_params_codegen(inner, params, args)))
-            }
-            TypeRef::Tuple(elements) => {
-                TypeRef::Tuple(
-                    elements
-                        .iter()
-                        .map(|elem| self.substitute_type_params_codegen(elem, params, args))
-                        .collect(),
-                )
-            }
-            TypeRef::Union(types) => {
-                TypeRef::Union(
-                    types
-                        .iter()
-                        .map(|ty| self.substitute_type_params_codegen(ty, params, args))
-                        .collect(),
-                )
-            }
-            TypeRef::Generic { base, args: inner_args } => {
+            TypeRef::Array(inner) => TypeRef::Array(Box::new(
+                self.substitute_type_params_codegen(inner, params, args),
+            )),
+            TypeRef::Optional(inner) => TypeRef::Optional(Box::new(
+                self.substitute_type_params_codegen(inner, params, args),
+            )),
+            TypeRef::Fallible(inner) => TypeRef::Fallible(Box::new(
+                self.substitute_type_params_codegen(inner, params, args),
+            )),
+            TypeRef::Tuple(elements) => TypeRef::Tuple(
+                elements
+                    .iter()
+                    .map(|elem| self.substitute_type_params_codegen(elem, params, args))
+                    .collect(),
+            ),
+            TypeRef::Union(types) => TypeRef::Union(
+                types
+                    .iter()
+                    .map(|ty| self.substitute_type_params_codegen(ty, params, args))
+                    .collect(),
+            ),
+            TypeRef::Generic {
+                base,
+                args: inner_args,
+            } => {
                 // Recursively substitute in base and all arguments
                 let substituted_base = match self.substitute_type_params_codegen(
                     &TypeRef::Simple(base.clone()),
@@ -1810,7 +2021,7 @@ impl CodeGenerator {
                     TypeRef::Simple(name) => name,
                     _ => base.clone(), // Shouldn't happen
                 };
-                
+
                 TypeRef::Generic {
                     base: substituted_base,
                     args: inner_args
@@ -1822,13 +2033,13 @@ impl CodeGenerator {
         }
     }
 
-
     fn generate_class(&mut self, class: &ClassDecl) -> Result<()> {
         // Check if this is actually an interface (no constructor, methods without bodies)
         // Interfaces are compile-time only and don't generate Rust code
-        let has_constructor = class.members.iter().any(|m| {
-            matches!(m, Member::Method(method) if method.name == "constructor")
-        });
+        let has_constructor = class
+            .members
+            .iter()
+            .any(|m| matches!(m, Member::Method(method) if method.name == "constructor"));
         let all_methods_abstract = class.members.iter().all(|m| {
             match m {
                 Member::Method(method) => method.body.is_none() && method.expr_body.is_none(),
@@ -1836,10 +2047,13 @@ impl CodeGenerator {
             }
         });
         let has_only_methods = class.members.iter().all(|m| matches!(m, Member::Method(_)));
-        
+
         // If no constructor and all methods are abstract (no body), it's an interface
         if !has_constructor && all_methods_abstract && has_only_methods {
-            self.writeln(&format!("// Interface: {} (compile-time validation only)", class.name));
+            self.writeln(&format!(
+                "// Interface: {} (compile-time validation only)",
+                class.name
+            ));
             return Ok(());
         }
 
@@ -1853,45 +2067,49 @@ impl CodeGenerator {
                 }
             }
         }
-        
+
         // Bug #45-46, #54: Infer bounds for type parameters based on usage
         let inferred_bounds = self.infer_type_param_bounds(class);
-        
+
         // Format type parameters with both explicit constraints and inferred bounds
         let type_params_str = if !class.type_params.is_empty() {
-            let params: Vec<String> = class.type_params.iter().map(|tp| {
-                let mut all_bounds = Vec::new();
-                
-                // Add explicit constraints first
-                if !tp.constraints.is_empty() {
-                    let rust_bounds = self.trait_registry.generate_rust_bounds(&tp.constraints);
-                    // Remove leading ": " from rust_bounds
-                    let bounds_part = rust_bounds.trim_start_matches(": ");
-                    all_bounds.push(bounds_part.to_string());
-                }
-                
-                // Add inferred bounds
-                if let Some(inferred) = inferred_bounds.get(&tp.name) {
-                    for bound in inferred {
-                        // Check if bound is already included (from explicit constraints)
-                        let bound_str = bound.as_str();
-                        if !all_bounds.iter().any(|b| b.contains(bound_str)) {
-                            all_bounds.push(bound.clone());
+            let params: Vec<String> = class
+                .type_params
+                .iter()
+                .map(|tp| {
+                    let mut all_bounds = Vec::new();
+
+                    // Add explicit constraints first
+                    if !tp.constraints.is_empty() {
+                        let rust_bounds = self.trait_registry.generate_rust_bounds(&tp.constraints);
+                        // Remove leading ": " from rust_bounds
+                        let bounds_part = rust_bounds.trim_start_matches(": ");
+                        all_bounds.push(bounds_part.to_string());
+                    }
+
+                    // Add inferred bounds
+                    if let Some(inferred) = inferred_bounds.get(&tp.name) {
+                        for bound in inferred {
+                            // Check if bound is already included (from explicit constraints)
+                            let bound_str = bound.as_str();
+                            if !all_bounds.iter().any(|b| b.contains(bound_str)) {
+                                all_bounds.push(bound.clone());
+                            }
                         }
                     }
-                }
-                
-                if all_bounds.is_empty() {
-                    tp.name.clone()
-                } else {
-                    format!("{}: {}", tp.name, all_bounds.join(" + "))
-                }
-            }).collect();
+
+                    if all_bounds.is_empty() {
+                        tp.name.clone()
+                    } else {
+                        format!("{}: {}", tp.name, all_bounds.join(" + "))
+                    }
+                })
+                .collect();
             format!("<{}>", params.join(", "))
         } else {
             String::new()
         };
-        
+
         // Phase 2: Generate serde derives if class is used with JSON.parse
         // Data classes also get PartialEq
         let derives = if class.is_data && class.needs_serde {
@@ -1903,10 +2121,14 @@ impl CodeGenerator {
         } else {
             "#[derive(Debug, Clone, Default)]"
         };
-        
+
         // Generate struct (interfaces are validated at compile-time, no runtime representation)
         if !class.implements.is_empty() {
-            self.writeln(&format!("// {} implements {}", class.name, class.implements.join(", ")));
+            self.writeln(&format!(
+                "// {} implements {}",
+                class.name,
+                class.implements.join(", ")
+            ));
         }
         self.writeln(derives);
         self.writeln(&format!("pub struct {}{} {{", class.name, type_params_str));
@@ -1941,45 +2163,52 @@ impl CodeGenerator {
 
         // Format type parameters for impl block (with same bounds as struct)
         let impl_type_params = if !class.type_params.is_empty() {
-            let params: Vec<String> = class.type_params.iter().map(|tp| {
-                let mut all_bounds = Vec::new();
-                
-                // Add explicit constraints first
-                if !tp.constraints.is_empty() {
-                    let rust_bounds = self.trait_registry.generate_rust_bounds(&tp.constraints);
-                    let bounds_part = rust_bounds.trim_start_matches(": ");
-                    all_bounds.push(bounds_part.to_string());
-                }
-                
-                // Add inferred bounds (same as struct)
-                if let Some(inferred) = inferred_bounds.get(&tp.name) {
-                    for bound in inferred {
-                        let bound_str = bound.as_str();
-                        if !all_bounds.iter().any(|b| b.contains(bound_str)) {
-                            all_bounds.push(bound.clone());
+            let params: Vec<String> = class
+                .type_params
+                .iter()
+                .map(|tp| {
+                    let mut all_bounds = Vec::new();
+
+                    // Add explicit constraints first
+                    if !tp.constraints.is_empty() {
+                        let rust_bounds = self.trait_registry.generate_rust_bounds(&tp.constraints);
+                        let bounds_part = rust_bounds.trim_start_matches(": ");
+                        all_bounds.push(bounds_part.to_string());
+                    }
+
+                    // Add inferred bounds (same as struct)
+                    if let Some(inferred) = inferred_bounds.get(&tp.name) {
+                        for bound in inferred {
+                            let bound_str = bound.as_str();
+                            if !all_bounds.iter().any(|b| b.contains(bound_str)) {
+                                all_bounds.push(bound.clone());
+                            }
                         }
                     }
-                }
-                
-                if all_bounds.is_empty() {
-                    tp.name.clone()
-                } else {
-                    format!("{}: {}", tp.name, all_bounds.join(" + "))
-                }
-            }).collect();
+
+                    if all_bounds.is_empty() {
+                        tp.name.clone()
+                    } else {
+                        format!("{}: {}", tp.name, all_bounds.join(" + "))
+                    }
+                })
+                .collect();
             format!("<{}>", params.join(", "))
         } else {
             String::new()
         };
-        
+
         let impl_type_args = if !class.type_params.is_empty() {
             let args: Vec<String> = class.type_params.iter().map(|tp| tp.name.clone()).collect();
             format!("<{}>", args.join(", "))
         } else {
             String::new()
         };
-        
-        self.writeln(&format!("impl{} {}{} {{", impl_type_params, class.name, impl_type_args));
+
+        self.writeln(&format!(
+            "impl{} {}{} {{",
+            impl_type_params, class.name, impl_type_args
+        ));
         self.indent();
 
         // Generate constructor
@@ -2002,8 +2231,9 @@ impl CodeGenerator {
 
             // Bug #19 fix: Parse constructor body to find this.field = value assignments
             // Build a map of field_name -> assigned_value
-            let mut field_assignments: std::collections::HashMap<String, &Expr> = std::collections::HashMap::new();
-            
+            let mut field_assignments: std::collections::HashMap<String, &Expr> =
+                std::collections::HashMap::new();
+
             if let Some(body) = &constructor_method.body {
                 for stmt in &body.stmts {
                     // Look for assignments like: this.field = value
@@ -2020,22 +2250,23 @@ impl CodeGenerator {
                     }
                 }
             }
-            
+
             // Generate field initializations from the body assignments
             for member in &class.members {
                 if let Member::Field(field) = member {
                     let field_name = self.sanitize_name(&field.name);
-                    
+
                     if let Some(value_expr) = field_assignments.get(&field_name) {
                         // Use the value from the constructor body
                         self.write_indent();
                         write!(self.output, "{}: ", field_name).unwrap();
-                        
+
                         // Check if value is a string literal and needs .to_string()
-                        let needs_to_string = matches!(value_expr, Expr::Literal(Literal::String(_)));
-                        
+                        let needs_to_string =
+                            matches!(value_expr, Expr::Literal(Literal::String(_)));
+
                         self.generate_expr(value_expr)?;
-                        
+
                         if needs_to_string {
                             self.output.push_str(".to_string()");
                         }
@@ -2048,12 +2279,12 @@ impl CodeGenerator {
                             // Field has an initializer in its definition
                             let needs_string_conversion = matches!(init_expr, Expr::Literal(Literal::String(_)))
                                 && field.type_ref.as_ref().map(|t| matches!(t, TypeRef::Simple(s) if s == "string" || s == "String")).unwrap_or(false);
-                            
+
                             // Generate the init expression to a temporary buffer
                             let old_output = std::mem::take(&mut self.output);
                             self.generate_expr(init_expr)?;
                             let value = std::mem::replace(&mut self.output, old_output);
-                            
+
                             if needs_string_conversion {
                                 format!("{}.to_string()", value)
                             } else {
@@ -2093,19 +2324,23 @@ impl CodeGenerator {
             // Data classes get a constructor with all fields as parameters
             if class.is_data {
                 // Collect field info for the constructor signature
-                let fields: Vec<(&str, String)> = class.members.iter().filter_map(|m| {
-                    if let Member::Field(field) = m {
-                        let field_name_raw = &field.name;
-                        let rust_type = if let Some(type_ref) = &field.type_ref {
-                            type_ref.to_rust_type()
+                let fields: Vec<(&str, String)> = class
+                    .members
+                    .iter()
+                    .filter_map(|m| {
+                        if let Member::Field(field) = m {
+                            let field_name_raw = &field.name;
+                            let rust_type = if let Some(type_ref) = &field.type_ref {
+                                type_ref.to_rust_type()
+                            } else {
+                                "String".to_string()
+                            };
+                            Some((field_name_raw.as_str(), rust_type))
                         } else {
-                            "String".to_string()
-                        };
-                        Some((field_name_raw.as_str(), rust_type))
-                    } else {
-                        None
-                    }
-                }).collect();
+                            None
+                        }
+                    })
+                    .collect();
 
                 // Generate: pub fn new(field1: Type1, field2: Type2, ...) -> Self {
                 self.write_indent();
@@ -2132,72 +2367,72 @@ impl CodeGenerator {
                 self.writeln("}");
                 self.output.push('\n');
             } else {
-            // Regular class without constructor — default no-arg constructor
-            self.writeln(&format!("pub fn new() -> Self {{"));
-            self.indent();
-            self.writeln("Self {");
-            self.indent();
+                // Regular class without constructor — default no-arg constructor
+                self.writeln(&format!("pub fn new() -> Self {{"));
+                self.indent();
+                self.writeln("Self {");
+                self.indent();
 
-            for member in &class.members {
-                if let Member::Field(field) = member {
-                    self.write_indent();
-                    let field_name = self.sanitize_name(&field.name);
-                    
-                    // Use explicit init value if provided, otherwise use defaults
-                    if let Some(init_expr) = &field.init {
-                        write!(self.output, "{}: ", field_name).unwrap();
-                        
-                        // Check if we need to convert string literal to String
-                        let needs_string_conversion = matches!(init_expr, Expr::Literal(Literal::String(_)))
+                for member in &class.members {
+                    if let Member::Field(field) = member {
+                        self.write_indent();
+                        let field_name = self.sanitize_name(&field.name);
+
+                        // Use explicit init value if provided, otherwise use defaults
+                        if let Some(init_expr) = &field.init {
+                            write!(self.output, "{}: ", field_name).unwrap();
+
+                            // Check if we need to convert string literal to String
+                            let needs_string_conversion = matches!(init_expr, Expr::Literal(Literal::String(_)))
                             && field.type_ref.as_ref().map(|t| matches!(t, TypeRef::Simple(s) if s == "string" || s == "String")).unwrap_or(false);
-                        
-                        // If field is optional, wrap the init value in Some()
-                        if field.is_optional {
-                            self.output.push_str("Some(");
-                        }
-                        
-                        if needs_string_conversion {
-                            self.generate_expr(init_expr)?;
-                            self.output.push_str(".to_string()");
+
+                            // If field is optional, wrap the init value in Some()
+                            if field.is_optional {
+                                self.output.push_str("Some(");
+                            }
+
+                            if needs_string_conversion {
+                                self.generate_expr(init_expr)?;
+                                self.output.push_str(".to_string()");
+                            } else {
+                                self.generate_expr(init_expr)?;
+                            }
+
+                            if field.is_optional {
+                                self.output.push_str(")");
+                            }
+
+                            self.output.push_str(",\n");
                         } else {
-                            self.generate_expr(init_expr)?;
-                        }
-                        
-                        if field.is_optional {
-                            self.output.push_str(")");
-                        }
-                        
-                        self.output.push_str(",\n");
-                    } else {
-                        // Optional fields should default to None
-                        let default_value = if field.is_optional {
-                            "None".to_string()
-                        } else {
-                            match field.type_ref.as_ref() {
-                                Some(type_ref) => match type_ref {
-                                    TypeRef::Simple(name) => match name.as_str() {
-                                        "number" | "int" => "0".to_string(),
-                                        "float" => "0.0".to_string(),
-                                        "string" => "String::new()".to_string(),
-                                        "bool" => "false".to_string(),
-                                        "char" => "'\\0'".to_string(),
+                            // Optional fields should default to None
+                            let default_value = if field.is_optional {
+                                "None".to_string()
+                            } else {
+                                match field.type_ref.as_ref() {
+                                    Some(type_ref) => match type_ref {
+                                        TypeRef::Simple(name) => match name.as_str() {
+                                            "number" | "int" => "0".to_string(),
+                                            "float" => "0.0".to_string(),
+                                            "string" => "String::new()".to_string(),
+                                            "bool" => "false".to_string(),
+                                            "char" => "'\\0'".to_string(),
+                                            _ => "Default::default()".to_string(),
+                                        },
                                         _ => "Default::default()".to_string(),
                                     },
-                                    _ => "Default::default()".to_string(),
-                                },
-                                None => "Default::default()".to_string(),
-                            }
-                        };
-                        self.writeln(&format!("{}: {},", field_name, default_value));
+                                    None => "Default::default()".to_string(),
+                                }
+                            };
+                            self.writeln(&format!("{}: {},", field_name, default_value));
+                        }
                     }
                 }
-            }
 
-            self.dedent();
-            self.writeln("}");
-            self.dedent();
-            self.writeln("}");
-            self.output.push('\n');
+                self.dedent();
+                self.writeln("}");
+                self.dedent();
+                self.writeln("}");
+                self.output.push('\n');
             } // close else (regular class, not data)
         }
 
@@ -2214,7 +2449,8 @@ impl CodeGenerator {
                             TypeRef::Simple(name) => name.clone(),
                             _ => "i32".to_string(),
                         };
-                        self.typed_array_vars.insert(field_name.clone(), elem_type_name);
+                        self.typed_array_vars
+                            .insert(field_name.clone(), elem_type_name);
                     }
                     // Track string-typed fields
                     if matches!(type_ref, TypeRef::Simple(s) if s == "string" || s == "String") {
@@ -2240,22 +2476,34 @@ impl CodeGenerator {
         // Data class: auto-generate Display impl
         if class.is_data {
             self.output.push('\n');
-            self.writeln(&format!("impl{} std::fmt::Display for {}{} {{", impl_type_params, class.name, impl_type_args));
+            self.writeln(&format!(
+                "impl{} std::fmt::Display for {}{} {{",
+                impl_type_params, class.name, impl_type_args
+            ));
             self.indent();
             self.writeln("fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {");
             self.indent();
-            
-            let fields: Vec<&FieldDecl> = class.members.iter().filter_map(|m| {
-                if let Member::Field(field) = m { Some(field) } else { None }
-            }).collect();
-            
+
+            let fields: Vec<&FieldDecl> = class
+                .members
+                .iter()
+                .filter_map(|m| {
+                    if let Member::Field(field) = m {
+                        Some(field)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
             if fields.is_empty() {
                 self.writeln(&format!("write!(f, \"{}\")", class.name));
             } else {
                 self.write_indent();
                 // Use push_str to avoid write! interpreting {{ as {
                 // We need literal {{ and }} in the generated format string
-                self.output.push_str(&format!("write!(f, \"{} {{{{ ", class.name));
+                self.output
+                    .push_str(&format!("write!(f, \"{} {{{{ ", class.name));
                 for (i, field) in fields.iter().enumerate() {
                     if i > 0 {
                         self.output.push_str(", ");
@@ -2276,7 +2524,7 @@ impl CodeGenerator {
                 }
                 self.output.push_str(")\n");
             }
-            
+
             self.dedent();
             self.writeln("}");
             self.dedent();
@@ -2286,45 +2534,58 @@ impl CodeGenerator {
         Ok(())
     }
 
-    fn generate_field_default_function(&mut self, class_name: &str, field: &FieldDecl) -> Result<()> {
+    fn generate_field_default_function(
+        &mut self,
+        class_name: &str,
+        field: &FieldDecl,
+    ) -> Result<()> {
         let field_name = self.sanitize_name(&field.name);
         let func_name = format!("default_{}_{}", class_name.to_lowercase(), field_name);
-        
+
         let base_type = if let Some(type_ref) = &field.type_ref {
             type_ref.to_rust_type()
         } else {
             "String".to_string()
         };
-        
+
         self.writeln(&format!("fn {}() -> Option<{}>{{", func_name, base_type));
         self.indent();
-        
+
         if let Some(init_expr) = &field.init {
             self.write_indent();
             self.output.push_str("Some(");
-            
+
             // Check if we need to convert string literal to String
             let needs_string_conversion = matches!(init_expr, Expr::Literal(Literal::String(_)))
-                && field.type_ref.as_ref().map(|t| matches!(t, TypeRef::Simple(s) if s == "string" || s == "String")).unwrap_or(false);
-            
+                && field
+                    .type_ref
+                    .as_ref()
+                    .map(|t| matches!(t, TypeRef::Simple(s) if s == "string" || s == "String"))
+                    .unwrap_or(false);
+
             if needs_string_conversion {
                 self.generate_expr(init_expr)?;
                 self.output.push_str(".to_string()");
             } else {
                 self.generate_expr(init_expr)?;
             }
-            
+
             self.output.push_str(")\n");
         }
-        
+
         self.dedent();
         self.writeln("}");
         self.output.push('\n');
-        
+
         Ok(())
     }
 
-    fn generate_field(&mut self, field: &FieldDecl, needs_serde: bool, class_name: Option<&str>) -> Result<()> {
+    fn generate_field(
+        &mut self,
+        field: &FieldDecl,
+        needs_serde: bool,
+        class_name: Option<&str>,
+    ) -> Result<()> {
         let vis = match field.visibility {
             Visibility::Public => "pub ",
             Visibility::Private => "",
@@ -2344,28 +2605,27 @@ impl CodeGenerator {
         };
 
         let field_name_rust = self.sanitize_name(&field.name);
-        
+
         // Add serde attributes for optional fields
         if needs_serde && field.is_optional {
             // If the field has a default value, use serde default function
             if field.init.is_some() && class_name.is_some() {
-                let func_name = format!("default_{}_{}", class_name.unwrap().to_lowercase(), field_name_rust);
+                let func_name = format!(
+                    "default_{}_{}",
+                    class_name.unwrap().to_lowercase(),
+                    field_name_rust
+                );
                 self.writeln(&format!("#[serde(default = \"{}\")]", func_name));
             }
             self.writeln("#[serde(skip_serializing_if = \"Option::is_none\")]");
         }
-        
+
         // If serde is needed and the original name differs from snake_case, add rename attribute
         if needs_serde && field.name != field_name_rust {
             self.writeln(&format!("#[serde(rename = \"{}\")]", field.name));
         }
-        
-        self.writeln(&format!(
-            "{}{}: {},",
-            vis,
-            field_name_rust,
-            type_str
-        ));
+
+        self.writeln(&format!("{}{}: {},", vis, field_name_rust, type_str));
         Ok(())
     }
 
@@ -2565,7 +2825,7 @@ impl CodeGenerator {
             self.collect_mutated_vars_in_block(body, &mut temp_mutated);
             self.mutated_vars = temp_mutated;
         }
-        
+
         let vis = match method.visibility {
             Visibility::Public => "pub ",
             Visibility::Private => "",
@@ -2584,7 +2844,8 @@ impl CodeGenerator {
                 .map(|param| {
                     if !param.constraints.is_empty() {
                         // Use trait registry to get complete Rust trait bounds
-                        let rust_bounds = self.trait_registry.generate_rust_bounds(&param.constraints);
+                        let rust_bounds =
+                            self.trait_registry.generate_rust_bounds(&param.constraints);
                         format!("{}{}", param.name, rust_bounds)
                     } else {
                         param.name.clone()
@@ -2596,7 +2857,13 @@ impl CodeGenerator {
             String::new()
         };
 
-        let params_str = self.generate_params(&method.params, true, class, Some(&method.name), Some(method))?;
+        let params_str = self.generate_params(
+            &method.params,
+            true,
+            class,
+            Some(&method.name),
+            Some(method),
+        )?;
 
         let return_type = if let Some(ret) = &method.return_type {
             // Bug #70 fix: Wrap return type in Result if method contains fail
@@ -2617,7 +2884,7 @@ impl CodeGenerator {
                 }
                 None
             });
-            
+
             if let Some(ret) = interface_return_type {
                 ret
             } else if let Some(expr) = &method.expr_body {
@@ -2645,14 +2912,14 @@ impl CodeGenerator {
         self.in_method = true;
         let prev_fallible = self.in_fallible_function;
         self.in_fallible_function = method.contains_fail;
-        
+
         if let Some(expr) = &method.expr_body {
             self.output.push_str(" {\n");
             self.indent();
-            
+
             // Generate destructuring code for parameters
             self.generate_param_destructuring(&method.params)?;
-            
+
             self.write_indent();
             if method.contains_fail {
                 self.output.push_str("Ok(");
@@ -2667,10 +2934,10 @@ impl CodeGenerator {
         } else if let Some(body) = &method.body {
             self.output.push_str(" {\n");
             self.indent();
-            
+
             // Generate destructuring code for parameters
             self.generate_param_destructuring(&method.params)?;
-            
+
             self.generate_block_inner(body)?;
             self.dedent();
             self.writeln("}");
@@ -2690,7 +2957,7 @@ impl CodeGenerator {
             self.collect_mutated_vars_in_block(body, &mut temp_mutated);
             self.mutated_vars = temp_mutated;
         }
-        
+
         let (async_kw, tokio_attr) = if func.name == "main" && func.is_async_inferred {
             // For main function with async, use tokio::main attribute with async keyword
             ("async ", "#[tokio::main]\n")
@@ -2707,7 +2974,8 @@ impl CodeGenerator {
                 .map(|param| {
                     if !param.constraints.is_empty() {
                         // Use trait registry to get complete Rust trait bounds
-                        let rust_bounds = self.trait_registry.generate_rust_bounds(&param.constraints);
+                        let rust_bounds =
+                            self.trait_registry.generate_rust_bounds(&param.constraints);
                         format!("{}{}", param.name, rust_bounds)
                     } else {
                         param.name.clone()
@@ -2777,20 +3045,20 @@ impl CodeGenerator {
         if let Some(expr) = &func.expr_body {
             self.output.push_str(" {\n");
             self.indent();
-            
+
             // Generate destructuring code for parameters
             self.generate_param_destructuring(&func.params)?;
-            
+
             self.write_indent();
             let was_fallible = self.in_fallible_function;
             self.in_fallible_function = func.contains_fail;
-            
+
             // Track return type for division casting (Bug #52)
             let prev_return_type = self.current_return_type.take();
             if let Some(ret) = &func.return_type {
                 self.current_return_type = Some(ret.to_rust_type());
             }
-            
+
             if func.contains_fail {
                 // Check if the expression already returns a Result (like a fallible ternary)
                 let expr_returns_result = matches!(expr, Expr::Ternary { then_expr, else_expr, .. }
@@ -2819,19 +3087,19 @@ impl CodeGenerator {
         } else if let Some(body) = &func.body {
             self.output.push_str(" {\n");
             self.indent();
-            
+
             // Generate destructuring code for parameters
             self.generate_param_destructuring(&func.params)?;
-            
+
             let was_fallible = self.in_fallible_function;
             self.in_fallible_function = func.contains_fail;
-            
+
             // Track return type for division casting (Bug #52)
             let prev_return_type = self.current_return_type.take();
             if let Some(ret) = &func.return_type {
                 self.current_return_type = Some(ret.to_rust_type());
             }
-            
+
             self.generate_block_inner(body)?;
             // If function is fallible and doesn't end with explicit return, add Ok(())
             if func.contains_fail && !self.block_ends_with_return(body) {
@@ -2871,12 +3139,15 @@ impl CodeGenerator {
     }
 
     // ─── liva/test virtual library codegen ───────────────────────────
-    
+
     /// Scan a describe block's statements to detect which lifecycle hooks are present.
     /// This is called before generating the block so we know what hooks to auto-invoke.
     fn scan_describe_for_hooks(&self, block: &BlockStmt) -> TestHookScope {
         let depth = self.test_hooks_stack.len();
-        let mut scope = TestHookScope { depth, ..Default::default() };
+        let mut scope = TestHookScope {
+            depth,
+            ..Default::default()
+        };
         for stmt in &block.stmts {
             if let Stmt::Expr(expr_stmt) = stmt {
                 if let Expr::Call(call) = &expr_stmt.expr {
@@ -2885,13 +3156,15 @@ impl CodeGenerator {
                             "beforeEach" => {
                                 scope.has_before_each = true;
                                 if let Some(Expr::Lambda(lambda)) = call.args.first() {
-                                    scope.before_each_is_async = ast_lambda_body_has_async(&lambda.body);
+                                    scope.before_each_is_async =
+                                        ast_lambda_body_has_async(&lambda.body);
                                 }
                             }
                             "afterEach" => {
                                 scope.has_after_each = true;
                                 if let Some(Expr::Lambda(lambda)) = call.args.first() {
-                                    scope.after_each_is_async = ast_lambda_body_has_async(&lambda.body);
+                                    scope.after_each_is_async =
+                                        ast_lambda_body_has_async(&lambda.body);
                                 }
                             }
                             "beforeAll" => scope.has_before_all = true,
@@ -2904,7 +3177,7 @@ impl CodeGenerator {
         }
         scope
     }
-    
+
     /// Collect all hook function names that should be called for each test,
     /// traversing the entire hooks stack (parent describes + current).
     /// Returns (fn_name, is_async) pairs.
@@ -2922,7 +3195,7 @@ impl CodeGenerator {
         }
         hooks
     }
-    
+
     fn collect_after_each_hooks(&self) -> Vec<(String, bool)> {
         // After hooks run in reverse order (innermost first)
         let mut hooks = Vec::new();
@@ -2938,7 +3211,7 @@ impl CodeGenerator {
         }
         hooks
     }
-    
+
     /// Generate a describe() block → #[cfg(test)] mod test_name { use super::*; ... }
     fn generate_test_describe(&mut self, call: &CallExpr) -> Result<()> {
         // describe("name", () => { ... })
@@ -2949,13 +3222,13 @@ impl CodeGenerator {
                 "describe(name: string, callback: () => void)",
             )));
         }
-        
+
         // Extract the name string
         let mod_name = match &call.args[0] {
             Expr::Literal(Literal::String(s)) => self.sanitize_test_name(s),
             _ => "unnamed".to_string(),
         };
-        
+
         // Extract the lambda body
         let lambda_body = match &call.args[1] {
             Expr::Lambda(lambda) => &lambda.body,
@@ -2967,30 +3240,30 @@ impl CodeGenerator {
                 )));
             }
         };
-        
+
         self.writeln("#[cfg(test)]");
         self.writeln(&format!("mod test_{} {{", mod_name));
         self.indent();
         self.writeln("use super::*;");
         self.output.push('\n');
-        
+
         let was_in_test = self.in_test_block;
         self.in_test_block = true;
-        
+
         match lambda_body {
             LambdaBody::Block(block) => {
                 // Pre-scan for lifecycle hooks and push scope
                 let hook_scope = self.scan_describe_for_hooks(block);
                 self.test_hooks_stack.push(hook_scope);
                 self.generate_block_inner(block)?;
-                
+
                 // Generate beforeAll() call at module level if present
                 // (beforeAll runs once when the module is loaded — we use a static + sync_once pattern,
-                //  but for simplicity in Rust's test framework we rely on the function being there 
+                //  but for simplicity in Rust's test framework we rely on the function being there
                 //  for tests to call; actually beforeAll/afterAll are best effort with #[ctor])
                 // For now, beforeAll/afterAll functions are generated and we skip module-level call
                 // since Rust tests don't have module-level setup. Users call them explicitly if needed.
-                
+
                 self.test_hooks_stack.pop();
             }
             LambdaBody::Expr(expr) => {
@@ -3001,13 +3274,13 @@ impl CodeGenerator {
                 self.test_hooks_stack.pop();
             }
         }
-        
+
         self.in_test_block = was_in_test;
         self.dedent();
         self.writeln("}");
         Ok(())
     }
-    
+
     /// Generate a test() call → #[test] fn test_name() { ... }
     /// If the lambda body contains async calls, generates #[tokio::test] async fn instead
     fn generate_test_case(&mut self, call: &CallExpr) -> Result<()> {
@@ -3019,13 +3292,13 @@ impl CodeGenerator {
                 "test(name: string, callback: () => void)",
             )));
         }
-        
+
         // Extract the name string
         let test_name = match &call.args[0] {
             Expr::Literal(Literal::String(s)) => self.sanitize_test_name(s),
             _ => "unnamed".to_string(),
         };
-        
+
         // Extract the lambda body
         let lambda_body = match &call.args[1] {
             Expr::Lambda(lambda) => &lambda.body,
@@ -3037,10 +3310,10 @@ impl CodeGenerator {
                 )));
             }
         };
-        
+
         // Detect if the test body contains async calls or await expressions
         let is_async = ast_lambda_body_has_async(lambda_body);
-        
+
         if is_async {
             self.writeln("#[tokio::test]");
             self.writeln(&format!("async fn test_{}() {{", test_name));
@@ -3049,10 +3322,10 @@ impl CodeGenerator {
             self.writeln(&format!("fn test_{}() {{", test_name));
         }
         self.indent();
-        
+
         let was_in_test = self.in_test_block;
         self.in_test_block = true;
-        
+
         // Auto-invoke beforeEach hooks (from all parent describe scopes + current)
         let before_hooks = self.collect_before_each_hooks();
         for (hook_fn, hook_is_async) in &before_hooks {
@@ -3062,7 +3335,7 @@ impl CodeGenerator {
                 self.writeln(&format!("{}();", hook_fn));
             }
         }
-        
+
         match lambda_body {
             LambdaBody::Block(block) => {
                 self.generate_block_inner(block)?;
@@ -3073,7 +3346,7 @@ impl CodeGenerator {
                 self.output.push_str(";\n");
             }
         }
-        
+
         // Auto-invoke afterEach hooks (innermost first, then parent scopes)
         let after_hooks = self.collect_after_each_hooks();
         for (hook_fn, hook_is_async) in &after_hooks {
@@ -3083,20 +3356,20 @@ impl CodeGenerator {
                 self.writeln(&format!("{}();", hook_fn));
             }
         }
-        
+
         self.in_test_block = was_in_test;
         self.dedent();
         self.writeln("}");
         Ok(())
     }
-    
+
     /// Generate lifecycle hooks (beforeEach, afterEach, beforeAll, afterAll)
     /// Generates a helper function that test cases auto-invoke
     fn generate_test_lifecycle(&mut self, hook_name: &str, call: &CallExpr) -> Result<()> {
         if call.args.is_empty() {
             return Ok(());
         }
-        
+
         // Generate unique fn name based on nesting depth
         let base_name = self.to_snake_case(hook_name);
         let depth = if self.test_hooks_stack.is_empty() {
@@ -3109,22 +3382,22 @@ impl CodeGenerator {
         } else {
             format!("{}_{}", base_name, depth)
         };
-        
+
         let lambda_body = match &call.args[0] {
             Expr::Lambda(lambda) => &lambda.body,
             _ => return Ok(()),
         };
-        
+
         // Detect if the hook body contains async calls
         let is_async = ast_lambda_body_has_async(lambda_body);
-        
+
         if is_async {
             self.writeln(&format!("async fn {}() {{", fn_name));
         } else {
             self.writeln(&format!("fn {}() {{", fn_name));
         }
         self.indent();
-        
+
         match lambda_body {
             LambdaBody::Block(block) => {
                 self.generate_block_inner(block)?;
@@ -3135,18 +3408,21 @@ impl CodeGenerator {
                 self.output.push_str(";\n");
             }
         }
-        
+
         self.dedent();
         self.writeln("}");
         Ok(())
     }
-    
+
     /// Try to generate an expect() chain: expect(x).toBe(y) -> assert_eq!(x, y)
     /// Returns Some(code) if this is an expect chain, None otherwise
-    fn try_generate_expect_chain(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<Option<String>> {
+    fn try_generate_expect_chain(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<Option<String>> {
         // Pattern: expect(actual).matcher(expected)
         // Object is Call(expect, [actual]) and method is the matcher name
-        
+
         // Check for negated: expect(x).not.toBe(y)
         // Parsed as MethodCall { object: Member { Call(expect, [x]), "not" }, method: "toBe" }
         let (actual_expr, matcher, is_negated) = match method_call.object.as_ref() {
@@ -3180,7 +3456,7 @@ impl CodeGenerator {
             }
             _ => return Ok(None),
         };
-        
+
         // Generate actual expression into a buffer
         let actual_code = {
             let saved = std::mem::take(&mut self.output);
@@ -3188,7 +3464,7 @@ impl CodeGenerator {
             let code = std::mem::replace(&mut self.output, saved);
             code
         };
-        
+
         // Helper to generate expected arg
         let gen_expected = |this: &mut Self| -> Result<String> {
             if method_call.args.is_empty() {
@@ -3203,7 +3479,7 @@ impl CodeGenerator {
             let code = std::mem::replace(&mut this.output, saved);
             Ok(code)
         };
-        
+
         let result = match matcher.as_str() {
             "toBe" | "toEqual" => {
                 let expected = gen_expected(self)?;
@@ -3276,9 +3552,15 @@ impl CodeGenerator {
             }
             "toThrow" => {
                 if is_negated {
-                    format!("assert!(std::panic::catch_unwind(|| {{ {} }}).is_ok())", actual_code)
+                    format!(
+                        "assert!(std::panic::catch_unwind(|| {{ {} }}).is_ok())",
+                        actual_code
+                    )
                 } else {
-                    format!("assert!(std::panic::catch_unwind(|| {{ {} }}).is_err())", actual_code)
+                    format!(
+                        "assert!(std::panic::catch_unwind(|| {{ {} }}).is_err())",
+                        actual_code
+                    )
                 }
             }
             _ => {
@@ -3289,10 +3571,10 @@ impl CodeGenerator {
                 )));
             }
         };
-        
+
         Ok(Some(result))
     }
-    
+
     // ─── End liva/test codegen ───────────────────────────────────────
 
     fn generate_params(
@@ -3309,7 +3591,7 @@ impl CodeGenerator {
             // Use &mut self for methods that modify fields
             let is_setter = method_name.map_or(false, |name| name.starts_with("set"));
             let modifies_self = method.map_or(false, |m| self.method_modifies_self(m));
-            
+
             if is_setter || modifies_self {
                 result.push_str("&mut self");
             } else {
@@ -3332,10 +3614,10 @@ impl CodeGenerator {
             } else {
                 self.sanitize_name(param.name().unwrap())
             };
-            
+
             let type_str = if let Some(type_ref) = &param.type_ref {
                 let rust_type = type_ref.to_rust_type();
-                
+
                 // Register parameter as class instance if its type is a known class
                 if !param.is_destructuring() {
                     let type_name = match type_ref {
@@ -3348,8 +3630,14 @@ impl CodeGenerator {
                             self.string_vars.insert(param_name.clone());
                         }
                         // Check if this is a class type (starts with uppercase, not primitive)
-                        else if !matches!(tname.as_str(), "number" | "i32" | "i64" | "f64" | "bool" | "char" | "Vec" | "Option") 
-                           && tname.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) 
+                        else if !matches!(
+                            tname.as_str(),
+                            "number" | "i32" | "i64" | "f64" | "bool" | "char" | "Vec" | "Option"
+                        ) && tname
+                            .chars()
+                            .next()
+                            .map(|c| c.is_uppercase())
+                            .unwrap_or(false)
                         {
                             self.class_instance_vars.insert(param_name.clone());
                             self.var_types.insert(param_name.clone(), tname.clone());
@@ -3364,14 +3652,15 @@ impl CodeGenerator {
                             TypeRef::Simple(name) => name.clone(),
                             _ => "i32".to_string(),
                         };
-                        self.typed_array_vars.insert(param_name.clone(), elem_type_name.clone());
+                        self.typed_array_vars
+                            .insert(param_name.clone(), elem_type_name.clone());
                         // If element type is "string", also track for proper string handling
                         if matches!(elem_type_name.as_str(), "string" | "String") {
                             // Array of strings - tracked for forEach |s| pattern
                         }
                     }
                 }
-                
+
                 rust_type
             } else if let Some(cls) = class {
                 // Try to infer from field types in the class
@@ -3450,22 +3739,24 @@ impl CodeGenerator {
                     // Generates: let x = match fallible_expr { Ok(v) => v, Err(_) => return Err(liva_rt::Error::from("message")) };
                     let binding = &var.bindings[0];
                     let var_name = self.sanitize_name(binding.name().unwrap());
-                    
+
                     // Check if the init is an HTTP call, File call, or user-fallible call
                     let is_http = self.is_http_call(&var.init);
                     let is_file = self.is_file_call(&var.init);
                     let is_json_parse = self.is_json_parse_call(&var.init);
                     let is_user_fallible = self.is_fallible_expr(&var.init);
-                    
+
                     if is_http {
                         // HTTP calls return (Option<Response>, String)
                         // Generate: let var = { let (opt, err_str) = HTTP.get(...).await; if !err_str.is_empty() { return Err(liva_rt::Error::from("msg")); } opt.unwrap_or_default() };
                         write!(self.output, "let {} = {{ let (opt, err_str) = ", var_name).unwrap();
                         self.generate_expr(&var.init)?;
-                        self.output.push_str(".await; if !err_str.is_empty() { return Err(liva_rt::Error::from(");
+                        self.output.push_str(
+                            ".await; if !err_str.is_empty() { return Err(liva_rt::Error::from(",
+                        );
                         self.generate_expr(fail_msg)?;
                         self.output.push_str(")); } opt.unwrap_or_default() };\n");
-                        
+
                         // Track as rust_struct for member access
                         self.rust_struct_vars.insert(var_name);
                     } else if is_file {
@@ -3473,7 +3764,9 @@ impl CodeGenerator {
                         // Generate: let var = { let (opt, err_str) = File.read(...); if !err_str.is_empty() { return Err(liva_rt::Error::from("msg")); } opt.unwrap_or_default() };
                         write!(self.output, "let {} = {{ let (opt, err_str) = ", var_name).unwrap();
                         self.generate_expr(&var.init)?;
-                        self.output.push_str("; if !err_str.is_empty() { return Err(liva_rt::Error::from(");
+                        self.output.push_str(
+                            "; if !err_str.is_empty() { return Err(liva_rt::Error::from(",
+                        );
                         self.generate_expr(fail_msg)?;
                         self.output.push_str(")); } opt.unwrap_or_default() };\n");
                     } else if is_json_parse {
@@ -3481,10 +3774,12 @@ impl CodeGenerator {
                         // Generate: let var = { let (opt, err_str) = JSON.parse(...); if !err_str.is_empty() { return Err(liva_rt::Error::from("msg")); } opt.unwrap_or_default() };
                         write!(self.output, "let {} = {{ let (opt, err_str) = ", var_name).unwrap();
                         self.generate_expr(&var.init)?;
-                        self.output.push_str("; if !err_str.is_empty() { return Err(liva_rt::Error::from(");
+                        self.output.push_str(
+                            "; if !err_str.is_empty() { return Err(liva_rt::Error::from(",
+                        );
                         self.generate_expr(fail_msg)?;
                         self.output.push_str(")); } opt.unwrap_or_default() };\n");
-                        
+
                         // Track as json_value_var for indexed access
                         self.json_value_vars.insert(var_name);
                     } else if is_user_fallible {
@@ -3492,7 +3787,8 @@ impl CodeGenerator {
                         // Generate: let var = match expr { Ok(v) => v, Err(_) => return Err(liva_rt::Error::from("msg")) };
                         write!(self.output, "let {} = match ", var_name).unwrap();
                         self.generate_expr(&var.init)?;
-                        self.output.push_str(" { Ok(v) => v, Err(_) => return Err(liva_rt::Error::from(");
+                        self.output
+                            .push_str(" { Ok(v) => v, Err(_) => return Err(liva_rt::Error::from(");
                         self.generate_expr(fail_msg)?;
                         self.output.push_str(")) };\n");
                     } else {
@@ -3501,7 +3797,7 @@ impl CodeGenerator {
                         self.generate_expr(&var.init)?;
                         self.output.push_str(";\n");
                     }
-                    
+
                     return Ok(());
                 }
 
@@ -3521,13 +3817,17 @@ impl CodeGenerator {
 
                     // Check if the init expression returns a tuple directly (before tracking)
                     let returns_tuple = self.is_builtin_conversion_call(&var.init);
-                    
+
                     // Check if this is an await of HTTP task (also returns tuple with String error)
                     let is_await_http = self.is_await_http_task(&var.init).is_some();
-                    
+
                     // Phase 1: Check if this is typed JSON.parse (returns direct values, not Option)
-                    let is_typed_json_parse = self.is_json_parse_call(&var.init) 
-                        && var.bindings.first().and_then(|b| b.type_ref.as_ref()).is_some();
+                    let is_typed_json_parse = self.is_json_parse_call(&var.init)
+                        && var
+                            .bindings
+                            .first()
+                            .and_then(|b| b.type_ref.as_ref())
+                            .is_some();
 
                     // Phase 3: Track the error variable (second binding) as Option<String>
                     // BUT: Only track as Option if NOT a tuple-returning function AND NOT typed JSON.parse
@@ -3537,9 +3837,16 @@ impl CodeGenerator {
                     // Typed JSON.parse returns (T, String) - value is T, not Option<T>
                     let is_task = task_exec_policy.is_some();
                     let is_await_task = self.is_await_of_pending_task(&var.init).is_some();
-                    if binding_names.len() == 2 && !returns_tuple && !is_typed_json_parse && !is_await_http && !is_task && !is_await_task {
+                    if binding_names.len() == 2
+                        && !returns_tuple
+                        && !is_typed_json_parse
+                        && !is_await_http
+                        && !is_task
+                        && !is_await_task
+                    {
                         self.error_binding_vars.insert(binding_names[1].clone());
-                        self.option_value_vars.insert(binding_names[0].clone()); // Also track the value (first binding)
+                        self.option_value_vars.insert(binding_names[0].clone());
+                    // Also track the value (first binding)
                     } else if binding_names.len() == 2 && (is_task || is_await_task) {
                         // Task error bindings: match { Ok(v) => (v, None), Err(e) => (Default, Some(e)) }
                         // value is T (direct), err is Option<Error>
@@ -3548,15 +3855,15 @@ impl CodeGenerator {
                     } else if binding_names.len() == 2 && (returns_tuple || is_typed_json_parse) {
                         // For tuple-returning functions AND typed JSON.parse: response is T (not Option), err is String
                         // Don't add to option_value_vars or error_binding_vars
-                        
+
                         // Track the error variable (second binding) as string_error_vars for `if err` sugar
                         self.string_error_vars.insert(binding_names[1].clone());
-                        
+
                         // Check if this is an HTTP call - mark first binding as rust_struct
                         if self.is_http_call(&var.init) {
                             self.rust_struct_vars.insert(binding_names[0].clone());
                         }
-                        
+
                         // Check if this is typed JSON.parse with array type - track element type
                         if is_typed_json_parse {
                             if let Some(first_binding) = var.bindings.first() {
@@ -3566,7 +3873,10 @@ impl CodeGenerator {
                                         match element_type.as_ref() {
                                             TypeRef::Simple(type_name) => {
                                                 // Track arrays of classes and strings (both need .cloned())
-                                                self.typed_array_vars.insert(binding_names[0].clone(), type_name.clone());
+                                                self.typed_array_vars.insert(
+                                                    binding_names[0].clone(),
+                                                    type_name.clone(),
+                                                );
                                             }
                                             _ => {}
                                         }
@@ -3621,30 +3931,37 @@ impl CodeGenerator {
                         } else {
                             // Check if the expression is a built-in conversion function that returns a tuple
                             let returns_tuple = self.is_builtin_conversion_call(&var.init);
-                            
+
                             // Phase 1: Check if this is JSON.parse with type hint
                             let is_json_parse = self.is_json_parse_call(&var.init);
-                            let has_type_hint = var.bindings.first().and_then(|b| b.type_ref.as_ref()).is_some();
-                            
+                            let has_type_hint = var
+                                .bindings
+                                .first()
+                                .and_then(|b| b.type_ref.as_ref())
+                                .is_some();
+
                             if is_json_parse && has_type_hint {
                                 // Typed JSON parsing with error binding: let nums: [i32], err = JSON.parse("[1,2,3]")
                                 // Generate: let (nums, err): (Vec<i32>, String) = match serde_json::from_str::<Vec<i32>>(...) { Ok(v) => (v, String::new()), Err(e) => (Vec::new(), format!("{}", e)) };
-                                let type_ref = var.bindings.first().unwrap().type_ref.as_ref().unwrap();
+                                let type_ref =
+                                    var.bindings.first().unwrap().type_ref.as_ref().unwrap();
                                 let rust_type = self.expand_type_alias(type_ref);
-                                
+
                                 write!(self.output, "): ({}, String) = match ", rust_type).unwrap();
-                                
+
                                 if let Expr::MethodCall(method_call) = &var.init {
                                     self.generate_typed_json_parse(method_call, type_ref)?;
                                 }
-                                
+
                                 // Generate default value for error case
                                 let default_value = match type_ref {
                                     TypeRef::Array(_) => "Vec::new()".to_string(),
                                     TypeRef::Optional(_) => "None".to_string(),
                                     TypeRef::Simple(name) => match name.as_str() {
-                                        "int" | "i8" | "i16" | "i32" | "i64" | "i128" |
-                                        "u8" | "u16" | "u32" | "u64" | "u128" | "usize" | "isize" => "0".to_string(),
+                                        "int" | "i8" | "i16" | "i32" | "i64" | "i128" | "u8"
+                                        | "u16" | "u32" | "u64" | "u128" | "usize" | "isize" => {
+                                            "0".to_string()
+                                        }
                                         "float" | "f32" | "f64" => "0.0".to_string(),
                                         "bool" => "false".to_string(),
                                         "string" | "String" => "String::new()".to_string(),
@@ -3652,16 +3969,17 @@ impl CodeGenerator {
                                     },
                                     _ => "Default::default()".to_string(),
                                 };
-                                
+
                                 write!(self.output, " {{ Ok(v) => (v, String::new()), Err(e) => ({}, format!(\"JSON parse error: {{}}\", e)) }};\n", default_value).unwrap();
-                                
+
                                 // Phase 2.2: Track class instances for proper member access codegen
                                 if let TypeRef::Simple(class_name) = type_ref {
                                     // Check if this is a class type (not a primitive)
                                     if self.class_fields.contains_key(class_name) {
                                         let binding = &var.bindings[0];
                                         if let Some(name) = binding.name() {
-                                            self.class_instance_vars.insert(self.sanitize_name(name));
+                                            self.class_instance_vars
+                                                .insert(self.sanitize_name(name));
                                         }
                                     }
                                 } else if let TypeRef::Array(elem_type) = type_ref {
@@ -3670,13 +3988,14 @@ impl CodeGenerator {
                                     if let Some(name) = binding.name() {
                                         let sanitized_name = self.sanitize_name(name);
                                         self.array_vars.insert(sanitized_name.clone());
-                                        
+
                                         // Track element type (class, string, etc.) for proper forEach/map patterns
                                         if let TypeRef::Simple(type_name) = elem_type.as_ref() {
                                             // Track in typed_array_vars for both classes and primitives like "string"
                                             // This ensures forEach uses correct lambda pattern |p| instead of |&p|
-                                            self.typed_array_vars.insert(sanitized_name.clone(), type_name.clone());
-                                            
+                                            self.typed_array_vars
+                                                .insert(sanitized_name.clone(), type_name.clone());
+
                                             // Also track class instances for member access
                                             if self.class_fields.contains_key(type_name) {
                                                 // Already handled by typed_array_vars
@@ -3691,7 +4010,7 @@ impl CodeGenerator {
                                 self.output.push_str(") = ");
                                 self.generate_expr(&var.init)?;
                                 self.output.push_str(";\n");
-                                
+
                                 // Track this variable as Option<JsonValue> so we can unwrap it before field access
                                 if let Some(first_binding) = var.bindings.first() {
                                     if let Some(name) = first_binding.name() {
@@ -3706,8 +4025,9 @@ impl CodeGenerator {
                                 // Generate: let (response, err) = { let (opt, err) = liva_http_get(url).await; (opt.unwrap_or_default(), err) };
                                 self.output.push_str(") = { let (opt, err) = ");
                                 self.generate_expr(&var.init)?;
-                                self.output.push_str(".await; (opt.unwrap_or_default(), err) };\n");
-                                
+                                self.output
+                                    .push_str(".await; (opt.unwrap_or_default(), err) };\n");
+
                                 // Track the response variable as rust_struct
                                 if let Some(first_binding) = var.bindings.first() {
                                     if let Some(name) = first_binding.name() {
@@ -3726,7 +4046,8 @@ impl CodeGenerator {
                                 // Generate: let (content, err) = { let (opt, err) = expr; (opt.unwrap_or_default(), err) };
                                 self.output.push_str(") = { let (opt, err) = ");
                                 self.generate_expr(&var.init)?;
-                                self.output.push_str("; (opt.unwrap_or_default(), err) };\n");
+                                self.output
+                                    .push_str("; (opt.unwrap_or_default(), err) };\n");
                                 // Track the error variable as string_error_vars (for `if err` sugar)
                                 if var.bindings.len() >= 2 {
                                     if let Some(name) = var.bindings[1].name() {
@@ -3738,7 +4059,7 @@ impl CodeGenerator {
                                 // let res, err = await task1
                                 // Generate: let (res, err) = { let (opt, err) = task1_task.await.unwrap(); (opt.unwrap_or_default(), err) };
                                 write!(self.output, ") = {{ let (opt, err) = {}_task.await.unwrap(); (opt.unwrap_or_default(), err) }};\n", task_name).unwrap();
-                                
+
                                 // Track the response variable as rust_struct
                                 if let Some(first_binding) = var.bindings.first() {
                                     if let Some(name) = first_binding.name() {
@@ -3796,14 +4117,14 @@ impl CodeGenerator {
                         ));
                     }
                     let binding = &var.bindings[0];
-                    
+
                     // Check if this is a destructuring pattern
                     if !binding.pattern.is_simple() {
                         // Handle destructuring patterns
                         self.generate_destructuring_pattern(&binding.pattern, &var.init)?;
                         return Ok(());
                     }
-                    
+
                     // Simple identifier binding
                     let var_name = self.sanitize_name(binding.name().unwrap());
 
@@ -3858,7 +4179,7 @@ impl CodeGenerator {
                         if let Expr::ArrayLiteral(elements) = &var.init {
                             if let Some(name) = binding.name() {
                                 self.array_vars.insert(name.to_string());
-                                
+
                                 // If array contains anonymous objects, mark as json_value
                                 // e.g., let users = [{ id: 1, name: "Alice" }, { id: 2, name: "Bob" }]
                                 if !elements.is_empty() {
@@ -3870,8 +4191,14 @@ impl CodeGenerator {
                                     else if let Expr::Call(call) = &elements[0] {
                                         if let Expr::Identifier(class_name) = &*call.callee {
                                             // Check if first letter is uppercase (likely a class)
-                                            if class_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
-                                                self.typed_array_vars.insert(name.to_string(), class_name.clone());
+                                            if class_name
+                                                .chars()
+                                                .next()
+                                                .map(|c| c.is_uppercase())
+                                                .unwrap_or(false)
+                                            {
+                                                self.typed_array_vars
+                                                    .insert(name.to_string(), class_name.clone());
                                             }
                                         }
                                     }
@@ -3886,7 +4213,8 @@ impl CodeGenerator {
                                             _ => None,
                                         };
                                         if let Some(type_name) = elem_type {
-                                            self.typed_array_vars.insert(name.to_string(), type_name.to_string());
+                                            self.typed_array_vars
+                                                .insert(name.to_string(), type_name.to_string());
                                         }
                                     }
                                 }
@@ -3898,14 +4226,19 @@ impl CodeGenerator {
                             if matches!(method_call.method.as_str(), "map" | "filter") {
                                 if let Some(name) = binding.name() {
                                     self.array_vars.insert(name.to_string());
-                                    
+
                                     // Propagate element type from source array to filter/map result
-                                    if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
-                                        if let Some(elem_type) = self.typed_array_vars.get(&base_var_name).cloned() {
-                                            self.typed_array_vars.insert(name.to_string(), elem_type);
+                                    if let Some(base_var_name) =
+                                        self.get_base_var_name(&method_call.object)
+                                    {
+                                        if let Some(elem_type) =
+                                            self.typed_array_vars.get(&base_var_name).cloned()
+                                        {
+                                            self.typed_array_vars
+                                                .insert(name.to_string(), elem_type);
                                         }
                                     }
-                                    
+
                                     // If the method is called on a JsonValue, the result is also Vec<JsonValue>
                                     // BUT we need to mark it as json_value for proper forEach iteration
                                     if self.is_json_value_expr(&method_call.object) {
@@ -3917,7 +4250,8 @@ impl CodeGenerator {
                             else if method_call.method.as_str() == "split" {
                                 if let Some(name) = binding.name() {
                                     self.array_vars.insert(name.to_string());
-                                    self.typed_array_vars.insert(name.to_string(), "string".to_string());
+                                    self.typed_array_vars
+                                        .insert(name.to_string(), "string".to_string());
                                 }
                             }
                             // .find() returns Option<T> - mark variable as option_value_vars
@@ -3953,8 +4287,7 @@ impl CodeGenerator {
                                         self.array_vars.insert(name.to_string());
                                     } else {
                                         self.class_instance_vars.insert(name.to_string());
-                                        self.var_types
-                                            .insert(name.to_string(), class_name.clone());
+                                        self.var_types.insert(name.to_string(), class_name.clone());
                                     }
                                 }
                             }
@@ -3963,8 +4296,7 @@ impl CodeGenerator {
                         else if let Expr::StructLiteral { type_name, .. } = &var.init {
                             if let Some(name) = binding.name() {
                                 self.class_instance_vars.insert(name.to_string());
-                                self.var_types
-                                    .insert(name.to_string(), type_name.clone());
+                                self.var_types.insert(name.to_string(), type_name.clone());
                             }
                         }
                         // Mark variables initialized from JSON indexing as json_value
@@ -3989,46 +4321,51 @@ impl CodeGenerator {
                         if let Some(type_ref) = &binding.type_ref {
                             let rust_type = self.expand_type_alias(type_ref);
                             write!(self.output, ": {}", rust_type).unwrap();
-                            
+
                             // Track string type for .length -> .len() conversion
                             if matches!(type_ref, TypeRef::Simple(name) if name == "string") {
                                 self.string_vars.insert(var_name.clone());
                             }
-                            
+
                             // Bug #35 fix: Track array types for proper forEach/map lambda patterns
                             // e.g., let parts: [string] = text.split(",") should use |p| not |&p|
                             if let TypeRef::Array(elem_type) = type_ref {
                                 self.array_vars.insert(var_name.clone());
                                 if let TypeRef::Simple(type_name) = elem_type.as_ref() {
-                                    self.typed_array_vars.insert(var_name.clone(), type_name.clone());
+                                    self.typed_array_vars
+                                        .insert(var_name.clone(), type_name.clone());
                                 }
                             }
                         }
 
                         self.output.push_str(" = ");
-                        
+
                         // Check if we need to wrap in a union variant
-                        let (needs_union_close, mut needs_to_string) = if let Some(type_ref) = &binding.type_ref {
-                            self.maybe_wrap_in_union(type_ref, &var.init)
-                        } else {
-                            (false, false)
-                        };
-                        
+                        let (needs_union_close, mut needs_to_string) =
+                            if let Some(type_ref) = &binding.type_ref {
+                                self.maybe_wrap_in_union(type_ref, &var.init)
+                            } else {
+                                (false, false)
+                            };
+
                         // Bug #17 fix: String literals should always be converted to String
                         // to avoid &str vs String type mismatch when variable is reassigned
                         if matches!(&var.init, Expr::Literal(Literal::String(_))) {
                             needs_to_string = true;
                         }
-                        
+
                         // Phase 1: Check if this is JSON.parse with type hint (typed parsing)
                         let is_json_parse = self.is_json_parse_call(&var.init);
                         let has_type_hint = binding.type_ref.is_some();
-                        
+
                         if is_json_parse && has_type_hint {
                             // Typed JSON parsing: let nums: [i32] = JSON.parse("[1,2,3]")
                             // Generate: let nums: Vec<i32> = serde_json::from_str::<Vec<i32>>(&"[1,2,3]").expect("JSON parse failed");
                             if let Expr::MethodCall(method_call) = &var.init {
-                                self.generate_typed_json_parse(method_call, binding.type_ref.as_ref().unwrap())?;
+                                self.generate_typed_json_parse(
+                                    method_call,
+                                    binding.type_ref.as_ref().unwrap(),
+                                )?;
                                 self.output.push_str(".expect(\"JSON parse failed\")");
                             }
                         } else if is_json_parse {
@@ -4037,7 +4374,7 @@ impl CodeGenerator {
                             if let Some(name) = binding.name() {
                                 self.json_value_vars.insert(name.to_string());
                             }
-                            
+
                             // Generate: let posts = JSON.parse(body).0.expect("JSON parse failed");
                             self.generate_expr(&var.init)?;
                             self.output.push_str(".0.expect(\"JSON parse failed\")");
@@ -4055,17 +4392,17 @@ impl CodeGenerator {
                                 self.output.push_str(".clone()");
                             }
                         }
-                        
+
                         // Add .to_string() if needed for string literals
                         if needs_to_string {
                             self.output.push_str(".to_string()");
                         }
-                        
+
                         // Close union wrapper if opened
                         if needs_union_close {
                             self.output.push(')');
                         }
-                        
+
                         self.output.push_str(";\n");
                     }
                 }
@@ -4152,8 +4489,8 @@ impl CodeGenerator {
 
                 self.write_indent();
                 write!(self.output, "for {} in ", var_name).unwrap();
-                
-                // Bug #74 fix: In Liva, iterating doesn't consume collections. In Rust, 
+
+                // Bug #74 fix: In Liva, iterating doesn't consume collections. In Rust,
                 // `for x in vec` moves the vec. Use .clone() or .iter() to avoid this.
                 // For self.field: use & (iterate by reference in borrowed context)
                 // For variables: clone to preserve ownership for later use
@@ -4175,14 +4512,14 @@ impl CodeGenerator {
                 }
                 self.output.push_str(" {\n");
                 self.indent();
-                
+
                 // Phase 11.3: Point-free in for loops
                 // for item in items => print  →  for item in items { print(item) }
                 // for item in items => mifuncion  →  for item in items { mifuncion(item) }
-                let is_point_free_body = for_stmt.body.stmts.len() == 1 
-                    && matches!(&for_stmt.body.stmts[0], Stmt::Expr(expr_stmt) 
+                let is_point_free_body = for_stmt.body.stmts.len() == 1
+                    && matches!(&for_stmt.body.stmts[0], Stmt::Expr(expr_stmt)
                         if matches!(&expr_stmt.expr, Expr::Identifier(_) | Expr::MethodRef { .. }));
-                
+
                 if is_point_free_body {
                     if let Stmt::Expr(expr_stmt) = &for_stmt.body.stmts[0] {
                         match &expr_stmt.expr {
@@ -4190,14 +4527,17 @@ impl CodeGenerator {
                                 self.write_indent();
                                 match func_name.as_str() {
                                     "print" => {
-                                        write!(self.output, "println!(\"{{}}\", {});\n", var_name).unwrap();
+                                        write!(self.output, "println!(\"{{}}\", {});\n", var_name)
+                                            .unwrap();
                                     }
                                     "toString" => {
-                                        write!(self.output, "format!(\"{{}}\", {});\n", var_name).unwrap();
+                                        write!(self.output, "format!(\"{{}}\", {});\n", var_name)
+                                            .unwrap();
                                     }
                                     _ => {
                                         let sanitized = self.sanitize_name(func_name);
-                                        write!(self.output, "{}({});\n", sanitized, var_name).unwrap();
+                                        write!(self.output, "{}({});\n", sanitized, var_name)
+                                            .unwrap();
                                     }
                                 }
                             }
@@ -4206,14 +4546,26 @@ impl CodeGenerator {
                                 self.write_indent();
                                 let sanitized_obj = self.sanitize_name(object);
                                 let sanitized_method = self.sanitize_name(method);
-                                let is_class = object.chars().next().map_or(false, |c| c.is_uppercase());
-                                
+                                let is_class =
+                                    object.chars().next().map_or(false, |c| c.is_uppercase());
+
                                 if method == "new" {
-                                    write!(self.output, "{}::new({});\n", sanitized_obj, var_name).unwrap();
+                                    write!(self.output, "{}::new({});\n", sanitized_obj, var_name)
+                                        .unwrap();
                                 } else if is_class {
-                                    write!(self.output, "{}::{}({});\n", sanitized_obj, sanitized_method, var_name).unwrap();
+                                    write!(
+                                        self.output,
+                                        "{}::{}({});\n",
+                                        sanitized_obj, sanitized_method, var_name
+                                    )
+                                    .unwrap();
                                 } else {
-                                    write!(self.output, "{}.{}({});\n", sanitized_obj, sanitized_method, var_name).unwrap();
+                                    write!(
+                                        self.output,
+                                        "{}.{}({});\n",
+                                        sanitized_obj, sanitized_method, var_name
+                                    )
+                                    .unwrap();
                                 }
                             }
                             _ => {}
@@ -4222,16 +4574,17 @@ impl CodeGenerator {
                 } else {
                     self.generate_block_inner(&for_stmt.body)?;
                 }
-                
+
                 self.dedent();
                 self.writeln("}");
             }
             Stmt::Switch(switch_stmt) => {
                 // Check if this is a string-based switch (if any case value is a string literal)
-                let is_string_switch = switch_stmt.cases.iter().any(|case| {
-                    matches!(&case.value, Expr::Literal(Literal::String(_)))
-                });
-                
+                let is_string_switch = switch_stmt
+                    .cases
+                    .iter()
+                    .any(|case| matches!(&case.value, Expr::Literal(Literal::String(_))));
+
                 self.write_indent();
                 self.output.push_str("match ");
                 self.generate_expr(&switch_stmt.discriminant)?;
@@ -4330,14 +4683,22 @@ impl CodeGenerator {
                 // liva/test: describe(), test(), lifecycle hooks generate blocks — no trailing ;
                 let is_test_block_call = if let Expr::Call(call) = &expr_stmt.expr {
                     if let Expr::Identifier(name) = call.callee.as_ref() {
-                        matches!(name.as_str(), "describe" | "test" | "beforeEach" | "afterEach" | "beforeAll" | "afterAll")
+                        matches!(
+                            name.as_str(),
+                            "describe"
+                                | "test"
+                                | "beforeEach"
+                                | "afterEach"
+                                | "beforeAll"
+                                | "afterAll"
+                        )
                     } else {
                         false
                     }
                 } else {
                     false
                 };
-                
+
                 if is_test_block_call {
                     self.generate_expr(&expr_stmt.expr)?;
                 } else {
@@ -4368,7 +4729,11 @@ impl CodeGenerator {
     /// Bug #45-46: Extended to handle array indexing of generic array fields
     fn expr_is_self_field(&self, expr: &Expr) -> bool {
         // Direct field access: this.field
-        if let Expr::Member { object, property: _ } = expr {
+        if let Expr::Member {
+            object,
+            property: _,
+        } = expr
+        {
             if let Expr::Identifier(obj) = object.as_ref() {
                 return obj == "this" && self.in_method;
             }
@@ -4394,11 +4759,20 @@ impl CodeGenerator {
             self.output.push_str(".to_string()");
             return Ok(());
         }
-        
+
         // Bug #52: Check if return type is float and expression contains integer division
         // We need to generate proper float division, not cast after integer division
-        if self.current_return_type.as_ref().map_or(false, |t| t == "f64") {
-            if let Expr::Binary { op: BinOp::Div, left, right } = expr {
+        if self
+            .current_return_type
+            .as_ref()
+            .map_or(false, |t| t == "f64")
+        {
+            if let Expr::Binary {
+                op: BinOp::Div,
+                left,
+                right,
+            } = expr
+            {
                 // For division with float return type, cast left operand to f64
                 self.output.push('(');
                 self.generate_expr(left)?;
@@ -4415,7 +4789,7 @@ impl CodeGenerator {
                 return Ok(());
             }
         }
-        
+
         // Check if this is a member access on 'this' (self.field)
         // Use the helper function for this check
         let needs_clone = self.expr_is_self_field(expr);
@@ -4426,10 +4800,10 @@ impl CodeGenerator {
         } else {
             self.generate_expr(expr)?;
         }
-        
+
         Ok(())
     }
-    
+
     /// Check if an expression evaluates to an integer type (i32)
     /// Used for Bug #52 to detect when we need to cast to f64
     fn expr_is_integer_expr(&self, expr: &Expr) -> bool {
@@ -4446,15 +4820,17 @@ impl CodeGenerator {
             }
             // Binary operations with arithmetic operators on integers produce integers
             Expr::Binary { op, left, right } => {
-                matches!(op, BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod)
-                    && self.expr_is_integer_expr(left)
+                matches!(
+                    op,
+                    BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod
+                ) && self.expr_is_integer_expr(left)
                     && self.expr_is_integer_expr(right)
             }
             // Method calls - could return anything, assume not integer for safety
             _ => false,
         }
     }
-    
+
     /// Check if a variable is known to be a float type
     fn is_known_float_var(&self, _name: &str) -> bool {
         // For now, we don't have float var tracking, so return false
@@ -4596,8 +4972,14 @@ impl CodeGenerator {
                 if let Expr::Identifier(name) = object.as_ref() {
                     if name == "Math" {
                         match property.as_str() {
-                            "PI" => { self.output.push_str("std::f64::consts::PI"); return Ok(()); }
-                            "E" => { self.output.push_str("std::f64::consts::E"); return Ok(()); }
+                            "PI" => {
+                                self.output.push_str("std::f64::consts::PI");
+                                return Ok(());
+                            }
+                            "E" => {
+                                self.output.push_str("std::f64::consts::E");
+                                return Ok(());
+                            }
                             _ => {} // Fall through to method call handling
                         }
                     }
@@ -4615,38 +4997,49 @@ impl CodeGenerator {
                         .unwrap();
                         return Ok(());
                     }
-                    
+
                     // Special handling for Option<Struct> from tuple-returning functions
                     // For HTTP responses, File contents, JSON values, etc. - unwrap before accessing field
                     if self.option_value_vars.contains(&sanitized) {
                         if property == "length" {
                             // For JSON values: use .length() method
-                            write!(self.output, "{}.as_ref().unwrap().length()", sanitized).unwrap();
+                            write!(self.output, "{}.as_ref().unwrap().length()", sanitized)
+                                .unwrap();
                             return Ok(());
                         }
-                        
+
                         // Check if this is a JSON value (from JSON.parse, HTTP, etc.)
                         let is_json_value = self.json_value_vars.contains(&sanitized);
-                        
+
                         // Check if this is a struct field access (not JSON)
                         // Common struct fields: status, statusText, body, headers, content, etc.
                         let is_http_struct_field = matches!(
                             property.as_str(),
                             "status" | "statusText" | "body" | "headers" | "content" | "data"
                         );
-                        
+
                         if is_http_struct_field {
                             // Convert camelCase to snake_case for Rust structs
                             let rust_field = self.to_snake_case(property);
-                            write!(self.output, "{}.as_ref().unwrap().{}", sanitized, rust_field).unwrap();
+                            write!(
+                                self.output,
+                                "{}.as_ref().unwrap().{}",
+                                sanitized, rust_field
+                            )
+                            .unwrap();
                             return Ok(());
                         }
-                        
+
                         // For Option<T> from .find() on class arrays, unwrap before field access
                         // If it's not a JSON value, it's a class instance wrapped in Option
                         if !is_json_value {
                             let rust_field = self.to_snake_case(property);
-                            write!(self.output, "{}.as_ref().unwrap().{}", sanitized, rust_field).unwrap();
+                            write!(
+                                self.output,
+                                "{}.as_ref().unwrap().{}",
+                                sanitized, rust_field
+                            )
+                            .unwrap();
                             return Ok(());
                         }
                     }
@@ -4670,7 +5063,7 @@ impl CodeGenerator {
                             // Check if this is a known JsonValue variable
                             let is_json_value = self.json_value_vars.contains(&sanitized)
                                 || self.json_value_vars.contains(var_name);
-                            
+
                             if is_json_value {
                                 // JsonValue uses .length() (already returns i32)
                                 self.generate_expr(object)?;
@@ -4690,9 +5083,9 @@ impl CodeGenerator {
                     }
                     return Ok(());
                 }
-                
+
                 self.generate_expr(object)?;
-                
+
                 // Use bracket notation for JSON objects, dot notation for structs
                 match object.as_ref() {
                     Expr::Identifier(var_name) => {
@@ -4700,21 +5093,27 @@ impl CodeGenerator {
                         // Sanitize the name to match how it was stored in rust_struct_vars
                         let sanitized_name = self.sanitize_name(var_name);
                         let is_rust_struct = self.rust_struct_vars.contains(&sanitized_name);
-                        
+
                         // Check if this is likely a JsonValue (not array, not class instance, not rust struct)
                         if !is_rust_struct
-                            && !self.is_class_instance(var_name) 
+                            && !self.is_class_instance(var_name)
                             && !self.array_vars.contains(var_name)
                             && !var_name.contains("person")
                             && !var_name.contains("user")
                         {
                             // Likely a JsonValue - use get_field()
-                            write!(self.output, ".get_field(\"{}\").unwrap_or_default()", property).unwrap();
+                            write!(
+                                self.output,
+                                ".get_field(\"{}\").unwrap_or_default()",
+                                property
+                            )
+                            .unwrap();
                             return Ok(());
                         }
-                        
+
                         // For class instances and Rust structs, use dot notation
-                        if is_rust_struct || self.is_class_instance(var_name)
+                        if is_rust_struct
+                            || self.is_class_instance(var_name)
                             || var_name.contains("person")
                             || var_name.contains("user")
                         {
@@ -4736,7 +5135,7 @@ impl CodeGenerator {
                             }
                             return Ok(());
                         }
-                        
+
                         // For JSON access, generate bracket notation
                         write!(self.output, "[\"{}\"]", property).unwrap();
 
@@ -4757,43 +5156,86 @@ impl CodeGenerator {
                             }
                         }
                     }
-                    Expr::Index { object: arr_obj, .. } => {
+                    Expr::Index {
+                        object: arr_obj, ..
+                    } => {
                         // Bug #51 fix: Check if this is a typed array with class elements
                         // If so, use dot notation instead of bracket notation
-                        let use_dot_notation = if let Expr::Identifier(arr_name) = arr_obj.as_ref() {
+                        let use_dot_notation = if let Expr::Identifier(arr_name) = arr_obj.as_ref()
+                        {
                             let sanitized = self.sanitize_name(arr_name);
-                            self.typed_array_vars.get(&sanitized).map(|t| {
-                                // Check if element type is a class (starts with uppercase, not primitive)
-                                !matches!(t.as_str(), "number" | "int" | "i32" | "float" | "f64" | "bool" | "char" | "string")
-                                    && t.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
-                            }).unwrap_or(false)
-                        } else if let Expr::Member { object: member_obj, property: member_prop } = arr_obj.as_ref() {
+                            self.typed_array_vars
+                                .get(&sanitized)
+                                .map(|t| {
+                                    // Check if element type is a class (starts with uppercase, not primitive)
+                                    !matches!(
+                                        t.as_str(),
+                                        "number"
+                                            | "int"
+                                            | "i32"
+                                            | "float"
+                                            | "f64"
+                                            | "bool"
+                                            | "char"
+                                            | "string"
+                                    ) && t.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
+                                })
+                                .unwrap_or(false)
+                        } else if let Expr::Member {
+                            object: member_obj,
+                            property: member_prop,
+                        } = arr_obj.as_ref()
+                        {
                             // Bug #69 fix: Handle this.field[i].prop — check typed_array_vars for the field name
-                            if matches!(member_obj.as_ref(), Expr::Identifier(name) if name == "this") {
+                            if matches!(member_obj.as_ref(), Expr::Identifier(name) if name == "this")
+                            {
                                 let sanitized = self.sanitize_name(member_prop);
-                                self.typed_array_vars.get(&sanitized).map(|t| {
-                                    !matches!(t.as_str(), "number" | "int" | "i32" | "float" | "f64" | "bool" | "char" | "string")
-                                        && t.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
-                                }).unwrap_or(false)
+                                self.typed_array_vars
+                                    .get(&sanitized)
+                                    .map(|t| {
+                                        !matches!(
+                                            t.as_str(),
+                                            "number"
+                                                | "int"
+                                                | "i32"
+                                                | "float"
+                                                | "f64"
+                                                | "bool"
+                                                | "char"
+                                                | "string"
+                                        ) && t
+                                            .chars()
+                                            .next()
+                                            .map(|c| c.is_uppercase())
+                                            .unwrap_or(false)
+                                    })
+                                    .unwrap_or(false)
                             } else {
                                 false
                             }
                         } else {
                             false
                         };
-                        
+
                         if use_dot_notation {
                             // Class element - use dot notation with snake_case field name
                             let rust_field = self.to_snake_case(property);
                             write!(self.output, ".{}", rust_field).unwrap();
-                            
+
                             // Bug #51: String fields need .clone() to avoid move errors
                             // Common string field names that need cloning
-                            if property.ends_with("name") || property.ends_with("label") 
-                                || property.ends_with("title") || property.ends_with("text")
-                                || property.ends_with("message") || property.ends_with("description")
-                                || property == "name" || property == "label" || property == "title"
-                                || property == "text" || property == "message" || property == "description"
+                            if property.ends_with("name")
+                                || property.ends_with("label")
+                                || property.ends_with("title")
+                                || property.ends_with("text")
+                                || property.ends_with("message")
+                                || property.ends_with("description")
+                                || property == "name"
+                                || property == "label"
+                                || property == "title"
+                                || property == "text"
+                                || property == "message"
+                                || property == "description"
                             {
                                 self.output.push_str(".clone()");
                             }
@@ -4835,7 +5277,7 @@ impl CodeGenerator {
                     if let Expr::Identifier(var_name) = object.as_ref() {
                         let sanitized = self.sanitize_name(var_name);
                         let is_option_json = self.option_value_vars.contains(&sanitized);
-                        
+
                         // Check if this might be a JsonValue (either Option or direct)
                         // We detect Option<JsonValue> via option_value_vars
                         // For direct JsonValue, we'll try to generate the method call
@@ -4854,13 +5296,15 @@ impl CodeGenerator {
                                         write!(self.output, "{}.as_ref().unwrap().get_field(&{}).unwrap_or_default()", sanitized, index_sanitized).unwrap();
                                     } else {
                                         // Assume numeric index for array access
-                                        write!(self.output, "{}.as_ref().unwrap().get(", sanitized).unwrap();
+                                        write!(self.output, "{}.as_ref().unwrap().get(", sanitized)
+                                            .unwrap();
                                         self.generate_expr(index)?;
                                         self.output.push_str(").unwrap_or_default()");
                                     }
                                 }
                                 _ => {
-                                    write!(self.output, "{}.as_ref().unwrap().get(", sanitized).unwrap();
+                                    write!(self.output, "{}.as_ref().unwrap().get(", sanitized)
+                                        .unwrap();
                                     self.generate_expr(index)?;
                                     self.output.push_str(").unwrap_or_default()");
                                 }
@@ -4869,7 +5313,7 @@ impl CodeGenerator {
                         }
                     }
                 }
-                
+
                 // Special handling for string indexing: s[i] -> s.chars().nth(i).unwrap_or_default()
                 // Rust strings are UTF-8 and don't support direct indexing
                 // This must come BEFORE generate_expr(object) to prevent emitting the object first
@@ -4880,13 +5324,14 @@ impl CodeGenerator {
                         self.generate_expr(object)?;
                         self.output.push_str(".chars().nth(");
                         self.generate_expr(index)?;
-                        self.output.push_str(" as usize).map(|c| c.to_string()).unwrap_or_default()");
+                        self.output
+                            .push_str(" as usize).map(|c| c.to_string()).unwrap_or_default()");
                         return Ok(());
                     }
                 }
-                
+
                 self.generate_expr(object)?;
-                
+
                 // For native Vec<String> (from Sys.args()), use direct indexing with .clone()
                 if let Expr::Identifier(var_name) = object.as_ref() {
                     let sanitized = self.sanitize_name(var_name);
@@ -4897,23 +5342,31 @@ impl CodeGenerator {
                         return Ok(());
                     }
                 }
-                
+
                 // For JsonValue direct access (not Option), check if object looks like JsonValue
                 // This is a heuristic: if object is an identifier that's not in our known sets,
                 // it might be a JsonValue. We'll generate .get_field() / .get() instead of []
                 if let Expr::Identifier(var_name) = object.as_ref() {
                     let sanitized = self.sanitize_name(var_name);
                     // If it's not a known array or class instance, try JsonValue access
-                    if !self.array_vars.contains(&sanitized) && !self.class_instance_vars.contains(&sanitized) {
+                    if !self.array_vars.contains(&sanitized)
+                        && !self.class_instance_vars.contains(&sanitized)
+                    {
                         match index.as_ref() {
                             Expr::Literal(Literal::String(key)) => {
                                 // Try JsonValue object access
-                                write!(self.output, ".get_field(\"{}\").unwrap_or_default()", key).unwrap();
+                                write!(self.output, ".get_field(\"{}\").unwrap_or_default()", key)
+                                    .unwrap();
                                 return Ok(());
                             }
                             Expr::Literal(Literal::Int(num)) => {
                                 // Try JsonValue array access with numeric literal
-                                write!(self.output, ".get({} as usize).cloned().unwrap_or_default()", num).unwrap();
+                                write!(
+                                    self.output,
+                                    ".get({} as usize).cloned().unwrap_or_default()",
+                                    num
+                                )
+                                .unwrap();
                                 return Ok(());
                             }
                             Expr::Identifier(index_var) => {
@@ -4929,7 +5382,8 @@ impl CodeGenerator {
                                     // Assume numeric index for array access
                                     self.output.push_str(".get(");
                                     self.generate_expr(index)?;
-                                    self.output.push_str(" as usize).cloned().unwrap_or_default()");
+                                    self.output
+                                        .push_str(" as usize).cloned().unwrap_or_default()");
                                 }
                                 return Ok(());
                             }
@@ -4937,13 +5391,14 @@ impl CodeGenerator {
                                 // Try JsonValue array access with expression
                                 self.output.push_str(".get(");
                                 self.generate_expr(index)?;
-                                self.output.push_str(" as usize).cloned().unwrap_or_default()");
+                                self.output
+                                    .push_str(" as usize).cloned().unwrap_or_default()");
                                 return Ok(());
                             }
                         }
                     }
                 }
-                
+
                 // Handle nested JSON access: when object is another Index expression (e.g., issue["user"]["login"])
                 // The object was already generated above, now we need to chain .get_field() for the nested access
                 if let Expr::Index { .. } = object.as_ref() {
@@ -4951,28 +5406,35 @@ impl CodeGenerator {
                     // Generate .get_field("key") for the next level
                     match index.as_ref() {
                         Expr::Literal(Literal::String(key)) => {
-                            write!(self.output, ".get_field(\"{}\").unwrap_or_default()", key).unwrap();
+                            write!(self.output, ".get_field(\"{}\").unwrap_or_default()", key)
+                                .unwrap();
                             return Ok(());
                         }
                         Expr::Literal(Literal::Int(num)) => {
-                            write!(self.output, ".get({} as usize).cloned().unwrap_or_default()", num).unwrap();
+                            write!(
+                                self.output,
+                                ".get({} as usize).cloned().unwrap_or_default()",
+                                num
+                            )
+                            .unwrap();
                             return Ok(());
                         }
                         _ => {
                             self.output.push_str(".get(");
                             self.generate_expr(index)?;
-                            self.output.push_str(" as usize).cloned().unwrap_or_default()");
+                            self.output
+                                .push_str(" as usize).cloned().unwrap_or_default()");
                             return Ok(());
                         }
                     }
                 }
-                
+
                 // Fall back to standard array indexing
                 // Bug #34: For arrays with non-literal index (e.g., lines[i] where i is int),
                 // we need to add `as usize` because Rust Vec indexing requires usize
                 // Bug #42: Also handle this.field[idx] for generic class array fields
                 self.output.push('[');
-                
+
                 // Determine if we need `as usize` conversion BEFORE generating the expression
                 // so we can wrap it in parentheses if needed
                 let needs_usize_conversion = match object.as_ref() {
@@ -4987,15 +5449,13 @@ impl CodeGenerator {
                             false
                         }
                     }
-                    Expr::Member { .. } => {
-                        match index.as_ref() {
-                            Expr::Literal(Literal::Int(_)) => false,
-                            _ => true,
-                        }
-                    }
+                    Expr::Member { .. } => match index.as_ref() {
+                        Expr::Literal(Literal::Int(_)) => false,
+                        _ => true,
+                    },
                     _ => false,
                 };
-                
+
                 // Wrap in parentheses if we need usize conversion
                 if needs_usize_conversion {
                     self.output.push('(');
@@ -5004,7 +5464,7 @@ impl CodeGenerator {
                 if needs_usize_conversion {
                     self.output.push_str(") as usize");
                 }
-                
+
                 // Check if this is a string array - need .clone() for String
                 let needs_clone = if let Expr::Identifier(var_name) = object.as_ref() {
                     let sanitized = self.sanitize_name(var_name);
@@ -5020,9 +5480,9 @@ impl CodeGenerator {
                 } else {
                     false
                 };
-                
+
                 self.output.push(']');
-                
+
                 // For string arrays, add .clone() because indexing returns &String
                 if needs_clone {
                     self.output.push_str(".clone()");
@@ -5071,7 +5531,7 @@ impl CodeGenerator {
                     // Convert field name to snake_case
                     let field_name = self.sanitize_name(key);
                     write!(self.output, "{}: ", field_name).unwrap();
-                    
+
                     // Add .to_string() for string literals
                     if let Expr::Literal(Literal::String(_)) = value {
                         self.generate_expr(value)?;
@@ -5148,7 +5608,9 @@ impl CodeGenerator {
                             Expr::Identifier(name) => {
                                 if self.array_vars.contains(name) {
                                     self.output.push_str("{:?}");
-                                } else if self.option_value_vars.contains(name) || self.error_binding_vars.contains(name) {
+                                } else if self.option_value_vars.contains(name)
+                                    || self.error_binding_vars.contains(name)
+                                {
                                     // Option values need special handling - will be unwrapped
                                     self.output.push_str("{}");
                                 } else {
@@ -5241,7 +5703,12 @@ impl CodeGenerator {
                                             write!(self.output, "{}.as_ref().unwrap().get_field(\"{}\").unwrap_or_default()", sanitized, key).unwrap();
                                         }
                                         _ => {
-                                            write!(self.output, "{}.as_ref().unwrap().get(", sanitized).unwrap();
+                                            write!(
+                                                self.output,
+                                                "{}.as_ref().unwrap().get(",
+                                                sanitized
+                                            )
+                                            .unwrap();
                                             self.generate_expr(index)?;
                                             self.output.push_str(").unwrap_or_default()");
                                         }
@@ -5268,14 +5735,14 @@ impl CodeGenerator {
                     if idx > 0 {
                         self.output.push_str(", ");
                     }
-                    
+
                     // For destructured parameters, use temporary names
                     let param_name = if param.is_destructuring() {
                         format!("_param_{}", idx)
                     } else {
                         self.sanitize_name(param.name().unwrap())
                     };
-                    
+
                     self.output.push_str(&param_name);
                     if let Some(type_ref) = &param.type_ref {
                         self.output.push_str(": ");
@@ -5295,19 +5762,24 @@ impl CodeGenerator {
                             self.output.push('{');
                             self.indent();
                             self.output.push('\n');
-                            
+
                             // Capture element type before mutable borrows
                             let element_type_for_destr = self.current_lambda_element_type.clone();
-                            
+
                             // Generate destructuring for lambda params
                             for (idx, param) in lambda.params.iter().enumerate() {
                                 if param.is_destructuring() {
                                     let temp_name = format!("_param_{}", idx);
                                     self.write_indent();
-                                    self.generate_lambda_param_destructuring(&param.pattern, &temp_name, false, element_type_for_destr.as_deref())?;
+                                    self.generate_lambda_param_destructuring(
+                                        &param.pattern,
+                                        &temp_name,
+                                        false,
+                                        element_type_for_destr.as_deref(),
+                                    )?;
                                 }
                             }
-                            
+
                             self.write_indent();
                             self.generate_expr(expr)?;
                             self.output.push('\n');
@@ -5328,22 +5800,28 @@ impl CodeGenerator {
                                     self.output.push('{');
                                     self.indent();
                                     self.output.push('\n');
-                                    
+
                                     // Capture element type before mutable borrows
-                                    let element_type_for_destr = self.current_lambda_element_type.clone();
-                                    
+                                    let element_type_for_destr =
+                                        self.current_lambda_element_type.clone();
+
                                     // Generate destructuring for lambda params (if any)
                                     if has_destructuring {
                                         for (idx, param) in lambda.params.iter().enumerate() {
                                             if param.is_destructuring() {
                                                 let temp_name = format!("_param_{}", idx);
                                                 self.write_indent();
-                                                self.generate_lambda_param_destructuring(&param.pattern, &temp_name, false, element_type_for_destr.as_deref())?;
+                                                self.generate_lambda_param_destructuring(
+                                                    &param.pattern,
+                                                    &temp_name,
+                                                    false,
+                                                    element_type_for_destr.as_deref(),
+                                                )?;
                                                 self.output.push('\n');
                                             }
                                         }
                                     }
-                                    
+
                                     self.write_indent();
 
                                     // Generate all statements except the last return
@@ -5369,22 +5847,28 @@ impl CodeGenerator {
                                 self.output.push('{');
                                 self.indent();
                                 self.output.push('\n');
-                                
+
                                 // Capture element type before mutable borrows
-                                let element_type_for_destr = self.current_lambda_element_type.clone();
-                                
+                                let element_type_for_destr =
+                                    self.current_lambda_element_type.clone();
+
                                 // Generate destructuring for lambda params (if any)
                                 if has_destructuring {
                                     for (idx, param) in lambda.params.iter().enumerate() {
                                         if param.is_destructuring() {
                                             let temp_name = format!("_param_{}", idx);
                                             self.write_indent();
-                                            self.generate_lambda_param_destructuring(&param.pattern, &temp_name, false, element_type_for_destr.as_deref())?;
+                                            self.generate_lambda_param_destructuring(
+                                                &param.pattern,
+                                                &temp_name,
+                                                false,
+                                                element_type_for_destr.as_deref(),
+                                            )?;
                                             self.output.push('\n');
                                         }
                                     }
                                 }
-                                
+
                                 self.write_indent();
                                 for stmt in &block.stmts {
                                     self.generate_stmt(stmt)?;
@@ -5422,9 +5906,9 @@ impl CodeGenerator {
                 // logger::log → |_x| logger.log(_x)
                 let sanitized_obj = self.sanitize_name(object);
                 let sanitized_method = self.sanitize_name(method);
-                
+
                 let is_class = object.chars().next().map_or(false, |c| c.is_uppercase());
-                
+
                 if method == "new" {
                     // Constructor reference: User::new → User::new("_x")
                     // Will be wrapped in closure by array method codegen
@@ -5435,7 +5919,12 @@ impl CodeGenerator {
                 } else {
                     // Instance method reference: logger::log → |_x| logger.log(_x)
                     // For now, output as a closure that calls the instance method
-                    write!(self.output, "|_x| {}.{}(_x)", sanitized_obj, sanitized_method).unwrap();
+                    write!(
+                        self.output,
+                        "|_x| {}.{}(_x)",
+                        sanitized_obj, sanitized_method
+                    )
+                    .unwrap();
                 }
             }
         }
@@ -5445,7 +5934,7 @@ impl CodeGenerator {
     fn generate_switch_expr(&mut self, switch_expr: &SwitchExpr) -> Result<()> {
         // Check if this is a union type match by examining the first Typed pattern
         let union_type_name = self.detect_union_switch(switch_expr);
-        
+
         // Generate Rust match expression
         self.output.push_str("match ");
         self.generate_expr(&switch_expr.discriminant)?;
@@ -5512,7 +6001,7 @@ impl CodeGenerator {
     fn detect_union_switch(&mut self, switch_expr: &SwitchExpr) -> Option<String> {
         // Collect types from Typed patterns in order
         let mut pattern_types = Vec::new();
-        
+
         for arm in &switch_expr.arms {
             if let Pattern::Typed { type_ref, .. } = &arm.pattern {
                 let rust_type = self.expand_type_alias(type_ref);
@@ -5521,7 +6010,7 @@ impl CodeGenerator {
                 }
             }
         }
-        
+
         // If we found typed patterns, construct union name from pattern order
         if pattern_types.len() >= 2 {
             Some(format!("Union_{}", pattern_types.join("_")))
@@ -5536,7 +6025,14 @@ impl CodeGenerator {
             Pattern::Typed { name, type_ref } => {
                 let rust_type = self.expand_type_alias(type_ref);
                 let variant_name = self.type_to_variant_name(&rust_type);
-                write!(self.output, "{}::{}({})", union_name, variant_name, self.sanitize_name(name)).unwrap();
+                write!(
+                    self.output,
+                    "{}::{}({})",
+                    union_name,
+                    variant_name,
+                    self.sanitize_name(name)
+                )
+                .unwrap();
             }
             Pattern::Wildcard => {
                 self.output.push('_');
@@ -5560,35 +6056,33 @@ impl CodeGenerator {
             Pattern::Binding(name) => {
                 self.output.push_str(&self.sanitize_name(name));
             }
-            Pattern::Range(range) => {
-                match (&range.start, &range.end, range.inclusive) {
-                    (Some(start), Some(end), true) => {
-                        self.generate_expr(start)?;
-                        self.output.push_str("..=");
-                        self.generate_expr(end)?;
-                    }
-                    (Some(start), Some(end), false) => {
-                        self.generate_expr(start)?;
-                        self.output.push_str("..");
-                        self.generate_expr(end)?;
-                    }
-                    (Some(start), None, _) => {
-                        self.generate_expr(start)?;
-                        self.output.push_str("..");
-                    }
-                    (None, Some(end), true) => {
-                        self.output.push_str("..=");
-                        self.generate_expr(end)?;
-                    }
-                    (None, Some(end), false) => {
-                        self.output.push_str("..");
-                        self.generate_expr(end)?;
-                    }
-                    (None, None, _) => {
-                        self.output.push_str("..");
-                    }
+            Pattern::Range(range) => match (&range.start, &range.end, range.inclusive) {
+                (Some(start), Some(end), true) => {
+                    self.generate_expr(start)?;
+                    self.output.push_str("..=");
+                    self.generate_expr(end)?;
                 }
-            }
+                (Some(start), Some(end), false) => {
+                    self.generate_expr(start)?;
+                    self.output.push_str("..");
+                    self.generate_expr(end)?;
+                }
+                (Some(start), None, _) => {
+                    self.generate_expr(start)?;
+                    self.output.push_str("..");
+                }
+                (None, Some(end), true) => {
+                    self.output.push_str("..=");
+                    self.generate_expr(end)?;
+                }
+                (None, Some(end), false) => {
+                    self.output.push_str("..");
+                    self.generate_expr(end)?;
+                }
+                (None, None, _) => {
+                    self.output.push_str("..");
+                }
+            },
             Pattern::Tuple(patterns) => {
                 self.output.push('(');
                 for (i, pat) in patterns.iter().enumerate() {
@@ -5659,7 +6153,11 @@ impl CodeGenerator {
                 return Ok(());
             }
             // beforeEach/afterEach/beforeAll/afterAll → setup/teardown helpers
-            if name == "beforeEach" || name == "afterEach" || name == "beforeAll" || name == "afterAll" {
+            if name == "beforeEach"
+                || name == "afterEach"
+                || name == "beforeAll"
+                || name == "afterAll"
+            {
                 return self.generate_test_lifecycle(name, call);
             }
             // ─────────────────────────────────────────────────────────
@@ -5667,77 +6165,69 @@ impl CodeGenerator {
             // Handle parseInt(str) -> (i32, Option<Error>)
             if name == "parseInt" {
                 if call.args.is_empty() {
-                    return Err(CompilerError::CodegenError(
-                        SemanticErrorInfo::new(
-                            "E3000",
-                            "parseInt requires 1 argument",
-                            "parseInt(str) takes exactly one string argument"
-                        )
-                    ));
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "parseInt requires 1 argument",
+                        "parseInt(str) takes exactly one string argument",
+                    )));
                 }
                 self.output.push_str("match ");
                 self.generate_expr(&call.args[0])?;
                 self.output.push_str(".parse::<i32>() { Ok(v) => (v, None), Err(_) => (0, Some(liva_rt::Error::from(\"Invalid integer format\"))) }");
                 return Ok(());
             }
-            
+
             // Handle parseFloat(str) -> (f64, Option<Error>)
             if name == "parseFloat" {
                 if call.args.is_empty() {
-                    return Err(CompilerError::CodegenError(
-                        SemanticErrorInfo::new(
-                            "E3000",
-                            "parseFloat requires 1 argument",
-                            "parseFloat(str) takes exactly one string argument"
-                        )
-                    ));
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "parseFloat requires 1 argument",
+                        "parseFloat(str) takes exactly one string argument",
+                    )));
                 }
                 self.output.push_str("match ");
                 self.generate_expr(&call.args[0])?;
                 self.output.push_str(".parse::<f64>() { Ok(v) => (v, None), Err(_) => (0.0_f64, Some(liva_rt::Error::from(\"Invalid float format\"))) }");
                 return Ok(());
             }
-            
+
             // Handle toString(value) -> String
             if name == "toString" {
                 if call.args.is_empty() {
-                    return Err(CompilerError::CodegenError(
-                        SemanticErrorInfo::new(
-                            "E3000",
-                            "toString requires 1 argument",
-                            "toString(value) takes exactly one argument"
-                        )
-                    ));
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "toString requires 1 argument",
+                        "toString(value) takes exactly one argument",
+                    )));
                 }
                 self.output.push_str("format!(\"{}\", ");
                 self.generate_expr(&call.args[0])?;
                 self.output.push_str(")");
                 return Ok(());
             }
-            
+
             // Handle readLine() -> String (read from stdin)
             if name == "readLine" {
                 self.output.push_str("{ let mut input = String::new(); std::io::stdin().read_line(&mut input).expect(\"Failed to read line\"); input.trim().to_string() }");
                 return Ok(());
             }
-            
+
             // Handle prompt(message) -> String (display message and read input)
             if name == "prompt" {
                 if call.args.is_empty() {
-                    return Err(CompilerError::CodegenError(
-                        SemanticErrorInfo::new(
-                            "E3000",
-                            "prompt requires 1 argument",
-                            "prompt(message) takes exactly one string argument"
-                        )
-                    ));
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "prompt requires 1 argument",
+                        "prompt(message) takes exactly one string argument",
+                    )));
                 }
                 self.output.push_str("{ print!(\"{}\", ");
                 self.generate_expr(&call.args[0])?;
                 self.output.push_str("); std::io::stdout().flush().expect(\"Failed to flush stdout\"); let mut input = String::new(); std::io::stdin().read_line(&mut input).expect(\"Failed to read line\"); input.trim().to_string() }");
                 return Ok(());
             }
-            
+
             if name == "print" {
                 if call.args.is_empty() {
                     self.output.push_str("println!()");
@@ -5827,7 +6317,7 @@ impl CodeGenerator {
         };
 
         self.generate_expr(&call.callee)?;
-        
+
         // Add type arguments if present (turbofish syntax)
         if !call.type_args.is_empty() {
             self.output.push_str("::<");
@@ -5839,7 +6329,7 @@ impl CodeGenerator {
             }
             self.output.push('>');
         }
-        
+
         self.output.push('(');
         for (i, arg) in call.args.iter().enumerate() {
             if i > 0 {
@@ -5863,12 +6353,12 @@ impl CodeGenerator {
             }
         }
         self.output.push(')');
-        
+
         // Add .await for async function calls
         if is_async_call {
             self.output.push_str(".await");
         }
-        
+
         Ok(())
     }
 
@@ -5887,7 +6377,11 @@ impl CodeGenerator {
 
     /// Check if an expression is an explicit `await taskVar` for a pending task
     fn is_explicit_await_of_task(&self, expr: &Expr, task_var_name: &str) -> bool {
-        if let Expr::Unary { op: crate::ast::UnOp::Await, operand } = expr {
+        if let Expr::Unary {
+            op: crate::ast::UnOp::Await,
+            operand,
+        } = expr
+        {
             if let Expr::Identifier(name) = operand.as_ref() {
                 return self.sanitize_name(name) == task_var_name;
             }
@@ -5897,7 +6391,11 @@ impl CodeGenerator {
 
     /// Check if an expression is `await taskVar` where taskVar is a pending task. Returns the task name.
     fn is_await_of_pending_task(&self, expr: &Expr) -> Option<String> {
-        if let Expr::Unary { op: crate::ast::UnOp::Await, operand } = expr {
+        if let Expr::Unary {
+            op: crate::ast::UnOp::Await,
+            operand,
+        } = expr
+        {
             if let Expr::Identifier(name) = operand.as_ref() {
                 let sanitized = self.sanitize_name(name);
                 if self.pending_tasks.contains_key(&sanitized) {
@@ -5945,7 +6443,11 @@ impl CodeGenerator {
                 self.expr_uses_var(&mc.object, var_name)
                     || mc.args.iter().any(|arg| self.expr_uses_var(arg, var_name))
             }
-            Expr::Ternary { condition, then_expr, else_expr } => {
+            Expr::Ternary {
+                condition,
+                then_expr,
+                else_expr,
+            } => {
                 self.expr_uses_var(condition, var_name)
                     || self.expr_uses_var(then_expr, var_name)
                     || self.expr_uses_var(else_expr, var_name)
@@ -6156,7 +6658,7 @@ impl CodeGenerator {
 
             if task_info.is_error_binding {
                 // Error binding: async { match task.await.unwrap() { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) } }
-                write!(self.output, "async {{ match {}.await.unwrap() {{ Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) }} }}", 
+                write!(self.output, "async {{ match {}.await.unwrap() {{ Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) }} }}",
                     task_var_name).unwrap();
             } else {
                 // Simple binding: async { task.await.unwrap() }
@@ -6201,11 +6703,11 @@ impl CodeGenerator {
                 }
                 write!(self.output, "{}", binding_name).unwrap();
             }
-            
+
             if task_info.returns_tuple {
                 // Function returns (Option<T>, String) or (T, String) directly - destructure
                 self.output.push_str(") = ");
-                
+
                 if task_info.is_http_call {
                     // HTTP calls return (Option<T>, String), unwrap the Option too
                     write!(self.output, "{{ let (opt, err) = {}.await.unwrap(); (opt.unwrap_or_default(), err) }};\n", task_var_name).unwrap();
@@ -6217,8 +6719,9 @@ impl CodeGenerator {
                 // Function returns Result - match and convert
                 self.output.push_str(") = match ");
                 write!(self.output, "{}.await.unwrap()", task_var_name).unwrap();
-                self.output
-                    .push_str(" { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };\n");
+                self.output.push_str(
+                    " { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };\n",
+                );
             }
         } else {
             // Simple binding: let var_name = var_name_task.await.unwrap();
@@ -6237,88 +6740,109 @@ impl CodeGenerator {
     }
 
     /// Generate code for method calls (stdlib Phase 2 - array methods)
-    fn generate_method_call_expr(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
+    fn generate_method_call_expr(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
         use crate::ast::ArrayAdapter;
-        
+
         // ─── liva/test: expect(x).toBe(y) chain ─────────────────────
         if let Some(result) = self.try_generate_expect_chain(method_call)? {
             self.output.push_str(&result);
             return Ok(());
         }
         // ─────────────────────────────────────────────────────────────
-        
+
         // Check if this is a Math function call (Math.sqrt, Math.pow, etc.)
         if let Expr::Identifier(name) = method_call.object.as_ref() {
             if name == "Math" {
                 return self.generate_math_function_call(method_call);
             }
-            
+
             // Check if this is a console function call (console.log, console.error, etc.)
             if name == "console" {
                 return self.generate_console_function_call(method_call);
             }
-            
+
             // Check if this is a JSON function call (JSON.parse, JSON.stringify)
             if name == "JSON" {
                 return self.generate_json_function_call(method_call);
             }
-            
+
             // Check if this is a File function call (File.read, File.write, etc.)
             if name == "File" {
                 return self.generate_file_function_call(method_call);
             }
-            
+
             // Check if this is an HTTP function call (HTTP.get, HTTP.post, etc.)
             if name == "HTTP" || name == "Http" {
                 return self.generate_http_function_call(method_call);
             }
-            
+
             // Check if this is a Sys function call (Sys.args, Sys.env, etc.)
             if name == "Sys" {
                 return self.generate_sys_function_call(method_call);
             }
-            
+
             // Bug #40: Check if this is a module alias call (import * as alias from "...")
             // Generate module::function() instead of alias.function()
             if let Some(module_name) = self.module_aliases.get(name).cloned() {
                 return self.generate_module_function_call(&module_name, method_call);
             }
         }
-        
+
         // Check if this is a string method (no adapter means it's not an array method)
         // Special case: indexOf can be both string and array method
         // We detect string indexOf if:
         // 1. The argument is a string literal, OR
         // 2. The argument is a known string variable, OR
         // 3. The object is a member access on 'this' (class field likely string)
-        let is_string_indexof = method_call.method == "indexOf" && !method_call.args.is_empty() && {
-            // Check if argument is string literal
-            let arg_is_string_lit = matches!(&method_call.args[0], Expr::Literal(Literal::String(_)));
-            // Check if argument is a known string variable
-            let arg_is_string_var = if let Expr::Identifier(var_name) = &method_call.args[0] {
-                self.string_vars.contains(&self.sanitize_name(var_name))
-            } else { false };
-            // Check if object is this.field (member access on this/self)
-            let object_is_this_field = if let Expr::Member { object, .. } = method_call.object.as_ref() {
-                matches!(object.as_ref(), Expr::Identifier(name) if name == "this" || name == "self")
-            } else { false };
-            
-            arg_is_string_lit || arg_is_string_var || object_is_this_field
-        };
-        
-        let is_string_method = (matches!(method_call.adapter, ArrayAdapter::Seq) 
+        let is_string_indexof = method_call.method == "indexOf"
+            && !method_call.args.is_empty()
+            && {
+                // Check if argument is string literal
+                let arg_is_string_lit =
+                    matches!(&method_call.args[0], Expr::Literal(Literal::String(_)));
+                // Check if argument is a known string variable
+                let arg_is_string_var = if let Expr::Identifier(var_name) = &method_call.args[0] {
+                    self.string_vars.contains(&self.sanitize_name(var_name))
+                } else {
+                    false
+                };
+                // Check if object is this.field (member access on this/self)
+                let object_is_this_field = if let Expr::Member { object, .. } =
+                    method_call.object.as_ref()
+                {
+                    matches!(object.as_ref(), Expr::Identifier(name) if name == "this" || name == "self")
+                } else {
+                    false
+                };
+
+                arg_is_string_lit || arg_is_string_var || object_is_this_field
+            };
+
+        let is_string_method = (matches!(method_call.adapter, ArrayAdapter::Seq)
             && matches!(
                 method_call.method.as_str(),
-                "split" | "replace" | "toUpperCase" | "toLowerCase" | 
-                "trim" | "trimStart" | "trimEnd" | "startsWith" | "endsWith" |
-                "substring" | "charAt"
-            )) || is_string_indexof;
-        
+                "split"
+                    | "replace"
+                    | "toUpperCase"
+                    | "toLowerCase"
+                    | "trim"
+                    | "trimStart"
+                    | "trimEnd"
+                    | "startsWith"
+                    | "endsWith"
+                    | "substring"
+                    | "charAt"
+            ))
+            || is_string_indexof;
+
         if is_string_method {
             // Handle string methods
             return self.generate_string_method_call(method_call);
         }
-        
+
         // Handle [string].join(separator) — array method that produces a string
         if method_call.method == "join" {
             self.generate_expr(&method_call.object)?;
@@ -6331,7 +6855,7 @@ impl CodeGenerator {
             self.output.push(')');
             return Ok(());
         }
-        
+
         // Check if this is a method on HTTP Response (e.g., response.json())
         if let Expr::Identifier(var_name) = method_call.object.as_ref() {
             if self.rust_struct_vars.contains(var_name) && method_call.method == "json" {
@@ -6341,7 +6865,7 @@ impl CodeGenerator {
                 return Ok(());
             }
         }
-        
+
         // Check if the object is Option<JsonValue> (from JSON.parse with error binding)
         // If so, we need to unwrap it before calling array methods
         let is_option_json_value = if let Expr::Identifier(var_name) = method_call.object.as_ref() {
@@ -6350,32 +6874,32 @@ impl CodeGenerator {
         } else {
             false
         };
-        
+
         // Bug #36: For binary expressions as method call object, we need parentheses
         // e.g., (arr.length - 1).toString() should generate ((arr.len() as i32) - 1).to_string()
         // Without parens, `- 1.to_string()` has wrong precedence
         let needs_parens_for_binary = matches!(method_call.object.as_ref(), Expr::Binary { .. });
-        
+
         if needs_parens_for_binary {
             self.output.push('(');
         }
-        
+
         // Generate the object
         self.generate_expr(&method_call.object)?;
-        
+
         if needs_parens_for_binary {
             self.output.push(')');
         }
-        
+
         // Unwrap Option<JsonValue> before calling methods
         if is_option_json_value {
             self.output.push_str(".as_ref().unwrap()");
         }
-        
+
         // Check if operating on JsonValue
         let is_json_value = self.is_json_value_expr(&method_call.object);
         let is_direct_json = self.is_direct_json_value(&method_call.object);
-        
+
         // Handle array methods with adapters
         match method_call.adapter {
             ArrayAdapter::Seq => {
@@ -6431,7 +6955,7 @@ impl CodeGenerator {
                 } else {
                     self.output.push_str(".par_iter()");
                 }
-                
+
                 // TODO: Handle adapter options (threads, chunk, ordered)
                 if method_call.adapter_options.threads.is_some()
                     || method_call.adapter_options.chunk.is_some()
@@ -6456,126 +6980,163 @@ impl CodeGenerator {
                 // TODO: Implement SIMD optimizations on top of parallel
             }
         }
-        
+
         // Generate the method call
-        
+
         // Special handling for reduce: it uses .iter() on the vector itself
         if method_call.method == "reduce" && matches!(method_call.adapter, ArrayAdapter::Seq) {
             self.output.push_str(".iter()");
         }
-        
+
         // Bug #47-48: For parallel reduce with Copy types, add .copied() to get owned values
-        if method_call.method == "reduce" && matches!(method_call.adapter, ArrayAdapter::Par | ArrayAdapter::ParVec) {
+        if method_call.method == "reduce"
+            && matches!(
+                method_call.adapter,
+                ArrayAdapter::Par | ArrayAdapter::ParVec
+            )
+        {
             // Check if we need .copied() (Copy types) or the iterator already has owned values
-            let needs_copied = if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
-                if let Some(element_type) = self.typed_array_vars.get(&base_var_name) {
-                    matches!(element_type.as_str(), "number" | "int" | "i32" | "float" | "f64" | "bool" | "char")
+            let needs_copied =
+                if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
+                    if let Some(element_type) = self.typed_array_vars.get(&base_var_name) {
+                        matches!(
+                            element_type.as_str(),
+                            "number" | "int" | "i32" | "float" | "f64" | "bool" | "char"
+                        )
+                    } else {
+                        false
+                    }
                 } else {
                     false
-                }
-            } else {
-                false
-            };
+                };
             if needs_copied {
                 self.output.push_str(".copied()");
             }
         }
-        
+
         self.output.push('.');
-        
+
         // Map Liva method names to Rust iterator method names
-        let _is_parallel = matches!(method_call.adapter, ArrayAdapter::Par | ArrayAdapter::ParVec);
+        let _is_parallel = matches!(
+            method_call.adapter,
+            ArrayAdapter::Par | ArrayAdapter::ParVec
+        );
         let rust_method = match method_call.method.as_str() {
             "forEach" => "for_each".to_string(),
             "indexOf" => "position".to_string(),
             "includes" => "any".to_string(),
             // For parallel reduce, we'll use fold + reduce (handled specially below)
             "reduce" => "fold".to_string(),
-            "some" => "any".to_string(),      // Liva: some, Rust: any
-            "every" => "all".to_string(),     // Liva: every, Rust: all
-            method_name => self.sanitize_name(method_name),  // Sanitize custom method names (e.g., isAdult -> is_adult)
+            "some" => "any".to_string(),  // Liva: some, Rust: any
+            "every" => "all".to_string(), // Liva: every, Rust: all
+            method_name => self.sanitize_name(method_name), // Sanitize custom method names (e.g., isAdult -> is_adult)
         };
-        
+
         self.output.push_str(&rust_method);
         self.output.push('(');
-        
+
         // Generate arguments
         // Special case: reduce needs arguments reversed (initial first, then lambda)
         // Also: Rayon parallel fold uses || identity closure, not just identity value
-        let is_parallel_reduce = method_call.method == "reduce" 
-            && matches!(method_call.adapter, ArrayAdapter::Par | ArrayAdapter::ParVec);
+        let is_parallel_reduce = method_call.method == "reduce"
+            && matches!(
+                method_call.adapter,
+                ArrayAdapter::Par | ArrayAdapter::ParVec
+            );
         // Note: Liva reduce syntax is .reduce(initial, lambda) - same order as Rust's .fold()
         // No reordering needed
         let args_to_generate: Vec<&Expr> = method_call.args.iter().collect();
-        
+
         for (i, arg) in args_to_generate.iter().enumerate() {
             if i > 0 {
                 self.output.push_str(", ");
             }
-            
+
             // Bug #47-48 fix: Rayon parallel fold needs closure for identity: || initial
             if is_parallel_reduce && i == 0 {
                 self.output.push_str("|| ");
                 self.generate_expr(arg)?;
                 continue;
             }
-            
+
             // Special handling for includes/indexOf: wrap value in closure
             if method_call.method == "includes" || method_call.method == "indexOf" {
                 self.output.push_str("|&x| x == ");
                 self.generate_expr(arg)?;
                 continue;
             }
-            
+
             // Convert string literals to String for methods/functions
             // This avoids "expected String, found &str" errors
             if matches!(arg, Expr::Literal(Literal::String(_))) {
                 // For array methods, JsonValue methods, and join (which expects &str), don't convert
                 let is_array_or_json_method = matches!(
                     method_call.method.as_str(),
-                    "map" | "filter" | "reduce" | "forEach" | "find" | "some" | "every" | "indexOf" | "includes" | "get" | "get_field" | "join"
+                    "map"
+                        | "filter"
+                        | "reduce"
+                        | "forEach"
+                        | "find"
+                        | "some"
+                        | "every"
+                        | "indexOf"
+                        | "includes"
+                        | "get"
+                        | "get_field"
+                        | "join"
                 );
-                
+
                 if !is_array_or_json_method {
                     self.generate_expr(arg)?;
                     self.output.push_str(".to_string()");
                     continue;
                 }
             }
-            
+
             // For map/filter/reduce/forEach/find/some/every with .iter(), we need to dereference in the lambda
             // map: |&x| - filter: |&&x| (for .copied()) or |x| (for .cloned())
             // reduce: |acc, &x| - forEach: |&x| - find: |&&x| or |x| - some: |&&x| or |x| - every: |&&x| or |x|
             // EXCEPTION: JsonValue.iter() and JsonValue.to_vec().into_par_iter() return owned values, so no dereferencing needed
             // For parallel: .par_iter() uses &T, but .into_par_iter() (from .to_vec()) uses T (owned)
             let is_json_value = self.is_json_value_expr(&method_call.object);
-            
+
             // Determine if we'll use .cloned() (for non-Copy types) which changes the lambda pattern
-            // With .copied() (Copy types): filter(|&&x| ...) 
+            // With .copied() (Copy types): filter(|&&x| ...)
             // With .cloned() (Clone but not Copy types): filter(|x| ...)
-            let will_use_cloned = if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
-                if let Some(element_type) = self.typed_array_vars.get(&base_var_name) {
-                    // Check if element type is a Copy type (class names are non-Copy)
-                    // Bug #35: "string" is not Copy, so forEach needs |p| not |&p|
-                    !matches!(element_type.as_str(), "number" | "int" | "i32" | "float" | "f64" | "bool" | "char")
-                } else if self.string_vars.contains(&base_var_name) {
-                    true
-                } else if self.array_vars.contains(&base_var_name) && !self.json_value_vars.contains(&base_var_name) {
-                    true
+            let will_use_cloned =
+                if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
+                    if let Some(element_type) = self.typed_array_vars.get(&base_var_name) {
+                        // Check if element type is a Copy type (class names are non-Copy)
+                        // Bug #35: "string" is not Copy, so forEach needs |p| not |&p|
+                        !matches!(
+                            element_type.as_str(),
+                            "number" | "int" | "i32" | "float" | "f64" | "bool" | "char"
+                        )
+                    } else if self.string_vars.contains(&base_var_name) {
+                        true
+                    } else if self.array_vars.contains(&base_var_name)
+                        && !self.json_value_vars.contains(&base_var_name)
+                    {
+                        true
+                    } else {
+                        false
+                    }
                 } else {
-                    false
-                }
-            } else {
-                true // Default to cloned for safety
-            };
-            
-            let needs_lambda_pattern = 
-                (method_call.method == "map" || method_call.method == "filter" || method_call.method == "reduce" || method_call.method == "forEach" || method_call.method == "find" || method_call.method == "some" || method_call.method == "every")
-                && (matches!(method_call.adapter, ArrayAdapter::Seq) 
+                    true // Default to cloned for safety
+                };
+
+            let needs_lambda_pattern = (method_call.method == "map"
+                || method_call.method == "filter"
+                || method_call.method == "reduce"
+                || method_call.method == "forEach"
+                || method_call.method == "find"
+                || method_call.method == "some"
+                || method_call.method == "every")
+                && (matches!(method_call.adapter, ArrayAdapter::Seq)
                     // Bug #47-48 fix: par_iter() also returns &T, so we need lambda patterns for dereferencing
                     // Exception: JsonValue with .to_vec().into_par_iter() gets owned values (no deref needed only for is_direct_json)
                     || matches!(method_call.adapter, ArrayAdapter::Par | ArrayAdapter::ParVec));
-            
+
             if needs_lambda_pattern {
                 // Phase 11.3: Point-free function references
                 // items.forEach(print) → items.forEach(|&_x| println!("{}", _x))
@@ -6584,24 +7145,38 @@ impl CodeGenerator {
                 if let Expr::Identifier(func_name) = arg {
                     // Only treat as function reference if it's NOT a variable that holds a closure
                     // Function references are bare identifiers used where a closure is expected
-                    let is_callback_method = matches!(method_call.method.as_str(), 
-                        "forEach" | "map" | "filter" | "find" | "some" | "every");
-                    
+                    let is_callback_method = matches!(
+                        method_call.method.as_str(),
+                        "forEach" | "map" | "filter" | "find" | "some" | "every"
+                    );
+
                     if is_callback_method {
                         // Generate the appropriate lambda pattern based on method and type
                         let param_pattern = if is_json_value {
                             "_x".to_string()
-                        } else if method_call.method == "filter" || method_call.method == "find" || method_call.method == "some" || method_call.method == "every" {
-                            if will_use_cloned { "_x".to_string() } else { "&&_x".to_string() }
+                        } else if method_call.method == "filter"
+                            || method_call.method == "find"
+                            || method_call.method == "some"
+                            || method_call.method == "every"
+                        {
+                            if will_use_cloned {
+                                "_x".to_string()
+                            } else {
+                                "&&_x".to_string()
+                            }
                         } else if method_call.method == "map" || method_call.method == "forEach" {
-                            if will_use_cloned { "_x".to_string() } else { "&_x".to_string() }
+                            if will_use_cloned {
+                                "_x".to_string()
+                            } else {
+                                "&_x".to_string()
+                            }
                         } else {
                             "&_x".to_string()
                         };
-                        
+
                         // Generate the function call body based on built-in vs user function
                         self.output.push_str(&format!("|{}| ", param_pattern));
-                        
+
                         match func_name.as_str() {
                             "print" => {
                                 self.output.push_str("println!(\"{}\", _x)");
@@ -6615,42 +7190,71 @@ impl CodeGenerator {
                                 write!(self.output, "{}(_x)", sanitized).unwrap();
                             }
                         }
-                        
+
                         continue;
                     }
                 }
-                
+
                 // Phase 11.4: Method references with :: syntax in array methods
                 // items.filter(Utils::validate) → items.filter(|&_x| Utils::validate(_x))
                 // items.map(User::new) → items.map(|&_x| User::new(_x))
                 // items.forEach(logger::log) → items.forEach(|&_x| logger.log(_x))
                 if let Expr::MethodRef { object, method } = arg {
-                    let is_callback_method = matches!(method_call.method.as_str(), 
-                        "forEach" | "map" | "filter" | "find" | "some" | "every");
-                    
+                    let is_callback_method = matches!(
+                        method_call.method.as_str(),
+                        "forEach" | "map" | "filter" | "find" | "some" | "every"
+                    );
+
                     if is_callback_method {
                         let param_pattern = if is_json_value {
                             "_x".to_string()
-                        } else if method_call.method == "filter" || method_call.method == "find" || method_call.method == "some" || method_call.method == "every" {
-                            if will_use_cloned { "_x".to_string() } else { "&&_x".to_string() }
+                        } else if method_call.method == "filter"
+                            || method_call.method == "find"
+                            || method_call.method == "some"
+                            || method_call.method == "every"
+                        {
+                            if will_use_cloned {
+                                "_x".to_string()
+                            } else {
+                                "&&_x".to_string()
+                            }
                         } else if method_call.method == "map" || method_call.method == "forEach" {
-                            if will_use_cloned { "_x".to_string() } else { "&_x".to_string() }
+                            if will_use_cloned {
+                                "_x".to_string()
+                            } else {
+                                "&_x".to_string()
+                            }
                         } else {
                             "&_x".to_string()
                         };
-                        
+
                         self.output.push_str(&format!("|{}| ", param_pattern));
-                        
+
                         let sanitized_obj = self.sanitize_name(object);
                         let sanitized_method = self.sanitize_name(method);
                         let is_class = object.chars().next().map_or(false, |c| c.is_uppercase());
-                        
+
                         // Determine if we need .to_string() conversion for the argument
                         // Methods take String params, but iterators yield &str for string arrays
                         // Only skip conversion for class-typed arrays (not primitive types like "string")
-                        let is_class_typed_array = if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
-                            self.typed_array_vars.get(&base_var_name)
-                                .map(|t| !matches!(t.as_str(), "string" | "String" | "int" | "i32" | "float" | "f64" | "bool" | "number"))
+                        let is_class_typed_array = if let Some(base_var_name) =
+                            self.get_base_var_name(&method_call.object)
+                        {
+                            self.typed_array_vars
+                                .get(&base_var_name)
+                                .map(|t| {
+                                    !matches!(
+                                        t.as_str(),
+                                        "string"
+                                            | "String"
+                                            | "int"
+                                            | "i32"
+                                            | "float"
+                                            | "f64"
+                                            | "bool"
+                                            | "number"
+                                    )
+                                })
                                 .unwrap_or(false)
                         } else {
                             false
@@ -6660,43 +7264,54 @@ impl CodeGenerator {
                         } else {
                             "_x.to_string()".to_string()
                         };
-                        
+
                         // For forEach, we need to discard the return value since for_each expects ()
                         let is_for_each = method_call.method == "forEach";
-                        
+
                         if is_for_each {
                             self.output.push_str("{ ");
                         }
-                        
+
                         if method == "new" {
                             // Constructor: User::new → User::new(_x.to_string())
                             write!(self.output, "{}::new({})", sanitized_obj, arg_expr).unwrap();
                         } else if is_class {
                             // Static method: Utils::validate → Utils::validate(_x.to_string())
-                            write!(self.output, "{}::{}({})", sanitized_obj, sanitized_method, arg_expr).unwrap();
+                            write!(
+                                self.output,
+                                "{}::{}({})",
+                                sanitized_obj, sanitized_method, arg_expr
+                            )
+                            .unwrap();
                         } else {
                             // Instance method: logger::log → logger.log(_x.to_string())
-                            write!(self.output, "{}.{}({})", sanitized_obj, sanitized_method, arg_expr).unwrap();
+                            write!(
+                                self.output,
+                                "{}.{}({})",
+                                sanitized_obj, sanitized_method, arg_expr
+                            )
+                            .unwrap();
                         }
-                        
+
                         // forEach closures must return (), so wrap in block with semicolon
                         if is_for_each {
                             self.output.push_str("; }");
                         }
-                        
+
                         continue;
                     }
                 }
-                
+
                 if let Expr::Lambda(lambda) = arg {
                     // Track lambda parameter types for typed arrays
                     // If the object is a typed array (e.g., posts: [Post]), track that the param is Post
-                    let element_type = if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
-                        self.typed_array_vars.get(&base_var_name).cloned()
-                    } else {
-                        None
-                    };
-                    
+                    let element_type =
+                        if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
+                            self.typed_array_vars.get(&base_var_name).cloned()
+                        } else {
+                            None
+                        };
+
                     if let Some(ref _elem_type) = element_type {
                         // Track the lambda parameter as an instance of this class type
                         for param in &lambda.params {
@@ -6706,7 +7321,7 @@ impl CodeGenerator {
                             }
                         }
                     }
-                    
+
                     // Generate lambda with pattern |&x| or |&&x| or |acc, &x| (unless JsonValue)
                     if lambda.is_move {
                         self.output.push_str("move ");
@@ -6716,17 +7331,20 @@ impl CodeGenerator {
                         if idx > 0 {
                             self.output.push_str(", ");
                         }
-                        
+
                         // Get parameter name (temp name if destructured)
                         let param_name = if param.is_destructuring() {
                             format!("_param_{}", idx)
                         } else {
                             self.sanitize_name(param.name().unwrap())
                         };
-                        
+
                         // reduce: first param (acc) no pattern, second param (&x) gets & (for sequential only)
                         // Bug #47-48: Parallel reduce with .copied() gets owned values - no & needed
-                        let is_parallel_adapter = matches!(method_call.adapter, ArrayAdapter::Par | ArrayAdapter::ParVec);
+                        let is_parallel_adapter = matches!(
+                            method_call.adapter,
+                            ArrayAdapter::Par | ArrayAdapter::ParVec
+                        );
                         if method_call.method == "reduce" {
                             if idx == 0 {
                                 // Accumulator: no dereferencing
@@ -6734,7 +7352,10 @@ impl CodeGenerator {
                             } else {
                                 // Element: dereference once for sequential (unless JsonValue or destructured)
                                 // For parallel with .copied(), no dereference needed
-                                if !is_json_value && !param.is_destructuring() && !is_parallel_adapter {
+                                if !is_json_value
+                                    && !param.is_destructuring()
+                                    && !is_parallel_adapter
+                                {
                                     self.output.push('&');
                                 }
                                 self.output.push_str(&param_name);
@@ -6748,7 +7369,11 @@ impl CodeGenerator {
                             // UNLESS it's JsonValue, then no dereferencing at all
                             // ALSO: if parameter is destructured, don't add & because we'll clone inside
                             if !is_json_value && !param.is_destructuring() {
-                                if method_call.method == "filter" || method_call.method == "find" || method_call.method == "some" || method_call.method == "every" {
+                                if method_call.method == "filter"
+                                    || method_call.method == "find"
+                                    || method_call.method == "some"
+                                    || method_call.method == "every"
+                                {
                                     // For .cloned() (non-Copy types like String, class instances):
                                     // closure receives &&T, use |&item| to destructure to &T
                                     // which can compare with T via PartialEq
@@ -6760,7 +7385,9 @@ impl CodeGenerator {
                                         // in comparisons (e.g., *item == query instead of item == query)
                                         self.ref_lambda_params.insert(param_name.clone());
                                     }
-                                } else if method_call.method == "map" || method_call.method == "forEach" {
+                                } else if method_call.method == "map"
+                                    || method_call.method == "forEach"
+                                {
                                     // Bug #22/#35 fix: For non-Copy types (class instances, strings),
                                     // don't add & because we can't move out of a shared reference
                                     if !will_use_cloned {
@@ -6775,10 +7402,10 @@ impl CodeGenerator {
                         }
                     }
                     self.output.push_str("| ");
-                    
+
                     // Check if we need to generate destructuring code for lambda params
                     let has_destructuring = lambda.params.iter().any(|p| p.is_destructuring());
-                    
+
                     match &lambda.body {
                         LambdaBody::Expr(expr) => {
                             if has_destructuring {
@@ -6786,17 +7413,22 @@ impl CodeGenerator {
                                 self.output.push('{');
                                 self.indent();
                                 self.output.push('\n');
-                                
+
                                 // Generate destructuring for each param
                                 for (idx, param) in lambda.params.iter().enumerate() {
                                     if param.is_destructuring() {
                                         let temp_name = format!("_param_{}", idx);
                                         self.write_indent();
-                                        self.generate_lambda_param_destructuring(&param.pattern, &temp_name, is_json_value, element_type.as_deref())?;
+                                        self.generate_lambda_param_destructuring(
+                                            &param.pattern,
+                                            &temp_name,
+                                            is_json_value,
+                                            element_type.as_deref(),
+                                        )?;
                                         self.output.push('\n');
                                     }
                                 }
-                                
+
                                 self.write_indent();
                                 self.generate_expr(expr)?;
                                 self.output.push('\n');
@@ -6811,19 +7443,24 @@ impl CodeGenerator {
                             self.output.push('{');
                             self.indent();
                             self.output.push('\n');
-                            
+
                             // Generate destructuring for lambda params (if any)
                             if has_destructuring {
                                 for (idx, param) in lambda.params.iter().enumerate() {
                                     if param.is_destructuring() {
                                         let temp_name = format!("_param_{}", idx);
                                         self.write_indent();
-                                        self.generate_lambda_param_destructuring(&param.pattern, &temp_name, is_json_value, element_type.as_deref())?;
+                                        self.generate_lambda_param_destructuring(
+                                            &param.pattern,
+                                            &temp_name,
+                                            is_json_value,
+                                            element_type.as_deref(),
+                                        )?;
                                         self.output.push('\n');
                                     }
                                 }
                             }
-                            
+
                             self.write_indent();
                             for stmt in &block.stmts[..block.stmts.len().saturating_sub(1)] {
                                 self.generate_stmt(stmt)?;
@@ -6850,16 +7487,21 @@ impl CodeGenerator {
                     continue;
                 }
             }
-            
+
             // Track lambda parameter types for typed arrays BEFORE generating the lambda
             // This handles ParVec/Par forEach/map/etc with typed arrays (not JsonValue)
             if let Expr::Lambda(lambda) = arg {
-                if matches!(method_call.method.as_str(), "forEach" | "map" | "filter" | "reduce" | "find" | "some" | "every") {
+                if matches!(
+                    method_call.method.as_str(),
+                    "forEach" | "map" | "filter" | "reduce" | "find" | "some" | "every"
+                ) {
                     if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
-                        if let Some(element_type) = self.typed_array_vars.get(&base_var_name).cloned() {
+                        if let Some(element_type) =
+                            self.typed_array_vars.get(&base_var_name).cloned()
+                        {
                             // Set current element type for lambda generation
                             self.current_lambda_element_type = Some(element_type.clone());
-                            
+
                             // Track the lambda parameter as an instance of this class type
                             for param in &lambda.params {
                                 if let Some(name) = param.name() {
@@ -6871,41 +7513,47 @@ impl CodeGenerator {
                     }
                 }
             }
-            
+
             self.generate_expr(arg)?;
-            
+
             // Clear current element type after generating lambda
             self.current_lambda_element_type = None;
         }
-        
+
         self.output.push(')');
-        
+
         // Add transformations after the method call
         let is_json_value = self.is_json_value_expr(&method_call.object);
-        
+
         // Determine if the array contains non-Copy types (String, classes, etc.)
         // Non-Copy types need .cloned() instead of .copied()
         // Copy types: number, int, i32, float, f64, bool, char
         // Non-Copy types: string, String, and any class name
-        let needs_clone_not_copy = if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
-            if let Some(element_type) = self.typed_array_vars.get(&base_var_name) {
-                // Check if element type is a Copy type (class names are non-Copy)
-                !matches!(element_type.as_str(), "number" | "int" | "i32" | "float" | "f64" | "bool" | "char")
-            } else if self.string_vars.contains(&base_var_name) {
-                // String arrays explicitly need .cloned()
-                true
-            } else if self.array_vars.contains(&base_var_name) && !self.json_value_vars.contains(&base_var_name) {
-                // For arrays without explicit type info but not JsonValue,
-                // default to .cloned() as it's safer (works for both Copy and non-Copy)
-                true
+        let needs_clone_not_copy =
+            if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
+                if let Some(element_type) = self.typed_array_vars.get(&base_var_name) {
+                    // Check if element type is a Copy type (class names are non-Copy)
+                    !matches!(
+                        element_type.as_str(),
+                        "number" | "int" | "i32" | "float" | "f64" | "bool" | "char"
+                    )
+                } else if self.string_vars.contains(&base_var_name) {
+                    // String arrays explicitly need .cloned()
+                    true
+                } else if self.array_vars.contains(&base_var_name)
+                    && !self.json_value_vars.contains(&base_var_name)
+                {
+                    // For arrays without explicit type info but not JsonValue,
+                    // default to .cloned() as it's safer (works for both Copy and non-Copy)
+                    true
+                } else {
+                    false
+                }
             } else {
-                false
-            }
-        } else {
-            // No base variable name - default to .cloned() for safety
-            true
-        };
-        
+                // No base variable name - default to .cloned() for safety
+                true
+            };
+
         match (method_call.adapter, method_call.method.as_str()) {
             // Sequential map: just collect (lambda already returns owned values)
             (ArrayAdapter::Seq, "map") => {
@@ -6942,8 +7590,8 @@ impl CodeGenerator {
                 if method_call.args.len() >= 2 {
                     // Get the identity value to repeat it
                     self.output.push_str(".reduce(|| ");
-                    self.generate_expr(&method_call.args[0])?;  // identity is args[0]
-                    self.output.push_str(", |a, b| a + b)");  // For now, assume addition
+                    self.generate_expr(&method_call.args[0])?; // identity is args[0]
+                    self.output.push_str(", |a, b| a + b)"); // For now, assume addition
                 }
             }
             // Find returns Option<&T>, copy/clone it
@@ -6982,11 +7630,14 @@ impl CodeGenerator {
             // Default: no transformation
             _ => {}
         }
-        
+
         Ok(())
     }
 
-    fn generate_string_method_call(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
+    fn generate_string_method_call(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
         // Special handling for substring and charAt - they need different syntax
         match method_call.method.as_str() {
             "substring" => {
@@ -7032,7 +7683,7 @@ impl CodeGenerator {
                         }
                         Expr::Member { .. } => true, // Member access on fields - likely strings
                         Expr::Literal(Literal::String(_)) => false, // String literals are fine
-                        _ => true, // Be safe and add & for other cases
+                        _ => true,                   // Be safe and add & for other cases
                     };
                     if needs_ref {
                         self.output.push('&');
@@ -7044,10 +7695,10 @@ impl CodeGenerator {
             }
             _ => {}
         }
-        
+
         // Generate the string object
         self.generate_expr(&method_call.object)?;
-        
+
         // Map Liva string method names to Rust method names
         let rust_method = match method_call.method.as_str() {
             "toUpperCase" => "to_uppercase",
@@ -7056,14 +7707,14 @@ impl CodeGenerator {
             "trimEnd" => "trim_end",
             "startsWith" => "starts_with",
             "endsWith" => "ends_with",
-            method_name => method_name,  // split, replace, trim, substring, charAt
+            method_name => method_name, // split, replace, trim, substring, charAt
         };
-        
+
         // Generate the method call
         self.output.push('.');
         self.output.push_str(rust_method);
         self.output.push('(');
-        
+
         // Generate arguments
         for (i, arg) in method_call.args.iter().enumerate() {
             if i > 0 {
@@ -7071,39 +7722,41 @@ impl CodeGenerator {
             }
             self.generate_expr(arg)?;
         }
-        
+
         self.output.push(')');
-        
+
         // Post-processing for specific methods
         match method_call.method.as_str() {
             "split" => {
                 // split returns an iterator, collect to Vec<String>
-                self.output.push_str(".map(|s| s.to_string()).collect::<Vec<String>>()");
+                self.output
+                    .push_str(".map(|s| s.to_string()).collect::<Vec<String>>()");
             }
             _ => {}
         }
-        
+
         Ok(())
     }
 
-    fn generate_math_function_call(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
+    fn generate_math_function_call(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
         // Math functions: sqrt, pow, abs, floor, ceil, round, min, max, random
         match method_call.method.as_str() {
             "sqrt" | "abs" => {
                 // sqrt(x) -> x.sqrt() or abs(x) -> x.abs()
                 if method_call.args.is_empty() {
-                    return Err(CompilerError::CodegenError(
-                        SemanticErrorInfo::new(
-                            "E3000",
-                            &format!("Math.{} requires 1 argument", method_call.method),
-                            &format!("Math.{} takes exactly one argument", method_call.method)
-                        )
-                    ));
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        &format!("Math.{} requires 1 argument", method_call.method),
+                        &format!("Math.{} takes exactly one argument", method_call.method),
+                    )));
                 }
-                
+
                 // Wrap argument in parentheses if it's a unary expression to avoid precedence issues
                 let needs_parens = matches!(&method_call.args[0], Expr::Unary { .. });
-                
+
                 if needs_parens {
                     self.output.push('(');
                 }
@@ -7111,7 +7764,7 @@ impl CodeGenerator {
                 if needs_parens {
                     self.output.push(')');
                 }
-                
+
                 self.output.push('.');
                 self.output.push_str(&method_call.method);
                 self.output.push_str("()");
@@ -7119,13 +7772,11 @@ impl CodeGenerator {
             "pow" => {
                 // pow(base, exp) -> base.powf(exp)
                 if method_call.args.len() < 2 {
-                    return Err(CompilerError::CodegenError(
-                        SemanticErrorInfo::new(
-                            "E3000",
-                            "Math.pow requires 2 arguments",
-                            "Math.pow(base, exponent) takes exactly two arguments"
-                        )
-                    ));
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Math.pow requires 2 arguments",
+                        "Math.pow(base, exponent) takes exactly two arguments",
+                    )));
                 }
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(".powf(");
@@ -7135,13 +7786,11 @@ impl CodeGenerator {
             "floor" | "ceil" | "round" => {
                 // floor(x) -> x.floor() as i32
                 if method_call.args.is_empty() {
-                    return Err(CompilerError::CodegenError(
-                        SemanticErrorInfo::new(
-                            "E3000",
-                            &format!("Math.{} requires 1 argument", method_call.method),
-                            &format!("Math.{} takes exactly one argument", method_call.method)
-                        )
-                    ));
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        &format!("Math.{} requires 1 argument", method_call.method),
+                        &format!("Math.{} takes exactly one argument", method_call.method),
+                    )));
                 }
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push('.');
@@ -7151,13 +7800,11 @@ impl CodeGenerator {
             "min" | "max" => {
                 // min(a, b) -> a.min(b) or max(a, b) -> a.max(b)
                 if method_call.args.len() < 2 {
-                    return Err(CompilerError::CodegenError(
-                        SemanticErrorInfo::new(
-                            "E3000",
-                            &format!("Math.{} requires 2 arguments", method_call.method),
-                            &format!("Math.{} takes exactly two arguments", method_call.method)
-                        )
-                    ));
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        &format!("Math.{} requires 2 arguments", method_call.method),
+                        &format!("Math.{} takes exactly two arguments", method_call.method),
+                    )));
                 }
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push('.');
@@ -7181,11 +7828,14 @@ impl CodeGenerator {
                 ));
             }
         }
-        
+
         Ok(())
     }
 
-    fn generate_console_function_call(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
+    fn generate_console_function_call(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
         // Console functions: log, error, warn
         match method_call.method.as_str() {
             "log" => {
@@ -7196,7 +7846,7 @@ impl CodeGenerator {
                     // Check if first arg is a string literal with format placeholders
                     // If so, use it as the format string, otherwise generate default format
                     self.output.push_str("println!(");
-                    
+
                     for (i, arg) in method_call.args.iter().enumerate() {
                         if i > 0 {
                             self.output.push_str(", ");
@@ -7211,8 +7861,8 @@ impl CodeGenerator {
                 if method_call.args.is_empty() {
                     self.output.push_str("eprintln!()");
                 } else {
-                    self.output.push_str("eprintln!(\"\\x1b[31m");  // Red color start
-                    // Check if first arg is format string
+                    self.output.push_str("eprintln!(\"\\x1b[31m"); // Red color start
+                                                                   // Check if first arg is format string
                     if method_call.args.len() == 1 {
                         // Single arg - just print it with reset
                         self.output.push_str("{}\\x1b[0m\", ");
@@ -7262,14 +7912,14 @@ impl CodeGenerator {
                 if method_call.args.is_empty() {
                     self.output.push_str("eprintln!()");
                 } else {
-                    self.output.push_str("eprintln!(\"\\x1b[33m");  // Yellow color
+                    self.output.push_str("eprintln!(\"\\x1b[33m"); // Yellow color
                     for (i, _) in method_call.args.iter().enumerate() {
                         if i > 0 {
-                            self.output.push(' ');  // Space between arguments
+                            self.output.push(' '); // Space between arguments
                         }
                         self.output.push_str("{}");
                     }
-                    self.output.push_str("\\x1b[0m\", ");  // Reset color
+                    self.output.push_str("\\x1b[0m\", "); // Reset color
                     for (i, arg) in method_call.args.iter().enumerate() {
                         if i > 0 {
                             self.output.push_str(", ");
@@ -7285,14 +7935,14 @@ impl CodeGenerator {
                 if method_call.args.is_empty() {
                     self.output.push_str("println!()");
                 } else {
-                    self.output.push_str("println!(\"\\x1b[32m");  // Green color
+                    self.output.push_str("println!(\"\\x1b[32m"); // Green color
                     for (i, _) in method_call.args.iter().enumerate() {
                         if i > 0 {
-                            self.output.push(' ');  // Space between arguments
+                            self.output.push(' '); // Space between arguments
                         }
                         self.output.push_str("{}");
                     }
-                    self.output.push_str("\\x1b[0m\", ");  // Reset color
+                    self.output.push_str("\\x1b[0m\", "); // Reset color
                     for (i, arg) in method_call.args.iter().enumerate() {
                         if i > 0 {
                             self.output.push_str(", ");
@@ -7309,7 +7959,7 @@ impl CodeGenerator {
                 // Similar to Python's input() and input("prompt")
                 self.output.push_str("{\n");
                 self.output.push_str("use std::io::{self, Write};\n");
-                
+
                 // Print the prompt message if provided
                 if !method_call.args.is_empty() {
                     self.output.push_str("print!(");
@@ -7318,44 +7968,45 @@ impl CodeGenerator {
                     // Flush to ensure prompt is displayed before reading
                     self.output.push_str("io::stdout().flush().unwrap();\n");
                 }
-                
+
                 // Read user input
                 self.output.push_str("let mut input = String::new();\n");
-                self.output.push_str("io::stdin().read_line(&mut input).unwrap();\n");
+                self.output
+                    .push_str("io::stdin().read_line(&mut input).unwrap();\n");
                 self.output.push_str("input.trim().to_string()\n");
                 self.output.push_str("}");
             }
             _ => {
-                return Err(CompilerError::CodegenError(
-                    SemanticErrorInfo::new(
-                        "E3000",
-                        &format!("Unknown console function: {}", method_call.method),
-                        "Available console functions: log, error, warn, success, input"
-                    )
-                ));
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3000",
+                    &format!("Unknown console function: {}", method_call.method),
+                    "Available console functions: log, error, warn, success, input",
+                )));
             }
         }
-        
+
         Ok(())
     }
 
-    fn generate_json_function_call(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
+    fn generate_json_function_call(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
         // JSON functions: parse, stringify
         match method_call.method.as_str() {
             "parse" => {
                 // JSON.parse(json_str) returns (Option<JsonValue>, String)
                 // Generates: match serde_json::from_str(...) { Ok(v) => (Some(JsonValue(v)), String::new()), Err(e) => (None, format!("...")) }
                 if method_call.args.len() != 1 {
-                    return Err(CompilerError::CodegenError(
-                        SemanticErrorInfo::new(
-                            "E3000",
-                            "JSON.parse requires exactly 1 argument",
-                            "Usage: JSON.parse(json_string)"
-                        )
-                    ));
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "JSON.parse requires exactly 1 argument",
+                        "Usage: JSON.parse(json_string)",
+                    )));
                 }
-                
-                self.output.push_str("match serde_json::from_str::<serde_json::Value>(&");
+
+                self.output
+                    .push_str("match serde_json::from_str::<serde_json::Value>(&");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(") { Ok(v) => (Some(liva_rt::JsonValue::new(v)), String::new()), Err(e) => (None, format!(\"JSON parse error: {}\", e)) }");
             }
@@ -7363,49 +8014,46 @@ impl CodeGenerator {
                 // JSON.stringify(value) returns (Option<String>, String)
                 // Generates: match serde_json::to_string(...) { Ok(s) => (Some(s), String::new()), Err(e) => (None, format!("...")) }
                 if method_call.args.len() != 1 {
-                    return Err(CompilerError::CodegenError(
-                        SemanticErrorInfo::new(
-                            "E3000",
-                            "JSON.stringify requires exactly 1 argument",
-                            "Usage: JSON.stringify(value)"
-                        )
-                    ));
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "JSON.stringify requires exactly 1 argument",
+                        "Usage: JSON.stringify(value)",
+                    )));
                 }
-                
+
                 self.output.push_str("match serde_json::to_string(&");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(") { Ok(s) => (Some(s), String::new()), Err(e) => (None, format!(\"JSON stringify error: {}\", e)) }");
             }
             _ => {
-                return Err(CompilerError::CodegenError(
-                    SemanticErrorInfo::new(
-                        "E3000",
-                        &format!("Unknown JSON function: {}", method_call.method),
-                        "Available JSON functions: parse, stringify"
-                    )
-                ));
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3000",
+                    &format!("Unknown JSON function: {}", method_call.method),
+                    "Available JSON functions: parse, stringify",
+                )));
             }
         }
-        
+
         Ok(())
     }
 
-    fn generate_file_function_call(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
+    fn generate_file_function_call(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
         // File functions: read, write, append, exists, delete
         match method_call.method.as_str() {
             "read" => {
                 // File.read(path) returns (Option<String>, String)
                 // Error is "" on success, error message on failure
                 if method_call.args.len() != 1 {
-                    return Err(CompilerError::CodegenError(
-                        SemanticErrorInfo::new(
-                            "E3000",
-                            "File.read requires exactly 1 argument",
-                            "Usage: File.read(path)"
-                        )
-                    ));
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "File.read requires exactly 1 argument",
+                        "Usage: File.read(path)",
+                    )));
                 }
-                
+
                 self.output.push_str("(match std::fs::read_to_string(&");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(") { Ok(content) => (Some(content), String::new()), Err(e) => (None, format!(\"File read error: {}\", e)) })");
@@ -7414,15 +8062,13 @@ impl CodeGenerator {
                 // File.write(path, content) returns (Option<bool>, String)
                 // Error is "" on success, error message on failure
                 if method_call.args.len() != 2 {
-                    return Err(CompilerError::CodegenError(
-                        SemanticErrorInfo::new(
-                            "E3000",
-                            "File.write requires exactly 2 arguments",
-                            "Usage: File.write(path, content)"
-                        )
-                    ));
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "File.write requires exactly 2 arguments",
+                        "Usage: File.write(path, content)",
+                    )));
                 }
-                
+
                 self.output.push_str("(match std::fs::write(&");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(", &");
@@ -7433,33 +8079,32 @@ impl CodeGenerator {
                 // File.append(path, content) returns (Option<bool>, String)
                 // Error is "" on success, error message on failure
                 if method_call.args.len() != 2 {
-                    return Err(CompilerError::CodegenError(
-                        SemanticErrorInfo::new(
-                            "E3000",
-                            "File.append requires exactly 2 arguments",
-                            "Usage: File.append(path, content)"
-                        )
-                    ));
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "File.append requires exactly 2 arguments",
+                        "Usage: File.append(path, content)",
+                    )));
                 }
-                
-                self.output.push_str("(match std::fs::OpenOptions::new().create(true).append(true).open(&");
+
+                self.output.push_str(
+                    "(match std::fs::OpenOptions::new().create(true).append(true).open(&",
+                );
                 self.generate_expr(&method_call.args[0])?;
-                self.output.push_str(").and_then(|mut file| { use std::io::Write; file.write_all(");
+                self.output
+                    .push_str(").and_then(|mut file| { use std::io::Write; file.write_all(");
                 self.generate_expr(&method_call.args[1])?;
                 self.output.push_str(".as_bytes()) }) { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"File append error: {}\", e)) })");
             }
             "exists" => {
                 // File.exists(path) returns bool (no error binding)
                 if method_call.args.len() != 1 {
-                    return Err(CompilerError::CodegenError(
-                        SemanticErrorInfo::new(
-                            "E3000",
-                            "File.exists requires exactly 1 argument",
-                            "Usage: File.exists(path)"
-                        )
-                    ));
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "File.exists requires exactly 1 argument",
+                        "Usage: File.exists(path)",
+                    )));
                 }
-                
+
                 self.output.push_str("std::path::Path::new(&");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(").exists()");
@@ -7468,49 +8113,46 @@ impl CodeGenerator {
                 // File.delete(path) returns (Option<bool>, String)
                 // Error is "" on success, error message on failure
                 if method_call.args.len() != 1 {
-                    return Err(CompilerError::CodegenError(
-                        SemanticErrorInfo::new(
-                            "E3000",
-                            "File.delete requires exactly 1 argument",
-                            "Usage: File.delete(path)"
-                        )
-                    ));
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "File.delete requires exactly 1 argument",
+                        "Usage: File.delete(path)",
+                    )));
                 }
-                
+
                 self.output.push_str("(match std::fs::remove_file(&");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(") { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"File delete error: {}\", e)) })");
             }
             _ => {
-                return Err(CompilerError::CodegenError(
-                    SemanticErrorInfo::new(
-                        "E3000",
-                        &format!("Unknown File function: {}", method_call.method),
-                        "Available File functions: read, write, append, exists, delete"
-                    )
-                ));
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3000",
+                    &format!("Unknown File function: {}", method_call.method),
+                    "Available File functions: read, write, append, exists, delete",
+                )));
             }
         }
-        
+
         Ok(())
     }
 
-    fn generate_http_function_call(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
+    fn generate_http_function_call(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
         // HTTP functions: get, post, put, delete
         // All return (Option<LivaHttpResponse>, Option<String>)
         match method_call.method.as_str() {
             "get" => {
                 // HTTP.get(url) returns (Option<LivaHttpResponse>, Option<String>)
                 if method_call.args.len() != 1 {
-                    return Err(CompilerError::CodegenError(
-                        SemanticErrorInfo::new(
-                            "E3000",
-                            "HTTP.get requires exactly 1 argument",
-                            "Usage: HTTP.get(url)"
-                        )
-                    ));
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "HTTP.get requires exactly 1 argument",
+                        "Usage: HTTP.get(url)",
+                    )));
                 }
-                
+
                 self.output.push_str("liva_rt::liva_http_get(");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(".to_string())");
@@ -7518,15 +8160,13 @@ impl CodeGenerator {
             "post" => {
                 // HTTP.post(url, body) returns (Option<LivaHttpResponse>, Option<String>)
                 if method_call.args.len() != 2 {
-                    return Err(CompilerError::CodegenError(
-                        SemanticErrorInfo::new(
-                            "E3000",
-                            "HTTP.post requires exactly 2 arguments",
-                            "Usage: HTTP.post(url, body)"
-                        )
-                    ));
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "HTTP.post requires exactly 2 arguments",
+                        "Usage: HTTP.post(url, body)",
+                    )));
                 }
-                
+
                 self.output.push_str("liva_rt::liva_http_post(");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(".to_string(), ");
@@ -7536,15 +8176,13 @@ impl CodeGenerator {
             "put" => {
                 // HTTP.put(url, body) returns (Option<LivaHttpResponse>, Option<String>)
                 if method_call.args.len() != 2 {
-                    return Err(CompilerError::CodegenError(
-                        SemanticErrorInfo::new(
-                            "E3000",
-                            "HTTP.put requires exactly 2 arguments",
-                            "Usage: HTTP.put(url, body)"
-                        )
-                    ));
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "HTTP.put requires exactly 2 arguments",
+                        "Usage: HTTP.put(url, body)",
+                    )));
                 }
-                
+
                 self.output.push_str("liva_rt::liva_http_put(");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(".to_string(), ");
@@ -7554,54 +8192,52 @@ impl CodeGenerator {
             "delete" => {
                 // HTTP.delete(url) returns (Option<LivaHttpResponse>, Option<String>)
                 if method_call.args.len() != 1 {
-                    return Err(CompilerError::CodegenError(
-                        SemanticErrorInfo::new(
-                            "E3000",
-                            "HTTP.delete requires exactly 1 argument",
-                            "Usage: HTTP.delete(url)"
-                        )
-                    ));
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "HTTP.delete requires exactly 1 argument",
+                        "Usage: HTTP.delete(url)",
+                    )));
                 }
-                
+
                 self.output.push_str("liva_rt::liva_http_delete(");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(".to_string())");
             }
             _ => {
-                return Err(CompilerError::CodegenError(
-                    SemanticErrorInfo::new(
-                        "E3000",
-                        &format!("Unknown HTTP function: {}", method_call.method),
-                        "Available HTTP functions: get, post, put, delete"
-                    )
-                ));
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3000",
+                    &format!("Unknown HTTP function: {}", method_call.method),
+                    "Available HTTP functions: get, post, put, delete",
+                )));
             }
         }
-        
+
         Ok(())
     }
 
-    fn generate_sys_function_call(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
+    fn generate_sys_function_call(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
         // Sys functions: args, env, exit
         match method_call.method.as_str() {
             "args" => {
                 // Sys.args() returns [string] - command line arguments
                 // Returns all args including program name at index 0
-                self.output.push_str("std::env::args().collect::<Vec<String>>()");
+                self.output
+                    .push_str("std::env::args().collect::<Vec<String>>()");
             }
             "env" => {
                 // Sys.env(key) returns string - environment variable value
                 // Returns empty string if not found
                 if method_call.args.len() != 1 {
-                    return Err(CompilerError::CodegenError(
-                        SemanticErrorInfo::new(
-                            "E3000",
-                            "Sys.env requires exactly 1 argument",
-                            "Usage: Sys.env(\"VAR_NAME\")"
-                        )
-                    ));
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Sys.env requires exactly 1 argument",
+                        "Usage: Sys.env(\"VAR_NAME\")",
+                    )));
                 }
-                
+
                 self.output.push_str("std::env::var(");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(").unwrap_or_default()");
@@ -7609,45 +8245,45 @@ impl CodeGenerator {
             "exit" => {
                 // Sys.exit(code) - exit program with code
                 if method_call.args.len() != 1 {
-                    return Err(CompilerError::CodegenError(
-                        SemanticErrorInfo::new(
-                            "E3000",
-                            "Sys.exit requires exactly 1 argument",
-                            "Usage: Sys.exit(0)"
-                        )
-                    ));
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Sys.exit requires exactly 1 argument",
+                        "Usage: Sys.exit(0)",
+                    )));
                 }
-                
+
                 self.output.push_str("std::process::exit(");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(" as i32)");
             }
             _ => {
-                return Err(CompilerError::CodegenError(
-                    SemanticErrorInfo::new(
-                        "E3000",
-                        &format!("Unknown Sys function: {}", method_call.method),
-                        "Available Sys functions: args, env, exit"
-                    )
-                ));
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3000",
+                    &format!("Unknown Sys function: {}", method_call.method),
+                    "Available Sys functions: args, env, exit",
+                )));
             }
         }
-        
+
         Ok(())
     }
 
     /// Generate a function call through a module alias
     /// e.g., `mathlib.add(1, 2)` -> `math::add(1, 2)`
-    fn generate_module_function_call(&mut self, module_name: &str, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
+    fn generate_module_function_call(
+        &mut self,
+        module_name: &str,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
         // Convert method name to snake_case for Rust
         let rust_method = to_snake_case(&method_call.method);
-        
+
         // Generate module::function(args)
         self.output.push_str(module_name);
         self.output.push_str("::");
         self.output.push_str(&rust_method);
         self.output.push('(');
-        
+
         // Generate arguments with proper type conversions
         for (i, arg) in method_call.args.iter().enumerate() {
             if i > 0 {
@@ -7670,9 +8306,9 @@ impl CodeGenerator {
                 self.generate_expr(arg)?;
             }
         }
-        
+
         self.output.push(')');
-        
+
         Ok(())
     }
 
@@ -7680,7 +8316,7 @@ impl CodeGenerator {
         // Phase 2: NO await here - just create the Task
         // The await will be inserted at first use of the variable
         self.output.push_str("liva_rt::spawn_async(async move { ");
-        
+
         // Check if callee is a MethodCall (e.g., HTTP.get())
         if let Expr::MethodCall(_) = &*call.callee {
             // MethodCall already generates the full call, just output it with .await
@@ -7704,7 +8340,7 @@ impl CodeGenerator {
             }
             self.output.push(')');
         }
-        
+
         self.output.push_str(" })");
         // Note: NO .await.unwrap() here anymore!
         Ok(())
@@ -7854,7 +8490,7 @@ impl CodeGenerator {
                 return Ok(());
             }
         }
-        
+
         // Otherwise, generate normally
         self.generate_expr(expr)
     }
@@ -7891,7 +8527,7 @@ impl CodeGenerator {
                 }
                 return Ok(());
             }
-            
+
             // Special handling for Option variable comparison with null
             // Transform: x != null -> x.is_some()
             // Transform: x == null -> x.is_none()
@@ -7906,7 +8542,7 @@ impl CodeGenerator {
                 }
                 _ => false,
             };
-            
+
             if is_option_null_comparison {
                 // Generate x.is_some() or x.is_none()
                 let var_name = match (left, right) {
@@ -7915,7 +8551,7 @@ impl CodeGenerator {
                     _ => unreachable!(),
                 };
                 write!(self.output, "{}", self.sanitize_name(var_name)).unwrap();
-                
+
                 if matches!(op, BinOp::Ne) {
                     self.output.push_str(".is_some()");
                 } else {
@@ -7923,7 +8559,7 @@ impl CodeGenerator {
                 }
                 return Ok(());
             }
-            
+
             // Special handling for JsonValue comparison with null
             // Transform: jsonVar != null -> !jsonVar.is_null()
             // Transform: jsonVar == null -> jsonVar.is_null()
@@ -7938,7 +8574,7 @@ impl CodeGenerator {
                 }
                 _ => false,
             };
-            
+
             if is_json_null_comparison {
                 // Generate !x.is_null() or x.is_null()
                 let var_name = match (left, right) {
@@ -7946,7 +8582,7 @@ impl CodeGenerator {
                     (_, Expr::Identifier(name)) => name,
                     _ => unreachable!(),
                 };
-                
+
                 if matches!(op, BinOp::Ne) {
                     self.output.push_str("!");
                 }
@@ -7960,16 +8596,24 @@ impl CodeGenerator {
         if matches!(op, BinOp::Eq | BinOp::Ne) && !self.ref_lambda_params.is_empty() {
             let left_is_ref = if let Expr::Identifier(name) = left {
                 self.ref_lambda_params.contains(name)
-            } else { false };
+            } else {
+                false
+            };
             let right_is_ref = if let Expr::Identifier(name) = right {
                 self.ref_lambda_params.contains(name)
-            } else { false };
-            
+            } else {
+                false
+            };
+
             if left_is_ref || right_is_ref {
-                if left_is_ref { self.output.push('*'); }
+                if left_is_ref {
+                    self.output.push('*');
+                }
                 self.generate_expr(left)?;
                 write!(self.output, " {} ", op).unwrap();
-                if right_is_ref { self.output.push('*'); }
+                if right_is_ref {
+                    self.output.push('*');
+                }
                 self.generate_expr(right)?;
                 return Ok(());
             }
@@ -7979,7 +8623,7 @@ impl CodeGenerator {
         if matches!(op, BinOp::Mul) {
             let has_string_literal = matches!(left, Expr::Literal(Literal::String(_)))
                 || matches!(right, Expr::Literal(Literal::String(_)));
-            
+
             if has_string_literal {
                 // Use string_mul helper only when we have a string literal
                 self.output.push_str("liva_rt::string_mul(");
@@ -8110,28 +8754,30 @@ impl CodeGenerator {
                     // response.json() returns (Option<JsonValue>, String)
                     return true;
                 }
-                
+
                 if let Expr::Identifier(object_name) = method_call.object.as_ref() {
                     // Check for JSON methods
-                    if object_name == "JSON" && (method_call.method == "parse" || method_call.method == "stringify") {
+                    if object_name == "JSON"
+                        && (method_call.method == "parse" || method_call.method == "stringify")
+                    {
                         return true;
                     }
                     // Check for File methods (all except exists return tuples)
-                    if object_name == "File" && (
-                        method_call.method == "read" ||
-                        method_call.method == "write" ||
-                        method_call.method == "append" ||
-                        method_call.method == "delete"
-                    ) {
+                    if object_name == "File"
+                        && (method_call.method == "read"
+                            || method_call.method == "write"
+                            || method_call.method == "append"
+                            || method_call.method == "delete")
+                    {
                         return true;
                     }
                     // Check for HTTP methods (all return tuples)
-                    if (object_name == "HTTP" || object_name == "Http") && (
-                        method_call.method == "get" ||
-                        method_call.method == "post" ||
-                        method_call.method == "put" ||
-                        method_call.method == "delete"
-                    ) {
+                    if (object_name == "HTTP" || object_name == "Http")
+                        && (method_call.method == "get"
+                            || method_call.method == "post"
+                            || method_call.method == "put"
+                            || method_call.method == "delete")
+                    {
                         return true;
                     }
                 }
@@ -8170,9 +8816,20 @@ impl CodeGenerator {
             }
             // Detect string-returning method calls: .toString(), .toUpperCase(), .toLowerCase(), etc.
             Expr::MethodCall(mc) => {
-                matches!(mc.method.as_str(),
-                    "toString" | "toUpperCase" | "toLowerCase" | "trim" | "trimStart" | "trimEnd" |
-                    "replace" | "substring" | "join" | "split" | "charAt")
+                matches!(
+                    mc.method.as_str(),
+                    "toString"
+                        | "toUpperCase"
+                        | "toLowerCase"
+                        | "trim"
+                        | "trimStart"
+                        | "trimEnd"
+                        | "replace"
+                        | "substring"
+                        | "join"
+                        | "split"
+                        | "charAt"
+                )
             }
             // Detect string-returning function calls like toString(x)
             Expr::Call(call) => {
@@ -8197,7 +8854,8 @@ impl CodeGenerator {
                     self.output,
                     "{}.as_ref().map(|e| e.message.as_str()).unwrap_or(\"\")",
                     sanitized
-                ).unwrap();
+                )
+                .unwrap();
                 return Ok(());
             }
             if self.option_value_vars.contains(&sanitized) {
@@ -8206,7 +8864,8 @@ impl CodeGenerator {
                     self.output,
                     "{}.as_ref().map(|v| v.to_string()).unwrap_or_default()",
                     sanitized
-                ).unwrap();
+                )
+                .unwrap();
                 return Ok(());
             }
             if self.struct_destructured_vars.contains(&sanitized) {
@@ -8215,7 +8874,8 @@ impl CodeGenerator {
                     self.output,
                     "{}.as_ref().map(|v| format!(\"{{}}\", v)).unwrap_or_default()",
                     sanitized
-                ).unwrap();
+                )
+                .unwrap();
                 return Ok(());
             }
         }
@@ -8267,7 +8927,7 @@ impl CodeGenerator {
                 // Simple binding - should not reach here since we check is_simple() before calling
                 // But handle it anyway for completeness
                 let var_name = self.sanitize_name(name);
-                
+
                 // Track variable types based on init expression
                 if let Expr::ObjectLiteral(_) = init_expr {
                     self.bracket_notation_vars.insert(name.clone());
@@ -8281,7 +8941,7 @@ impl CodeGenerator {
                         self.var_types.insert(name.clone(), class_name.clone());
                     }
                 }
-                
+
                 write!(self.output, "let mut {}", var_name).unwrap();
                 self.output.push_str(" = ");
                 self.generate_expr(init_expr)?;
@@ -8299,28 +8959,30 @@ impl CodeGenerator {
                 for field in &obj_pattern.fields {
                     self.write_indent();
                     let binding_name = self.sanitize_name(&field.binding);
-                    
+
                     // Check if temp var is a JsonValue or needs bracket notation
                     // We need to check the init_expr to determine the type
-                    let needs_bracket_notation = matches!(init_expr, Expr::ObjectLiteral(_)) ||
-                        (matches!(init_expr, Expr::Identifier(id) if 
-                            self.bracket_notation_vars.contains(id) || 
+                    let needs_bracket_notation = matches!(init_expr, Expr::ObjectLiteral(_))
+                        || (matches!(init_expr, Expr::Identifier(id) if
+                            self.bracket_notation_vars.contains(id) ||
                             self.json_value_vars.contains(id)));
-                    
+
                     if needs_bracket_notation {
                         // JSON object access using bracket notation
                         write!(
                             self.output,
                             "let mut {} = {}[\"{}\"].clone();\n",
                             binding_name, temp_var, field.key
-                        ).unwrap();
+                        )
+                        .unwrap();
                     } else {
                         // Struct field access - clone to handle non-Copy types (String, Vec, etc.)
                         write!(
                             self.output,
                             "let mut {} = {}.{}.clone();\n",
                             binding_name, temp_var, field.key
-                        ).unwrap();
+                        )
+                        .unwrap();
                     }
                 }
             }
@@ -8341,7 +9003,8 @@ impl CodeGenerator {
                             self.output,
                             "let mut {} = {}[{}].clone();\n",
                             binding_name, temp_var, i
-                        ).unwrap();
+                        )
+                        .unwrap();
                     }
                 }
 
@@ -8354,8 +9017,9 @@ impl CodeGenerator {
                         self.output,
                         "let mut {}: Vec<_> = {}[{}..].to_vec();\n",
                         binding_name, temp_var, start_index
-                    ).unwrap();
-                    
+                    )
+                    .unwrap();
+
                     // Track the rest variable as an array
                     self.array_vars.insert(rest_name.clone());
                 }
@@ -8388,21 +9052,22 @@ impl CodeGenerator {
                 // Parameter is destructured, need to generate let statements
                 // The parameter in the function signature uses a temp name: _param_0, _param_1, etc.
                 let temp_name = format!("_param_{}", param_idx);
-                
+
                 match &param.pattern {
                     BindingPattern::Object(obj_pattern) => {
                         // Object destructuring: {x, y} => extract each field
                         for field in &obj_pattern.fields {
                             self.write_indent();
                             let binding_name = self.sanitize_name(&field.binding);
-                            
+
                             // For parameters, we always use struct field access (not JSON)
                             // Clone to handle non-Copy types
                             write!(
                                 self.output,
                                 "let mut {} = {}.{}.clone();\n",
                                 binding_name, temp_name, field.key
-                            ).unwrap();
+                            )
+                            .unwrap();
                         }
                     }
                     BindingPattern::Array(arr_pattern) => {
@@ -8415,10 +9080,11 @@ impl CodeGenerator {
                                     self.output,
                                     "let mut {} = {}[{}].clone();\n",
                                     binding_name, temp_name, i
-                                ).unwrap();
+                                )
+                                .unwrap();
                             }
                         }
-                        
+
                         // Handle rest pattern: [...rest]
                         if let Some(rest_name) = &arr_pattern.rest {
                             self.write_indent();
@@ -8428,8 +9094,9 @@ impl CodeGenerator {
                                 self.output,
                                 "let mut {}: Vec<_> = {}[{}..].to_vec();\n",
                                 binding_name, temp_name, start_index
-                            ).unwrap();
-                            
+                            )
+                            .unwrap();
+
                             // Track as array variable
                             self.array_vars.insert(rest_name.clone());
                         }
@@ -8453,30 +9120,38 @@ impl CodeGenerator {
                 }
             }
         }
-        
+
         Ok(())
     }
 
     /// Generate destructuring code for lambda parameters
     /// Similar to generate_param_destructuring but for lambdas (no indent on first line)
-    fn generate_lambda_param_destructuring(&mut self, pattern: &BindingPattern, temp_name: &str, is_json_value: bool, class_name: Option<&str>) -> Result<()> {
+    fn generate_lambda_param_destructuring(
+        &mut self,
+        pattern: &BindingPattern,
+        temp_name: &str,
+        is_json_value: bool,
+        class_name: Option<&str>,
+    ) -> Result<()> {
         match pattern {
             BindingPattern::Object(obj_pattern) => {
                 // Object destructuring: extract each field
                 for field in &obj_pattern.fields {
                     let binding_name = self.sanitize_name(&field.binding);
-                    
+
                     if is_json_value {
                         // For JsonValue, use .get("field") access
                         write!(
                             self.output,
                             "let {} = {}[\"{}\"].clone();\n",
                             binding_name, temp_name, field.key
-                        ).unwrap();
+                        )
+                        .unwrap();
                     } else {
                         // For structs, check if field is optional in the class definition
                         let is_field_optional = if let Some(cls_name) = class_name {
-                            if let Some(optional_fields) = self.class_optional_fields.get(cls_name) {
+                            if let Some(optional_fields) = self.class_optional_fields.get(cls_name)
+                            {
                                 optional_fields.contains(&field.key)
                             } else {
                                 false
@@ -8484,14 +9159,15 @@ impl CodeGenerator {
                         } else {
                             false
                         };
-                        
+
                         if is_field_optional {
                             // For optional fields, unwrap or use default
                             write!(
                                 self.output,
                                 "let {} = {}.{}.as_ref().map(|v| v.clone()).unwrap_or_default();\n",
                                 binding_name, temp_name, field.key
-                            ).unwrap();
+                            )
+                            .unwrap();
                             // Only register optional fields for special string template handling
                             self.struct_destructured_vars.insert(binding_name.clone());
                         } else {
@@ -8500,9 +9176,10 @@ impl CodeGenerator {
                                 self.output,
                                 "let {} = {}.{}.clone();\n",
                                 binding_name, temp_name, field.key
-                            ).unwrap();
+                            )
+                            .unwrap();
                         }
-                        
+
                         // Check if this field is itself a class type, and register it as a class instance
                         // This is important for nested struct access (e.g., address.zipcode)
                         if let Some(_cls_name) = class_name {
@@ -8516,7 +9193,7 @@ impl CodeGenerator {
                             }
                         }
                     }
-                    
+
                     if field != obj_pattern.fields.last().unwrap() {
                         self.write_indent();
                     }
@@ -8531,13 +9208,14 @@ impl CodeGenerator {
                             self.output,
                             "let {} = {}[{}].clone();\n",
                             binding_name, temp_name, i
-                        ).unwrap();
+                        )
+                        .unwrap();
                         if i < arr_pattern.elements.len() - 1 || arr_pattern.rest.is_some() {
                             self.write_indent();
                         }
                     }
                 }
-                
+
                 // Handle rest pattern
                 if let Some(rest_name) = &arr_pattern.rest {
                     let binding_name = self.sanitize_name(rest_name);
@@ -8546,7 +9224,8 @@ impl CodeGenerator {
                         self.output,
                         "let {}: Vec<_> = {}[{}..].to_vec();\n",
                         binding_name, temp_name, start_index
-                    ).unwrap();
+                    )
+                    .unwrap();
                 }
             }
             BindingPattern::Tuple(tuple_pattern) => {
@@ -8565,7 +9244,7 @@ impl CodeGenerator {
                 // Not destructured, nothing to do
             }
         }
-        
+
         Ok(())
     }
 
@@ -8581,7 +9260,7 @@ impl CodeGenerator {
         let has_leading_underscore = name.starts_with('_');
         let name_without_prefix = name.trim_start_matches('_');
         let snake = self.to_snake_case(name_without_prefix);
-        
+
         if has_leading_underscore {
             format!("_{}", snake)
         } else {
@@ -8616,7 +9295,9 @@ impl CodeGenerator {
     /// Check if a string is in camelCase (has uppercase letters that aren't at the start)
     #[allow(dead_code)]
     fn is_camel_case(&self, s: &str) -> bool {
-        s.chars().enumerate().any(|(i, ch)| i > 0 && ch.is_uppercase())
+        s.chars()
+            .enumerate()
+            .any(|(i, ch)| i > 0 && ch.is_uppercase())
     }
 }
 
@@ -8778,7 +9459,11 @@ impl<'a> IrCodeGenerator<'a> {
     /// Checks if an expression is a member access on 'self' (self.field)
     /// Returns true if the expression needs .clone() when used in assignment or return
     fn expr_is_self_field(&self, expr: &ir::Expr) -> bool {
-        if let ir::Expr::Member { object, property: _ } = expr {
+        if let ir::Expr::Member {
+            object,
+            property: _,
+        } = expr
+        {
             if let ir::Expr::Identifier(obj) = object.as_ref() {
                 return obj == "self" && self.in_method;
             }
@@ -8827,8 +9512,10 @@ impl<'a> IrCodeGenerator<'a> {
     fn generate(mut self, module: &ir::Module) -> Result<String> {
         self.emit_use_statements(module);
 
-    // Always include runtime for now
-    if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: IR generator including liva_rt module"); }
+        // Always include runtime for now
+        if std::env::var("LIVA_DEBUG").is_ok() {
+            println!("DEBUG: IR generator including liva_rt module");
+        }
         self.writeln("#[allow(dead_code)]");
         self.writeln("mod liva_rt {");
         self.indent();
@@ -10088,7 +10775,7 @@ impl<'a> IrCodeGenerator<'a> {
                     if needs_paren {
                         self.output.push('(');
                     }
-                    
+
                     // Special handling for string multiplication
                     if matches!(op, ir::BinaryOp::Mul) {
                         // Check if at least one operand is a string literal or template
@@ -10099,7 +10786,7 @@ impl<'a> IrCodeGenerator<'a> {
                             right.as_ref(),
                             ir::Expr::Literal(ir::Literal::String(_)) | ir::Expr::StringTemplate(_)
                         );
-                        
+
                         if has_string_literal {
                             // Use string_mul helper that handles both String*int and int*String
                             self.output.push_str("liva_rt::string_mul(");
@@ -10241,7 +10928,7 @@ impl<'a> IrCodeGenerator<'a> {
                     self.output.push_str(".len() as i32)");
                     return Ok(());
                 }
-                
+
                 self.generate_expr(object)?;
 
                 // For liva_rt members, use dot notation
@@ -10506,35 +11193,33 @@ impl<'a> IrCodeGenerator<'a> {
             Pattern::Binding(name) => {
                 self.output.push_str(&self.sanitize_name(name));
             }
-            Pattern::Range(range) => {
-                match (&range.start, &range.end, range.inclusive) {
-                    (Some(start), Some(end), true) => {
-                        self.generate_expr_from_ast(start)?;
-                        self.output.push_str("..=");
-                        self.generate_expr_from_ast(end)?;
-                    }
-                    (Some(start), Some(end), false) => {
-                        self.generate_expr_from_ast(start)?;
-                        self.output.push_str("..");
-                        self.generate_expr_from_ast(end)?;
-                    }
-                    (Some(start), None, _) => {
-                        self.generate_expr_from_ast(start)?;
-                        self.output.push_str("..");
-                    }
-                    (None, Some(end), true) => {
-                        self.output.push_str("..=");
-                        self.generate_expr_from_ast(end)?;
-                    }
-                    (None, Some(end), false) => {
-                        self.output.push_str("..");
-                        self.generate_expr_from_ast(end)?;
-                    }
-                    (None, None, _) => {
-                        self.output.push_str("..");
-                    }
+            Pattern::Range(range) => match (&range.start, &range.end, range.inclusive) {
+                (Some(start), Some(end), true) => {
+                    self.generate_expr_from_ast(start)?;
+                    self.output.push_str("..=");
+                    self.generate_expr_from_ast(end)?;
                 }
-            }
+                (Some(start), Some(end), false) => {
+                    self.generate_expr_from_ast(start)?;
+                    self.output.push_str("..");
+                    self.generate_expr_from_ast(end)?;
+                }
+                (Some(start), None, _) => {
+                    self.generate_expr_from_ast(start)?;
+                    self.output.push_str("..");
+                }
+                (None, Some(end), true) => {
+                    self.output.push_str("..=");
+                    self.generate_expr_from_ast(end)?;
+                }
+                (None, Some(end), false) => {
+                    self.output.push_str("..");
+                    self.generate_expr_from_ast(end)?;
+                }
+                (None, None, _) => {
+                    self.output.push_str("..");
+                }
+            },
             Pattern::Tuple(patterns) => {
                 self.output.push('(');
                 for (i, pat) in patterns.iter().enumerate() {
@@ -10632,14 +11317,11 @@ impl<'a> IrCodeGenerator<'a> {
                 self.output.push(';');
                 Ok(())
             }
-            _ => {
-                Err(CompilerError::CodegenError(
-                    "Complex statements in switch blocks not yet fully supported".into(),
-                ))
-            }
+            _ => Err(CompilerError::CodegenError(
+                "Complex statements in switch blocks not yet fully supported".into(),
+            )),
         }
     }
-
 
     fn expr_is_stringy(&self, expr: &ir::Expr) -> bool {
         match expr {
@@ -10665,7 +11347,8 @@ impl<'a> IrCodeGenerator<'a> {
                     self.output,
                     "{}.as_ref().map(|e| e.message.as_str()).unwrap_or(\"\")",
                     sanitized
-                ).unwrap();
+                )
+                .unwrap();
                 return Ok(());
             }
         }
@@ -10844,7 +11527,9 @@ fn expr_has_unsupported(expr: &ir::Expr) -> bool {
         ir::Expr::Index { object, index } => {
             expr_has_unsupported(object) || expr_has_unsupported(index)
         }
-        ir::Expr::Range { start, end } | ir::Expr::RangeInclusive { start, end } => expr_has_unsupported(start) || expr_has_unsupported(end),
+        ir::Expr::Range { start, end } | ir::Expr::RangeInclusive { start, end } => {
+            expr_has_unsupported(start) || expr_has_unsupported(end)
+        }
         ir::Expr::ObjectLiteral(fields) => {
             fields.iter().any(|(_, value)| expr_has_unsupported(value))
         }
@@ -11074,7 +11759,8 @@ fn expr_has_async_concurrency(expr: &ir::Expr) -> bool {
             expr_has_async_concurrency(object.as_ref())
                 || expr_has_async_concurrency(index.as_ref())
         }
-        &ir::Expr::Range { ref start, ref end } | &ir::Expr::RangeInclusive { ref start, ref end } => {
+        &ir::Expr::Range { ref start, ref end }
+        | &ir::Expr::RangeInclusive { ref start, ref end } => {
             expr_has_async_concurrency(start.as_ref()) || expr_has_async_concurrency(end.as_ref())
         }
         &ir::Expr::ObjectLiteral(ref fields) => fields
@@ -11149,7 +11835,8 @@ fn expr_has_parallel_concurrency(expr: &ir::Expr) -> bool {
             expr_has_parallel_concurrency(object.as_ref())
                 || expr_has_parallel_concurrency(index.as_ref())
         }
-        &ir::Expr::Range { ref start, ref end } | &ir::Expr::RangeInclusive { ref start, ref end } => {
+        &ir::Expr::Range { ref start, ref end }
+        | &ir::Expr::RangeInclusive { ref start, ref end } => {
             expr_has_parallel_concurrency(start.as_ref())
                 || expr_has_parallel_concurrency(end.as_ref())
         }
@@ -11202,12 +11889,10 @@ fn ast_stmt_has_async(stmt: &Stmt) -> bool {
                     .unwrap_or(false)
         }
         Stmt::While(w) => {
-            ast_expr_has_async(&w.condition)
-                || w.body.stmts.iter().any(ast_stmt_has_async)
+            ast_expr_has_async(&w.condition) || w.body.stmts.iter().any(ast_stmt_has_async)
         }
         Stmt::For(f) => {
-            ast_expr_has_async(&f.iterable)
-                || f.body.stmts.iter().any(ast_stmt_has_async)
+            ast_expr_has_async(&f.iterable) || f.body.stmts.iter().any(ast_stmt_has_async)
         }
         Stmt::Block(block) => block.stmts.iter().any(ast_stmt_has_async),
         Stmt::TryCatch(tc) => {
@@ -11216,9 +11901,10 @@ fn ast_stmt_has_async(stmt: &Stmt) -> bool {
         }
         Stmt::Switch(sw) => {
             ast_expr_has_async(&sw.discriminant)
-                || sw.cases.iter().any(|c| {
-                    ast_expr_has_async(&c.value) || c.body.iter().any(ast_stmt_has_async)
-                })
+                || sw
+                    .cases
+                    .iter()
+                    .any(|c| ast_expr_has_async(&c.value) || c.body.iter().any(ast_stmt_has_async))
                 || sw
                     .default
                     .as_ref()
@@ -11238,10 +11924,16 @@ fn ast_if_body_has_async(body: &IfBody) -> bool {
 fn ast_expr_has_async(expr: &Expr) -> bool {
     match expr {
         // Direct async indicators
-        Expr::Call(call) if call.exec_policy == ExecPolicy::Async
-            || call.exec_policy == ExecPolicy::TaskAsync
-            || call.exec_policy == ExecPolicy::FireAsync => true,
-        Expr::Unary { op: UnOp::Await, .. } => true,
+        Expr::Call(call)
+            if call.exec_policy == ExecPolicy::Async
+                || call.exec_policy == ExecPolicy::TaskAsync
+                || call.exec_policy == ExecPolicy::FireAsync =>
+        {
+            true
+        }
+        Expr::Unary {
+            op: UnOp::Await, ..
+        } => true,
         // Recursive traversal
         Expr::Call(call) => {
             ast_expr_has_async(&call.callee) || call.args.iter().any(ast_expr_has_async)
@@ -11249,9 +11941,7 @@ fn ast_expr_has_async(expr: &Expr) -> bool {
         Expr::MethodCall(mc) => {
             ast_expr_has_async(&mc.object) || mc.args.iter().any(ast_expr_has_async)
         }
-        Expr::Binary { left, right, .. } => {
-            ast_expr_has_async(left) || ast_expr_has_async(right)
-        }
+        Expr::Binary { left, right, .. } => ast_expr_has_async(left) || ast_expr_has_async(right),
         Expr::Unary { operand, .. } => ast_expr_has_async(operand),
         Expr::Ternary {
             condition,
@@ -11263,9 +11953,7 @@ fn ast_expr_has_async(expr: &Expr) -> bool {
                 || ast_expr_has_async(else_expr)
         }
         Expr::Member { object, .. } => ast_expr_has_async(object),
-        Expr::Index { object, index } => {
-            ast_expr_has_async(object) || ast_expr_has_async(index)
-        }
+        Expr::Index { object, index } => ast_expr_has_async(object) || ast_expr_has_async(index),
         Expr::ObjectLiteral(fields) => fields.iter().any(|(_, v)| ast_expr_has_async(v)),
         Expr::StructLiteral { fields, .. } => fields.iter().any(|(_, v)| ast_expr_has_async(v)),
         Expr::ArrayLiteral(elements) => elements.iter().any(ast_expr_has_async),
@@ -11279,7 +11967,10 @@ fn ast_expr_has_async(expr: &Expr) -> bool {
         Expr::Switch(sw) => {
             ast_expr_has_async(&sw.discriminant)
                 || sw.arms.iter().any(|arm| {
-                    arm.guard.as_ref().map(|g| ast_expr_has_async(g)).unwrap_or(false)
+                    arm.guard
+                        .as_ref()
+                        .map(|g| ast_expr_has_async(g))
+                        .unwrap_or(false)
                         || match &arm.body {
                             SwitchBody::Expr(e) => ast_expr_has_async(e),
                             SwitchBody::Block(stmts) => stmts.iter().any(ast_stmt_has_async),
@@ -11305,14 +11996,20 @@ pub fn generate_from_ir(
     program: &Program,
     ctx: DesugarContext,
 ) -> Result<(String, String)> {
-    if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: Checking if module has unsupported items..."); }
+    if std::env::var("LIVA_DEBUG").is_ok() {
+        println!("DEBUG: Checking if module has unsupported items...");
+    }
     if module_has_unsupported(module) {
-        if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: Module has unsupported items, using AST generator"); }
+        if std::env::var("LIVA_DEBUG").is_ok() {
+            println!("DEBUG: Module has unsupported items, using AST generator");
+        }
         return generate_with_ast(program, ctx);
     }
 
     // For now, always use AST generator since it handles classes and inheritance correctly
-    if std::env::var("LIVA_DEBUG").is_ok() { println!("DEBUG: Using AST generator for full compatibility"); }
+    if std::env::var("LIVA_DEBUG").is_ok() {
+        println!("DEBUG: Using AST generator for full compatibility");
+    }
     return generate_with_ast(program, ctx);
 }
 
@@ -11324,44 +12021,45 @@ pub fn generate_multifile_project(
 ) -> Result<std::collections::HashMap<std::path::PathBuf, String>> {
     use std::collections::HashMap;
     use std::path::PathBuf;
-    
+
     let mut files = HashMap::new();
     let mut mod_declarations = Vec::new();
-    
+
     // Generate code for each module
     for module in modules {
-        let module_name = module.path
+        let module_name = module
+            .path
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("module");
-        
+
         // Skip main/entry module - it will be handled separately
         if module.path == entry_module.path {
             continue;
         }
-        
+
         // Generate Rust code for this module
         let rust_code = generate_module_code(module, &ctx)?;
-        
+
         // Determine output path: src/module_name.rs
         let output_path = PathBuf::from("src").join(format!("{}.rs", module_name));
         files.insert(output_path, rust_code);
-        
+
         // Add mod declaration
         mod_declarations.push(format!("mod {};", module_name));
     }
-    
+
     // Generate main.rs (entry point)
     let main_code = generate_entry_point(entry_module, &mod_declarations, &ctx)?;
     files.insert(PathBuf::from("src/main.rs"), main_code);
-    
+
     Ok(files)
 }
 
 /// Generate Rust code for a single Liva module
 fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext) -> Result<String> {
     let mut codegen = CodeGenerator::new(ctx.clone());
-    
+
     // First, collect use statements from imports
     let mut use_statements = String::new();
     for import_decl in &module.imports {
@@ -11369,10 +12067,10 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext) ->
         use_statements.push_str(&use_stmt);
         use_statements.push('\n');
     }
-    
+
     // Generate code for each top-level item into a separate buffer
     let mut module_body = String::new();
-    
+
     for item in &module.ast.items {
         match item {
             TopLevel::Import(_) => {
@@ -11381,12 +12079,12 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext) ->
             }
             TopLevel::Function(func) => {
                 let is_public = !func.name.starts_with('_');
-                
+
                 // Reset codegen output for this item
                 codegen.output.clear();
                 codegen.generate_function(func)?;
                 let func_code = codegen.output.clone();
-                
+
                 if is_public {
                     module_body.push_str("pub ");
                 }
@@ -11395,12 +12093,12 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext) ->
             }
             TopLevel::Class(class) => {
                 let is_public = !class.name.starts_with('_');
-                
+
                 // Reset codegen output for this item
                 codegen.output.clear();
                 codegen.generate_class(class)?;
                 let class_code = codegen.output.clone();
-                
+
                 if is_public {
                     // Add pub to struct definition
                     let lines: Vec<&str> = class_code.lines().collect();
@@ -11415,12 +12113,12 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext) ->
             }
             TopLevel::Type(type_decl) => {
                 let is_public = !type_decl.name.starts_with('_');
-                
+
                 // Reset codegen output for this item
                 codegen.output.clear();
                 codegen.generate_type_decl(type_decl)?;
                 let type_code = codegen.output.clone();
-                
+
                 if is_public {
                     module_body.push_str("pub ");
                 }
@@ -11433,11 +12131,11 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext) ->
             }
             TopLevel::ConstDecl(const_decl) => {
                 let is_public = !const_decl.name.starts_with('_');
-                
+
                 codegen.output.clear();
                 codegen.generate_top_level(item)?;
                 let code = codegen.output.clone();
-                
+
                 if is_public {
                     module_body.push_str("pub ");
                 }
@@ -11449,30 +12147,30 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext) ->
                 codegen.output.clear();
                 codegen.generate_top_level(item)?;
                 let code = codegen.output.clone();
-                
+
                 module_body.push_str(&code);
                 module_body.push('\n');
             }
         }
     }
-    
+
     // Now build the final output, only adding liva_rt import if needed
     let mut output = String::new();
-    
+
     // Only add liva_rt import if the module actually uses it
     if module_body.contains("liva_rt::") || use_statements.contains("liva_rt::") {
         output.push_str("use crate::liva_rt;\n\n");
     }
-    
+
     // Add use statements
     if !use_statements.is_empty() {
         output.push_str(&use_statements);
         output.push('\n');
     }
-    
+
     // Add module body
     output.push_str(&module_body);
-    
+
     Ok(output)
 }
 
@@ -11480,17 +12178,20 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext) ->
 /// Examples:
 /// - `import { add } from "./math.liva"` → `use crate::math::add;`
 /// - `import * as math from "./math.liva"` → `use crate::math;`
-fn generate_use_statement(import_decl: &ImportDecl, _current_module_path: &std::path::Path) -> Result<String> {
+fn generate_use_statement(
+    import_decl: &ImportDecl,
+    _current_module_path: &std::path::Path,
+) -> Result<String> {
     use std::path::Path;
-    
+
     // Virtual modules (liva/test, etc.) don't generate use statements
     if crate::module::is_virtual_module(&import_decl.source) {
         return Ok(String::new());
     }
-    
+
     // Parse the source path and resolve relative to current module
     let source_path = Path::new(&import_decl.source);
-    
+
     // Remove .liva extension if present
     let module_name = source_path
         .file_stem()
@@ -11502,7 +12203,7 @@ fn generate_use_statement(import_decl: &ImportDecl, _current_module_path: &std::
                 "",
             ))
         })?;
-    
+
     // Convert relative path to Rust module path
     let rust_module_path = if import_decl.source.starts_with("./") {
         // Same directory: ./math.liva → crate::math
@@ -11515,7 +12216,7 @@ fn generate_use_statement(import_decl: &ImportDecl, _current_module_path: &std::
         // Absolute or other: treat as crate::module_name
         format!("crate::{}", module_name)
     };
-    
+
     if import_decl.is_wildcard {
         // Wildcard import: import * as alias from "..."
         if let Some(alias) = &import_decl.alias {
@@ -11533,7 +12234,12 @@ fn generate_use_statement(import_decl: &ImportDecl, _current_module_path: &std::
         // Single import
         let symbol = &import_decl.imports[0];
         // Don't convert if it starts with uppercase (it's a type)
-        let rust_symbol = if symbol.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
+        let rust_symbol = if symbol
+            .chars()
+            .next()
+            .map(|c| c.is_uppercase())
+            .unwrap_or(false)
+        {
             symbol.clone()
         } else {
             to_snake_case(symbol)
@@ -11541,7 +12247,9 @@ fn generate_use_statement(import_decl: &ImportDecl, _current_module_path: &std::
         Ok(format!("use {}::{};", rust_module_path, rust_symbol))
     } else {
         // Multiple imports: use crate::math::{add, subtract};
-        let rust_symbols: Vec<String> = import_decl.imports.iter()
+        let rust_symbols: Vec<String> = import_decl
+            .imports
+            .iter()
             .map(|s| {
                 // Don't convert if it starts with uppercase (it's a type)
                 if s.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
@@ -11563,16 +12271,16 @@ fn generate_entry_point(
     ctx: &DesugarContext,
 ) -> Result<String> {
     let mut codegen = CodeGenerator::new(ctx.clone());
-    
+
     // Add mod declarations for all other modules
     for mod_decl in mod_declarations {
         codegen.writeln(mod_decl);
     }
-    
+
     if !mod_declarations.is_empty() {
         codegen.output.push('\n'); // Blank line after mod declarations
     }
-    
+
     // Generate use statements from entry module's imports
     // Also register module aliases for wildcard imports
     for import_decl in &entry_module.imports {
@@ -11582,24 +12290,26 @@ fn generate_entry_point(
             let source_path = std::path::Path::new(&import_decl.source);
             if let Some(module_name) = source_path.file_stem().and_then(|s| s.to_str()) {
                 let alias = import_decl.alias.as_ref().unwrap();
-                codegen.module_aliases.insert(alias.clone(), module_name.to_string());
+                codegen
+                    .module_aliases
+                    .insert(alias.clone(), module_name.to_string());
             }
             // The module is already available via `mod math;`, skip the use statement
             continue;
         }
-        
+
         let use_stmt = generate_use_statement(import_decl, &entry_module.path)?;
         codegen.output.push_str(&use_stmt);
         codegen.output.push('\n');
     }
-    
+
     if !entry_module.imports.is_empty() {
         codegen.output.push('\n');
     }
-    
+
     // Generate the entry module using generate_program logic
     codegen.generate_program(&entry_module.ast)?;
-    
+
     Ok(codegen.output.clone())
 }
 
@@ -11615,7 +12325,9 @@ pub fn generate_with_ast(program: &Program, ctx: DesugarContext) -> Result<(Stri
             // Track functions that return [T] (arrays)
             if let Some(ret_type) = &func.return_type {
                 if matches!(ret_type, TypeRef::Array(_)) {
-                    generator.array_returning_functions.insert(func.name.clone());
+                    generator
+                        .array_returning_functions
+                        .insert(func.name.clone());
                 }
             }
         }

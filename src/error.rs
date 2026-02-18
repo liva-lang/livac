@@ -161,10 +161,13 @@ impl SemanticErrorInfo {
         output.push_str(&format!("\n{} ", "●".red().bold()));
         output.push_str(&format!("{}: ", self.code.red().bold()));
         output.push_str(&format!("{}", self.title.bold()));
-        
+
         // Mostrar categoría si está disponible
         if let Some(category) = self.category() {
-            output.push_str(&format!(" {}\n", format!("[{}]", category.name()).bright_black()));
+            output.push_str(&format!(
+                " {}\n",
+                format!("[{}]", category.name()).bright_black()
+            ));
         } else {
             output.push_str("\n");
         }
@@ -186,9 +189,9 @@ impl SemanticErrorInfo {
             if let Some(source) = &loc.source_line {
                 output.push_str("\n");
 
-                let start_line = loc.line.saturating_sub(
-                    loc.context_before.as_ref().map(|v| v.len()).unwrap_or(0)
-                );
+                let start_line = loc
+                    .line
+                    .saturating_sub(loc.context_before.as_ref().map(|v| v.len()).unwrap_or(0));
 
                 // Líneas antes del error
                 if let Some(before) = &loc.context_before {
@@ -258,7 +261,11 @@ impl SemanticErrorInfo {
 
         // Phase 5.1: Mostrar sugerencia "Did you mean?" si está disponible
         if let Some(suggestion) = &self.suggestion {
-            output.push_str(&format!("\n  {} {}\n", "💡".yellow(), suggestion.bright_white()));
+            output.push_str(&format!(
+                "\n  {} {}\n",
+                "💡".yellow(),
+                suggestion.bright_white()
+            ));
         }
 
         // Ayuda si está disponible (manual o automática)
@@ -283,7 +290,11 @@ impl SemanticErrorInfo {
 
         // Mostrar enlace a documentación
         if let Some(doc_link) = crate::hints::get_doc_link(&self.code) {
-            output.push_str(&format!("\n  {} Learn more: {}\n", "📚".blue(), doc_link.cyan()));
+            output.push_str(&format!(
+                "\n  {} Learn more: {}\n",
+                "📚".blue(),
+                doc_link.cyan()
+            ));
         }
 
         // Separador final
@@ -296,70 +307,70 @@ impl SemanticErrorInfo {
     /// Automatically adds category if not already set
     pub fn to_json(&self) -> std::result::Result<String, serde_json::Error> {
         let mut info = self.clone();
-        
+
         // Auto-populate category if not set
         if info.category.is_none() {
             if let Some(cat) = self.category() {
                 info.category = Some(cat.name().to_string());
             }
         }
-        
+
         // Auto-populate hint if not set and available
         if info.hint.is_none() {
             if let Some(hint) = crate::hints::get_hint(&self.code) {
                 info.hint = Some(hint.to_string());
             }
         }
-        
+
         // Auto-populate example if not set and available
         if info.example.is_none() {
             if let Some(example) = crate::hints::get_example(&self.code) {
                 info.example = Some(example.to_string());
             }
         }
-        
+
         // Auto-populate doc_link if not set and available
         if info.doc_link.is_none() {
             if let Some(doc_link) = crate::hints::get_doc_link(&self.code) {
                 info.doc_link = Some(doc_link.to_string());
             }
         }
-        
+
         serde_json::to_string(&info)
     }
 
     /// Convert to pretty-printed JSON format
     pub fn to_json_pretty(&self) -> std::result::Result<String, serde_json::Error> {
         let mut info = self.clone();
-        
+
         // Auto-populate category if not set
         if info.category.is_none() {
             if let Some(cat) = self.category() {
                 info.category = Some(cat.name().to_string());
             }
         }
-        
+
         // Auto-populate hint if not set and available
         if info.hint.is_none() {
             if let Some(hint) = crate::hints::get_hint(&self.code) {
                 info.hint = Some(hint.to_string());
             }
         }
-        
+
         // Auto-populate example if not set and available
         if info.example.is_none() {
             if let Some(example) = crate::hints::get_example(&self.code) {
                 info.example = Some(example.to_string());
             }
         }
-        
+
         // Auto-populate doc_link if not set and available
         if info.doc_link.is_none() {
             if let Some(doc_link) = crate::hints::get_doc_link(&self.code) {
                 info.doc_link = Some(doc_link.to_string());
             }
         }
-        
+
         serde_json::to_string_pretty(&info)
     }
 }

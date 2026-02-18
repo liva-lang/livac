@@ -241,10 +241,11 @@ impl Parser {
         // Get context lines (2 before and 2 after)
         let lines: Vec<&str> = self.source.lines().collect();
         let total_lines = lines.len();
-        
+
         let start_before = line.saturating_sub(3);
         let end_before = line.saturating_sub(1);
-        let context_before: Vec<String> = if start_before < end_before && end_before <= total_lines {
+        let context_before: Vec<String> = if start_before < end_before && end_before <= total_lines
+        {
             lines[start_before..end_before]
                 .iter()
                 .map(|s| s.to_string())
@@ -321,7 +322,7 @@ impl Parser {
 
         if self.match_token(&Token::Type) {
             let name = self.parse_identifier()?;
-            
+
             // Check for type parameters: type Name<T> or type Name<T, U>
             let type_params = if self.check(&Token::Lt) {
                 self.advance(); // consume '<'
@@ -329,7 +330,7 @@ impl Parser {
             } else {
                 vec![]
             };
-            
+
             // Check if it's a type alias (=) or interface ({)
             if self.match_token(&Token::Assign) {
                 // Type alias: type Point = (int, int)
@@ -346,7 +347,11 @@ impl Parser {
                 self.expect(Token::LBrace)?;
                 let members = self.parse_members()?;
                 self.expect(Token::RBrace)?;
-                return Ok(TopLevel::Type(TypeDecl { name, type_params, members }));
+                return Ok(TopLevel::Type(TypeDecl {
+                    name,
+                    type_params,
+                    members,
+                }));
             }
         }
 
@@ -417,7 +422,7 @@ impl Parser {
                 }
                 _ => false,
             };
-            
+
             if is_potential_call {
                 let expr = self.parse_expression()?;
                 return Ok(TopLevel::ExprStmt(expr));
@@ -477,7 +482,7 @@ impl Parser {
                 type_params,
                 implements,
                 members,
-                needs_serde: false,  // Will be set by semantic analyzer if used with JSON.parse
+                needs_serde: false, // Will be set by semantic analyzer if used with JSON.parse
                 is_data,
             }));
         }
@@ -541,7 +546,7 @@ impl Parser {
             let alias = self.parse_identifier()?;
             self.expect(Token::From)?;
             let source = self.parse_string_literal()?;
-            
+
             return Ok(TopLevel::Import(ImportDecl {
                 imports: vec![],
                 source,
@@ -552,13 +557,13 @@ impl Parser {
 
         // Named imports: import { name1, name2, ... } from "path"
         self.expect(Token::LBrace)?;
-        
+
         let mut imports = Vec::new();
-        
+
         // Parse first import
         if !self.check(&Token::RBrace) {
             imports.push(self.parse_identifier()?);
-            
+
             // Parse remaining imports
             while self.match_token(&Token::Comma) {
                 // Allow trailing comma
@@ -568,11 +573,11 @@ impl Parser {
                 imports.push(self.parse_identifier()?);
             }
         }
-        
+
         self.expect(Token::RBrace)?;
         self.expect(Token::From)?;
         let source = self.parse_string_literal()?;
-        
+
         Ok(TopLevel::Import(ImportDecl {
             imports,
             source,
@@ -704,19 +709,19 @@ impl Parser {
 
         while !self.is_at_end() && !self.check(&Token::Gt) {
             let param_name = self.parse_identifier()?;
-            
+
             // Check for constraints: T: Add or T: Add + Sub + Mul
             let constraints = if self.match_token(&Token::Colon) {
                 let mut constraint_list = Vec::new();
-                
+
                 // Parse first constraint
                 constraint_list.push(self.parse_identifier()?);
-                
+
                 // Parse additional constraints with + operator
                 while self.match_token(&Token::Plus) {
                     constraint_list.push(self.parse_identifier()?);
                 }
-                
+
                 constraint_list
             } else {
                 Vec::new()
@@ -839,7 +844,7 @@ impl Parser {
                 // It's a field
                 // Check for optional field syntax: name?:
                 let is_optional = self.match_token(&Token::Question);
-                
+
                 let type_ref = if self.match_token(&Token::Colon) {
                     Some(self.parse_type()?)
                 } else {
@@ -878,7 +883,7 @@ impl Parser {
         loop {
             // Parse pattern WITHOUT type annotation (handled separately below)
             let pattern = self.parse_param_pattern()?;
-            
+
             // Parse type annotation for the parameter
             let type_ref = if self.match_token(&Token::Colon) {
                 Some(self.parse_type()?)
@@ -909,27 +914,27 @@ impl Parser {
     fn parse_type(&mut self) -> Result<TypeRef> {
         // Parse the base type (which could be tuple, array, or simple type)
         let base_type = self.parse_base_type()?;
-        
+
         // Check for union type: T | U | V
         if self.check(&Token::Pipe) {
             let mut types = vec![base_type];
-            
+
             while self.match_token(&Token::Pipe) {
                 types.push(self.parse_base_type()?);
             }
-            
+
             // Flatten nested unions and remove duplicates
             let flattened = self.flatten_union_types(types);
-            
+
             return Ok(TypeRef::Union(flattened));
         }
-        
+
         Ok(base_type)
     }
-    
+
     fn flatten_union_types(&self, types: Vec<TypeRef>) -> Vec<TypeRef> {
         let mut result = Vec::new();
-        
+
         for ty in types {
             match ty {
                 TypeRef::Union(inner_types) => {
@@ -944,15 +949,15 @@ impl Parser {
                 }
             }
         }
-        
+
         result
     }
-    
+
     fn parse_base_type(&mut self) -> Result<TypeRef> {
         // Check for tuple type syntax: (T1, T2, T3) or ()
         if self.check(&Token::LParen) {
             self.advance(); // consume '('
-            
+
             // Empty tuple type: ()
             if self.match_token(&Token::RParen) {
                 return Ok(TypeRef::Tuple(vec![]));
@@ -983,7 +988,9 @@ impl Parser {
                 return Ok(TypeRef::Tuple(types));
             } else {
                 // Error: grouped type doesn't make sense in Liva
-                return Err(self.error("Unexpected type in parentheses - did you mean a tuple type like (T,)?".into()));
+                return Err(self.error(
+                    "Unexpected type in parentheses - did you mean a tuple type like (T,)?".into(),
+                ));
             }
         }
 
@@ -994,7 +1001,7 @@ impl Parser {
             self.expect(Token::RBracket)?;
             return Ok(TypeRef::Array(inner));
         }
-        
+
         let base = match self.advance() {
             Some(Token::Ident(s)) => s.clone(),
             Some(Token::Number) => "number".to_string(),
@@ -1019,28 +1026,28 @@ impl Parser {
             }
 
             self.expect(Token::Gt)?;
-            
+
             // After generic, check for optional/fallible
             let mut result = TypeRef::Generic { base, args };
-            
+
             // Check for ? or ! suffix
             if self.match_token(&Token::Question) {
                 result = TypeRef::Optional(Box::new(result));
             } else if self.match_token(&Token::Bang) {
                 result = TypeRef::Fallible(Box::new(result));
             }
-            
+
             Ok(result)
         } else {
             let mut result = TypeRef::Simple(base);
-            
+
             // Check for ? or ! suffix
             if self.match_token(&Token::Question) {
                 result = TypeRef::Optional(Box::new(result));
             } else if self.match_token(&Token::Bang) {
                 result = TypeRef::Fallible(Box::new(result));
             }
-            
+
             Ok(result)
         }
     }
@@ -1089,7 +1096,7 @@ impl Parser {
     /// Parse a single binding pattern: identifier, {obj}, [array], or (tuple)
     fn parse_binding_pattern(&mut self) -> Result<VarBinding> {
         let start_pos = self.current;
-        
+
         let pattern = if self.check(&Token::LBrace) {
             // Object destructuring: {name, age} or {name: userName}
             self.parse_object_pattern()?
@@ -1135,7 +1142,7 @@ impl Parser {
     /// Parse object destructuring pattern: {name, age} or {name: userName, age: userAge}
     fn parse_object_pattern(&mut self) -> Result<BindingPattern> {
         self.expect(Token::LBrace)?;
-        
+
         let mut fields = Vec::new();
 
         // Parse first field
@@ -1174,7 +1181,7 @@ impl Parser {
     /// Parse array destructuring pattern: [first, second] or [first, , third] or [head, ...tail]
     fn parse_array_pattern(&mut self) -> Result<BindingPattern> {
         self.expect(Token::LBracket)?;
-        
+
         let mut elements = Vec::new();
         let mut rest = None;
 
@@ -1187,7 +1194,7 @@ impl Parser {
                     rest = Some(rest_name);
                     break; // Rest pattern must be last
                 }
-                
+
                 // Check for skip: [a, , c]
                 if self.check(&Token::Comma) {
                     elements.push(None);
@@ -1214,7 +1221,7 @@ impl Parser {
     /// Parse tuple destructuring pattern: (x, y, z)
     fn parse_tuple_pattern(&mut self) -> Result<BindingPattern> {
         self.expect(Token::LParen)?;
-        
+
         let mut elements = Vec::new();
 
         // Parse elements
@@ -1238,7 +1245,10 @@ impl Parser {
 
     fn parse_simple_statement(&mut self) -> Result<Stmt> {
         if self.match_token(&Token::Return) {
-            let value = if self.is_at_end() || self.check(&Token::Semicolon) || self.check(&Token::RBrace) {
+            let value = if self.is_at_end()
+                || self.check(&Token::Semicolon)
+                || self.check(&Token::RBrace)
+            {
                 None
             } else {
                 Some(self.parse_expression()?)
@@ -1315,7 +1325,10 @@ impl Parser {
         }
 
         if self.match_token(&Token::Return) {
-            let value = if self.is_at_end() || self.check(&Token::Semicolon) || self.check(&Token::RBrace) {
+            let value = if self.is_at_end()
+                || self.check(&Token::Semicolon)
+                || self.check(&Token::RBrace)
+            {
                 None
             } else {
                 Some(self.parse_expression()?)
@@ -1665,7 +1678,9 @@ impl Parser {
     fn parse_or(&mut self) -> Result<Expr> {
         let mut expr = self.parse_and()?;
 
-        while (self.check(&Token::Or) && !self.peek_next_is(&Token::Fail)) || self.check(&Token::OrOr) {
+        while (self.check(&Token::Or) && !self.peek_next_is(&Token::Fail))
+            || self.check(&Token::OrOr)
+        {
             self.advance(); // consume `or` / `||`
             let right = self.parse_and()?;
             expr = Expr::Binary {
@@ -1966,7 +1981,7 @@ impl Parser {
             // Check for type arguments like sum<float>
             if self.check(&Token::Lt) && self.is_type_argument_list() {
                 let type_args = self.parse_type_arguments()?;
-                
+
                 // After type arguments, we must have a function call
                 if self.match_token(&Token::LParen) {
                     let args = self.parse_args()?;
@@ -1987,8 +2002,10 @@ impl Parser {
                         // This prevents misinterpreting `LIMIT { continue }` as a struct literal
                         // when LIMIT is a const used in an if-condition before a block.
                         let is_struct_literal = matches!(self.peek_token(1), Some(Token::RBrace))
-                            || (matches!(self.peek_token(1), Some(Token::Ident(_)) | Some(Token::PrivateIdent(_)))
-                                && matches!(self.peek_token(2), Some(Token::Colon)));
+                            || (matches!(
+                                self.peek_token(1),
+                                Some(Token::Ident(_)) | Some(Token::PrivateIdent(_))
+                            ) && matches!(self.peek_token(2), Some(Token::Colon)));
                         if is_struct_literal {
                             self.advance(); // consume the {
                             let fields = self.parse_object_fields()?;
@@ -2011,11 +2028,11 @@ impl Parser {
                 }
             } else if self.match_token(&Token::Dot) {
                 let name = self.parse_method_name()?;
-                
+
                 // Check if this is a method call (followed by parentheses)
                 if self.check(&Token::LParen) {
                     self.advance(); // consume the (
-                    
+
                     // Check if this is an adapter method (par, vec, parvec)
                     let (adapter, options) = if name == "par" || name == "vec" || name == "parvec" {
                         let adapter = match name.as_str() {
@@ -2024,22 +2041,25 @@ impl Parser {
                             "parvec" => ArrayAdapter::ParVec,
                             _ => ArrayAdapter::Seq,
                         };
-                        
+
                         // Check for adapter options like {threads: 4, chunk: 2}
                         let options = if self.match_token(&Token::LBrace) {
                             self.parse_adapter_options()?
                         } else {
                             AdapterOptions::default()
                         };
-                        
+
                         self.expect(Token::RParen)?;
-                        
+
                         // The adapter call returns the same array with the adapter applied
                         // We need to continue parsing to get the actual method call
                         if !self.match_token(&Token::Dot) {
-                            return Err(self.error(format!("Expected method call after adapter '.{}()'", name)));
+                            return Err(self.error(format!(
+                                "Expected method call after adapter '.{}()'",
+                                name
+                            )));
                         }
-                        
+
                         // Now parse the actual array method (map, filter, etc.)
                         (adapter, options)
                     } else {
@@ -2047,7 +2067,7 @@ impl Parser {
                         // Parse arguments and create MethodCall expression
                         let args = self.parse_args()?;
                         self.expect(Token::RParen)?;
-                        
+
                         expr = Expr::MethodCall(MethodCallExpr {
                             object: Box::new(expr),
                             method: name,
@@ -2057,13 +2077,13 @@ impl Parser {
                         });
                         continue;
                     };
-                    
+
                     // Parse the actual method name after adapter
                     let method_name = self.parse_identifier()?;
                     self.expect(Token::LParen)?;
                     let args = self.parse_args()?;
                     self.expect(Token::RParen)?;
-                    
+
                     expr = Expr::MethodCall(MethodCallExpr {
                         object: Box::new(expr),
                         method: method_name,
@@ -2188,27 +2208,27 @@ impl Parser {
         // 1. An identifier (type name) or type keyword (float, bool, string, etc.)
         // 2. Optional comma and more types
         // 3. A > followed by (
-        
+
         // Look for the pattern: < identifier (possibly with more types) > (
         let mut offset = 1; // Start after <
-        
+
         // Must have an identifier or type keyword after <
         let is_type_token = matches!(
             self.peek_token(offset),
-            Some(Token::Ident(_)) |
-            Some(Token::Number) |
-            Some(Token::Float) |
-            Some(Token::Bool) |
-            Some(Token::String) |
-            Some(Token::CharType) |
-            Some(Token::Bytes)
+            Some(Token::Ident(_))
+                | Some(Token::Number)
+                | Some(Token::Float)
+                | Some(Token::Bool)
+                | Some(Token::String)
+                | Some(Token::CharType)
+                | Some(Token::Bytes)
         );
-        
+
         if !is_type_token {
             return false;
         }
         offset += 1;
-        
+
         // Skip through type parameters (identifiers and commas)
         loop {
             match self.peek_token(offset) {
@@ -2217,15 +2237,15 @@ impl Parser {
                     // After comma, expect another identifier or type keyword
                     let is_type_token = matches!(
                         self.peek_token(offset),
-                        Some(Token::Ident(_)) |
-                        Some(Token::Number) |
-                        Some(Token::Float) |
-                        Some(Token::Bool) |
-                        Some(Token::String) |
-                        Some(Token::CharType) |
-                        Some(Token::Bytes)
+                        Some(Token::Ident(_))
+                            | Some(Token::Number)
+                            | Some(Token::Float)
+                            | Some(Token::Bool)
+                            | Some(Token::String)
+                            | Some(Token::CharType)
+                            | Some(Token::Bytes)
                     );
-                    
+
                     if !is_type_token {
                         return false;
                     }
@@ -2256,18 +2276,18 @@ impl Parser {
     /// Parse type arguments like <float> or <int, string>
     fn parse_type_arguments(&mut self) -> Result<Vec<TypeRef>> {
         self.expect(Token::Lt)?;
-        
+
         let mut type_args = Vec::new();
-        
+
         loop {
             let ty = self.parse_type()?;
             type_args.push(ty);
-            
+
             if !self.match_token(&Token::Comma) {
                 break;
             }
         }
-        
+
         self.expect(Token::Gt)?;
         Ok(type_args)
     }
@@ -2373,7 +2393,7 @@ impl Parser {
             } else {
                 // Just a grouped expression
                 self.expect(Token::RParen)?;
-                return Ok(first);  // Return the expression, not a tuple
+                return Ok(first); // Return the expression, not a tuple
             }
         }
 
@@ -2496,7 +2516,7 @@ impl Parser {
         // Tuple pattern: (p1, p2, ...)
         if self.match_token(&Token::LParen) {
             let mut patterns = Vec::new();
-            
+
             if !self.check(&Token::RParen) {
                 loop {
                     patterns.push(self.parse_pattern()?);
@@ -2509,21 +2529,21 @@ impl Parser {
                     }
                 }
             }
-            
+
             self.expect(Token::RParen)?;
-            
+
             // Single element is not a tuple, just a grouped pattern
             if patterns.len() == 1 {
                 return Ok(patterns.into_iter().next().unwrap());
             }
-            
+
             return Ok(Pattern::Tuple(patterns));
         }
 
         // Array pattern: [p1, p2, ...]
         if self.match_token(&Token::LBracket) {
             let mut patterns = Vec::new();
-            
+
             if !self.check(&Token::RBracket) {
                 loop {
                     patterns.push(self.parse_pattern()?);
@@ -2536,7 +2556,7 @@ impl Parser {
                     }
                 }
             }
-            
+
             self.expect(Token::RBracket)?;
             return Ok(Pattern::Array(patterns));
         }
@@ -2638,7 +2658,7 @@ impl Parser {
             _ => Err(self.error("Expected identifier".into())),
         }
     }
-    
+
     /// Parse identifier or keyword token as method/field name
     /// This allows reserved keywords like "par", "vec", "parvec" and type keywords
     /// like "number", "float", "string", "bool" to be used as field/method names
@@ -2649,7 +2669,7 @@ impl Parser {
             Some(Token::Par) => Ok("par".to_string()),
             Some(Token::Vec) => Ok("vec".to_string()),
             Some(Token::ParVec) => Ok("parvec".to_string()),
-            Some(Token::IntLiteral(n)) => Ok(n.to_string()),  // Tuple member access: .0, .1, .2
+            Some(Token::IntLiteral(n)) => Ok(n.to_string()), // Tuple member access: .0, .1, .2
             // Type keywords allowed as field/method names
             Some(Token::Number) => Ok("number".to_string()),
             Some(Token::Float) => Ok("float".to_string()),
@@ -2836,7 +2856,7 @@ fn normalize_template_strings(input: &str) -> String {
     let mut result = String::with_capacity(input.len());
     let mut chars = input.chars().peekable();
     let mut in_double_quote = false;
-    
+
     while let Some(ch) = chars.next() {
         match ch {
             '"' => {

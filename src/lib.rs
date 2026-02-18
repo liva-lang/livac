@@ -114,10 +114,10 @@ pub fn compile_file(options: &CompilerOptions) -> Result<CompilationResult> {
         .map_err(|e| CompilerError::IoError(format!("Failed to read input file: {}", e)))?;
 
     let filename = options.input.to_str().unwrap_or("unknown");
-    
+
     // Quick check: does this file have imports?
     let has_imports = source.contains("import ");
-    
+
     if has_imports {
         // Multi-file compilation with module resolver
         compile_with_modules(&options.input, options)
@@ -184,11 +184,11 @@ fn compile_with_modules(
     options: &CompilerOptions,
 ) -> Result<CompilationResult> {
     use crate::module::ModuleResolver;
-    
+
     // 1. Resolve all modules starting from entry point
     let mut resolver = ModuleResolver::new(entry_point)?;
     let compilation_order = resolver.resolve_all()?;
-    
+
     if options.verbose {
         eprintln!("📦 Module resolution complete:");
         eprintln!("   Found {} modules", compilation_order.len());
@@ -196,7 +196,7 @@ fn compile_with_modules(
             eprintln!("   {}. {}", i + 1, module.path.display());
         }
     }
-    
+
     // For now, compile only the entry point module
     // TODO: Phase 3.5 - Generate multi-file Rust project
     let entry_module = compilation_order
@@ -209,18 +209,21 @@ fn compile_with_modules(
                 "The entry point file could not be found in the list of resolved modules.\nHint: This is likely an internal compiler error. Please report this issue.",
             ))
         })?;
-    
+
     let filename = entry_point.to_str().unwrap_or("unknown");
-    
+
     // Build module context map for semantic analysis
     let mut module_map = std::collections::HashMap::new();
     for module in &compilation_order {
         module_map.insert(
             module.path.clone(),
-            (module.public_symbols.clone(), module.private_symbols.clone()),
+            (
+                module.public_symbols.clone(),
+                module.private_symbols.clone(),
+            ),
         );
     }
-    
+
     // Add virtual modules (liva/test, etc.) to the module map
     // Scan entry module imports for virtual module references
     for import in &entry_module.imports {
@@ -231,7 +234,7 @@ fn compile_with_modules(
             }
         }
     }
-    
+
     // 2. Semantic analysis with module context
     let analyzed_ast = semantic::analyze_with_modules(
         entry_module.ast.clone(),
@@ -239,7 +242,7 @@ fn compile_with_modules(
         entry_module.source.clone(),
         &module_map,
     )?;
-    
+
     // If check-only mode, stop here
     if options.check_only {
         return Ok(CompilationResult {
@@ -250,46 +253,44 @@ fn compile_with_modules(
             module_files: None,
         });
     }
-    
+
     // 3. Desugaring
     let desugar_ctx = desugaring::desugar(analyzed_ast.clone())?;
-    
+
     // 4. Code generation - Multi-file project
     let files = codegen::generate_multifile_project(
         &compilation_order[..],
         entry_module,
         desugar_ctx.clone(),
     )?;
-    
+
     // Generate Cargo.toml
     let cargo_toml = codegen::generate_cargo_toml(&desugar_ctx)?;
-    
+
     // 5. Write output files if output directory specified
     let output_dir = if let Some(out_dir) = &options.output {
         Some(write_multifile_output(&files, &cargo_toml, out_dir)?)
     } else {
         None
     };
-    
+
     // For backward compatibility with single-file result
     // Extract main.rs content if available
-    let main_rs_content = files
-        .get(&std::path::PathBuf::from("src/main.rs"))
-        .cloned();
-    
+    let main_rs_content = files.get(&std::path::PathBuf::from("src/main.rs")).cloned();
+
     // Extract module files (all files except main.rs)
     let module_files: std::collections::HashMap<PathBuf, String> = files
         .iter()
         .filter(|(path, _)| *path != &std::path::PathBuf::from("src/main.rs"))
         .map(|(path, content)| (path.clone(), content.clone()))
         .collect();
-    
+
     let module_files_opt = if module_files.is_empty() {
         None
     } else {
         Some(module_files)
     };
-    
+
     Ok(CompilationResult {
         rust_code: main_rs_content,
         cargo_toml: Some(cargo_toml),
@@ -371,10 +372,10 @@ pub struct CompilationResult {
 
     /// Output directory where files were written
     pub output_dir: Option<PathBuf>,
-    
+
     /// Whether the source file contains import statements
     pub has_imports: bool,
-    
+
     /// Additional module files (relative path -> content)
     pub module_files: Option<std::collections::HashMap<PathBuf, String>>,
 }
@@ -409,7 +410,6 @@ fn write_multifile_output(
     cargo_toml: &str,
     output_dir: &Path,
 ) -> Result<PathBuf> {
-    
     // Create output directory
     std::fs::create_dir_all(output_dir)
         .map_err(|e| CompilerError::IoError(format!("Failed to create output directory: {}", e)))?;
@@ -417,16 +417,22 @@ fn write_multifile_output(
     // Write each module file
     for (file_path, content) in files {
         let full_path = output_dir.join(file_path);
-        
+
         // Create parent directory if needed
         if let Some(parent) = full_path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| CompilerError::IoError(format!("Failed to create directory {}: {}", parent.display(), e)))?;
+            std::fs::create_dir_all(parent).map_err(|e| {
+                CompilerError::IoError(format!(
+                    "Failed to create directory {}: {}",
+                    parent.display(),
+                    e
+                ))
+            })?;
         }
-        
+
         // Write file
-        std::fs::write(&full_path, content)
-            .map_err(|e| CompilerError::IoError(format!("Failed to write {}: {}", full_path.display(), e)))?;
+        std::fs::write(&full_path, content).map_err(|e| {
+            CompilerError::IoError(format!("Failed to write {}: {}", full_path.display(), e))
+        })?;
     }
 
     // Write Cargo.toml

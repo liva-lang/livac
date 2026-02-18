@@ -16,7 +16,6 @@
 /// 2. Parsing the source into an AST (reusing the compiler pipeline)
 /// 3. Pretty-printing the AST back to source with canonical formatting
 /// 4. Reinserting comments at their original relative positions
-
 use crate::ast::*;
 use crate::error::{CompilerError, Result};
 use crate::{lexer, parser};
@@ -118,8 +117,8 @@ impl Formatter {
             // Add blank line between items, but group consecutive imports
             if i + 1 < total {
                 let next = &program.items[i + 1];
-                let both_imports = matches!(item, TopLevel::Import(_))
-                    && matches!(next, TopLevel::Import(_));
+                let both_imports =
+                    matches!(item, TopLevel::Import(_)) && matches!(next, TopLevel::Import(_));
                 if !both_imports {
                     self.blank_line();
                 }
@@ -226,7 +225,10 @@ impl Formatter {
         };
 
         let prefix = if decl.is_data { "data " } else { "" };
-        self.write_line(&format!("{}{}{}{} {{", prefix, decl.name, type_params, implements));
+        self.write_line(&format!(
+            "{}{}{}{} {{",
+            prefix, decl.name, type_params, implements
+        ));
         self.indent_level += 1;
         self.format_members(&decl.members);
         self.indent_level -= 1;
@@ -658,7 +660,7 @@ impl Formatter {
                 // Multiline init (e.g., multiline call)
                 let init_lines: Vec<&str> = init.lines().collect();
                 self.write_line(&format!("let {}{} = {}", pattern, type_ann, init_lines[0]));
-                for il in &init_lines[1..init_lines.len()-1] {
+                for il in &init_lines[1..init_lines.len() - 1] {
                     self.output.push_str(il);
                     self.output.push('\n');
                 }
@@ -677,7 +679,7 @@ impl Formatter {
                 if init_reformat.contains('\n') {
                     let init_lines: Vec<&str> = init_reformat.lines().collect();
                     self.write_line(&format!("let {}{} = {}", pattern, type_ann, init_lines[0]));
-                    for il in &init_lines[1..init_lines.len()-1] {
+                    for il in &init_lines[1..init_lines.len() - 1] {
                         self.output.push_str(il);
                         self.output.push('\n');
                     }
@@ -826,14 +828,14 @@ impl Formatter {
 
     fn format_for(&mut self, for_stmt: &ForStmt) {
         let iterable = self.format_expr(&for_stmt.iterable);
-        
+
         // Phase 11.3/11.4: Detect point-free body (single bare identifier or method ref as body)
         // for item in items => print  →  for item in items { print(item) }
         // for item in items => Utils::log  →  for item in items { Utils::log(item) }
         let is_point_free = for_stmt.body.stmts.len() == 1
-            && matches!(&for_stmt.body.stmts[0], Stmt::Expr(expr_stmt) 
+            && matches!(&for_stmt.body.stmts[0], Stmt::Expr(expr_stmt)
                 if matches!(&expr_stmt.expr, Expr::Identifier(_) | Expr::MethodRef { .. }));
-        
+
         if is_point_free {
             if let Stmt::Expr(expr_stmt) = &for_stmt.body.stmts[0] {
                 match &expr_stmt.expr {
@@ -857,7 +859,7 @@ impl Formatter {
                 }
             }
         }
-        
+
         self.write_line(&format!("for {} in {} {{", for_stmt.var, iterable));
         self.indent_level += 1;
         self.format_block(&for_stmt.body);
@@ -1094,10 +1096,7 @@ impl Formatter {
             ArrayAdapter::Seq => "",
         };
 
-        let single_line = format!(
-            "{}{}.{}({})",
-            obj, adapter, mc.method, args.join(", ")
-        );
+        let single_line = format!("{}{}.{}({})", obj, adapter, mc.method, args.join(", "));
 
         let total_width = self.current_indent_width() + single_line.len();
         if total_width <= self.options.max_width {
@@ -1109,10 +1108,7 @@ impl Formatter {
         let inner_indent = " ".repeat(self.options.indent_size * (self.indent_level + 1));
 
         if is_chain {
-            let chain_call = format!(
-                ".{}({})",
-                mc.method, args.join(", ")
-            );
+            let chain_call = format!(".{}({})", mc.method, args.join(", "));
             // If the chain part itself is short, just put it on new line
             if inner_indent.len() + chain_call.len() <= self.options.max_width {
                 return format!("{}{}\n{}{}", obj, adapter, inner_indent, chain_call);
@@ -1505,7 +1501,12 @@ fn find_line_comment(line: &str) -> Option<usize> {
             in_string = !in_string;
             continue;
         }
-        if !in_string && !in_template && chars[i] == '$' && i + 1 < chars.len() && chars[i + 1] == '"' {
+        if !in_string
+            && !in_template
+            && chars[i] == '$'
+            && i + 1 < chars.len()
+            && chars[i + 1] == '"'
+        {
             in_template = true;
             continue;
         }
@@ -1699,9 +1700,7 @@ fn reinsert_comments(source: &str, formatted: &str, _options: &FormatOptions) ->
                     // try matching by the first few tokens
                     find_line_by_prefix(&result_lines, &normalized, min_search_pos, &used_lines)
                 })
-                .or_else(|| {
-                    find_line_by_prefix(&result_lines, &normalized, 0, &used_lines)
-                })
+                .or_else(|| find_line_by_prefix(&result_lines, &normalized, 0, &used_lines))
                 .unwrap_or(result_lines.len())
         } else if let Some(ref code) = prev_code {
             let normalized = normalize_code(code);
@@ -1806,7 +1805,9 @@ fn find_line_by_prefix(
 /// Extract a meaningful prefix from a code line for fuzzy matching.
 /// Returns the content up to the first '(' or '{', normalized.
 fn extract_code_prefix(code: &str) -> String {
-    let end = code.find(|c: char| c == '(' || c == '{').unwrap_or(code.len());
+    let end = code
+        .find(|c: char| c == '(' || c == '{')
+        .unwrap_or(code.len());
     code[..end].trim().to_string()
 }
 
@@ -2140,7 +2141,9 @@ mod tests {
         let output = fmt(input);
         // Imports should NOT have a blank line between them
         assert!(
-            output.contains("import { add } from \"./math.liva\"\nimport { sub } from \"./ops.liva\""),
+            output.contains(
+                "import { add } from \"./math.liva\"\nimport { sub } from \"./ops.liva\""
+            ),
             "Consecutive imports should be grouped. Got:\n{}",
             output
         );

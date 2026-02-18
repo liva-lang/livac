@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod destructuring_tests {
-    use livac::parser::*;
-    use livac::lexer::*;
     use livac::ast::*;
+    use livac::lexer::*;
+    use livac::parser::*;
 
     #[test]
     fn test_object_destructuring_simple() {
@@ -12,16 +12,16 @@ mod destructuring_tests {
 }";
         let tokens = tokenize(source).unwrap();
         let result = parse(tokens, source);
-        
+
         if let Err(e) = &result {
             eprintln!("Parse error: {:?}", e);
         }
         assert!(result.is_ok(), "Failed to parse object destructuring");
-        
+
         // Verify it parsed as a function with VarDecl containing ObjectPattern
         let program = result.unwrap();
         assert_eq!(program.items.len(), 1);
-        
+
         if let TopLevel::Function(func) = &program.items[0] {
             assert_eq!(func.name, "myFunc");
             // Should have a let statement with object pattern
@@ -51,12 +51,15 @@ mod destructuring_tests {
 }";
         let tokens = tokenize(source).unwrap();
         let result = parse(tokens, source);
-        
+
         if let Err(e) = &result {
             eprintln!("Parse error: {:?}", e);
         }
-        assert!(result.is_ok(), "Failed to parse object destructuring with rename");
-        
+        assert!(
+            result.is_ok(),
+            "Failed to parse object destructuring with rename"
+        );
+
         let program = result.unwrap();
         if let TopLevel::Function(func) = &program.items[0] {
             if let Stmt::VarDecl(var_decl) = &func.body.as_ref().unwrap().stmts[0] {
@@ -81,12 +84,12 @@ mod destructuring_tests {
 }";
         let tokens = tokenize(source).unwrap();
         let result = parse(tokens, source);
-        
+
         if let Err(e) = &result {
             eprintln!("Parse error: {:?}", e);
         }
         assert!(result.is_ok(), "Failed to parse array destructuring");
-        
+
         let program = result.unwrap();
         if let TopLevel::Function(func) = &program.items[0] {
             if let Stmt::VarDecl(var_decl) = &func.body.as_ref().unwrap().stmts[0] {
@@ -111,12 +114,15 @@ mod destructuring_tests {
 }";
         let tokens = tokenize(source).unwrap();
         let result = parse(tokens, source);
-        
+
         if let Err(e) = &result {
             eprintln!("Parse error: {:?}", e);
         }
-        assert!(result.is_ok(), "Failed to parse array destructuring with skip");
-        
+        assert!(
+            result.is_ok(),
+            "Failed to parse array destructuring with skip"
+        );
+
         let program = result.unwrap();
         if let TopLevel::Function(func) = &program.items[0] {
             if let Stmt::VarDecl(var_decl) = &func.body.as_ref().unwrap().stmts[0] {
@@ -141,12 +147,15 @@ mod destructuring_tests {
 }";
         let tokens = tokenize(source).unwrap();
         let result = parse(tokens, source);
-        
+
         if let Err(e) = &result {
             eprintln!("Parse error: {:?}", e);
         }
-        assert!(result.is_ok(), "Failed to parse array destructuring with rest");
-        
+        assert!(
+            result.is_ok(),
+            "Failed to parse array destructuring with rest"
+        );
+
         let program = result.unwrap();
         if let TopLevel::Function(func) = &program.items[0] {
             if let Stmt::VarDecl(var_decl) = &func.body.as_ref().unwrap().stmts[0] {
@@ -170,12 +179,15 @@ mod destructuring_tests {
 }";
         let tokens = tokenize(source).unwrap();
         let result = parse(tokens, source);
-        
+
         if let Err(e) = &result {
             eprintln!("Parse error: {:?}", e);
         }
-        assert!(result.is_ok(), "Failed to parse destructuring with type annotation");
-        
+        assert!(
+            result.is_ok(),
+            "Failed to parse destructuring with type annotation"
+        );
+
         let program = result.unwrap();
         if let TopLevel::Function(func) = &program.items[0] {
             if let Stmt::VarDecl(var_decl) = &func.body.as_ref().unwrap().stmts[0] {

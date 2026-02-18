@@ -68,7 +68,10 @@ async fn main() {
 
     // Format mode
     if cli.fmt || cli.fmt_check {
-        let input = cli.input.as_ref().expect("input file required for formatting");
+        let input = cli
+            .input
+            .as_ref()
+            .expect("input file required for formatting");
         if let Err(e) = run_format(&cli, input) {
             if cli.json {
                 eprintln!(r#"{{"error": "{}"}}"#, e);
@@ -87,7 +90,10 @@ async fn main() {
     }
 
     // Regular compilation mode
-    let input = cli.input.as_ref().expect("input file required for compilation");
+    let input = cli
+        .input
+        .as_ref()
+        .expect("input file required for compilation");
 
     if let Err(e) = compile(&cli, input) {
         // Output errors in JSON format if requested
@@ -106,7 +112,7 @@ async fn main() {
 }
 
 fn run_format(cli: &Cli, input: &PathBuf) -> Result<(), CompilerError> {
-    use livac::formatter::{format_source, check_format, FormatOptions};
+    use livac::formatter::{check_format, format_source, FormatOptions};
 
     let options = FormatOptions::default();
     let source = std::fs::read_to_string(input)
@@ -120,7 +126,7 @@ fn run_format(cli: &Cli, input: &PathBuf) -> Result<(), CompilerError> {
         } else {
             let formatted = format_source(&source, &options)?;
             println!("{} {} (needs formatting)", "✗".red(), input.display());
-            
+
             // Show a simple diff
             if cli.verbose {
                 println!();
@@ -128,7 +134,7 @@ fn run_format(cli: &Cli, input: &PathBuf) -> Result<(), CompilerError> {
                     println!("{}", diff);
                 }
             }
-            
+
             std::process::exit(1);
         }
     } else {
@@ -152,30 +158,31 @@ fn simple_diff(original: &str, formatted: &str) -> Vec<String> {
     let fmt_lines: Vec<&str> = formatted.lines().collect();
     let mut diffs = Vec::new();
     let max_lines = orig_lines.len().max(fmt_lines.len());
-    
+
     for i in 0..max_lines {
         let orig = orig_lines.get(i).unwrap_or(&"");
         let fmt = fmt_lines.get(i).unwrap_or(&"");
         if orig != fmt {
-            diffs.push(format!("  L{}: {} → {}", i + 1, 
+            diffs.push(format!(
+                "  L{}: {} → {}",
+                i + 1,
                 format!("- {}", orig).red(),
                 format!("+ {}", fmt).green()
             ));
         }
     }
-    
+
     diffs
 }
 
 async fn run_lsp_server() -> Result<(), Box<dyn std::error::Error>> {
-    use tower_lsp::{LspService, Server};
     use livac::lsp::LivaLanguageServer;
+    use tower_lsp::{LspService, Server};
 
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
-    let (service, socket) = LspService::build(|client| LivaLanguageServer::new(client))
-        .finish();
+    let (service, socket) = LspService::build(|client| LivaLanguageServer::new(client)).finish();
 
     Server::new(stdin, stdout, socket).serve(service).await;
 
@@ -183,8 +190,8 @@ async fn run_lsp_server() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn run_tests(cli: &Cli) -> i32 {
-    use walkdir::WalkDir;
     use std::time::Instant;
+    use walkdir::WalkDir;
 
     let skip_cargo = std::env::var("LIVAC_SKIP_CARGO").is_ok();
 
@@ -197,7 +204,11 @@ fn run_tests(cli: &Cli) -> i32 {
     let test_files: Vec<PathBuf> = if let Some(input) = &cli.input {
         // Specific file given
         if !input.exists() {
-            eprintln!("{} File not found: {}", "Error:".red().bold(), input.display());
+            eprintln!(
+                "{} File not found: {}",
+                "Error:".red().bold(),
+                input.display()
+            );
             return 1;
         }
         vec![input.clone()]
@@ -299,8 +310,8 @@ fn run_tests(cli: &Cli) -> i32 {
         let cargo_toml = result.cargo_toml.unwrap_or_default();
 
         // Check if the generated code actually contains test functions
-        let test_count = main_rs.matches("#[test]").count()
-            + main_rs.matches("#[tokio::test]").count();
+        let test_count =
+            main_rs.matches("#[test]").count() + main_rs.matches("#[tokio::test]").count();
         if test_count == 0 {
             println!(
                 " {} {} (no test blocks found)",
@@ -415,9 +426,8 @@ fn run_tests(cli: &Cli) -> i32 {
             if cli.verbose {
                 for line in stdout.lines() {
                     if line.contains("test test_") {
-                        let display_line = line
-                            .replace("test test_", "    ✓ ")
-                            .replace(" ... ok", "");
+                        let display_line =
+                            line.replace("test test_", "    ✓ ").replace(" ... ok", "");
                         println!("{}", display_line.green());
                     }
                 }
@@ -445,9 +455,7 @@ fn run_tests(cli: &Cli) -> i32 {
                     println!("{}", display_line.red());
                     in_failure = true;
                 } else if line.contains("test test_") && line.contains("ok") {
-                    let display_line = line
-                        .replace("test test_", "    ✓ ")
-                        .replace(" ... ok", "");
+                    let display_line = line.replace("test test_", "    ✓ ").replace(" ... ok", "");
                     println!("{}", display_line.green());
                 }
             }
@@ -467,7 +475,11 @@ fn run_tests(cli: &Cli) -> i32 {
             total_files_failed += 1;
             failed_files.push((
                 test_file.clone(),
-                format!("{} test{} failed", failed, if failed == 1 { "" } else { "s" }),
+                format!(
+                    "{} test{} failed",
+                    failed,
+                    if failed == 1 { "" } else { "s" }
+                ),
             ));
         }
     }
@@ -609,7 +621,7 @@ fn compile(cli: &Cli, input: &PathBuf) -> Result<(), CompilerError> {
         // Default: ./target/liva_build
         PathBuf::from("./target/liva_build")
     };
-    
+
     std::fs::create_dir_all(&output_dir).map_err(|e| CompilerError::IoError(e.to_string()))?;
 
     let src_dir = output_dir.join("src");
@@ -663,24 +675,27 @@ fn compile(cli: &Cli, input: &PathBuf) -> Result<(), CompilerError> {
             // Show the actual Rust compiler error
             eprintln!("\n{}", "Rust Compilation Error:".red().bold());
             eprintln!("{}", "=".repeat(80));
-            
+
             let stderr = String::from_utf8_lossy(&output.stderr);
             let stdout = String::from_utf8_lossy(&output.stdout);
-            
+
             // Print stdout (cargo messages)
             if !stdout.is_empty() {
                 eprint!("{}", stdout);
             }
-            
+
             // Print stderr (error messages)
             if !stderr.is_empty() {
                 eprint!("{}", stderr);
             }
-            
+
             eprintln!("{}", "=".repeat(80));
-            eprintln!("\n{}", "💡 Tip: This is a Rust type error in the generated code.".yellow());
+            eprintln!(
+                "\n{}",
+                "💡 Tip: This is a Rust type error in the generated code.".yellow()
+            );
             eprintln!("   Check the Liva code for type mismatches or incompatible operations.\n");
-            
+
             return Err(CompilerError::CodegenError("Cargo build failed".into()));
         }
     }

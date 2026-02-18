@@ -3,27 +3,27 @@ use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
 
-use super::document::DocumentState;
 use super::diagnostics::error_to_diagnostic;
-use super::symbols::SymbolTable;
-use super::workspace::{WorkspaceManager, WorkspaceIndex};
+use super::document::DocumentState;
 use super::imports::ImportResolver;
+use super::symbols::SymbolTable;
+use super::workspace::{WorkspaceIndex, WorkspaceManager};
 use crate::{lexer, parser, semantic};
 
 /// Main Language Server for Liva
 pub struct LivaLanguageServer {
     /// LSP client for sending notifications
     client: Client,
-    
+
     /// Open documents indexed by URI
     documents: DashMap<Url, DocumentState>,
-    
+
     /// Workspace file manager
     workspace: std::sync::Arc<tokio::sync::RwLock<WorkspaceManager>>,
-    
+
     /// Workspace symbol index
     workspace_index: std::sync::Arc<WorkspaceIndex>,
-    
+
     /// Import resolver
     import_resolver: std::sync::Arc<tokio::sync::RwLock<ImportResolver>>,
 }
@@ -36,17 +36,19 @@ impl LivaLanguageServer {
             documents: DashMap::new(),
             workspace: std::sync::Arc::new(tokio::sync::RwLock::new(WorkspaceManager::new(vec![]))),
             workspace_index: std::sync::Arc::new(WorkspaceIndex::default()),
-            import_resolver: std::sync::Arc::new(tokio::sync::RwLock::new(ImportResolver::new(vec![]))),
+            import_resolver: std::sync::Arc::new(tokio::sync::RwLock::new(ImportResolver::new(
+                vec![],
+            ))),
         }
     }
-    
+
     /// Parses a document and updates its state
     async fn parse_document(&self, uri: &Url) {
         let mut doc = match self.documents.get_mut(uri) {
             Some(doc) => doc,
             None => return,
         };
-        
+
         // Tokenize
         let tokens = match lexer::tokenize(&doc.text) {
             Ok(tokens) => tokens,
@@ -58,7 +60,7 @@ impl LivaLanguageServer {
                 return;
             }
         };
-        
+
         // Parse
         match parser::parse(tokens, &doc.text) {
             Ok(ast) => {
@@ -67,15 +69,16 @@ impl LivaLanguageServer {
                     Ok(analyzed_ast) => {
                         // Build symbol table from AST (pass source text for span conversion)
                         let symbols = SymbolTable::from_ast(&analyzed_ast, &doc.text);
-                        
+
                         // Extract imports from AST
                         let import_resolver = self.import_resolver.read().await;
                         let imports = import_resolver.extract_imports(&analyzed_ast, uri);
                         drop(import_resolver);
-                        
+
                         // Index file in workspace index
-                        self.workspace_index.index_file(uri.clone(), &analyzed_ast, &doc.text);
-                        
+                        self.workspace_index
+                            .index_file(uri.clone(), &analyzed_ast, &doc.text);
+
                         doc.ast = Some(analyzed_ast);
                         doc.symbols = Some(symbols);
                         doc.imports = imports;
@@ -98,14 +101,14 @@ impl LivaLanguageServer {
             }
         }
     }
-    
+
     /// Publishes diagnostics for a document
     async fn publish_diagnostics(&self, uri: &Url) {
         let doc = match self.documents.get(uri) {
             Some(doc) => doc,
             None => return,
         };
-        
+
         self.client
             .publish_diagnostics(uri.clone(), doc.diagnostics.clone(), Some(doc.version))
             .await;
@@ -121,28 +124,28 @@ impl LanguageServer for LivaLanguageServer {
                 .iter()
                 .map(|folder| folder.uri.clone())
                 .collect();
-            
+
             // Initialize workspace manager
             let mut workspace = self.workspace.write().await;
             *workspace = WorkspaceManager::new(root_uris.clone());
             workspace.scan_workspace();
-            
+
             let file_count = workspace.file_count();
             drop(workspace);
-            
+
             // Initialize import resolver with workspace roots
             let mut import_resolver = self.import_resolver.write().await;
             *import_resolver = ImportResolver::new(root_uris);
             drop(import_resolver);
-            
+
             self.client
                 .log_message(
                     MessageType::INFO,
-                    format!("Workspace initialized: {} .liva files found", file_count)
+                    format!("Workspace initialized: {} .liva files found", file_count),
                 )
                 .await;
         }
-        
+
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
@@ -177,12 +180,12 @@ impl LanguageServer for LivaLanguageServer {
         self.client
             .log_message(MessageType::INFO, "Liva Language Server initialized")
             .await;
-        
+
         // Index all workspace files
         let workspace = self.workspace.read().await;
         let files = workspace.list_liva_files();
         let file_count = files.len();
-        
+
         for file_uri in files {
             if let Ok(path) = file_uri.to_file_path() {
                 if let Ok(content) = tokio::fs::read_to_string(&path).await {
@@ -193,14 +196,18 @@ impl LanguageServer for LivaLanguageServer {
                             // Run semantic analysis
                             if let Ok(analyzed_ast) = semantic::analyze(ast) {
                                 // Index the file
-                                self.workspace_index.index_file(file_uri.clone(), &analyzed_ast, &content);
+                                self.workspace_index.index_file(
+                                    file_uri.clone(),
+                                    &analyzed_ast,
+                                    &content,
+                                );
                             }
                         }
                     }
                 }
             }
         }
-        
+
         self.client
             .log_message(
                 MessageType::INFO,
@@ -212,30 +219,31 @@ impl LanguageServer for LivaLanguageServer {
     async fn shutdown(&self) -> Result<()> {
         Ok(())
     }
-    
+
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         self.client
-            .log_message(MessageType::INFO, format!("Document opened: {}", params.text_document.uri))
+            .log_message(
+                MessageType::INFO,
+                format!("Document opened: {}", params.text_document.uri),
+            )
             .await;
-        
+
         let uri = params.text_document.uri;
         let text = params.text_document.text;
         let version = params.text_document.version;
-        
+
         // Store document state
-        self.documents.insert(
-            uri.clone(),
-            DocumentState::new(text, version),
-        );
-        
+        self.documents
+            .insert(uri.clone(), DocumentState::new(text, version));
+
         // Parse and publish diagnostics
         self.parse_document(&uri).await;
         self.publish_diagnostics(&uri).await;
     }
-    
+
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         let uri = params.text_document.uri;
-        
+
         // Update document with full text (FULL sync mode)
         if let Some(mut doc) = self.documents.get_mut(&uri) {
             for change in params.content_changes {
@@ -244,56 +252,61 @@ impl LanguageServer for LivaLanguageServer {
             }
             doc.version = params.text_document.version;
         }
-        
+
         // Parse and publish diagnostics
         self.parse_document(&uri).await;
         self.publish_diagnostics(&uri).await;
     }
-    
+
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
         self.client
-            .log_message(MessageType::INFO, format!("Document saved: {}", params.text_document.uri))
+            .log_message(
+                MessageType::INFO,
+                format!("Document saved: {}", params.text_document.uri),
+            )
             .await;
-        
+
         // Optionally re-parse on save
         let uri = &params.text_document.uri;
         self.parse_document(uri).await;
         self.publish_diagnostics(uri).await;
     }
-    
+
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
         self.client
-            .log_message(MessageType::INFO, format!("Document closed: {}", params.text_document.uri))
+            .log_message(
+                MessageType::INFO,
+                format!("Document closed: {}", params.text_document.uri),
+            )
             .await;
-        
+
         // Remove document from cache
         self.documents.remove(&params.text_document.uri);
-        
+
         // Clear diagnostics
         self.client
             .publish_diagnostics(params.text_document.uri, Vec::new(), None)
             .await;
     }
-    
+
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
         let uri = &params.text_document_position.text_document.uri;
         let _position = params.text_document_position.position;
-        
+
         let doc = match self.documents.get(uri) {
             Some(doc) => doc,
             None => return Ok(None),
         };
-        
+
         let mut items = Vec::new();
-        
+
         // Keywords (priority 0 - always first)
         let keywords = vec![
-            "let", "const", "fn", "return", "if", "else", "while", "for", "switch",
-            "async", "await", "task", "fire", "import", "from", "export", "type",
-            "true", "false", "print", "console", "Math", "JSON", "File", "HTTP",
-            "break", "continue",
+            "let", "const", "fn", "return", "if", "else", "while", "for", "switch", "async",
+            "await", "task", "fire", "import", "from", "export", "type", "true", "false", "print",
+            "console", "Math", "JSON", "File", "HTTP", "break", "continue",
         ];
-        
+
         for keyword in keywords {
             items.push(CompletionItem {
                 label: keyword.to_string(),
@@ -303,12 +316,10 @@ impl LanguageServer for LivaLanguageServer {
                 ..Default::default()
             });
         }
-        
+
         // Types (priority 1)
-        let types = vec![
-            "int", "float", "string", "bool", "void",
-        ];
-        
+        let types = vec!["int", "float", "string", "bool", "void"];
+
         for type_name in types {
             items.push(CompletionItem {
                 label: type_name.to_string(),
@@ -318,14 +329,14 @@ impl LanguageServer for LivaLanguageServer {
                 ..Default::default()
             });
         }
-        
+
         // Built-in functions (priority 2)
         let builtins = vec![
             ("parseInt", "parseInt(str: string) -> (int, string)"),
             ("parseFloat", "parseFloat(str: string) -> (float, string)"),
             ("toString", "toString(value) -> string"),
         ];
-        
+
         for (name, signature) in builtins {
             items.push(CompletionItem {
                 label: name.to_string(),
@@ -335,14 +346,14 @@ impl LanguageServer for LivaLanguageServer {
                 ..Default::default()
             });
         }
-        
+
         // Local file symbols (priority 3 - local symbols)
         if let Some(symbols) = &doc.symbols {
             for symbol in symbols.all() {
                 if items.iter().any(|item| item.label == symbol.name) {
                     continue;
                 }
-                
+
                 let completion_kind = match symbol.kind {
                     SymbolKind::FUNCTION => CompletionItemKind::FUNCTION,
                     SymbolKind::CLASS => CompletionItemKind::CLASS,
@@ -353,7 +364,7 @@ impl LanguageServer for LivaLanguageServer {
                     SymbolKind::TYPE_PARAMETER => CompletionItemKind::TYPE_PARAMETER,
                     _ => CompletionItemKind::TEXT,
                 };
-                
+
                 items.push(CompletionItem {
                     label: symbol.name.clone(),
                     kind: Some(completion_kind),
@@ -363,7 +374,7 @@ impl LanguageServer for LivaLanguageServer {
                 });
             }
         }
-        
+
         // Imported symbols (priority 4 - from explicit imports)
         let import_resolver = self.import_resolver.read().await;
         for import_info in &doc.imports {
@@ -376,7 +387,7 @@ impl LanguageServer for LivaLanguageServer {
                             if items.iter().any(|item| item.label == symbol.name) {
                                 continue;
                             }
-                            
+
                             let completion_kind = match symbol.kind {
                                 SymbolKind::FUNCTION => CompletionItemKind::FUNCTION,
                                 SymbolKind::CLASS => CompletionItemKind::CLASS,
@@ -387,7 +398,7 @@ impl LanguageServer for LivaLanguageServer {
                                 SymbolKind::TYPE_PARAMETER => CompletionItemKind::TYPE_PARAMETER,
                                 _ => CompletionItemKind::TEXT,
                             };
-                            
+
                             items.push(CompletionItem {
                                 label: symbol.name.clone(),
                                 kind: Some(completion_kind),
@@ -401,29 +412,29 @@ impl LanguageServer for LivaLanguageServer {
             }
         }
         drop(import_resolver);
-        
+
         // Workspace symbols (priority 5 - all other workspace symbols)
         // Limit to prevent overwhelming completion list in large workspaces
         const MAX_WORKSPACE_SYMBOLS: usize = 100;
         let all_workspace_symbols = self.workspace_index.all_symbols();
         let mut workspace_count = 0;
-        
+
         for (symbol_uri, symbol) in all_workspace_symbols {
             // Limit workspace symbols to keep completion responsive
             if workspace_count >= MAX_WORKSPACE_SYMBOLS {
                 break;
             }
-            
+
             // Skip current file (already added)
             if &symbol_uri == uri {
                 continue;
             }
-            
+
             // Skip if already added
             if items.iter().any(|item| item.label == symbol.name) {
                 continue;
             }
-            
+
             let completion_kind = match symbol.kind {
                 SymbolKind::FUNCTION => CompletionItemKind::FUNCTION,
                 SymbolKind::CLASS => CompletionItemKind::CLASS,
@@ -434,13 +445,13 @@ impl LanguageServer for LivaLanguageServer {
                 SymbolKind::TYPE_PARAMETER => CompletionItemKind::TYPE_PARAMETER,
                 _ => CompletionItemKind::TEXT,
             };
-            
+
             // Extract filename from URI
             let file_name = symbol_uri
                 .path_segments()
                 .and_then(|segments| segments.last())
                 .unwrap_or("unknown");
-            
+
             items.push(CompletionItem {
                 label: symbol.name.clone(),
                 kind: Some(completion_kind),
@@ -448,38 +459,41 @@ impl LanguageServer for LivaLanguageServer {
                 sort_text: Some(format!("5_{}", symbol.name)),
                 ..Default::default()
             });
-            
+
             workspace_count += 1;
         }
-        
+
         self.client
             .log_message(
                 MessageType::INFO,
-                format!("Completion: {} items (local + imported + workspace)", items.len()),
+                format!(
+                    "Completion: {} items (local + imported + workspace)",
+                    items.len()
+                ),
             )
             .await;
-        
+
         Ok(Some(CompletionResponse::Array(items)))
     }
-    
+
     async fn goto_definition(
         &self,
         params: GotoDefinitionParams,
     ) -> Result<Option<GotoDefinitionResponse>> {
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
-        
+
         let doc = match self.documents.get(uri) {
             Some(doc) => doc,
             None => return Ok(None),
         };
-        
+
         // Get the word at the cursor position
         let word = match doc.word_at_position(position) {
             Some(w) => w,
             None => return Ok(None),
         };
-        
+
         // 1. Try current file first (fast path)
         if let Some(symbols) = &doc.symbols {
             if let Some(symbol_list) = symbols.lookup(&word) {
@@ -493,12 +507,12 @@ impl LanguageServer for LivaLanguageServer {
                 }
             }
         }
-        
+
         // 2. Check if symbol is imported and resolve to imported file
         let import_resolver = self.import_resolver.read().await;
         let import_source = import_resolver.get_import_source(&word, &doc.imports);
         drop(import_resolver);
-        
+
         if let Some(import_uri) = import_source {
             // Look up symbol in the imported file
             if let Some(matches) = self.workspace_index.lookup_in_file(&import_uri, &word) {
@@ -507,19 +521,19 @@ impl LanguageServer for LivaLanguageServer {
                         uri: import_uri.clone(),
                         range: def_symbol.range,
                     };
-                    
+
                     self.client
                         .log_message(
                             MessageType::INFO,
                             format!("Imported definition found: {} from {}", word, import_uri),
                         )
                         .await;
-                    
+
                     return Ok(Some(GotoDefinitionResponse::Scalar(location)));
                 }
             }
         }
-        
+
         // 3. Search workspace index for cross-file definitions (fallback)
         if let Some(matches) = self.workspace_index.lookup_global(&word) {
             if let Some((def_uri, def_symbol)) = matches.first() {
@@ -527,43 +541,43 @@ impl LanguageServer for LivaLanguageServer {
                     uri: def_uri.clone(),
                     range: def_symbol.range,
                 };
-                
+
                 self.client
                     .log_message(
                         MessageType::INFO,
                         format!("Cross-file definition found: {} in {}", word, def_uri),
                     )
                     .await;
-                
+
                 return Ok(Some(GotoDefinitionResponse::Scalar(location)));
             }
         }
-        
+
         Ok(None)
     }
-    
+
     async fn references(&self, params: ReferenceParams) -> Result<Option<Vec<Location>>> {
         let uri = &params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
-        
+
         let doc = match self.documents.get(uri) {
             Some(doc) => doc,
             None => return Ok(None),
         };
-        
+
         // Get the word at the cursor position
         let word = match doc.word_at_position(position) {
             Some(w) => w,
             None => return Ok(None),
         };
-        
+
         let mut all_locations = Vec::new();
-        
+
         // 1. Search in current file
         if let Some(symbols) = &doc.symbols {
             if symbols.lookup(&word).is_some() {
                 let ranges = symbols.find_references(&word, &doc.text);
-                
+
                 // Convert ranges to locations
                 for range in ranges {
                     all_locations.push(Location {
@@ -573,16 +587,16 @@ impl LanguageServer for LivaLanguageServer {
                 }
             }
         }
-        
+
         // 2. Search in all workspace files
         let indexed_files = self.workspace_index.indexed_files();
-        
+
         for file_uri in indexed_files {
             // Skip current file (already searched)
             if &file_uri == uri {
                 continue;
             }
-            
+
             // Check if file is open in editor
             if let Some(open_doc) = self.documents.get(&file_uri) {
                 // Search in open document
@@ -607,14 +621,18 @@ impl LanguageServer for LivaLanguageServer {
                             let mut search_from = 0;
                             while let Some(pos) = line[search_from..].find(&word) {
                                 let actual_pos = search_from + pos;
-                                
+
                                 // Check word boundaries
-                                let is_start_boundary = actual_pos == 0 || 
-                                    !line.chars().nth(actual_pos - 1).unwrap_or(' ').is_alphanumeric();
+                                let is_start_boundary = actual_pos == 0
+                                    || !line
+                                        .chars()
+                                        .nth(actual_pos - 1)
+                                        .unwrap_or(' ')
+                                        .is_alphanumeric();
                                 let end_pos = actual_pos + word.len();
-                                let is_end_boundary = end_pos >= line.len() || 
-                                    !line.chars().nth(end_pos).unwrap_or(' ').is_alphanumeric();
-                                
+                                let is_end_boundary = end_pos >= line.len()
+                                    || !line.chars().nth(end_pos).unwrap_or(' ').is_alphanumeric();
+
                                 if is_start_boundary && is_end_boundary {
                                     all_locations.push(Location {
                                         uri: file_uri.clone(),
@@ -630,7 +648,7 @@ impl LanguageServer for LivaLanguageServer {
                                         },
                                     });
                                 }
-                                
+
                                 search_from = actual_pos + 1;
                             }
                         }
@@ -638,43 +656,47 @@ impl LanguageServer for LivaLanguageServer {
                 }
             }
         }
-        
+
         if all_locations.is_empty() {
             return Ok(None);
         }
-        
+
         self.client
             .log_message(
                 MessageType::INFO,
-                format!("Found {} references to '{}' across workspace", all_locations.len(), word),
+                format!(
+                    "Found {} references to '{}' across workspace",
+                    all_locations.len(),
+                    word
+                ),
             )
             .await;
-        
+
         Ok(Some(all_locations))
     }
-    
+
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
-        
+
         let doc = match self.documents.get(uri) {
             Some(doc) => doc,
             None => return Ok(None),
         };
-        
+
         // Get the word at the cursor position
         let word = match doc.word_at_position(position) {
             Some(w) => w,
             None => return Ok(None),
         };
-        
+
         // Look up the symbol in the symbol table
         if let Some(symbols) = &doc.symbols {
             if let Some(symbol_list) = symbols.lookup(&word) {
                 if let Some(symbol) = symbol_list.first() {
                     // Format hover content as Markdown
                     let mut content = String::new();
-                    
+
                     // Add symbol kind and name
                     let kind_str = match symbol.kind {
                         SymbolKind::FUNCTION => "function",
@@ -685,14 +707,14 @@ impl LanguageServer for LivaLanguageServer {
                         SymbolKind::CONSTANT => "constant",
                         _ => "symbol",
                     };
-                    
+
                     content.push_str(&format!("```liva\n{} {}\n```\n", kind_str, symbol.name));
-                    
+
                     // Add detail if available
                     if let Some(detail) = &symbol.detail {
                         content.push_str(&format!("\n{}", detail));
                     }
-                    
+
                     return Ok(Some(Hover {
                         contents: HoverContents::Markup(MarkupContent {
                             kind: MarkupKind::Markdown,
@@ -703,7 +725,7 @@ impl LanguageServer for LivaLanguageServer {
                 }
             }
         }
-        
+
         // Check for built-in keywords/types
         let builtin_info = match word.as_str() {
             "int" => Some("```liva\ntype int\n```\n\nSigned 32-bit integer type"),
@@ -721,7 +743,7 @@ impl LanguageServer for LivaLanguageServer {
             "for" => Some("```liva\nfor\n```\n\nIterate over a range or collection"),
             _ => None,
         };
-        
+
         if let Some(info) = builtin_info {
             return Ok(Some(Hover {
                 contents: HoverContents::Markup(MarkupContent {
@@ -731,14 +753,11 @@ impl LanguageServer for LivaLanguageServer {
                 range: None,
             }));
         }
-        
+
         Ok(None)
     }
 
-    async fn formatting(
-        &self,
-        params: DocumentFormattingParams,
-    ) -> Result<Option<Vec<TextEdit>>> {
+    async fn formatting(&self, params: DocumentFormattingParams) -> Result<Option<Vec<TextEdit>>> {
         let uri = &params.text_document.uri;
 
         let doc = match self.documents.get(uri) {

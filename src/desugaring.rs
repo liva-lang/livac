@@ -3,14 +3,13 @@ use crate::error::Result;
 use serde::Serialize;
 use std::collections::BTreeSet;
 
-#[derive(Serialize)]
-#[derive(Clone)]
+#[derive(Serialize, Clone)]
 pub struct DesugarContext {
     pub rust_crates: Vec<(String, Option<String>)>,
     pub has_async: bool,
     pub has_parallel: bool,
-    pub has_random: bool,  // true if Math.random() is used
-    pub async_functions: BTreeSet<String>,  // Functions that are async (BTreeSet for deterministic order)
+    pub has_random: bool,                  // true if Math.random() is used
+    pub async_functions: BTreeSet<String>, // Functions that are async (BTreeSet for deterministic order)
 }
 
 impl DesugarContext {
@@ -67,7 +66,8 @@ fn check_concurrency(item: &TopLevel, ctx: &mut DesugarContext) {
                     if method.is_async_inferred {
                         ctx.has_async = true;
                         // Track as ClassName.methodName for method calls
-                        ctx.async_functions.insert(format!("{}.{}", class.name, method.name));
+                        ctx.async_functions
+                            .insert(format!("{}.{}", class.name, method.name));
                     }
                     if let Some(body) = &method.body {
                         check_block_concurrency_block(body, ctx);
@@ -168,7 +168,7 @@ fn check_expr_concurrency(expr: &Expr, ctx: &mut DesugarContext) {
                     ctx.has_random = true;
                 }
             }
-            
+
             // Check if it uses parallel array adapters
             match method_call.adapter {
                 crate::ast::ArrayAdapter::Par | crate::ast::ArrayAdapter::ParVec => {
@@ -176,7 +176,7 @@ fn check_expr_concurrency(expr: &Expr, ctx: &mut DesugarContext) {
                 }
                 _ => {}
             }
-            
+
             // Continue checking nested expressions
             check_expr_concurrency(&method_call.object, ctx);
             for arg in &method_call.args {

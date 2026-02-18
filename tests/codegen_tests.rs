@@ -280,13 +280,24 @@ describe("Math", () => {
 
     let rust_code = compile_and_generate(source);
     // Should generate a before_each function
-    assert!(rust_code.contains("fn before_each()"), "should generate before_each fn:\n{}", rust_code);
+    assert!(
+        rust_code.contains("fn before_each()"),
+        "should generate before_each fn:\n{}",
+        rust_code
+    );
     // The test should auto-invoke before_each()
-    assert!(rust_code.contains("before_each();"), "test should call before_each():\n{}", rust_code);
+    assert!(
+        rust_code.contains("before_each();"),
+        "test should call before_each():\n{}",
+        rust_code
+    );
     // before_each() should appear BEFORE the assertion
     let before_pos = rust_code.find("before_each();").unwrap();
     let assert_pos = rust_code.find("assert_eq!").unwrap();
-    assert!(before_pos < assert_pos, "before_each() should come before assertions");
+    assert!(
+        before_pos < assert_pos,
+        "before_each() should come before assertions"
+    );
 }
 
 #[test]
@@ -309,13 +320,24 @@ describe("Math", () => {
 
     let rust_code = compile_and_generate(source);
     // Should generate an after_each function
-    assert!(rust_code.contains("fn after_each()"), "should generate after_each fn:\n{}", rust_code);
+    assert!(
+        rust_code.contains("fn after_each()"),
+        "should generate after_each fn:\n{}",
+        rust_code
+    );
     // The test should auto-invoke after_each()
-    assert!(rust_code.contains("after_each();"), "test should call after_each():\n{}", rust_code);
+    assert!(
+        rust_code.contains("after_each();"),
+        "test should call after_each():\n{}",
+        rust_code
+    );
     // after_each() should appear AFTER the assertion
     let assert_pos = rust_code.find("assert_eq!").unwrap();
     let after_pos = rust_code.find("after_each();").unwrap();
-    assert!(after_pos > assert_pos, "after_each() should come after assertions");
+    assert!(
+        after_pos > assert_pos,
+        "after_each() should come after assertions"
+    );
 }
 
 #[test]
@@ -346,14 +368,28 @@ describe("Calculator", () => {
 
     let rust_code = compile_and_generate(source);
     // Both hooks should exist
-    assert!(rust_code.contains("fn before_each()"), "should generate before_each fn");
-    assert!(rust_code.contains("fn after_each()"), "should generate after_each fn");
-    
+    assert!(
+        rust_code.contains("fn before_each()"),
+        "should generate before_each fn"
+    );
+    assert!(
+        rust_code.contains("fn after_each()"),
+        "should generate after_each fn"
+    );
+
     // Count occurrences of hook calls — should be 2 each (one per test)
     let before_count = rust_code.matches("before_each();").count();
     let after_count = rust_code.matches("after_each();").count();
-    assert_eq!(before_count, 2, "before_each() should be called in each test, found {}", before_count);
-    assert_eq!(after_count, 2, "after_each() should be called in each test, found {}", after_count);
+    assert_eq!(
+        before_count, 2,
+        "before_each() should be called in each test, found {}",
+        before_count
+    );
+    assert_eq!(
+        after_count, 2,
+        "after_each() should be called in each test, found {}",
+        after_count
+    );
 }
 
 #[test]
@@ -382,11 +418,27 @@ describe("Outer", () => {
 
     let rust_code = compile_and_generate(source);
     // Should have both hook functions (with depth-based naming)
-    assert!(rust_code.contains("fn before_each()"), "outer before_each fn should exist:\n{}", rust_code);
-    assert!(rust_code.contains("fn before_each_1()"), "inner before_each_1 fn should exist:\n{}", rust_code);
+    assert!(
+        rust_code.contains("fn before_each()"),
+        "outer before_each fn should exist:\n{}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("fn before_each_1()"),
+        "inner before_each_1 fn should exist:\n{}",
+        rust_code
+    );
     // The nested test should call BOTH hooks (parent first, then inner)
-    assert!(rust_code.contains("before_each();"), "nested test should call parent before_each:\n{}", rust_code);
-    assert!(rust_code.contains("before_each_1();"), "nested test should call inner before_each_1:\n{}", rust_code);
+    assert!(
+        rust_code.contains("before_each();"),
+        "nested test should call parent before_each:\n{}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("before_each_1();"),
+        "nested test should call inner before_each_1:\n{}",
+        rust_code
+    );
 }
 
 #[test]
@@ -405,8 +457,16 @@ describe("Simple", () => {
 
     let rust_code = compile_and_generate(source);
     // No hook calls should be generated when no hooks are defined
-    assert!(!rust_code.contains("before_each"), "no before_each when none defined:\n{}", rust_code);
-    assert!(!rust_code.contains("after_each"), "no after_each when none defined:\n{}", rust_code);
+    assert!(
+        !rust_code.contains("before_each"),
+        "no before_each when none defined:\n{}",
+        rust_code
+    );
+    assert!(
+        !rust_code.contains("after_each"),
+        "no after_each when none defined:\n{}",
+        rust_code
+    );
 }
 
 #[test]
@@ -432,12 +492,26 @@ describe("Suite", () => {
 "#;
 
     let rust_code = compile_and_generate(source);
-    // beforeAll and afterAll should generate functions  
-    assert!(rust_code.contains("fn before_all()"), "should generate before_all fn:\n{}", rust_code);
-    assert!(rust_code.contains("fn after_all()"), "should generate after_all fn:\n{}", rust_code);
+    // beforeAll and afterAll should generate functions
+    assert!(
+        rust_code.contains("fn before_all()"),
+        "should generate before_all fn:\n{}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("fn after_all()"),
+        "should generate after_all fn:\n{}",
+        rust_code
+    );
     // They should NOT be auto-invoked in test functions (they're module-level)
-    assert!(!rust_code.contains("before_all();"), "before_all should not be auto-invoked in tests");
-    assert!(!rust_code.contains("after_all();"), "after_all should not be auto-invoked in tests");
+    assert!(
+        !rust_code.contains("before_all();"),
+        "before_all should not be auto-invoked in tests"
+    );
+    assert!(
+        !rust_code.contains("after_all();"),
+        "after_all should not be auto-invoked in tests"
+    );
 }
 
 // ===== Phase 12.4: Async Test Support =====
@@ -458,8 +532,16 @@ describe("Async Tests", () => {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("#[tokio::test]"), "should generate #[tokio::test] for async test:\n{}", rust_code);
-    assert!(rust_code.contains("async fn test_fetches_data()"), "should generate async fn:\n{}", rust_code);
+    assert!(
+        rust_code.contains("#[tokio::test]"),
+        "should generate #[tokio::test] for async test:\n{}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("async fn test_fetches_data()"),
+        "should generate async fn:\n{}",
+        rust_code
+    );
 }
 
 #[test]
@@ -477,10 +559,26 @@ describe("Sync Tests", () => {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("#[test]"), "sync test should use #[test]:\n{}", rust_code);
-    assert!(rust_code.contains("fn test_adds_numbers()"), "sync test should use plain fn:\n{}", rust_code);
-    assert!(!rust_code.contains("#[tokio::test]"), "sync test should NOT use tokio::test:\n{}", rust_code);
-    assert!(!rust_code.contains("async fn test_"), "sync test should NOT be async:\n{}", rust_code);
+    assert!(
+        rust_code.contains("#[test]"),
+        "sync test should use #[test]:\n{}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("fn test_adds_numbers()"),
+        "sync test should use plain fn:\n{}",
+        rust_code
+    );
+    assert!(
+        !rust_code.contains("#[tokio::test]"),
+        "sync test should NOT use tokio::test:\n{}",
+        rust_code
+    );
+    assert!(
+        !rust_code.contains("async fn test_"),
+        "sync test should NOT be async:\n{}",
+        rust_code
+    );
 }
 
 #[test]
@@ -505,10 +603,26 @@ describe("Mixed Tests", () => {
 
     let rust_code = compile_and_generate(source);
     // Should have both #[test] and #[tokio::test]
-    assert!(rust_code.contains("#[test]"), "should have sync test:\n{}", rust_code);
-    assert!(rust_code.contains("#[tokio::test]"), "should have async test:\n{}", rust_code);
-    assert!(rust_code.contains("fn test_sync_test()"), "sync test should use plain fn:\n{}", rust_code);
-    assert!(rust_code.contains("async fn test_async_test()"), "async test should use async fn:\n{}", rust_code);
+    assert!(
+        rust_code.contains("#[test]"),
+        "should have sync test:\n{}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("#[tokio::test]"),
+        "should have async test:\n{}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("fn test_sync_test()"),
+        "sync test should use plain fn:\n{}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("async fn test_async_test()"),
+        "async test should use async fn:\n{}",
+        rust_code
+    );
 }
 
 #[test]
@@ -536,11 +650,27 @@ describe("Async with hooks", () => {
 
     let rust_code = compile_and_generate(source);
     // The test should be async
-    assert!(rust_code.contains("#[tokio::test]"), "async test should use tokio::test:\n{}", rust_code);
-    assert!(rust_code.contains("async fn test_async_fetch()"), "should be async fn:\n{}", rust_code);
+    assert!(
+        rust_code.contains("#[tokio::test]"),
+        "async test should use tokio::test:\n{}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("async fn test_async_fetch()"),
+        "should be async fn:\n{}",
+        rust_code
+    );
     // Sync hooks should be called without .await in async test
-    assert!(rust_code.contains("before_each();"), "sync hook should be called without await:\n{}", rust_code);
-    assert!(rust_code.contains("after_each();"), "sync hook should be called without await:\n{}", rust_code);
+    assert!(
+        rust_code.contains("before_each();"),
+        "sync hook should be called without await:\n{}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("after_each();"),
+        "sync hook should be called without await:\n{}",
+        rust_code
+    );
 }
 
 #[test]
@@ -566,11 +696,23 @@ describe("Async hooks", () => {
 
     let rust_code = compile_and_generate(source);
     // The hook itself should be async
-    assert!(rust_code.contains("async fn before_each()"), "async hook should generate async fn:\n{}", rust_code);
+    assert!(
+        rust_code.contains("async fn before_each()"),
+        "async hook should generate async fn:\n{}",
+        rust_code
+    );
     // The test should be async
-    assert!(rust_code.contains("#[tokio::test]"), "test should use tokio::test:\n{}", rust_code);
+    assert!(
+        rust_code.contains("#[tokio::test]"),
+        "test should use tokio::test:\n{}",
+        rust_code
+    );
     // Async hook should be called with .await in async test
-    assert!(rust_code.contains("before_each().await;"), "async hook should be awaited in async test:\n{}", rust_code);
+    assert!(
+        rust_code.contains("before_each().await;"),
+        "async hook should be awaited in async test:\n{}",
+        rust_code
+    );
 }
 
 // ============================================================
@@ -596,7 +738,11 @@ main() {
 
     let rust_code = compile_and_generate(source);
     // Should wrap (max_len - 3) in parens before as usize
-    assert!(rust_code.contains("(max_len - 3) as usize"), "substring expression index should be wrapped in parens:\n{}", rust_code);
+    assert!(
+        rust_code.contains("(max_len - 3) as usize"),
+        "substring expression index should be wrapped in parens:\n{}",
+        rust_code
+    );
     assert_snapshot!("bug55_substring_expr_index", rust_code);
 }
 
@@ -618,7 +764,11 @@ main() {
 
     let rust_code = compile_and_generate(source);
     // Should NOT have |&line| because String is non-Copy (will_use_cloned = true)
-    assert!(!rust_code.contains("|&line|"), "forEach on [string] should not use |&line|:\n{}", rust_code);
+    assert!(
+        !rust_code.contains("|&line|"),
+        "forEach on [string] should not use |&line|:\n{}",
+        rust_code
+    );
     assert_snapshot!("bug56_foreach_string_param", rust_code);
 }
 
@@ -637,7 +787,11 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains(".to_string()"), "string array literals should have .to_string():\n{}", rust_code);
+    assert!(
+        rust_code.contains(".to_string()"),
+        "string array literals should have .to_string():\n{}",
+        rust_code
+    );
     assert_snapshot!("bug57_array_literal_strings", rust_code);
 }
 
@@ -663,7 +817,11 @@ main() {
 
     let rust_code = compile_and_generate(source);
     // Should use format! for toString() + toString() concatenation
-    assert!(rust_code.contains("format!"), "toString() concatenation should use format!:\n{}", rust_code);
+    assert!(
+        rust_code.contains("format!"),
+        "toString() concatenation should use format!:\n{}",
+        rust_code
+    );
     assert_snapshot!("bug58_char_tostring_concat", rust_code);
 }
 
@@ -698,8 +856,16 @@ main() {
 
     let rust_code = compile_and_generate(source);
     // Should have |&book| with dereference * in comparison
-    assert!(rust_code.contains("|&book|"), "filter on class string field should use |&book|:\n{}", rust_code);
-    assert!(rust_code.contains("*book == query") || rust_code.contains("*book =="), "filter comparison should dereference &T:\n{}", rust_code);
+    assert!(
+        rust_code.contains("|&book|"),
+        "filter on class string field should use |&book|:\n{}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("*book == query") || rust_code.contains("*book =="),
+        "filter comparison should dereference &T:\n{}",
+        rust_code
+    );
     assert_snapshot!("bug59_60_class_filter_comparison", rust_code);
 }
 
@@ -724,7 +890,11 @@ main() {
 
     let rust_code = compile_and_generate(source);
     // Should use {:?} for array variable from function return
-    assert!(rust_code.contains("{:?}"), "print(array) should use Debug format {{:?}}:\n{}", rust_code);
+    assert!(
+        rust_code.contains("{:?}"),
+        "print(array) should use Debug format {{:?}}:\n{}",
+        rust_code
+    );
     assert_snapshot!("bug61_print_array_from_function", rust_code);
 }
 
@@ -762,8 +932,11 @@ main() {
 
     let rust_code = compile_and_generate(source);
     // found[0] should have .clone() because it's Vec<String>
-    assert!(rust_code.contains("found[0].clone()") || rust_code.contains("found[0 as usize].clone()"), 
-        "indexing Vec<String> should add .clone():\n{}", rust_code);
+    assert!(
+        rust_code.contains("found[0].clone()") || rust_code.contains("found[0 as usize].clone()"),
+        "indexing Vec<String> should add .clone():\n{}",
+        rust_code
+    );
     assert_snapshot!("bug62_filter_result_indexing", rust_code);
 }
 

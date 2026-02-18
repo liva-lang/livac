@@ -11,7 +11,7 @@ pub struct Program {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TypeParameter {
     pub name: String,
-    pub constraints: Vec<String>,  // Trait names that T must implement
+    pub constraints: Vec<String>, // Trait names that T must implement
 }
 
 impl TypeParameter {
@@ -30,10 +30,7 @@ impl TypeParameter {
     }
 
     pub fn with_constraints(name: String, constraints: Vec<String>) -> Self {
-        TypeParameter {
-            name,
-            constraints,
-        }
+        TypeParameter { name, constraints }
     }
 }
 
@@ -63,10 +60,10 @@ pub enum TopLevel {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ImportDecl {
-    pub imports: Vec<String>,      // List of imported symbols: ["add", "multiply"]
-    pub source: String,             // Path to file: "./math.liva"
-    pub is_wildcard: bool,          // true for `import *`
-    pub alias: Option<String>,      // For wildcard: `import * as name`
+    pub imports: Vec<String>,  // List of imported symbols: ["add", "multiply"]
+    pub source: String,        // Path to file: "./math.liva"
+    pub is_wildcard: bool,     // true for `import *`
+    pub alias: Option<String>, // For wildcard: `import * as name`
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -78,7 +75,7 @@ pub struct UseRustDecl {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TypeDecl {
     pub name: String,
-    pub type_params: Vec<TypeParameter>,  // Generic type parameters
+    pub type_params: Vec<TypeParameter>, // Generic type parameters
     pub members: Vec<Member>,
 }
 
@@ -86,8 +83,8 @@ pub struct TypeDecl {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TypeAliasDecl {
     pub name: String,
-    pub type_params: Vec<TypeParameter>,  // Generic type parameters
-    pub target_type: TypeRef,             // The type being aliased
+    pub type_params: Vec<TypeParameter>, // Generic type parameters
+    pub target_type: TypeRef,            // The type being aliased
     #[serde(skip)]
     pub span: Option<crate::span::Span>,
 }
@@ -95,13 +92,13 @@ pub struct TypeAliasDecl {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ClassDecl {
     pub name: String,
-    pub type_params: Vec<TypeParameter>,  // Generic type parameters
-    pub implements: Vec<String>,  // Interfaces this class implements
+    pub type_params: Vec<TypeParameter>, // Generic type parameters
+    pub implements: Vec<String>,         // Interfaces this class implements
     pub members: Vec<Member>,
     #[serde(default)]
-    pub needs_serde: bool,  // Phase 2: true if used with JSON.parse
+    pub needs_serde: bool, // Phase 2: true if used with JSON.parse
     #[serde(default)]
-    pub is_data: bool,  // true for "data class" declarations
+    pub is_data: bool, // true for "data class" declarations
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -117,14 +114,14 @@ pub struct FieldDecl {
     pub type_ref: Option<TypeRef>,
     pub init: Option<Expr>,
     #[serde(default)]
-    pub is_optional: bool,  // true if field?: Type syntax
+    pub is_optional: bool, // true if field?: Type syntax
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct MethodDecl {
     pub name: String,
     pub visibility: Visibility,
-    pub type_params: Vec<TypeParameter>,  // Generic type parameters with constraints
+    pub type_params: Vec<TypeParameter>, // Generic type parameters with constraints
     pub params: Vec<Param>,
     pub return_type: Option<TypeRef>,
     pub body: Option<BlockStmt>,
@@ -136,7 +133,7 @@ pub struct MethodDecl {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct FunctionDecl {
     pub name: String,
-    pub type_params: Vec<TypeParameter>,  // Generic type parameters with constraints
+    pub type_params: Vec<TypeParameter>, // Generic type parameters with constraints
     pub params: Vec<Param>,
     pub return_type: Option<TypeRef>,
     pub body: Option<BlockStmt>,
@@ -147,7 +144,7 @@ pub struct FunctionDecl {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Param {
-    pub pattern: BindingPattern,  // Changed from `name: String` to support destructuring
+    pub pattern: BindingPattern, // Changed from `name: String` to support destructuring
     pub type_ref: Option<TypeRef>,
     pub default: Option<Expr>,
 }
@@ -160,7 +157,7 @@ impl Param {
             _ => None,
         }
     }
-    
+
     /// Check if this parameter uses destructuring
     pub fn is_destructuring(&self) -> bool {
         !self.pattern.is_simple()
@@ -196,8 +193,8 @@ pub enum TypeRef {
     Array(Box<TypeRef>),
     Optional(Box<TypeRef>),
     Fallible(Box<TypeRef>),
-    Tuple(Vec<TypeRef>),  // Tuple types: (int, string, bool)
-    Union(Vec<TypeRef>),  // Union types: int | string | bool
+    Tuple(Vec<TypeRef>), // Tuple types: (int, string, bool)
+    Union(Vec<TypeRef>), // Union types: int | string | bool
 }
 
 impl TypeRef {
@@ -290,7 +287,7 @@ pub struct VarDecl {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct VarBinding {
-    pub pattern: BindingPattern,  // Changed from name: String to pattern
+    pub pattern: BindingPattern, // Changed from name: String to pattern
     pub type_ref: Option<TypeRef>,
     #[serde(skip)]
     pub span: Option<crate::span::Span>,
@@ -304,7 +301,7 @@ impl VarBinding {
             _ => None,
         }
     }
-    
+
     // Helper to check if it's a simple identifier
     pub fn is_simple(&self) -> bool {
         matches!(self.pattern, BindingPattern::Identifier(_))
@@ -314,10 +311,10 @@ impl VarBinding {
 /// Binding pattern for destructuring
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum BindingPattern {
-    Identifier(String),                    // Simple: x
-    Object(ObjectPattern),                 // Object: {x, y}
-    Array(ArrayPattern),                   // Array: [x, y, ...rest]
-    Tuple(TuplePattern),                   // Tuple: (x, y, z)
+    Identifier(String),    // Simple: x
+    Object(ObjectPattern), // Object: {x, y}
+    Array(ArrayPattern),   // Array: [x, y, ...rest]
+    Tuple(TuplePattern),   // Tuple: (x, y, z)
 }
 
 impl BindingPattern {
@@ -335,21 +332,21 @@ pub struct ObjectPattern {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ObjectPatternField {
-    pub key: String,        // Field name in object
-    pub binding: String,    // Variable name (may differ with rename syntax)
+    pub key: String,     // Field name in object
+    pub binding: String, // Variable name (may differ with rename syntax)
 }
 
 /// Array destructuring pattern: [first, second, ...rest]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ArrayPattern {
-    pub elements: Vec<Option<String>>,  // None = skip element
-    pub rest: Option<String>,            // ...rest binding
+    pub elements: Vec<Option<String>>, // None = skip element
+    pub rest: Option<String>,          // ...rest binding
 }
 
 /// Tuple destructuring pattern: (x, y, z)
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TuplePattern {
-    pub elements: Vec<String>,  // Variable names for each tuple element
+    pub elements: Vec<String>, // Variable names for each tuple element
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -506,7 +503,7 @@ pub struct SwitchExpr {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SwitchArm {
     pub pattern: Pattern,
-    pub guard: Option<Box<Expr>>,  // Optional if condition
+    pub guard: Option<Box<Expr>>, // Optional if condition
     pub body: SwitchBody,
 }
 
@@ -536,7 +533,7 @@ pub enum Pattern {
 pub struct RangePattern {
     pub start: Option<Box<Expr>>,
     pub end: Option<Box<Expr>>,
-    pub inclusive: bool,  // true for ..=, false for ..
+    pub inclusive: bool, // true for ..=, false for ..
 }
 
 /// Body of a switch arm (can be expression or block)
@@ -608,19 +605,19 @@ pub enum Expr {
         fields: Vec<(String, Expr)>,
     },
     ArrayLiteral(Vec<Expr>),
-    Tuple(Vec<Expr>),  // Tuple literals: (10, 20, 30)
+    Tuple(Vec<Expr>), // Tuple literals: (10, 20, 30)
     Lambda(LambdaExpr),
     StringTemplate {
         parts: Vec<StringTemplatePart>,
     },
     Fail(Box<Expr>),
     MethodCall(MethodCallExpr),
-    Switch(SwitchExpr),  // Enhanced pattern matching (v0.9.5)
+    Switch(SwitchExpr), // Enhanced pattern matching (v0.9.5)
     /// Method/function reference with `::` syntax (v1.1.0 Phase 11.4)
     /// Examples: `Utils::validate`, `logger::log`, `User::new`
     MethodRef {
-        object: String,   // Class name or variable name
-        method: String,   // Method name or "new" for constructors
+        object: String, // Class name or variable name
+        method: String, // Method name or "new" for constructors
     },
 }
 
@@ -869,7 +866,12 @@ impl fmt::Display for ImportDecl {
                 write!(f, "import * from \"{}\"", self.source)
             }
         } else {
-            write!(f, "import {{ {} }} from \"{}\"", self.imports.join(", "), self.source)
+            write!(
+                f,
+                "import {{ {} }} from \"{}\"",
+                self.imports.join(", "),
+                self.source
+            )
         }
     }
 }
@@ -929,7 +931,6 @@ impl fmt::Display for RangePattern {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {

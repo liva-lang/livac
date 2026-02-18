@@ -2,7 +2,6 @@
 ///
 /// This module provides contextual help messages for common errors in Liva.
 /// Hints guide developers toward correct solutions with actionable advice.
-
 use crate::error_codes::*;
 
 /// Get a helpful hint for a specific error code
@@ -10,20 +9,20 @@ pub fn get_hint(error_code: &str) -> Option<&'static str> {
     match error_code {
         // Parser Errors
         E2000_PARSE_ERROR => Some("Check for missing semicolons, parentheses, or keywords"),
-        
+
         // Module Errors
         E4003_INVALID_MODULE_PATH => Some("Module paths should be relative (e.g., './module') or from the standard library"),
         E4004_MODULE_NOT_FOUND => Some("Make sure the file exists and the path is correct"),
         E4006_SYMBOL_NOT_FOUND => Some("Check the module's exports or look for typos in the symbol name"),
         E4007_INVALID_IMPORT_SYNTAX => Some("Use: import { symbol1, symbol2 } from 'module'"),
         E4008_EMPTY_IMPORT_LIST => Some("Specify at least one symbol to import, or remove the import statement"),
-        
+
         // Concurrency Errors
         E0602_DUPLICATE_EXEC_MODIFIER => Some("Use only one execution modifier: async, par, task async, task par, fire async, or fire par"),
         E0603_NOT_AWAITABLE => Some("Only async and task async expressions can be awaited"),
         E0604_AWAIT_MULTIPLE_TIMES => Some("Each async operation can only be awaited once. Store the result in a variable if needed"),
         E0605_AWAIT_IN_PARALLEL_LOOP => Some("Parallel loops execute synchronously. Use 'for async' for asynchronous iteration"),
-        
+
         // Error Handling
         E0701_FALLIBLE_WITHOUT_BINDING => Some("Use error binding: let result, err = fallibleFunc(...)"),
         E0702_INVALID_CHUNK_SIZE => Some("Chunk size must be a positive integer, e.g., 'chunk 100'"),
@@ -31,11 +30,11 @@ pub fn get_hint(error_code: &str) -> Option<&'static str> {
         E0704_INVALID_THREAD_COUNT => Some("Thread count must be a positive integer, e.g., 'threads 4'"),
         E0705_SIMD_WITHOUT_VEC => Some("SIMD width requires vectorized execution: use 'for vec' or 'for parvec'"),
         E0706_INVALID_SIMD_WIDTH => Some("SIMD width must be a positive integer (typically 4, 8, 16, or 32)"),
-        
+
         // Semantic Errors
         E0001_INTERFACE_NOT_IMPL => Some("Implement all required methods or remove the interface declaration"),
         E0002_METHOD_SIGNATURE_MISMATCH => Some("Method signature must exactly match the interface definition"),
-        
+
         _ => None,
     }
 }
@@ -65,12 +64,12 @@ pub fn get_doc_link(error_code: &str) -> Option<String> {
     if error_code.len() < 2 {
         return None;
     }
-    
+
     // Verify it looks like a valid error code (E followed by digits)
     if !error_code.starts_with('E') {
         return None;
     }
-    
+
     Some(format!(
         "https://github.com/liva-lang/livac/blob/main/docs/ERROR_CODES.md#{}",
         error_code.to_lowercase()
@@ -144,11 +143,11 @@ mod tests {
         let link = get_doc_link(E2000_PARSE_ERROR);
         assert!(link.is_some());
         assert!(link.unwrap().contains("ERROR_CODES.md#e2000"));
-        
+
         let link = get_doc_link(E4006_SYMBOL_NOT_FOUND);
         assert!(link.is_some());
         assert!(link.unwrap().contains("ERROR_CODES.md#e4006"));
-        
+
         let link = get_doc_link("invalid");
         assert!(link.is_none());
     }
@@ -157,10 +156,10 @@ mod tests {
     fn test_get_common_fixes() {
         let fixes = get_common_fixes(E2000_PARSE_ERROR);
         assert!(!fixes.is_empty());
-        
+
         let fixes = get_common_fixes(E0701_FALLIBLE_WITHOUT_BINDING);
         assert!(!fixes.is_empty());
-        
+
         let fixes = get_common_fixes("E9999");
         assert!(fixes.is_empty());
     }

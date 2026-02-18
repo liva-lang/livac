@@ -1,6 +1,5 @@
 /// Trait system for generic constraints
 /// Maps Liva operators and features to Rust standard library traits
-
 use std::collections::{HashMap, HashSet};
 
 /// Trait definition with Rust mapping
@@ -9,13 +8,13 @@ pub struct TraitDef {
     pub name: String,
     pub rust_path: String,
     pub operators: Vec<String>,
-    pub requires: Vec<String>,  // Other traits required by this trait
+    pub requires: Vec<String>, // Other traits required by this trait
 }
 
 /// Built-in traits supported by Liva generics
 pub struct TraitRegistry {
     traits: HashMap<String, TraitDef>,
-    aliases: HashMap<String, Vec<String>>,  // Trait aliases: name -> underlying traits
+    aliases: HashMap<String, Vec<String>>, // Trait aliases: name -> underlying traits
 }
 
 impl TraitRegistry {
@@ -97,8 +96,13 @@ impl TraitRegistry {
             name: "Ord".to_string(),
             // Bug #44: Changed Copy to Clone since String doesn't implement Copy
             rust_path: "std::cmp::PartialOrd + Clone".to_string(),
-            operators: vec![">".to_string(), "<".to_string(), ">=".to_string(), "<=".to_string()],
-            requires: vec!["Eq".to_string()],  // Ord requires Eq
+            operators: vec![
+                ">".to_string(),
+                "<".to_string(),
+                ">=".to_string(),
+                "<=".to_string(),
+            ],
+            requires: vec!["Eq".to_string()], // Ord requires Eq
         });
 
         // Utility traits
@@ -127,7 +131,7 @@ impl TraitRegistry {
             name: "Copy".to_string(),
             rust_path: "Copy".to_string(),
             operators: vec![],
-            requires: vec!["Clone".to_string()],  // Copy requires Clone
+            requires: vec!["Clone".to_string()], // Copy requires Clone
         });
 
         self.register(TraitDef {
@@ -155,10 +159,7 @@ impl TraitRegistry {
         // Comparable: Equality and ordering
         self.aliases.insert(
             "Comparable".to_string(),
-            vec![
-                "Ord".to_string(),
-                "Eq".to_string(),
-            ],
+            vec!["Ord".to_string(), "Eq".to_string()],
         );
 
         // Number: Numeric + Comparable (all operations on numbers)
@@ -179,10 +180,7 @@ impl TraitRegistry {
         // Printable: Display + Debug
         self.aliases.insert(
             "Printable".to_string(),
-            vec![
-                "Display".to_string(),
-                "Debug".to_string(),
-            ],
+            vec!["Display".to_string(), "Debug".to_string()],
         );
     }
 
@@ -197,27 +195,29 @@ impl TraitRegistry {
 
     /// Find trait required for an operator
     pub fn trait_for_operator(&self, op: &str) -> Option<&TraitDef> {
-        self.traits.values().find(|t| t.operators.contains(&op.to_string()))
+        self.traits
+            .values()
+            .find(|t| t.operators.contains(&op.to_string()))
     }
 
     /// Get all traits required for a given trait (transitive dependencies)
     pub fn get_required_traits(&self, trait_name: &str) -> HashSet<String> {
         let mut required = HashSet::new();
         let mut to_visit = vec![trait_name.to_string()];
-        
+
         while let Some(current) = to_visit.pop() {
             if required.contains(&current) {
                 continue;
             }
             required.insert(current.clone());
-            
+
             if let Some(trait_def) = self.traits.get(&current) {
                 for req in &trait_def.requires {
                     to_visit.push(req.clone());
                 }
             }
         }
-        
+
         required
     }
 
@@ -287,9 +287,7 @@ impl TraitRegistry {
         // Generate Rust bounds
         let bounds: Vec<String> = trait_list
             .iter()
-            .filter_map(|name| {
-                self.traits.get(*name).map(|t| t.rust_path.clone())
-            })
+            .filter_map(|name| self.traits.get(*name).map(|t| t.rust_path.clone()))
             .collect();
 
         if bounds.is_empty() {
@@ -307,12 +305,12 @@ mod tests {
     #[test]
     fn test_trait_registry() {
         let registry = TraitRegistry::new();
-        
+
         // Test operator lookup
         assert!(registry.trait_for_operator("+").is_some());
         assert_eq!(registry.trait_for_operator("+").unwrap().name, "Add");
         assert_eq!(registry.trait_for_operator("%").unwrap().name, "Rem");
-        
+
         // Test constraint validation
         assert!(registry.is_valid_constraint("Add"));
         assert!(registry.is_valid_constraint("Ord"));
@@ -322,12 +320,12 @@ mod tests {
     #[test]
     fn test_required_traits() {
         let registry = TraitRegistry::new();
-        
+
         // Ord requires Eq
         let ord_traits = registry.get_required_traits("Ord");
         assert!(ord_traits.contains("Ord"));
         assert!(ord_traits.contains("Eq"));
-        
+
         // Add requires nothing
         let add_traits = registry.get_required_traits("Add");
         assert!(add_traits.contains("Add"));
@@ -337,23 +335,23 @@ mod tests {
     #[test]
     fn test_rust_bounds_generation() {
         let registry = TraitRegistry::new();
-        
+
         // Single arithmetic constraint (includes Copy)
         let bounds = registry.generate_rust_bounds(&["Add".to_string()]);
         assert!(bounds.contains("std::ops::Add<Output=T>"));
         assert!(bounds.contains("Copy"));
-        
+
         // Multiple arithmetic constraints
         let bounds = registry.generate_rust_bounds(&["Add".to_string(), "Sub".to_string()]);
         assert!(bounds.contains("Add<Output=T>"));
         assert!(bounds.contains("Sub<Output=T>"));
         assert!(bounds.contains("Copy"));
-        
+
         // Bug #44: Ord/Eq now use Clone instead of Copy (String doesn't implement Copy)
         let bounds = registry.generate_rust_bounds(&["Ord".to_string()]);
         assert!(bounds.contains("std::cmp::PartialOrd"));
         assert!(bounds.contains("Clone"));
-        
+
         // Multiple constraints with + operator
         let bounds = registry.generate_rust_bounds(&vec!["Add".to_string(), "Ord".to_string()]);
         assert!(bounds.contains("Add"));

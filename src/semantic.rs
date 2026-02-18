@@ -144,7 +144,7 @@ impl SemanticAnalyzer {
         if !self.imported_modules.is_empty() {
             self.validate_imports(&program)?;
         }
-        
+
         // First pass: collect type definitions and function signatures
         self.collect_definitions(&program)?;
 
@@ -176,33 +176,35 @@ impl SemanticAnalyzer {
     /// Validate all import statements in the program
     fn validate_imports(&mut self, program: &Program) -> Result<()> {
         use crate::ast::TopLevel;
-        
+
         for item in &program.items {
             if let TopLevel::Import(import) = item {
                 self.validate_import(import)?;
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Validate a single import declaration
     fn validate_import(&mut self, import: &crate::ast::ImportDecl) -> Result<()> {
         use std::path::Path;
-        
+
         // Virtual modules (liva/test, etc.) — use sentinel path lookup
         if crate::module::is_virtual_module(&import.source) {
             let vpath = crate::module::virtual_module_path(&import.source);
             let module_info = self.imported_modules.get(&vpath);
-            
-            let (public_symbols, _private_symbols) = module_info
-                .ok_or_else(|| {
-                    CompilerError::SemanticError(SemanticErrorInfo::new(
-                        "E4004",
-                        "Unknown virtual module",
-                        &format!("Module '{}' is not a known built-in module.\nAvailable modules: liva/test", import.source),
-                    ))
-                })?;
+
+            let (public_symbols, _private_symbols) = module_info.ok_or_else(|| {
+                CompilerError::SemanticError(SemanticErrorInfo::new(
+                    "E4004",
+                    "Unknown virtual module",
+                    &format!(
+                        "Module '{}' is not a known built-in module.\nAvailable modules: liva/test",
+                        import.source
+                    ),
+                ))
+            })?;
 
             // Validate named imports against virtual module's symbols
             if !import.is_wildcard {
@@ -215,7 +217,11 @@ impl SemanticAnalyzer {
                                 "'{}' is not exported by '{}'.\nAvailable symbols: {}",
                                 symbol,
                                 import.source,
-                                public_symbols.iter().cloned().collect::<Vec<_>>().join(", ")
+                                public_symbols
+                                    .iter()
+                                    .cloned()
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
                             ),
                         )));
                     }
@@ -238,23 +244,22 @@ impl SemanticAnalyzer {
         let current_file = Path::new(&self.source_file);
         let current_dir = current_file.parent().unwrap_or_else(|| Path::new("."));
         let import_path = current_dir.join(&import.source);
-        
+
         // Canonicalize to match how modules are stored
         let canonical_path = import_path.canonicalize().ok();
-        
+
         // Try to find the module by matching against all known modules
         let module_info = canonical_path
             .as_ref()
             .and_then(|p| self.imported_modules.get(p))
             .or_else(|| {
                 // Fallback: try to find by comparing file names
-                self.imported_modules.iter()
-                    .find(|(path, _)| {
-                        path.file_name() == import_path.file_name()
-                    })
+                self.imported_modules
+                    .iter()
+                    .find(|(path, _)| path.file_name() == import_path.file_name())
                     .map(|(_, info)| info)
             });
-        
+
         // Check if we have information about this module
         let (public_symbols, private_symbols) = module_info
             .ok_or_else(|| {
@@ -264,7 +269,7 @@ impl SemanticAnalyzer {
                     &format!("Module not found: {}\nHint: Make sure the module file exists in the same directory or provide the correct relative path.", import.source),
                 ))
             })?;
-        
+
         if import.is_wildcard {
             // Wildcard import: import * as name
             if let Some(alias) = &import.alias {
@@ -285,27 +290,26 @@ impl SemanticAnalyzer {
                         .cloned()
                         .collect();
                     let suggestion = suggestions::find_suggestion(symbol, &all_symbols, 2);
-                    
+
                     let message = format!(
                         "Symbol '{}' not found in module '{}'.",
                         symbol, import.source
                     );
-                    
-                    let mut error = SemanticErrorInfo::new(
-                        "E4006",
-                        "Imported symbol not found",
-                        &message,
-                    );
-                    
+
+                    let mut error =
+                        SemanticErrorInfo::new("E4006", "Imported symbol not found", &message);
+
                     if let Some(suggested) = suggestion {
                         error = error.with_suggestion(&format!("Did you mean '{}'?", suggested));
                     } else {
-                        error = error.with_hint("Check the spelling and make sure the symbol is defined in the module.");
+                        error = error.with_hint(
+                            "Check the spelling and make sure the symbol is defined in the module.",
+                        );
                     }
-                    
+
                     return Err(CompilerError::SemanticError(error));
                 }
-                
+
                 // Check if symbol is private (starts with _)
                 if private_symbols.contains(symbol) {
                     return Err(CompilerError::SemanticError(
@@ -319,7 +323,7 @@ impl SemanticAnalyzer {
                         )
                     ));
                 }
-                
+
                 // Check for name collision with existing symbols
                 if self.functions.contains_key(symbol) || self.types.contains_key(symbol) {
                     return Err(CompilerError::SemanticError(
@@ -336,7 +340,7 @@ impl SemanticAnalyzer {
                         )
                     ));
                 }
-                
+
                 // Check for collision with another import
                 if self.imported_symbols.contains(symbol) {
                     return Err(CompilerError::SemanticError(
@@ -350,24 +354,24 @@ impl SemanticAnalyzer {
                         )
                     ));
                 }
-                
+
                 // Record this symbol as imported
                 self.imported_symbols.insert(symbol.clone());
-                
+
                 // Add to function registry so it can be called
                 // (We don't know the signature, so we'll be permissive)
                 self.functions.insert(
                     symbol.clone(),
                     FunctionSignature {
-                        params: vec![],  // Unknown params
-                        return_type: None,  // Unknown return type
-                        is_async: false,  // Assume sync
+                        params: vec![],    // Unknown params
+                        return_type: None, // Unknown return type
+                        is_async: false,   // Assume sync
                         defaults: vec![],
                     },
                 );
             }
         }
-        
+
         Ok(())
     }
 
@@ -680,12 +684,20 @@ impl SemanticAnalyzer {
             Expr::MethodCall(method_call) => {
                 // HTTP methods are async (HTTP.get, HTTP.post, HTTP.put, HTTP.delete)
                 if let Expr::Identifier(obj_name) = method_call.object.as_ref() {
-                    if obj_name == "HTTP" && matches!(method_call.method.as_str(), "get" | "post" | "put" | "delete") {
+                    if obj_name == "HTTP"
+                        && matches!(
+                            method_call.method.as_str(),
+                            "get" | "post" | "put" | "delete"
+                        )
+                    {
                         return true;
                     }
                 }
                 // Check args for async expressions
-                method_call.args.iter().any(|arg| self.expr_contains_async(arg))
+                method_call
+                    .args
+                    .iter()
+                    .any(|arg| self.expr_contains_async(arg))
             }
             Expr::ObjectLiteral(fields) => fields.iter().any(|(_, v)| self.expr_contains_async(v)),
             Expr::ArrayLiteral(elements) => elements.iter().any(|e| self.expr_contains_async(e)),
@@ -750,7 +762,7 @@ impl SemanticAnalyzer {
             Stmt::VarDecl(var) => {
                 // `or fail` makes the containing function fallible
                 var.or_fail_msg.is_some() || self.expr_contains_fail(&var.init)
-            },
+            }
             _ => false,
         }
     }
@@ -820,7 +832,11 @@ impl SemanticAnalyzer {
     }
 
     /// Get context lines before and after a specific line
-    fn get_context_lines(&self, line_num: usize, context_size: usize) -> (Vec<String>, Vec<String>) {
+    fn get_context_lines(
+        &self,
+        line_num: usize,
+        context_size: usize,
+    ) -> (Vec<String>, Vec<String>) {
         let lines: Vec<&str> = self.source_code.lines().collect();
         let total_lines = lines.len();
 
@@ -941,15 +957,16 @@ impl SemanticAnalyzer {
     fn validate_function(&mut self, func: &FunctionDecl) -> Result<()> {
         // Enter type parameter scope and register type parameters with constraints
         self.enter_type_param_scope();
-        
+
         for param in &func.type_params {
             if !param.constraints.is_empty() {
                 // Validate that all constraints are known traits or aliases
                 for constraint in &param.constraints {
                     if !self.trait_registry.is_valid_constraint(constraint) {
                         let suggestions = self.trait_registry.all_trait_names();
-                        let similar = suggestions::find_multiple_suggestions(&constraint, &suggestions, 3, 3);
-                        
+                        let similar =
+                            suggestions::find_multiple_suggestions(&constraint, &suggestions, 3, 3);
+
                         self.exit_type_param_scope();
                         return Err(CompilerError::SemanticError(
                             format!(
@@ -961,10 +978,11 @@ impl SemanticAnalyzer {
                                     String::new()
                                 },
                                 suggestions.join(", ")
-                            ).into(),
+                            )
+                            .into(),
                         ));
                     }
-                    
+
                     // Expand aliases to underlying traits
                     if self.trait_registry.is_alias(constraint) {
                         let underlying = self.trait_registry.expand_alias(constraint);
@@ -979,8 +997,9 @@ impl SemanticAnalyzer {
                 self.declare_type_param(&param.name);
             }
         }
-        
-        let type_params: HashSet<String> = func.type_params.iter().map(|tp| tp.name.clone()).collect();
+
+        let type_params: HashSet<String> =
+            func.type_params.iter().map(|tp| tp.name.clone()).collect();
 
         // Check parameter types
         for param in &func.params {
@@ -1020,15 +1039,16 @@ impl SemanticAnalyzer {
     fn validate_class(&mut self, class: &ClassDecl) -> Result<()> {
         // Enter type parameter scope and register class type parameters with constraints
         self.enter_type_param_scope();
-        
+
         for param in &class.type_params {
             if !param.constraints.is_empty() {
                 // Validate that all constraints are known traits or aliases
                 for constraint in &param.constraints {
                     if !self.trait_registry.is_valid_constraint(constraint) {
                         let suggestions = self.trait_registry.all_trait_names();
-                        let similar = suggestions::find_multiple_suggestions(&constraint, &suggestions, 3, 3);
-                        
+                        let similar =
+                            suggestions::find_multiple_suggestions(&constraint, &suggestions, 3, 3);
+
                         self.exit_type_param_scope();
                         return Err(CompilerError::SemanticError(
                             format!(
@@ -1040,10 +1060,11 @@ impl SemanticAnalyzer {
                                     String::new()
                                 },
                                 suggestions.join(", ")
-                            ).into(),
+                            )
+                            .into(),
                         ));
                     }
-                    
+
                     // Expand aliases to underlying traits
                     if self.trait_registry.is_alias(constraint) {
                         let underlying = self.trait_registry.expand_alias(constraint);
@@ -1058,13 +1079,10 @@ impl SemanticAnalyzer {
                 self.declare_type_param(&param.name);
             }
         }
-        
+
         // Collect type parameters from class declaration
-        let type_params: HashSet<String> = class
-            .type_params
-            .iter()
-            .map(|tp| tp.name.clone())
-            .collect();
+        let type_params: HashSet<String> =
+            class.type_params.iter().map(|tp| tp.name.clone()).collect();
 
         for member in &class.members {
             match member {
@@ -1090,7 +1108,7 @@ impl SemanticAnalyzer {
                         "Cannot implement a class",
                         &format!("'{}' is a class, not an interface. Liva does not support class inheritance.", iface_name)
                     ).with_suggestion(&format!("Use composition instead: add a field of type '{}' to your class", iface_name));
-                    
+
                     self.exit_type_param_scope();
                     return Err(CompilerError::SemanticError(error));
                 }
@@ -1099,17 +1117,17 @@ impl SemanticAnalyzer {
                 // Interface not found
                 let available_types = self.get_all_types();
                 let suggestion = suggestions::find_suggestion(iface_name, &available_types, 2);
-                
+
                 let mut error = SemanticErrorInfo::new(
                     "E2004",
                     "Undefined interface",
-                    &format!("Interface '{}' not found", iface_name)
+                    &format!("Interface '{}' not found", iface_name),
                 );
-                
+
                 if let Some(suggested) = suggestion {
                     error = error.with_suggestion(&format!("Did you mean '{}'?", suggested));
                 }
-                
+
                 self.exit_type_param_scope();
                 return Err(CompilerError::SemanticError(error));
             }
@@ -1141,34 +1159,39 @@ impl SemanticAnalyzer {
     fn validate_type_alias(&mut self, alias: &TypeAliasDecl) -> Result<()> {
         // 1. Enter type parameter scope for alias's generics
         self.enter_type_param_scope();
-        
+
         // 2. Register type parameters
         for param in &alias.type_params {
             self.declare_type_param(&param.name);
         }
-        
+
         // 3. Validate target type exists and is valid
-        let type_params_set: HashSet<String> = alias.type_params.iter().map(|tp| tp.name.clone()).collect();
+        let type_params_set: HashSet<String> =
+            alias.type_params.iter().map(|tp| tp.name.clone()).collect();
         self.validate_type_ref(&alias.target_type, &type_params_set)?;
-        
+
         // 4. Check for circular reference (alias can't reference itself directly)
         if self.type_ref_contains_name(&alias.target_type, &alias.name) {
             self.exit_type_param_scope();
             return Err(CompilerError::SemanticError(
-                format!("E0004: Circular type alias: '{}' references itself", alias.name).into(),
+                format!(
+                    "E0004: Circular type alias: '{}' references itself",
+                    alias.name
+                )
+                .into(),
             ));
         }
-        
+
         // 5. Register the alias for later expansion
         self.type_aliases.insert(
             alias.name.clone(),
-            (alias.type_params.clone(), alias.target_type.clone())
+            (alias.type_params.clone(), alias.target_type.clone()),
         );
-        
+
         self.exit_type_param_scope();
         Ok(())
     }
-    
+
     /// Check if a TypeRef contains a reference to a specific type name
     fn type_ref_contains_name(&self, type_ref: &TypeRef, name: &str) -> bool {
         match type_ref {
@@ -1176,14 +1199,15 @@ impl SemanticAnalyzer {
             TypeRef::Array(inner) => self.type_ref_contains_name(inner, name),
             TypeRef::Optional(inner) => self.type_ref_contains_name(inner, name),
             TypeRef::Fallible(inner) => self.type_ref_contains_name(inner, name),
-            TypeRef::Tuple(elements) => {
-                elements.iter().any(|elem| self.type_ref_contains_name(elem, name))
-            }
-            TypeRef::Union(types) => {
-                types.iter().any(|ty| self.type_ref_contains_name(ty, name))
-            }
+            TypeRef::Tuple(elements) => elements
+                .iter()
+                .any(|elem| self.type_ref_contains_name(elem, name)),
+            TypeRef::Union(types) => types.iter().any(|ty| self.type_ref_contains_name(ty, name)),
             TypeRef::Generic { base, args } => {
-                base == name || args.iter().any(|arg| self.type_ref_contains_name(arg, name))
+                base == name
+                    || args
+                        .iter()
+                        .any(|arg| self.type_ref_contains_name(arg, name))
             }
         }
     }
@@ -1215,33 +1239,30 @@ impl SemanticAnalyzer {
             TypeRef::Fallible(inner) => {
                 TypeRef::Fallible(Box::new(self.substitute_type_params(inner, params, args)))
             }
-            TypeRef::Tuple(elements) => {
-                TypeRef::Tuple(
-                    elements
-                        .iter()
-                        .map(|elem| self.substitute_type_params(elem, params, args))
-                        .collect(),
-                )
-            }
-            TypeRef::Union(types) => {
-                TypeRef::Union(
-                    types
-                        .iter()
-                        .map(|ty| self.substitute_type_params(ty, params, args))
-                        .collect(),
-                )
-            }
-            TypeRef::Generic { base, args: inner_args } => {
+            TypeRef::Tuple(elements) => TypeRef::Tuple(
+                elements
+                    .iter()
+                    .map(|elem| self.substitute_type_params(elem, params, args))
+                    .collect(),
+            ),
+            TypeRef::Union(types) => TypeRef::Union(
+                types
+                    .iter()
+                    .map(|ty| self.substitute_type_params(ty, params, args))
+                    .collect(),
+            ),
+            TypeRef::Generic {
+                base,
+                args: inner_args,
+            } => {
                 // Recursively substitute in base and all arguments
-                let substituted_base = match self.substitute_type_params(
-                    &TypeRef::Simple(base.clone()),
-                    params,
-                    args,
-                ) {
-                    TypeRef::Simple(name) => name,
-                    _ => base.clone(), // Shouldn't happen, but keep original if it does
-                };
-                
+                let substituted_base =
+                    match self.substitute_type_params(&TypeRef::Simple(base.clone()), params, args)
+                    {
+                        TypeRef::Simple(name) => name,
+                        _ => base.clone(), // Shouldn't happen, but keep original if it does
+                    };
+
                 TypeRef::Generic {
                     base: substituted_base,
                     args: inner_args
@@ -1272,8 +1293,9 @@ impl SemanticAnalyzer {
                 for constraint in &param.constraints {
                     if !self.trait_registry.is_valid_constraint(constraint) {
                         let suggestions = self.trait_registry.all_trait_names();
-                        let similar = suggestions::find_multiple_suggestions(&constraint, &suggestions, 3, 3);
-                        
+                        let similar =
+                            suggestions::find_multiple_suggestions(&constraint, &suggestions, 3, 3);
+
                         return Err(CompilerError::SemanticError(
                             format!(
                                 "E5001: Unknown trait constraint '{}'. {}Available traits: {}",
@@ -1284,10 +1306,11 @@ impl SemanticAnalyzer {
                                     String::new()
                                 },
                                 suggestions.join(", ")
-                            ).into(),
+                            )
+                            .into(),
                         ));
                     }
-                    
+
                     // Expand aliases to underlying traits
                     if self.trait_registry.is_alias(constraint) {
                         let underlying = self.trait_registry.expand_alias(constraint);
@@ -1302,7 +1325,7 @@ impl SemanticAnalyzer {
                 self.declare_type_param(&param.name);
             }
         }
-        
+
         // Combine class type parameters with method's own type parameters
         let mut all_type_params = class_type_params.clone();
         for tp in &method.type_params {
@@ -1378,22 +1401,22 @@ impl SemanticAnalyzer {
                 if var.is_fallible {
                     self.in_error_binding = true;
                 }
-                
+
                 // Check if this is a JSON.parse or response.json() call with type hint (Phase 1: JSON Typed Parsing)
                 if let Some(type_hint) = var.bindings.first().and_then(|b| b.type_ref.as_ref()) {
                     if let Expr::MethodCall(method_call) = &var.init {
                         // Check for JSON.parse() or any .json() method
-                        let is_json_parse = method_call.method == "parse" && 
-                            matches!(method_call.object.as_ref(), Expr::Identifier(id) if id == "JSON");
+                        let is_json_parse = method_call.method == "parse"
+                            && matches!(method_call.object.as_ref(), Expr::Identifier(id) if id == "JSON");
                         let is_json_method = method_call.method == "json";
-                        
+
                         if is_json_parse || is_json_method {
                             // This is JSON.parse or response.json() with a type hint
                             self.validate_json_parse_type_hint(type_hint)?;
                         }
                     }
                 }
-                
+
                 self.validate_expr(&var.init)?;
                 self.in_error_binding = previous_error_binding;
 
@@ -1419,7 +1442,7 @@ impl SemanticAnalyzer {
                         &var.init,
                         declared_type,
                         var.is_fallible,
-                        binding.span
+                        binding.span,
                     )?;
                 }
             }
@@ -1554,7 +1577,7 @@ impl SemanticAnalyzer {
             Expr::Binary { left, right, op } => {
                 self.validate_expr(left)?;
                 self.validate_expr(right)?;
-                
+
                 // Check constraints for binary operators on generic types
                 self.validate_binary_op_constraints(left, right, op)
             }
@@ -1635,33 +1658,33 @@ impl SemanticAnalyzer {
             Expr::MethodCall(method_call) => {
                 // Validate the object expression
                 self.validate_expr(&method_call.object)?;
-                
+
                 // Check if this is response.json() - mark as fallible
                 if method_call.method == "json" {
                     // This is a fallible method that returns (JsonValue?, Error?)
                     // Mark it so error binding validation knows it needs error handling
                     // We don't need to store it anywhere, the compiler will handle it
                 }
-                
+
                 // Validate method arguments
                 for arg in &method_call.args {
                     self.validate_expr(arg)?;
                 }
-                
+
                 // TODO: Phase 2 - validate method exists for the object type
                 // TODO: Phase 2 - validate adapter usage (par, vec, parvec)
                 Ok(())
             }
             Expr::Switch(switch_expr) => {
                 self.validate_expr(&switch_expr.discriminant)?;
-                
+
                 // Validate all arms
                 for arm in &switch_expr.arms {
                     // Validate guard if present
                     if let Some(guard) = &arm.guard {
                         self.validate_expr(guard)?;
                     }
-                    
+
                     // Validate body
                     match &arm.body {
                         SwitchBody::Expr(expr) => self.validate_expr(expr)?,
@@ -1672,21 +1695,25 @@ impl SemanticAnalyzer {
                         }
                     }
                 }
-                
+
                 // Check exhaustiveness
                 self.check_switch_exhaustiveness(switch_expr)?;
-                
+
                 Ok(())
             }
             Expr::MethodRef { object, method } => {
                 // Phase 11.4: Validate method references
                 let is_class = object.chars().next().map_or(false, |c| c.is_uppercase());
-                
+
                 if is_class {
                     // Check if the class/type exists
                     if !self.types.contains_key(object) {
                         return Err(CompilerError::SemanticError(
-                            format!("E0301: Type '{}' not found in '{}::{}'", object, object, method).into(),
+                            format!(
+                                "E0301: Type '{}' not found in '{}::{}'",
+                                object, object, method
+                            )
+                            .into(),
                         ));
                     }
                     // Check if method exists on the type (skip 'new' which is constructor)
@@ -1694,7 +1721,11 @@ impl SemanticAnalyzer {
                         if let Some(type_info) = self.types.get(object) {
                             if !type_info.methods.contains_key(method) {
                                 return Err(CompilerError::SemanticError(
-                                    format!("E0302: Method '{}' not found on type '{}'", method, object).into(),
+                                    format!(
+                                        "E0302: Method '{}' not found on type '{}'",
+                                        method, object
+                                    )
+                                    .into(),
                                 ));
                             }
                         }
@@ -1717,7 +1748,11 @@ impl SemanticAnalyzer {
         }
 
         // Detect and mark HTTP.* calls as async and fallible
-        if let Expr::Member { object, property: member } = &*call.callee {
+        if let Expr::Member {
+            object,
+            property: member,
+        } = &*call.callee
+        {
             if let Expr::Identifier(name) = &**object {
                 if name == "HTTP" {
                     match member.as_str() {
@@ -1726,7 +1761,7 @@ impl SemanticAnalyzer {
                             let http_fn = format!("HTTP.{}", member);
                             self.async_functions.insert(http_fn.clone());
                             self.fallible_functions.insert(http_fn);
-                            
+
                             // Validate arguments
                             match member.as_str() {
                                 "get" | "delete" => {
@@ -1832,11 +1867,17 @@ impl SemanticAnalyzer {
         // This validation applies to ALL call expressions, including those nested in other expressions
         // Exception: if we're in an error binding context (let result, err = ...), allow fallible calls
         // Exception: task async/par calls defer error handling to the await point
-        let is_task_call = matches!(call.exec_policy, ExecPolicy::TaskAsync | ExecPolicy::TaskPar);
+        let is_task_call = matches!(
+            call.exec_policy,
+            ExecPolicy::TaskAsync | ExecPolicy::TaskPar
+        );
         if !self.in_error_binding && !is_task_call {
             let func_name = match &*call.callee {
                 Expr::Identifier(name) => Some(name.clone()),
-                Expr::Member { object, property: member } => {
+                Expr::Member {
+                    object,
+                    property: member,
+                } => {
                     if let Expr::Identifier(name) = &**object {
                         if name == "HTTP" {
                             Some(format!("HTTP.{}", member))
@@ -1849,7 +1890,7 @@ impl SemanticAnalyzer {
                 }
                 _ => None,
             };
-            
+
             if let Some(func_name) = func_name {
                 if self.fallible_functions.contains(&func_name) {
                     let line = self.find_line_for_function_call(&func_name).unwrap_or(0);
@@ -2073,7 +2114,8 @@ impl SemanticAnalyzer {
                         if self.declare_symbol(&field.binding, None) {
                             self.exit_scope()?;
                             return Err(CompilerError::SemanticError(
-                                format!("Binding '{}' defined multiple times", field.binding).into(),
+                                format!("Binding '{}' defined multiple times", field.binding)
+                                    .into(),
                             ));
                         }
                     }
@@ -2088,7 +2130,7 @@ impl SemanticAnalyzer {
                             ));
                         }
                     }
-                    
+
                     // Handle rest pattern
                     if let Some(rest_name) = &arr_pattern.rest {
                         if self.declare_symbol(rest_name, None) {
@@ -2320,7 +2362,9 @@ impl SemanticAnalyzer {
             Expr::Switch(switch_expr) => {
                 Self::expr_contains_await(&switch_expr.discriminant)
                     || switch_expr.arms.iter().any(|arm| {
-                        arm.guard.as_ref().map_or(false, |g| Self::expr_contains_await(g))
+                        arm.guard
+                            .as_ref()
+                            .map_or(false, |g| Self::expr_contains_await(g))
                             || match &arm.body {
                                 SwitchBody::Expr(expr) => Self::expr_contains_await(expr),
                                 SwitchBody::Block(stmts) => {
@@ -2335,7 +2379,7 @@ impl SemanticAnalyzer {
     fn validate_known_function(&self, name: &str, arity: usize) -> Result<()> {
         if let Some(signature) = self.functions.get(name) {
             let total = signature.params.len();
-            
+
             // Skip validation for imported functions (they have empty params)
             // This is indicated by params being empty AND not being in async/fallible sets
             // (local functions with no params would still be in those sets)
@@ -2343,7 +2387,7 @@ impl SemanticAnalyzer {
                 // Imported function - skip arity validation
                 return Ok(());
             }
-            
+
             let optional = signature
                 .defaults
                 .iter()
@@ -2372,17 +2416,17 @@ impl SemanticAnalyzer {
                     // Generate suggestion for similar variable names
                     let available_vars = self.get_all_variables();
                     let suggestion = suggestions::find_suggestion(name, &available_vars, 2);
-                    
+
                     let mut error = SemanticErrorInfo::new(
                         "E2003",
                         "Undefined variable",
-                        &format!("Cannot assign to undefined variable '{}'", name)
+                        &format!("Cannot assign to undefined variable '{}'", name),
                     );
-                    
+
                     if let Some(suggested) = suggestion {
                         error = error.with_suggestion(&format!("Did you mean '{}'?", suggested));
                     }
-                    
+
                     return Err(CompilerError::SemanticError(error));
                 }
             }
@@ -2448,7 +2492,7 @@ impl SemanticAnalyzer {
 
     fn declare_type_param_with_constraint(&mut self, name: &str, constraint: &str) {
         self.declare_type_param(name);
-        
+
         if let Some(scope) = self.type_constraints.last_mut() {
             let constraints = scope.entry(name.to_string()).or_insert_with(Vec::new);
             if !constraints.contains(&constraint.to_string()) {
@@ -2475,12 +2519,12 @@ impl SemanticAnalyzer {
     /// Check if a type parameter has a specific constraint
     fn has_constraint(&self, type_param: &str, required_trait: &str) -> bool {
         let constraints = self.get_type_param_constraints(type_param);
-        
+
         // Check if the constraint is directly present
         if constraints.contains(&required_trait.to_string()) {
             return true;
         }
-        
+
         // Check if any constraint implies the required trait (e.g., Ord implies Eq)
         for constraint in &constraints {
             let required_traits = self.trait_registry.get_required_traits(constraint);
@@ -2488,7 +2532,7 @@ impl SemanticAnalyzer {
                 return true;
             }
         }
-        
+
         false
     }
 
@@ -2701,7 +2745,7 @@ impl SemanticAnalyzer {
 
                 let base_type = self.infer_expr_type(object)?;
                 let base_type = Self::strip_optional(base_type);
-                
+
                 // Handle tuple member access (.0, .1, .2, etc.)
                 if let TypeRef::Tuple(types) = &base_type {
                     if let Ok(index) = property.parse::<usize>() {
@@ -2712,7 +2756,7 @@ impl SemanticAnalyzer {
                     // Invalid tuple index - will error later
                     return None;
                 }
-                
+
                 // Handle struct/class member access
                 if let TypeRef::Simple(type_name) = base_type {
                     if let Some(info) = self.types.get(&type_name) {
@@ -2770,8 +2814,8 @@ impl SemanticAnalyzer {
             TypeRef::Generic { base, .. } => matches!(base.as_str(), "Vec" | "Array"),
             TypeRef::Optional(inner) => self.type_supports_length(inner),
             TypeRef::Fallible(_) => false,
-            TypeRef::Tuple(_) => false,  // Tuples don't have .length
-            TypeRef::Union(_) => false,  // Unions don't have .length without narrowing
+            TypeRef::Tuple(_) => false, // Tuples don't have .length
+            TypeRef::Union(_) => false, // Unions don't have .length without narrowing
         }
     }
 
@@ -2782,7 +2826,7 @@ impl SemanticAnalyzer {
         init_expr: &Expr,
         declared_type: Option<TypeRef>,
         is_fallible: bool,
-        span: Option<crate::span::Span>
+        span: Option<crate::span::Span>,
     ) -> Result<()> {
         match pattern {
             BindingPattern::Identifier(name) => {
@@ -2807,7 +2851,7 @@ impl SemanticAnalyzer {
             BindingPattern::Object(obj_pattern) => {
                 // Validate that we're destructuring from an object type
                 let inferred_type = declared_type.or_else(|| self.infer_expr_type(init_expr));
-                
+
                 // Extract type name for validation
                 let type_name = match inferred_type.as_ref() {
                     Some(TypeRef::Simple(name)) => Some(name.as_str()),
@@ -2826,13 +2870,28 @@ impl SemanticAnalyzer {
                     if let Some(type_info) = self.types.get(type_name) {
                         for field in &obj_pattern.fields {
                             if !type_info.fields.contains_key(&field.key) {
-                                let error = self.error_with_span(
-                                    "E0301",
-                                    &format!("Field '{}' does not exist on type '{}'", field.key, type_name),
-                                    &format!("Field '{}' does not exist on type '{}'", field.key, type_name),
-                                    span
-                                )
-                                .with_help(&format!("Available fields: {}", type_info.fields.keys().map(|k| format!("'{}'", k)).collect::<Vec<_>>().join(", ")));
+                                let error = self
+                                    .error_with_span(
+                                        "E0301",
+                                        &format!(
+                                            "Field '{}' does not exist on type '{}'",
+                                            field.key, type_name
+                                        ),
+                                        &format!(
+                                            "Field '{}' does not exist on type '{}'",
+                                            field.key, type_name
+                                        ),
+                                        span,
+                                    )
+                                    .with_help(&format!(
+                                        "Available fields: {}",
+                                        type_info
+                                            .fields
+                                            .keys()
+                                            .map(|k| format!("'{}'", k))
+                                            .collect::<Vec<_>>()
+                                            .join(", ")
+                                    ));
                                 return Err(CompilerError::SemanticError(error));
                             }
                         }
@@ -2843,13 +2902,20 @@ impl SemanticAnalyzer {
                 let mut seen_bindings = HashSet::new();
                 for field in &obj_pattern.fields {
                     if !seen_bindings.insert(&field.binding) {
-                        let error = self.error_with_span(
-                            "E0302",
-                            &format!("Duplicate binding '{}' in destructuring pattern", field.binding),
-                            &format!("Duplicate binding '{}' in destructuring pattern", field.binding),
-                            span
-                        )
-                        .with_help("Each binding in a destructuring pattern must be unique");
+                        let error = self
+                            .error_with_span(
+                                "E0302",
+                                &format!(
+                                    "Duplicate binding '{}' in destructuring pattern",
+                                    field.binding
+                                ),
+                                &format!(
+                                    "Duplicate binding '{}' in destructuring pattern",
+                                    field.binding
+                                ),
+                                span,
+                            )
+                            .with_help("Each binding in a destructuring pattern must be unique");
                         return Err(CompilerError::SemanticError(error));
                     }
                 }
@@ -2858,7 +2924,8 @@ impl SemanticAnalyzer {
                 for field in &obj_pattern.fields {
                     // Infer field type if possible
                     let field_type = if let Some(type_name) = type_name {
-                        self.types.get(type_name)
+                        self.types
+                            .get(type_name)
                             .and_then(|info| info.fields.get(&field.key))
                             .map(|(_, ty)| ty.clone())
                     } else {
@@ -2884,7 +2951,7 @@ impl SemanticAnalyzer {
             BindingPattern::Array(arr_pattern) => {
                 // Validate that we're destructuring from an array type
                 let inferred_type = declared_type.or_else(|| self.infer_expr_type(init_expr));
-                
+
                 // Check if it's an array type
                 let is_array = match inferred_type.as_ref() {
                     Some(TypeRef::Array(_)) => true,
@@ -2893,13 +2960,14 @@ impl SemanticAnalyzer {
                 };
 
                 if !is_array && inferred_type.is_some() {
-                    let error = self.error_with_span(
-                        "E0303",
-                        "Cannot destructure non-array type with array pattern",
-                        "Cannot destructure non-array type with array pattern",
-                        span
-                    )
-                    .with_help("Array destructuring can only be used with array types");
+                    let error = self
+                        .error_with_span(
+                            "E0303",
+                            "Cannot destructure non-array type with array pattern",
+                            "Cannot destructure non-array type with array pattern",
+                            span,
+                        )
+                        .with_help("Array destructuring can only be used with array types");
                     return Err(CompilerError::SemanticError(error));
                 }
 
@@ -2908,27 +2976,37 @@ impl SemanticAnalyzer {
                 for element in &arr_pattern.elements {
                     if let Some(name) = element {
                         if !seen_bindings.insert(name) {
-                            let error = self.error_with_span(
-                                "E0302",
-                                &format!("Duplicate binding '{}' in destructuring pattern", name),
-                                &format!("Duplicate binding '{}' in destructuring pattern", name),
-                                span
-                            )
-                            .with_help("Each binding in a destructuring pattern must be unique");
+                            let error = self
+                                .error_with_span(
+                                    "E0302",
+                                    &format!(
+                                        "Duplicate binding '{}' in destructuring pattern",
+                                        name
+                                    ),
+                                    &format!(
+                                        "Duplicate binding '{}' in destructuring pattern",
+                                        name
+                                    ),
+                                    span,
+                                )
+                                .with_help(
+                                    "Each binding in a destructuring pattern must be unique",
+                                );
                             return Err(CompilerError::SemanticError(error));
                         }
                     }
                 }
-                
+
                 if let Some(rest) = &arr_pattern.rest {
                     if !seen_bindings.insert(rest) {
-                        let error = self.error_with_span(
-                            "E0302",
-                            &format!("Duplicate binding '{}' in destructuring pattern", rest),
-                            &format!("Duplicate binding '{}' in destructuring pattern", rest),
-                            span
-                        )
-                        .with_help("Each binding in a destructuring pattern must be unique");
+                        let error = self
+                            .error_with_span(
+                                "E0302",
+                                &format!("Duplicate binding '{}' in destructuring pattern", rest),
+                                &format!("Duplicate binding '{}' in destructuring pattern", rest),
+                                span,
+                            )
+                            .with_help("Each binding in a destructuring pattern must be unique");
                         return Err(CompilerError::SemanticError(error));
                     }
                 }
@@ -2988,18 +3066,19 @@ impl SemanticAnalyzer {
             BindingPattern::Tuple(tuple_pattern) => {
                 // Validate that we're destructuring from a tuple type
                 let inferred_type = declared_type.or_else(|| self.infer_expr_type(init_expr));
-                
+
                 // Check if it's a tuple type
                 let is_tuple = matches!(inferred_type.as_ref(), Some(TypeRef::Tuple(_)));
 
                 if !is_tuple && inferred_type.is_some() {
-                    let error = self.error_with_span(
-                        "E0304",
-                        "Cannot destructure non-tuple type with tuple pattern",
-                        "Cannot destructure non-tuple type with tuple pattern",
-                        span
-                    )
-                    .with_help("Tuple destructuring can only be used with tuple types");
+                    let error = self
+                        .error_with_span(
+                            "E0304",
+                            "Cannot destructure non-tuple type with tuple pattern",
+                            "Cannot destructure non-tuple type with tuple pattern",
+                            span,
+                        )
+                        .with_help("Tuple destructuring can only be used with tuple types");
                     return Err(CompilerError::SemanticError(error));
                 }
 
@@ -3007,13 +3086,20 @@ impl SemanticAnalyzer {
                 let mut seen_bindings = HashSet::new();
                 for element in &tuple_pattern.elements {
                     if !seen_bindings.insert(element) {
-                        let error = self.error_with_span(
-                            "E0302",
-                            &format!("Duplicate binding '{}' in destructuring pattern", element),
-                            &format!("Duplicate binding '{}' in destructuring pattern", element),
-                            span
-                        )
-                        .with_help("Each binding in a destructuring pattern must be unique");
+                        let error = self
+                            .error_with_span(
+                                "E0302",
+                                &format!(
+                                    "Duplicate binding '{}' in destructuring pattern",
+                                    element
+                                ),
+                                &format!(
+                                    "Duplicate binding '{}' in destructuring pattern",
+                                    element
+                                ),
+                                span,
+                            )
+                            .with_help("Each binding in a destructuring pattern must be unique");
                         return Err(CompilerError::SemanticError(error));
                     }
                 }
@@ -3027,7 +3113,7 @@ impl SemanticAnalyzer {
                 // Declare all bound variables with their corresponding types
                 for (i, name) in tuple_pattern.elements.iter().enumerate() {
                     let element_type = element_types.get(i).and_then(|t| t.clone());
-                    
+
                     if self.declare_symbol(name, element_type) {
                         let error = self.error_with_span(
                             "E0001",
@@ -3054,19 +3140,20 @@ impl SemanticAnalyzer {
         &mut self,
         pattern: &BindingPattern,
         param_type: Option<TypeRef>,
-        span: Option<crate::span::Span>
+        span: Option<crate::span::Span>,
     ) -> Result<()> {
         match pattern {
             BindingPattern::Identifier(name) => {
                 // Simple parameter
                 if self.declare_symbol(name, param_type) {
-                    let error = self.error_with_span(
-                        "E0310",
-                        &format!("Parameter '{}' already declared", name),
-                        &format!("Parameter '{}' already declared", name),
-                        span
-                    )
-                    .with_help(&format!("Each parameter must have a unique name"));
+                    let error = self
+                        .error_with_span(
+                            "E0310",
+                            &format!("Parameter '{}' already declared", name),
+                            &format!("Parameter '{}' already declared", name),
+                            span,
+                        )
+                        .with_help(&format!("Each parameter must have a unique name"));
                     return Err(CompilerError::SemanticError(error));
                 }
             }
@@ -3076,52 +3163,76 @@ impl SemanticAnalyzer {
                     if let Some(type_info) = self.types.get(type_name) {
                         for field in &obj_pattern.fields {
                             if !type_info.fields.contains_key(&field.key) {
-                                let error = self.error_with_span(
-                                    "E0311",
-                                    &format!("Field '{}' not found on type '{}'", field.key, type_name),
-                                    &format!("Field '{}' not found on type '{}'", field.key, type_name),
-                                    span
-                                )
-                                .with_help(&format!("Available fields: {}", type_info.fields.keys().map(|k| format!("'{}'", k)).collect::<Vec<_>>().join(", ")));
+                                let error = self
+                                    .error_with_span(
+                                        "E0311",
+                                        &format!(
+                                            "Field '{}' not found on type '{}'",
+                                            field.key, type_name
+                                        ),
+                                        &format!(
+                                            "Field '{}' not found on type '{}'",
+                                            field.key, type_name
+                                        ),
+                                        span,
+                                    )
+                                    .with_help(&format!(
+                                        "Available fields: {}",
+                                        type_info
+                                            .fields
+                                            .keys()
+                                            .map(|k| format!("'{}'", k))
+                                            .collect::<Vec<_>>()
+                                            .join(", ")
+                                    ));
                                 return Err(CompilerError::SemanticError(error));
                             }
                         }
                     }
                 }
-                
+
                 // Check for duplicates
                 let mut seen = HashSet::new();
                 for field in &obj_pattern.fields {
                     if !seen.insert(&field.binding) {
-                        let error = self.error_with_span(
-                            "E0312",
-                            &format!("Binding '{}' appears multiple times in pattern", field.binding),
-                            &format!("Binding '{}' appears multiple times in pattern", field.binding),
-                            span
-                        )
-                        .with_help("Each binding in a destructuring pattern must be unique");
+                        let error = self
+                            .error_with_span(
+                                "E0312",
+                                &format!(
+                                    "Binding '{}' appears multiple times in pattern",
+                                    field.binding
+                                ),
+                                &format!(
+                                    "Binding '{}' appears multiple times in pattern",
+                                    field.binding
+                                ),
+                                span,
+                            )
+                            .with_help("Each binding in a destructuring pattern must be unique");
                         return Err(CompilerError::SemanticError(error));
                     }
                 }
-                
+
                 // Declare all bindings
                 for field in &obj_pattern.fields {
                     let field_type = if let Some(TypeRef::Simple(type_name)) = &param_type {
-                        self.types.get(type_name)
+                        self.types
+                            .get(type_name)
                             .and_then(|info| info.fields.get(&field.key))
                             .map(|(_, ty)| ty.clone())
                     } else {
                         None
                     };
-                    
+
                     if self.declare_symbol(&field.binding, field_type) {
-                        let error = self.error_with_span(
-                            "E0312",
-                            &format!("Binding '{}' already declared", field.binding),
-                            &format!("Binding '{}' already declared", field.binding),
-                            span
-                        )
-                        .with_help(&format!("Consider using a different name"));
+                        let error = self
+                            .error_with_span(
+                                "E0312",
+                                &format!("Binding '{}' already declared", field.binding),
+                                &format!("Binding '{}' already declared", field.binding),
+                                span,
+                            )
+                            .with_help(&format!("Consider using a different name"));
                         return Err(CompilerError::SemanticError(error));
                     }
                 }
@@ -3132,63 +3243,75 @@ impl SemanticAnalyzer {
                     Some(TypeRef::Array(inner)) => Some((**inner).clone()),
                     _ => None,
                 };
-                
+
                 // Check for duplicates
                 let mut seen = HashSet::new();
                 for element in &arr_pattern.elements {
                     if let Some(name) = element {
                         if !seen.insert(name) {
-                            let error = self.error_with_span(
-                                "E0312",
-                                &format!("Binding '{}' appears multiple times in pattern", name),
-                                &format!("Binding '{}' appears multiple times in pattern", name),
-                                span
-                            )
-                            .with_help("Each binding in a destructuring pattern must be unique");
+                            let error = self
+                                .error_with_span(
+                                    "E0312",
+                                    &format!(
+                                        "Binding '{}' appears multiple times in pattern",
+                                        name
+                                    ),
+                                    &format!(
+                                        "Binding '{}' appears multiple times in pattern",
+                                        name
+                                    ),
+                                    span,
+                                )
+                                .with_help(
+                                    "Each binding in a destructuring pattern must be unique",
+                                );
                             return Err(CompilerError::SemanticError(error));
                         }
                     }
                 }
                 if let Some(rest) = &arr_pattern.rest {
                     if !seen.insert(rest) {
-                        let error = self.error_with_span(
-                            "E0312",
-                            &format!("Binding '{}' appears multiple times in pattern", rest),
-                            &format!("Binding '{}' appears multiple times in pattern", rest),
-                            span
-                        )
-                        .with_help("Each binding in a destructuring pattern must be unique");
+                        let error = self
+                            .error_with_span(
+                                "E0312",
+                                &format!("Binding '{}' appears multiple times in pattern", rest),
+                                &format!("Binding '{}' appears multiple times in pattern", rest),
+                                span,
+                            )
+                            .with_help("Each binding in a destructuring pattern must be unique");
                         return Err(CompilerError::SemanticError(error));
                     }
                 }
-                
+
                 // Declare element bindings
                 for element in &arr_pattern.elements {
                     if let Some(name) = element {
                         if self.declare_symbol(name, element_type.clone()) {
-                            let error = self.error_with_span(
-                                "E0312",
-                                &format!("Binding '{}' already declared", name),
-                                &format!("Binding '{}' already declared", name),
-                                span
-                            )
-                            .with_help(&format!("Consider using a different name"));
+                            let error = self
+                                .error_with_span(
+                                    "E0312",
+                                    &format!("Binding '{}' already declared", name),
+                                    &format!("Binding '{}' already declared", name),
+                                    span,
+                                )
+                                .with_help(&format!("Consider using a different name"));
                             return Err(CompilerError::SemanticError(error));
                         }
                     }
                 }
-                
+
                 // Declare rest binding
                 if let Some(rest) = &arr_pattern.rest {
                     let rest_type = element_type.map(|t| TypeRef::Array(Box::new(t)));
                     if self.declare_symbol(rest, rest_type) {
-                        let error = self.error_with_span(
-                            "E0312",
-                            &format!("Binding '{}' already declared", rest),
-                            &format!("Binding '{}' already declared", rest),
-                            span
-                        )
-                        .with_help(&format!("Consider using a different name"));
+                        let error = self
+                            .error_with_span(
+                                "E0312",
+                                &format!("Binding '{}' already declared", rest),
+                                &format!("Binding '{}' already declared", rest),
+                                span,
+                            )
+                            .with_help(&format!("Consider using a different name"));
                         return Err(CompilerError::SemanticError(error));
                     }
                 }
@@ -3199,34 +3322,36 @@ impl SemanticAnalyzer {
                     Some(TypeRef::Tuple(types)) => types.iter().map(|t| Some(t.clone())).collect(),
                     _ => vec![None; tuple_pattern.elements.len()],
                 };
-                
+
                 // Check for duplicates
                 let mut seen = HashSet::new();
                 for name in &tuple_pattern.elements {
                     if !seen.insert(name) {
-                        let error = self.error_with_span(
-                            "E0312",
-                            &format!("Binding '{}' appears multiple times in pattern", name),
-                            &format!("Binding '{}' appears multiple times in pattern", name),
-                            span
-                        )
-                        .with_help("Each binding in a destructuring pattern must be unique");
+                        let error = self
+                            .error_with_span(
+                                "E0312",
+                                &format!("Binding '{}' appears multiple times in pattern", name),
+                                &format!("Binding '{}' appears multiple times in pattern", name),
+                                span,
+                            )
+                            .with_help("Each binding in a destructuring pattern must be unique");
                         return Err(CompilerError::SemanticError(error));
                     }
                 }
-                
+
                 // Declare element bindings with their corresponding types
                 for (i, name) in tuple_pattern.elements.iter().enumerate() {
                     let element_type = element_types.get(i).and_then(|t| t.clone());
-                    
+
                     if self.declare_symbol(name, element_type) {
-                        let error = self.error_with_span(
-                            "E0312",
-                            &format!("Binding '{}' already declared", name),
-                            &format!("Binding '{}' already declared", name),
-                            span
-                        )
-                        .with_help(&format!("Consider using a different name"));
+                        let error = self
+                            .error_with_span(
+                                "E0312",
+                                &format!("Binding '{}' already declared", name),
+                                &format!("Binding '{}' already declared", name),
+                                span,
+                            )
+                            .with_help(&format!("Consider using a different name"));
                         return Err(CompilerError::SemanticError(error));
                     }
                 }
@@ -3252,46 +3377,60 @@ impl SemanticAnalyzer {
             BinOp::Ge => ">=",
             _ => return Ok(()), // Logical operators (&&, ||) don't need constraints
         };
-        
+
         // Find required trait for this operator
         let required_trait = self.trait_registry.trait_for_operator(op_str);
         if required_trait.is_none() {
             return Ok(()); // No trait constraint needed
         }
-        
+
         let trait_name = &required_trait.unwrap().name;
-        
+
         // Check if left operand is a type parameter
         if let Some(type_param) = self.extract_type_parameter(left) {
             if !self.has_constraint(&type_param, trait_name) {
                 let mut error = SemanticErrorInfo::new(
                     "E5002",
                     "Missing trait constraint",
-                    &format!("Cannot use operator '{}' with generic type '{}'", op_str, type_param)
+                    &format!(
+                        "Cannot use operator '{}' with generic type '{}'",
+                        op_str, type_param
+                    ),
                 );
-                error = error.with_hint(&format!("The type parameter '{}' must implement the '{}' trait to use this operator", type_param, trait_name));
-                error = error.with_suggestion(&format!("Add constraint: <{}: {}>", type_param, trait_name));
+                error = error.with_hint(&format!(
+                    "The type parameter '{}' must implement the '{}' trait to use this operator",
+                    type_param, trait_name
+                ));
+                error = error
+                    .with_suggestion(&format!("Add constraint: <{}: {}>", type_param, trait_name));
                 return Err(CompilerError::SemanticError(error));
             }
         }
-        
+
         // Check if right operand is a type parameter
         if let Some(type_param) = self.extract_type_parameter(right) {
             if !self.has_constraint(&type_param, trait_name) {
                 let mut error = SemanticErrorInfo::new(
                     "E5002",
                     "Missing trait constraint",
-                    &format!("Cannot use operator '{}' with generic type '{}'", op_str, type_param)
+                    &format!(
+                        "Cannot use operator '{}' with generic type '{}'",
+                        op_str, type_param
+                    ),
                 );
-                error = error.with_hint(&format!("The type parameter '{}' must implement the '{}' trait to use this operator", type_param, trait_name));
-                error = error.with_suggestion(&format!("Add constraint: <{}: {}>", type_param, trait_name));
+                error = error.with_hint(&format!(
+                    "The type parameter '{}' must implement the '{}' trait to use this operator",
+                    type_param, trait_name
+                ));
+                error = error
+                    .with_suggestion(&format!("Add constraint: <{}: {}>", type_param, trait_name));
                 return Err(CompilerError::SemanticError(error));
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Validate that a unary operator can be used with the given operand
     fn validate_unary_op_constraints(&self, operand: &Expr, op: &UnOp) -> Result<()> {
         // Get the operator string for trait lookup
@@ -3300,32 +3439,39 @@ impl SemanticAnalyzer {
             UnOp::Not => "!",
             _ => return Ok(()), // Await doesn't need trait constraints
         };
-        
+
         // Find required trait for this operator
         let required_trait = self.trait_registry.trait_for_operator(op_str);
         if required_trait.is_none() {
             return Ok(()); // No trait constraint needed
         }
-        
+
         let trait_name = &required_trait.unwrap().name;
-        
+
         // Check if operand is a type parameter
         if let Some(type_param) = self.extract_type_parameter(operand) {
             if !self.has_constraint(&type_param, trait_name) {
                 let mut error = SemanticErrorInfo::new(
                     "E5002",
                     "Missing trait constraint",
-                    &format!("Cannot use operator '{}' with generic type '{}'", op_str, type_param)
+                    &format!(
+                        "Cannot use operator '{}' with generic type '{}'",
+                        op_str, type_param
+                    ),
                 );
-                error = error.with_hint(&format!("The type parameter '{}' must implement the '{}' trait to use this operator", type_param, trait_name));
-                error = error.with_suggestion(&format!("Add constraint: <{}: {}>", type_param, trait_name));
+                error = error.with_hint(&format!(
+                    "The type parameter '{}' must implement the '{}' trait to use this operator",
+                    type_param, trait_name
+                ));
+                error = error
+                    .with_suggestion(&format!("Add constraint: <{}: {}>", type_param, trait_name));
                 return Err(CompilerError::SemanticError(error));
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Extract type parameter name from an expression, if it's a type parameter
     fn extract_type_parameter(&self, expr: &Expr) -> Option<String> {
         match expr {
@@ -3345,14 +3491,14 @@ impl SemanticAnalyzer {
             _ => None,
         }
     }
-    
+
     /// Extract type parameter name from a TypeRef
     fn extract_type_param_from_type_ref(&self, type_ref: &TypeRef) -> Option<String> {
         match type_ref {
             TypeRef::Simple(name) if self.is_type_param(name) => Some(name.clone()),
             TypeRef::Optional(inner) => self.extract_type_param_from_type_ref(inner),
             TypeRef::Fallible(inner) => self.extract_type_param_from_type_ref(inner),
-            TypeRef::Union(_) => None,  // Unions don't directly represent type params
+            TypeRef::Union(_) => None, // Unions don't directly represent type params
             _ => None,
         }
     }
@@ -3368,7 +3514,7 @@ impl SemanticAnalyzer {
                 if available_type_params.contains(name) {
                     return Ok(());
                 }
-                
+
                 // Check if it's a type alias - expand and validate the target type
                 if let Some((alias_type_params, target_type)) = self.type_aliases.get(name) {
                     // If the alias has no type parameters, just validate the target
@@ -3379,13 +3525,13 @@ impl SemanticAnalyzer {
                     // For now, we allow it (could add stricter checking later)
                     return self.validate_type_ref(target_type, available_type_params);
                 }
-                
+
                 // Check if it's a known type (class, interface, primitive)
                 let primitives = ["int", "float", "bool", "string"];
                 if primitives.contains(&name.as_str()) || self.types.contains_key(name) {
                     return Ok(());
                 }
-                
+
                 // If not found, it might be undefined
                 // For now we allow it (could be from external module or stdlib)
                 Ok(())
@@ -3395,35 +3541,30 @@ impl SemanticAnalyzer {
                 if let Some((alias_type_params, target_type)) = self.type_aliases.get(base) {
                     // Validate that the number of arguments matches the alias parameters
                     if args.len() != alias_type_params.len() {
-                        return Err(CompilerError::SemanticError(
-                            SemanticErrorInfo::new(
-                                "E5003",
-                                "Type argument count mismatch",
-                                &format!(
-                                    "Type alias `{}` expects {} type argument(s), but {} provided",
-                                    base,
-                                    alias_type_params.len(),
-                                    args.len()
-                                ),
-                            )
-                        ));
+                        return Err(CompilerError::SemanticError(SemanticErrorInfo::new(
+                            "E5003",
+                            "Type argument count mismatch",
+                            &format!(
+                                "Type alias `{}` expects {} type argument(s), but {} provided",
+                                base,
+                                alias_type_params.len(),
+                                args.len()
+                            ),
+                        )));
                     }
-                    
+
                     // Substitute type parameters in the target type
-                    let substituted = self.substitute_type_params(
-                        target_type,
-                        alias_type_params,
-                        args,
-                    );
-                    
+                    let substituted =
+                        self.substitute_type_params(target_type, alias_type_params, args);
+
                     // Validate the substituted type
                     return self.validate_type_ref(&substituted, available_type_params);
                 }
-                
+
                 // Not a type alias - validate base type (it's a String, so wrap it as Simple TypeRef)
                 let base_ref = TypeRef::Simple(base.clone());
                 self.validate_type_ref(&base_ref, available_type_params)?;
-                
+
                 // Validate all type arguments
                 for arg in args {
                     self.validate_type_ref(arg, available_type_params)?;
@@ -3501,7 +3642,10 @@ impl SemanticAnalyzer {
                 );
 
                 error.category = Some("Pattern Matching".to_string());
-                error.hint = Some("Ensure all alternatives in the or-pattern bind the same variable names".to_string());
+                error.hint = Some(
+                    "Ensure all alternatives in the or-pattern bind the same variable names"
+                        .to_string(),
+                );
                 error.example = Some("// ✅ Good:\n1 | 2 | 3 => \"small\"\n\n// ✅ Good with bindings:\nx | y => x  // Both bind one variable\n\n// ❌ Bad:\nSome(x) | None => x  // Inconsistent bindings".to_string());
                 error.doc_link = Some("https://github.com/liva-lang/livac/blob/main/docs/language-reference/pattern-matching.md#or-patterns".to_string());
 
@@ -3553,7 +3697,10 @@ impl SemanticAnalyzer {
 
         // Check if there's a wildcard or binding pattern (catches all cases)
         let has_catch_all = switch_expr.arms.iter().any(|arm| {
-            matches!(arm.pattern, Pattern::Wildcard | Pattern::Binding(_) | Pattern::Typed { .. })
+            matches!(
+                arm.pattern,
+                Pattern::Wildcard | Pattern::Binding(_) | Pattern::Typed { .. }
+            )
         });
 
         if has_catch_all {
@@ -3592,11 +3739,17 @@ impl SemanticAnalyzer {
                     let mut error = SemanticErrorInfo::new(
                         "E0901",
                         "Non-exhaustive Pattern Matching",
-                        &format!("Pattern matching on bool is not exhaustive - missing case(s): {}", missing),
+                        &format!(
+                            "Pattern matching on bool is not exhaustive - missing case(s): {}",
+                            missing
+                        ),
                     );
-                    
+
                     error.category = Some("Pattern Matching".to_string());
-                    error.hint = Some(format!("Add pattern `{}` or use wildcard `_` to catch remaining cases", missing));
+                    error.hint = Some(format!(
+                        "Add pattern `{}` or use wildcard `_` to catch remaining cases",
+                        missing
+                    ));
                     error.example = Some(format!(
                         "switch value {{\n    true => \"yes\",\n    false => \"no\"\n}}\n// or\nswitch value {{\n    {} => \"...\",\n    _ => \"...\"\n}}",
                         if !has_true { "true" } else { "false" }
@@ -3608,13 +3761,11 @@ impl SemanticAnalyzer {
 
                 Ok(())
             }
-            Some("int") | Some("i8") | Some("i16") | Some("i32") | Some("i64") | Some("i128") |
-            Some("u8") | Some("u16") | Some("u32") | Some("u64") | Some("u128") => {
+            Some("int") | Some("i8") | Some("i16") | Some("i32") | Some("i64") | Some("i128")
+            | Some("u8") | Some("u16") | Some("u32") | Some("u64") | Some("u128") => {
                 self.check_int_exhaustiveness(switch_expr, discriminant_type.as_deref().unwrap())
             }
-            Some("string") | Some("String") => {
-                self.check_string_exhaustiveness(switch_expr)
-            }
+            Some("string") | Some("String") => self.check_string_exhaustiveness(switch_expr),
             _ => {
                 // For other types (float, char, custom types), we can't easily determine exhaustiveness
                 // without advanced type analysis. Suggest using a wildcard pattern.
@@ -3668,7 +3819,12 @@ impl SemanticAnalyzer {
     }
 
     /// Extract integer literals from a pattern recursively
-    fn extract_int_literals(&self, pattern: &Pattern, values: &mut HashSet<i64>, has_ranges: &mut bool) {
+    fn extract_int_literals(
+        &self,
+        pattern: &Pattern,
+        values: &mut HashSet<i64>,
+        has_ranges: &mut bool,
+    ) {
         match pattern {
             Pattern::Literal(Literal::Int(val)) => {
                 values.insert(*val);
@@ -3686,7 +3842,7 @@ impl SemanticAnalyzer {
                         None
                     }
                 });
-                
+
                 let end_val = range_pattern.end.as_ref().and_then(|expr| {
                     if let Expr::Literal(Literal::Int(v)) = expr.as_ref() {
                         Some(*v)
@@ -3694,7 +3850,7 @@ impl SemanticAnalyzer {
                         None
                     }
                 });
-                
+
                 // Only enumerate small, bounded ranges
                 if let (Some(s), Some(e)) = (start_val, end_val) {
                     let range_size = (e - s + 1).abs();
@@ -3722,15 +3878,15 @@ impl SemanticAnalyzer {
     /// Check exhaustiveness for integer patterns
     fn check_int_exhaustiveness(&self, switch_expr: &SwitchExpr, _int_type: &str) -> Result<()> {
         use std::collections::HashSet;
-        
+
         let mut covered_values: HashSet<i64> = HashSet::new();
         let mut has_ranges = false;
-        
+
         // Collect all explicitly covered values and check for ranges
         for arm in &switch_expr.arms {
             self.extract_int_literals(&arm.pattern, &mut covered_values, &mut has_ranges);
         }
-        
+
         // For integers with only literal patterns (no ranges), we can check if all reasonable values are covered
         // But since integers are infinite, we require a wildcard unless it's a very small set
         if !has_ranges && !covered_values.is_empty() && covered_values.len() <= 20 {
@@ -3740,15 +3896,16 @@ impl SemanticAnalyzer {
                 "Non-exhaustive Pattern Matching",
                 &format!("Pattern matching on integers is not exhaustive - {} value(s) explicitly covered, but no wildcard for other integers", covered_values.len()),
             );
-            
+
             error.category = Some("Pattern Matching".to_string());
-            error.hint = Some("Add wildcard pattern `_` to catch all other integer values".to_string());
+            error.hint =
+                Some("Add wildcard pattern `_` to catch all other integer values".to_string());
             error.example = Some("switch num {\n    0 => \"zero\",\n    1 => \"one\",\n    _ => \"other\"  // Required\n}".to_string());
             error.doc_link = Some("https://github.com/liva-lang/livac/blob/main/docs/language-reference/pattern-matching.md#exhaustiveness".to_string());
-            
+
             return Err(CompilerError::SemanticError(error));
         }
-        
+
         // For ranges or large sets, we always require a wildcard (already checked at start)
         if has_ranges || covered_values.len() > 20 {
             let mut error = SemanticErrorInfo::new(
@@ -3756,15 +3913,15 @@ impl SemanticAnalyzer {
                 "Non-exhaustive Pattern Matching",
                 "Pattern matching on integers with ranges requires a wildcard pattern",
             );
-            
+
             error.category = Some("Pattern Matching".to_string());
             error.hint = Some("Add wildcard pattern `_` to catch all values not covered by explicit patterns or ranges".to_string());
             error.example = Some("switch num {\n    0..=10 => \"small\",\n    11..=100 => \"medium\",\n    _ => \"large\"  // Required\n}".to_string());
             error.doc_link = Some("https://github.com/liva-lang/livac/blob/main/docs/language-reference/pattern-matching.md#exhaustiveness".to_string());
-            
+
             return Err(CompilerError::SemanticError(error));
         }
-        
+
         Ok(())
     }
 
@@ -3773,35 +3930,40 @@ impl SemanticAnalyzer {
         // Strings are infinite, so we always require a wildcard or binding pattern
         // This is already checked by has_catch_all at the start of check_switch_exhaustiveness
         // If we reach here, it means no wildcard was found
-        
+
         let mut error = SemanticErrorInfo::new(
             "E0903",
             "Non-exhaustive Pattern Matching",
             "Pattern matching on strings requires a wildcard or binding pattern",
         );
-        
+
         error.category = Some("Pattern Matching".to_string());
         error.hint = Some("Add wildcard pattern `_` or binding pattern to catch all string values not explicitly matched".to_string());
         error.example = Some("switch text {\n    \"active\" => 1,\n    \"inactive\" => 2,\n    _ => 0  // Required\n}".to_string());
         error.doc_link = Some("https://github.com/liva-lang/livac/blob/main/docs/language-reference/pattern-matching.md#exhaustiveness".to_string());
-        
+
         return Err(CompilerError::SemanticError(error));
     }
-    
+
     /// Validate that a type hint for JSON.parse is serializable (Phase 1: JSON Typed Parsing)
     fn validate_json_parse_type_hint(&mut self, type_ref: &TypeRef) -> Result<()> {
         match type_ref {
             // Primitive types are always serializable
             TypeRef::Simple(name) => {
-                let valid_primitives = ["int", "i8", "i16", "i32", "i64", "i128", 
-                                       "u8", "u16", "u32", "u64", "u128", "usize", "isize",
-                                       "float", "f32", "f64", "bool", "string", "String"];
-                
+                let valid_primitives = [
+                    "int", "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128",
+                    "usize", "isize", "float", "f32", "f64", "bool", "string", "String",
+                ];
+
                 if !valid_primitives.contains(&name.as_str()) {
                     // Check if it's a defined class
                     if !self.types.contains_key(name) {
                         return Err(CompilerError::SemanticError(
-                            format!("Type '{}' is not defined or not serializable for JSON parsing", name).into()
+                            format!(
+                                "Type '{}' is not defined or not serializable for JSON parsing",
+                                name
+                            )
+                            .into(),
                         ));
                     }
                     // Phase 2: Mark this class as needing serde derive
@@ -3811,23 +3973,17 @@ impl SemanticAnalyzer {
                 Ok(())
             }
             // Arrays are serializable if their element type is
-            TypeRef::Array(inner) => {
-                self.validate_json_parse_type_hint(inner)
-            }
+            TypeRef::Array(inner) => self.validate_json_parse_type_hint(inner),
             // Optional types are serializable if their inner type is
-            TypeRef::Optional(inner) => {
-                self.validate_json_parse_type_hint(inner)
-            }
+            TypeRef::Optional(inner) => self.validate_json_parse_type_hint(inner),
             // Fallible types (Result) - validate inner type
-            TypeRef::Fallible(inner) => {
-                self.validate_json_parse_type_hint(inner)
-            }
+            TypeRef::Fallible(inner) => self.validate_json_parse_type_hint(inner),
             // Generic types - basic validation
             TypeRef::Generic { base, args } => {
                 // Validate base type
                 if !self.types.contains_key(base) {
                     return Err(CompilerError::SemanticError(
-                        format!("Generic type '{}' is not defined", base).into()
+                        format!("Generic type '{}' is not defined", base).into(),
                     ));
                 }
                 // Validate all type arguments
@@ -3857,12 +4013,12 @@ impl SemanticAnalyzer {
     fn mark_json_classes(&self, program: &mut Program) {
         // Phase 4: Collect all classes transitively (including nested dependencies)
         let mut all_json_classes = std::collections::HashSet::new();
-        
+
         // Start with direct JSON.parse classes
         for class_name in &self.json_classes {
             self.collect_class_dependencies(class_name, program, &mut all_json_classes);
         }
-        
+
         // Mark all collected classes
         for item in &mut program.items {
             if let TopLevel::Class(class) = item {
@@ -3872,7 +4028,7 @@ impl SemanticAnalyzer {
             }
         }
     }
-    
+
     /// Recursively collect all class dependencies for JSON serialization
     fn collect_class_dependencies(
         &self,
@@ -3884,9 +4040,9 @@ impl SemanticAnalyzer {
         if collected.contains(class_name) {
             return;
         }
-        
+
         collected.insert(class_name.to_string());
-        
+
         // Find the class definition
         for item in &program.items {
             if let TopLevel::Class(class) = item {
@@ -3904,7 +4060,7 @@ impl SemanticAnalyzer {
             }
         }
     }
-    
+
     /// Collect dependencies from a type reference (handles arrays and nested types)
     fn collect_type_dependencies(
         &self,
@@ -3930,14 +4086,14 @@ impl SemanticAnalyzer {
             _ => {}
         }
     }
-    
+
     /// Check if a type name is a class (not a primitive)
     fn is_class_type(&self, type_name: &str, program: &Program) -> bool {
         // Primitives are not classes
         match type_name {
-            "int" | "i8" | "i16" | "i32" | "i64" | "i128" |
-            "u8" | "u16" | "u32" | "u64" | "u128" | "usize" | "isize" |
-            "float" | "f32" | "f64" | "bool" | "string" | "String" => false,
+            "int" | "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64"
+            | "u128" | "usize" | "isize" | "float" | "f32" | "f64" | "bool" | "string"
+            | "String" => false,
             _ => {
                 // Check if it's actually defined as a class
                 program.items.iter().any(|item| {

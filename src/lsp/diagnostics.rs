@@ -6,7 +6,7 @@ use crate::CompilerError;
 pub fn error_to_diagnostic(error: &CompilerError) -> Option<Diagnostic> {
     let error_info = error.error_info()?;
     let location = error_info.location.as_ref()?;
-    
+
     Some(Diagnostic {
         range: Range {
             start: Position {
