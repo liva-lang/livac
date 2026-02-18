@@ -125,7 +125,8 @@ jobs:
         if: matrix.target == 'x86_64-unknown-linux-gnu'
         run: |
           cargo generate-rpm --target ${{ matrix.target }}
-          cp target/generate-rpm/livac-*.rpm livac.x86_64.rpm
+          find target -name '*.rpm' -type f
+          cp $(find target -name '*.rpm' -type f | head -1) livac.x86_64.rpm
           ls -la livac.x86_64.rpm
 
       - name: Upload .rpm artifact
