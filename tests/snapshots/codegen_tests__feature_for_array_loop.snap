@@ -357,11 +357,11 @@ mod liva_rt {
 
 fn main() {
     let fruits = vec!["apple".to_string(), "banana".to_string(), "cherry".to_string()];
-    for fruit in fruits {
+    for fruit in fruits.clone() {
         println!("{}", fruit);
     }
     let nums = vec![10, 20, 30];
-    for n in nums {
+    for n in nums.clone() {
         println!("{}", n);
     }
 }

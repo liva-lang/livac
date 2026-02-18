@@ -1,7 +1,7 @@
 # 🗺️ Liva Language Roadmap
 
 > **Current Version:** v1.2.0-dev (tag: v1.0.2)  
-> **Status:** Session 14 complete — 5 New Language Features (break/continue, ..=, Math.PI/E, join(), data class)  
+> **Status:** Session 15 complete — Dogfooding: Student Grade Tracker, 9 bugs fixed (#63-#74), 278 tests  
 > **Next Phase:** Phase 13 — Advanced Features  
 > **Planned:** Phase 13 — Advanced Language Features  
 > **Last Updated:** 2026-02-12

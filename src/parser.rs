@@ -1238,10 +1238,10 @@ impl Parser {
 
     fn parse_simple_statement(&mut self) -> Result<Stmt> {
         if self.match_token(&Token::Return) {
-            let value = if !self.check(&Token::Semicolon) {
-                Some(self.parse_expression()?)
-            } else {
+            let value = if self.is_at_end() || self.check(&Token::Semicolon) || self.check(&Token::RBrace) {
                 None
+            } else {
+                Some(self.parse_expression()?)
             };
             Ok(Stmt::Return(ReturnStmt { expr: value }))
         } else if self.match_token(&Token::Break) {
@@ -1315,10 +1315,10 @@ impl Parser {
         }
 
         if self.match_token(&Token::Return) {
-            let value = if !self.check(&Token::Semicolon) {
-                Some(self.parse_expression()?)
-            } else {
+            let value = if self.is_at_end() || self.check(&Token::Semicolon) || self.check(&Token::RBrace) {
                 None
+            } else {
+                Some(self.parse_expression()?)
             };
             return Ok(Stmt::Return(ReturnStmt { expr: value }));
         }
@@ -1982,13 +1982,25 @@ impl Parser {
                 if let Expr::Identifier(type_name) = &expr {
                     // Only allow struct literals for identifiers that start with uppercase (type names)
                     if type_name.chars().next().map_or(false, |c| c.is_uppercase()) {
-                        self.advance(); // consume the {
-                        let fields = self.parse_object_fields()?;
-                        self.expect(Token::RBrace)?;
-                        expr = Expr::StructLiteral {
-                            type_name: type_name.clone(),
-                            fields,
-                        };
+                        // Bug #64 fix: Verify this is actually a struct literal by looking ahead.
+                        // A struct literal has: { } or { ident: expr, ... }
+                        // This prevents misinterpreting `LIMIT { continue }` as a struct literal
+                        // when LIMIT is a const used in an if-condition before a block.
+                        let is_struct_literal = matches!(self.peek_token(1), Some(Token::RBrace))
+                            || (matches!(self.peek_token(1), Some(Token::Ident(_)) | Some(Token::PrivateIdent(_)))
+                                && matches!(self.peek_token(2), Some(Token::Colon)));
+                        if is_struct_literal {
+                            self.advance(); // consume the {
+                            let fields = self.parse_object_fields()?;
+                            self.expect(Token::RBrace)?;
+                            expr = Expr::StructLiteral {
+                                type_name: type_name.clone(),
+                                fields,
+                            };
+                        } else {
+                            // Not a struct literal (e.g., LIMIT { continue }), don't consume the {
+                            break;
+                        }
                     } else {
                         // Not a struct literal, don't consume the { and continue
                         break;

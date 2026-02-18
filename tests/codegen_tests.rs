@@ -2064,3 +2064,145 @@ main() {
     let rust_code = compile_and_generate(source);
     assert_snapshot!("feature_data_class_with_methods", rust_code);
 }
+
+// ============================================================
+// Session 15: Dogfooding regression tests
+// ============================================================
+
+#[test]
+fn test_bug63_return_without_value() {
+    // Bug #63: return without value followed by } caused parse error
+    let source = r#"
+doSomething(x: number) {
+    if x < 0 {
+        return
+    }
+    print(x)
+}
+
+main() {
+    doSomething(5)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("bug63_return_without_value", rust_code);
+}
+
+#[test]
+fn test_bug64_const_continue_struct_literal() {
+    // Bug #64: const LIMIT used in if-condition followed by { continue }
+    // was misinterpreted as struct literal LIMIT { continue }
+    let source = r#"
+const LIMIT = 60
+
+main() {
+    let items = [95, 88, 72, 45]
+    for score in items {
+        if score >= LIMIT {
+            continue
+        }
+        print(score)
+    }
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("bug64_const_continue", rust_code);
+}
+
+#[test]
+fn test_bug66_data_class_display_and_constructor() {
+    // Bug #66: data class Display impl had unescaped braces in format string
+    // Bug #67: data class constructor didn't accept field arguments
+    let source = r#"
+data Point {
+    x: number
+    y: number
+}
+
+main() {
+    let p = Point(10, 20)
+    print(p)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("bug66_data_class_display_constructor", rust_code);
+}
+
+#[test]
+fn test_bug68_switch_string_literals() {
+    // Bug #68: switch expression arms with string literals returned &str
+    // instead of String, causing type mismatch
+    let source = r#"
+classify(score: number): string => switch score {
+    90..=100 => "A",
+    80..=89 => "B",
+    _ => "F"
+}
+
+main() {
+    print(classify(95))
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("bug68_switch_string_literals", rust_code);
+}
+
+#[test]
+fn test_bug70_method_fail_result() {
+    // Bug #70: Method using fail should generate Result return type
+    let source = r#"
+Finder {
+    _items: [string]
+
+    constructor() {
+        this._items = ["a", "b", "c"]
+    }
+
+    findItem(name: string): string {
+        for item in this._items {
+            if item == name {
+                return item
+            }
+        }
+        fail "not found"
+    }
+}
+
+main() {
+    let f = Finder()
+    let result, err = f.findItem("b")
+    if err {
+        print("error")
+    } else {
+        print("found it")
+    }
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("bug70_method_fail_result", rust_code);
+}
+
+#[test]
+fn test_bug74_for_loop_ownership() {
+    // Bug #74: for loop consumed collection, preventing reuse
+    let source = r#"
+main() {
+    let items = [1, 2, 3, 4, 5]
+    for x in items {
+        print(x)
+    }
+    // items should still be usable
+    for x in items {
+        print(x)
+    }
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("bug74_for_loop_ownership", rust_code);
+}

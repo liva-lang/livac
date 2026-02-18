@@ -2090,6 +2090,49 @@ impl CodeGenerator {
             self.output.push('\n');
         } else if has_fields {
             // Default constructor
+            // Data classes get a constructor with all fields as parameters
+            if class.is_data {
+                // Collect field info for the constructor signature
+                let fields: Vec<(&str, String)> = class.members.iter().filter_map(|m| {
+                    if let Member::Field(field) = m {
+                        let field_name_raw = &field.name;
+                        let rust_type = if let Some(type_ref) = &field.type_ref {
+                            type_ref.to_rust_type()
+                        } else {
+                            "String".to_string()
+                        };
+                        Some((field_name_raw.as_str(), rust_type))
+                    } else {
+                        None
+                    }
+                }).collect();
+
+                // Generate: pub fn new(field1: Type1, field2: Type2, ...) -> Self {
+                self.write_indent();
+                self.output.push_str("pub fn new(");
+                for (i, (name, rust_type)) in fields.iter().enumerate() {
+                    if i > 0 {
+                        self.output.push_str(", ");
+                    }
+                    let sanitized = self.sanitize_name(name);
+                    write!(self.output, "{}: {}", sanitized, rust_type).unwrap();
+                }
+                self.output.push_str(") -> Self {\n");
+                self.indent();
+                self.writeln("Self {");
+                self.indent();
+                for (name, _) in &fields {
+                    let sanitized = self.sanitize_name(name);
+                    self.write_indent();
+                    self.writeln(&format!("{},", sanitized));
+                }
+                self.dedent();
+                self.writeln("}");
+                self.dedent();
+                self.writeln("}");
+                self.output.push('\n');
+            } else {
+            // Regular class without constructor — default no-arg constructor
             self.writeln(&format!("pub fn new() -> Self {{"));
             self.indent();
             self.writeln("Self {");
@@ -2155,6 +2198,7 @@ impl CodeGenerator {
             self.dedent();
             self.writeln("}");
             self.output.push('\n');
+            } // close else (regular class, not data)
         }
 
         // Generate other methods (excluding constructor)
@@ -2209,15 +2253,23 @@ impl CodeGenerator {
                 self.writeln(&format!("write!(f, \"{}\")", class.name));
             } else {
                 self.write_indent();
-                write!(self.output, "write!(f, \"{} {{ ", class.name).unwrap();
+                // Use push_str to avoid write! interpreting {{ as {
+                // We need literal {{ and }} in the generated format string
+                self.output.push_str(&format!("write!(f, \"{} {{{{ ", class.name));
                 for (i, field) in fields.iter().enumerate() {
                     if i > 0 {
                         self.output.push_str(", ");
                     }
                     let field_name = self.sanitize_name(&field.name);
-                    write!(self.output, "{}: {{}}", field_name).unwrap();
+                    // Use {:?} for array/Vec fields since Vec<T> doesn't implement Display
+                    let is_array = matches!(field.type_ref.as_ref(), Some(TypeRef::Array(_)));
+                    if is_array {
+                        self.output.push_str(&format!("{}: {{:?}}", field_name));
+                    } else {
+                        self.output.push_str(&format!("{}: {{}}", field_name));
+                    }
                 }
-                self.output.push_str(" }\"");
+                self.output.push_str(" }}}}\"");
                 for field in &fields {
                     let field_name = self.sanitize_name(&field.name);
                     write!(self.output, ", self.{}", field_name).unwrap();
@@ -2506,6 +2558,14 @@ impl CodeGenerator {
     }
 
     fn generate_method(&mut self, method: &MethodDecl, class: Option<&ClassDecl>) -> Result<()> {
+        // Pre-analyze: collect variables that are mutated after declaration
+        self.mutated_vars.clear();
+        if let Some(body) = &method.body {
+            let mut temp_mutated = std::collections::HashSet::new();
+            self.collect_mutated_vars_in_block(body, &mut temp_mutated);
+            self.mutated_vars = temp_mutated;
+        }
+        
         let vis = match method.visibility {
             Visibility::Public => "pub ",
             Visibility::Private => "",
@@ -2539,7 +2599,12 @@ impl CodeGenerator {
         let params_str = self.generate_params(&method.params, true, class, Some(&method.name), Some(method))?;
 
         let return_type = if let Some(ret) = &method.return_type {
-            format!(" -> {}", ret.to_rust_type())
+            // Bug #70 fix: Wrap return type in Result if method contains fail
+            if method.contains_fail {
+                format!(" -> Result<{}, liva_rt::Error>", ret.to_rust_type())
+            } else {
+                format!(" -> {}", ret.to_rust_type())
+            }
         } else {
             // First, try to find return type from implemented interfaces
             let interface_return_type = class.and_then(|c| {
@@ -2578,6 +2643,9 @@ impl CodeGenerator {
         .unwrap();
 
         self.in_method = true;
+        let prev_fallible = self.in_fallible_function;
+        self.in_fallible_function = method.contains_fail;
+        
         if let Some(expr) = &method.expr_body {
             self.output.push_str(" {\n");
             self.indent();
@@ -2586,7 +2654,13 @@ impl CodeGenerator {
             self.generate_param_destructuring(&method.params)?;
             
             self.write_indent();
-            self.generate_expr(expr)?;
+            if method.contains_fail {
+                self.output.push_str("Ok(");
+                self.generate_expr(expr)?;
+                self.output.push(')');
+            } else {
+                self.generate_expr(expr)?;
+            }
             self.output.push('\n');
             self.dedent();
             self.writeln("}");
@@ -2601,6 +2675,7 @@ impl CodeGenerator {
             self.dedent();
             self.writeln("}");
         }
+        self.in_fallible_function = prev_fallible;
         self.in_method = false;
 
         Ok(())
@@ -4077,7 +4152,27 @@ impl CodeGenerator {
 
                 self.write_indent();
                 write!(self.output, "for {} in ", var_name).unwrap();
+                
+                // Bug #74 fix: In Liva, iterating doesn't consume collections. In Rust, 
+                // `for x in vec` moves the vec. Use .clone() or .iter() to avoid this.
+                // For self.field: use & (iterate by reference in borrowed context)
+                // For variables: clone to preserve ownership for later use
+                let needs_clone = match &for_stmt.iterable {
+                    Expr::Identifier(_) => true,
+                    _ => false,
+                };
+                let needs_ref = match &for_stmt.iterable {
+                    Expr::Member { object, .. } => {
+                        matches!(object.as_ref(), Expr::Identifier(name) if name == "this")
+                    }
+                    _ => false,
+                };
                 self.generate_expr(&for_stmt.iterable)?;
+                if needs_ref {
+                    self.output.push_str(".clone()");
+                } else if needs_clone {
+                    self.output.push_str(".clone()");
+                }
                 self.output.push_str(" {\n");
                 self.indent();
                 
@@ -4672,6 +4767,17 @@ impl CodeGenerator {
                                 !matches!(t.as_str(), "number" | "int" | "i32" | "float" | "f64" | "bool" | "char" | "string")
                                     && t.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
                             }).unwrap_or(false)
+                        } else if let Expr::Member { object: member_obj, property: member_prop } = arr_obj.as_ref() {
+                            // Bug #69 fix: Handle this.field[i].prop — check typed_array_vars for the field name
+                            if matches!(member_obj.as_ref(), Expr::Identifier(name) if name == "this") {
+                                let sanitized = self.sanitize_name(member_prop);
+                                self.typed_array_vars.get(&sanitized).map(|t| {
+                                    !matches!(t.as_str(), "number" | "int" | "i32" | "float" | "f64" | "bool" | "char" | "string")
+                                        && t.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
+                                }).unwrap_or(false)
+                            } else {
+                                false
+                            }
                         } else {
                             false
                         };
@@ -5368,7 +5474,13 @@ impl CodeGenerator {
             // Generate body
             match &arm.body {
                 SwitchBody::Expr(expr) => {
-                    self.generate_expr(expr)?;
+                    // Add .to_string() for string literal arms so match returns String
+                    if matches!(&**expr, Expr::Literal(Literal::String(_))) {
+                        self.generate_expr(expr)?;
+                        self.output.push_str(".to_string()");
+                    } else {
+                        self.generate_expr(expr)?;
+                    }
                 }
                 SwitchBody::Block(stmts) => {
                     self.output.push('{');

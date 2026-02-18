@@ -355,37 +355,36 @@ mod liva_rt {
     
 }
 
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct Color {
-    pub r: i32,
-    pub g: i32,
-    pub b: i32,
+#[derive(Debug, Clone, Default)]
+pub struct Finder {
+    _items: Vec<String>,
 }
 
-impl Color {
-    pub fn new(r: i32, g: i32, b: i32) -> Self {
+impl Finder {
+    pub fn new() -> Self {
         Self {
-                        r,
-                        g,
-                        b,
+            _items: vec!["a".to_string(), "b".to_string(), "c".to_string()],
         }
     }
 
-    // Generating method: sum
-    pub fn sum(&self) -> () {
-        r + g + b
+    // Generating method: findItem
+    pub fn find_item(&self, name: String) -> Result<String, liva_rt::Error> {
+        for item in self._items.clone() {
+            if item == name {
+                return Ok(item);
+            }
+        }
+        return Err(liva_rt::Error::from("not found"));
     }
 
-}
-
-impl std::fmt::Display for Color {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Color {{ r: {}, g: {}, b: {} }}}}", self.r, self.g, self.b)
-    }
 }
 
 fn main() {
-    let c = Color::new(255, 128, 0);
-    println!("{}", c);
-    println!("{}", c.sum());
+    let mut f = Finder::new();
+    let (result, err): (_, Option<liva_rt::Error>) = (f.find_item("b".to_string()), None);
+    if err.is_some() {
+        println!("{}", "error");
+    } else {
+        println!("{}", "found it");
+    }
 }

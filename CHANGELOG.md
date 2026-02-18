@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - v1.2.0-dev
 
+### Added - Session 15: Dogfooding & Bug Fixes 🐛
+
+**Comprehensive dogfooding with "Student Grade Tracker" program (~300 lines):**
+- Exercises ALL major Liva features: constants, data classes, interfaces, switch expressions with range patterns, classes, array/string methods, error handling, string templates, Math constants, break/continue, inclusive ranges, visibility
+- Found and fixed **9 bugs** (#63-#74) across parser, semantic analysis, and code generation
+
+**Bugs Fixed (9):**
+- **Bug #63**: `return` without value before `}` caused parse error — check for `RBrace` as statement terminator
+- **Bug #64**: Uppercase const + `{ continue }` misinterpreted as struct literal — added lookahead verification
+- **Bug #65**: `.length` on member/method expressions rejected — added to `expr_supports_length()`
+- **Bug #66**: Data class `Display` had unescaped braces in `write!()` — use `push_str` with escaped braces
+- **Bug #67**: Data class `new()` had no parameters — generate field-based constructor
+- **Bug #68**: Switch expression string arms returned `&str` — added `.to_string()`
+- **Bug #69**: `this.field[i].prop` generated bracket notation — extended typed array detection
+- **Bug #70**: Method `fail` didn't produce `Result` type — added `contains_fail` check to methods
+- **Bug #71**: Method bodies didn't pre-analyze mutated variables — added `mutated_vars` analysis
+- **Bug #74**: For loops consumed collections (ownership) — added `.clone()` for variable iterables
+
+**6 new regression tests (tests/codegen_tests.rs):**
+- `test_bug63_return_without_value` — return without value in void function
+- `test_bug64_const_continue_struct_literal` — const + continue not misread as struct
+- `test_bug66_data_class_display_and_constructor` — data class Display + constructor
+- `test_bug68_switch_string_literals` — switch expression string arms
+- `test_bug70_method_fail_result` — method with fail generates Result type
+- `test_bug74_for_loop_ownership` — for loop doesn't consume collection
+
+**Total tests: 278** (up from 272). Codegen snapshot tests: 86 (up from 80).
+
+**Files modified (4 source files + tests):**
+- `src/parser.rs` — Bug #63 (return without value), Bug #64 (struct literal lookahead)
+- `src/semantic.rs` — Bug #65 (.length on member/method expressions)
+- `src/codegen.rs` — Bugs #66-#71, #74 (data class, switch, methods, for loops)
+- `tests/codegen_tests.rs` — 6 new regression tests
+- 14 snapshot files updated/created
+
 ### Added - Session 14: 5 New Language Features 🚀
 
 **5 pending language features implemented, tested, and documented:**

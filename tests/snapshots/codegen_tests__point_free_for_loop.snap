@@ -361,11 +361,11 @@ fn show_item(n: i32) {
 
 fn main() {
     let items = vec![1, 2, 3, 4, 5];
-    for item in items {
+    for item in items.clone() {
         println!("{}", item);
     }
     let items2 = vec![10, 20, 30];
-    for item in items2 {
+    for item in items2.clone() {
         show_item(item);
     }
 }

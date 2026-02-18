@@ -357,10 +357,10 @@ mod liva_rt {
 
 fn classify(score: i32) -> String {
     let result = match score {
-        1 | 2 | 3 => "low",
-        4 | 5 | 6 => "medium",
-        7 | 8 | 9 | 10 => "high",
-        _ => "invalid",
+        1 | 2 | 3 => "low".to_string(),
+        4 | 5 | 6 => "medium".to_string(),
+        7 | 8 | 9 | 10 => "high".to_string(),
+        _ => "invalid".to_string(),
     };
     return result;
 }

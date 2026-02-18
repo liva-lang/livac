@@ -207,8 +207,8 @@ describe("Calculator", () => {
 
 ## 🔄 Estado Actual
 
-- **62/62 bugs** del dogfooding corregidos (Session 13: +8 edge case codegen bugs)
-- **272 tests** totales (80 snapshot codegen tests documentando TODA la sintaxis)
+- **71/71 bugs** del dogfooding corregidos (Session 15: +9 bugs from Student Grade Tracker)
+- **278 tests** totales (86 snapshot codegen tests documentando TODA la sintaxis)
 - **Phase 10** (Formatter): ✅ Completado
 - **Phase 11.1** (`or fail`): ✅ Completado  
 - **Phase 11.2** (`=>` one-liners): ✅ Completado
@@ -219,6 +219,15 @@ describe("Calculator", () => {
 - **Phase 12.3** (Lifecycle Hooks): ✅ Completado
 - **Phase 12.4** (Async Test Support): ✅ Completado
 - **Session 14** (5 Language Features): ✅ Completado
+- **Session 15** (Dogfooding + 9 Bug Fixes): ✅ Completado
+
+### Session 15: Dogfooding — Student Grade Tracker
+**Comprehensive ~300-line program exercising ALL major features.**
+Found and fixed 9 bugs (#63-#74):
+- **Parser**: `return` without value (#63), struct literal false positive on uppercase const (#64)
+- **Semantic**: `.length` on member/method expressions (#65)
+- **Codegen**: data class Display/constructor (#66-#67), switch string arms (#68), array element field access (#69), method fail/Result (#70), method mutated vars (#71), for-loop ownership (#74)
+- 6 regression tests added
 
 ### Session 14: 5 New Language Features
 1. **`break` / `continue`** — Loop control flow (while/for)
@@ -228,7 +237,7 @@ describe("Calculator", () => {
 5. **`data` class sugar** — `data Point { x: number, y: number }` with auto constructor, PartialEq, Display
    - `data` is a **contextual keyword** — can still be used as a variable name
 
-### Comprehensive Feature Test Coverage (codegen_tests.rs — 80 tests):
+### Comprehensive Feature Test Coverage (codegen_tests.rs — 86 tests):
 Snapshot tests serve as **source of truth** for all supported Liva syntax:
 - Variables: `let`, `const`, type annotations, top-level `const`
 - Types: primitives, Rust native types (`i8`-`i128`, `u64`, `f32`, `usize`)

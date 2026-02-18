@@ -435,11 +435,58 @@ Use `!` instead of `not` for negation.
   - When `this.items.filter(...)` produces a result, and `items` is `[string]`, the result is also tracked as string array
   - Array indexing on string arrays now generates `.clone()` suffix
 
+### Session 15 - Student Grade Tracker Dogfooding (v1.2.0):
+
+**Parser Issues:**
+- ✅ Bug #63: `return` without value followed by `}` — parser tried to parse `}` as return expression
+  - Fixed: `parse_simple_statement()` and `parse_statement()` now check `is_at_end() || Semicolon || RBrace` for empty return
+  - `return` in void functions no longer requires semicolon before `}`
+
+- ✅ Bug #64: `continue` inside `if` block fails when top-level `const` is uppercase
+  - Root cause: `parse_call()` sees uppercase identifier (`LIMIT`) followed by `{` and interprets `LIMIT { continue }` as a struct literal
+  - Fixed: Added lookahead check — verify `{ }` or `{ ident: expr }` pattern before committing to struct literal parsing
+  - Now `const LIMIT = 10` followed by `if x > LIMIT { continue }` works correctly
+
+**Semantic Analysis Issues:**
+- ✅ Bug #65: `.length` on `Member`/`MethodCall` expressions rejected
+  - Fixed: Added `Expr::Member { .. } => true` and `Expr::MethodCall(_) => true` to `expr_supports_length()`
+  - Now `this.items.length` and `getItems().length` work correctly
+
+**Code Generation Issues:**
+- ✅ Bug #66: Data class `Display` impl had unescaped braces in `write!()` format string
+  - `write!(f, "Grade { subject: {}, score: {} }")` fails because `{` is literal but interpreted as format placeholder
+  - Fixed: Changed to `push_str()` with `{{{{` and `}}}}` for literal braces in struct-style Display output
+
+- ✅ Bug #67: Data class constructor was `new()` with no parameters
+  - `Grade::new(subject, score)` failed because `new()` didn't take any args
+  - Fixed: Added data class branch that generates `pub fn new(field1: Type1, field2: Type2, ...) -> Self`
+
+- ✅ Bug #68: Switch expression string literal arms returned `&str` instead of `String`
+  - `"A" => "Excellent"` generated `&str` while other arms returned `String`
+  - Fixed: Added `.to_string()` for `Expr::Literal(Literal::String(_))` arms in `generate_switch_expr`
+
+- ✅ Bug #69: `this._grades[i].score` generated bracket notation `["score"]` instead of `.score`
+  - Array element field access on `self.field[i].prop` used JSON-style `["prop"]`
+  - Fixed: Extended `typed_array_vars` check in `Expr::Index` handler to also check `Expr::Member` base objects
+
+- ✅ Bug #70: Methods using `fail` didn't generate `Result` return type
+  - `fail "error"` inside a method didn't wrap return type in `Result<T, liva_rt::Error>`
+  - Fixed: Added `method.contains_fail` check in `generate_method` to wrap return type and set `in_fallible_function`
+
+- ✅ Bug #71: Methods didn't pre-analyze mutated variables
+  - Variables assigned inside method bodies weren't marked as `mut`
+  - Fixed: Added `mutated_vars` analysis to `generate_method` (same as `generate_function`)
+
+- ✅ Bug #74: For loops consumed collections due to Rust ownership
+  - `for item in items { ... }` moved `items`, preventing reuse in later code
+  - Fixed: Added `.clone()` for `Expr::Identifier` and `Expr::Member` iterables (not ranges/method calls)
+  - Also fixed duplicate `generate_expr` call that was generating the iterable expression twice
+
 **Critical (High severity)**: 4 (all fixed!)
-**Medium severity**: 46 (all fixed!)
+**Medium severity**: 55 (all fixed!)
 **Documentation issues**: 4
 
-**Totals**: 62 bugs tracked, 56 fixed, 6 documented for future work
+**Totals**: 71 bugs tracked, 65 fixed, 6 documented for future work
 
 Most bugs were in the Rust code generation phase, particularly around:
 1. Type handling (String vs &str, i32 vs usize)

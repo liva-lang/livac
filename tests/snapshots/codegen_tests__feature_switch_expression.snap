@@ -358,10 +358,10 @@ mod liva_rt {
 fn main() {
     let day = 3;
     let name = match day {
-        1 => "Monday",
-        2 => "Tuesday",
-        3 => "Wednesday",
-        _ => "Unknown",
+        1 => "Monday".to_string(),
+        2 => "Tuesday".to_string(),
+        3 => "Wednesday".to_string(),
+        _ => "Unknown".to_string(),
     };
     println!("{}", name);
 }
