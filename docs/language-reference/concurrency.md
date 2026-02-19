@@ -307,6 +307,47 @@ main() {
 - `ordered` - Preserve iteration order
 - `unordered` - Allow reordering for performance
 
+## Array Execution Policies
+
+Liva array methods support **adapter-style execution policies** for parallel and vectorized processing. These complement the `par`/`async` keywords by providing data-parallel operations directly on collections.
+
+### Adapters
+
+```liva
+// Sequential (default)
+let doubled = numbers.map(x => x * 2)
+
+// Parallel - multi-threading via Rayon
+let doubled = numbers.par().map(x => x * 2)
+
+// Parallel with options
+let doubled = numbers.par({threads: 4, chunk: 2}).map(x => heavyCompute(x))
+
+// Vectorized (SIMD planned, sequential fallback)
+let doubled = numbers.vec().map(x => x * 2)
+
+// Parallel + Vectorized combined
+let doubled = numbers.parvec().map(x => x * 2)
+```
+
+### Supported Methods
+
+All array methods (`map`, `filter`, `reduce`, `forEach`, `find`, `some`, `every`, `indexOf`, `includes`) support all execution policies. Parallel adapters use Rayon's ordered variants (`find_first`, `position_first`) to guarantee deterministic results.
+
+```liva
+// Parallel find: finds the leftmost match
+let first = items.par().find(x => x > threshold)
+
+// Parallel reduce: requires associative operation
+let sum = numbers.par().reduce(0, (acc, x) => acc + x)
+let product = numbers.par().reduce((acc, x) => acc * x, 1)
+
+// Parallel indexOf: finds leftmost position
+let idx = numbers.par().indexOf(42)
+```
+
+> For full API reference, adapter options, and the support matrix, see **[Array Methods](stdlib/arrays.md)**.
+
 ## Auto-Async Inference
 
 Functions automatically become `async` if they contain `async` calls:
@@ -533,6 +574,7 @@ main() {
 
 ## See Also
 
+- **[Array Methods](stdlib/arrays.md)** - Execution policies for array methods (`.par()`, `.vec()`, `.parvec()`)
 - **[Error Handling](error-handling.md)** - Combining concurrency with fallibility
 - **[Async Programming Guide](../guides/async-programming.md)** - Deep dive into async
 - **[Parallel Computing Guide](../guides/parallel-computing.md)** - Deep dive into parallel

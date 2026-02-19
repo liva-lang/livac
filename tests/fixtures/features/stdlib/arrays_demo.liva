@@ -68,15 +68,15 @@ main() {
   let nums = [1, 2, 3, 4, 5]
   
   // Sequential sum
-  let sum = nums.reduce((acc, x) => acc + x, 0)
+  let sum = nums.reduce(0, (acc, x) => acc + x)
   print($"Sum: {sum}")
   
   // Sequential product
-  let product = nums.reduce((acc, x) => acc * x, 1)
+  let product = nums.reduce(1, (acc, x) => acc * x)
   print($"Product: {product}")
   
   // Parallel reduction
-  let parallelSum = nums.par().reduce((acc, x) => acc + x, 0)
+  let parallelSum = nums.par().reduce(0, (acc, x) => acc + x)
   print($"Parallel sum: {parallelSum}\n")
 
   // ============================================================================
@@ -107,7 +107,7 @@ main() {
   let result = data
     .filter(x => x > 3)
     .map(x => x * 2)
-    .reduce((a, b) => a + b, 0)
+    .reduce(0, (a, b) => a + b)
   print($"Chain result (filter > 3, map *2, sum): {result}")
   
   // Parallel chain
@@ -115,7 +115,7 @@ main() {
     .par()
     .filter(x => x > 3)
     .map(x => x * 2)
-    .reduce((a, b) => a + b, 0)
+    .reduce(0, (a, b) => a + b)
   print($"Parallel chain result: {parallelResult}\n")
 
   // ============================================================================
@@ -160,16 +160,43 @@ main() {
   print($"Contains 100: {hasHundred}\n")
 
   // ============================================================================
-  // 8. COMPLEX EXAMPLE - Real world scenario
+  // 8. PARALLEL FIND / INDEXOF (Session 18)
   // ============================================================================
-  print("8️⃣ COMPLEX EXAMPLE - Processing user scores:")
+  print("8️⃣ PARALLEL FIND / INDEXOF:")
+
+  let parData = [10, 20, 30, 40, 50]
+
+  // Parallel find
+  let parFound = parData.par().find(x => x > 25)
+  print($"Parallel find > 25: {parFound}")
+
+  // Parallel indexOf
+  let parIdx = parData.par().indexOf(30)
+  print($"Parallel indexOf(30): {parIdx}")
+
+  // Parallel reduce with multiply
+  let parProduct = parData.par().reduce(1, (acc, x) => acc * x)
+  print($"Parallel product: {parProduct}")
+
+  // Vec adapter (SIMD fallback)
+  let vecDoubled2 = parData.vec().map(x => x * 2)
+  print($"Vec map: {vecDoubled2}")
+
+  // ParVec adapter
+  let pvEvens = parData.parvec().filter(x => x % 2 == 0)
+  print($"ParVec filter evens: {pvEvens}\n")
+
+  // ============================================================================
+  // 9. COMPLEX EXAMPLE - Real world scenario
+  // ============================================================================
+  print("9️⃣ COMPLEX EXAMPLE - Processing user scores:")
   
   let scores = [45, 78, 92, 65, 88, 71, 96, 54, 82, 90]
   
   // Process: filter passing scores, boost by 5%, calculate average
   let passingScores = scores.filter(x => x >= 70)
   let boostedScores = passingScores.map(x => x + 5)
-  let average = boostedScores.reduce((sum, score) => sum + score, 0) / boostedScores.length
+  let average = boostedScores.reduce(0, (sum, score) => sum + score) / boostedScores.length
   
   print($"Passing scores: {passingScores}")
   print($"Boosted scores: {boostedScores}")
@@ -180,7 +207,7 @@ main() {
     .par()
     .filter(x => x >= 70)
     .map(x => x + 5)
-    .reduce((sum, score) => sum + score, 0) / scores.filter(x => x >= 70).length
+    .reduce(0, (sum, score) => sum + score) / scores.filter(x => x >= 70).length
   
   print($"Parallel average: {parallelAverage}\n")
 

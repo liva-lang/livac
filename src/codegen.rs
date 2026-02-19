@@ -7101,8 +7101,8 @@ impl CodeGenerator {
 
         // Handle array methods with adapters
         match method_call.adapter {
-            ArrayAdapter::Seq => {
-                // Sequential: use .iter() but with special handling for JsonValue
+            ArrayAdapter::Seq | ArrayAdapter::Vec => {
+                // Sequential execution (Vec/SIMD falls back to sequential until SIMD codegen is implemented)
                 match method_call.method.as_str() {
                     "map" => {
                         // For map, use iter()
@@ -7146,8 +7146,8 @@ impl CodeGenerator {
                     }
                 }
             }
-            ArrayAdapter::Par => {
-                // Parallel: use rayon's .par_iter()
+            ArrayAdapter::Par | ArrayAdapter::ParVec => {
+                // Parallel execution (ParVec SIMD layer falls back to parallel-only for now)
                 // For JsonValue, need to convert to Vec first
                 if is_direct_json {
                     self.output.push_str(".to_vec().into_par_iter()");
@@ -7163,27 +7163,12 @@ impl CodeGenerator {
                     // TODO: Configure rayon thread pool with options
                 }
             }
-            ArrayAdapter::Vec => {
-                // Vectorized: use SIMD
-                // TODO: Implement SIMD version
-                self.output.push_str(".into_iter()");
-            }
-            ArrayAdapter::ParVec => {
-                // Parallel + Vectorized: use rayon parallel iterator
-                // For JsonValue, need to convert to Vec first
-                if is_direct_json {
-                    self.output.push_str(".to_vec().into_par_iter()");
-                } else {
-                    self.output.push_str(".par_iter()");
-                }
-                // TODO: Implement SIMD optimizations on top of parallel
-            }
         }
 
         // Generate the method call
 
         // Special handling for reduce: it uses .iter() on the vector itself
-        if method_call.method == "reduce" && matches!(method_call.adapter, ArrayAdapter::Seq) {
+        if method_call.method == "reduce" && matches!(method_call.adapter, ArrayAdapter::Seq | ArrayAdapter::Vec) {
             self.output.push_str(".iter()");
         }
 
@@ -7222,7 +7207,14 @@ impl CodeGenerator {
         );
         let rust_method = match method_call.method.as_str() {
             "forEach" => "for_each".to_string(),
-            "indexOf" => "position".to_string(),
+            "indexOf" => {
+                // Rayon uses position_first() for ordered parallel position search
+                if _is_parallel { "position_first".to_string() } else { "position".to_string() }
+            }
+            "find" => {
+                // Rayon uses find_first() for ordered parallel find
+                if _is_parallel { "find_first".to_string() } else { "find".to_string() }
+            }
             "includes" => "any".to_string(),
             // For parallel reduce, we'll use fold + reduce (handled specially below)
             "reduce" => "fold".to_string(),
@@ -7331,7 +7323,7 @@ impl CodeGenerator {
                 || method_call.method == "find"
                 || method_call.method == "some"
                 || method_call.method == "every")
-                && (matches!(method_call.adapter, ArrayAdapter::Seq)
+                && (matches!(method_call.adapter, ArrayAdapter::Seq | ArrayAdapter::Vec)
                     // Bug #47-48 fix: par_iter() also returns &T, so we need lambda patterns for dereferencing
                     // Exception: JsonValue with .to_vec().into_par_iter() gets owned values (no deref needed only for is_direct_json)
                     || matches!(method_call.adapter, ArrayAdapter::Par | ArrayAdapter::ParVec));
@@ -7754,15 +7746,15 @@ impl CodeGenerator {
             };
 
         match (method_call.adapter, method_call.method.as_str()) {
-            // Sequential map: just collect (lambda already returns owned values)
-            (ArrayAdapter::Seq, "map") => {
+            // Sequential/Vec map: just collect (lambda already returns owned values)
+            (ArrayAdapter::Seq, "map") | (ArrayAdapter::Vec, "map") => {
                 self.output.push_str(".collect::<Vec<_>>()");
             }
-            // Sequential filter: copy/clone values after filtering, then collect
+            // Sequential/Vec filter: copy/clone values after filtering, then collect
             // - JsonValue: no copy needed (already returns owned values)
             // - Non-Copy types (String, classes): use .cloned()
             // - Copy types (i32, f64, bool, char): use .copied()
-            (ArrayAdapter::Seq, "filter") => {
+            (ArrayAdapter::Seq, "filter") | (ArrayAdapter::Vec, "filter") => {
                 if is_json_value {
                     self.output.push_str(".collect::<Vec<_>>()");
                 } else if needs_clone_not_copy {
@@ -7784,13 +7776,13 @@ impl CodeGenerator {
             // Pattern: .fold(|| identity, |acc, x| acc + x).reduce(|| identity, |a, b| a + b)
             (ArrayAdapter::Par, "reduce") | (ArrayAdapter::ParVec, "reduce") => {
                 // After fold(|| initial, |acc, x| expr), we need reduce(|| initial, |a, b| combine)
-                // For simple ops like addition, the combine is the same as the fold
+                // Extract the binary operator from the lambda to generate correct combine
                 // Liva syntax: reduce(identity, lambda) so args[0] is identity
                 if method_call.args.len() >= 2 {
-                    // Get the identity value to repeat it
+                    let combine_op = Self::extract_reduce_combine_op(&method_call.args[1]);
                     self.output.push_str(".reduce(|| ");
                     self.generate_expr(&method_call.args[0])?; // identity is args[0]
-                    self.output.push_str(", |a, b| a + b)"); // For now, assume addition
+                    write!(self.output, ", |a, b| a {} b)", combine_op).unwrap();
                 }
             }
             // Find returns Option<&T>, copy/clone it
@@ -7831,6 +7823,60 @@ impl CodeGenerator {
         }
 
         Ok(())
+    }
+
+    /// Extract the binary operator from a reduce lambda for parallel combine.
+    /// Given `(acc, x) => acc + x`, extracts "+".
+    /// Given `(acc, x) => acc * x`, extracts "*".
+    /// Falls back to "+" for complex expressions that aren't simple binary ops.
+    fn extract_reduce_combine_op(lambda_arg: &Expr) -> &'static str {
+        if let Expr::Lambda(lambda) = lambda_arg {
+            match &lambda.body {
+                LambdaBody::Expr(expr) => {
+                    Self::binop_to_combine_str(expr)
+                }
+                LambdaBody::Block(block) => {
+                    // Try to extract from the last statement (return or expression)
+                    if let Some(last_stmt) = block.stmts.last() {
+                        match last_stmt {
+                            Stmt::Return(ret) => {
+                                if let Some(ref expr) = ret.expr {
+                                    return Self::binop_to_combine_str_ref(expr);
+                                }
+                            }
+                            Stmt::Expr(expr_stmt) => {
+                                return Self::binop_to_combine_str_ref(&expr_stmt.expr);
+                            }
+                            _ => {}
+                        }
+                    }
+                    "+" // default fallback
+                }
+            }
+        } else {
+            "+" // not a lambda — default to addition
+        }
+    }
+
+    /// Extract the outermost binary operator from an expression for reduce combine.
+    /// For `acc + x * 2`, the outer op is `+`, which is correct for combining partial sums.
+    fn binop_to_combine_str(expr: &Box<Expr>) -> &'static str {
+        Self::binop_to_combine_str_ref(expr.as_ref())
+    }
+
+    fn binop_to_combine_str_ref(expr: &Expr) -> &'static str {
+        if let Expr::Binary { op, .. } = expr {
+            match op {
+                BinOp::Add => "+",
+                BinOp::Sub => "-",
+                BinOp::Mul => "*",
+                BinOp::Div => "/",
+                BinOp::Mod => "%",
+                _ => "+",
+            }
+        } else {
+            "+" // non-binary expression (e.g., function call) — default to addition
+        }
     }
 
     fn generate_string_method_call(

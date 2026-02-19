@@ -2508,3 +2508,77 @@ main() {
     let rust_code = compile_and_generate(source);
     assert_snapshot!("enum_as_param_return", rust_code);
 }
+
+// ---------------------------------------------------------------------------
+// Array Parallel Execution Policies (Session 18)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_feature_par_find() {
+    let source = r#"
+main() {
+    let numbers = [1, 2, 3, 4, 5]
+    let found = numbers.par().find(x => x > 3)
+    print(found)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("feature_par_find", rust_code);
+}
+
+#[test]
+fn test_feature_par_indexof() {
+    let source = r#"
+main() {
+    let numbers = [10, 20, 30, 40]
+    let idx = numbers.par().indexOf(30)
+    print(idx)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("feature_par_indexof", rust_code);
+}
+
+#[test]
+fn test_feature_par_reduce_multiply() {
+    let source = r#"
+main() {
+    let numbers = [1, 2, 3, 4, 5]
+    let product = numbers.par().reduce(1, (acc, x) => acc * x)
+    print(product)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("feature_par_reduce_multiply", rust_code);
+}
+
+#[test]
+fn test_feature_vec_map() {
+    let source = r#"
+main() {
+    let numbers = [1, 2, 3, 4]
+    let doubled = numbers.vec().map(x => x * 2)
+    print(doubled)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("feature_vec_map", rust_code);
+}
+
+#[test]
+fn test_feature_parvec_filter() {
+    let source = r#"
+main() {
+    let numbers = [1, 2, 3, 4, 5, 6]
+    let evens = numbers.parvec().filter(x => x % 2 == 0)
+    print(evens)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("feature_parvec_filter", rust_code);
+}

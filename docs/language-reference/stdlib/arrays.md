@@ -56,15 +56,17 @@ let doubled = [1,2,3,4].parvec({
 
 | Method | Sequential | `.par()` | `.vec()` | `.parvec()` | Notes |
 |--------|-----------|----------|----------|-------------|-------|
-| `map` | ✅ | ✅ | ✅ | ✅ | Full support |
-| `filter` | ✅ | ✅ | ✅ | ✅ | Full support |
-| `reduce` | ✅ | ✅ | ❌ | ❌ | Parallel requires associative op |
-| `forEach` | ✅ | ✅ | ❌ | ❌ | Side effects only |
-| `find` | ✅ | ❌ | ❌ | ❌ | Early exit, order-dependent |
-| `some` | ✅ | ✅ | ❌ | ❌ | Short-circuit possible |
-| `every` | ✅ | ✅ | ❌ | ❌ | Short-circuit possible |
-| `indexOf` | ✅ | ❌ | ❌ | ❌ | Order-dependent |
-| `includes` | ✅ | ✅ | ❌ | ❌ | Order-independent |
+| `map` | ✅ | ✅ | ✅† | ✅ | Full support |
+| `filter` | ✅ | ✅ | ✅† | ✅ | Full support |
+| `reduce` | ✅ | ✅ | ✅† | ✅ | Parallel requires associative op |
+| `forEach` | ✅ | ✅ | ✅† | ✅ | Parallel: unordered execution |
+| `find` | ✅ | ✅ | ✅† | ✅ | Uses `find_first` for ordered parallel |
+| `some` | ✅ | ✅ | ✅† | ✅ | Short-circuit possible |
+| `every` | ✅ | ✅ | ✅† | ✅ | Short-circuit possible |
+| `indexOf` | ✅ | ✅ | ✅† | ✅ | Uses `position_first` for ordered parallel |
+| `includes` | ✅ | ✅ | ✅† | ✅ | Order-independent |
+
+> **†** `.vec()` currently uses a sequential fallback. SIMD vectorization is planned for a future release.
 
 ---
 
@@ -179,7 +181,7 @@ Reduces the array to a single value by applying a binary function.
 
 **Signature:**
 ```liva
-reduce<T, R>(fn: (R, T) => R, initial: R): R
+reduce<T, R>(initial: R, fn: (R, T) => R): R
 ```
 
 **Examples:**
@@ -187,23 +189,24 @@ reduce<T, R>(fn: (R, T) => R, initial: R): R
 let numbers = [1, 2, 3, 4, 5]
 
 // Sequential sum
-let sum = numbers.reduce((acc, x) => acc + x, 0)
+let sum = numbers.reduce(0, (acc, x) => acc + x)
 // Result: 15
 
 // Sequential product
-let product = numbers.reduce((acc, x) => acc * x, 1)
+let product = numbers.reduce(1, (acc, x) => acc * x)
 // Result: 120
 
 // Parallel reduction (requires associative operation)
-let parallelSum = numbers.par().reduce((acc, x) => acc + x, 0)
+let parallelSum = numbers.par().reduce(0, (acc, x) => acc + x)
+let parallelProduct = numbers.par().reduce(1, (acc, x) => acc * x)
 
 // Complex accumulator
-let stats = numbers.reduce((acc, x) => {
+let stats = numbers.reduce({sum: 0, count: 0}, (acc, x) => {
   return {
     sum: acc.sum + x,
     count: acc.count + 1
   }
-}, {sum: 0, count: 0})
+})
 ```
 
 **Parallel Constraints:**
@@ -254,7 +257,7 @@ numbers.forEach(x => {
 
 ### `find(fn)`
 
-Returns the first element matching the predicate (sequential only).
+Returns the first element matching the predicate.
 
 **Signature:**
 ```liva
@@ -276,6 +279,10 @@ let found = names.find(isAdmin)
 
 // Instance method reference with :: (v1.1.0)
 let found = names.find(matcher::matches)
+
+// Parallel find (ordered - finds leftmost match)
+let firstBig = numbers.par().find(x => x > 3)
+// Result: 4
 ```
 
 ---
@@ -340,7 +347,7 @@ let allLarge = numbers.par().every(x => x > 100)
 
 ### `indexOf(value)`
 
-Returns the index of the first occurrence of a value (sequential only).
+Returns the index of the first occurrence of a value.
 
 **Signature:**
 ```liva
@@ -356,6 +363,10 @@ let index = numbers.indexOf(30)
 
 let notFound = numbers.indexOf(100)
 // Result: -1
+
+// Parallel indexOf (ordered - finds leftmost position)
+let idx = numbers.par().indexOf(30)
+// Result: 2
 ```
 
 ---
@@ -397,7 +408,7 @@ let numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 let result = numbers
   .filter(x => x > 3)
   .map(x => x * 2)
-  .reduce((a, b) => a + b, 0)
+  .reduce(0, (a, b) => a + b)
 // Result: 84
 
 // Parallel chain
@@ -405,13 +416,13 @@ let parallelResult = numbers
   .par()
   .filter(x => x > 3)
   .map(x => x * 2)
-  .reduce((a, b) => a + b, 0)
+  .reduce(0, (a, b) => a + b)
 
 // Mixed: parallel for expensive ops, then sequential
 let mixed = numbers
   .par().map(x => heavyComputation(x))
   .filter(x => x > threshold)
-  .reduce((a, b) => a + b, 0)
+  .reduce(0, (a, b) => a + b)
 ```
 
 ---
@@ -461,9 +472,9 @@ if err != null {
 
 ### Backend
 - Sequential: Direct Rust `Vec` operations
-- `.par()`: Rayon parallel iterators
-- `.vec()`: SIMD intrinsics (e.g., `packed_simd` crate)
-- `.parvec()`: Combined Rayon + SIMD
+- `.par()`: Rayon parallel iterators (`par_iter()`, `find_first()`, `position_first()`)
+- `.vec()`: Sequential fallback (SIMD via `packed_simd` planned)
+- `.parvec()`: Rayon parallel iterators (SIMD layer planned)
 
 ### Compilation
 ```liva
