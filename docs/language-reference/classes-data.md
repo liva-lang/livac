@@ -52,6 +52,9 @@ AccountBalance: number
 ```liva
 // ✅ Good: Validate in constructor
 User {
+  email: string
+  age: number
+  
   constructor(email: string, age: number) {
     if email == "" fail "Email required"
     if age < 0 fail "Age must be positive"
@@ -59,9 +62,6 @@ User {
     this.email = email
     this.age = age
   }
-  
-  email: string
-  age: number
 }
 ```
 
@@ -70,13 +70,13 @@ User {
 ```liva
 // ✅ Good: Single responsibility
 User {
+  name: string
+  email: string
+  
   constructor(name: string, email: string) {
     this.name = name
     this.email = email
   }
-  
-  name: string
-  email: string
   
   validate() => this.email != "" && this.name != ""
 }
@@ -112,26 +112,26 @@ User {
 ```liva
 // ✅ Good: Provide methods to change state
 Counter {
-  constructor() {
-    this.__count = 0
-  }
+  _count: number
   
-  __count: number
+  constructor() {
+    this._count = 0
+  }
   
   increment() {
-    this.__count = this.__count + 1
+    this._count = this._count + 1
   }
   
-  getCount() => this.__count
+  getCount() => this._count
 }
 
 // ❌ Bad: Direct field access
 Counter {
+  count: number
+  
   constructor() {
     this.count = 0  // Public field
   }
-  
-  count: number
 }
 ```
 
@@ -150,11 +150,11 @@ Logger {
 }
 
 UserService {
+  logger: Logger
+  
   constructor(logger: Logger) {
     this.logger = logger
   }
-  
-  logger: Logger
   
   createUser(name: string) {
     this.logger.log($"Creating user: {name}")
@@ -245,14 +245,14 @@ data Coordinate {
 
 // ❌ Needs regular class (validation in constructor)
 User {
+  email: string
+  age: number
+  
   constructor(email: string, age: number) {
     if email == "" fail "Email required"
     this.email = email
     this.age = age
   }
-  
-  email: string
-  age: number
 }
 ```
 
@@ -280,13 +280,13 @@ User {
 ```liva
 // Basic class
 Person {
+  name: string
+  age: number
+  
   constructor(name: string, age: number) {
     this.name = name
     this.age = age
   }
-  
-  name: string
-  age: number
   
   isAdult() => this.age >= 18
   
@@ -310,11 +310,11 @@ Animal {
 
 // Implementation
 Dog : Animal {
+  name: string
+  
   constructor(name: string) {
     this.name = name
   }
-  
-  name: string
   
   makeSound() => "Woof!"
   getName() => this.name

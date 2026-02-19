@@ -466,8 +466,7 @@ pub struct Constructor {
 
 pub enum Visibility {
     Public,           // default, no prefix
-    Protected,        // _name
-    Private,          // __name
+    Private,          // _name
 }
 ```
 

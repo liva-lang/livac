@@ -72,14 +72,12 @@ StringTemplate(String)  // $"Hello {name}"
 
 ```rust
 Ident(String)           // public: myVar, calculate
-ProtectedIdent(String)  // protected: _helper
-PrivateIdent(String)    // private: __secret
+PrivateIdent(String)    // private: _helper, _secret
 ```
 
-Visibility is determined by leading underscores:
+Visibility is determined by leading underscore:
 - No prefix: Public
-- `_`: Protected
-- `__`: Private
+- `_`: Private
 
 ## Implementation
 

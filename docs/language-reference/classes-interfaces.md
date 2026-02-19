@@ -23,13 +23,13 @@ Visibility rules, instantiation patterns, and interface contracts in Liva.
 
 ```liva
 User {
+  name: string       // Public
+  _password: string  // Private
+  
   constructor(name: string, password: string) {
     this.name = name              // Public
     this._password = password     // Private
   }
-  
-  name: string       // Public
-  _password: string  // Private
 }
 ```
 
@@ -37,11 +37,11 @@ User {
 
 ```liva
 BankAccount {
+  balance: number
+  
   constructor(balance: number) {
     this.balance = balance
   }
-  
-  balance: number
   
   // Public method
   deposit(amount: number) {
@@ -146,7 +146,7 @@ ClassName : InterfaceName {
   // Constructor
   constructor(params) { }
   
-  // Method implementations (must implement all interface methods)
+  // Methods (must implement all interface methods)
   methodName(params): returnType { }
   anotherMethod(): returnType { }
 }

@@ -340,8 +340,8 @@ async async fetchData()
 **Solution:**
 
 ```liva
-// ✅ Use one modifier
-async fetchData()
+// ✅ Use async at call site, not declaration
+let result = async fetchData()
 ```
 
 ---

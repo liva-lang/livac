@@ -159,22 +159,13 @@ _validateInput(data) => data != null && data.length > 0
 _checkPermissions(user) => user.role == "admin"
 ```
 
-### Private Functions
-
-```liva
-// Private: starts with double underscore
-__internalHelper(value) => value * 2 + 1
-__secretAlgorithm(data) => /* ... */
-```
-
 ### Usage
 
 ```liva
 // In same file/module
 main() {
   let price = calculatePrice(5, 10)    // ✅ Public
-  let valid = _validateInput("data")   // ✅ Protected (same module)
-  let result = __internalHelper(42)    // ✅ Private (same file)
+  let valid = _validateInput("data")   // ✅ Private (same module)
 }
 ```
 

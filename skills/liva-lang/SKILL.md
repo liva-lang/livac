@@ -34,12 +34,14 @@ process(items: [string]) {
 
 // Classes
 Person {
+    name: string
+    age: number
+    
     constructor(name: string, age: number) {
         this.name = name
         this.age = age
     }
-    name: string
-    age: number
+    
     greet() => $"Hello, I'm {this.name}"
 }
 
@@ -69,8 +71,8 @@ readConfig(path: string): string {
 }
 
 // Concurrency
-async fetchData(url: string): string {
-    let response, err = HTTP.get(url)
+fetchData(url: string): string {
+    let response, err = async HTTP.get(url)
     return response or fail
 }
 ```

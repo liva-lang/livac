@@ -17,13 +17,13 @@ Fundamentals of object-oriented programming in Liva: class declarations, constru
 
 ```liva
 Person {
+  name: string
+  age: number
+  
   constructor(name: string, age: number) {
     this.name = name
     this.age = age
   }
-  
-  name: string
-  age: number
   
   greet() => $"Hello, I'm {this.name}"
 }
@@ -31,10 +31,11 @@ Person {
 
 ### Components
 
-1. **Class name**: PascalCase by convention
-2. **Constructor**: Initializes instance
-3. **Fields**: Instance variables
-4. **Methods**: Instance functions
+A class body follows this **required ordering**:
+
+1. **Fields** (first) — instance variable declarations
+2. **Constructor** (second) — initialization logic
+3. **Methods** (last) — instance functions
 
 ---
 
@@ -44,13 +45,13 @@ Person {
 
 ```liva
 Person {
+  name: string
+  age: number
+  
   constructor(name: string, age: number) {
     this.name = name
     this.age = age
   }
-  
-  name: string
-  age: number
 }
 ```
 
@@ -58,6 +59,9 @@ Person {
 
 ```liva
 User {
+  username: string
+  password: string
+  
   constructor(username: string, password: string) {
     if username == "" {
       fail "Username cannot be empty"
@@ -69,9 +73,6 @@ User {
     this.username = username
     this.password = password
   }
-  
-  username: string
-  password: string
 }
 ```
 
@@ -82,13 +83,13 @@ Liva supports **one constructor per class**. Use default parameters or factory f
 ```liva
 // Default parameters in constructor
 Rectangle {
+  width: number
+  height: number
+  
   constructor(width: number = 1.0, height: number = 1.0) {
     this.width = width
     this.height = height
   }
-  
-  width: number
-  height: number
 }
 
 // Or factory functions
@@ -103,18 +104,18 @@ createSquare(size: number): Rectangle {
 
 ### Field Declarations
 
-Fields are declared **after the constructor**:
+Fields are declared **before the constructor**:
 
 ```liva
 Person {
+  name: string
+  age: number
+  email: string?  // Optional field
+  
   constructor(name: string, age: number) {
     this.name = name
     this.age = age
   }
-  
-  name: string
-  age: number
-  email: string?  // Optional field
 }
 ```
 
@@ -124,11 +125,11 @@ Fields are initialized in the constructor:
 
 ```liva
 Counter {
+  count: number
+  
   constructor() {
     this.count = 0
   }
-  
-  count: number
 }
 ```
 
@@ -138,15 +139,15 @@ Fields can have default values that are automatically used in constructors:
 
 ```liva
 User {
-  constructor(name: string) {
-    this.name = name
-    // Other fields use their defaults automatically
-  }
-  
   name: string
   age: int = 18           // Default value
   role: string = "user"   // Default value
   active: bool = true     // Default value
+  
+  constructor(name: string) {
+    this.name = name
+    // Other fields use their defaults automatically
+  }
 }
 
 let user = User.new("Alice")
@@ -195,13 +196,13 @@ Use methods for computed values:
 
 ```liva
 Person {
+  firstName: string
+  lastName: string
+  
   constructor(firstName: string, lastName: string) {
     this.firstName = firstName
     this.lastName = lastName
   }
-  
-  firstName: string
-  lastName: string
   
   // Computed property via method
   fullName() => $"{this.firstName} {this.lastName}"
@@ -216,13 +217,13 @@ Person {
 
 ```liva
 Person {
+  name: string
+  age: number
+  
   constructor(name: string, age: number) {
     this.name = name
     this.age = age
   }
-  
-  name: string
-  age: number
   
   // Arrow method (one-liner)
   isAdult() => this.age >= 18
@@ -239,11 +240,11 @@ Person {
 
 ```liva
 BankAccount {
+  balance: number
+  
   constructor(balance: number) {
     this.balance = balance
   }
-  
-  balance: number
   
   deposit(amount: number) {
     if amount <= 0 fail "Amount must be positive"
@@ -282,11 +283,11 @@ Methods are **automatically inferred as async**:
 
 ```liva
 UserService {
+  apiUrl: string
+  
   constructor(apiUrl: string) {
     this.apiUrl = apiUrl
   }
-  
-  apiUrl: string
   
   // Automatically async (calls async function)
   fetchUser(id: number): string {
@@ -309,7 +310,9 @@ Pass an instance method as a callback using `object::method` syntax. The method 
 ```liva
 Formatter {
     prefix: string
+    
     constructor(prefix: string) { this.prefix = prefix }
+    
     format(s: string) => $"{this.prefix}: {s}"
 }
 

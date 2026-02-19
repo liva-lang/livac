@@ -66,7 +66,7 @@ Person {
 let p = Person("Alice", 30)
 ```
 
-Visibility: `name` (public), `_name` (protected), `__name` (private).
+Visibility: `name` (public), `_name` (private).
 
 > See [classes-basics.md](classes-basics.md), [classes-data.md](classes-data.md), and [classes-interfaces.md](classes-interfaces.md) for full reference.
 
