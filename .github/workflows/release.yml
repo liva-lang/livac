@@ -258,7 +258,24 @@ jobs:
           body: |
             ## 📦 Installation
 
-            ### Package Managers (recommended)
+            ### One-line installer (recommended)
+
+            ```bash
+            curl -sSf https://raw.githubusercontent.com/liva-lang/livac/main/scripts/install.sh | bash
+            ```
+
+            Install a specific version:
+            ```bash
+            curl -sSf https://raw.githubusercontent.com/liva-lang/livac/main/scripts/install.sh | bash -s -- --version ${{ steps.version.outputs.version }}
+            ```
+
+            ### Self-update (if already installed)
+
+            ```bash
+            livac --update
+            ```
+
+            ### Package Managers
 
             | Platform | Command |
             |----------|---------|

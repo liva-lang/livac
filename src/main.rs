@@ -5,6 +5,8 @@ use std::process::Command;
 
 use livac::{CompilerError, CompilerOptions};
 
+const GITHUB_REPO: &str = "liva-lang/livac";
+
 #[derive(Parser)]
 #[command(name = "livac")]
 #[command(version = env!("CARGO_PKG_VERSION"))]
@@ -53,6 +55,10 @@ struct Cli {
     #[arg(long)]
     filter: Option<String>,
 
+    /// Update livac to the latest version
+    #[arg(long)]
+    update: bool,
+
     /// Arguments to pass to the compiled program (after --)
     #[arg(last = true)]
     program_args: Vec<String>,
@@ -61,6 +67,15 @@ struct Cli {
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
+
+    // Self-update mode
+    if cli.update {
+        if let Err(e) = self_update().await {
+            eprintln!("{} {}", "Error:".red().bold(), e);
+            std::process::exit(1);
+        }
+        return;
+    }
 
     // LSP mode
     if cli.lsp {
@@ -192,6 +207,260 @@ async fn run_lsp_server() -> Result<(), Box<dyn std::error::Error>> {
     Server::new(stdin, stdout, socket).serve(service).await;
 
     Ok(())
+}
+
+/// Self-update: download the latest release from GitHub and replace the current binary
+async fn self_update() -> Result<(), Box<dyn std::error::Error>> {
+    let current_version = env!("CARGO_PKG_VERSION");
+    println!(
+        "{} Checking for updates (current: v{})...",
+        "🧩".to_string(),
+        current_version
+    );
+
+    // 1. Fetch latest release info from GitHub
+    let client = reqwest::Client::builder()
+        .user_agent("livac-self-update")
+        .build()?;
+
+    // Try /releases/latest first, fall back to /releases[0]
+    let release: serde_json::Value = match client
+        .get(format!(
+            "https://api.github.com/repos/{}/releases/latest",
+            GITHUB_REPO
+        ))
+        .send()
+        .await
+    {
+        Ok(resp) if resp.status().is_success() => resp.json().await?,
+        _ => {
+            // Fallback: get all releases and pick the first one
+            let releases: Vec<serde_json::Value> = client
+                .get(format!(
+                    "https://api.github.com/repos/{}/releases",
+                    GITHUB_REPO
+                ))
+                .send()
+                .await?
+                .json()
+                .await?;
+
+            releases
+                .into_iter()
+                .next()
+                .ok_or("No releases found on GitHub")?
+        }
+    };
+
+    let latest_tag = release["tag_name"]
+        .as_str()
+        .ok_or("Could not parse tag_name from release")?;
+    let latest_version = latest_tag.trim_start_matches('v');
+
+    if latest_version == current_version {
+        println!(
+            "{} Already up to date (v{})",
+            "✓".green().bold(),
+            current_version
+        );
+        return Ok(());
+    }
+
+    println!(
+        "{} New version available: v{} → {}",
+        "→".blue(),
+        current_version,
+        latest_tag.bold()
+    );
+
+    // 2. Detect platform
+    let (os_name, arch) = detect_platform()?;
+    let artifact_name = format!("livac-{}-{}", os_name, arch);
+    let ext = if os_name == "windows" { "zip" } else { "tar.gz" };
+    let asset_name = format!("{}.{}", artifact_name, ext);
+
+    // 3. Find the download URL
+    let assets = release["assets"]
+        .as_array()
+        .ok_or("Could not parse assets from release")?;
+
+    let download_url = assets
+        .iter()
+        .find(|a| a["name"].as_str() == Some(&asset_name))
+        .and_then(|a| a["browser_download_url"].as_str())
+        .ok_or_else(|| {
+            format!(
+                "Asset '{}' not found in release {}. Available: {}",
+                asset_name,
+                latest_tag,
+                assets
+                    .iter()
+                    .filter_map(|a| a["name"].as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        })?;
+
+    println!(
+        "{} Downloading {}...",
+        "→".blue(),
+        asset_name
+    );
+
+    // 4. Download to temp file
+    let tmp_dir = std::env::temp_dir().join("livac-update");
+    std::fs::create_dir_all(&tmp_dir)?;
+    let archive_path = tmp_dir.join(&asset_name);
+
+    let response = client.get(download_url).send().await?;
+    if !response.status().is_success() {
+        return Err(format!("Download failed: HTTP {}", response.status()).into());
+    }
+    let bytes = response.bytes().await?;
+    std::fs::write(&archive_path, &bytes)?;
+
+    println!(
+        "{} Downloaded ({:.1} MB)",
+        "✓".green(),
+        bytes.len() as f64 / 1_048_576.0
+    );
+
+    // 5. Extract
+    println!("{} Extracting...", "→".blue());
+    let extract_dir = tmp_dir.join("extracted");
+    let _ = std::fs::remove_dir_all(&extract_dir);
+    std::fs::create_dir_all(&extract_dir)?;
+
+    let status = Command::new("tar")
+        .args(["xzf", archive_path.to_str().unwrap(), "-C", extract_dir.to_str().unwrap()])
+        .status()?;
+
+    if !status.success() {
+        return Err("Failed to extract archive".into());
+    }
+
+    // 6. Find the new binary
+    let binary_name = if cfg!(windows) { "livac.exe" } else { "livac" };
+    let new_binary = find_file_recursive(&extract_dir, binary_name)
+        .ok_or("Could not find livac binary in archive")?;
+
+    // 7. Replace current binary
+    let current_exe = std::env::current_exe()?;
+    println!(
+        "{} Updating {}...",
+        "→".blue(),
+        current_exe.display()
+    );
+
+    // On Unix, we can't overwrite a running binary directly.
+    // Strategy: rename old → .bak, copy new, delete .bak
+    let backup_path = current_exe.with_extension("bak");
+    let _ = std::fs::remove_file(&backup_path); // remove any old backup
+
+    // Try rename first (works if same filesystem)
+    if std::fs::rename(&current_exe, &backup_path).is_err() {
+        // If rename fails (cross-device), try remove + copy
+        std::fs::remove_file(&current_exe)?;
+    }
+
+    std::fs::copy(&new_binary, &current_exe)?;
+
+    // Make executable on Unix
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&current_exe, std::fs::Permissions::from_mode(0o755))?;
+    }
+
+    // Remove backup
+    let _ = std::fs::remove_file(&backup_path);
+
+    // 8. Save version to ~/.liva/version
+    let liva_dir = dirs_or_home().join(".liva");
+    let _ = std::fs::create_dir_all(&liva_dir);
+    let _ = std::fs::write(liva_dir.join("version"), latest_tag);
+
+    // 9. Also update ~/.liva/bin/livac if it exists and is different from current_exe
+    let liva_bin = liva_dir.join("bin").join(binary_name);
+    if liva_bin.exists() && liva_bin.canonicalize().ok() != current_exe.canonicalize().ok() {
+        let _ = std::fs::remove_file(&liva_bin);
+        let _ = std::fs::copy(&new_binary, &liva_bin);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&liva_bin, std::fs::Permissions::from_mode(0o755));
+        }
+        println!("{} Also updated {}", "✓".green(), liva_bin.display());
+    }
+
+    // Cleanup
+    let _ = std::fs::remove_dir_all(&tmp_dir);
+
+    println!();
+    println!(
+        "{} Updated to {} successfully!",
+        "✓".green().bold(),
+        latest_tag.bold()
+    );
+    println!();
+
+    // Verify
+    let output = Command::new(&current_exe).arg("--version").output();
+    if let Ok(out) = output {
+        let ver = String::from_utf8_lossy(&out.stdout);
+        println!("{} {}", "✓".green(), ver.trim());
+    }
+
+    Ok(())
+}
+
+/// Detect the current platform for self-update
+fn detect_platform() -> Result<(&'static str, &'static str), Box<dyn std::error::Error>> {
+    let os_name = if cfg!(target_os = "linux") {
+        "linux"
+    } else if cfg!(target_os = "macos") {
+        "darwin"
+    } else if cfg!(target_os = "windows") {
+        "windows"
+    } else {
+        return Err("Unsupported OS".into());
+    };
+
+    let arch = if cfg!(target_arch = "x86_64") {
+        "x64"
+    } else if cfg!(target_arch = "aarch64") {
+        "arm64"
+    } else {
+        return Err("Unsupported architecture".into());
+    };
+
+    Ok((os_name, arch))
+}
+
+/// Recursively find a file by name
+fn find_file_recursive(dir: &std::path::Path, name: &str) -> Option<PathBuf> {
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() && path.file_name().map(|n| n == name).unwrap_or(false) {
+                return Some(path);
+            }
+            if path.is_dir() {
+                if let Some(found) = find_file_recursive(&path, name) {
+                    return Some(found);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Get home directory
+fn dirs_or_home() -> PathBuf {
+    std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("."))
 }
 
 fn run_tests(cli: &Cli) -> i32 {
@@ -833,6 +1102,7 @@ mod tests {
             fmt_check: false,
             test: false,
             filter: None,
+            update: false,
             program_args: vec![],
         };
 
@@ -866,6 +1136,7 @@ mod tests {
             fmt_check: false,
             test: false,
             filter: None,
+            update: false,
             program_args: vec![],
         };
 
@@ -893,6 +1164,7 @@ mod tests {
             fmt_check: false,
             test: false,
             filter: None,
+            update: false,
             program_args: vec![],
         };
 
