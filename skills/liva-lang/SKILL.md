@@ -79,6 +79,10 @@ fetchData(url: string): string {
 
 ## Documentation Navigation
 
+> **IMPORTANT:** All Liva documentation is available ONLY through the relative paths listed below.
+> Do NOT search the workspace or filesystem for Liva docs — they are not part of the user's project.
+> Read the files below directly using their relative paths from this SKILL.md location.
+
 For detailed information, consult the following files based on the topic:
 
 ### Core Language
