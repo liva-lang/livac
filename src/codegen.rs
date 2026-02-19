@@ -250,13 +250,17 @@ impl CodeGenerator {
         }
     }
 
-    /// Check if expression is a File call (read/write/append/delete)
+    /// Check if expression is a File call (read/write/append/delete) or Dir.list call
     fn is_file_call(&self, expr: &Expr) -> bool {
         match expr {
             Expr::MethodCall(mc) => {
                 if let Expr::Identifier(obj) = mc.object.as_ref() {
-                    return obj == "File"
-                        && matches!(mc.method.as_str(), "read" | "write" | "append" | "delete");
+                    if obj == "File" {
+                        return matches!(mc.method.as_str(), "read" | "write" | "append" | "delete");
+                    }
+                    if obj == "Dir" {
+                        return matches!(mc.method.as_str(), "list");
+                    }
                 }
                 false
             }
@@ -4334,9 +4338,14 @@ impl CodeGenerator {
                         // Check if initializing with a method call that returns an array (map, filter, etc.)
                         // or Option (find)
                         else if let Expr::MethodCall(method_call) = &var.init {
-                            if matches!(method_call.method.as_str(), "map" | "filter") {
+                            if matches!(method_call.method.as_str(), "map" | "filter" | "split") {
                                 if let Some(name) = binding.name() {
                                     self.array_vars.insert(name.to_string());
+
+                                    // split() always returns [string]
+                                    if method_call.method == "split" {
+                                        self.typed_array_vars.insert(name.to_string(), "string".to_string());
+                                    }
 
                                     // Propagate element type from source array to filter/map result
                                     if let Some(base_var_name) =
@@ -6518,9 +6527,12 @@ impl CodeGenerator {
                 self.generate_expr(arg)?;
                 self.output.push_str(".to_string()");
             } else if let Expr::Identifier(name) = arg {
-                // Clone class instances when passing to functions to avoid ownership issues
+                // Clone class instances and string variables when passing to functions
+                // to avoid ownership issues (Rust moves String/struct by default)
                 let sanitized = self.sanitize_name(name);
-                if self.class_instance_vars.contains(&sanitized) {
+                if self.class_instance_vars.contains(&sanitized)
+                    || self.string_vars.contains(&sanitized)
+                {
                     self.generate_expr(arg)?;
                     self.output.push_str(".clone()");
                 } else {
@@ -6957,6 +6969,11 @@ impl CodeGenerator {
                 return self.generate_http_function_call(method_call);
             }
 
+            // Check if this is a Dir function call (Dir.list, Dir.isDir)
+            if name == "Dir" {
+                return self.generate_dir_function_call(method_call);
+            }
+
             // Check if this is a Sys function call (Sys.args, Sys.env, etc.)
             if name == "Sys" {
                 return self.generate_sys_function_call(method_call);
@@ -7034,6 +7051,7 @@ impl CodeGenerator {
                     | "endsWith"
                     | "substring"
                     | "charAt"
+                    | "contains"
             ))
             || is_string_indexof;
 
@@ -7960,7 +7978,7 @@ impl CodeGenerator {
             "trimEnd" => "trim_end",
             "startsWith" => "starts_with",
             "endsWith" => "ends_with",
-            method_name => method_name, // split, replace, trim, substring, charAt
+            method_name => method_name, // split, replace, trim, substring, charAt, contains
         };
 
         // Generate the method call
@@ -7968,10 +7986,31 @@ impl CodeGenerator {
         self.output.push_str(rust_method);
         self.output.push('(');
 
+        // Methods that take Pattern/&str args need & for String variables
+        let needs_ref_for_args = matches!(
+            method_call.method.as_str(),
+            "contains" | "startsWith" | "endsWith" | "split" | "replace" | "starts_with" | "ends_with"
+        );
+
         // Generate arguments
         for (i, arg) in method_call.args.iter().enumerate() {
             if i > 0 {
                 self.output.push_str(", ");
+            }
+            // Add & for String variable arguments in Pattern-based methods
+            if needs_ref_for_args {
+                let is_variable = match arg {
+                    Expr::Identifier(var_name) => {
+                        self.string_vars.contains(&self.sanitize_name(var_name))
+                            || !matches!(var_name.as_str(), "true" | "false" | "null")
+                    }
+                    Expr::Member { .. } => true,
+                    Expr::Literal(Literal::String(_)) => false,
+                    _ => false,
+                };
+                if is_variable {
+                    self.output.push('&');
+                }
             }
             self.generate_expr(arg)?;
         }
@@ -8307,9 +8346,9 @@ impl CodeGenerator {
                     )));
                 }
 
-                self.output.push_str("(match std::fs::read_to_string(&");
+                self.output.push_str("match std::fs::read_to_string(&");
                 self.generate_expr(&method_call.args[0])?;
-                self.output.push_str(") { Ok(content) => (Some(content), String::new()), Err(e) => (None, format!(\"File read error: {}\", e)) })");
+                self.output.push_str(") { Ok(content) => (Some(content), String::new()), Err(e) => (None, format!(\"File read error: {}\", e)) }");
             }
             "write" => {
                 // File.write(path, content) returns (Option<bool>, String)
@@ -8322,11 +8361,11 @@ impl CodeGenerator {
                     )));
                 }
 
-                self.output.push_str("(match std::fs::write(&");
+                self.output.push_str("match std::fs::write(&");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(", &");
                 self.generate_expr(&method_call.args[1])?;
-                self.output.push_str(") { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"File write error: {}\", e)) })");
+                self.output.push_str(") { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"File write error: {}\", e)) }");
             }
             "append" => {
                 // File.append(path, content) returns (Option<bool>, String)
@@ -8340,13 +8379,13 @@ impl CodeGenerator {
                 }
 
                 self.output.push_str(
-                    "(match std::fs::OpenOptions::new().create(true).append(true).open(&",
+                    "match std::fs::OpenOptions::new().create(true).append(true).open(&",
                 );
                 self.generate_expr(&method_call.args[0])?;
                 self.output
                     .push_str(").and_then(|mut file| { use std::io::Write; file.write_all(");
                 self.generate_expr(&method_call.args[1])?;
-                self.output.push_str(".as_bytes()) }) { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"File append error: {}\", e)) })");
+                self.output.push_str(".as_bytes()) }) { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"File append error: {}\", e)) }");
             }
             "exists" => {
                 // File.exists(path) returns bool (no error binding)
@@ -8382,6 +8421,53 @@ impl CodeGenerator {
                     "E3000",
                     &format!("Unknown File function: {}", method_call.method),
                     "Available File functions: read, write, append, exists, delete",
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn generate_dir_function_call(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
+        // Dir functions: list, isDir
+        match method_call.method.as_str() {
+            "list" => {
+                // Dir.list(path) returns ([string], String) - error binding
+                // Returns list of file/directory names in the given path
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Dir.list requires exactly 1 argument",
+                        "Usage: Dir.list(path)",
+                    )));
+                }
+
+                self.output.push_str("match std::fs::read_dir(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(") { Ok(entries) => { let mut names: Vec<String> = entries.filter_map(|e| e.ok().map(|e| e.file_name().to_string_lossy().to_string())).collect(); names.sort(); (Some(names), String::new()) }, Err(e) => (None, format!(\"Dir.list error: {}\", e)) }");
+            }
+            "isDir" => {
+                // Dir.isDir(path) returns bool (no error binding, like File.exists)
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Dir.isDir requires exactly 1 argument",
+                        "Usage: Dir.isDir(path)",
+                    )));
+                }
+
+                self.output.push_str("std::path::Path::new(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(").is_dir()");
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3000",
+                    &format!("Unknown Dir function: {}", method_call.method),
+                    "Available Dir functions: list, isDir",
                 )));
             }
         }
@@ -9024,6 +9110,10 @@ impl CodeGenerator {
                     {
                         return true;
                     }
+                    // Check for Dir methods (list returns tuple)
+                    if object_name == "Dir" && method_call.method == "list" {
+                        return true;
+                    }
                     // Check for HTTP methods (all return tuples)
                     if (object_name == "HTTP" || object_name == "Http")
                         && (method_call.method == "get"
@@ -9080,7 +9170,6 @@ impl CodeGenerator {
                         | "replace"
                         | "substring"
                         | "join"
-                        | "split"
                         | "charAt"
                 )
             }

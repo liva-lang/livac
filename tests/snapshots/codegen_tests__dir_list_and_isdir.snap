@@ -1,6 +1,6 @@
 ---
 source: tests/codegen_tests.rs
-assertion_line: 1525
+assertion_line: 2605
 expression: rust_code
 ---
 #[allow(dead_code)]
@@ -356,17 +356,13 @@ mod liva_rt {
     
 }
 
-fn load_config(path: String) -> Result<String, liva_rt::Error> {
-    let (content, err) = { let (opt, err) = match std::fs::read_to_string(&path) { Ok(content) => (Some(content), String::new()), Err(e) => (None, format!("File read error: {}", e)) }; (opt.unwrap_or_default(), err) };
-    let data = content;
-    return Ok(data);
-}
-
 fn main() {
-    let (config, err) = match load_config("config.json".to_string()) { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };
-    if err.is_some() {
-        println!("{}", format!("{}{}", "Failed: ", err.as_ref().map(|e| e.message.as_str()).unwrap_or("")));
-    } else {
-        println!("{}", config);
+    let is_dir = std::path::Path::new(&"/tmp").is_dir();
+    println!("{}", format!("Is dir: {}", is_dir));
+    let (entries, err) = { let (opt, err) = match std::fs::read_dir(&"/tmp") { Ok(entries) => { let mut names: Vec<String> = entries.filter_map(|e| e.ok().map(|e| e.file_name().to_string_lossy().to_string())).collect(); names.sort(); (Some(names), String::new()) }, Err(e) => (None, format!("Dir.list error: {}", e)) }; (opt.unwrap_or_default(), err) };
+    if err != "" {
+        println!("{}", format!("Error: {}", err));
+        return;
     }
+    println!("{}", format!("Found {} entries", (entries.len() as i32)));
 }

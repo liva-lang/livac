@@ -1155,6 +1155,7 @@ text.toLowerCase()                 // "hello, world!"
 text.replace("World", "Liva")      // "Hello, Liva!"
 text.startsWith("Hello")           // true
 text.endsWith("!")                 // true
+text.contains("World")             // true
 text.substring(0, 5)               // "Hello"
 text.charAt(0)                     // 'H'
 text.indexOf("World")              // 7
@@ -1253,6 +1254,25 @@ let ok3, err4 = File.delete("temp.txt")
 ```
 
 All File operations (except `File.exists`) use error binding.
+
+
+### Directory Operations
+
+```liva
+let entries, err = Dir.list("/path/to/dir")    // [string] - file/dir names sorted
+let isDir = Dir.isDir("/some/path")            // bool (no error binding needed)
+```
+
+`Dir.list` returns sorted file/directory names (not full paths). `Dir.isDir` is non-fallible like `File.exists`.
+
+
+### System
+
+```liva
+let args = Sys.args()              // [string] - command line arguments (index 0 = program)
+let home = Sys.env("HOME")        // string - environment variable (empty if not set)
+Sys.exit(1)                        // exit program with code
+```
 
 
 ### JSON

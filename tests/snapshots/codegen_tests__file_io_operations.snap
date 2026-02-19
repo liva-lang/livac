@@ -1,5 +1,6 @@
 ---
 source: tests/codegen_tests.rs
+assertion_line: 181
 expression: rust_code
 ---
 #[allow(dead_code)]
@@ -356,14 +357,14 @@ mod liva_rt {
 }
 
 fn main() {
-    let (content, err) = { let (opt, err) = (match std::fs::read_to_string(&"test.txt") { Ok(content) => (Some(content), String::new()), Err(e) => (None, format!("File read error: {}", e)) }); (opt.unwrap_or_default(), err) };
+    let (content, err) = { let (opt, err) = match std::fs::read_to_string(&"test.txt") { Ok(content) => (Some(content), String::new()), Err(e) => (None, format!("File read error: {}", e)) }; (opt.unwrap_or_default(), err) };
     if !err.is_empty() {
         println!("{}", format!("{}{}", "Read error: ", err.get_field("message").unwrap_or_default()));
     } else {
         println!("{}", format!("{}{}", "Content: ", content));
     }
-    let (success, write_err) = { let (opt, err) = (match std::fs::write(&"output.txt", &"Hello, Liva!") { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!("File write error: {}", e)) }); (opt.unwrap_or_default(), err) };
-    let (ok, append_err) = { let (opt, err) = (match std::fs::OpenOptions::new().create(true).append(true).open(&"log.txt").and_then(|mut file| { use std::io::Write; file.write_all("New entry".as_bytes()) }) { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!("File append error: {}", e)) }); (opt.unwrap_or_default(), err) };
+    let (success, write_err) = { let (opt, err) = match std::fs::write(&"output.txt", &"Hello, Liva!") { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!("File write error: {}", e)) }; (opt.unwrap_or_default(), err) };
+    let (ok, append_err) = { let (opt, err) = match std::fs::OpenOptions::new().create(true).append(true).open(&"log.txt").and_then(|mut file| { use std::io::Write; file.write_all("New entry".as_bytes()) }) { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!("File append error: {}", e)) }; (opt.unwrap_or_default(), err) };
     if std::path::Path::new(&"config.json").exists() {
         println!("{}", "Config exists");
     }

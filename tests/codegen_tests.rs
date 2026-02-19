@@ -2582,3 +2582,41 @@ main() {
     let rust_code = compile_and_generate(source);
     assert_snapshot!("feature_parvec_filter", rust_code);
 }
+
+#[test]
+fn test_dir_list_and_isdir() {
+    let source = r#"
+main() {
+    // Dir.isDir - returns bool (no error binding)
+    let isDir = Dir.isDir("/tmp")
+    print($"Is dir: {isDir}")
+
+    // Dir.list - returns [string] with error binding
+    let entries, err = Dir.list("/tmp")
+    if err != "" {
+        print($"Error: {err}")
+        return
+    }
+    print($"Found {entries.length} entries")
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("dir_list_and_isdir", rust_code);
+}
+
+#[test]
+fn test_string_contains() {
+    let source = r#"
+main() {
+    let text = "Hello World"
+    let hasWorld = text.contains("World")
+    let hasFoo = text.contains("Foo")
+    print($"Has World: {hasWorld}")
+    print($"Has Foo: {hasFoo}")
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("string_contains", rust_code);
+}
