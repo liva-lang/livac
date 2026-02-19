@@ -75,19 +75,29 @@ jobs:
         run: cargo build --release --target ${{ matrix.target }}
 
       # --- Binary artifact (.tar.gz / .zip) ---
+      # Archives include binary + skills + docs so all installers have everything
 
       - name: Package binary (Unix)
         if: runner.os != 'Windows'
         run: |
-          cd target/${{ matrix.target }}/release
-          tar czf ../../../${{ matrix.artifact }}.tar.gz ${{ matrix.bin }}
+          mkdir -p staging
+          cp target/${{ matrix.target }}/release/${{ matrix.bin }} staging/
+          cp -r skills staging/
+          cp -r docs staging/
+          cp scripts/install-skills.sh staging/
+          cd staging
+          tar czf ../${{ matrix.artifact }}.tar.gz .
 
       - name: Package binary (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          cd target/${{ matrix.target }}/release
-          Compress-Archive -Path ${{ matrix.bin }} -DestinationPath ../../../${{ matrix.artifact }}.zip
+          New-Item -ItemType Directory -Force -Path staging | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/${{ matrix.bin }}" staging/
+          Copy-Item -Recurse skills staging/
+          Copy-Item -Recurse docs staging/
+          Copy-Item scripts/install-skills.ps1 staging/
+          Compress-Archive -Path staging/* -DestinationPath ${{ matrix.artifact }}.zip
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
@@ -184,32 +194,60 @@ jobs:
           echo "Darwin arm64:   ${DARWIN_ARM64_SHA}"
           echo "Windows x64:    ${WINDOWS_X64_SHA}"
 
-          # Generate Homebrew formula
-          mkdir -p dist
+          # Update Homebrew formula in-place (Formula/ is the tap)
           sed -e "s/VERSION/${VERSION}/g" \
               -e "s/SHA256_LINUX_X64/${LINUX_X64_SHA}/g" \
               -e "s/SHA256_DARWIN_X64/${DARWIN_X64_SHA}/g" \
               -e "s/SHA256_DARWIN_ARM64/${DARWIN_ARM64_SHA}/g" \
-              packaging/homebrew/livac.rb > dist/livac.rb
+              Formula/livac.rb > Formula/livac.rb.tmp && mv Formula/livac.rb.tmp Formula/livac.rb
 
-          # Generate Scoop manifest
+          # Update Scoop manifest in-place (bucket/ is the bucket)
           sed -e "s/VERSION/${VERSION}/g" \
               -e "s/SHA256_WINDOWS_X64/${WINDOWS_X64_SHA}/g" \
-              packaging/scoop/livac.json > dist/livac.json
+              bucket/livac.json > bucket/livac.json.tmp && mv bucket/livac.json.tmp bucket/livac.json
 
-          # Generate Winget manifest
+          # Generate Winget manifest (needs external PR to microsoft/winget-pkgs)
+          mkdir -p dist
           sed -e "s/VERSION/${VERSION}/g" \
               -e "s/SHA256_WINDOWS_X64/${WINDOWS_X64_SHA}/g" \
               packaging/winget/liva-lang.livac.yaml > dist/liva-lang.livac.yaml
 
           echo "--- Generated manifests ---"
+          cat Formula/livac.rb | head -15
+          cat bucket/livac.json | head -10
           ls -la dist/
 
-      - name: Upload package manifests
+      - name: Upload Winget manifest artifact
         uses: actions/upload-artifact@v4
         with:
-          name: package-manifests
-          path: dist/
+          name: winget-manifest
+          path: dist/liva-lang.livac.yaml
+
+      - name: Commit updated manifests to main
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Save generated manifests
+          cp Formula/livac.rb /tmp/livac.rb
+          cp bucket/livac.json /tmp/livac.json
+
+          # Switch to main branch
+          git fetch origin main
+          git checkout main
+
+          # Apply updated manifests
+          cp /tmp/livac.rb Formula/livac.rb
+          cp /tmp/livac.json bucket/livac.json
+
+          git add Formula/livac.rb bucket/livac.json
+          if git diff --cached --quiet; then
+            echo "No manifest changes to commit"
+          else
+            git commit -m "chore: update package manifests for v${VERSION}"
+            git push origin main
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -224,23 +262,40 @@ jobs:
 
             | Platform | Command |
             |----------|---------|
-            | **macOS / Linux** | `brew tap liva-lang/tap && brew install livac` |
-            | **Windows (Scoop)** | `scoop bucket add liva-lang https://github.com/liva-lang/scoop-bucket && scoop install livac` |
+            | **macOS / Linux (Homebrew)** | `brew tap liva-lang/livac https://github.com/liva-lang/livac && brew install livac` |
+            | **Windows (Scoop)** | `scoop bucket add liva-lang https://github.com/liva-lang/livac && scoop install livac` |
             | **Ubuntu/Debian** | `sudo dpkg -i livac_amd64.deb` |
             | **Fedora/RHEL** | `sudo rpm -i livac.x86_64.rpm` |
 
+            All package managers **automatically install AI skills** for 9 coding agents (GitHub Copilot, Claude Code, Cursor, Codex, Windsurf, Gemini CLI, Antigravity, Continue, OpenClaw).
+
             ### Direct Download
 
-            | Platform | Package | Command |
-            |----------|---------|---------|
-            | **Linux** (x64) | `.tar.gz` | `tar xzf livac-linux-x64.tar.gz && sudo mv livac /usr/local/bin/` |
-            | **macOS** (Apple Silicon) | `.tar.gz` | `tar xzf livac-darwin-arm64.tar.gz && sudo mv livac /usr/local/bin/` |
-            | **macOS** (Intel) | `.tar.gz` | `tar xzf livac-darwin-x64.tar.gz && sudo mv livac /usr/local/bin/` |
-            | **Windows** (x64) | `.zip` | Extract `livac.exe` and add to PATH |
+            | Platform | Package |
+            |----------|---------|
+            | **Linux** (x64) | `livac-linux-x64.tar.gz` |
+            | **macOS** (Apple Silicon) | `livac-darwin-arm64.tar.gz` |
+            | **macOS** (Intel) | `livac-darwin-x64.tar.gz` |
+            | **Windows** (x64) | `livac-windows-x64.zip` |
+
+            **Manual install (direct download):**
+            ```bash
+            # Linux/macOS
+            tar xzf livac-*.tar.gz
+            sudo mv livac /usr/local/bin/
+            sudo mkdir -p /usr/share/livac
+            sudo cp -r skills docs /usr/share/livac/
+            bash install-skills.sh  # installs AI skills for coding agents
+
+            # Windows (PowerShell)
+            Expand-Archive livac-windows-x64.zip -DestinationPath livac
+            # Add livac.exe to PATH, then:
+            .\install-skills.ps1  # installs AI skills for coding agents
+            ```
 
             ### 🤖 AI Skills
 
-            The `.deb` and `.rpm` packages automatically install AI skills for GitHub Copilot, Claude, Cursor, and 6 other coding agents. For Homebrew, skills are installed automatically via `post_install`.
+            Release archives include skills + documentation for AI coding agents. All package managers run the install script automatically. For direct downloads, run the install script manually (see above).
 
             ---
 

@@ -10,6 +10,13 @@
         }
     },
     "bin": "livac.exe",
+    "depends": "rustup",
+    "post_install": [
+        "& \"$dir\\install-skills.ps1\""
+    ],
+    "pre_uninstall": [
+        "& \"$dir\\install-skills.ps1\" -Uninstall"
+    ],
     "checkver": {
         "github": "https://github.com/liva-lang/livac"
     },
@@ -20,8 +27,5 @@
             }
         }
     },
-    "suggest": {
-        "Rust toolchain": "rustup"
-    },
-    "post_install": "Write-Host 'Note: Liva requires Rust to compile programs. Install with: winget install Rustlang.Rustup' -ForegroundColor Yellow"
+    "notes": "Liva compiles to Rust. The Rust toolchain (rustup) is installed as a dependency."
 }

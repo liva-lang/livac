@@ -1,9 +1,10 @@
 # Homebrew formula for Liva compiler
-# To be placed in liva-lang/homebrew-tap repo as Formula/livac.rb
-#
-# Users install with:
-#   brew tap liva-lang/tap
+# This file lives in the main repo — users tap directly:
+#   brew tap liva-lang/livac https://github.com/liva-lang/livac
 #   brew install livac
+#
+# VERSION and SHA256_* placeholders are replaced by CI (release.yml)
+# after each release, then committed back to main.
 
 class Livac < Formula
   desc "Liva programming language compiler — compiles to Rust"
@@ -26,17 +27,24 @@ class Livac < Formula
     sha256 "SHA256_LINUX_X64"
   end
 
-  depends_on "rust" => :recommended
+  depends_on "rust"
 
   def install
     bin.install "livac"
 
-    # Install AI skills
-    (share/"livac/skills/liva-lang").install buildpath/"skills/liva-lang/SKILL.md" if File.exist? "skills/liva-lang/SKILL.md"
+    # Install AI skills and documentation (included in release archive)
+    (share/"livac/skills/liva-lang").install Dir["skills/liva-lang/*"] if Dir.exist? "skills/liva-lang"
+
+    if Dir.exist? "docs"
+      (share/"livac/docs").install Dir["docs/README.md", "docs/QUICK_REFERENCE.md", "docs/ERROR_CODES.md"]
+      (share/"livac/docs/language-reference").install Dir["docs/language-reference/*.md"] if Dir.exist? "docs/language-reference"
+      (share/"livac/docs/language-reference/stdlib").install Dir["docs/language-reference/stdlib/*.md"] if Dir.exist? "docs/language-reference/stdlib"
+      (share/"livac/docs/guides").install Dir["docs/guides/*.md"] if Dir.exist? "docs/guides"
+    end
   end
 
   def post_install
-    # Install AI skill symlinks for coding agents
+    # Create AI skill symlinks for coding agents
     agents = {
       ".copilot/skills"                => "GitHub Copilot",
       ".claude/skills"                 => "Claude Code",
@@ -63,6 +71,16 @@ class Livac < Formula
       link_path.make_symlink(skill_source)
       ohai "Linked AI skill for #{name}: #{link_path}"
     end
+  end
+
+  def caveats
+    <<~EOS
+      AI skills for 9 coding agents (Copilot, Claude, Cursor...) have been
+      installed automatically. If you use a new agent later, run:
+        livac --install-skills
+      or re-run:
+        brew postinstall livac
+    EOS
   end
 
   test do

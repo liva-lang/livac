@@ -195,6 +195,14 @@ fn run_tests(cli: &Cli) -> i32 {
 
     let skip_cargo = std::env::var("LIVAC_SKIP_CARGO").is_ok();
 
+    // Check Rust toolchain early
+    if !skip_cargo {
+        if let Err(e) = check_cargo_available() {
+            eprintln!("{} {}", "Error:".red().bold(), e);
+            return 1;
+        }
+    }
+
     println!("{}", "🧪 Liva Test Runner".cyan().bold());
     println!();
 
@@ -570,8 +578,35 @@ fn extract_number(s: &str, word: &str) -> usize {
     }
 }
 
+/// Check if cargo is available in PATH
+fn check_cargo_available() -> Result<(), CompilerError> {
+    match Command::new("cargo").arg("--version").output() {
+        Ok(output) if output.status.success() => Ok(()),
+        _ => {
+            let msg = format!(
+                "Rust toolchain not found.\n\n\
+                 Liva compiles to Rust and requires `cargo` to build the generated code.\n\n\
+                 Install Rust:\n\
+                 {}",
+                if cfg!(windows) {
+                    "  winget install Rustlang.Rustup\n  \
+                     — or download from https://rustup.rs"
+                } else {
+                    "  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+                }
+            );
+            Err(CompilerError::IoError(msg))
+        }
+    }
+}
+
 fn compile(cli: &Cli, input: &PathBuf) -> Result<(), CompilerError> {
     let skip_cargo = std::env::var("LIVAC_SKIP_CARGO").is_ok();
+
+    // Check Rust toolchain early (unless we're skipping cargo or just checking)
+    if !skip_cargo && !cli.check {
+        check_cargo_available()?;
+    }
 
     if !cli.json {
         println!("{}", "🧩 Liva Compiler v1.0.0".cyan().bold());
