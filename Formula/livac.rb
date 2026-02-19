@@ -3,28 +3,28 @@
 #   brew tap liva-lang/livac https://github.com/liva-lang/livac
 #   brew install livac
 #
-# VERSION and SHA256_* placeholders are replaced by CI (release.yml)
+# 1.3.0-rc1 and SHA256_* placeholders are replaced by CI (release.yml)
 # after each release, then committed back to main.
 
 class Livac < Formula
   desc "Liva programming language compiler — compiles to Rust"
   homepage "https://github.com/liva-lang/livac"
-  version "VERSION"  # Updated by CI
+  version "1.3.0-rc1"  # Updated by CI
   license "MIT"
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/liva-lang/livac/releases/download/vVERSION/livac-darwin-arm64.tar.gz"
-      sha256 "SHA256_DARWIN_ARM64"
+      url "https://github.com/liva-lang/livac/releases/download/v1.3.0-rc1/livac-darwin-arm64.tar.gz"
+      sha256 "fd1f66516d94db5ee72f2c872743ff4fa77c74eecb031822dd4ee988f90f42a0"
     else
-      url "https://github.com/liva-lang/livac/releases/download/vVERSION/livac-darwin-x64.tar.gz"
-      sha256 "SHA256_DARWIN_X64"
+      url "https://github.com/liva-lang/livac/releases/download/v1.3.0-rc1/livac-darwin-x64.tar.gz"
+      sha256 "267f1e0dcbc476e7af0d133ac9de4a9593f8fa9a91c315511ed39c12a5140891"
     end
   end
 
   on_linux do
-    url "https://github.com/liva-lang/livac/releases/download/vVERSION/livac-linux-x64.tar.gz"
-    sha256 "SHA256_LINUX_X64"
+    url "https://github.com/liva-lang/livac/releases/download/v1.3.0-rc1/livac-linux-x64.tar.gz"
+    sha256 "44b935cadf8a71d23afe4cccfd0d57a4be59172528fc0a2b5061e96cb75e80c7"
   end
 
   depends_on "rust"

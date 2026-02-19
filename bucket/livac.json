@@ -1,12 +1,12 @@
 {
-    "version": "VERSION",
+    "version": "1.3.0-rc1",
     "description": "Liva programming language compiler — compiles to Rust",
     "homepage": "https://github.com/liva-lang/livac",
     "license": "MIT",
     "architecture": {
         "64bit": {
-            "url": "https://github.com/liva-lang/livac/releases/download/vVERSION/livac-windows-x64.zip",
-            "hash": "SHA256_WINDOWS_X64"
+            "url": "https://github.com/liva-lang/livac/releases/download/v1.3.0-rc1/livac-windows-x64.zip",
+            "hash": "1fb5d1135de448a1ad781e20e0f70557dcd67c6a232dc0e318206bc575e8e4f7"
         }
     },
     "bin": "livac.exe",
