@@ -356,7 +356,7 @@ mod liva_rt {
 }
 
 fn print_lines(lines: Vec<String>) {
-    lines.iter().for_each(|line| {
+    lines.iter().cloned().for_each(|line| {
                 println!("{}", format!("{}{}", "> ", line));
 
     });

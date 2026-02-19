@@ -377,8 +377,8 @@ impl Formatter {
 fn main() {
     let mut names = vec!["Alice".to_string(), "Bob".to_string(), "Charlie".to_string()];
     let formatter = Formatter::new("Hello".to_string());
-    let mut formatted = names.iter().map(|_x| formatter.format(_x.to_string())).collect::<Vec<_>>();
-    formatted.iter().for_each(|_x| println!("{}", _x));
+    let mut formatted = names.iter().cloned().map(|_x| formatter.format(_x.to_string())).collect::<Vec<_>>();
+    formatted.iter().cloned().for_each(|_x| println!("{}", _x));
     let greeter = Formatter::new("Hi".to_string());
-    names.iter().for_each(|_x| { greeter.format(_x.to_string()); });
+    names.iter().cloned().for_each(|_x| { greeter.format(_x.to_string()); });
 }

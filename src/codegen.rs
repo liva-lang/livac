@@ -7133,6 +7133,34 @@ impl CodeGenerator {
         let is_json_value = self.is_json_value_expr(&method_call.object);
         let is_direct_json = self.is_direct_json_value(&method_call.object);
 
+        // Pre-compute whether array elements are non-Copy types (String, classes)
+        // Used to add .cloned() after .iter()/.par_iter() for map/forEach
+        // so lambda params are owned T instead of &T (avoids E0308 when passed to functions)
+        let iter_needs_clone = if !is_json_value {
+            if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
+                if let Some(element_type) = self.typed_array_vars.get(&base_var_name) {
+                    !matches!(
+                        element_type.as_str(),
+                        "number" | "int" | "i32" | "float" | "f64" | "bool" | "char"
+                    )
+                } else if self.string_vars.contains(&base_var_name)
+                    || self.native_vec_string_vars.contains(&base_var_name)
+                {
+                    true
+                } else if self.array_vars.contains(&base_var_name)
+                    && !self.json_value_vars.contains(&base_var_name)
+                {
+                    true
+                } else {
+                    false
+                }
+            } else {
+                true // Default to cloned for safety
+            }
+        } else {
+            false
+        };
+
         // Handle array methods with adapters
         match method_call.adapter {
             ArrayAdapter::Seq | ArrayAdapter::Vec => {
@@ -7140,10 +7168,12 @@ impl CodeGenerator {
                 match method_call.method.as_str() {
                     "map" => {
                         // For map, use iter()
-                        // For Vec<JsonValue>, add .cloned() to clone elements
                         self.output.push_str(".iter()");
                         if is_json_value && !is_direct_json {
-                            // Vec<JsonValue> needs cloned()
+                            self.output.push_str(".cloned()");
+                        } else if iter_needs_clone {
+                            // Non-Copy types: .cloned() converts &T to T so lambda params
+                            // can be passed to functions expecting owned values
                             self.output.push_str(".cloned()");
                         }
                     }
@@ -7162,10 +7192,10 @@ impl CodeGenerator {
                     }
                     "forEach" => {
                         // For forEach, use iter()
-                        // For Vec<JsonValue>, add .cloned() to clone elements
                         self.output.push_str(".iter()");
                         if is_json_value && !is_direct_json {
-                            // Vec<JsonValue> needs cloned()
+                            self.output.push_str(".cloned()");
+                        } else if iter_needs_clone {
                             self.output.push_str(".cloned()");
                         }
                     }
@@ -7191,35 +7221,10 @@ impl CodeGenerator {
                     // For non-Copy types (String, classes) with map/forEach, add .cloned()
                     // to get owned values. Without this, par_iter() yields &T and passing
                     // lambda params to functions expecting T causes E0308 type mismatch.
-                    if matches!(method_call.method.as_str(), "map" | "forEach") {
-                        let needs_clone = if let Some(base_var_name) =
-                            self.get_base_var_name(&method_call.object)
-                        {
-                            if let Some(element_type) =
-                                self.typed_array_vars.get(&base_var_name)
-                            {
-                                !matches!(
-                                    element_type.as_str(),
-                                    "number" | "int" | "i32" | "float" | "f64" | "bool"
-                                        | "char"
-                                )
-                            } else if self.string_vars.contains(&base_var_name)
-                                || self.native_vec_string_vars.contains(&base_var_name)
-                            {
-                                true
-                            } else if self.array_vars.contains(&base_var_name)
-                                && !self.json_value_vars.contains(&base_var_name)
-                            {
-                                true
-                            } else {
-                                false
-                            }
-                        } else {
-                            true // Default to cloned for safety
-                        };
-                        if needs_clone {
-                            self.output.push_str(".cloned()");
-                        }
+                    if matches!(method_call.method.as_str(), "map" | "forEach")
+                        && iter_needs_clone
+                    {
+                        self.output.push_str(".cloned()");
                     }
                 }
 

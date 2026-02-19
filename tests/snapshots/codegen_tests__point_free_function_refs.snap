@@ -369,6 +369,6 @@ fn main() {
     let doubled = items.iter().map(|&_x| double(_x)).collect::<Vec<_>>();
     let positives = items.iter().filter(|&&_x| is_positive(_x)).copied().collect::<Vec<_>>();
     let mut names = vec!["Alice".to_string(), "Bob".to_string(), "Charlie".to_string()];
-    names.iter().for_each(|_x| println!("{}", _x));
+    names.iter().cloned().for_each(|_x| println!("{}", _x));
     let strs = items.iter().map(|&_x| format!("{}", _x)).collect::<Vec<_>>();
 }
