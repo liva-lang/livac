@@ -4170,6 +4170,21 @@ impl CodeGenerator {
                                         self.string_error_vars.insert(self.sanitize_name(name));
                                     }
                                 }
+                                // Track Dir.list() result as array of strings for proper par_iter/map lambda patterns
+                                if let Expr::MethodCall(mc) = &var.init {
+                                    if let Expr::Identifier(obj) = mc.object.as_ref() {
+                                        if obj == "Dir" && mc.method == "list" {
+                                            if let Some(first_binding) = var.bindings.first() {
+                                                if let Some(name) = first_binding.name() {
+                                                    let sanitized = self.sanitize_name(name);
+                                                    self.array_vars.insert(sanitized.clone());
+                                                    self.native_vec_string_vars.insert(sanitized.clone());
+                                                    self.typed_array_vars.insert(sanitized, "string".to_string());
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             } else if let Some(task_name) = self.is_await_http_task(&var.init) {
                                 // Await of pending HTTP task - unwrap JoinHandle and extract result
                                 // let res, err = await task1
