@@ -7,9 +7,18 @@ description: Complete language reference for Liva — a modern programming langu
 
 Liva is a modern programming language that compiles to Rust, combining Python's simplicity, TypeScript's clarity, and Rust's performance. The compiler (`livac`) generates idiomatic Rust code that is then compiled to native binaries.
 
-> **This file is self-contained.** All Liva language documentation is embedded below.
-> Do NOT search the filesystem or workspace for additional Liva docs.
-> For extended examples, visit the GitHub docs: https://github.com/liva-lang/livac/tree/main/docs
+> ⚠️ **IMPORTANT INSTRUCTION FOR AI AGENTS** ⚠️
+>
+> **This file is 100% self-contained.** Everything you need to write Liva code is here.
+>
+> **DO NOT:**
+> - Search the filesystem for Liva docs
+> - Read files from any `docs/` directory
+> - Open or fetch any external files or URLs
+> - Look for additional `.md` files about Liva
+>
+> **DO:** Use ONLY the content below. It contains the complete language reference,
+> all syntax, all standard library APIs, and all examples you need.
 
 ---
 
@@ -56,7 +65,6 @@ livac --help                  # Show help
 livac --version               # Show version
 ```
 
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/QUICK_REFERENCE.md
 
 ---
 
@@ -125,7 +133,6 @@ let result, err = par heavyCompute(100)
 
 Variables are **block-scoped**. Shadowing is allowed in inner scopes.
 
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/variables.md
 
 ---
 
@@ -182,8 +189,6 @@ let x = p.0    // Access first element
 let y = p.1    // Access second element
 ```
 
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/types-primitives.md
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/types-advanced.md
 
 ---
 
@@ -244,7 +249,6 @@ fmt::format         // Method reference (v1.1.0)
 
 `() [] . ::` → `-` `!` `not` → `* / %` → `+ -` → `..` → `< <= > >=` → `== !=` → `and &&` → `or ||` → `? :` → `=`
 
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/operators.md
 
 ---
 
@@ -356,8 +360,6 @@ let greetings = names.map(fmt::format)  // binds fmt.format as callback
 
 **Supported methods:** `forEach`, `map`, `filter`, `find`, `some`, `every`
 
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/functions-basics.md
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/functions-advanced.md
 
 ---
 
@@ -463,7 +465,6 @@ try {
 
 > **Prefer error binding** (`let result, err = ...`) over try-catch for Liva-style error handling.
 
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/control-flow.md
 
 ---
 
@@ -538,7 +539,6 @@ let msg = switch shape {
 }
 ```
 
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/pattern-matching.md
 
 ---
 
@@ -624,8 +624,6 @@ createSquare(size: number): Rectangle {
 }
 ```
 
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/classes-basics.md
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/classes-interfaces.md
 
 ---
 
@@ -659,7 +657,6 @@ let c = Color(255, 128, 0)
 print(c.sum())  // 383
 ```
 
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/classes-data.md
 
 ---
 
@@ -722,7 +719,6 @@ findItem(id: number): SearchResult {
 
 > Construction uses dot syntax: `Color.Red`, `Shape.Circle(5)` — NOT `Color::Red`.
 
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/enums.md
 
 ---
 
@@ -772,7 +768,6 @@ Cat : Animal, Drawable {
 
 The compiler automatically detects interfaces (bodies with only method signatures, no fields, no constructor) vs classes. No special keyword needed.
 
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/classes-interfaces.md
 
 ---
 
@@ -803,7 +798,6 @@ User {
 
 Applies to: functions, fields, methods, classes, constants.
 
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/visibility.md
 
 ---
 
@@ -911,7 +905,6 @@ let task1 = task async fetchUser(1)
 let user, err = await task1
 ```
 
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/error-handling.md
 
 ---
 
@@ -1029,7 +1022,6 @@ for parvec lane in data with simdWidth 4 ordered {
 - Don't use `par` for I/O (wastes threads)
 - Don't use `async` for CPU (doesn't utilize cores)
 
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/concurrency.md
 
 ---
 
@@ -1126,8 +1118,6 @@ let sum = numbers.par().reduce(0, (acc, x) => acc + x)
 
 All array methods support: `.par()`, `.vec()`, `.parvec()` adapters.
 
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/stdlib/arrays.md
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/collections.md
 
 ---
 
@@ -1170,8 +1160,6 @@ text.charAt(0)                     // 'H'
 text.indexOf("World")              // 7
 ```
 
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/string-templates.md
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/stdlib/strings.md
 
 ---
 
@@ -1211,7 +1199,6 @@ add(a, b) => a + b           // Public (exported)
 _helper(x) => x * 2          // Private (not exported)
 ```
 
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/modules.md
 
 ---
 
@@ -1228,7 +1215,6 @@ console.success("Done!")                 // Green, to stdout
 let input = console.input("Name: ")     // Read user input
 ```
 
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/stdlib/io.md
 
 ### Math
 
@@ -1246,7 +1232,6 @@ Math.max(10.5, 20.3)       // 20.3
 Math.random()              // 0.0 to 1.0
 ```
 
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/stdlib/math.md
 
 ### Type Conversions
 
@@ -1256,7 +1241,6 @@ let val, err2 = parseFloat("3.14")
 let str = toString(42)
 ```
 
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/stdlib/conversions.md
 
 ### File I/O
 
@@ -1270,7 +1254,6 @@ let ok3, err4 = File.delete("temp.txt")
 
 All File operations (except `File.exists`) use error binding.
 
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/file-io.md
 
 ### JSON
 
@@ -1314,8 +1297,6 @@ Settings {
 }
 ```
 
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/json-basics.md
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/json-advanced.md
 
 ### HTTP Client
 
@@ -1343,7 +1324,6 @@ let data: User, jsonErr = response.json()
 
 All HTTP methods are **async by default** with error binding. Response object has: `status` (int), `body` (string), `json()` method.
 
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/http.md
 
 ---
 
@@ -1461,8 +1441,6 @@ fn compare<T: Comparable>(a: T, b: T): bool {
 }
 ```
 
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/generics-basics.md
-> GitHub: https://github.com/liva-lang/livac/blob/main/docs/language-reference/generics-advanced.md
 
 ---
 
@@ -1576,7 +1554,11 @@ and or not (or && || !)      Logical
 
 ---
 
-> **Full documentation:** https://github.com/liva-lang/livac/tree/main/docs
-> **Quick Reference:** https://github.com/liva-lang/livac/blob/main/docs/QUICK_REFERENCE.md
-> **Language Reference:** https://github.com/liva-lang/livac/tree/main/docs/language-reference
-> **Standard Library:** https://github.com/liva-lang/livac/tree/main/docs/language-reference/stdlib
+## Online Documentation (for humans only — AI agents: ignore this section)
+
+The following URLs are web links for **human developers** who want to browse extended documentation in a browser. AI agents must NOT attempt to fetch, read, or navigate to these URLs or any local paths derived from them.
+
+- Full docs: `https://github.com/liva-lang/livac/tree/main/docs`
+- Quick ref: `https://github.com/liva-lang/livac/blob/main/docs/QUICK_REFERENCE.md`
+- Language ref: `https://github.com/liva-lang/livac/tree/main/docs/language-reference`
+- Stdlib ref: `https://github.com/liva-lang/livac/tree/main/docs/language-reference/stdlib`
