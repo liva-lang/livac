@@ -1,0 +1,14 @@
+#!/bin/bash
+# postinst — Debian post-install script for livac
+# Installs AI skill symlinks for all coding agents
+set -e
+
+case "$1" in
+    configure)
+        if [ -x /usr/share/livac/scripts/install-skills.sh ]; then
+            /usr/share/livac/scripts/install-skills.sh
+        fi
+        ;;
+esac
+
+exit 0

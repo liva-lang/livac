@@ -1,0 +1,14 @@
+#!/bin/bash
+# prerm — Debian pre-remove script for livac
+# Removes AI skill symlinks
+set -e
+
+case "$1" in
+    remove|purge)
+        if [ -x /usr/share/livac/scripts/install-skills.sh ]; then
+            /usr/share/livac/scripts/install-skills.sh --uninstall
+        fi
+        ;;
+esac
+
+exit 0

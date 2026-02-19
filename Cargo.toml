@@ -82,10 +82,24 @@ section = "devel"
 priority = "optional"
 assets = [
     ["target/release/livac", "usr/bin/", "755"],
+    ["skills/liva-lang/SKILL.md", "usr/share/livac/skills/liva-lang/", "644"],
+    ["scripts/install-skills.sh", "usr/share/livac/scripts/", "755"],
+    ["docs/README.md", "usr/share/livac/docs/", "644"],
+    ["docs/QUICK_REFERENCE.md", "usr/share/livac/docs/", "644"],
+    ["docs/ERROR_CODES.md", "usr/share/livac/docs/", "644"],
+    ["docs/language-reference/*.md", "usr/share/livac/docs/language-reference/", "644"],
+    ["docs/language-reference/stdlib/*.md", "usr/share/livac/docs/language-reference/stdlib/", "644"],
+    ["docs/guides/*.md", "usr/share/livac/docs/guides/", "644"],
 ]
+conf-files = []
+maintainer-scripts = "scripts/deb/"
 
 [package.metadata.generate-rpm]
 assets = [
     { source = "target/release/livac", dest = "/usr/bin/livac", mode = "0755" },
+    { source = "skills/liva-lang/SKILL.md", dest = "/usr/share/livac/skills/liva-lang/SKILL.md", mode = "0644" },
+    { source = "scripts/install-skills.sh", dest = "/usr/share/livac/scripts/install-skills.sh", mode = "0755" },
 ]
+post_install_script = "scripts/rpm/post-install.sh"
+pre_uninstall_script = "scripts/rpm/pre-uninstall.sh"
 [package.metadata.generate-rpm.requires]

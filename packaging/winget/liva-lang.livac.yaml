@@ -1,0 +1,25 @@
+# Winget manifest for Liva compiler
+# To be submitted as PR to microsoft/winget-pkgs
+# Path: manifests/l/liva-lang/livac/VERSION/liva-lang.livac.installer.yaml
+
+PackageIdentifier: liva-lang.livac
+PackageVersion: "VERSION"
+PackageName: Liva Compiler
+Publisher: Fran Nadal
+License: MIT
+ShortDescription: Liva programming language compiler — compiles to Rust
+PackageUrl: https://github.com/liva-lang/livac
+Tags:
+  - compiler
+  - programming-language
+  - rust
+  - liva
+Installers:
+  - Architecture: x64
+    InstallerType: zip
+    InstallerUrl: https://github.com/liva-lang/livac/releases/download/vVERSION/livac-windows-x64.zip
+    InstallerSha256: SHA256_WINDOWS_X64
+    Commands:
+      - livac
+ManifestType: singleton
+ManifestVersion: 1.6.0

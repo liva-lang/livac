@@ -166,7 +166,50 @@ jobs:
 
       - name: Extract version from tag
         id: version
-        run: echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate package manager manifests
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Extract checksums
+          LINUX_X64_SHA=$(grep 'livac-linux-x64.tar.gz' checksums.txt | awk '{print $1}')
+          DARWIN_X64_SHA=$(grep 'livac-darwin-x64.tar.gz' checksums.txt | awk '{print $1}')
+          DARWIN_ARM64_SHA=$(grep 'livac-darwin-arm64.tar.gz' checksums.txt | awk '{print $1}')
+          WINDOWS_X64_SHA=$(grep 'livac-windows-x64.zip' checksums.txt | awk '{print $1}')
+
+          echo "Version: ${VERSION}"
+          echo "Linux x64:      ${LINUX_X64_SHA}"
+          echo "Darwin x64:     ${DARWIN_X64_SHA}"
+          echo "Darwin arm64:   ${DARWIN_ARM64_SHA}"
+          echo "Windows x64:    ${WINDOWS_X64_SHA}"
+
+          # Generate Homebrew formula
+          mkdir -p dist
+          sed -e "s/VERSION/${VERSION}/g" \
+              -e "s/SHA256_LINUX_X64/${LINUX_X64_SHA}/g" \
+              -e "s/SHA256_DARWIN_X64/${DARWIN_X64_SHA}/g" \
+              -e "s/SHA256_DARWIN_ARM64/${DARWIN_ARM64_SHA}/g" \
+              packaging/homebrew/livac.rb > dist/livac.rb
+
+          # Generate Scoop manifest
+          sed -e "s/VERSION/${VERSION}/g" \
+              -e "s/SHA256_WINDOWS_X64/${WINDOWS_X64_SHA}/g" \
+              packaging/scoop/livac.json > dist/livac.json
+
+          # Generate Winget manifest
+          sed -e "s/VERSION/${VERSION}/g" \
+              -e "s/SHA256_WINDOWS_X64/${WINDOWS_X64_SHA}/g" \
+              packaging/winget/liva-lang.livac.yaml > dist/liva-lang.livac.yaml
+
+          echo "--- Generated manifests ---"
+          ls -la dist/
+
+      - name: Upload package manifests
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-manifests
+          path: dist/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -177,14 +220,27 @@ jobs:
           body: |
             ## 📦 Installation
 
+            ### Package Managers (recommended)
+
+            | Platform | Command |
+            |----------|---------|
+            | **macOS / Linux** | `brew tap liva-lang/tap && brew install livac` |
+            | **Windows (Scoop)** | `scoop bucket add liva-lang https://github.com/liva-lang/scoop-bucket && scoop install livac` |
+            | **Ubuntu/Debian** | `sudo dpkg -i livac_amd64.deb` |
+            | **Fedora/RHEL** | `sudo rpm -i livac.x86_64.rpm` |
+
+            ### Direct Download
+
             | Platform | Package | Command |
             |----------|---------|---------|
-            | **Ubuntu/Debian** | `.deb` | `sudo dpkg -i livac_amd64.deb` |
-            | **Fedora/RHEL** | `.rpm` | `sudo rpm -i livac.x86_64.rpm` |
             | **Linux** (x64) | `.tar.gz` | `tar xzf livac-linux-x64.tar.gz && sudo mv livac /usr/local/bin/` |
             | **macOS** (Apple Silicon) | `.tar.gz` | `tar xzf livac-darwin-arm64.tar.gz && sudo mv livac /usr/local/bin/` |
             | **macOS** (Intel) | `.tar.gz` | `tar xzf livac-darwin-x64.tar.gz && sudo mv livac /usr/local/bin/` |
             | **Windows** (x64) | `.zip` | Extract `livac.exe` and add to PATH |
+
+            ### 🤖 AI Skills
+
+            The `.deb` and `.rpm` packages automatically install AI skills for GitHub Copilot, Claude, Cursor, and 6 other coding agents. For Homebrew, skills are installed automatically via `post_install`.
 
             ---
 
