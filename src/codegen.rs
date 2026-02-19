@@ -7168,7 +7168,9 @@ impl CodeGenerator {
         // Generate the method call
 
         // Special handling for reduce: it uses .iter() on the vector itself
-        if method_call.method == "reduce" && matches!(method_call.adapter, ArrayAdapter::Seq | ArrayAdapter::Vec) {
+        if method_call.method == "reduce"
+            && matches!(method_call.adapter, ArrayAdapter::Seq | ArrayAdapter::Vec)
+        {
             self.output.push_str(".iter()");
         }
 
@@ -7209,11 +7211,19 @@ impl CodeGenerator {
             "forEach" => "for_each".to_string(),
             "indexOf" => {
                 // Rayon uses position_first() for ordered parallel position search
-                if _is_parallel { "position_first".to_string() } else { "position".to_string() }
+                if _is_parallel {
+                    "position_first".to_string()
+                } else {
+                    "position".to_string()
+                }
             }
             "find" => {
                 // Rayon uses find_first() for ordered parallel find
-                if _is_parallel { "find_first".to_string() } else { "find".to_string() }
+                if _is_parallel {
+                    "find_first".to_string()
+                } else {
+                    "find".to_string()
+                }
             }
             "includes" => "any".to_string(),
             // For parallel reduce, we'll use fold + reduce (handled specially below)
@@ -7832,9 +7842,7 @@ impl CodeGenerator {
     fn extract_reduce_combine_op(lambda_arg: &Expr) -> &'static str {
         if let Expr::Lambda(lambda) = lambda_arg {
             match &lambda.body {
-                LambdaBody::Expr(expr) => {
-                    Self::binop_to_combine_str(expr)
-                }
+                LambdaBody::Expr(expr) => Self::binop_to_combine_str(expr),
                 LambdaBody::Block(block) => {
                     // Try to extract from the last statement (return or expression)
                     if let Some(last_stmt) = block.stmts.last() {
