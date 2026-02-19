@@ -2,7 +2,7 @@
 
 > **The simplicity of TypeScript, the expressiveness of Python, and the safety of Rust.**
 
-**Version:** 1.1.0-dev  
+**Version:** 1.3.0-dev  
 **Repository:** [github.com/liva-lang/livac](https://github.com/liva-lang/livac)
 
 Liva compiles to Rust, giving you memory safety, zero-cost abstractions, and native performance with a clean, intuitive syntax.
@@ -62,15 +62,25 @@ Complete language specification and syntax reference.
 | Topic | Description |
 |-------|-------------|
 | [Syntax Overview](language-reference/syntax-overview.md) | Grammar and basic syntax |
-| [Types](language-reference/types.md) | Type system, primitives, and inference |
+| **Types** | |
+| [Types — Primitives](language-reference/types-primitives.md) | Basic types, inference, collections, function types |
+| [Types — Advanced](language-reference/types-advanced.md) | Tuples, conversions, checking rules, Rust interop |
 | [Variables](language-reference/variables.md) | Variable declarations and mutability |
-| [Functions](language-reference/functions.md) | Function syntax, parameters, and return types |
+| **Functions** | |
+| [Functions — Basics](language-reference/functions-basics.md) | Syntax, parameters, return types, closures |
+| [Functions — Advanced](language-reference/functions-advanced.md) | Overloading, point-free refs, method refs |
 | [Operators](language-reference/operators.md) | Arithmetic, logical, comparison, bitwise |
-| [Classes](language-reference/classes.md) | Classes, interfaces, OOP |
-| [Generics](language-reference/generics.md) | Generic types and constraints |
+| **Classes** | |
+| [Classes — Basics](language-reference/classes-basics.md) | Declaration, constructors, fields, methods |
+| [Classes — Interfaces](language-reference/classes-interfaces.md) | Visibility, instantiation, interfaces |
+| [Classes — Data](language-reference/classes-data.md) | Data classes, best practices, summary |
+| [Enums](language-reference/enums.md) | Algebraic data types with pattern matching |
+| **Generics** | |
+| [Generics — Basics](language-reference/generics-basics.md) | Syntax, functions, classes, constraints, inference |
+| [Generics — Advanced](language-reference/generics-advanced.md) | Stdlib, implementation notes, design decisions |
 | [Control Flow](language-reference/control-flow.md) | if, for, while, switch statements |
 | [Pattern Matching](language-reference/pattern-matching.md) | Switch expressions with exhaustiveness checking |
-| [Error Handling](language-reference/error-handling.md) | fail, error binding, fallibility |
+| [Error Handling](language-reference/error-handling.md) | fail, error binding, `or fail`, fallibility |
 | [Concurrency](language-reference/concurrency.md) | async, par, task, fire keywords |
 | [Modules](language-reference/modules.md) | Multi-file projects and imports |
 | [Collections](language-reference/collections.md) | Arrays, vectors, and data structures |
@@ -86,7 +96,9 @@ Built-in modules and APIs.
 | Module | Description |
 |--------|-------------|
 | [Console](language-reference/console-api.md) | `print()`, `console.log()`, `console.input()` |
-| [JSON](language-reference/json.md) | JSON parsing and serialization |
+| **JSON** | |
+| [JSON — Basics](language-reference/json-basics.md) | Parsing, serialization, type-safe parsing |
+| [JSON — Advanced](language-reference/json-advanced.md) | Error handling, type mapping, migration |
 | [HTTP](language-reference/http.md) | HTTP client for API calls |
 | [File I/O](language-reference/file-io.md) | Reading and writing files |
 

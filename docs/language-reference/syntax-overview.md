@@ -1,6 +1,6 @@
 # 📝 Syntax Overview
 
-Complete overview of Liva language syntax.
+Quick reference of Liva language syntax. Each section links to its full dedicated doc.
 
 ## Comments
 
@@ -16,183 +16,66 @@ Complete overview of Liva language syntax.
 ## Variables and Constants
 
 ```liva
-// Mutable variable
-let x = 10
-let name = "Alice"
-let score: number = 100
+let x = 10                     // Mutable variable
+let name: string = "Alice"     // With type annotation
+x = 20                         // Reassignment
 
-// Reassignment
-x = 20
-name = "Bob"
-
-// Immutable constant
-const PI = 3.1416
+const PI = 3.1416              // Immutable constant
 const MAX_USERS = 100
 
-// Destructuring (v0.10.2+)
-let [a, b] = [1, 2]
-let {id, name} = user
+let [a, b] = [1, 2]           // Destructuring
+let {id, name} = user          // Object destructuring
 let [head, ...tail] = [1, 2, 3]
 ```
 
+> See [variables.md](variables.md) for full reference.
+
 ## Functions
 
-### One-Liner Functions
-
 ```liva
-// Simple expression
-add(a, b) => a + b
+// One-liner
+add(a: number, b: number): number => a + b
 
-// With types
-square(x: number): number => x * x
-
-// Boolean expression
-isAdult(age: number): bool => age >= 18
-```
-
-### Block Functions
-
-```liva
-// Without types (inferred)
-greet(name) {
+// Block function
+greet(name: string) {
   print($"Hello, {name}!")
 }
 
-// With types
-calculateTotal(items: [Item], tax: float): float {
-  let total = 0.0
-  for item in items {
-    total = total + item.price
-  }
-  return total * (1.0 + tax)
-}
-```
-
-### Parameters
-
-```liva
-// Simple parameters
-func(a, b, c) { }
-
-// With types
-func(a: number, b: string, c: bool) { }
-
-// Parameter destructuring (v0.10.3+)
+// Parameter destructuring
 func([x, y]: [int]) { }
 func({id, name}: User) { }
-
-// Default values (future)
-func(a: number, b: number = 10) { }
 ```
 
-### Return Types
-
-```liva
-// Inferred
-add(a, b) => a + b
-
-// Explicit
-divide(a: number, b: number): number {
-  return a / b
-}
-
-// Void (no return)
-log(message: string) {
-  print(message)
-  // Implicit return
-}
-```
+> See [functions-basics.md](functions-basics.md) and [functions-advanced.md](functions-advanced.md) for full reference.
 
 ## Classes
 
-### Basic Class
-
 ```liva
 Person {
-  // Constructor
+  name: string
+  age: number
+
   constructor(name: string, age: number) {
     this.name = name
     this.age = age
   }
-  
-  // Fields
-  name: string
-  age: number
-  
-  // Methods
-  greet() {
-    print($"Hi, I'm {this.name}")
-  }
-  
-  // Method with return type
-  isAdult(): bool {
-    return this.age >= 18
-  }
+
+  greet() { print($"Hi, I'm {this.name}") }
 }
+
+let p = Person("Alice", 30)
 ```
 
-### Visibility Modifiers
+Visibility: `name` (public), `_name` (protected), `__name` (private).
 
-```liva
-User {
-  // Public (default)
-  name: string
-  
-  // Protected (pub(super) in Rust)
-  _age: number
-  
-  // Private (not pub in Rust)
-  __password: string
-  
-  // Public method
-  getName(): string {
-    return this.name
-  }
-  
-  // Protected method
-  _getAge(): number {
-    return this._age
-  }
-  
-  // Private method
-  __validatePassword(): bool {
-    return this.__password != ""
-  }
-}
-```
-
-### Creating Instances
-
-```liva
-// Constructor syntax
-let person1 = Person("Alice", 30)
-
-// Object literal syntax
-let person2 = Person {
-  name: "Bob",
-  age: 25
-}
-```
+> See [classes-basics.md](classes-basics.md), [classes-data.md](classes-data.md), and [classes-interfaces.md](classes-interfaces.md) for full reference.
 
 ## Control Flow
 
 ### If Statements
 
 ```liva
-// Simple if
 if condition {
-  // code
-}
-
-// If-else
-if condition {
-  // code
-} else {
-  // code
-}
-
-// If-else if-else
-if condition1 {
   // code
 } else if condition2 {
   // code
@@ -200,34 +83,18 @@ if condition1 {
   // code
 }
 
-// With logical operators
-if age >= 18 and hasId {
-  print("Can enter")
-}
-
-if isAdmin or isModerator {
-  print("Has access")
-}
+// Logical operators
+if age >= 18 and hasId { print("Can enter") }
+if isAdmin or isModerator { print("Has access") }
 ```
 
 ### For Loops
 
 ```liva
-// Range (inclusive..exclusive)
-for i in 0..10 {
-  print($"Count: {i}")
-}
+for i in 0..10 { print(i) }           // Range (exclusive end)
+for i in 0..=10 { print(i) }          // Range (inclusive end)
 
-// Array iteration
-let items = [1, 2, 3, 4, 5]
-for item in items {
-  print($"Item: {item}")
-}
-
-// With index (future)
-for i, item in items {
-  print($"{i}: {item}")
-}
+for item in items { print(item) }      // Array iteration
 ```
 
 ### While Loops
@@ -235,519 +102,218 @@ for i, item in items {
 ```liva
 let counter = 0
 while counter < 10 {
-  print($"Counter: {counter}")
+  print(counter)
   counter = counter + 1
-}
-
-// Infinite loop (future)
-while true {
-  // code
-  if condition break
+  if counter == 5 break                // Loop control
 }
 ```
 
 ### Switch Statements
 
 ```liva
-let status = "active"
-
 switch status {
-  case "active": print("User is active")
-  case "inactive": print("User is inactive")
-  case "banned": print("User is banned")
-  default: print("Unknown status")
-}
-
-// With values
-switch age {
-  case 0..18: print("Minor")
-  case 18..65: print("Adult")
-  case 65..: print("Senior")
+  case "active": print("Active")
+  case "inactive": print("Inactive")
+  default: print("Unknown")
 }
 ```
+
+> See [control-flow.md](control-flow.md) for full reference.
 
 ## Operators
 
-### Arithmetic
-
 ```liva
-let a = 10 + 5    // Addition
-let b = 10 - 5    // Subtraction
-let c = 10 * 5    // Multiplication
-let d = 10 / 5    // Division
-let e = 10 % 3    // Modulo (remainder)
+// Arithmetic
+a + b    a - b    a * b    a / b    a % b
+
+// Comparison
+a == b   a != b   a < b    a <= b   a > b    a >= b
+
+// Logical (word operators preferred)
+a and b    a or b    not a
+a && b     a || b    !a
+
+// Assignment
+x = 10
+
+// Method reference (v1.1.0)
+names.map(fmt::format)       // binds instance method as callback
 ```
 
-### Comparison
-
-```liva
-a == b    // Equal
-a != b    // Not equal
-a < b     // Less than
-a <= b    // Less than or equal
-a > b     // Greater than
-a >= b    // Greater than or equal
-```
-
-### Logical
-
-```liva
-// Word operators (preferred)
-a and b   // Logical AND
-a or b    // Logical OR
-not a     // Logical NOT
-
-// Symbol operators (also supported)
-a && b    // Logical AND
-a || b    // Logical OR
-!a        // Logical NOT
-```
-
-### Assignment
-
-```liva
-x = 10       // Assignment
-x += 5       // Add and assign (future)
-x -= 3       // Subtract and assign (future)
-x *= 2       // Multiply and assign (future)
-x /= 4       // Divide and assign (future)
-```
-
-### Method Reference
-
-```liva
-// :: binds an instance method as a callback (v1.1.0)
-let fmt = Formatter("Hello")
-names.map(fmt::format)     // equivalent to: names.map(x => fmt.format(x))
-```
+> See [operators.md](operators.md) for full reference.
 
 ## String Templates
 
 ```liva
 let name = "Alice"
-let age = 30
-
-// String interpolation
-let message = $"Hello, {name}!"
-let info = $"{name} is {age} years old"
-
-// With expressions
+let msg = $"Hello, {name}!"
 let math = $"2 + 2 = {2 + 2}"
-let call = $"Result: {calculate(10, 20)}"
 ```
+
+> See [string-templates.md](string-templates.md) for full reference.
 
 ## Arrays and Objects
 
-### Arrays
-
 ```liva
-// Array literal
+// Arrays
 let numbers = [1, 2, 3, 4, 5]
-let names = ["Alice", "Bob", "Charlie"]
-
-// Access
 let first = numbers[0]
-let last = numbers[numbers.length - 1]
-
-// Length
-print($"Length: {numbers.length}")
-
-// Functional methods
 let doubled = numbers.map(x => x * 2)
 let evens = numbers.filter(x => x % 2 == 0)
-numbers.forEach(print)                       // point-free (v1.1.0)
+numbers.forEach(print)                    // point-free (v1.1.0)
 
-// Method references with :: (v1.1.0)
-let fmt = Formatter("Item")
-let labels = names.map(fmt::format)
-```
+// Objects
+let person = { name: "Alice", age: 30 }
+print(person.name)
 
-### Objects
-
-```liva
-// Object literal
-let person = {
-  name: "Alice",
-  age: 30,
-  email: "alice@example.com"
-}
-
-// Access
-print($"Name: {person.name}")
-print($"Age: {person.age}")
-
-// Nested
-let user = {
-  info: {
-    name: "Bob",
-    age: 25
-  },
-  settings: {
-    theme: "dark",
-    language: "en"
-  }
-}
-
-print($"Name: {user.info.name}")
-print($"Theme: {user.settings.theme}")
-```
-
-### Array of Objects
-
-```liva
+// Array of objects
 let users = [
   { name: "Alice", age: 30 },
-  { name: "Bob", age: 25 },
-  { name: "Charlie", age: 35 }
+  { name: "Bob", age: 25 }
 ]
-
-for user in users {
-  print($"{user.name} is {user.age} years old")
-}
 ```
+
+> See [collections.md](collections.md) for full reference.
 
 ## Concurrency
 
-### Async (I/O-bound)
-
 ```liva
-// Async call (lazy, awaited on use)
+// Async (I/O-bound)
 let data = async fetchFromAPI()
-
-// Task handle (explicit await)
 let task = task async fetchUser(123)
 let user = await task
-
-// Fire and forget
 fire async logEvent("started")
-```
 
-### Parallel (CPU-bound)
-
-```liva
-// Parallel call (lazy, joined on use)
+// Parallel (CPU-bound)
 let result = par heavyComputation()
-
-// Task handle (explicit join)
-let task = task par calculatePi()
-let pi = await task
-
-// Fire and forget
 fire par backgroundCleanup()
-```
 
-### Data-Parallel Loops
-
-```liva
-// Parallel for
-let items = [1, 2, 3, 4, 5, 6, 7, 8]
+// Data-parallel loop
 for par item in items with chunk 2 threads 4 {
   process(item)
 }
-
-// ParVec (SIMD)
-let data = [1, 2, 3, 4, 5, 6, 7, 8]
-for parvec lane in data with simdWidth 4 ordered {
-  vectorProcess(lane)
-}
 ```
+
+> See [concurrency.md](concurrency.md) for full reference.
 
 ## Error Handling
 
-### Fail Keyword
-
 ```liva
-// Inline fail (ternary)
+// Fail keyword
 divide(a, b) => b == 0 ? fail "Division by zero" : a / b
 
-// Block fail
-validateUser(username: string, password: string): string {
-  if username == "" fail "Username cannot be empty"
-  if password == "" fail "Password cannot be empty"
-  if password.length < 8 fail "Password too short"
-  return $"User {username} validated"
-}
-```
-
-### Error Binding
-
-```liva
-// Capture both result and error
+// Error binding
 let result, err = divide(10, 2)
+if err != "" { print($"Error: {err}") }
 
-if err != "" {
-  print($"Error: {err}")
-} else {
-  print($"Result: {result}")
-}
-
-// With async
-let data, err = async fetchData()
-
-// With par
-let result, err = par processData()
-
-// With task
-let task = task async operation()
-let value, err = await task
-```
-
-### Ignore Error
-
-```liva
-// Ignore error with _
+// Ignore error
 let result, _ = divide(10, 2)
 
-// Ignore result, keep error
-let _, err = validate(input)
+// Or fail (propagation)
+let data = fetchData() or fail
 ```
+
+> See [error-handling.md](error-handling.md) for full reference.
 
 ## Types
 
-### Type Annotations
-
 ```liva
-// Variables
+// Liva types
 let count: number = 100
 let name: string = "Alice"
 let active: bool = true
 
-// Function parameters
-func(a: number, b: string, c: bool) { }
-
-// Function return type
-calculate(x: number): number {
-  return x * 2
-}
-
-// Class fields
-Person {
-  name: string
-  age: number
-  email: string
-}
+// Rust numeric types
+let a: i32 = 42
+let b: u64 = 100
+let c: f64 = 3.14
+let d: usize = 10
 ```
 
-### Rust Types
+> See [types.md](types.md), [types-primitives.md](types-primitives.md), and [types-advanced.md](types-advanced.md) for full reference.
+
+## Enums
 
 ```liva
-// Signed integers
-let a: i8 = 127
-let b: i16 = 32767
-let c: i32 = 2147483647
-let d: i64 = 9223372036854775807
+enum Color { Red, Green, Blue }
+enum Shape {
+  Circle(radius: float)
+  Rectangle(width: float, height: float)
+}
 
-// Unsigned integers
-let e: u8 = 255
-let f: u16 = 65535
-let g: u32 = 4294967295
-let h: u64 = 18446744073709551615
-
-// Floats
-let i: f32 = 3.14
-let j: f64 = 3.14159265359
-
-// Size types
-let k: usize = 100
-let l: isize = -50
+let s = Shape.Circle(5.0)
+match s {
+  Shape.Circle(r) => print($"Circle r={r}")
+  Shape.Rectangle(w, h) => print($"Rect {w}x{h}")
+}
 ```
+
+> See [enums.md](enums.md) and [pattern-matching.md](pattern-matching.md) for full reference.
+
+## Generics
+
+```liva
+first<T>(items: [T]): T => items[0]
+
+Stack<T> {
+  items: [T]
+  push(item: T) { this.items.push(item) }
+  pop(): T { return this.items.pop() }
+}
+```
+
+> See [generics-basics.md](generics-basics.md) and [generics-advanced.md](generics-advanced.md) for full reference.
 
 ## Literals
 
-### Numbers
-
 ```liva
+// Numbers
 let decimal = 42
 let hex = 0xFF
 let octal = 0o77
 let binary = 0b1010
-
 let float = 3.14
 let scientific = 1.23e-4
-```
 
-### Strings
-
-```liva
+// Strings
 let simple = "Hello"
 let template = $"Hello, {name}"
-let multiline = "Line 1
-Line 2
-Line 3"
 
-// Escape sequences
-let escaped = "Quote: \" Newline: \n Tab: \t"
-```
-
-### Booleans
-
-```liva
+// Booleans
 let yes = true
 let no = false
-```
 
-### Arrays
-
-```liva
-let empty = []
-let numbers = [1, 2, 3]
-let strings = ["a", "b", "c"]
-let mixed = [1, "two", 3]  // Future: will require explicit types
-```
-
-### Objects
-
-```liva
-let empty = {}
-let person = { name: "Alice", age: 30 }
-let nested = { 
-  user: { name: "Bob" },
-  settings: { theme: "dark" }
-}
+// Collections
+let arr = [1, 2, 3]
+let obj = { name: "Alice", age: 30 }
 ```
 
 ## Keywords
 
-Complete list of Liva keywords:
-
 ```
-let           // Variable declaration
-const         // Constant declaration
-if            // Conditional
-else          // Alternative branch
-for           // Loop
-in            // Loop iteration
-while         // Loop with condition
-switch        // Multi-way branch
-case          // Switch case
-default       // Switch default
-return        // Return from function
-async         // Async execution
-par           // Parallel execution
-task          // Task handle
-fire          // Fire and forget
-await         // Explicit await/join
-fail          // Error return
-and           // Logical AND
-or            // Logical OR
-not           // Logical NOT
-true          // Boolean true
-false         // Boolean false
-this          // Class instance reference
-constructor   // Class constructor
-use           // Import (future)
-import        // Module import (future)
-export        // Module export (future)
-```
-
-## Reserved for Future Use
-
-```
-break         // Loop break
-continue      // Loop continue
-match         // Pattern matching
-enum          // Enumeration
-trait         // Interface/trait
-impl          // Implementation
-type          // Type alias
-struct        // Structure
-pub           // Public visibility
-mod           // Module
-fn            // Function (alternative syntax)
-async fn      // Async function
-```
-
-## Syntax Comparison
-
-### Liva vs TypeScript
-
-```liva
-// Liva
-add(a: number, b: number): number => a + b
-
-Person {
-  constructor(name: string, age: number) {
-    this.name = name
-    this.age = age
-  }
-  name: string
-  age: number
-}
-```
-
-```typescript
-// TypeScript
-function add(a: number, b: number): number { return a + b }
-
-class Person {
-  name: string;
-  age: number;
-  constructor(name: string, age: number) {
-    this.name = name;
-    this.age = age;
-  }
-}
-```
-
-### Liva vs Python
-
-```liva
-// Liva
-def greet(name: string) {
-  print($"Hello, {name}!")
-}
-
-for i in 0..10 {
-  print(i)
-}
-```
-
-```python
-# Python
-def greet(name: str):
-    print(f"Hello, {name}!")
-
-for i in range(10):
-    print(i)
-```
-
-### Liva vs Rust
-
-```liva
-// Liva
-divide(a: number, b: number) => b == 0 ? fail "Div by zero" : a / b
-
-let result, err = divide(10, 2)
-if err != "" {
-  print($"Error: {err}")
-}
-```
-
-```rust
-// Rust
-fn divide(a: i32, b: i32) -> Result<i32, String> {
-    if b == 0 {
-        Err("Div by zero".to_string())
-    } else {
-        Ok(a / b)
-    }
-}
-
-match divide(10, 2) {
-    Ok(result) => println!("Result: {}", result),
-    Err(e) => println!("Error: {}", e),
-}
+let       const     if        else      for       in
+while     switch    case      default   return    break
+continue  async     par       task      fire      await
+fail      and       or        not       true      false
+this      constructor         enum      match     data
+describe  test      expect    use       import    export
 ```
 
 ## See Also
 
-- **[Types](types.md)** - Type system details
-- **[Functions](functions.md)** - Function reference
-- **[Classes](classes.md)** - Class reference
-- **[Control Flow](control-flow.md)** - Control structures
-- **[Concurrency](concurrency.md)** - Async and parallel
-- **[Error Handling](error-handling.md)** - Fallibility system
+- **[Variables](variables.md)** — Variable declarations and destructuring
+- **[Types](types.md)** — Type system details
+- **[Functions](functions-basics.md)** — Function reference
+- **[Classes](classes-basics.md)** — Class reference
+- **[Control Flow](control-flow.md)** — Control structures
+- **[Operators](operators.md)** — All operators
+- **[Collections](collections.md)** — Arrays and objects
+- **[Concurrency](concurrency.md)** — Async and parallel
+- **[Error Handling](error-handling.md)** — Fallibility system
+- **[Enums](enums.md)** — Enum types and pattern matching
+- **[Generics](generics-basics.md)** — Generic types and functions
+- **[String Templates](string-templates.md)** — String interpolation
 
 ---
 
-**Next:** [Types](types.md)
+**Next:** [Variables](variables.md)
