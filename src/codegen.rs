@@ -5462,9 +5462,9 @@ impl CodeGenerator {
                 if let Expr::Identifier(var_name) = object.as_ref() {
                     let sanitized = self.sanitize_name(var_name);
                     if self.native_vec_string_vars.contains(&sanitized) {
-                        self.output.push('[');
+                        self.output.push_str("[(");
                         self.generate_expr(index)?;
-                        self.output.push_str("].clone()");
+                        self.output.push_str(") as usize].clone()");
                         return Ok(());
                     }
                 }

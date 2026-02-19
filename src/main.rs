@@ -7,7 +7,8 @@ use livac::{CompilerError, CompilerOptions};
 
 #[derive(Parser)]
 #[command(name = "livac")]
-#[command(about = "Liva → Rust compiler (v0.12)", long_about = None)]
+#[command(version = env!("CARGO_PKG_VERSION"))]
+#[command(about = "Liva → Rust compiler", long_about = None)]
 struct Cli {
     /// Input Liva file
     input: Option<PathBuf>,
@@ -51,6 +52,10 @@ struct Cli {
     /// Filter tests by name (substring match)
     #[arg(long)]
     filter: Option<String>,
+
+    /// Arguments to pass to the compiled program (after --)
+    #[arg(last = true)]
+    program_args: Vec<String>,
 }
 
 #[tokio::main]
@@ -609,7 +614,7 @@ fn compile(cli: &Cli, input: &PathBuf) -> Result<(), CompilerError> {
     }
 
     if !cli.json {
-        println!("{}", "🧩 Liva Compiler v1.0.0".cyan().bold());
+        println!("{}", format!("🧩 Liva Compiler v{}", env!("CARGO_PKG_VERSION")).cyan().bold());
         println!("{} {}", "→ Compiling".green(), input.display());
     }
 
@@ -750,9 +755,19 @@ fn compile(cli: &Cli, input: &PathBuf) -> Result<(), CompilerError> {
             println!("\n{}", "Running program:".cyan().bold());
             println!("{}", "=".repeat(60));
 
-            let status = Command::new("cargo")
-                .arg("run")
-                .current_dir(&output_dir)
+            let mut cmd = Command::new("cargo");
+            cmd.arg("run")
+                .current_dir(&output_dir);
+
+            // Pass through program arguments after --
+            if !cli.program_args.is_empty() {
+                cmd.arg("--");
+                for arg in &cli.program_args {
+                    cmd.arg(arg);
+                }
+            }
+
+            let status = cmd
                 .status()
                 .map_err(|e| CompilerError::IoError(e.to_string()))?;
 
@@ -819,6 +834,7 @@ mod tests {
             fmt_check: false,
             test: false,
             filter: None,
+            program_args: vec![],
         };
 
         let _guard = EnvVarGuard::set("LIVAC_SKIP_CARGO", "1");
@@ -851,6 +867,7 @@ mod tests {
             fmt_check: false,
             test: false,
             filter: None,
+            program_args: vec![],
         };
 
         let _guard = EnvVarGuard::set("LIVAC_SKIP_CARGO", "1");
@@ -877,6 +894,7 @@ mod tests {
             fmt_check: false,
             test: false,
             filter: None,
+            program_args: vec![],
         };
 
         let err = compile(&cli, &input).expect_err("expected IO error");
