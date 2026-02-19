@@ -808,13 +808,14 @@ impl CodeGenerator {
         match stmt {
             Stmt::Assign(assign) => {
                 // This is an assignment - the target variable is mutated
+                // Use sanitize_name to match snake_case used at VarDecl generation
                 if let Expr::Identifier(name) = &assign.target {
-                    mutated.insert(name.clone());
+                    mutated.insert(self.sanitize_name(name));
                 }
                 // Also check for compound assignments like arr[i] = x
                 if let Expr::Index { object, .. } = &assign.target {
                     if let Expr::Identifier(name) = object.as_ref() {
-                        mutated.insert(name.clone());
+                        mutated.insert(self.sanitize_name(name));
                     }
                 }
             }
