@@ -755,16 +755,15 @@ fn compile(cli: &Cli, input: &PathBuf) -> Result<(), CompilerError> {
             println!("\n{}", "Running program:".cyan().bold());
             println!("{}", "=".repeat(60));
 
-            let mut cmd = Command::new("cargo");
-            cmd.arg("run")
-                .current_dir(&output_dir);
+            // Run the compiled binary from the user's working directory
+            // (not from the build dir, so relative paths in the program work correctly)
+            let binary_path = output_dir.join("target").join("debug").join("liva_project");
+
+            let mut cmd = Command::new(&binary_path);
 
             // Pass through program arguments after --
-            if !cli.program_args.is_empty() {
-                cmd.arg("--");
-                for arg in &cli.program_args {
-                    cmd.arg(arg);
-                }
+            for arg in &cli.program_args {
+                cmd.arg(arg);
             }
 
             let status = cmd
