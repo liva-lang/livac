@@ -1,11 +1,11 @@
-# File I/O Operations
+# File & Directory I/O Operations
 
-> **Version**: 0.9.4  
+> **Version**: 1.3.0  
 > **Status**: Stable
 
 ## Overview
 
-Liva provides built-in File I/O operations through the `File` namespace. All operations (except `File.exists()`) use the **error binding pattern** to handle potential failures gracefully.
+Liva provides built-in File and Directory I/O operations through the `File` and `Dir` namespaces. All fallible operations use the **error binding pattern** to handle potential failures gracefully.
 
 ## API Reference
 
@@ -190,6 +190,116 @@ if err {
 - This operation is **irreversible**
 - Does not work on directories (use OS-specific commands)
 - No confirmation prompt - file is deleted immediately
+
+---
+
+## Directory Operations
+
+The `Dir` namespace provides directory traversal capabilities. Added in v1.3.0.
+
+### Dir.list()
+
+Lists the entries (files and subdirectories) in a directory, sorted alphabetically.
+
+**Signature:**
+```liva
+Dir.list(path: string): ([string]?, Error?)
+```
+
+**Parameters:**
+- `path`: Path to the directory
+
+**Returns:**
+- Success: `(Some(entries), None)` where `entries` is a sorted array of filenames
+- Failure: `(None, Some(Error))` if directory can't be read
+
+**Example:**
+```liva
+let entries, err = Dir.list("./src")
+
+if err {
+    console.log("Cannot list directory: " + err.message)
+} else {
+    for entry in entries {
+        print(entry)
+    }
+    print($"Found {entries.length} entries")
+}
+```
+
+**Error Scenarios:**
+- Directory doesn't exist: `"Dir.list error: No such file or directory (os error 2)"`
+- Permission denied: `"Dir.list error: Permission denied (os error 13)"`
+- Not a directory: `"Dir.list error: Not a directory (os error 20)"`
+
+**Notes:**
+- Returns only the entry names (not full paths) — combine with the directory path manually
+- Entries are sorted alphabetically
+- Does not include `.` or `..`
+- Uses error binding pattern (like `File.read`)
+
+---
+
+### Dir.isDir()
+
+Checks whether a path is a directory.
+
+**Signature:**
+```liva
+Dir.isDir(path: string): bool
+```
+
+**Parameters:**
+- `path`: Path to check
+
+**Returns:**
+- `true` if the path exists and is a directory
+- `false` if the path doesn't exist or is a file
+
+**Example:**
+```liva
+if Dir.isDir("./src") {
+    let entries, err = Dir.list("./src")
+    // Process directory...
+} else {
+    print("Not a directory")
+}
+```
+
+**Notes:**
+- Does not use error binding (returns simple bool, like `File.exists`)
+- Returns `false` for broken symbolic links
+- Useful for recursive directory traversal
+
+---
+
+### Directory Traversal Pattern
+
+```liva
+searchDir(query: string, dirPath: string) {
+    let entries, err = Dir.list(dirPath)
+    if err {
+        return
+    }
+
+    for i in 0..entries.length {
+        let entry = entries[i]
+        let fullPath = dirPath + "/" + entry
+
+        if Dir.isDir(fullPath) {
+            searchDir(query, fullPath)
+        } else {
+            // Process file
+            let content, readErr = File.read(fullPath)
+            if !readErr {
+                if content.contains(query) {
+                    print($"Found in: {fullPath}")
+                }
+            }
+        }
+    }
+}
+```
 
 ---
 
@@ -434,9 +544,14 @@ if File.exists("important.db") {
 
 ## Version History
 
-### v0.9.4 (Current)
+### v1.3.0 (Current)
+- ✨ Added `Dir.list()` — List directory entries with error binding
+- ✨ Added `Dir.isDir()` — Check if path is a directory
+- ✅ Directory traversal support for recursive file operations
+
+### v0.9.4
 - ✨ Initial implementation of File I/O operations
-- ✅ All 5 operations: `read`, `write`, `append`, `exists`, `delete`
+- ✅ All 5 File operations: `read`, `write`, `append`, `exists`, `delete`
 - ✅ Error binding integration
 - ✅ Comprehensive test coverage (27 test cases)
 

@@ -1,7 +1,7 @@
 # Liva Standard Library
 
-> **Status:** ✅ Complete (v0.7.0) - 37/38 functions implemented! 🎉  
-> **Completion:** 97.4% - Arrays ✅ | Strings ✅ | Math ✅ | Conversions ✅ | I/O ✅
+> **Status:** ✅ Complete (v1.3.0) - 42 functions implemented! 🎉  
+> **Completion:** Arrays ✅ | Strings ✅ | Math ✅ | Conversions ✅ | I/O ✅ | System ✅
 
 The Liva Standard Library provides built-in functions and methods for common programming tasks.
 
@@ -27,7 +27,7 @@ Methods for working with arrays and collections.
 ### ✅ [String Methods](./strings.md)
 Methods for string manipulation and queries.
 
-**Status:** Complete (11/11 methods)
+**Status:** Complete (12/12 methods)
 
 - `split(delimiter)` - Split into array
 - `replace(old, new)` - Replace substring
@@ -38,6 +38,7 @@ Methods for string manipulation and queries.
 - `trimEnd()` - Remove trailing whitespace
 - `startsWith(prefix)` - Check prefix
 - `endsWith(suffix)` - Check suffix
+- `contains(substring)` - Check if contains substring
 - `substring(start, end)` - Extract substring
 - `charAt(index)` - Get character
 - `indexOf(substring)` - Find substring position
@@ -77,6 +78,15 @@ Input/output and console functions.
 - `console.warn(...)` - Print warning to stderr ✅
 - `readLine()` - Read line from stdin ✅
 - `prompt(message)` - Display prompt and read input ✅
+
+### ✅ [System Functions](./system.md)
+System-level functions for CLI args, environment, and process control.
+
+**Status:** Complete (3/3 functions)
+
+- `Sys.args()` - Get command-line arguments ✅
+- `Sys.env(name)` - Read environment variable ✅
+- `Sys.exit(code)` - Exit with code ✅
 
 ---
 

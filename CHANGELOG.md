@@ -5,6 +5,38 @@ All notable changes to the Liva compiler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v1.3.0-dev
+
+### Added - Session 18: Dir Module, Sys Docs, string.contains() 🗂️
+
+**New stdlib APIs:**
+- `Dir.list(path)` — List directory entries with error binding, returns sorted `[string]`
+- `Dir.isDir(path)` — Check if a path is a directory (returns `bool`)
+- `string.contains(substring)` — Check if a string contains a substring (returns `bool`)
+
+**Codegen improvements:**
+- Track `split()` results as array variables (not string variables)
+- Clone string variables when passed to functions (Rust move semantics)
+- Add `&` prefix for variable arguments in pattern-based string methods (`contains`, `startsWith`, `endsWith`, `split`, `replace`)
+- Remove unnecessary parentheses around `File.read`/`write`/`append` match expressions
+- Extend `is_file_call()` to recognize `Dir.list` for error binding unwrapping
+
+**Documentation:**
+- Added Dir module to `docs/language-reference/file-io.md`
+- Added `contains()` to `docs/language-reference/stdlib/strings.md`
+- Created `docs/language-reference/stdlib/system.md` (Sys.args, Sys.env, Sys.exit)
+- Updated `docs/QUICK_REFERENCE.md` with Dir, Sys, and contains()
+- Updated `docs/language-reference/stdlib/README.md` index
+
+**Demo app:**
+- `buscador/` — Recursive grep-like text search tool written in Liva
+  - Uses `Sys.args()`, `Dir.isDir()`, `Dir.list()`, `File.read()`, `string.contains()`, `string.split()`
+
+**Tests:**
+- 290 tests passing (2 new: `test_dir_list_and_isdir`, `test_string_contains`)
+
+---
+
 ## [Unreleased] - v1.2.0-dev
 
 ### Added - Session 17: Enum Types & Release v1.2.0 🎯

@@ -1,6 +1,6 @@
 # Liva Language Quick Reference
 
-> **Version:** 1.2.0-dev  
+> **Version:** 1.3.0  
 > **Liva** — Python's simplicity, TypeScript's clarity, Rust's performance
 
 ---
@@ -784,6 +784,7 @@ text.toLowerCase()            // "hello, world!"
 text.replace("World", "Liva") // "Hello, Liva!"
 text.startsWith("Hello")      // true
 text.endsWith("!")            // true
+text.contains("World")        // true
 text.substring(0, 5)          // "Hello"
 text.charAt(0)                // 'H'
 text.indexOf("World")         // 7
@@ -963,6 +964,30 @@ let ok, err2 = File.write("out.txt", "Hello")
 let ok2, err3 = File.append("log.txt", "Line\n")
 let exists = File.exists("file.txt")
 let ok3, err4 = File.delete("temp.txt")
+```
+
+### Directory Operations *(v1.3.0)*
+
+```liva
+let entries, err = Dir.list("./src")    // List directory entries
+let isDir = Dir.isDir("./src")          // Check if path is directory
+
+// Recursive traversal
+for i in 0..entries.length {
+    let entry = entries[i]
+    let fullPath = dirPath + "/" + entry
+    if Dir.isDir(fullPath) {
+        // recurse...
+    }
+}
+```
+
+### System *(v1.3.0)*
+
+```liva
+let args = Sys.args()              // Command-line arguments
+let home = Sys.env("HOME")         // Environment variable
+Sys.exit(1)                        // Exit with code
 ```
 
 ### JSON

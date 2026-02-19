@@ -1,7 +1,7 @@
 # String Methods
 
-> **Status:** ✅ Complete (11/11 methods)  
-> **Version:** v0.7.0
+> **Status:** ✅ Complete (12/12 methods)  
+> **Version:** v1.3.0
 
 String methods in Liva provide operations for string manipulation, transformation, and queries.
 
@@ -21,6 +21,7 @@ String methods in Liva provide operations for string manipulation, transformatio
 - [Query Methods](#query-methods)
   - [startsWith()](#startswith)
   - [endsWith()](#endswith)
+  - [contains()](#contains)
   - [indexOf()](#indexof)
 - [Access Methods](#access-methods)
   - [substring()](#substring)
@@ -392,6 +393,52 @@ filename.ends_with(".pdf")
 - Case-sensitive matching
 - Returns boolean (`true` or `false`)
 - Empty suffix always returns `true`
+
+---
+
+### `contains()`
+
+Check if a string contains a given substring.
+
+**Signature:**
+```liva
+contains(substring: string) => bool
+```
+
+**Examples:**
+```liva
+let text = "Hello, World!"
+
+// Check if contains
+let hasWorld = text.contains("World")
+print(hasWorld)  // true
+
+let hasFoo = text.contains("Foo")
+print(hasFoo)  // false
+
+// Case-sensitive
+let hasHello = text.contains("hello")
+print(hasHello)  // false
+
+// Search in file content
+let content, err = File.read("data.txt")
+if !err {
+    if content.contains("ERROR") {
+        print("Found errors in log")
+    }
+}
+```
+
+**Rust Codegen:**
+```rust
+text.contains("World")
+```
+
+**Notes:**
+- Case-sensitive matching
+- Returns boolean (`true` or `false`)
+- Empty substring always returns `true`
+- Similar to `indexOf()` but returns bool instead of position
 
 ---
 
