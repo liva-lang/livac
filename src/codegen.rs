@@ -7187,6 +7187,40 @@ impl CodeGenerator {
                     self.output.push_str(".to_vec().into_par_iter()");
                 } else {
                     self.output.push_str(".par_iter()");
+
+                    // For non-Copy types (String, classes) with map/forEach, add .cloned()
+                    // to get owned values. Without this, par_iter() yields &T and passing
+                    // lambda params to functions expecting T causes E0308 type mismatch.
+                    if matches!(method_call.method.as_str(), "map" | "forEach") {
+                        let needs_clone = if let Some(base_var_name) =
+                            self.get_base_var_name(&method_call.object)
+                        {
+                            if let Some(element_type) =
+                                self.typed_array_vars.get(&base_var_name)
+                            {
+                                !matches!(
+                                    element_type.as_str(),
+                                    "number" | "int" | "i32" | "float" | "f64" | "bool"
+                                        | "char"
+                                )
+                            } else if self.string_vars.contains(&base_var_name)
+                                || self.native_vec_string_vars.contains(&base_var_name)
+                            {
+                                true
+                            } else if self.array_vars.contains(&base_var_name)
+                                && !self.json_value_vars.contains(&base_var_name)
+                            {
+                                true
+                            } else {
+                                false
+                            }
+                        } else {
+                            true // Default to cloned for safety
+                        };
+                        if needs_clone {
+                            self.output.push_str(".cloned()");
+                        }
+                    }
                 }
 
                 // TODO: Handle adapter options (threads, chunk, ordered)
