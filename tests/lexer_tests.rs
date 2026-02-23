@@ -2,6 +2,29 @@ use insta::assert_snapshot;
 use livac::lexer::tokenize;
 use std::fs;
 
+/// Strip ANSI escape codes for deterministic snapshots
+fn strip_ansi(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            // Skip ESC [ ... m sequences
+            if chars.peek() == Some(&'[') {
+                chars.next();
+                while let Some(&nc) = chars.peek() {
+                    chars.next();
+                    if nc == 'm' {
+                        break;
+                    }
+                }
+            }
+        } else {
+            result.push(c);
+        }
+    }
+    result
+}
+
 /// Test helper para casos correctos del lexer
 fn test_lexer_ok(test_name: &str) {
     let source = fs::read_to_string(format!("tests/lexer/ok_{}.liva", test_name))
@@ -32,7 +55,7 @@ fn test_lexer_err(test_name: &str) {
         test_name
     );
 
-    let error_msg = result.unwrap_err().to_string();
+    let error_msg = strip_ansi(&result.unwrap_err().to_string());
     assert_snapshot!(format!("err_{}.diag", test_name), error_msg);
 }
 
