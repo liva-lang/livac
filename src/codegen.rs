@@ -4678,6 +4678,18 @@ impl CodeGenerator {
                         if is_class_type {
                             self.class_instance_vars.insert(var_name.clone());
                         }
+                        // Bug #75: Register string loop variables so they get .clone()
+                        // when passed to functions inside the loop body
+                        if element_type == "string" {
+                            self.string_vars.insert(var_name.clone());
+                        }
+                    }
+                    // Also handle arrays from .split() that are tracked as array_vars
+                    // but may not be in typed_array_vars — default to string element
+                    if self.array_vars.contains(&sanitized_iterable)
+                        && !self.typed_array_vars.contains_key(&sanitized_iterable)
+                    {
+                        self.string_vars.insert(var_name.clone());
                     }
                 }
                 // Also handle `for item in obj.field` where obj is a class instance
@@ -7192,6 +7204,18 @@ impl CodeGenerator {
         if is_string_method {
             // Handle string methods
             return self.generate_string_method_call(method_call);
+        }
+
+        // Handle [T].concat(other) — array concatenation
+        // Rust Vec doesn't have .concat() with the same semantics as Liva
+        // Translate to: { let mut __v = obj; __v.extend(other); __v }
+        if method_call.method == "concat" && !method_call.args.is_empty() {
+            self.output.push_str("{ let mut __v = ");
+            self.generate_expr(&method_call.object)?;
+            self.output.push_str("; __v.extend(");
+            self.generate_expr(&method_call.args[0])?;
+            self.output.push_str("); __v }");
+            return Ok(());
         }
 
         // Handle [string].join(separator) — array method that produces a string
@@ -12847,6 +12871,9 @@ fn generate_entry_point(
 ) -> Result<String> {
     let mut codegen = CodeGenerator::new(ctx.clone());
 
+    // Suppress common codegen warnings (must be at top of main.rs)
+    codegen.writeln("#![allow(unused_parens, unused_mut)]");
+
     // Add mod declarations for all other modules
     for mod_decl in mod_declarations {
         codegen.writeln(mod_decl);
@@ -12890,6 +12917,9 @@ fn generate_entry_point(
 
 pub fn generate_with_ast(program: &Program, ctx: DesugarContext) -> Result<(String, String)> {
     let mut generator = CodeGenerator::new(ctx);
+
+    // Suppress common codegen warnings (crate-level attribute for single-file projects)
+    generator.writeln("#![allow(unused_parens, unused_mut)]");
 
     // First pass: collect fallible functions and array-returning functions
     for item in &program.items {

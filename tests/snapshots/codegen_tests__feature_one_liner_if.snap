@@ -2,6 +2,7 @@
 source: tests/codegen_tests.rs
 expression: rust_code
 ---
+#![allow(unused_parens, unused_mut)]
 #[allow(dead_code)]
 mod liva_rt {
     use std::future::Future;
