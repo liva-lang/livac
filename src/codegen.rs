@@ -71,6 +71,7 @@ pub struct CodeGenerator {
     var_types: std::collections::HashMap<String, String>, // var -> ClassName
     fallible_functions: std::collections::HashSet<String>, // Track which functions are fallible
     array_returning_functions: std::collections::HashSet<String>, // Track functions that return [T] (Vec)
+    string_returning_functions: std::collections::HashSet<String>, // Track functions that return string (String)
     ref_lambda_params: std::collections::HashSet<String>, // Lambda params that are &T references (need *deref in comparisons)
     // --- Type aliases (for expansion during codegen)
     type_aliases: std::collections::HashMap<String, (Vec<TypeParameter>, TypeRef)>,
@@ -130,6 +131,7 @@ impl CodeGenerator {
             var_types: std::collections::HashMap::new(),
             fallible_functions: std::collections::HashSet::new(),
             array_returning_functions: std::collections::HashSet::new(),
+            string_returning_functions: std::collections::HashSet::new(),
             ref_lambda_params: std::collections::HashSet::new(),
             type_aliases: std::collections::HashMap::new(),
             union_types: std::collections::HashSet::new(),
@@ -916,7 +918,26 @@ impl CodeGenerator {
                     || mc.method == "clone"
                     || mc.method == "toString"
                     || mc.method == "describe"
-                    || mc.method == "display";
+                    || mc.method == "display"
+                    // Non-mutating functional/iterator methods
+                    || mc.method == "filter"
+                    || mc.method == "map"
+                    || mc.method == "forEach"
+                    || mc.method == "find"
+                    || mc.method == "some"
+                    || mc.method == "every"
+                    || mc.method == "reduce"
+                    || mc.method == "includes"
+                    || mc.method == "contains"
+                    || mc.method == "join"
+                    || mc.method == "slice"
+                    || mc.method == "indexOf"
+                    || mc.method == "lastIndexOf"
+                    || mc.method == "flat"
+                    || mc.method == "flatMap"
+                    || mc.method == "entries"
+                    || mc.method == "keys"
+                    || mc.method == "values";
 
                 if !is_likely_getter && !is_mutating_method {
                     // This could be a mutating method on a class instance
@@ -4421,6 +4442,10 @@ impl CodeGenerator {
                                     // Check if this is an array-returning function
                                     if self.array_returning_functions.contains(class_name) {
                                         self.array_vars.insert(name.to_string());
+                                    }
+                                    // Check if this is a string-returning function
+                                    else if self.string_returning_functions.contains(class_name) {
+                                        self.string_vars.insert(name.to_string());
                                     } else {
                                         self.class_instance_vars.insert(name.to_string());
                                         self.var_types.insert(name.to_string(), class_name.clone());
@@ -8054,20 +8079,35 @@ impl CodeGenerator {
             }
             // Add & for String variable arguments in Pattern-based methods
             if needs_ref_for_args {
-                let is_variable = match arg {
+                let (is_variable, is_ref_lambda) = match arg {
                     Expr::Identifier(var_name) => {
-                        self.string_vars.contains(&self.sanitize_name(var_name))
-                            || !matches!(var_name.as_str(), "true" | "false" | "null")
+                        let sanitized = self.sanitize_name(var_name);
+                        // Check if the variable is already a &T reference (e.g., lambda param in filter)
+                        if self.ref_lambda_params.contains(&sanitized)
+                            || self.ref_lambda_params.contains(var_name)
+                        {
+                            (false, true)
+                        } else {
+                            let is_var = self.string_vars.contains(&sanitized)
+                                || !matches!(var_name.as_str(), "true" | "false" | "null");
+                            (is_var, false)
+                        }
                     }
-                    Expr::Member { .. } => true,
-                    Expr::Literal(Literal::String(_)) => false,
-                    _ => false,
+                    Expr::Member { .. } => (true, false),
+                    Expr::Literal(Literal::String(_)) => (false, false),
+                    _ => (false, false),
                 };
                 if is_variable {
                     self.output.push('&');
                 }
+                self.generate_expr(arg)?;
+                // For ref lambda params (&String), use .as_str() to get &str which implements Pattern
+                if is_ref_lambda {
+                    self.output.push_str(".as_str()");
+                }
+            } else {
+                self.generate_expr(arg)?;
             }
-            self.generate_expr(arg)?;
         }
 
         self.output.push(')');
@@ -9058,6 +9098,11 @@ impl CodeGenerator {
     fn expr_needs_parens_for_binop(&self, expr: &Expr, parent_op: &BinOp) -> bool {
         match expr {
             Expr::Literal(_) | Expr::Identifier(_) => false,
+            // Member access, calls, method calls, and indexing bind tighter than any binop
+            Expr::Member { .. }
+            | Expr::Call(_)
+            | Expr::MethodCall(_)
+            | Expr::Index { .. } => false,
             Expr::Binary { op, .. } => {
                 // Parentheses needed if this expression has lower precedence than parent
                 self.binop_precedence(op) < self.binop_precedence(parent_op)
@@ -9228,10 +9273,10 @@ impl CodeGenerator {
                         | "charAt"
                 )
             }
-            // Detect string-returning function calls like toString(x)
+            // Detect string-returning function calls like toString(x) or user-defined string functions
             Expr::Call(call) => {
                 if let Expr::Identifier(name) = call.callee.as_ref() {
-                    name == "toString"
+                    name == "toString" || self.string_returning_functions.contains(name)
                 } else {
                     false
                 }
@@ -12744,6 +12789,12 @@ pub fn generate_with_ast(program: &Program, ctx: DesugarContext) -> Result<(Stri
                 if matches!(ret_type, TypeRef::Array(_)) {
                     generator
                         .array_returning_functions
+                        .insert(func.name.clone());
+                }
+                // Track functions that return string
+                if matches!(ret_type, TypeRef::Simple(name) if name == "string") {
+                    generator
+                        .string_returning_functions
                         .insert(func.name.clone());
                 }
             }

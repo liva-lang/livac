@@ -1,6 +1,5 @@
 ---
 source: tests/codegen_tests.rs
-assertion_line: 2621
 expression: rust_code
 ---
 #[allow(dead_code)]
@@ -357,7 +356,7 @@ mod liva_rt {
 }
 
 fn main() {
-    let mut text = "Hello World".to_string();
+    let text = "Hello World".to_string();
     let has_world = text.contains("World");
     let has_foo = text.contains("Foo");
     println!("{}", format!("Has World: {}", has_world));

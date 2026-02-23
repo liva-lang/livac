@@ -376,7 +376,7 @@ impl Person {
 
     // Generating method: isAdult
     pub fn is_adult(&self) -> bool {
-        (self.age) >= 18
+        self.age >= 18
     }
 
 }

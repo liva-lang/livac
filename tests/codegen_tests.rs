@@ -2620,3 +2620,77 @@ main() {
     let rust_code = compile_and_generate(source);
     assert_snapshot!("string_contains", rust_code);
 }
+
+// ---------------------------------------------------------------------------
+// Private function call + one-liner if => continue (guard clause)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_private_fn_call_in_expression() {
+    let source = r#"
+_isIgnored(entry: string): bool => entry == ".git"
+
+main() {
+    let entries = ["src", ".git", "README.md"]
+    let results: [string] = []
+
+    for entry in entries {
+        if _isIgnored(entry) => continue
+        results.push(entry)
+    }
+
+    print(results)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("private_fn_call_expression", rust_code);
+}
+
+// ---------------------------------------------------------------------------
+// Switch case with block braces
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_switch_case_with_block_braces() {
+    let source = r#"
+main() {
+    let mode = 1
+    let items = ["a.txt", "b.txt"]
+    switch mode {
+        case 1: {
+            for file in items {
+                print(file)
+            }
+        }
+        case 2: {
+            print("summary")
+        }
+        default: {
+            print("other")
+        }
+    }
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("switch_case_block_braces", rust_code);
+}
+
+#[test]
+fn test_filter_contains_lambda() {
+    let source = r#"
+isBinary(path: string): bool {
+    let exts = [".png", ".jpg", ".gif"]
+    let found = exts.filter(ext => path.contains(ext))
+    return found.length > 0
+}
+
+main() {
+    print(isBinary("image.png"))
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("filter_contains_lambda", rust_code);
+}

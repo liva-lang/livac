@@ -356,7 +356,7 @@ mod liva_rt {
 }
 
 fn main() {
-    let mut words: Vec<String> = vec!["hello".to_string(), "world".to_string(), "foo".to_string()];
+    let words: Vec<String> = vec!["hello".to_string(), "world".to_string(), "foo".to_string()];
     let result = words.join(", ");
     let dashed = words.join("-");
     println!("{}", result);

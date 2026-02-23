@@ -359,7 +359,7 @@ mod liva_rt {
 use rayon::prelude::*;
 
 fn main() {
-    let mut numbers = vec![1, 2, 3, 4, 5];
+    let numbers = vec![1, 2, 3, 4, 5];
     let product = numbers.par_iter().copied().fold(|| 1, |acc, x| acc * x).reduce(|| 1, |a, b| a * b);
     println!("{}", product);
 }

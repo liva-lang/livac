@@ -369,7 +369,7 @@ impl Counter {
 
     // Generating method: increment
     pub fn increment(&mut self) {
-        self._count = (self._count) + 1;
+        self._count = self._count + 1;
     }
 
     // Generating method: getCount

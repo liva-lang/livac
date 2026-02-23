@@ -358,7 +358,7 @@ mod liva_rt {
 fn main() {
     let pi = std::f64::consts::PI;
     let e = std::f64::consts::E;
-    let circumference = 2_f64 * (std::f64::consts::PI) * 5_f64;
+    let circumference = 2_f64 * std::f64::consts::PI * 5_f64;
     println!("{}", pi);
     println!("{}", e);
     println!("{}", circumference);

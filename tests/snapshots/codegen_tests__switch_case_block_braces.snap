@@ -355,37 +355,20 @@ mod liva_rt {
     
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct Library {
-    pub books: Vec<String>,
-}
-
-impl Library {
-    pub fn new() -> Self {
-        Self {
-            books: vec![],
-        }
-    }
-
-    // Generating method: addBook
-    pub fn add_book(&mut self, title: String) {
-        self.books.push(title);
-    }
-
-    // Generating method: findFirst
-    pub fn find_first(&self, query: String) -> String {
-        let found = self.books.iter().filter(|&book| *book == query).cloned().collect::<Vec<_>>();
-        if (found.len() as i32) > 0 {
-            return found[0].clone();
-        }
-        return "".to_string();
-    }
-
-}
-
 fn main() {
-    let mut lib = Library::new();
-    lib.add_book("Rust Book".to_string());
-    let result = lib.find_first("Rust Book".to_string());
-    println!("{}", result);
+    let mode = 1;
+    let items = vec!["a.txt".to_string(), "b.txt".to_string()];
+    match mode {
+        1 => {
+            for file in items.clone() {
+                println!("{}", file);
+            }
+        }
+        2 => {
+            println!("{}", "summary");
+        }
+        _ => {
+            println!("{}", "other");
+        }
+    }
 }

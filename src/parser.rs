@@ -1514,13 +1514,22 @@ impl Parser {
                     self.expect(Token::Colon)?;
                     let mut body = Vec::new();
 
-                    // Parse statements until next case, default, or end
-                    while !self.is_at_end()
-                        && !self.check(&Token::Case)
-                        && !self.check(&Token::Default)
-                        && !self.check(&Token::RBrace)
-                    {
-                        body.push(self.parse_statement()?);
+                    // Support optional block syntax: case X: { ... }
+                    if self.check(&Token::LBrace) {
+                        self.expect(Token::LBrace)?;
+                        while !self.is_at_end() && !self.check(&Token::RBrace) {
+                            body.push(self.parse_statement()?);
+                        }
+                        self.expect(Token::RBrace)?;
+                    } else {
+                        // Parse statements until next case, default, or end
+                        while !self.is_at_end()
+                            && !self.check(&Token::Case)
+                            && !self.check(&Token::Default)
+                            && !self.check(&Token::RBrace)
+                        {
+                            body.push(self.parse_statement()?);
+                        }
                     }
 
                     cases.push(CaseClause { value, body });
@@ -1528,8 +1537,17 @@ impl Parser {
                     self.expect(Token::Colon)?;
                     let mut body = Vec::new();
 
-                    while !self.is_at_end() && !self.check(&Token::RBrace) {
-                        body.push(self.parse_statement()?);
+                    // Support optional block syntax: default: { ... }
+                    if self.check(&Token::LBrace) {
+                        self.expect(Token::LBrace)?;
+                        while !self.is_at_end() && !self.check(&Token::RBrace) {
+                            body.push(self.parse_statement()?);
+                        }
+                        self.expect(Token::RBrace)?;
+                    } else {
+                        while !self.is_at_end() && !self.check(&Token::RBrace) {
+                            body.push(self.parse_statement()?);
+                        }
                     }
 
                     default = Some(body);
@@ -2401,6 +2419,11 @@ impl Parser {
                     return Ok(Expr::StringTemplate { parts });
                 }
                 Token::Ident(name) => {
+                    let value = name.clone();
+                    self.advance();
+                    return Ok(Expr::Identifier(value));
+                }
+                Token::PrivateIdent(name) => {
                     let value = name.clone();
                     self.advance();
                     return Ok(Expr::Identifier(value));

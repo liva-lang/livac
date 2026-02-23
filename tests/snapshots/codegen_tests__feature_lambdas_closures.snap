@@ -356,7 +356,7 @@ mod liva_rt {
 }
 
 fn main() {
-    let mut nums = vec![1, 2, 3, 4, 5];
+    let nums = vec![1, 2, 3, 4, 5];
     let doubled = nums.iter().map(|&x| {
         x * 2
     }).collect::<Vec<_>>();

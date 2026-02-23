@@ -356,7 +356,7 @@ mod liva_rt {
 }
 
 fn truncate(text: String, max_len: i32) -> String {
-    if ((text.len() as i32)) > max_len {
+    if (text.len() as i32) > max_len {
         return format!("{}{}", text[(0) as usize..(max_len - 3) as usize].to_string(), "...");
     }
     return text;
