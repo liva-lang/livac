@@ -364,8 +364,8 @@ fn main() {
     let has_evens = nums.iter().any(|&&x| x % 2 == 0);
     let all_positive = nums.iter().all(|&&x| x > 0);
     nums.iter().for_each(|&n| println!("{}", n));
-    let has_three = nums.iter().any(|&x| x == 3);
-    let pos = nums.iter().position(|&x| x == 3).map(|i| i as i32).unwrap_or(-1);
+    let has_three = nums.iter().any(|x| *x == 3);
+    let pos = nums.iter().position(|x| *x == 3).map(|i| i as i32).unwrap_or(-1);
     let len = (nums.len() as i32);
     println!("{:?}", doubled);
     println!("{:?}", evens);

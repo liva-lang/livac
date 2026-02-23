@@ -413,8 +413,9 @@ Liva was built through extensive **dogfooding** — 10+ real applications were b
 ## 📖 Commands
 
 ```bash
-livac file.liva           # Compile to Rust project
+livac file.liva           # Compile to Rust project (debug mode)
 livac file.liva --run     # Compile and execute
+livac file.liva --release # Compile with optimizations (release mode)
 livac file.liva --check   # Syntax check only (fast!)
 livac file.liva --verbose # Show generated Rust code
 livac --lsp               # Start language server

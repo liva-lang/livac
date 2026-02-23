@@ -43,15 +43,19 @@ Liva is a modern programming language that compiles to Rust, combining Python's 
 17. [Modules & Imports](#modules--imports)
 18. [Standard Library](#standard-library)
 19. [Testing](#testing)
-20. [Common Pitfalls](#common-pitfalls)
+20. [Common Pitfalls & Known Limitations](#common-pitfalls--known-limitations)
+21. [Project Structure Best Practices](#project-structure-best-practices)
+22. [Practical Patterns](#practical-patterns)
 
 ---
 
 ## CLI Commands
 
 ```bash
-livac file.liva               # Compile to Rust project
+livac file.liva               # Compile to Rust project (debug mode)
 livac file.liva --run         # Compile and run
+livac file.liva --release     # Compile with optimizations (release mode)
+livac file.liva --release --run  # Compile optimized and run
 livac file.liva --check       # Syntax check only
 livac file.liva --fmt         # Format file in place
 livac file.liva --fmt-check   # Check if file needs formatting
@@ -65,6 +69,58 @@ livac --help                  # Show help
 livac --version               # Show version
 ```
 
+---
+
+## Reserved Words
+
+> ⚠️ **CRITICAL:** These words are **hard keywords** in Liva. They CANNOT be used as
+> variable names, function names, parameter names, or class/field names.
+> Using them will cause a compile error.
+
+### Hard Keywords (NEVER use as identifiers)
+
+```
+let       const     import    from      as        if        else
+while     for       in        switch    case      default   return
+break     continue  fail      throw     try       catch     async
+par       parallel  task      fire      await     move      seq
+vec       parvec    with      ordered   chunk     threads   enum
+type      use       rust      test      true      false     null
+and       or        not       safe      fast      static    dynamic
+auto      detect    schedule  reduction prefetch  simdWidth
+```
+
+### Type Keywords (also reserved)
+
+```
+number    float     bool      string    char      bytes
+i8        i16       i32       i64       i128
+u8        u16       u32       u64       u128
+f32       f64       isize     usize
+```
+
+### Contextual Keywords (reserved in specific positions)
+
+```
+data      — reserved before a class name (e.g., `data Point { ... }`)
+```
+
+### Common Mistakes
+
+```
+❌ let threads = 4              → use: let threadCount = 4
+❌ let type = "admin"           → use: let userType = "admin"
+❌ let default = 0              → use: let defaultValue = 0
+❌ let task = "cleanup"         → use: let taskName = "cleanup"
+❌ let auto = true              → use: let autoMode = true
+❌ let from = "server"          → use: let source = "server"
+❌ let as = "alias"             → use: let alias = "alias"
+❌ let static = false           → use: let isStatic = false
+❌ let fast = true              → use: let fastMode = true
+❌ let schedule = "daily"       → use: let scheduleType = "daily"
+❌ fn move(x, y)                → use: fn moveTo(x, y)
+❌ fn detect(input)             → use: fn detectInput(input)
+```
 
 ---
 
@@ -115,7 +171,7 @@ let {address: {city, country}} = user          // Nested
 ```liva
 // Fallible functions return (value, error_string)
 let result, err = divide(10, 0)
-if err != "" {
+if err {
     print($"Error: {err}")
 } else {
     print($"Result: {result}")
@@ -126,13 +182,12 @@ let value, _ = divide(10, 2)
 
 // With async/par
 let data, err = async fetchData(url)
-let result, err = par heavyCompute(100)
+let result, err = par processData(50)
 ```
 
 ### Scoping
 
 Variables are **block-scoped**. Shadowing is allowed in inner scopes.
-
 
 ---
 
@@ -188,7 +243,6 @@ let p = getPoint()
 let x = p.0    // Access first element
 let y = p.1    // Access second element
 ```
-
 
 ---
 
@@ -248,7 +302,6 @@ fmt::format         // Method reference (v1.1.0)
 ### Precedence (highest to lowest)
 
 `() [] . ::` → `-` `!` `not` → `* / %` → `+ -` → `..` → `< <= > >=` → `== !=` → `and &&` → `or ||` → `? :` → `=`
-
 
 ---
 
@@ -360,7 +413,6 @@ let greetings = names.map(fmt::format)  // binds fmt.format as callback
 
 **Supported methods:** `forEach`, `map`, `filter`, `find`, `some`, `every`
 
-
 ---
 
 ## Control Flow
@@ -465,7 +517,6 @@ try {
 
 > **Prefer error binding** (`let result, err = ...`) over try-catch for Liva-style error handling.
 
-
 ---
 
 ## Pattern Matching
@@ -539,7 +590,6 @@ let msg = switch shape {
 }
 ```
 
-
 ---
 
 ## Classes
@@ -560,8 +610,6 @@ Person {
     isAdult(): bool => this.age >= 18
 }
 ```
-
-**Required ordering:** Fields → Constructor → Methods
 
 ### Instantiation
 
@@ -624,7 +672,6 @@ createSquare(size: number): Rectangle {
 }
 ```
 
-
 ---
 
 ## Data Classes
@@ -657,6 +704,29 @@ let c = Color(255, 128, 0)
 print(c.sum())  // 383
 ```
 
+### Data Classes in Arrays
+
+```liva
+data Item {
+    name: string
+    price: number
+}
+
+let items: [Item] = []
+
+// Add items using array concatenation
+items = items + [Item("Apple", 150)]
+items = items + [Item("Banana", 80)]
+
+// Iterate and access fields with dot notation
+for item in items {
+    print($"{item.name}: ${item.price}")
+}
+
+// Index access also works
+let first = items[0]
+print(first.name)   // "Apple"
+```
 
 ---
 
@@ -719,7 +789,6 @@ findItem(id: number): SearchResult {
 
 > Construction uses dot syntax: `Color.Red`, `Shape.Circle(5)` — NOT `Color::Red`.
 
-
 ---
 
 ## Interfaces
@@ -768,7 +837,6 @@ Cat : Animal, Drawable {
 
 The compiler automatically detects interfaces (bodies with only method signatures, no fields, no constructor) vs classes. No special keyword needed.
 
-
 ---
 
 ## Visibility
@@ -798,7 +866,6 @@ User {
 
 Applies to: functions, fields, methods, classes, constants.
 
-
 ---
 
 ## Error Handling
@@ -821,7 +888,7 @@ checkAge(age: number) => age >= 18 ? "Adult" : fail "Minor"
 
 ```liva
 let result, err = divide(10, 0)
-if err != "" {
+if err {
     print($"Error: {err}")
 } else {
     print($"Result: {result}")
@@ -831,6 +898,8 @@ if err != "" {
 - Error is always a **string** — `""` means no error
 - Compiler enforces error binding for fallible calls (**E0701**)
 - For non-fallible functions, `err` is always `""`
+
+> **IMPORTANT:** Always check errors with `if err {` (truthy check). The compiler transforms this to `!err.is_empty()` in Rust. Do NOT use `if err != ""` — while it works, `if err {` is the idiomatic Liva pattern.
 
 ### `or fail` — Error Propagation Shorthand
 
@@ -843,7 +912,7 @@ let data = JSON.parse(content) or fail "Invalid JSON"
 Equivalent to:
 ```liva
 let response, err = HTTP.get(url)
-if err != "" { fail "Connection error" }
+if err { fail "Connection error" }
 ```
 
 ### `or default` — Default Value on Error
@@ -859,10 +928,10 @@ let port = parsePort(input) or default 8080
 // Early return pattern
 processUser(id: number): string {
     let user, err = fetchUser(id)
-    if err != "" { fail $"Failed to fetch: {err}" }
+    if err { fail $"Failed to fetch: {err}" }
 
     let processed, err2 = transformUser(user)
-    if err2 != "" { fail $"Failed to transform: {err2}" }
+    if err2 { fail $"Failed to transform: {err2}" }
 
     return processed
 }
@@ -879,7 +948,7 @@ pipeline(data: string): string {
 fetchWithRetry(url: string, maxRetries: number): string {
     for i in 0..maxRetries {
         let data, err = async fetchData(url)
-        if err == "" { return data }
+        if !err { return data }
         print($"Attempt {i + 1} failed: {err}")
     }
     fail "Max retries exceeded"
@@ -888,9 +957,9 @@ fetchWithRetry(url: string, maxRetries: number): string {
 // Fallback pattern
 getData(): string {
     let data, err = fetchFromPrimary()
-    if err == "" { return data }
+    if !err { return data }
     let backup, err2 = fetchFromBackup()
-    if err2 == "" { return backup }
+    if !err2 { return backup }
     fail "All data sources failed"
 }
 ```
@@ -904,7 +973,6 @@ let result, err = par processData(50)
 let task1 = task async fetchUser(1)
 let user, err = await task1
 ```
-
 
 ---
 
@@ -1022,7 +1090,6 @@ for parvec lane in data with simdWidth 4 ordered {
 - Don't use `par` for I/O (wastes threads)
 - Don't use `async` for CPU (doesn't utilize cores)
 
-
 ---
 
 ## Collections & Arrays
@@ -1042,6 +1109,17 @@ let first = numbers[0]
 let second = names[1]
 ```
 
+### Adding Elements to Arrays
+
+Arrays in Liva are immutable-size. To add elements, use concatenation:
+
+```liva
+let items: [string] = []
+items = items + ["apple"]
+items = items + ["banana"]
+// items is now ["apple", "banana"]
+```
+
 ### Functional Methods
 
 ```liva
@@ -1053,7 +1131,7 @@ let doubled = numbers.map(x => x * 2)            // [2, 4, 6, 8, 10]
 // Filter
 let evens = numbers.filter(x => x % 2 == 0)      // [2, 4]
 
-// Reduce
+// Reduce (initial value FIRST, then lambda)
 let sum = numbers.reduce(0, (acc, x) => acc + x)  // 15
 
 // Iterate
@@ -1118,7 +1196,6 @@ let sum = numbers.par().reduce(0, (acc, x) => acc + x)
 
 All array methods support: `.par()`, `.vec()`, `.parvec()` adapters.
 
-
 ---
 
 ## Strings & Templates
@@ -1135,10 +1212,13 @@ let msg = $"Sum: {a + b}"
 let info = $"Name: {user.getName().toUpperCase()}"
 ```
 
-### Escaping
+### Escaping Braces in Templates
+
+To include literal `{` or `}` in string templates, use `\{` and `\}`:
 
 ```liva
-let text = $"Use \\{ and \\} for literal braces"
+let json = $"\{\"key\": \"{value}\"\}"
+// Output: {"key": "some_value"}
 ```
 
 ### String Methods
@@ -1160,7 +1240,6 @@ text.substring(0, 5)               // "Hello"
 text.charAt(0)                     // 'H'
 text.indexOf("World")              // 7
 ```
-
 
 ---
 
@@ -1200,7 +1279,6 @@ add(a, b) => a + b           // Public (exported)
 _helper(x) => x * 2          // Private (not exported)
 ```
 
-
 ---
 
 ## Standard Library
@@ -1215,7 +1293,6 @@ console.warn("Warning")                  // Yellow, to stderr
 console.success("Done!")                 // Green, to stdout
 let input = console.input("Name: ")     // Read user input
 ```
-
 
 ### Math
 
@@ -1233,7 +1310,6 @@ Math.max(10.5, 20.3)       // 20.3
 Math.random()              // 0.0 to 1.0
 ```
 
-
 ### Type Conversions
 
 ```liva
@@ -1242,6 +1318,7 @@ let val, err2 = parseFloat("3.14")
 let str = toString(42)
 ```
 
+> `parseInt` and `parseFloat` use error binding. Check with `if err {`.
 
 ### File I/O
 
@@ -1255,7 +1332,6 @@ let ok3, err4 = File.delete("temp.txt")
 
 All File operations (except `File.exists`) use error binding.
 
-
 ### Directory Operations
 
 ```liva
@@ -1265,7 +1341,6 @@ let isDir = Dir.isDir("/some/path")            // bool (no error binding needed)
 
 `Dir.list` returns sorted file/directory names (not full paths). `Dir.isDir` is non-fallible like `File.exists`.
 
-
 ### System
 
 ```liva
@@ -1273,7 +1348,6 @@ let args = Sys.args()              // [string] - command line arguments (index 0
 let home = Sys.env("HOME")        // string - environment variable (empty if not set)
 Sys.exit(1)                        // exit program with code
 ```
-
 
 ### JSON
 
@@ -1317,13 +1391,12 @@ Settings {
 }
 ```
 
-
 ### HTTP Client
 
 ```liva
 // GET
 let response, err = async HTTP.get("https://api.example.com/users")
-if err == "" {
+if !err {
     print($"Status: {response.status}")
     let data, jsonErr = response.json()
 }
@@ -1343,7 +1416,6 @@ let data: User, jsonErr = response.json()
 ```
 
 All HTTP methods are **async by default** with error binding. Response object has: `status` (int), `body` (string), `json()` method.
-
 
 ---
 
@@ -1428,45 +1500,11 @@ livac --test --verbose                # Detailed output
 
 ---
 
-## Generics
+## Common Pitfalls & Known Limitations
 
-```liva
-// Generic function
-fn identity<T>(value: T): T {
-    return value
-}
+### Syntax Pitfalls
 
-let x = identity(42)          // T = int
-let y = identity("hello")     // T = string
-
-// Multiple type parameters
-fn pair<T, U>(first: T, second: U) {
-    return [first, second]
-}
-
-// Generic class
-class Box<T> {
-    value: T
-    constructor(value: T) { this.value = value }
-    fn get(): T { return this.value }
-    fn set(value: T) { this.value = value }
-}
-
-let intBox = Box(42)
-let strBox = Box("hello")
-
-// Type constraints
-fn compare<T: Comparable>(a: T, b: T): bool {
-    return a > b
-}
-```
-
-
----
-
-## Common Pitfalls
-
-1. **No `fn`/`def` keyword** — write `add(a, b) => a + b` not `fn add(a, b)`
+1. **No `fn`/`def`/`class` keyword** — write `add(a, b) => a + b` not `fn add(...)` or `def add(...)`
 2. **No semicolons** — newline terminates statements
 3. **`and`/`or`/`not`** — preferred over `&&`/`||`/`!` (both work)
 4. **Switch expressions vs statements** — expressions: `X => val`, statements: `case X:` with colon
@@ -1479,23 +1517,361 @@ fn compare<T: Comparable>(a: T, b: T): bool {
 11. **No `+=` or `++`** — use `x = x + 1`
 12. **Tuples need explicit types** — `getPoint(): (int, int)` in return type
 13. **Ranges** — `1..5` excludes 5, `1..=5` includes 5
+14. **reduce argument order** — initial value FIRST: `.reduce(0, (acc, x) => acc + x)`
+
+### Known Limitations
+
+- **No generics** — Generic types (`<T>`) are not yet implemented. Use concrete types.
+- **No `push()`/`pop()` array methods** — Use `arr = arr + [element]` to grow arrays.
+- **No `Map`/`Set`/`Dictionary` type** — Use arrays of data classes or JSON objects.
+- **No inheritance** — Use interfaces and composition.
+- **Generating JSON** — Use `JSON.stringify(obj)` for serialization and `JSON.parse(str)` for deserialization. Both work with `data` classes automatically.
 
 ---
 
-## Complete Example
+## Project Structure & Code Quality
+
+> ⚠️ **CRITICAL FOR AI AGENTS** ⚠️
+>
+> **ALWAYS generate multi-file projects.** A single monolithic file is NEVER acceptable
+> for anything beyond a trivial 50-line script. Split code into focused modules.
+> This is mandatory, not optional.
+
+### Mandatory Rules
+
+1. **Split by responsibility** — one file per concern (models, logic, output, utils)
+2. **Short functions** — max ~20 lines per function. If longer, decompose it
+3. **No god functions** — `main()` should only orchestrate; never contain business logic
+4. **Use imports** — Liva has a full module system. Use it
+5. **Use `JSON.stringify()`** — never build JSON strings manually
+6. **Use `data` classes** — for any struct-like data, always prefer `data` over `class`
+7. **Use `or fail`** — instead of verbose error binding when you just want to propagate
+8. **Prefer `if err {`** — not `if err != ""`
+
+### Project Structure
+
+**Small utility (<50 lines):**
+```
+my-tool/
+└── src/
+    └── main.liva
+```
+
+**Any real project (>50 lines) — ALWAYS use this pattern:**
+```
+my-project/
+└── src/
+    ├── main.liva           # Entry point only — orchestration, CLI parsing
+    ├── models.liva         # Data classes (types, structs)
+    ├── services.liva       # Core business logic
+    ├── output.liva         # Formatting / display / JSON output
+    └── utils.liva          # Small internal helpers (_private prefix)
+```
+
+For larger projects, use subdirectories:
+```
+larger-project/
+└── src/
+    ├── main.liva
+    ├── models/
+    │   ├── user.liva
+    │   └── config.liva
+    ├── services/
+    │   ├── auth.liva
+    │   └── data.liva
+    └── utils/
+        └── strings.liva
+```
+
+### Example: Correct Multi-file Project
 
 ```liva
-// Package metadata
-Package {
-    name: string
-    version: string
+// src/models.liva — Data definitions ONLY
+data CpuInfo {
+    model: string
+    cores: number
+}
 
-    constructor(name: string, version: string) {
-        this.name = name
-        this.version = version
+data MemoryInfo {
+    totalMB: number
+    usedMB: number
+    freeMB: number
+}
+
+data SystemReport {
+    hostname: string
+    cpu: CpuInfo
+    memory: MemoryInfo
+}
+```
+
+```liva
+// src/services.liva — Business logic
+import { CpuInfo, MemoryInfo, SystemReport } from "./models.liva"
+
+readHostname(): string {
+    let content = File.read("/etc/hostname") or fail "Cannot read hostname"
+    return content.trim()
+}
+
+readCpuInfo(): CpuInfo {
+    let content = File.read("/proc/cpuinfo") or fail "Cannot read cpuinfo"
+    let model = _extractValue(content, "model name")
+    let cores = _countOccurrences(content, "processor")
+    return CpuInfo(model, cores)
+}
+
+readMemoryInfo(): MemoryInfo {
+    let content = File.read("/proc/meminfo") or fail "Cannot read meminfo"
+    let total = _extractNumber(content, "MemTotal")
+    let free = _extractNumber(content, "MemFree")
+    return MemoryInfo(total / 1024, (total - free) / 1024, free / 1024)
+}
+
+buildReport(): SystemReport {
+    let hostname = readHostname() or fail "hostname failed"
+    let cpu = readCpuInfo() or fail "cpu info failed"
+    let memory = readMemoryInfo() or fail "memory info failed"
+    return SystemReport(hostname, cpu, memory)
+}
+
+// Private helpers — not exported
+_extractValue(content: string, key: string): string {
+    let lines = content.split("\n")
+    for line in lines {
+        if line.contains(key) {
+            let idx = line.indexOf(":")
+            if idx >= 0 {
+                return line.substring(idx + 1, line.length).trim()
+            }
+        }
+    }
+    return "unknown"
+}
+
+_extractNumber(content: string, key: string): number {
+    let val = _extractValue(content, key)
+    let parts = val.split(" ")
+    let num, err = parseInt(parts[0])
+    if err { return 0 }
+    return num
+}
+
+_countOccurrences(content: string, key: string): number {
+    let lines = content.split("\n")
+    let count = 0
+    for line in lines {
+        if line.startsWith(key) { count = count + 1 }
+    }
+    return count
+}
+```
+
+```liva
+// src/output.liva — Display / serialization
+import { SystemReport } from "./models.liva"
+
+printJson(report: SystemReport) {
+    let json = JSON.stringify(report) or fail "JSON serialization failed"
+    print(json)
+}
+
+printPretty(report: SystemReport) {
+    print($"Hostname: {report.hostname}")
+    print($"CPU: {report.cpu.model} ({report.cpu.cores} cores)")
+    print($"Memory: {report.memory.usedMB}MB / {report.memory.totalMB}MB")
+}
+```
+
+```liva
+// src/main.liva — Entry point ONLY
+import { buildReport } from "./services.liva"
+import { printJson, printPretty } from "./output.liva"
+
+main() {
+    let args = Sys.args()
+    let jsonMode = args.includes("--json")
+
+    let report, err = buildReport()
+    if err {
+        console.error($"Error: {err}")
+        Sys.exit(1)
     }
 
-    display(): string => $"{this.name}@{this.version}"
+    if jsonMode {
+        printJson(report)
+    } else {
+        printPretty(report)
+    }
+}
+```
+
+### Anti-Patterns — NEVER Do This
+
+```
+❌ Everything in one file (600+ lines)
+❌ main() with 100+ lines of logic
+❌ Building JSON with string templates: print($"\"key\": \"{value}\"")
+❌ Copy-pasting similar parsing code instead of helper functions
+❌ Functions longer than 20-25 lines
+❌ Not using imports when project has multiple files
+❌ Using `class` when `data` suffices (no methods needed)
+❌ Verbose `if err != ""` instead of `if err {`
+❌ Verbose error binding when `or fail` suffices
+```
+
+### Naming Conventions
+
+| Item | Convention | Example |
+|------|-----------|---------|
+| Files | `kebab-case.liva` or `snake_case.liva` | `file-utils.liva` |
+| Functions | `camelCase` | `readFile()` |
+| Classes/Data | `PascalCase` | `UserProfile` |
+| Constants | `SCREAMING_SNAKE_CASE` | `MAX_RETRIES` |
+| Private | `_` prefix | `_helper()` |
+| Fields | `camelCase` | `firstName: string` |
+
+---
+
+## Practical Patterns
+
+### Reading and Parsing Text Files
+
+This is the most common pattern for system tools:
+
+```liva
+// Read a file, split into lines, parse key-value pairs
+readCpuModel(): string {
+    let content, err = File.read("/proc/cpuinfo")
+    if err { return "unknown" }
+
+    let lines = content.split("\n")
+    for line in lines {
+        if line.contains("model name") {
+            let idx = line.indexOf(":")
+            if idx >= 0 {
+                return line.substring(idx + 1, line.length).trim()
+            }
+        }
+    }
+    return "unknown"
+}
+```
+
+### Parsing Numbers from Strings
+
+```liva
+// parseInt/parseFloat are fallible — always check err
+readTemperature(): number {
+    let content, err = File.read("/sys/class/thermal/thermal_zone0/temp")
+    if err { return -1 }
+
+    let val, perr = parseInt(content.trim())
+    if perr { return -1 }
+
+    return val / 1000
+}
+```
+
+### Collecting Items with Array Concatenation
+
+```liva
+// Build a filtered list from parsed data
+readCoreIds(): [string] {
+    let content, err = File.read("/proc/cpuinfo")
+    if err { return [] }
+
+    let lines = content.split("\n")
+    let coreIds: [string] = []
+
+    for line in lines {
+        if line.contains("core id") {
+            let idx = line.indexOf(":")
+            if idx >= 0 {
+                let id = line.substring(idx + 1, line.length).trim()
+                if not coreIds.includes(id) {
+                    coreIds = coreIds + [id]
+                }
+            }
+        }
+    }
+    return coreIds
+}
+```
+
+### Tokenizing Whitespace-Separated Data
+
+```liva
+// Split by spaces, filter empty strings to extract tokens
+_tokenize(text: string): [string] {
+    let parts = text.split(" ")
+    let tokens: [string] = []
+    for p in parts {
+        if p != "" {
+            tokens = tokens + [p]
+        }
+    }
+    return tokens
+}
+```
+
+### Generating JSON Output with JSON.stringify
+
+Use `JSON.stringify()` to serialize data classes to JSON. **Never build JSON strings manually.**
+
+```liva
+// Data classes auto-derive Serialize — JSON.stringify works out of the box
+data SystemReport {
+    hostname: string
+    cpu: CpuInfo
+    memory: MemoryInfo
+    disks: [DiskInfo]
+}
+
+printJsonReport(r: SystemReport) {
+    let json, err = JSON.stringify(r)
+    if err {
+        console.error($"JSON error: {err}")
+        return
+    }
+    print(json)
+}
+```
+
+> **NEVER** build JSON manually with string templates. Always use `JSON.stringify(obj)`.
+> It handles escaping, nested objects, arrays, and special characters correctly.
+
+### Environment Variables and CLI Args
+
+```liva
+main() {
+    let user = Sys.env("USER")
+    let home = Sys.env("HOME")
+    let args = Sys.args()
+
+    let verbose = false
+    for arg in args {
+        if arg == "--verbose" {
+            verbose = true
+        }
+    }
+
+    if verbose {
+        print($"User: {user}, Home: {home}")
+    }
+}
+```
+
+### Complete Example: File Processing Tool
+
+> In a real project, split this into `models.liva`, `services.liva`, and `main.liva`.
+> Shown here in one block for brevity only.
+
+```liva
+// data class — use `data` when no methods are needed
+data Package {
+    name: string
+    version: string
 }
 
 // Load packages from file
@@ -1513,7 +1889,7 @@ filterByPrefix(packages: [Package], prefix: string): [Package] {
 main() {
     let packages, err = loadPackages("packages.json")
 
-    if err != "" {
+    if err {
         console.error($"Error: {err}")
         return
     }
@@ -1521,10 +1897,14 @@ main() {
     let devPackages = filterByPrefix(packages, "dev-")
 
     for pkg in devPackages {
-        print(pkg.display())
+        print($"{pkg.name}@{pkg.version}")
     }
 
     print($"Found {devPackages.length} dev packages")
+
+    // JSON output
+    let json = JSON.stringify(devPackages) or fail "JSON error"
+    print(json)
 }
 ```
 
@@ -1532,20 +1912,17 @@ main() {
 
 ## Quick Reference Card
 
-### Keywords
+### All Reserved Words
 
 ```
-let const import from as if else while for in break continue
-switch case default return fail async par task fire await
-true false null and or not data enum class
-```
+let const import from as if else while for in break continue switch
+case default return fail throw try catch async par parallel task fire
+await move seq vec parvec with ordered chunk threads enum type use
+rust test true false null and or not safe fast static dynamic auto
+detect schedule reduction prefetch simdWidth data
 
-### Type Keywords
-
-```
-number float bool string char bytes
-i8 i16 i32 i64 i128 u8 u16 u32 u64 u128
-f32 f64 isize usize
+Type keywords: number float bool string char bytes
+              i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 isize usize
 ```
 
 ### Operators

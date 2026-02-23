@@ -59,6 +59,10 @@ struct Cli {
     #[arg(long)]
     update: bool,
 
+    /// Compile with optimizations (cargo build --release)
+    #[arg(long)]
+    release: bool,
+
     /// Arguments to pass to the compiled program (after --)
     #[arg(last = true)]
     program_args: Vec<String>,
@@ -972,10 +976,15 @@ fn compile(cli: &Cli, input: &PathBuf) -> Result<(), CompilerError> {
             "→".blue()
         );
     } else {
-        println!("  {} Running cargo build...", "→".blue());
-        let output = Command::new("cargo")
+        println!("  {} Running cargo build{}...", "→".blue(), if cli.release { " --release" } else { "" });
+        let mut cargo_cmd = Command::new("cargo");
+        cargo_cmd
             .arg("build")
-            .arg("--color=always")
+            .arg("--color=always");
+        if cli.release {
+            cargo_cmd.arg("--release");
+        }
+        let output = cargo_cmd
             .current_dir(&output_dir)
             .output()
             .map_err(|e| CompilerError::IoError(e.to_string()))?;
@@ -1026,7 +1035,8 @@ fn compile(cli: &Cli, input: &PathBuf) -> Result<(), CompilerError> {
 
             // Run the compiled binary from the user's working directory
             // (not from the build dir, so relative paths in the program work correctly)
-            let binary_path = output_dir.join("target").join("debug").join("liva_project");
+            let profile = if cli.release { "release" } else { "debug" };
+            let binary_path = output_dir.join("target").join(profile).join("liva_project");
 
             let mut cmd = Command::new(&binary_path);
 
@@ -1103,6 +1113,7 @@ mod tests {
             test: false,
             filter: None,
             update: false,
+            release: false,
             program_args: vec![],
         };
 
@@ -1137,6 +1148,7 @@ mod tests {
             test: false,
             filter: None,
             update: false,
+            release: false,
             program_args: vec![],
         };
 
@@ -1165,6 +1177,7 @@ mod tests {
             test: false,
             filter: None,
             update: false,
+            release: false,
             program_args: vec![],
         };
 

@@ -384,11 +384,12 @@ tokio = { version = "1", features = ["full"] }
 
 **Process:**
 1. Write generated files to `target/liva_build/`
-2. Run `cargo build --release` (unless `LIVAC_SKIP_CARGO` is set)
-3. Binary available at `target/liva_build/target/release/liva_program`
+2. Run `cargo build` (or `cargo build --release` with `--release` flag) unless `LIVAC_SKIP_CARGO` is set
+3. Binary available at `target/liva_build/target/debug/liva_project` (or `target/liva_build/target/release/liva_project` in release mode)
 
 **Options:**
 - `--run`: Also execute the binary after building
+- `--release`: Compile with optimizations (`cargo build --release`)
 - `--verbose`: Print all cargo output
 - `LIVAC_SKIP_CARGO=1`: Skip cargo build (testing code generation)
 

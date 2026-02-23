@@ -68,9 +68,10 @@ pub struct CodeGenerator {
     // --- Class/type metadata (for field resolution)
     class_fields: std::collections::HashMap<String, std::collections::HashSet<String>>,
     class_optional_fields: std::collections::HashMap<String, std::collections::HashSet<String>>, // Track optional fields per class
+    class_array_field_types: std::collections::HashMap<String, std::collections::HashMap<String, String>>, // className -> (fieldName -> elementType) for array fields
     var_types: std::collections::HashMap<String, String>, // var -> ClassName
     fallible_functions: std::collections::HashSet<String>, // Track which functions are fallible
-    array_returning_functions: std::collections::HashSet<String>, // Track functions that return [T] (Vec)
+    array_returning_functions: std::collections::HashMap<String, String>, // Track functions that return [T] (Vec) -> elem type
     string_returning_functions: std::collections::HashSet<String>, // Track functions that return string (String)
     ref_lambda_params: std::collections::HashSet<String>, // Lambda params that are &T references (need *deref in comparisons)
     // --- Type aliases (for expansion during codegen)
@@ -128,9 +129,10 @@ impl CodeGenerator {
             mutated_vars: std::collections::HashSet::new(),
             class_fields: std::collections::HashMap::new(),
             class_optional_fields: std::collections::HashMap::new(),
+            class_array_field_types: std::collections::HashMap::new(),
             var_types: std::collections::HashMap::new(),
             fallible_functions: std::collections::HashSet::new(),
-            array_returning_functions: std::collections::HashSet::new(),
+            array_returning_functions: std::collections::HashMap::new(),
             string_returning_functions: std::collections::HashSet::new(),
             ref_lambda_params: std::collections::HashSet::new(),
             type_aliases: std::collections::HashMap::new(),
@@ -1039,21 +1041,32 @@ impl CodeGenerator {
         // Build class metadata maps
         self.class_fields.clear();
         self.class_optional_fields.clear();
+        self.class_array_field_types.clear();
         for item in &program.items {
             if let TopLevel::Class(cls) = item {
                 let mut fields = std::collections::HashSet::new();
                 let mut optional_fields = std::collections::HashSet::new();
+                let mut array_field_types = std::collections::HashMap::new();
                 for m in &cls.members {
                     if let Member::Field(f) = m {
                         fields.insert(f.name.clone());
                         if f.is_optional {
                             optional_fields.insert(f.name.clone());
                         }
+                        // Track array field types: fieldName -> elementType
+                        if let Some(TypeRef::Array(element_type)) = &f.type_ref {
+                            if let TypeRef::Simple(type_name) = element_type.as_ref() {
+                                array_field_types.insert(f.name.clone(), type_name.clone());
+                            }
+                        }
                     }
                 }
                 self.class_fields.insert(cls.name.clone(), fields);
                 self.class_optional_fields
                     .insert(cls.name.clone(), optional_fields);
+                if !array_field_types.is_empty() {
+                    self.class_array_field_types.insert(cls.name.clone(), array_field_types);
+                }
             }
         }
 
@@ -4440,8 +4453,11 @@ impl CodeGenerator {
                             if let Expr::Identifier(class_name) = &*call.callee {
                                 if let Some(name) = binding.name() {
                                     // Check if this is an array-returning function
-                                    if self.array_returning_functions.contains(class_name) {
+                                    if let Some(elem_type) = self.array_returning_functions.get(class_name).cloned() {
                                         self.array_vars.insert(name.to_string());
+                                        if !elem_type.is_empty() {
+                                            self.typed_array_vars.insert(name.to_string(), elem_type);
+                                        }
                                     }
                                     // Check if this is a string-returning function
                                     else if self.string_returning_functions.contains(class_name) {
@@ -4647,6 +4663,53 @@ impl CodeGenerator {
                 // Mark the loop variable for bracket notation (likely iterating over JSON objects)
                 let var_name = self.sanitize_name(&for_stmt.var);
                 self.bracket_notation_vars.insert(var_name.clone());
+
+                // Bug fix: If iterating over a typed array of class instances,
+                // register the loop variable as a class instance so field access
+                // generates dot notation instead of get_field()
+                if let Expr::Identifier(iterable_name) = &for_stmt.iterable {
+                    let sanitized_iterable = self.sanitize_name(iterable_name);
+                    if let Some(element_type) = self.typed_array_vars.get(&sanitized_iterable).cloned() {
+                        // Check if element type is a class (uppercase first char, not a primitive)
+                        let is_class_type = !matches!(
+                            element_type.as_str(),
+                            "number" | "int" | "i32" | "float" | "f64" | "bool" | "char" | "string"
+                        ) && element_type.chars().next().map(|c| c.is_uppercase()).unwrap_or(false);
+                        if is_class_type {
+                            self.class_instance_vars.insert(var_name.clone());
+                        }
+                    }
+                }
+                // Also handle `for item in obj.field` where obj is a class instance
+                if let Expr::Member { object, property } = &for_stmt.iterable {
+                    if let Expr::Identifier(obj_name) = object.as_ref() {
+                        let sanitized_obj = self.sanitize_name(obj_name);
+                        // Check typed_array_vars for the field name
+                        if let Some(element_type) = self.typed_array_vars.get(property).cloned() {
+                            let is_class_type = !matches!(
+                                element_type.as_str(),
+                                "number" | "int" | "i32" | "float" | "f64" | "bool" | "char" | "string"
+                            ) && element_type.chars().next().map(|c| c.is_uppercase()).unwrap_or(false);
+                            if is_class_type {
+                                self.class_instance_vars.insert(var_name.clone());
+                            }
+                        }
+                        // Look up the object's class type via var_types, then check class_array_field_types
+                        if let Some(class_name) = self.var_types.get(&sanitized_obj).cloned() {
+                            if let Some(field_types) = self.class_array_field_types.get(&class_name) {
+                                if let Some(element_type) = field_types.get(property) {
+                                    let is_class_type = !matches!(
+                                        element_type.as_str(),
+                                        "number" | "int" | "i32" | "float" | "f64" | "bool" | "char" | "string"
+                                    ) && element_type.chars().next().map(|c| c.is_uppercase()).unwrap_or(false);
+                                    if is_class_type {
+                                        self.class_instance_vars.insert(var_name.clone());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
 
                 self.write_indent();
                 write!(self.output, "for {} in ", var_name).unwrap();
@@ -5018,7 +5081,15 @@ impl CodeGenerator {
                 }
             }
             Expr::Binary { op, left, right } => {
-                if matches!(op, BinOp::Add)
+                if matches!(op, BinOp::Add) && self.expr_is_array(left, right) {
+                    // Array concatenation: arr + [element] or arr + otherArr
+                    // Generate: { let mut __v = left.clone(); __v.extend(right); __v }
+                    self.output.push_str("{ let mut __v = ");
+                    self.generate_expr(left)?;
+                    self.output.push_str(".clone(); __v.extend(");
+                    self.generate_expr(right)?;
+                    self.output.push_str("); __v }");
+                } else if matches!(op, BinOp::Add)
                     && (self.expr_is_stringy(left) || self.expr_is_stringy(right))
                 {
                     self.output.push_str("format!(\"{}{}\", ");
@@ -5632,12 +5703,34 @@ impl CodeGenerator {
                     self.output.push_str(") as usize");
                 }
 
-                // Check if this is a string array - need .clone() for String
+                // Check if this is a non-Copy array element - need .clone()
                 let needs_clone = if let Expr::Identifier(var_name) = object.as_ref() {
                     let sanitized = self.sanitize_name(var_name);
                     if self.array_vars.contains(&sanitized) {
                         if let Some(elem_type) = self.typed_array_vars.get(&sanitized) {
-                            elem_type == "string"
+                            // Clone for string and class instance types (not number/bool)
+                            elem_type == "string" || self.class_fields.contains_key(elem_type)
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                } else if let Expr::Member { object: ma_obj, property: ma_prop } = object.as_ref() {
+                    // Handle obj.field[i] — check class_array_field_types
+                    if let Expr::Identifier(obj_name) = ma_obj.as_ref() {
+                        let sanitized_obj = self.sanitize_name(obj_name);
+                        if let Some(class_name) = self.var_types.get(&sanitized_obj) {
+                            if let Some(field_types) = self.class_array_field_types.get(class_name) {
+                                if let Some(elem_type) = field_types.get(ma_prop.as_str()) {
+                                    // Clone for non-primitive types
+                                    elem_type == "string" || self.class_fields.contains_key(elem_type.as_str())
+                                } else {
+                                    false
+                                }
+                            } else {
+                                false
+                            }
                         } else {
                             false
                         }
@@ -5650,7 +5743,7 @@ impl CodeGenerator {
 
                 self.output.push(']');
 
-                // For string arrays, add .clone() because indexing returns &String
+                // For non-Copy arrays, add .clone() because indexing returns a reference
                 if needs_clone {
                     self.output.push_str(".clone()");
                 }
@@ -6401,7 +6494,7 @@ impl CodeGenerator {
                 }
                 self.output.push_str("match ");
                 self.generate_expr(&call.args[0])?;
-                self.output.push_str(".parse::<i32>() { Ok(v) => (v, None), Err(_) => (0, Some(liva_rt::Error::from(\"Invalid integer format\"))) }");
+                self.output.push_str(".parse::<i32>() { Ok(v) => (v, String::new()), Err(_) => (0, \"Invalid integer format\".to_string()) }");
                 return Ok(());
             }
 
@@ -6416,7 +6509,7 @@ impl CodeGenerator {
                 }
                 self.output.push_str("match ");
                 self.generate_expr(&call.args[0])?;
-                self.output.push_str(".parse::<f64>() { Ok(v) => (v, None), Err(_) => (0.0_f64, Some(liva_rt::Error::from(\"Invalid float format\"))) }");
+                self.output.push_str(".parse::<f64>() { Ok(v) => (v, String::new()), Err(_) => (0.0_f64, \"Invalid float format\".to_string()) }");
                 return Ok(());
             }
 
@@ -7360,7 +7453,7 @@ impl CodeGenerator {
 
             // Special handling for includes/indexOf: wrap value in closure
             if method_call.method == "includes" || method_call.method == "indexOf" {
-                self.output.push_str("|&x| x == ");
+                self.output.push_str("|x| *x == ");
                 self.generate_expr(arg)?;
                 continue;
             }
@@ -8118,6 +8211,10 @@ impl CodeGenerator {
                 // split returns an iterator, collect to Vec<String>
                 self.output
                     .push_str(".map(|s| s.to_string()).collect::<Vec<String>>()");
+            }
+            "trim" | "trimStart" | "trimEnd" => {
+                // trim/trim_start/trim_end return &str, need .to_string() for String context
+                self.output.push_str(".to_string()");
             }
             _ => {}
         }
@@ -9241,6 +9338,22 @@ impl CodeGenerator {
             } => self.expr_contains_fail(then_expr) || self.expr_contains_fail(else_expr),
             _ => false,
         }
+    }
+
+    /// Check if a binary Add expression involves arrays (for array concatenation)
+    fn expr_is_array(&self, left: &Expr, right: &Expr) -> bool {
+        let is_array_expr = |expr: &Expr| -> bool {
+            match expr {
+                Expr::ArrayLiteral(_) => true,
+                Expr::Identifier(name) => {
+                    let sanitized = self.sanitize_name(name);
+                    self.array_vars.contains(&sanitized)
+                        || self.typed_array_vars.contains_key(&sanitized)
+                }
+                _ => false,
+            }
+        };
+        is_array_expr(left) || is_array_expr(right)
     }
 
     fn expr_is_stringy(&self, expr: &Expr) -> bool {
@@ -12786,10 +12899,14 @@ pub fn generate_with_ast(program: &Program, ctx: DesugarContext) -> Result<(Stri
             }
             // Track functions that return [T] (arrays)
             if let Some(ret_type) = &func.return_type {
-                if matches!(ret_type, TypeRef::Array(_)) {
+                if let TypeRef::Array(elem) = ret_type {
+                    let elem_type = match elem.as_ref() {
+                        TypeRef::Simple(name) => name.clone(),
+                        _ => String::new(),
+                    };
                     generator
                         .array_returning_functions
-                        .insert(func.name.clone());
+                        .insert(func.name.clone(), elem_type);
                 }
                 // Track functions that return string
                 if matches!(ret_type, TypeRef::Simple(name) if name == "string") {

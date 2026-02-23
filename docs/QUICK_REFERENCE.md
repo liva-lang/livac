@@ -34,8 +34,10 @@
 ## CLI Commands
 
 ```bash
-livac file.liva               # Compile to Rust project
+livac file.liva               # Compile to Rust project (debug mode)
 livac file.liva --run         # Compile and run
+livac file.liva --release     # Compile with optimizations (release mode)
+livac file.liva --release --run  # Compile optimized and run
 livac file.liva --check       # Syntax check only
 livac file.liva --fmt         # Format file in place (v1.0.2+)
 livac file.liva --fmt-check   # Check if file needs formatting

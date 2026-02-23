@@ -360,6 +360,6 @@ use rayon::prelude::*;
 
 fn main() {
     let numbers = vec![10, 20, 30, 40];
-    let idx = numbers.par_iter().position_first(|&x| x == 30).map(|i| i as i32).unwrap_or(-1);
+    let idx = numbers.par_iter().position_first(|x| *x == 30).map(|i| i as i32).unwrap_or(-1);
     println!("{}", idx);
 }

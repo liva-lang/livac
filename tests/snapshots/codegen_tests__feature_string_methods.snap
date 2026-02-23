@@ -359,7 +359,7 @@ fn main() {
     let mut text = "Hello, World!".to_string();
     let upper = text.to_uppercase();
     let lower = text.to_lowercase();
-    let trimmed = "  spaced  ".trim();
+    let trimmed = "  spaced  ".trim().to_string();
     let parts = "a,b,c".split(",").map(|s| s.to_string()).collect::<Vec<String>>();
     let replaced = text.replace("World", "Liva");
     let starts = text.starts_with("Hello");
