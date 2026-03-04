@@ -247,10 +247,10 @@ impl Formatter {
             format!(" : {}", decl.implements.join(", "))
         };
 
-        let prefix = if decl.is_data { "data " } else { "" };
+        // No `data` keyword — data classes are auto-detected from structure
         self.write_line(&format!(
-            "{}{}{}{} {{",
-            prefix, decl.name, type_params, implements
+            "{}{}{} {{",
+            decl.name, type_params, implements
         ));
         self.indent_level += 1;
         self.format_members(&decl.members);

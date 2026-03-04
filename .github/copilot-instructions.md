@@ -259,8 +259,8 @@ Found and fixed 9 bugs (#63-#74):
 2. **`..=` inclusive range** — `for i in 1..=10` (expression context, not just pattern matching)
 3. **`Math.PI` / `Math.E`** — Mathematical constants
 4. **`[string].join(sep)`** — Array join method
-5. **`data` class sugar** — `data Point { x: number, y: number }` with auto constructor, PartialEq, Display
-   - `data` is a **contextual keyword** — can still be used as a variable name
+5. **Data classes** — Auto-detected: classes with fields but no explicit constructor get auto constructor, PartialEq, Display
+   - No `data` keyword needed (removed in v1.3.0) — the compiler infers it from structure
 
 ### Comprehensive Feature Test Coverage (codegen_tests.rs — 86 tests):
 Snapshot tests serve as **source of truth** for all supported Liva syntax:
@@ -271,7 +271,7 @@ Snapshot tests serve as **source of truth** for all supported Liva syntax:
 - Control flow: `if`/`else`, ternary `? :`, one-liner ternary in `=>`
 - Pattern matching: switch statement (`case X:`), switch expression (`X => val`), or-patterns
 - Loops: `while`, `for` range, `for` array, one-liner `=>`, `for par` parallel, `break`/`continue`
-- Classes & interfaces: constructor, fields, methods, visibility `_prefix`, `data` classes
+- Classes & interfaces: constructor, fields, methods, visibility `_prefix`, auto data classes
 - Enums: simple (`Color { Red, Green, Blue }`), with data (`Shape { Circle(radius: number) }`), pattern matching
 - Error handling: `fail`, error binding, `or fail`, `try`/`catch (err)`
 - Concurrency: `async`, `par`, `task`, `fire`, `await`
@@ -287,7 +287,7 @@ Snapshot tests serve as **source of truth** for all supported Liva syntax:
 - `for` ranges support both `..` (exclusive) and `..=` (inclusive)
 - JSON typed parse uses `int` not `number`: `let x: [int], err = JSON.parse(...)`
 - `describe` is reserved for test framework — don't use as function name
-- `data` is a contextual keyword — only treated as keyword before a class name identifier
+- `data` keyword was **removed** in v1.3.0 — data classes are auto-detected (fields + no constructor)
 
 ### Session 13 Bug Fixes (codegen.rs):
 - `ref_lambda_params: HashSet<String>` — dereference `&T` lambda params in comparisons

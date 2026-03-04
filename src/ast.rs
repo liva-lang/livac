@@ -99,7 +99,7 @@ pub struct ClassDecl {
     #[serde(default)]
     pub needs_serde: bool, // Phase 2: true if used with JSON.parse
     #[serde(default)]
-    pub is_data: bool, // true for "data class" declarations
+    pub is_data: bool, // deprecated: auto-detected in codegen (fields + no constructor = data class)
 }
 
 /// Enum declaration: enum Color { Red, Green, Blue }

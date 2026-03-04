@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - v1.3.0-dev
 
+### Changed - Remove `data` keyword (auto-detect data classes) 🚫🔑
+
+**Breaking change:**
+- The `data` keyword has been **removed**. Classes with fields but no explicit constructor are now **automatically** treated as data classes (auto-derive positional constructor, `PartialEq`, and `Display`).
+- This is consistent with Liva's philosophy: avoid keywords when the compiler can infer intent from structure.
+- **Before:** `data Point { x: number, y: number }`
+- **After:** `Point { x: number, y: number }` (same behavior, no keyword needed)
+
+**Rule:** If a class has a `constructor()`, it's a regular class. If not, it's a data class.
+
+**Implementation:**
+- Parser: removed `data` contextual keyword detection
+- Codegen: auto-detects data classes (fields + no constructor → `is_data = true`)
+- Formatter: no longer emits `data ` prefix
+
+**Tests:**
+- Updated 3 existing data class tests (removed `data` keyword from source)
+- Added 3 new tests: `auto_data_class_fields_only`, `auto_data_class_with_methods`, `class_with_constructor_not_data`
+- All 296 tests passing
+
+**Docs:**
+- Updated `QUICK_REFERENCE.md`, `classes-data.md`, `copilot-instructions.md`
+
+---
+
 ### Added - Session 18: Dir Module, Sys Docs, string.contains() 🗂️
 
 **New stdlib APIs:**

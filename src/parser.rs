@@ -443,19 +443,10 @@ impl Parser {
                 )));
             }
         }
-        // Check for 'data' modifier (contextual keyword - data class)
-        // 'data' is not a reserved keyword, so it can be used as a variable name.
-        // We detect it here by checking: current token is Ident("data") AND next token is also Ident.
-        let is_data = if let Some(Token::Ident(name)) = self.peek() {
-            if name == "data" && self.peek_next_is(&Token::Ident(String::new())) {
-                self.advance(); // consume 'data' identifier
-                true
-            } else {
-                false
-            }
-        } else {
-            false
-        };
+        // Data class detection: no longer uses a `data` keyword.
+        // Classes with fields but no explicit constructor are automatically
+        // treated as data classes (auto-derive constructor, PartialEq, Display).
+        // See codegen::generate_class for the auto-detection logic.
 
         let name = self.parse_identifier()?;
 
@@ -488,7 +479,7 @@ impl Parser {
                 implements,
                 members,
                 needs_serde: false, // Will be set by semantic analyzer if used with JSON.parse
-                is_data,
+                is_data: false, // Auto-detected in codegen based on structure
             }));
         }
 

@@ -2120,6 +2120,15 @@ impl CodeGenerator {
             return Ok(());
         }
 
+        // Auto-detect data classes: if a class has fields but no explicit constructor,
+        // it's automatically a data class (auto-derive constructor, PartialEq, Display).
+        // This replaces the old `data` keyword — the compiler infers it from structure.
+        let has_fields = class
+            .members
+            .iter()
+            .any(|m| matches!(m, Member::Field(_)));
+        let is_data = !has_constructor && has_fields;
+
         // Generate default functions for optional fields with init values
         if class.needs_serde {
             for member in &class.members {
@@ -2174,10 +2183,10 @@ impl CodeGenerator {
         };
 
         // Phase 2: Generate serde derives if class is used with JSON.parse
-        // Data classes also get PartialEq
-        let derives = if class.is_data && class.needs_serde {
+        // Data classes (auto-detected) also get PartialEq
+        let derives = if is_data && class.needs_serde {
             "#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]"
-        } else if class.is_data {
+        } else if is_data {
             "#[derive(Debug, Clone, Default, PartialEq)]"
         } else if class.needs_serde {
             "#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]"
@@ -2385,7 +2394,7 @@ impl CodeGenerator {
         } else if has_fields {
             // Default constructor
             // Data classes get a constructor with all fields as parameters
-            if class.is_data {
+            if is_data {
                 // Collect field info for the constructor signature
                 let fields: Vec<(&str, String)> = class
                     .members
@@ -2537,7 +2546,7 @@ impl CodeGenerator {
         self.writeln("}");
 
         // Data class: auto-generate Display impl
-        if class.is_data {
+        if is_data {
             self.output.push('\n');
             self.writeln(&format!(
                 "impl{} std::fmt::Display for {}{} {{",

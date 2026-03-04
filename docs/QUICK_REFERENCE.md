@@ -381,11 +381,12 @@ main() {
 }
 ```
 
-### Data Class (Sugar Syntax)
+### Data Class (Auto-detected)
 
 ```liva
-// data keyword auto-generates constructor, fields, PartialEq, and Display
-data Point {
+// Classes with fields but no explicit constructor are automatically data classes
+// Auto-generates: constructor, PartialEq, and Display
+Point {
     x: number
     y: number
 }
@@ -398,7 +399,7 @@ print(p == Point(10, 20))  // true (auto PartialEq)
 ### Data Class with Methods
 
 ```liva
-data Color {
+Color {
     r: number
     g: number
     b: number

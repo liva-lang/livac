@@ -2191,13 +2191,13 @@ main() {
 }
 
 // ---------------------------------------------------------------------------
-// 29. Data Class
+// 29. Data Class (auto-detected: fields + no constructor)
 // ---------------------------------------------------------------------------
 
 #[test]
 fn test_feature_data_class() {
     let source = r#"
-data Point {
+Point {
     x: number
     y: number
 }
@@ -2219,7 +2219,7 @@ main() {
 #[test]
 fn test_feature_data_class_with_methods() {
     let source = r#"
-data Color {
+Color {
     r: number
     g: number
     b: number
@@ -2288,8 +2288,9 @@ main() {
 fn test_bug66_data_class_display_and_constructor() {
     // Bug #66: data class Display impl had unescaped braces in format string
     // Bug #67: data class constructor didn't accept field arguments
+    // Note: `data` keyword removed — auto-detected from structure
     let source = r#"
-data Point {
+Point {
     x: number
     y: number
 }
@@ -2693,4 +2694,88 @@ main() {
 
     let rust_code = compile_and_generate(source);
     assert_snapshot!("filter_contains_lambda", rust_code);
+}
+
+// ============================================================
+// Auto-detected data classes (no `data` keyword needed)
+// ============================================================
+
+#[test]
+fn test_auto_data_class_fields_only() {
+    // A class with only fields and no constructor is auto-detected as data class
+    // Gets: positional constructor, PartialEq, Display
+    let source = r#"
+Coordinate {
+    lat: float
+    lon: float
+}
+
+main() {
+    let c = Coordinate(40.7128, -74.0060)
+    print(c)
+    print(c == Coordinate(40.7128, -74.0060))
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    // Should have PartialEq derive and Display impl
+    assert!(rust_code.contains("PartialEq"), "auto data class should derive PartialEq");
+    assert!(rust_code.contains("impl std::fmt::Display for Coordinate"), "auto data class should have Display impl");
+    assert!(rust_code.contains("pub fn new(lat: f64, lon: f64)"), "auto data class should have positional constructor");
+    assert_snapshot!("auto_data_class_fields_only", rust_code);
+}
+
+#[test]
+fn test_auto_data_class_with_methods() {
+    // A class with fields + methods but no constructor is still a data class
+    let source = r#"
+Vec2 {
+    x: float
+    y: float
+
+    length(): float => (x * x + y * y)
+}
+
+main() {
+    let v = Vec2(3.0, 4.0)
+    print(v)
+    print(v.length())
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("PartialEq"), "fields+methods should still be data class");
+    assert!(rust_code.contains("impl std::fmt::Display for Vec2"), "should have Display");
+    assert!(rust_code.contains("pub fn new(x: f64, y: f64)"), "should have positional constructor");
+    assert_snapshot!("auto_data_class_with_methods", rust_code);
+}
+
+#[test]
+fn test_class_with_constructor_is_not_data() {
+    // A class with an explicit constructor should NOT be auto-detected as data class
+    let source = r#"
+User {
+    name: string
+    age: number
+
+    constructor(name: string, age: number) {
+        if age < 0 fail "Age must be positive"
+        this.name = name
+        this.age = age
+    }
+}
+
+main() {
+    let u = User("Alice", 25)
+    print(u.name)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    // Should NOT have PartialEq on User struct or auto Display (has explicit constructor)
+    assert!(!rust_code.contains("impl std::fmt::Display for User"), "should not have auto Display");
+    // The derive for User should be just Debug, Clone, Default — no PartialEq
+    assert!(rust_code.contains("#[derive(Debug, Clone, Default)]\npub struct User"), 
+        "class with constructor should get basic derives, not PartialEq");
+    assert_snapshot!("class_with_constructor_not_data", rust_code);
 }

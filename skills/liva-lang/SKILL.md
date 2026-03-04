@@ -102,7 +102,7 @@ f32       f64       isize     usize
 ### Contextual Keywords (reserved in specific positions)
 
 ```
-data      — reserved before a class name (e.g., `data Point { ... }`)
+(none — `data` keyword was removed in v1.3.0; data classes are auto-detected)
 ```
 
 ### Common Mistakes
@@ -676,10 +676,11 @@ createSquare(size: number): Rectangle {
 
 ## Data Classes
 
-Auto-generate constructor, fields, `PartialEq`, and `Display`:
+Classes with fields but **no explicit constructor** are automatically data classes.
+Auto-generate: positional constructor, `PartialEq`, and `Display`:
 
 ```liva
-data Point {
+Point {
     x: number
     y: number
 }
@@ -692,7 +693,7 @@ print(p == Point(10, 20))   // true (auto PartialEq)
 ### Data Class with Methods
 
 ```liva
-data Color {
+Color {
     r: number
     g: number
     b: number
@@ -707,7 +708,7 @@ print(c.sum())  // 383
 ### Data Classes in Arrays
 
 ```liva
-data Item {
+Item {
     name: string
     price: number
 }
@@ -1525,7 +1526,7 @@ livac --test --verbose                # Detailed output
 - **No `push()`/`pop()` array methods** — Use `arr = arr + [element]` to grow arrays.
 - **No `Map`/`Set`/`Dictionary` type** — Use arrays of data classes or JSON objects.
 - **No inheritance** — Use interfaces and composition.
-- **Generating JSON** — Use `JSON.stringify(obj)` for serialization and `JSON.parse(str)` for deserialization. Both work with `data` classes automatically.
+- **Generating JSON** — Use `JSON.stringify(obj)` for serialization and `JSON.parse(str)` for deserialization. Both work with data classes automatically.
 
 ---
 
@@ -1544,7 +1545,7 @@ livac --test --verbose                # Detailed output
 3. **No god functions** — `main()` should only orchestrate; never contain business logic
 4. **Use imports** — Liva has a full module system. Use it
 5. **Use `JSON.stringify()`** — never build JSON strings manually
-6. **Use `data` classes** — for any struct-like data, always prefer `data` over `class`
+6. **Use data classes** — for struct-like data, declare fields without a constructor
 7. **Use `or fail`** — instead of verbose error binding when you just want to propagate
 8. **Prefer `if err {`** — not `if err != ""`
 
@@ -1821,7 +1822,7 @@ Use `JSON.stringify()` to serialize data classes to JSON. **Never build JSON str
 
 ```liva
 // Data classes auto-derive Serialize — JSON.stringify works out of the box
-data SystemReport {
+SystemReport {
     hostname: string
     cpu: CpuInfo
     memory: MemoryInfo
@@ -1868,8 +1869,8 @@ main() {
 > Shown here in one block for brevity only.
 
 ```liva
-// data class — use `data` when no methods are needed
-data Package {
+// data class — no constructor needed, auto-detected
+Package {
     name: string
     version: string
 }

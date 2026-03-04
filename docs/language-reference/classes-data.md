@@ -184,15 +184,17 @@ UserService : Loggable {
 
 ## Data Classes
 
-**⭐ Available since v1.2.0**
+**⭐ Available since v1.2.0** | **🔄 Auto-detected since v1.3.0** (no `data` keyword needed)
 
-The `data` keyword provides sugar syntax to declare simple value-oriented classes without boilerplate. A `data` class auto-generates a constructor, field declarations, `PartialEq`, and `Display`.
+A class with fields but **no explicit constructor** is automatically a data class. The compiler auto-generates a positional constructor, `PartialEq`, and `Display`.
+
+> **Breaking change (v1.3.0):** The `data` keyword has been removed. Classes are now auto-detected as data classes based on their structure — consistent with Liva's philosophy of avoiding unnecessary keywords.
 
 ### Basic Syntax
 
 ```liva
-// data keyword auto-generates constructor, fields, PartialEq, and Display
-data Point {
+// No keyword needed — just declare fields without a constructor
+Point {
     x: number
     y: number
 }
@@ -206,10 +208,10 @@ This is equivalent to writing a full class with constructor, fields, `PartialEq`
 
 ### Data Class with Methods
 
-You can add methods to a `data` class just like a regular class:
+You can add methods and the class is still auto-detected:
 
 ```liva
-data Color {
+Color {
     r: number
     g: number
     b: number
@@ -221,29 +223,32 @@ let c = Color(255, 128, 0)
 print(c.sum())  // 383
 ```
 
-### What `data` Auto-Generates
+### What Auto-Detection Generates
 
-| Feature | Regular Class | `data` Class |
-|---------|--------------|-------------|
-| **Constructor** | Must write manually | ✅ Auto-generated from fields |
-| **Fields** | Must declare explicitly | ✅ Declared in body, auto-wired |
+| Feature | Class with constructor | Class without constructor (data class) |
+|---------|----------------------|----------------------------------------|
+| **Constructor** | Your custom logic | ✅ Auto-generated positional `new(field1, field2, ...)` |
 | **`PartialEq`** | Not derived | ✅ Auto-derived (structural equality) |
 | **`Display`** | Not derived | ✅ Auto-derived (`ClassName { field: value, ... }`) |
 | **Methods** | ✅ Supported | ✅ Supported |
 
-### When to Use `data`
+### The Rule
 
-- **Use `data`** for simple value types: points, colors, configs, DTOs
-- **Use regular classes** when you need custom constructor logic, validation, or complex initialization
+| Has explicit `constructor()`? | Result |
+|------|--------|
+| **No** (fields only, or fields + methods) | ✅ **Data class** — auto constructor, PartialEq, Display |
+| **Yes** | Regular class — you control initialization |
+
+### When to Use Each
 
 ```liva
-// ✅ Perfect for data class
-data Coordinate {
+// ✅ Data class (auto-detected: no constructor)
+Coordinate {
     lat: float
     lon: float
 }
 
-// ❌ Needs regular class (validation in constructor)
+// ✅ Regular class (has constructor for validation)
 User {
   email: string
   age: number
@@ -271,14 +276,14 @@ User {
 | **Implements** | `Class : Interface { }` | `Dog : Animal { }` |
 | **Multiple** | `Class : I1, I2 { }` | `Dog : Animal, Named { }` |
 | **Visibility** | `name` / `_name` | Public / Private |
-| **Data class** | `data ClassName { fields }` | `data Point { x: number, y: number }` |
+| **Data class** | `ClassName { fields }` (no constructor) | `Point { x: number, y: number }` |
 
 ---
 
 ## Quick Reference
 
 ```liva
-// Basic class
+// Basic class (has constructor → regular class)
 Person {
   name: string
   age: number
@@ -297,10 +302,6 @@ Person {
 
 // Instantiation
 let alice = Person("Alice", 30)
-let bob = Person {
-  name: "Bob",
-  age: 25
-}
 
 // Interface
 Animal {
@@ -320,8 +321,8 @@ Dog : Animal {
   getName() => this.name
 }
 
-// Data class
-data Point {
+// Data class (no constructor → auto-detected)
+Point {
   x: number
   y: number
 }
