@@ -1428,12 +1428,14 @@ impl Parser {
 
         if self.match_token(&Token::If) {
             // Parse condition - paréntesis opcionales
+            // Use parse_expression_no_lambda to avoid `ident =>` being parsed as a lambda
+            // (same as while/for). The `=>` here means one-liner body, not lambda arrow.
             let condition = if self.match_token(&Token::LParen) {
                 let cond = self.parse_expression()?;
                 self.expect(Token::RParen)?;
                 cond
             } else {
-                self.parse_expression()?
+                self.parse_expression_no_lambda()?
             };
 
             // Check if it's a simple statement (like if cond fail "msg") or => one-liner
