@@ -919,9 +919,18 @@ if err { fail "Connection error" }
 ### `or default` — Default Value on Error
 
 ```liva
-let config = loadConfig("app.toml") or default defaultConfig()
-let port = parsePort(input) or default 8080
+let result = divide(10, 0) or 42          // 42 (failed → default)
+let port = parsePort("abc") or 3000       // 3000 (failed → default)
+let config = loadConfig("app.toml") or defaultConfig()
 ```
+
+Equivalent to:
+```liva
+let result, err = divide(10, 0)
+let result = err ? 42 : result
+```
+
+> **Note:** Only works when the left side is a function/method call. The `or` keyword without `fail` is used as logical OR for booleans: `a or b`.
 
 ### Common Patterns
 
@@ -1511,7 +1520,8 @@ livac --test --verbose                # Detailed output
 4. **Switch expressions vs statements** — expressions: `X => val`, statements: `case X:` with colon
 5. **Error binding required** — `let value, err = riskyCall()` for fallible functions (E0701)
 6. **`or fail`** — shorthand propagation: `let x = riskyCall() or fail "message"`
-7. **String templates** — use `$"text {expr}"` not backticks
+7. **`or <value>`** — default on error: `let x = riskyCall() or defaultValue` (left side must be a call)
+8. **String templates** — use `$"text {expr}"` not backticks
 8. **Private members** — prefix with `_` (e.g., `_count: number`)
 9. **`describe`** is reserved for the test framework
 10. **Enum construction** — `Color.Red`, `Shape.Circle(5)` (dot syntax, not `::`)

@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - v1.3.0-dev
 
+### Added - `or <value>` — Default Value for Fallible Calls 🛡️
+
+**New syntax: `let x = fallibleCall() or defaultValue`**
+
+Provides a default value when a fallible function fails, similar to JavaScript's `||` operator:
+
+```liva
+let result = divide(10, 0) or 42          // 42 (division failed)
+let result2 = divide(10, 2) or 42         // 5  (division succeeded)
+let port = parsePort("abc") or 3000       // 3000 (parse failed)
+```
+
+Equivalent to:
+```liva
+let result, err = divide(10, 0)
+let result = err ? 42 : result
+```
+
+**Implementation:**
+- AST: Added `or_value: Option<Box<Expr>>` field to `VarDecl`
+- Parser: Post-processes `Binary(Call, Or, value)` into `init=call, or_value=value` (since `or` is consumed by expression parser as logical OR)
+- Codegen: Generates `let var = match expr { Ok(v) => v, Err(_) => default };`
+- Semantic: `or_value` sets `is_fallible`, suppresses E0701
+
+**Tests:**
+- 1 new snapshot test: `feature_error_handling_or_value`
+- All 297 tests passing
+
+---
+
+### Fixed - Parser bug: `if cond => fail/break/continue` 🐛
+
+**Bug:** `if err => fail "msg"` was parsed as a lambda `|err| fail "msg"` instead of
+an if-condition with arrow body, because `parse_expression()` detected `err =>` as a lambda.
+
+**Fix:** Changed `parse_expression()` to `parse_expression_no_lambda()` for if-conditions
+(same approach already used by while/for). Commit `a10b72c`.
+
+---
+
 ### Changed - Remove `data` keyword (auto-detect data classes) 🚫🔑
 
 **Breaking change:**

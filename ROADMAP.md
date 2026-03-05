@@ -1,10 +1,10 @@
 # 🗺️ Liva Language Roadmap
 
 > **Current Version:** v1.3.0-dev (tag: v1.2.0)  
-> **Status:** Session 17 complete — Enum Types (Algebraic Data Types)  
+> **Status:** Session 17 complete + `or <value>` syntax, parser bugfix  
 > **Next Phase:** Phase 13 — Advanced Features  
 > **Planned:** Phase 13 — Advanced Language Features  
-> **Last Updated:** 2026-02-19
+> **Last Updated:** 2026-03-05
 
 ---
 
@@ -66,6 +66,8 @@ Each phase is broken into sub-tasks with time estimates and clear deliverables.
 - ✅ Explicit `fail` statements
 - ✅ Error binding (`let value, err = ...`)
 - ✅ Fallibility inference (automatic detection)
+- ✅ `or fail` error propagation shorthand
+- ✅ `or <value>` default value on error (v1.3.0)
 
 **Tooling & IDE Support:**
 - ✅ Language Server Protocol (LSP) with full IDE features

@@ -593,6 +593,24 @@ if err { fail "Connection error" }
 
 > **Note:** The traditional `let value, err = expr` + `if err` pattern continues to work.
 
+### Or Value *(v1.3.0)* 🆕
+
+Provide a default value when a fallible function fails (like JavaScript's `||`):
+
+```liva
+let result = divide(10, 0) or 42          // 42 (failed → default)
+let result2 = divide(10, 2) or 42         // 5  (succeeded → value)
+let port = parsePort("abc") or 3000       // 3000 (failed → default)
+```
+
+Equivalent to:
+```liva
+let result, err = divide(10, 0)
+let result = err ? 42 : result
+```
+
+> **Note:** Only works when the left side is a function/method call. For logical OR between booleans, use `a or b` as usual.
+
 ---
 
 ## Concurrency

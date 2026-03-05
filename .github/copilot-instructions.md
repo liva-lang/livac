@@ -119,8 +119,12 @@ while running => tick()
 let result, err = divide(10, 0)
 if err { fail "Error occurred" }
 
-// or fail (v1.1.0)
+// or fail (v1.1.0) — propagate error with custom message
 let data = File.read("config.json") or fail "Cannot read"
+
+// or <value> (v1.3.0) — default value on error (like JS ||)
+let port = parsePort("abc") or 3000
+let result = divide(10, 0) or 42
 ```
 
 ### Point-Free Function References (v1.1.0)
@@ -208,7 +212,7 @@ describe("Calculator", () => {
 ## 🔄 Estado Actual
 
 - **71/71 bugs** del dogfooding corregidos (Session 15: +9 bugs from Student Grade Tracker)
-- **283 tests** totales (91 snapshot codegen tests documentando TODA la sintaxis)
+- **297 tests** totales (106 snapshot codegen tests documentando TODA la sintaxis)
 - **Phase 10** (Formatter): ✅ Completado
 - **Phase 11.1** (`or fail`): ✅ Completado  
 - **Phase 11.2** (`=>` one-liners): ✅ Completado
@@ -222,6 +226,22 @@ describe("Calculator", () => {
 - **Session 15** (Dogfooding + 9 Bug Fixes): ✅ Completado
 - **Session 16** (CI/CD & Cross-Platform Releases): ✅ Completado
 - **Session 17** (Enum Types): ✅ Completado
+- **`or <value>`** syntax: ✅ Completado (v1.3.0)
+- **Parser fix** (`if cond => fail`): ✅ Completado (commit a10b72c)
+
+### `or <value>` — Default Value for Fallible Calls (v1.3.0) 🛡️
+**Provides a default when a fallible function fails:**
+```liva
+let result = divide(10, 0) or 42       // 42 (failed → default)
+let port = parsePort("abc") or 3000    // 3000 (failed → default)
+```
+- Parser: post-processes `Binary(Call, Or, value)` into `or_value` field
+- Codegen: `match expr { Ok(v) => v, Err(_) => default }`
+- 1 new snapshot test, 297 total tests
+
+### Parser fix: `if cond => fail/break/continue` 🐛
+- Bug: `if err => fail "msg"` was parsed as lambda `|err| fail "msg"`
+- Fix: use `parse_expression_no_lambda()` for if-conditions (commit a10b72c)
 
 ### Session 17: Enum Types (Algebraic Data Types) 🏷️
 **Full enum support across the entire compiler pipeline.**
