@@ -106,6 +106,8 @@ pub struct CodeGenerator {
     enum_names: std::collections::HashSet<String>,
     enum_variants:
         std::collections::HashMap<String, std::collections::HashMap<String, Vec<String>>>, // enum_name -> (variant_name -> [field_names])
+    // --- Float literal suffix context (for f32 variable declarations)
+    float_literal_suffix: String, // "f64" by default, set to "f32" when generating f32-typed expressions
 }
 
 impl CodeGenerator {
@@ -154,6 +156,7 @@ impl CodeGenerator {
             test_hooks_stack: Vec::new(),
             enum_names: std::collections::HashSet::new(),
             enum_variants: std::collections::HashMap::new(),
+            float_literal_suffix: "f64".to_string(),
         }
     }
 
@@ -4571,6 +4574,14 @@ impl CodeGenerator {
                             }
                         }
 
+                        // Set float literal suffix context for f32 types
+                        let prev_float_suffix = self.float_literal_suffix.clone();
+                        if let Some(type_ref) = &binding.type_ref {
+                            if matches!(type_ref, TypeRef::Simple(name) if name == "f32") {
+                                self.float_literal_suffix = "f32".to_string();
+                            }
+                        }
+
                         self.output.push_str(" = ");
 
                         // Check if we need to wrap in a union variant
@@ -4635,6 +4646,9 @@ impl CodeGenerator {
                         if needs_union_close {
                             self.output.push(')');
                         }
+
+                        // Restore float literal suffix context
+                        self.float_literal_suffix = prev_float_suffix;
 
                         self.output.push_str(";\n");
                     }
@@ -9522,8 +9536,8 @@ impl CodeGenerator {
         match lit {
             Literal::Int(n) => write!(self.output, "{}", n).unwrap(),
             Literal::Float(f) => {
-                // Always add _f64 suffix to avoid ambiguous numeric type errors
-                write!(self.output, "{}_f64", f).unwrap();
+                // Use context-aware suffix (f64 by default, f32 when in f32-typed context)
+                write!(self.output, "{}_{}", f, self.float_literal_suffix).unwrap();
             }
             Literal::String(s) => {
                 // Write string with proper escape sequences interpreted

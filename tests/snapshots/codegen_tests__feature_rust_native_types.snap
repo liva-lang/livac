@@ -361,7 +361,7 @@ fn main() {
     let medium: i16 = 32000;
     let big: i64 = 9999999999;
     let unsigned: u64 = 42;
-    let precise: f32 = 3.14_f64;
+    let precise: f32 = 3.14_f32;
     let idx: usize = 0;
     println!("{}", small);
     println!("{}", big);
