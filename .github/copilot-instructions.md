@@ -229,6 +229,29 @@ describe("Calculator", () => {
 - **Session 17** (Enum Types): ✅ Completado
 - **`or <value>`** syntax: ✅ Completado (v1.3.0)
 - **Parser fix** (`if cond => fail`): ✅ Completado (commit a10b72c)
+- **Error Trace Chaining**: ✅ Completado (v1.3.0)
+
+### Error Trace — Automatic Error Chain with Source Locations 🔍
+**Errors now chain automatically showing function names and line numbers:**
+```
+╭─ Error Trace ─────────────────────────────────────╮
+│  ✗ server failed to start
+│    → startServer()  main.liva:12
+│  ⊘ cannot load config
+│    → loadConfig()  main.liva:7
+│  ⊘ invalid port: abc
+│    → parsePort()  main.liva:3
+╰───────────────────────────────────────────────────╯
+```
+- `liva_rt::Error`: New fields `cause`, `function`, `location` with `new()`, `chain()`, `from()` constructors
+- AST: `FailStmt.line`, `VarDecl.or_fail_line` track source locations
+- Parser: captures line numbers for `fail` and `or fail`
+- CodeGenerator: tracks `current_function_name` and `source_filename`
+- `or fail` chains via `Error::chain(msg, fn, loc, inner_error)`
+- `if err => fail` chains automatically when err var is in scope
+- `print(err)` shows full colored trace; `err.message` gives plain message
+- Zero syntax changes — fully internal to compiler
+- 298 total tests
 
 ### `or <value>` — Default Value for Fallible Calls (v1.3.0) 🛡️
 **Provides a default when a fallible function fails:**

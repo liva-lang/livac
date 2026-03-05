@@ -293,7 +293,8 @@ expression: json
                     "Int": 42
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -313,7 +314,8 @@ expression: json
                     "String": "Alice"
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -342,7 +344,8 @@ expression: json
                     }
                   ]
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -366,7 +369,8 @@ expression: json
                     }
                   ]
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             }
           ]

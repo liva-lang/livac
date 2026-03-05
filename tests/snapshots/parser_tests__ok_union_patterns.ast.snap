@@ -36,7 +36,8 @@ expression: json
                     "Int": 42
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -102,7 +103,8 @@ expression: json
                     ]
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -132,7 +134,8 @@ expression: json
                     "String": "hello"
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -208,7 +211,8 @@ expression: json
                     ]
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -235,7 +239,8 @@ expression: json
                     "Int": 100
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -299,7 +304,8 @@ expression: json
                     ]
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -329,7 +335,8 @@ expression: json
                     "Int": 42
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -449,7 +456,8 @@ expression: json
                     ]
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             }
           ]

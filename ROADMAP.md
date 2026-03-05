@@ -1,7 +1,7 @@
 # 🗺️ Liva Language Roadmap
 
 > **Current Version:** v1.3.0-dev (tag: v1.2.0)  
-> **Status:** Session 17 complete + `or <value>` syntax, parser bugfix  
+> **Status:** Session 17 complete + `or <value>` syntax, parser bugfix, Error Trace Chaining  
 > **Next Phase:** Phase 13 — Advanced Features  
 > **Planned:** Phase 13 — Advanced Language Features  
 > **Last Updated:** 2026-03-05
@@ -68,6 +68,7 @@ Each phase is broken into sub-tasks with time estimates and clear deliverables.
 - ✅ Fallibility inference (automatic detection)
 - ✅ `or fail` error propagation shorthand
 - ✅ `or <value>` default value on error (v1.3.0)
+- ✅ Error trace chaining with function names and source locations (v1.3.0)
 
 **Tooling & IDE Support:**
 - ✅ Language Server Protocol (LSP) with full IDE features

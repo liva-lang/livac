@@ -29,7 +29,8 @@ expression: json
                     "Int": 127
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -49,7 +50,8 @@ expression: json
                     "Int": 32767
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -69,7 +71,8 @@ expression: json
                     "Int": 2147483647
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -89,7 +92,8 @@ expression: json
                     "Int": 9223372036854775807
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -109,7 +113,8 @@ expression: json
                     "Int": 1000000000000000000
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -136,7 +141,8 @@ expression: json
                     "Int": 255
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -156,7 +162,8 @@ expression: json
                     "Int": 65535
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -176,7 +183,8 @@ expression: json
                     "Int": 4294967295
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -203,7 +211,8 @@ expression: json
                     "Int": 1000000000000
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -230,7 +239,8 @@ expression: json
                     "Int": 1000000000000000000
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -257,7 +267,8 @@ expression: json
                     "Int": 1000000000000
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -277,7 +288,8 @@ expression: json
                     "Int": 1000000000000
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -297,7 +309,8 @@ expression: json
                     "Float": 3.14
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -324,7 +337,8 @@ expression: json
                     "Float": 2.718281828
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -351,7 +365,8 @@ expression: json
                     "Char": "A"
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -371,7 +386,8 @@ expression: json
                     "Char": "B"
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -391,7 +407,8 @@ expression: json
                     "Char": "Z"
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -411,7 +428,8 @@ expression: json
                     "Char": " "
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -455,7 +473,8 @@ expression: json
                     }
                   ]
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -493,7 +512,8 @@ expression: json
                     "type_args": []
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -518,7 +538,8 @@ expression: json
                 "init": {
                   "Identifier": "None"
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -559,7 +580,8 @@ expression: json
                     "type_args": []
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -600,7 +622,8 @@ expression: json
                     "type_args": []
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -642,7 +665,8 @@ expression: json
                     }
                   ]
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -674,7 +698,8 @@ expression: json
                     }
                   ]
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {

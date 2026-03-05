@@ -2800,3 +2800,53 @@ main() {
         "class with constructor should get basic derives, not PartialEq");
     assert_snapshot!("class_with_constructor_not_data", rust_code);
 }
+
+#[test]
+fn test_error_trace_chaining() {
+    // Test that fail generates Error::new with function name and location
+    // and that or_fail generates Error::chain preserving the cause
+    let source = r#"
+parsePort(s: string): number {
+    fail "invalid port: " + s
+}
+
+loadConfig(path: string): string {
+    let port = parsePort("abc") or fail "cannot load config"
+    return port.toString()
+}
+
+startServer(): string {
+    let config, err = loadConfig("/etc/app.conf")
+    if err => fail "server failed to start"
+    return config
+}
+
+main() {
+    let server, err = startServer()
+    if err {
+        print(err)
+    }
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+
+    // Verify Error::new is used for root fail (no err in scope)
+    assert!(rust_code.contains("Error::new("), "should use Error::new for root fail");
+
+    // Verify Error::chain is used for or-fail (chaining from inner error)
+    assert!(rust_code.contains("Error::chain("), "should use Error::chain for or fail");
+
+    // Verify function names are embedded
+    assert!(rust_code.contains("\"parsePort\""), "should embed function name parsePort");
+    assert!(rust_code.contains("\"loadConfig\""), "should embed function name loadConfig");
+    assert!(rust_code.contains("\"startServer\""), "should embed function name startServer");
+
+    // Verify the Error struct has cause field
+    assert!(rust_code.contains("cause: Option<Box<Error>>"), "Error should have cause field");
+
+    // Verify Display shows Error Trace
+    assert!(rust_code.contains("Error Trace"), "Display should show Error Trace header");
+
+    assert_snapshot!("error_trace_chaining", rust_code);
+}

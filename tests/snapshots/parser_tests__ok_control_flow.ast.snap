@@ -27,7 +27,8 @@ expression: json
                     "Int": 10
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {

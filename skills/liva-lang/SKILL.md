@@ -943,6 +943,64 @@ let result = err ? 42 : result
 
 > **Note:** Only works when the left side is a function/method call. The `or` keyword without `fail` is used as logical OR for booleans: `a or b`.
 
+### Error Trace — Automatic Stack Traces
+
+When a `fail` propagates through multiple function calls, Liva automatically builds an **error trace chain** showing the full path with function names and source locations.
+
+**How it works:**
+- Every `fail` records the function name and source line
+- When `or fail` chains from a fallible call, the inner error is preserved as the **cause**
+- When `if err => fail` or `if err { fail ... }` executes with an error variable in scope, it also chains automatically
+- `print(err)` displays the full colored trace box
+
+```liva
+parsePort(s: string): number {
+    fail "invalid port: " + s
+}
+
+loadConfig(path: string): string {
+    let port = parsePort("abc") or fail "cannot load config"
+    return port.toString()
+}
+
+startServer(): string {
+    let config, err = loadConfig("/etc/app.conf")
+    if err => fail "server failed to start"
+    return config
+}
+
+main() {
+    let server, err = startServer()
+    if err {
+        print(err)
+    }
+}
+```
+
+**Output (with colors):**
+```
+╭─ Error Trace ─────────────────────────────────────╮
+│  ✗ server failed to start
+│    → startServer()  main.liva:12
+│  ⊘ cannot load config
+│    → loadConfig()  main.liva:7
+│  ⊘ invalid port: abc
+│    → parsePort()  main.liva:3
+╰───────────────────────────────────────────────────╯
+```
+
+- `✗` (red) = top-level error
+- `⊘` (yellow) = cause errors in the chain
+- `→ fn()  file:line` (gray) = function name and source location
+
+**Accessing just the message:** Use `err.message` to get the plain text message without the trace:
+```liva
+if err {
+    print(err.message)  // "server failed to start" (no trace)
+    print(err)          // Full trace box with colors
+}
+```
+
 ### Common Patterns
 
 ```liva

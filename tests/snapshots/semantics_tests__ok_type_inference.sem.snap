@@ -27,7 +27,8 @@ expression: json
                     "Int": 42
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -45,7 +46,8 @@ expression: json
                     "Float": 3.14
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -63,7 +65,8 @@ expression: json
                     "String": "hello"
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -81,7 +84,8 @@ expression: json
                     "Bool": true
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -99,7 +103,8 @@ expression: json
                     "Char": "A"
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -141,7 +146,8 @@ expression: json
                     }
                   ]
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -173,7 +179,8 @@ expression: json
                     }
                   ]
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -206,7 +213,8 @@ expression: json
                     ]
                   ]
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             }
           ]

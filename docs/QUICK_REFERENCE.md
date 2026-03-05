@@ -606,6 +606,45 @@ if err { fail "Connection error" }
 
 > **Note:** The traditional `let value, err = expr` + `if err` pattern continues to work.
 
+### Error Trace *(v1.3.0)* 🆕
+
+Errors automatically chain with function names and source locations:
+
+```liva
+parsePort(s: string): number {
+  if s == "" => fail "port is empty"
+  return 8080
+}
+
+loadConfig(path: string): string {
+  let port = parsePort("") or fail "config error"
+  return $"server:{port}"
+}
+
+main() {
+  let cfg, err = loadConfig("app.toml")
+  if err {
+    print(err)       // Full trace with colors
+    print(err.message) // Plain: "config error"
+  }
+}
+```
+
+Output:
+```
+╭─ Error Trace ─────────────────────────────────────╮
+│  ✗ config error
+│    → loadConfig()  main.liva:8
+│  ⊘ port is empty
+│    → parsePort()  main.liva:3
+╰───────────────────────────────────────────────────╯
+```
+
+- `✗` (red) = top-level error (what stopped your code)
+- `⊘` (yellow) = cause errors in the chain
+- Chaining is automatic: `or fail`, `if err => fail`, and `if err { fail }` all chain when an error is in scope
+- `err.message` returns the plain message string without the trace
+
 ### Or Value *(v1.3.0)* 🆕
 
 Provide a default value when a fallible function fails (like JavaScript's `||`):

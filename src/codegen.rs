@@ -108,11 +108,15 @@ pub struct CodeGenerator {
         std::collections::HashMap<String, std::collections::HashMap<String, Vec<String>>>, // enum_name -> (variant_name -> [field_names])
     // --- Float literal suffix context (for f32 variable declarations)
     float_literal_suffix: String, // "f64" by default, set to "f32" when generating f32-typed expressions
+    // --- Error trace context
+    current_function_name: String,  // Current function/method name for error traces
+    source_filename: String,        // Source filename for error traces
 }
 
 impl CodeGenerator {
     fn new(ctx: DesugarContext) -> Self {
         let async_funcs = ctx.async_functions.clone();
+        let source_filename = ctx.source_filename.clone();
         Self {
             output: String::new(),
             indent_level: 0,
@@ -157,6 +161,8 @@ impl CodeGenerator {
             enum_names: std::collections::HashSet::new(),
             enum_variants: std::collections::HashMap::new(),
             float_literal_suffix: "f64".to_string(),
+            current_function_name: String::new(),
+            source_filename,
         }
     }
 
@@ -1148,12 +1154,25 @@ impl CodeGenerator {
         self.writeln("use tokio::task::JoinHandle;");
         self.writeln("");
 
-        // Add Error type for fallibility system
-        self.writeln("/// Runtime error type for fallible operations");
-        self.writeln("#[derive(Debug, Clone, PartialEq)]");
+        // Add Error type for fallibility system with error trace support
+        self.writeln("/// Runtime error type for fallible operations with trace chaining");
+        self.writeln("#[derive(Debug, Clone)]");
         self.writeln("pub struct Error {");
         self.indent();
         self.writeln("pub message: String,");
+        self.writeln("pub function: &'static str,");
+        self.writeln("pub location: &'static str,");
+        self.writeln("pub cause: Option<Box<Error>>,");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("");
+        self.writeln("impl PartialEq for Error {");
+        self.indent();
+        self.writeln("fn eq(&self, other: &Self) -> bool {");
+        self.indent();
+        self.writeln("self.message == other.message");
+        self.dedent();
+        self.writeln("}");
         self.dedent();
         self.writeln("}");
         self.writeln("");
@@ -1161,11 +1180,17 @@ impl CodeGenerator {
         self.indent();
         self.writeln("pub fn from<S: Into<String>>(message: S) -> Self {");
         self.indent();
-        self.writeln("Error {");
-        self.indent();
-        self.writeln("message: message.into(),");
+        self.writeln("Error { message: message.into(), function: \"\", location: \"\", cause: None }");
         self.dedent();
         self.writeln("}");
+        self.writeln("pub fn new<S: Into<String>>(message: S, function: &'static str, location: &'static str) -> Self {");
+        self.indent();
+        self.writeln("Error { message: message.into(), function, location, cause: None }");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("pub fn chain<S: Into<String>>(message: S, function: &'static str, location: &'static str, cause: Error) -> Self {");
+        self.indent();
+        self.writeln("Error { message: message.into(), function, location, cause: Some(Box::new(cause)) }");
         self.dedent();
         self.writeln("}");
         self.dedent();
@@ -1175,7 +1200,35 @@ impl CodeGenerator {
         self.indent();
         self.writeln("fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {");
         self.indent();
-        self.writeln("write!(f, \"{}\", self.message)");
+        // Collect all errors in chain
+        self.writeln("let mut errors: Vec<&Error> = Vec::new();");
+        self.writeln("let mut current: Option<&Error> = Some(self);");
+        self.writeln("while let Some(err) = current {");
+        self.indent();
+        self.writeln("errors.push(err);");
+        self.writeln("current = err.cause.as_deref();");
+        self.dedent();
+        self.writeln("}");
+        // Check if we have a chain (more than 1 error) — if so, show trace
+        self.writeln("if errors.len() == 1 && self.function.is_empty() {");
+        self.indent();
+        self.writeln("return write!(f, \"{}\", self.message);");
+        self.dedent();
+        self.writeln("}");
+        // Full trace display with colors
+        self.writeln("writeln!(f, \"\\x1b[90m╭─ Error Trace ─────────────────────────────────────╮\\x1b[0m\")?;");
+        self.writeln("for (i, err) in errors.iter().enumerate() {");
+        self.indent();
+        self.writeln("let (icon, color) = if i == 0 { (\"✗\", \"\\x1b[1;31m\") } else { (\"⊘\", \"\\x1b[33m\") };");
+        self.writeln("writeln!(f, \"\\x1b[90m│\\x1b[0m  {}{} {}\\x1b[0m\", color, icon, err.message)?;");
+        self.writeln("if !err.function.is_empty() || !err.location.is_empty() {");
+        self.indent();
+        self.writeln("writeln!(f, \"\\x1b[90m│    → {}()  {}\\x1b[0m\", err.function, err.location)?;");
+        self.dedent();
+        self.writeln("}");
+        self.dedent();
+        self.writeln("}");
+        self.writeln("write!(f, \"\\x1b[90m╰───────────────────────────────────────────────────╯\\x1b[0m\")");
         self.dedent();
         self.writeln("}");
         self.dedent();
@@ -2893,6 +2946,14 @@ impl CodeGenerator {
     }
 
     fn generate_method(&mut self, method: &MethodDecl, class: Option<&ClassDecl>) -> Result<()> {
+        // Track current function name for error traces (ClassName.method)
+        let method_trace_name = if let Some(cls) = class {
+            format!("{}.{}", cls.name, method.name)
+        } else {
+            method.name.clone()
+        };
+        let prev_function_name = std::mem::replace(&mut self.current_function_name, method_trace_name);
+
         // Pre-analyze: collect variables that are mutated after declaration
         self.mutated_vars.clear();
         if let Some(body) = &method.body {
@@ -3020,6 +3081,9 @@ impl CodeGenerator {
         self.in_fallible_function = prev_fallible;
         self.in_method = false;
 
+        // Restore previous function name
+        self.current_function_name = prev_function_name;
+
         Ok(())
     }
 
@@ -3111,6 +3175,9 @@ impl CodeGenerator {
     }
 
     fn generate_function(&mut self, func: &FunctionDecl) -> Result<()> {
+        // Track current function name for error traces
+        let prev_function_name = std::mem::replace(&mut self.current_function_name, func.name.clone());
+
         // Pre-analyze: collect variables that are mutated after declaration
         self.mutated_vars.clear();
         if let Some(body) = &func.body {
@@ -3280,6 +3347,9 @@ impl CodeGenerator {
             self.dedent();
             self.writeln("}");
         }
+
+        // Restore previous function name
+        self.current_function_name = prev_function_name;
 
         Ok(())
     }
@@ -3898,9 +3968,17 @@ impl CodeGenerator {
                 // Handle `or fail "message"` — error propagation shorthand (v1.1.0)
                 if let Some(fail_msg) = &var.or_fail_msg {
                     // let x = fallible_expr or fail "message"
-                    // Generates: let x = match fallible_expr { Ok(v) => v, Err(_) => return Err(liva_rt::Error::from("message")) };
+                    // Generates: let x = match fallible_expr { Ok(v) => v, Err(e) => return Err(liva_rt::Error::chain("message", fn, loc, e)) };
                     let binding = &var.bindings[0];
                     let var_name = self.sanitize_name(binding.name().unwrap());
+
+                    let fn_name = self.current_function_name.clone();
+                    let filename = self.source_filename.clone();
+                    let location = if var.or_fail_line > 0 {
+                        format!("{}:{}", filename, var.or_fail_line)
+                    } else {
+                        filename.clone()
+                    };
 
                     // Check if the init is an HTTP call, File call, or user-fallible call
                     let is_http = self.is_http_call(&var.init);
@@ -3910,49 +3988,46 @@ impl CodeGenerator {
 
                     if is_http {
                         // HTTP calls return (Option<Response>, String)
-                        // Generate: let var = { let (opt, err_str) = HTTP.get(...).await; if !err_str.is_empty() { return Err(liva_rt::Error::from("msg")); } opt.unwrap_or_default() };
                         write!(self.output, "let {} = {{ let (opt, err_str) = ", var_name).unwrap();
                         self.generate_expr(&var.init)?;
-                        self.output.push_str(
-                            ".await; if !err_str.is_empty() { return Err(liva_rt::Error::from(",
-                        );
+                        write!(self.output,
+                            ".await; if !err_str.is_empty() {{ return Err(liva_rt::Error::new(",
+                        ).unwrap();
                         self.generate_expr(fail_msg)?;
-                        self.output.push_str(")); } opt.unwrap_or_default() };\n");
+                        write!(self.output, ", \"{}\", \"{}\")); }} opt.unwrap_or_default() }};\n", fn_name, location).unwrap();
 
                         // Track as rust_struct for member access
                         self.rust_struct_vars.insert(var_name);
                     } else if is_file {
                         // File calls return (Option<T>, String)
-                        // Generate: let var = { let (opt, err_str) = File.read(...); if !err_str.is_empty() { return Err(liva_rt::Error::from("msg")); } opt.unwrap_or_default() };
                         write!(self.output, "let {} = {{ let (opt, err_str) = ", var_name).unwrap();
                         self.generate_expr(&var.init)?;
-                        self.output.push_str(
-                            "; if !err_str.is_empty() { return Err(liva_rt::Error::from(",
-                        );
+                        write!(self.output,
+                            "; if !err_str.is_empty() {{ return Err(liva_rt::Error::new(",
+                        ).unwrap();
                         self.generate_expr(fail_msg)?;
-                        self.output.push_str(")); } opt.unwrap_or_default() };\n");
+                        write!(self.output, ", \"{}\", \"{}\")); }} opt.unwrap_or_default() }};\n", fn_name, location).unwrap();
                     } else if is_json_parse {
                         // JSON.parse returns (Option<JsonValue>, String)
-                        // Generate: let var = { let (opt, err_str) = JSON.parse(...); if !err_str.is_empty() { return Err(liva_rt::Error::from("msg")); } opt.unwrap_or_default() };
                         write!(self.output, "let {} = {{ let (opt, err_str) = ", var_name).unwrap();
                         self.generate_expr(&var.init)?;
-                        self.output.push_str(
-                            "; if !err_str.is_empty() { return Err(liva_rt::Error::from(",
-                        );
+                        write!(self.output,
+                            "; if !err_str.is_empty() {{ return Err(liva_rt::Error::new(",
+                        ).unwrap();
                         self.generate_expr(fail_msg)?;
-                        self.output.push_str(")); } opt.unwrap_or_default() };\n");
+                        write!(self.output, ", \"{}\", \"{}\")); }} opt.unwrap_or_default() }};\n", fn_name, location).unwrap();
 
                         // Track as json_value_var for indexed access
                         self.json_value_vars.insert(var_name);
                     } else if is_user_fallible {
                         // User-defined fallible functions return Result<T, Error>
-                        // Generate: let var = match expr { Ok(v) => v, Err(_) => return Err(liva_rt::Error::from("msg")) };
+                        // Chain: Err(e) => return Err(Error::chain("msg", fn, loc, e))
                         write!(self.output, "let {} = match ", var_name).unwrap();
                         self.generate_expr(&var.init)?;
                         self.output
-                            .push_str(" { Ok(v) => v, Err(_) => return Err(liva_rt::Error::from(");
+                            .push_str(" { Ok(v) => v, Err(e) => return Err(liva_rt::Error::chain(");
                         self.generate_expr(fail_msg)?;
-                        self.output.push_str(")) };\n");
+                        write!(self.output, ", \"{}\", \"{}\", e)) }};\n", fn_name, location).unwrap();
                     } else {
                         // Non-fallible expression with or fail — just assign directly (or fail never triggers)
                         write!(self.output, "let {} = ", var_name).unwrap();
@@ -5022,12 +5097,51 @@ impl CodeGenerator {
             }
             Stmt::Fail(fail_stmt) => {
                 self.write_indent();
-                self.output.push_str("return Err(liva_rt::Error::from(");
-                self.generate_expr(&fail_stmt.expr)?;
-                self.output.push_str("));\n");
+                let fn_name = self.current_function_name.clone();
+                let filename = self.source_filename.clone();
+                let location = if fail_stmt.line > 0 {
+                    format!("{}:{}", filename, fail_stmt.line)
+                } else {
+                    filename.clone()
+                };
+                // Check if there's an error binding variable in scope to chain with
+                // Look for the most recent error binding var (err, err2, etc.)
+                let err_var_in_scope = self.find_error_var_in_scope();
+                if let Some(err_var) = err_var_in_scope {
+                    write!(self.output,
+                        "return Err(liva_rt::Error::chain(",
+                    ).unwrap();
+                    self.generate_expr(&fail_stmt.expr)?;
+                    write!(self.output,
+                        ", \"{}\", \"{}\", {}.unwrap()))",
+                        fn_name, location, err_var
+                    ).unwrap();
+                    self.output.push_str(";\n");
+                } else {
+                    write!(self.output,
+                        "return Err(liva_rt::Error::new(",
+                    ).unwrap();
+                    self.generate_expr(&fail_stmt.expr)?;
+                    write!(self.output,
+                        ", \"{}\", \"{}\"))",
+                        fn_name, location
+                    ).unwrap();
+                    self.output.push_str(";\n");
+                }
             }
         }
         Ok(())
+    }
+
+    /// Find the most recent error binding variable in scope (for error chaining in `fail`)
+    /// Returns the variable name if there's an error binding var (e.g., `err`, `err2`) in scope
+    fn find_error_var_in_scope(&self) -> Option<String> {
+        // Check Option<Error> error binding vars first (from user-defined fallible functions)
+        if !self.error_binding_vars.is_empty() {
+            // Return the most recently added one (heuristic: alphabetically last)
+            return self.error_binding_vars.iter().max().cloned();
+        }
+        None
     }
 
     /// Checks if an expression is a member access on 'this' (self.field) or array indexing (self.items[i])
@@ -6012,13 +6126,13 @@ impl CodeGenerator {
                         if idx > 0 {
                             self.output.push_str(", ");
                         }
-                        // Phase 3.5: If expr is an error binding variable, use .message
+                        // Phase 3.5: If expr is an error binding variable, use Display (error trace)
                         if let Expr::Identifier(name) = expr {
                             let sanitized = self.sanitize_name(name);
                             if self.error_binding_vars.contains(&sanitized) {
                                 write!(
                                     self.output,
-                                    "{}.as_ref().map(|e| e.message.as_str()).unwrap_or(\"\")",
+                                    "{}.as_ref().map(|e| format!(\"{{}}\", e)).unwrap_or_default()",
                                     sanitized
                                 )
                                 .unwrap();
@@ -6659,13 +6773,13 @@ impl CodeGenerator {
                         if i > 0 {
                             self.output.push_str(", ");
                         }
-                        // Phase 3.5: If arg is an error binding variable, print .message
+                        // Phase 3.5: If arg is an error binding variable, use Display (error trace)
                         if let Expr::Identifier(name) = arg {
                             let sanitized = self.sanitize_name(name);
                             if self.error_binding_vars.contains(&sanitized) {
                                 write!(
                                     self.output,
-                                    "{}.as_ref().map(|e| e.message.as_str()).unwrap_or(\"None\")",
+                                    "{}.as_ref().map(|e| format!(\"{{}}\", e)).unwrap_or_default()",
                                     sanitized
                                 )
                                 .unwrap();
@@ -13074,6 +13188,7 @@ mod tests {
             has_parallel: false,
             has_random: false,
             async_functions: std::collections::BTreeSet::new(),
+            source_filename: String::new(),
         });
 
         assert_eq!(gen.to_snake_case("CamelCase"), "camel_case");

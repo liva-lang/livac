@@ -8,23 +8,53 @@ mod liva_rt {
     use std::future::Future;
     use tokio::task::JoinHandle;
     
-    /// Runtime error type for fallible operations
-    #[derive(Debug, Clone, PartialEq)]
+    /// Runtime error type for fallible operations with trace chaining
+    #[derive(Debug, Clone)]
     pub struct Error {
         pub message: String,
+        pub function: &'static str,
+        pub location: &'static str,
+        pub cause: Option<Box<Error>>,
+    }
+    
+    impl PartialEq for Error {
+        fn eq(&self, other: &Self) -> bool {
+            self.message == other.message
+        }
     }
     
     impl Error {
         pub fn from<S: Into<String>>(message: S) -> Self {
-            Error {
-                message: message.into(),
-            }
+            Error { message: message.into(), function: "", location: "", cause: None }
+        }
+        pub fn new<S: Into<String>>(message: S, function: &'static str, location: &'static str) -> Self {
+            Error { message: message.into(), function, location, cause: None }
+        }
+        pub fn chain<S: Into<String>>(message: S, function: &'static str, location: &'static str, cause: Error) -> Self {
+            Error { message: message.into(), function, location, cause: Some(Box::new(cause)) }
         }
     }
     
     impl std::fmt::Display for Error {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "{}", self.message)
+            let mut errors: Vec<&Error> = Vec::new();
+            let mut current: Option<&Error> = Some(self);
+            while let Some(err) = current {
+                errors.push(err);
+                current = err.cause.as_deref();
+            }
+            if errors.len() == 1 && self.function.is_empty() {
+                return write!(f, "{}", self.message);
+            }
+            writeln!(f, "\x1b[90m╭─ Error Trace ─────────────────────────────────────╮\x1b[0m")?;
+            for (i, err) in errors.iter().enumerate() {
+                let (icon, color) = if i == 0 { ("✗", "\x1b[1;31m") } else { ("⊘", "\x1b[33m") };
+                writeln!(f, "\x1b[90m│\x1b[0m  {}{} {}\x1b[0m", color, icon, err.message)?;
+                if !err.function.is_empty() || !err.location.is_empty() {
+                    writeln!(f, "\x1b[90m│    → {}()  {}\x1b[0m", err.function, err.location)?;
+                }
+            }
+            write!(f, "\x1b[90m╰───────────────────────────────────────────────────╯\x1b[0m")
         }
     }
     

@@ -154,7 +154,8 @@ fn compile_source_with_filename(
     }
 
     // 4. Desugaring
-    let desugar_ctx = desugaring::desugar(analyzed_ast.clone())?;
+    let mut desugar_ctx = desugaring::desugar(analyzed_ast.clone())?;
+    desugar_ctx.source_filename = filename.to_string();
 
     // 5. Code generation
     let ir_module = lowering::lower_program(&analyzed_ast);
@@ -255,7 +256,8 @@ fn compile_with_modules(
     }
 
     // 3. Desugaring
-    let desugar_ctx = desugaring::desugar(analyzed_ast.clone())?;
+    let mut desugar_ctx = desugaring::desugar(analyzed_ast.clone())?;
+    desugar_ctx.source_filename = filename.to_string();
 
     // 4. Code generation - Multi-file project
     let files = codegen::generate_multifile_project(
@@ -344,7 +346,7 @@ pub fn compile_source_old(source: &str, options: &CompilerOptions) -> Result<Com
     let ir_module = lowering::lower_program(&analyzed_ast);
 
     let (rust_code, cargo_toml) =
-        codegen::generate_from_ir(&ir_module, &analyzed_ast, desugar_ctx)?;
+        codegen::generate_from_ir(&ir_module, &analyzed_ast, desugar_ctx.clone())?;
 
     // 6. Write output files if output directory specified
     let output_dir = if let Some(out_dir) = &options.output {

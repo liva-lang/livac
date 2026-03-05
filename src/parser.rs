@@ -1313,8 +1313,10 @@ impl Parser {
         } else if self.match_token(&Token::Continue) {
             Ok(Stmt::Continue)
         } else if self.match_token(&Token::Fail) {
+            let fail_span = self.previous_span();
+            let fail_line = fail_span.map(|s| s.start_position(&self.source_map).0 as u32).unwrap_or(0);
             let value = self.parse_expression()?;
-            Ok(Stmt::Fail(FailStmt { expr: value }))
+            Ok(Stmt::Fail(FailStmt { expr: value, line: fail_line }))
         } else if self.match_token(&Token::Throw) {
             let value = self.parse_expression()?;
             Ok(Stmt::Throw(ThrowStmt { expr: value }))
@@ -1342,10 +1344,13 @@ impl Parser {
             // since `or` is consumed as logical OR by `parse_expression()`.
             let mut or_fail_msg = None;
             let mut or_value = None;
+            let mut or_fail_line: u32 = 0;
             if self.check(&Token::Or) {
                 if self.peek_next_is(&Token::Fail) {
                     self.advance(); // consume `or`
                     self.advance(); // consume `fail`
+                    let fail_span = self.previous_span();
+                    or_fail_line = fail_span.map(|s| s.start_position(&self.source_map).0 as u32).unwrap_or(0);
                     let msg = self.parse_expression()?;
                     or_fail_msg = Some(Box::new(msg));
                 }
@@ -1381,6 +1386,7 @@ impl Parser {
                 is_fallible,
                 or_fail_msg,
                 or_value,
+                or_fail_line,
             }));
         }
 
@@ -1429,8 +1435,10 @@ impl Parser {
         }
 
         if self.match_token(&Token::Fail) {
+            let fail_span = self.previous_span();
+            let fail_line = fail_span.map(|s| s.start_position(&self.source_map).0 as u32).unwrap_or(0);
             let value = self.parse_expression()?;
-            return Ok(Stmt::Fail(FailStmt { expr: value }));
+            return Ok(Stmt::Fail(FailStmt { expr: value, line: fail_line }));
         }
 
         if self.match_token(&Token::Try) {

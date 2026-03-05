@@ -57,7 +57,8 @@ expression: json
                             "Literal": {
                               "String": "Division by zero"
                             }
-                          }
+                          },
+                          "line": 4
                         }
                       }
                     ]
@@ -132,7 +133,8 @@ expression: json
                             "Literal": {
                               "String": "Empty input"
                             }
-                          }
+                          },
+                          "line": 9
                         }
                       }
                     ]
@@ -199,7 +201,8 @@ expression: json
                   "Literal": {
                     "String": "Math error"
                   }
-                }
+                },
+                "or_fail_line": 14
               }
             },
             {
@@ -233,7 +236,8 @@ expression: json
                   "Literal": {
                     "String": "Validation failed"
                   }
-                }
+                },
+                "or_fail_line": 15
               }
             },
             {

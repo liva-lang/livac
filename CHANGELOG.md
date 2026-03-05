@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - v1.3.0-dev
 
+### Added - Error Trace Chaining 🔍
+
+**Automatic error trace with function names and source locations.**
+
+When errors propagate through `fail`, `or fail`, or `if err => fail`, Liva now builds a chained error trace showing the full call path:
+
+```liva
+parsePort(s: string): number {
+    fail "invalid port: " + s
+}
+
+loadConfig(path: string): string {
+    let port = parsePort("abc") or fail "cannot load config"
+    return port.toString()
+}
+
+startServer(): string {
+    let config, err = loadConfig("/etc/app.conf")
+    if err => fail "server failed to start"
+    return config
+}
+
+main() {
+    let server, err = startServer()
+    if err {
+        print(err)
+    }
+}
+```
+
+Output:
+```
+╭─ Error Trace ─────────────────────────────────────╮
+│  ✗ server failed to start
+│    → startServer()  main.liva:12
+│  ⊘ cannot load config
+│    → loadConfig()  main.liva:7
+│  ⊘ invalid port: abc
+│    → parsePort()  main.liva:3
+╰───────────────────────────────────────────────────╯
+```
+
+**Implementation:**
+- `liva_rt::Error`: New fields `cause: Option<Box<Error>>`, `function: &'static str`, `location: &'static str`
+- `Error::new(msg, fn, loc)`: Creates error with location info
+- `Error::chain(msg, fn, loc, cause)`: Creates error chaining from a previous error
+- `Error::from(msg)`: Backward compatible constructor (no location)
+- Parser: Captures source line for `fail` and `or fail` statements
+- CodeGenerator: Tracks `current_function_name` and `source_filename`
+- Display: Colored box trace (`✗` red for top error, `⊘` yellow for causes)
+- `print(err)` shows full trace; `err.message` gives plain message string
+- Zero syntax changes — all internal to compiler
+
 ### Added - `or <value>` — Default Value for Fallible Calls 🛡️
 
 **New syntax: `let x = fallibleCall() or defaultValue`**

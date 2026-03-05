@@ -386,8 +386,26 @@ mod liva_rt {
     
 }
 
+fn parse_port(s: String) -> Result<i32, liva_rt::Error> {
+    return Err(liva_rt::Error::new(format!("{}{}", "invalid port: ", s), "parsePort", ":3"));
+}
+
+fn load_config(path: String) -> Result<String, liva_rt::Error> {
+    let port = match parse_port("abc".to_string()) { Ok(v) => v, Err(e) => return Err(liva_rt::Error::chain("cannot load config", "loadConfig", ":7", e)) };
+    return Ok(port.to_string());
+}
+
+fn start_server() -> Result<String, liva_rt::Error> {
+    let (config, err) = match load_config("/etc/app.conf".to_string()) { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };
+    if err.is_some() {
+        return Err(liva_rt::Error::chain("server failed to start", "startServer", ":13", err.unwrap()));
+    }
+    return Ok(config);
+}
+
 fn main() {
-    for i in 1 ..= 5 {
-        println!("{}", i);
+    let (server, err) = match start_server() { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };
+    if err.is_some() {
+        println!("{}", err.as_ref().map(|e| format!("{}", e)).unwrap_or_default());
     }
 }

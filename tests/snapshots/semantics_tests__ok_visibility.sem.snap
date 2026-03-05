@@ -132,7 +132,8 @@ expression: json
                     "type_args": []
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             },
             {
@@ -156,7 +157,8 @@ expression: json
                     "adapter_options": {}
                   }
                 },
-                "is_fallible": false
+                "is_fallible": false,
+                "or_fail_line": 0
               }
             }
           ]

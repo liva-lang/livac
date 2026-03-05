@@ -10,6 +10,8 @@ pub struct DesugarContext {
     pub has_parallel: bool,
     pub has_random: bool,                  // true if Math.random() is used
     pub async_functions: BTreeSet<String>, // Functions that are async (BTreeSet for deterministic order)
+    #[serde(skip)]
+    pub source_filename: String,           // Source filename for error traces
 }
 
 impl DesugarContext {
@@ -20,6 +22,7 @@ impl DesugarContext {
             has_parallel: false,
             has_random: false,
             async_functions: BTreeSet::new(),
+            source_filename: String::new(),
         }
     }
 }

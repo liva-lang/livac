@@ -313,6 +313,9 @@ pub struct VarDecl {
     /// let x = match fallible_expr { Ok(v) => v, Err(_) => defaultValue };
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub or_value: Option<Box<Expr>>,
+    /// Source line number (1-based) for error trace (set when or_fail_msg is present)
+    #[serde(default)]
+    pub or_fail_line: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -596,6 +599,9 @@ pub struct ThrowStmt {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct FailStmt {
     pub expr: Expr,
+    /// Source line number (1-based) for error trace
+    #[serde(default)]
+    pub line: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
