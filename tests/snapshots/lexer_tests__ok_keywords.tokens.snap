@@ -115,9 +115,4 @@ Tokens: [
     "Ident(\"background_task\")",
     "LParen",
     "RParen",
-    "Fire",
-    "Par",
-    "Ident(\"log_event\")",
-    "LParen",
-    "RParen",
 ]

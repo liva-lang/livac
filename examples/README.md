@@ -21,7 +21,7 @@ livac examples/concurrency/main.liva --run
 | [calculator/](calculator/) | Calculadora interactiva | Clases, métodos, switch |
 | [http-api/](http-api/) | Cliente HTTP REST | async/await, HTTP, JSON |
 | [json-processing/](json-processing/) | Procesar datos JSON | filter, map, reduce |
-| [concurrency/](concurrency/) | Programación concurrente | fire/await, for par |
+| [concurrency/](concurrency/) | Programación concurrente | async/par, task, await |
 
 ## 📚 Más Recursos
 

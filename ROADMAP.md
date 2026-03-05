@@ -59,7 +59,7 @@ Each phase is broken into sub-tasks with time estimates and clear deliverables.
 **Concurrency:**
 - ✅ Async/await for I/O-bound operations
 - ✅ Parallel execution for CPU-bound operations
-- ✅ Task handles (`task`, `fire`, `await`)
+- ✅ Task handles (`task`, `await`) + auto fire-and-forget
 - ✅ Hybrid concurrency (mix async + parallel)
 
 **Error Handling:**

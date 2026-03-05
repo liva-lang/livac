@@ -92,7 +92,7 @@ Arrow         = "=>" ;
 let, const, import, use, rust, type, test,
 if, else, while, for, in, switch, case, default,
 throw, try, catch, return,
-async, par, parallel, task, fire, await,
+async, par, parallel, task, await,
 fail,
 true, false, this, constructor
 ```
@@ -344,7 +344,6 @@ ConcurrencyExpr
 ConcurrencyModifier
   = "async"
   | "par" | "parallel"
-  | "fire" , ( "async" | "par" )
   | "task" , ( "async" | "par" )
   | "await"
   ;
@@ -571,10 +570,6 @@ pub enum Expr {
         mode: TaskMode,
         expr: Box<Expr>,
     },
-    Fire {
-        mode: TaskMode,
-        expr: Box<Expr>,
-    },
     Await(Box<Expr>),
 }
 
@@ -618,7 +613,7 @@ From lowest to highest precedence:
 6. **Additive** - `+`, `-`
 7. **Multiplicative** - `*`, `/`, `%`
 8. **Unary** - `not`, `!`, `-`
-9. **Concurrency** - `async`, `par`, `task`, `fire`, `await`
+9. **Concurrency** - `async`, `par`, `task`, `await`
 10. **Postfix** - `.`, `()`, `[]`
 11. **Primary** - Literals, identifiers, `this`, `()`
 

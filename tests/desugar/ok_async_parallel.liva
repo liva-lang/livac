@@ -1,4 +1,4 @@
-// Concurrencia: async, parallel, fire
+// Concurrencia: async, parallel
 fetchData() {
     return "data"
 }
@@ -16,7 +16,7 @@ fetch() {
 main() {
     let a = fetch()
     let b = async fetch()
-    fire async fetchData()
+    async fetchData()
     print(a)
     print(b)
 }

@@ -1626,8 +1626,8 @@ main() {
     // task: get handle, auto-awaited at scope end
     let result = task async fetchUser(1)
 
-    // fire: no handle, fire and forget
-    fire async logEvent("app started")
+    // fire-and-forget: async call as statement (not assigned)
+    async logEvent("app started")
 
     // Use the task result
     print(result)

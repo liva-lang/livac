@@ -3,5 +3,5 @@ worker() {
 }
 
 main() {
-    await fire async worker()
+    await par worker()
 }

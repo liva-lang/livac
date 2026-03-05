@@ -775,8 +775,6 @@ pub enum ExecPolicy {
     Par,
     TaskAsync,
     TaskPar,
-    FireAsync,
-    FirePar,
 }
 
 impl Default for ExecPolicy {

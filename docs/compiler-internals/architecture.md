@@ -103,7 +103,7 @@ Token::Number(10) @ 8..10
 - ✅ Keyword recognition
 - ✅ String templates (`$"..."`)
 - ✅ Operators (`and`, `or`, `not`, `&&`, `||`, `!`)
-- ✅ Concurrency keywords (`async`, `par`, `task`, `fire`, `await`)
+- ✅ Concurrency keywords (`async`, `par`, `task`, `await`)
 - ✅ Error handling (`fail`, `,` in bindings)
 - ✅ Visibility prefixes (`_`, `__`)
 

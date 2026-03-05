@@ -653,9 +653,7 @@ impl SemanticAnalyzer {
                     ExecPolicy::Async
                     | ExecPolicy::Par  // Par also needs await for JoinHandle
                     | ExecPolicy::TaskAsync
-                    | ExecPolicy::TaskPar
-                    | ExecPolicy::FireAsync
-                    | ExecPolicy::FirePar => return true,
+                    | ExecPolicy::TaskPar => return true,
                     ExecPolicy::Normal => {}
                 }
 
@@ -1944,7 +1942,7 @@ impl SemanticAnalyzer {
                 // For now, this is a placeholder - in a full implementation we'd track execution context
                 // TODO: Implement proper async context validation
             }
-            ExecPolicy::Par | ExecPolicy::TaskPar | ExecPolicy::FirePar => {
+            ExecPolicy::Par | ExecPolicy::TaskPar => {
                 // Check if parallel call is used in a context that doesn't support parallelism
                 // For now, this is a placeholder - in a full implementation we'd track execution context
                 // TODO: Implement proper parallel context validation
@@ -1958,7 +1956,7 @@ impl SemanticAnalyzer {
         // TODO: Implement proper shared state access validation
         if matches!(
             call.exec_policy,
-            ExecPolicy::Par | ExecPolicy::TaskPar | ExecPolicy::FirePar
+            ExecPolicy::Par | ExecPolicy::TaskPar
         ) {
             // Placeholder: In a full implementation, we'd check if the call accesses shared mutable state
             // For now, we'll just note that this is where the check would go
@@ -1970,7 +1968,7 @@ impl SemanticAnalyzer {
         // TODO: Implement proper efficiency analysis
         if matches!(
             call.exec_policy,
-            ExecPolicy::Par | ExecPolicy::TaskPar | ExecPolicy::FirePar
+            ExecPolicy::Par | ExecPolicy::TaskPar
         ) {
             // Placeholder: In a full implementation, we'd analyze the complexity of the operation
             // and warn if parallel execution might be inefficient
@@ -1997,13 +1995,6 @@ impl SemanticAnalyzer {
                 }
 
                 match call.exec_policy {
-                    ExecPolicy::FireAsync | ExecPolicy::FirePar => {
-                        let policy =
-                            Self::policy_name(call.exec_policy.clone()).unwrap_or("fire call");
-                        Err(CompilerError::SemanticError(
-                            format!("E0603: cannot await call using '{}' policy.", policy).into(),
-                        ))
-                    }
                     ExecPolicy::Par => Err(CompilerError::SemanticError(
                         "E0603: `par` calls complete eagerly and cannot be awaited.".into(),
                     )),
@@ -2042,8 +2033,6 @@ impl SemanticAnalyzer {
             ExecPolicy::Par => Some("par"),
             ExecPolicy::TaskAsync => Some("task async"),
             ExecPolicy::TaskPar => Some("task par"),
-            ExecPolicy::FireAsync => Some("fire async"),
-            ExecPolicy::FirePar => Some("fire par"),
             ExecPolicy::Normal => None,
         }
     }

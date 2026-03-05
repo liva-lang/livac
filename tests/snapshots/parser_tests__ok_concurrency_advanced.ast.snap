@@ -206,7 +206,7 @@ expression: json
                       "Identifier": "logProcessStart"
                     },
                     "args": [],
-                    "exec_policy": "fire-async",
+                    "exec_policy": "async",
                     "type_args": []
                   }
                 }
@@ -495,7 +495,7 @@ expression: json
                         "Identifier": "result2"
                       }
                     ],
-                    "exec_policy": "fire-async",
+                    "exec_policy": "async",
                     "type_args": []
                   }
                 }
@@ -509,7 +509,7 @@ expression: json
                       "Identifier": "cleanup"
                     },
                     "args": [],
-                    "exec_policy": "fire-par",
+                    "exec_policy": "par",
                     "type_args": []
                   }
                 }

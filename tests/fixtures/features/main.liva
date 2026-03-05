@@ -234,8 +234,8 @@ main() {
   let taskUser = task async fetchUser(2)
   let taskCompute = task par heavyComputation(8)
 
-  fire async logEvent($"Fire-and-forget async event triggered")
-  fire par backgroundCleanup()
+  async logEvent($"Fire-and-forget async event triggered")
+  par backgroundCleanup()
 
   print($"Async user value: {asyncUser}")
   print($"Parallel result (lazy join): {parallelResult}")

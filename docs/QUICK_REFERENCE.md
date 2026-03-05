@@ -709,10 +709,13 @@ main() {
 }
 ```
 
-### Fire and Forget
+### Fire-and-Forget (Auto-inferred)
+
+When an `async` or `par` call appears as a statement (not assigned to a variable), it's automatically fire-and-forget:
 
 ```liva
-fire async logEvent("user_login")  // Don't wait for result
+async logEvent("user_login")  // Fire-and-forget (not assigned)
+par backgroundCleanup()      // Fire-and-forget (not assigned)
 ```
 
 ### Concurrency Summary
@@ -722,8 +725,9 @@ fire async logEvent("user_login")  // Don't wait for result
 | `async` | Asynchronous | I/O-bound | No (lazy) |
 | `par` | Parallel | CPU-bound | No (lazy) |
 | `task` | Handle | Explicit control | No |
-| `fire` | Fire-and-forget | Background work | No |
 | `await` | Wait | Wait for task | Yes |
+
+> **Note:** `async`/`par` calls used as statements (not assigned to a variable) are automatically fire-and-forget.
 
 ---
 
@@ -1159,7 +1163,7 @@ main() {
 ```
 let const import from as if else while for in
 switch case default return fail async par task
-fire await true false null and or not
+await true false null and or not
 ```
 
 ### Type Keywords

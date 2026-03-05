@@ -83,7 +83,7 @@ livac --version               # Show version
 let       const     import    from      as        if        else
 while     for       in        switch    case      default   return
 break     continue  fail      throw     try       catch     async
-par       parallel  task      fire      await     move      seq
+par       parallel  task      await     move      seq
 vec       parvec    with      ordered   chunk     threads   enum
 type      use       rust      test      true      false     null
 and       or        not       safe      fast      static    dynamic
@@ -1064,8 +1064,9 @@ Liva provides a **hybrid concurrency model**: async (I/O-bound) + parallel (CPU-
 | `async` | Asynchronous | I/O-bound (network, file) | No (lazy await on use) |
 | `par` | Parallel | CPU-bound (compute) | No (lazy join on use) |
 | `task` | Handle | Explicit control | No (explicit `await`) |
-| `fire` | Fire-and-forget | Background work | No |
 | `await` | Wait | Wait for task handle | Yes |
+
+> **Fire-and-Forget:** When an `async` or `par` call appears as a statement (not assigned to a variable), it's automatically treated as fire-and-forget.
 
 ### Async (I/O-bound)
 
@@ -1110,11 +1111,13 @@ main() {
 }
 ```
 
-### Fire (Fire-and-Forget)
+### Fire-and-Forget (Auto-inferred)
+
+When an `async` or `par` call appears as a statement (not assigned to a variable), it's automatically treated as fire-and-forget:
 
 ```liva
-fire async logEvent("user_login")     // Don't wait for result
-fire par backgroundCleanup()
+async logEvent("user_login")     // Fire-and-forget (not assigned)
+par backgroundCleanup()          // Fire-and-forget (not assigned)
 ```
 
 ### Hybrid Concurrency
@@ -1165,7 +1168,7 @@ for parvec lane in data with simdWidth 4 ordered {
 - **async** for I/O (network, file, database)
 - **par** for CPU (computation, data processing)
 - **task** for explicit orchestration
-- **fire** for logs, analytics, background cleanup
+- **fire-and-forget**: just use `async`/`par` as a statement (not assigned) for logs, analytics, background cleanup
 - Don't use `par` for I/O (wastes threads)
 - Don't use `async` for CPU (doesn't utilize cores)
 
@@ -1996,7 +1999,7 @@ main() {
 
 ```
 let const import from as if else while for in break continue switch
-case default return fail throw try catch async par parallel task fire
+case default return fail throw try catch async par parallel task
 await move seq vec parvec with ordered chunk threads enum type use
 rust test true false null and or not safe fast static dynamic auto
 detect schedule reduction prefetch simdWidth data

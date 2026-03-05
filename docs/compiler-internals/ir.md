@@ -12,7 +12,7 @@ The IR (Intermediate Representation) provides:
 - **Simplified AST**: Easier to emit Rust code from
 - **Effect Tracking**: Async, parallel, fallibility info
 - **Type Information**: Explicit type annotations
-- **Concurrency Abstraction**: Unified task/fire/par representation
+- **Concurrency Abstraction**: Unified task/par representation
 
 ## Purpose
 
@@ -103,7 +103,6 @@ pub enum Expr {
     AsyncCall { callee: Box<Expr>, args: Vec<Expr> },
     ParallelCall { callee: Box<Expr>, args: Vec<Expr> },
     TaskCall { mode: ConcurrencyMode, callee: String, args: Vec<Expr> },
-    FireCall { mode: ConcurrencyMode, callee: String, args: Vec<Expr> },
     Binary { op: BinaryOp, left: Box<Expr>, right: Box<Expr> },
     Unary { op: UnaryOp, operand: Box<Expr> },
     Ternary { condition, then_expr, else_expr },
@@ -130,7 +129,6 @@ pub enum ConcurrencyMode {
 
 **Used in**:
 - `TaskCall`: Creates `JoinHandle<T>`
-- `FireCall`: Fire-and-forget spawning
 
 ### Data-Parallel Policy
 

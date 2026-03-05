@@ -184,9 +184,9 @@ sendMetrics(data) {
 }
 
 testFireAndForget() {
-  // Fire and forget - no handle, no warnings
-  fire async logEvent("Application started")
-  fire par sendMetrics({ cpu: 45, memory: 60 })
+  // Fire and forget - async/par as statement = auto fire-and-forget
+  async logEvent("Application started")
+  par sendMetrics({ cpu: 45, memory: 60 })
   
   print("Main continues immediately")
 }
@@ -338,7 +338,7 @@ processData() {
   let result = par fibonacci(30)
   
   // Fire and forget logging
-  fire async logEvent("Processing started")
+  async logEvent("Processing started")
   
   // Task with explicit control
   let t = task async fetchUser(2)

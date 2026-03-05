@@ -30,8 +30,8 @@ fn test_classes() {
 }
 
 #[test]
-fn test_async_parallel_fire() {
-    test_desugar_ok("async_parallel_fire");
+fn test_async_parallel() {
+    test_desugar_ok("async_parallel");
 }
 
 #[test]

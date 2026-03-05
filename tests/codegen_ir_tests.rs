@@ -41,7 +41,7 @@ fn ir_codegen_async_helpers() {
 
         main() {
             let value = async fetch()
-            fire async fetch()
+            async fetch()
             print(value)
         }
     "#;
@@ -59,7 +59,7 @@ fn ir_codegen_parallel_helpers() {
 
         main() {
             let value = par heavy()
-            fire par heavy()
+            par heavy()
             print(value)
         }
     "#;

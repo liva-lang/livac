@@ -18,7 +18,7 @@ pub fn get_hint(error_code: &str) -> Option<&'static str> {
         E4008_EMPTY_IMPORT_LIST => Some("Specify at least one symbol to import, or remove the import statement"),
 
         // Concurrency Errors
-        E0602_DUPLICATE_EXEC_MODIFIER => Some("Use only one execution modifier: async, par, task async, task par, fire async, or fire par"),
+        E0602_DUPLICATE_EXEC_MODIFIER => Some("Use only one execution modifier: async, par, task async, or task par"),
         E0603_NOT_AWAITABLE => Some("Only async and task async expressions can be awaited"),
         E0604_AWAIT_MULTIPLE_TIMES => Some("Each async operation can only be awaited once. Store the result in a variable if needed"),
         E0605_AWAIT_IN_PARALLEL_LOOP => Some("Parallel loops execute synchronously. Use 'for async' for asynchronous iteration"),

@@ -44,4 +44,3 @@ async function fetch_data() {
 
 par heavy_computation()
 task par background_task()
-fire par log_event()

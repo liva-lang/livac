@@ -53,10 +53,9 @@ Fallible functions:
 
 ### 4. Awaitable Validation
 
-Enforces rules for `task` and `fire`:
+Enforces rules for `task`:
 
 - **Task handles** must be awaited before function returns
-- **Fire calls** cannot be awaited
 - **Pending tasks** tracked across scopes
 
 ### 5. Data-Parallel Policy Validation
@@ -148,7 +147,6 @@ Returns validated and annotated `Program`.
 | **E3001** | Async call outside async context |
 | **E3002** | Unawaited task handle |
 | **E3003** | Awaiting non-awaitable value |
-| **E3004** | Fire call cannot be awaited |
 | **E3005** | Await in data-parallel loop |
 | **E3006** | Invalid policy option combination |
 | **E3007** | Invalid chunk size |

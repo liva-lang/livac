@@ -150,10 +150,10 @@ fn check_expr_concurrency(expr: &Expr, ctx: &mut DesugarContext) {
     match expr {
         Expr::Call(call) => {
             match call.exec_policy {
-                ExecPolicy::Async | ExecPolicy::TaskAsync | ExecPolicy::FireAsync => {
+                ExecPolicy::Async | ExecPolicy::TaskAsync => {
                     ctx.has_async = true;
                 }
-                ExecPolicy::Par | ExecPolicy::TaskPar | ExecPolicy::FirePar => {
+                ExecPolicy::Par | ExecPolicy::TaskPar => {
                     ctx.has_parallel = true;
                 }
                 ExecPolicy::Normal => {}
@@ -261,7 +261,7 @@ mod tests {
     }
 
     #[test]
-    fn test_detect_task_and_fire_calls() {
+    fn test_detect_task_and_par_calls() {
         let source = r#"
             use rust "serde" as sd
 
@@ -269,7 +269,7 @@ mod tests {
 
             main() {
                 let handle = task async compute()
-                fire par compute()
+                par compute()
                 let values = [par compute(), task par compute()]
                 return handle
             }

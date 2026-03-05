@@ -62,8 +62,6 @@ pub enum Token {
     Par,
     #[token("task")]
     Task,
-    #[token("fire")]
-    Fire,
     #[token("await")]
     Await,
     #[token("fail")]

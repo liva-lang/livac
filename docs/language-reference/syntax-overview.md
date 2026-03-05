@@ -182,11 +182,11 @@ let users = [
 let data = async fetchFromAPI()
 let task = task async fetchUser(123)
 let user = await task
-fire async logEvent("started")
+async logEvent("started")  // Fire-and-forget (not assigned)
 
 // Parallel (CPU-bound)
 let result = par heavyComputation()
-fire par backgroundCleanup()
+par backgroundCleanup()  // Fire-and-forget (not assigned)
 
 // Data-parallel loop
 for par item in items with chunk 2 threads 4 {
@@ -293,7 +293,7 @@ let obj = { name: "Alice", age: 30 }
 ```
 let       const     if        else      for       in
 while     switch    case      default   return    break
-continue  async     par       task      fire      await
+continue  async     par       task      await
 fail      and       or        not       true      false
 this      constructor         enum      match     data
 describe  test      expect    use       import    export

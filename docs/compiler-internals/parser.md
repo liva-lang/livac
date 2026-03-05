@@ -233,7 +233,6 @@ Handles:
 - **Simple calls**: `func(args)`
 - **Concurrency policies**: `async func(args)`, `par func(args)`
 - **Task creation**: `task async func(args)`
-- **Fire-and-forget**: `fire par func(args)`
 - **Member access**: `obj.property`
 - **Index access**: `arr[index]`
 - **Method calls**: `obj.method(args)`
@@ -362,8 +361,6 @@ pub enum ExecPolicy {
     Par,
     TaskAsync,
     TaskPar,
-    FireAsync,
-    FirePar,
 }
 ```
 

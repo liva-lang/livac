@@ -303,7 +303,7 @@ impl LanguageServer for LivaLanguageServer {
         // Keywords (priority 0 - always first)
         let keywords = vec![
             "let", "const", "fn", "return", "if", "else", "while", "for", "switch", "async",
-            "await", "task", "fire", "import", "from", "export", "type", "true", "false", "print",
+            "await", "task", "import", "from", "export", "type", "true", "false", "print",
             "console", "Math", "JSON", "File", "HTTP", "break", "continue",
         ];
 

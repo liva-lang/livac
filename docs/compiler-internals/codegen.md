@@ -139,18 +139,18 @@ let task = liva_rt::spawn_parallel(move || compute(100));
 let result = task.await.unwrap();
 ```
 
-**Fire Async**:
+**Fire-and-Forget Async** (async call as statement, not assigned):
 ```liva
-fire async logEvent("message")
+async logEvent("message")
 ```
 ↓
 ```rust
 liva_rt::fire_async(async move { logEvent("message").await; });
 ```
 
-**Fire Par**:
+**Fire-and-Forget Par** (par call as statement, not assigned):
 ```liva
-fire par backgroundCleanup()
+par backgroundCleanup()
 ```
 ↓
 ```rust
@@ -366,7 +366,7 @@ Generated Rust code includes:
 - **4,683 Lines**: Most complex compiler phase
 - **IR → Rust**: Direct code emission
 - **Runtime Integration**: Generates `liva_rt` module
-- **Concurrency Transformation**: Handles async/par/task/fire
+- **Concurrency Transformation**: Handles async/par/task + auto fire-and-forget
 - **Error Binding**: Implements fallibility system
 - **Data-Parallel**: Rayon and SIMD code generation
 

@@ -230,8 +230,6 @@ pub enum ExecPolicy {
     Par,          // par func()
     TaskAsync,    // task async func()
     TaskPar,      // task par func()
-    FireAsync,    // fire async func()
-    FirePar,      // fire par func()
 }
 ```
 

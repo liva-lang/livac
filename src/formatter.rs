@@ -1072,8 +1072,6 @@ impl Formatter {
             ExecPolicy::Par => "par ",
             ExecPolicy::TaskAsync => "task async ",
             ExecPolicy::TaskPar => "task par ",
-            ExecPolicy::FireAsync => "fire async ",
-            ExecPolicy::FirePar => "fire par ",
             ExecPolicy::Normal => "",
         };
 

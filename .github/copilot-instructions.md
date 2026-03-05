@@ -318,7 +318,7 @@ Snapshot tests serve as **source of truth** for all supported Liva syntax:
 - Classes & interfaces: constructor, fields, methods, visibility `_prefix`, auto data classes
 - Enums: simple (`Color { Red, Green, Blue }`), with data (`Shape { Circle(radius: number) }`), pattern matching
 - Error handling: `fail`, error binding, `or fail`, `try`/`catch (err)`
-- Concurrency: `async`, `par`, `task`, `fire`, `await`
+- Concurrency: `async`, `par`, `task`, `await` (fire-and-forget is auto-inferred for unassigned async/par calls)
 - Collections: `map`/`filter`/`reduce`/`find`/`some`/`every`/`forEach`/`includes`/`indexOf`/`push`/`pop`/`join`, chaining
 - Strings: templates `$"..."`, all methods, concatenation patterns
 - Stdlib: `print`, `console.*`, `Math.*` (including `PI`/`E`), `parseInt`/`parseFloat`/`toString`, `JSON.*`, `HTTP.*`

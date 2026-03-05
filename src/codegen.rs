@@ -5080,6 +5080,21 @@ impl CodeGenerator {
                     false
                 };
 
+                // Fire-and-forget inference: async/par calls used as statements
+                // (not assigned to a variable) are automatically fire-and-forget
+                if let Expr::Call(call) = &expr_stmt.expr {
+                    if matches!(call.exec_policy, ExecPolicy::Async | ExecPolicy::Par) {
+                        self.write_indent();
+                        self.generate_fire_call(call, match call.exec_policy {
+                            ExecPolicy::Async => ConcurrencyMode::Async,
+                            ExecPolicy::Par => ConcurrencyMode::Parallel,
+                            _ => unreachable!(),
+                        })?;
+                        self.output.push_str(";\n");
+                        return Ok(());
+                    }
+                }
+
                 if is_test_block_call {
                     self.generate_expr(&expr_stmt.expr)?;
                 } else {
@@ -6619,8 +6634,6 @@ impl CodeGenerator {
             ExecPolicy::Par => self.generate_parallel_call(call),
             ExecPolicy::TaskAsync => self.generate_task_call(call, ConcurrencyMode::Async),
             ExecPolicy::TaskPar => self.generate_task_call(call, ConcurrencyMode::Parallel),
-            ExecPolicy::FireAsync => self.generate_fire_call(call, ConcurrencyMode::Async),
-            ExecPolicy::FirePar => self.generate_fire_call(call, ConcurrencyMode::Parallel),
         }
     }
 
@@ -10962,9 +10975,41 @@ impl<'a> IrCodeGenerator<'a> {
                 self.output.push('\n');
             }
             ir::Stmt::Expr(expr) => {
-                self.write_indent();
-                self.generate_expr(expr)?;
-                self.output.push_str(";\n");
+                // Fire-and-forget inference: async/par calls used as statements
+                // (not assigned to a variable) are automatically fire-and-forget
+                match expr {
+                    ir::Expr::AsyncCall { callee, args } => {
+                        self.write_indent();
+                        self.output.push_str("liva_rt::fire_async(async move { ");
+                        self.generate_expr(callee)?;
+                        self.output.push('(');
+                        for (idx, arg) in args.iter().enumerate() {
+                            if idx > 0 {
+                                self.output.push_str(", ");
+                            }
+                            self.generate_expr(arg)?;
+                        }
+                        self.output.push_str("); });\n");
+                    }
+                    ir::Expr::ParallelCall { callee, args } => {
+                        self.write_indent();
+                        self.output.push_str("liva_rt::fire_parallel(move || { ");
+                        self.generate_expr(callee)?;
+                        self.output.push('(');
+                        for (idx, arg) in args.iter().enumerate() {
+                            if idx > 0 {
+                                self.output.push_str(", ");
+                            }
+                            self.generate_expr(arg)?;
+                        }
+                        self.output.push_str("); });\n");
+                    }
+                    _ => {
+                        self.write_indent();
+                        self.generate_expr(expr)?;
+                        self.output.push_str(";\n");
+                    }
+                }
             }
             ir::Stmt::If {
                 condition,
@@ -11459,36 +11504,6 @@ impl<'a> IrCodeGenerator<'a> {
                 Ok(())
             }
             ir::Expr::TaskCall { mode, callee, args } => {
-                match mode {
-                    ir::ConcurrencyMode::Async => {
-                        self.output.push_str("tokio::spawn(async move { ");
-                        write!(self.output, "{}(", self.sanitize_name(callee)).unwrap();
-                        for (idx, arg) in args.iter().enumerate() {
-                            if idx > 0 {
-                                self.output.push_str(", ");
-                            }
-                            self.generate_expr(arg)?;
-                        }
-                        self.output.push(')');
-                        self.output.push_str(" })");
-                    }
-                    ir::ConcurrencyMode::Parallel => {
-                        self.output
-                            .push_str("tokio::task::spawn_blocking(move || { ");
-                        write!(self.output, "{}(", self.sanitize_name(callee)).unwrap();
-                        for (idx, arg) in args.iter().enumerate() {
-                            if idx > 0 {
-                                self.output.push_str(", ");
-                            }
-                            self.generate_expr(arg)?;
-                        }
-                        self.output.push(')');
-                        self.output.push_str(" })");
-                    }
-                }
-                Ok(())
-            }
-            ir::Expr::FireCall { mode, callee, args } => {
                 match mode {
                     ir::ConcurrencyMode::Async => {
                         self.output.push_str("tokio::spawn(async move { ");
@@ -12282,7 +12297,7 @@ fn expr_has_unsupported(expr: &ir::Expr) -> bool {
         | ir::Expr::ParallelCall { callee, args } => {
             expr_has_unsupported(callee) || args.iter().any(expr_has_unsupported)
         }
-        ir::Expr::TaskCall { args, .. } | ir::Expr::FireCall { args, .. } => {
+        ir::Expr::TaskCall { args, .. } => {
             args.iter().any(expr_has_unsupported)
         }
         ir::Expr::Await(expr) => expr_has_unsupported(expr),
@@ -12491,10 +12506,6 @@ fn expr_has_async_concurrency(expr: &ir::Expr) -> bool {
         | &ir::Expr::TaskCall {
             mode: ir::ConcurrencyMode::Async,
             ..
-        }
-        | &ir::Expr::FireCall {
-            mode: ir::ConcurrencyMode::Async,
-            ..
         } => true,
         &ir::Expr::Call {
             ref callee,
@@ -12507,7 +12518,7 @@ fn expr_has_async_concurrency(expr: &ir::Expr) -> bool {
             expr_has_async_concurrency(callee.as_ref())
                 || args.iter().any(expr_has_async_concurrency)
         }
-        &ir::Expr::TaskCall { ref args, .. } | &ir::Expr::FireCall { ref args, .. } => {
+        &ir::Expr::TaskCall { ref args, .. } => {
             args.iter().any(expr_has_async_concurrency)
         }
         &ir::Expr::Unary { ref operand, .. } => expr_has_async_concurrency(operand.as_ref()),
@@ -12566,10 +12577,6 @@ fn expr_has_parallel_concurrency(expr: &ir::Expr) -> bool {
         | &ir::Expr::TaskCall {
             mode: ir::ConcurrencyMode::Parallel,
             ..
-        }
-        | &ir::Expr::FireCall {
-            mode: ir::ConcurrencyMode::Parallel,
-            ..
         } => true,
         &ir::Expr::Call {
             ref callee,
@@ -12582,7 +12589,7 @@ fn expr_has_parallel_concurrency(expr: &ir::Expr) -> bool {
             expr_has_parallel_concurrency(callee.as_ref())
                 || args.iter().any(expr_has_parallel_concurrency)
         }
-        &ir::Expr::TaskCall { ref args, .. } | &ir::Expr::FireCall { ref args, .. } => {
+        &ir::Expr::TaskCall { ref args, .. } => {
             args.iter().any(expr_has_parallel_concurrency)
         }
         &ir::Expr::Unary { ref operand, .. } => expr_has_parallel_concurrency(operand.as_ref()),
@@ -12706,8 +12713,7 @@ fn ast_expr_has_async(expr: &Expr) -> bool {
         // Direct async indicators
         Expr::Call(call)
             if call.exec_policy == ExecPolicy::Async
-                || call.exec_policy == ExecPolicy::TaskAsync
-                || call.exec_policy == ExecPolicy::FireAsync =>
+                || call.exec_policy == ExecPolicy::TaskAsync =>
         {
             true
         }

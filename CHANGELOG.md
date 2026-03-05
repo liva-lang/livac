@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - v1.3.0-dev
 
+### Removed
+
+- **`fire` keyword removed** — Fire-and-forget is now auto-inferred. When an `async` or `par` call appears as a statement (not assigned to a variable), it's automatically treated as fire-and-forget. No `fire` keyword needed.
+
 ### Added - Error Trace Chaining 🔍
 
 **Automatic error trace with function names and source locations.**
@@ -343,7 +347,7 @@ Total tests: 264 (up from 220). Codegen snapshot tests: 72 (up from 28).
 | Loops | 4 | `while`, `for` range (`0..5`), `for` array, one-liner `=>` for, `for par` parallel |
 | Classes & Interfaces | 2 | Class with constructor/fields/methods, interface declaration, one-liner methods |
 | Error Handling | 3 | `fail`, error binding (`let x, err = ...`), `or fail`, `try`/`catch` |
-| Concurrency | 3 | `async` calls, `par` concurrent, `task async`, `fire async` |
+| Concurrency | 3 | `async` calls, `par` concurrent, `task async`, auto fire-and-forget |
 | Collections | 3 | `map`, `filter`, `reduce`, `find`, `some`, `every`, `forEach`, `includes`, `indexOf`, `length`, `push`, `pop`, chaining |
 | Strings | 3 | Template strings (`$"..."`), all string methods, concatenation patterns |
 | Console & IO | 1 | `print`, `console.log`, `console.error`, `console.warn`, `console.success` |

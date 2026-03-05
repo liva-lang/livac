@@ -476,12 +476,6 @@ fn lower_call_expr(call: &ast::CallExpr) -> ir::Expr {
         ast::ExecPolicy::TaskPar => {
             lower_task_like_call(call, ir::ConcurrencyMode::Parallel, lowered_args)
         }
-        ast::ExecPolicy::FireAsync => {
-            lower_fire_like_call(call, ir::ConcurrencyMode::Async, lowered_args)
-        }
-        ast::ExecPolicy::FirePar => {
-            lower_fire_like_call(call, ir::ConcurrencyMode::Parallel, lowered_args)
-        }
     }
 }
 
@@ -492,22 +486,6 @@ fn lower_task_like_call(
 ) -> ir::Expr {
     if let Some(name) = extract_callee_name(&call.callee) {
         ir::Expr::TaskCall {
-            mode,
-            callee: name,
-            args,
-        }
-    } else {
-        ir::Expr::Unsupported(ast::Expr::Call(call.clone()))
-    }
-}
-
-fn lower_fire_like_call(
-    call: &ast::CallExpr,
-    mode: ir::ConcurrencyMode,
-    args: Vec<ir::Expr>,
-) -> ir::Expr {
-    if let Some(name) = extract_callee_name(&call.callee) {
-        ir::Expr::FireCall {
             mode,
             callee: name,
             args,

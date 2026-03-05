@@ -55,7 +55,7 @@ rust_crates: [
 Checks for:
 - `async` calls: `async fetchData()`
 - Async functions: Functions marked `is_async_inferred`
-- Async policies: `ExecPolicy::Async`, `TaskAsync`, `FireAsync`
+- Async policies: `ExecPolicy::Async`, `TaskAsync`
 
 If found:
 ```rust
@@ -68,7 +68,7 @@ rust_crates.push(("tokio".to_string(), None))  // Auto-add tokio
 Checks for:
 - `par` calls: `par compute()`
 - Parallel loops: `for par x in items`
-- Parallel policies: `ExecPolicy::Par`, `TaskPar`, `FirePar`
+- Parallel policies: `ExecPolicy::Par`, `TaskPar`
 - Data-parallel: `DataParallelPolicy::Par`, `Vec`, `ParVec`
 
 If found:
@@ -129,7 +129,7 @@ fn check_expr_concurrency(expr: &Expr, ctx: &mut DesugarContext)
 
 ```rust
 match call.exec_policy {
-    ExecPolicy::Async | ExecPolicy::TaskAsync | ExecPolicy::FireAsync => {
+    ExecPolicy::Async | ExecPolicy::TaskAsync => {
         ctx.has_async = true;
     }
     _ => {}

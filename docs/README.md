@@ -81,7 +81,7 @@ Complete language specification and syntax reference.
 | [Control Flow](language-reference/control-flow.md) | if, for, while, switch statements |
 | [Pattern Matching](language-reference/pattern-matching.md) | Switch expressions with exhaustiveness checking |
 | [Error Handling](language-reference/error-handling.md) | fail, error binding, `or fail`, fallibility |
-| [Concurrency](language-reference/concurrency.md) | async, par, task, fire keywords |
+| [Concurrency](language-reference/concurrency.md) | async, par, task keywords |
 | [Modules](language-reference/modules.md) | Multi-file projects and imports |
 | [Collections](language-reference/collections.md) | Arrays, vectors, and data structures |
 | [String Templates](language-reference/string-templates.md) | String interpolation with `$"..."` |

@@ -1949,17 +1949,6 @@ impl Parser {
             return self.parse_exec_call(policy, "task");
         }
 
-        if self.match_token(&Token::Fire) {
-            let policy = if self.match_token(&Token::Async) {
-                ExecPolicy::FireAsync
-            } else if self.match_token(&Token::Par) {
-                ExecPolicy::FirePar
-            } else {
-                return Err(self.error("Expected 'async' or 'par' after 'fire'".into()));
-            };
-            return self.parse_exec_call(policy, "fire");
-        }
-
         self.parse_call()
     }
 
@@ -2827,7 +2816,7 @@ impl Parser {
 
 impl Parser {
     fn is_exec_modifier(token: &Token) -> bool {
-        matches!(token, Token::Async | Token::Par | Token::Task | Token::Fire)
+        matches!(token, Token::Async | Token::Par | Token::Task)
     }
 
     fn modifier_name(token: &Token) -> &'static str {
@@ -2835,7 +2824,6 @@ impl Parser {
             Token::Async => "async",
             Token::Par => "par",
             Token::Task => "task",
-            Token::Fire => "fire",
             _ => "unknown",
         }
     }

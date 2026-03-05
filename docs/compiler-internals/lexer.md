@@ -23,7 +23,7 @@ The lexer performs:
 - `return`, `throw`, `try`, `catch`
 
 **Concurrency**:
-- `async`, `parallel`, `par`, `task`, `fire`, `await`
+- `async`, `parallel`, `par`, `task`, `await`
 - `move`, `seq`, `vec`, `parvec`, `with`
 
 **Data-Parallel Policies**:

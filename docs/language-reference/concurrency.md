@@ -11,7 +11,9 @@ Liva offers four main concurrency keywords:
 | `async` | Asynchronous | I/O-bound tasks | No (lazy) | Value directly |
 | `par` | Parallel | CPU-bound tasks | No (lazy) | Value directly |
 | `task` | Handle | Need explicit control | No | Task handle |
-| `fire` | Fire-and-forget | Background work | No | Nothing |
+| `await` | Wait | Wait for task handle | Yes | Task result |
+
+> **Fire-and-Forget:** When an `async` or `par` call appears as a statement (not assigned to a variable), it's automatically treated as fire-and-forget.
 
 ## Async - Asynchronous Execution
 
@@ -191,11 +193,11 @@ main() {
 }
 ```
 
-## Fire - Fire and Forget
+## Fire-and-Forget (Auto-inferred)
 
-Use `fire` for **background operations** where you don't care about the result.
+When an `async` or `par` call appears as a statement (not assigned to a variable), it's automatically treated as fire-and-forget. No special keyword is needed.
 
-### Async Fire and Forget
+### Async Fire-and-Forget
 
 ```liva
 logEvent(message: string) {
@@ -203,15 +205,15 @@ logEvent(message: string) {
 }
 
 main() {
-  // Starts async, result ignored
-  fire async logEvent("Application started")
+  // Not assigned to a variable = fire-and-forget
+  async logEvent("Application started")
   
   // Continue immediately
   print("Main continues...")
 }
 ```
 
-### Parallel Fire and Forget
+### Parallel Fire-and-Forget
 
 ```liva
 backgroundCleanup() {
@@ -219,22 +221,22 @@ backgroundCleanup() {
 }
 
 main() {
-  // Starts in parallel, result ignored
-  fire par backgroundCleanup()
+  // Not assigned to a variable = fire-and-forget
+  par backgroundCleanup()
   
   // Continue immediately
   print("Main continues...")
 }
 ```
 
-### Multiple Fire Calls
+### Multiple Fire-and-Forget Calls
 
 ```liva
 main() {
-  fire async logEvent("Event 1")
-  fire async logEvent("Event 2")
-  fire par backgroundTask1()
-  fire par backgroundTask2()
+  async logEvent("Event 1")
+  async logEvent("Event 2")
+  par backgroundTask1()
+  par backgroundTask2()
   
   print("All background tasks started")
 }
@@ -405,15 +407,15 @@ main() {
 }
 ```
 
-### 3. Fire and Forget for Side Effects
+### 3. Fire-and-Forget for Side Effects
 
 ```liva
 main() {
-  // Don't wait for logging
-  fire async sendAnalytics(event)
+  // Don't wait for logging (not assigned = fire-and-forget)
+  async sendAnalytics(event)
   
   // Don't wait for cleanup
-  fire par cleanupTempFiles()
+  par cleanupTempFiles()
   
   // Continue with main flow
   processUserRequest()
@@ -432,8 +434,8 @@ main() {
     return
   }
   
-  // Fire and forget can ignore errors
-  fire async sendOptionalNotification()
+  // Fire and forget can ignore errors (not assigned)
+  async sendOptionalNotification()
   
   processData(data)
 }

@@ -145,11 +145,6 @@ pub enum Expr {
         callee: String,
         args: Vec<Expr>,
     },
-    FireCall {
-        mode: ConcurrencyMode,
-        callee: String,
-        args: Vec<Expr>,
-    },
     Binary {
         op: BinaryOp,
         left: Box<Expr>,
@@ -209,8 +204,6 @@ pub enum ExecPolicy {
     Par,
     TaskAsync,
     TaskPar,
-    FireAsync,
-    FirePar,
 }
 
 #[derive(Debug, Clone, PartialEq)]

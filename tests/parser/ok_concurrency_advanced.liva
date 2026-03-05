@@ -19,8 +19,8 @@ processData() {
     // Parallel CPU work
     let processed = par processIntensive(data)
 
-    // Fire and forget logging
-    fire async logProcessStart()
+    // Fire and forget logging (async as statement = fire-and-forget)
+    async logProcessStart()
 
     // Task con control explícito
     let task_handle = task par backgroundWork()
@@ -47,8 +47,8 @@ mixedConcurrencyDemo() {
     let result2 = p1 + p2
 
     // Fire and forget sin esperar resultado
-    fire async logResults(result1, result2)
-    fire par cleanup()
+    async logResults(result1, result2)
+    par cleanup()
 
     return result1 * result2
 }
