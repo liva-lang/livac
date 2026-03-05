@@ -308,6 +308,11 @@ pub struct VarDecl {
     /// let x = match fallible_expr { Ok(v) => v, Err(_) => return Err("msg") };
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub or_fail_msg: Option<Box<Expr>>,
+    /// `or <value>` — default value on error (like JS `||`)
+    /// When present, `let x = fallible_expr or defaultValue` desugars to:
+    /// let x = match fallible_expr { Ok(v) => v, Err(_) => defaultValue };
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub or_value: Option<Box<Expr>>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

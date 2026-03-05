@@ -1338,24 +1338,49 @@ impl Parser {
             let init = self.parse_expression()?;
 
             // Check for `or fail "message"` — error propagation shorthand (v1.1.0)
-            let or_fail_msg = if self.check(&Token::Or) && self.peek_next_is(&Token::Fail) {
-                self.advance(); // consume `or`
-                self.advance(); // consume `fail`
-                let msg = self.parse_expression()?;
-                Some(Box::new(msg))
+            // Note: `or <value>` (default value) is handled by post-processing below,
+            // since `or` is consumed as logical OR by `parse_expression()`.
+            let mut or_fail_msg = None;
+            let mut or_value = None;
+            if self.check(&Token::Or) {
+                if self.peek_next_is(&Token::Fail) {
+                    self.advance(); // consume `or`
+                    self.advance(); // consume `fail`
+                    let msg = self.parse_expression()?;
+                    or_fail_msg = Some(Box::new(msg));
+                }
+            }
+
+            // Post-process: if init is `Call/MethodCall or <value>` (parsed as BinaryOp),
+            // split it into init=call, or_value=value. This is the `or <value>` syntax
+            // for providing a default when a fallible function fails.
+            // e.g., `let port = parsePort("abc") or 3000`
+            let init = if or_fail_msg.is_none() {
+                match init {
+                    Expr::Binary {
+                        op: BinOp::Or,
+                        left,
+                        right,
+                    } if matches!(*left, Expr::Call(_) | Expr::MethodCall(_)) => {
+                        or_value = Some(right);
+                        *left
+                    }
+                    other => other,
+                }
             } else {
-                None
+                init
             };
 
             self.match_token(&Token::Semicolon); // Optional semicolon
 
-            let is_fallible = bindings.len() > 1 || or_fail_msg.is_some();
+            let is_fallible = bindings.len() > 1 || or_fail_msg.is_some() || or_value.is_some();
 
             return Ok(Stmt::VarDecl(VarDecl {
                 bindings,
                 init,
                 is_fallible,
                 or_fail_msg,
+                or_value,
             }));
         }
 

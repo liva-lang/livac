@@ -3960,6 +3960,53 @@ impl CodeGenerator {
                     return Ok(());
                 }
 
+                // Handle `or <value>` — default value on error (like JS `||`)
+                if let Some(default_val) = &var.or_value {
+                    let binding = &var.bindings[0];
+                    let var_name = self.sanitize_name(binding.name().unwrap());
+
+                    let is_http = self.is_http_call(&var.init);
+                    let is_file = self.is_file_call(&var.init);
+                    let is_json_parse = self.is_json_parse_call(&var.init);
+                    let is_user_fallible = self.is_fallible_expr(&var.init);
+
+                    if is_http {
+                        // HTTP calls: let var = { let (opt, err_str) = HTTP.get(...).await; if !err_str.is_empty() { default } else { opt.unwrap_or_default() } };
+                        write!(self.output, "let {} = {{ let (opt, err_str) = ", var_name).unwrap();
+                        self.generate_expr(&var.init)?;
+                        self.output.push_str(".await; if !err_str.is_empty() { ");
+                        self.generate_expr(default_val)?;
+                        self.output.push_str(" } else { opt.unwrap_or_default() } };\n");
+                        self.rust_struct_vars.insert(var_name);
+                    } else if is_file {
+                        write!(self.output, "let {} = {{ let (opt, err_str) = ", var_name).unwrap();
+                        self.generate_expr(&var.init)?;
+                        self.output.push_str("; if !err_str.is_empty() { ");
+                        self.generate_expr(default_val)?;
+                        self.output.push_str(" } else { opt.unwrap_or_default() } };\n");
+                    } else if is_json_parse {
+                        write!(self.output, "let {} = {{ let (opt, err_str) = ", var_name).unwrap();
+                        self.generate_expr(&var.init)?;
+                        self.output.push_str("; if !err_str.is_empty() { ");
+                        self.generate_expr(default_val)?;
+                        self.output.push_str(" } else { opt.unwrap_or_default() } };\n");
+                        self.json_value_vars.insert(var_name);
+                    } else if is_user_fallible {
+                        // User-defined fallible: let var = match expr { Ok(v) => v, Err(_) => defaultValue };
+                        write!(self.output, "let {} = match ", var_name).unwrap();
+                        self.generate_expr(&var.init)?;
+                        self.output.push_str(" { Ok(v) => v, Err(_) => ");
+                        self.generate_expr(default_val)?;
+                        self.output.push_str(" };\n");
+                    } else {
+                        write!(self.output, "let {} = ", var_name).unwrap();
+                        self.generate_expr(&var.init)?;
+                        self.output.push_str(";\n");
+                    }
+
+                    return Ok(());
+                }
+
                 // Phase 2: Check if init expression is a Task (async/par call)
                 let task_exec_policy = self.is_task_expr(&var.init);
 

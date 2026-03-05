@@ -1526,6 +1526,27 @@ main() {
 }
 
 #[test]
+fn test_feature_error_handling_or_value() {
+    let source = r#"
+divide(a: number, b: number): number {
+    if b == 0 => fail "Division by zero"
+    return a / b
+}
+
+main() {
+    let r = divide(10, 0) or 42
+    print(r)
+
+    let r2 = divide(10, 2) or 99
+    print(r2)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("feature_error_handling_or_value", rust_code);
+}
+
+#[test]
 fn test_feature_try_catch() {
     let source = r#"
 risky(): number {
