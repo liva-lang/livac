@@ -431,12 +431,23 @@ if age >= 18 {
 
 ### One-liner `=>` Syntax (v1.1.0)
 
+For single-statement bodies, use `=>` instead of `{}`:
+
 ```liva
 if age >= 18 => print("Adult")
 if age >= 18 => print("Adult") else => print("Minor")
 for item in items => print(item)
 while running => tick()
 ```
+
+> **Important:** Unlike function `=>` (which has implicit return), `if`/`for`/`while =>` simply replaces `{}` — there is **no implicit return**. Use explicit `return` when needed:
+> ```liva
+> clamp(val: number, lo: number, hi: number): number {
+>     if val < lo => return lo   // explicit return required
+>     if val > hi => return hi
+>     return val
+> }
+> ```
 
 ### While Loop
 

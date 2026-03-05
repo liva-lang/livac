@@ -230,7 +230,7 @@ if x > 0 {
 
 ### One-liner `=>` Syntax *(v1.1.0)* 🆕
 
-For single-expression bodies, use `=>` instead of `{}`:
+For single-statement bodies, use `=>` instead of `{}`:
 
 ```liva
 if age >= 18 => print("Adult")
@@ -238,6 +238,19 @@ if age >= 18 => print("Adult") else => print("Minor")
 for item in items => print(item)
 while running => tick()
 ```
+
+> **Important:** Unlike function `=>` (which has implicit return), `if`/`for`/`while =>` simply replaces `{}` — there is **no implicit return**. Use explicit `return` when needed:
+> ```liva
+> // Function => = implicit return
+> square(x: number): number => x * x
+>
+> // If => inside block = NO implicit return, needs explicit return
+> clamp(val: number, lo: number, hi: number): number {
+>     if val < lo => return lo
+>     if val > hi => return hi
+>     return val
+> }
+> ```
 
 > **Note:** Block `{}` syntax remains the standard for multi-line bodies. Both forms are valid.
 
@@ -1124,7 +1137,8 @@ f32 f64 isize usize
 + - * / %                    // Arithmetic
 == != < > <= >=              // Comparison  
 and or not (or && || !)      // Logical
-= =>                         // Assignment / Arrow
+=                            // Assignment
+=>                           // Arrow (function one-liner / lambda / switch arm / control flow one-liner)
 ? :                          // Ternary
 .. ..=                       // Ranges
 ```

@@ -76,7 +76,7 @@ if age < 18 {
 
 ### One-liner `=>` Syntax *(v1.1.0)*
 
-For single-expression bodies, use `=>` instead of `{}` — consistent with functions, lambdas, and switch arms:
+For single-statement bodies, use `=>` instead of `{}`:
 
 ```liva
 if age >= 18 => print("Adult")
@@ -93,6 +93,15 @@ while running => tick()
 for item in items => print         // no parentheses needed
 for item in items => process       // calls process(item)
 ```
+
+> **Important:** Unlike function `=>` (which has implicit return), `if`/`for`/`while =>` simply replaces `{}` — there is **no implicit return**. Use explicit `return` when needed:
+> ```liva
+> clamp(val: number, lo: number, hi: number): number {
+>     if val < lo => return lo   // explicit return required
+>     if val > hi => return hi
+>     return val
+> }
+> ```
 
 > **Note:** Block `{}` syntax remains the standard for multi-line bodies. Both forms are valid.
 

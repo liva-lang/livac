@@ -107,10 +107,11 @@ if condition { } else { }
 for item in items { }
 while running { }
 
-// One-liner => syntax (v1.1.0)
+// One-liner => syntax (v1.1.0) — replaces {}, NO implicit return
 if age >= 18 => print("Adult")
 for item in items => print(item)
 while running => tick()
+if val < lo => return lo           // explicit return needed inside functions
 ```
 
 ### Error Handling
@@ -303,7 +304,8 @@ Snapshot tests serve as **source of truth** for all supported Liva syntax:
 ### Important Syntax Notes (discovered via testing):
 - Switch **statements** use `case X:` (colon); switch **expressions** use `X =>` (arrow, no `case` keyword)
 - `try`/`catch` requires parentheses: `catch (err) { }`
-- Ternary is an expression; `if` is a statement only (can't use in `=>` one-liners)
+- Ternary is an expression; `if` is a statement only
+- Function `=>` has implicit return; `if`/`for`/`while =>` does NOT (just replaces `{}`)
 - `for` ranges support both `..` (exclusive) and `..=` (inclusive)
 - JSON typed parse uses `int` not `number`: `let x: [int], err = JSON.parse(...)`
 - `describe` is reserved for test framework — don't use as function name
