@@ -17,7 +17,7 @@ test "string concatenation" {
 
 test "string length" {
     let s = "hello"
-    if s.length() != 5 {
+    if s.length != 5 {
         throw "expected length 5"
     }
 }

@@ -204,21 +204,21 @@ class Stack<T> {
     }
     
     fn pop(): Option<T> {
-        if this.items.length() == 0 {
+        if this.items.length == 0 {
             return None<T>()
         }
         return Some(this.items.pop())
     }
     
     fn peek(): Option<T> {
-        if this.items.length() == 0 {
+        if this.items.length == 0 {
             return None<T>()
         }
-        return Some(this.items[this.items.length() - 1])
+        return Some(this.items[this.items.length - 1])
     }
     
     fn isEmpty(): bool {
-        return this.items.length() == 0
+        return this.items.length == 0
     }
 }
 
