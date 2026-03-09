@@ -1,9 +1,10 @@
 # Collections
 
-Complete reference for arrays, objects, and data structures in Liva.
+Complete reference for arrays, maps, objects, and data structures in Liva.
 
 ## Table of Contents
 - [Arrays](#arrays)
+- [Maps (Dictionaries)](#maps-dictionaries)
 - [Object Literals](#object-literals)
 - [Struct Literals](#struct-literals)
 - [Iteration](#iteration)
@@ -70,6 +71,182 @@ let users = [
 let firstUser = users[0]
 let firstName = users[0].name  // "Alice"
 ```
+
+---
+
+## Maps (Dictionaries)
+
+*Added in v1.3.0*
+
+Maps are key-value collections backed by `HashMap` with O(1) lookup, insertion, and deletion.
+
+### Map Literals
+
+```liva
+// Empty map (requires type annotation)
+let empty: Map<string, int> = Map {}
+
+// Map with entries
+let ages = Map {
+  "Alice": 30,
+  "Bob": 25,
+  "Carlos": 35
+}
+```
+
+### Type Annotations
+
+```liva
+let scores: Map<string, number> = Map {}
+let config: Map<string, string> = Map { "host": "localhost" }
+
+// As function return type
+getDefaults(): Map<string, int> {
+  return Map { "timeout": 30, "retries": 3 }
+}
+
+// As function parameter
+processConfig(config: Map<string, string>) {
+  // ...
+}
+```
+
+### Getting Values
+
+`map.get(key)` returns an optional value — use `or` to provide a default:
+
+```liva
+let ages = Map { "Alice": 30, "Bob": 25 }
+
+let age = ages.get("Alice") or 0       // 30
+let missing = ages.get("Unknown") or -1 // -1 (key not found)
+```
+
+> **Note:** Always use `or default` with `map.get()` since the key may not exist.
+
+### Setting Values
+
+```liva
+let users = Map { "alice": "Alice Smith" }
+
+// Insert new entry
+users.set("bob", "Bob Jones")
+
+// Update existing entry
+users.set("alice", "Alice Johnson")
+```
+
+### Checking Key Existence
+
+```liva
+let ages = Map { "Alice": 30, "Bob": 25 }
+
+let hasAlice = ages.has("Alice")    // true
+let hasEve = ages.has("Eve")        // false
+
+if ages.has("Alice") {
+  print("Alice is in the map")
+}
+```
+
+### Deleting Entries
+
+```liva
+let ages = Map { "Alice": 30, "Bob": 25, "Carlos": 35 }
+
+ages.delete("Bob")
+// ages now has: Alice: 30, Carlos: 35
+```
+
+### Size
+
+```liva
+let ages = Map { "Alice": 30, "Bob": 25 }
+let count = ages.length  // 2
+```
+
+### Clearing All Entries
+
+```liva
+let cache = Map { "key1": "val1", "key2": "val2" }
+cache.clear()
+// cache is now empty, cache.length == 0
+```
+
+### Extracting Keys, Values, and Entries
+
+```liva
+let config = Map { "host": "localhost", "port": "8080" }
+
+let allKeys = config.keys()       // [string] — ["host", "port"]
+let allValues = config.values()   // [string] — ["localhost", "8080"]
+let allPairs = config.entries()   // [(string, string)] — tuples
+```
+
+### Iterating Maps
+
+#### for key, value in map
+
+Destructured iteration gives you both the key and value:
+
+```liva
+let scores = Map { "math": 95, "english": 88, "science": 92 }
+
+for subject, score in scores {
+  print($"{subject}: {score}")
+}
+// Output (order may vary):
+// math: 95
+// english: 88
+// science: 92
+```
+
+#### forEach with Lambda
+
+```liva
+let ages = Map { "Alice": 30, "Bob": 25 }
+
+ages.forEach((name, age) => {
+  print($"{name} is {age} years old")
+})
+```
+
+#### Iterating Keys Only
+
+```liva
+let config = Map { "host": "localhost", "port": "8080" }
+
+for key in config.keys() {
+  print(key)
+}
+```
+
+### Map Methods Summary
+
+| Method | Signature | Description | Returns |
+|--------|-----------|-------------|---------|
+| `get` | `map.get(key) or default` | Get value by key with fallback | `V` |
+| `set` | `map.set(key, value)` | Insert or update entry | `void` |
+| `has` | `map.has(key)` | Check if key exists | `bool` |
+| `delete` | `map.delete(key)` | Remove entry by key | `void` |
+| `keys` | `map.keys()` | Get all keys as array | `[K]` |
+| `values` | `map.values()` | Get all values as array | `[V]` |
+| `entries` | `map.entries()` | Get all pairs as tuples | `[(K, V)]` |
+| `clear` | `map.clear()` | Remove all entries | `void` |
+| `forEach` | `map.forEach((k, v) => { })` | Iterate with callback | `void` |
+| `length` | `map.length` | Number of entries | `int` |
+
+### Compiled Output
+
+Liva maps compile to Rust's `std::collections::HashMap<K, V>`:
+
+| Liva | Rust |
+|------|------|
+| `Map { "a": 1 }` | `HashMap::from([("a".to_string(), 1)])` |
+| `map.get("k") or 0` | `map.get(&"k".to_string()).cloned().unwrap_or(0)` |
+| `map.set("k", v)` | `map.insert("k".to_string(), v)` |
+| `map.has("k")` | `map.contains_key(&"k".to_string())` |
+| `for k, v in map` | `for (k, v) in map.iter()` |
 
 ---
 
@@ -356,6 +533,21 @@ let key = "age"
 let value = obj[key]
 ```
 
+### Maps
+
+```liva
+// Create
+let ages = Map { "Alice": 30, "Bob": 25 }
+
+// CRUD
+ages.set("Carlos", 35)
+let age = ages.get("Alice") or 0
+ages.delete("Bob")
+
+// Iterate
+for key, value in ages { }
+```
+
 ### Struct Literals
 
 ```liva
@@ -389,6 +581,16 @@ let length = numbers.length
 
 for num in numbers {
   print(num)
+}
+
+// Map
+let ages = Map { "Alice": 30, "Bob": 25 }
+ages.set("Carlos", 35)
+let age = ages.get("Alice") or 0
+ages.delete("Bob")
+
+for name, age in ages {
+  print($"{name}: {age}")
 }
 
 // Object
