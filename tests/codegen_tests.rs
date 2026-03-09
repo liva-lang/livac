@@ -2850,3 +2850,167 @@ main() {
 
     assert_snapshot!("error_trace_chaining", rust_code);
 }
+// ========================================================================
+// Map<K, V> tests (Phase 13)
+// ========================================================================
+
+#[test]
+fn test_map_literal_empty() {
+    let source = r#"
+main() {
+  let empty: Map<string, int> = Map {}
+  print(empty.length)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("HashMap"), "should use HashMap");
+    assert_snapshot!("map_literal_empty", rust_code);
+}
+
+#[test]
+fn test_map_literal_with_entries() {
+    let source = r#"
+main() {
+  let ages = Map {
+    "Alice": 30,
+    "Bob": 25,
+    "Carlos": 35
+  }
+  print(ages.length)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("HashMap::from"), "should use HashMap::from");
+    assert_snapshot!("map_literal_entries", rust_code);
+}
+
+#[test]
+fn test_map_get_set_has_delete() {
+    let source = r#"
+main() {
+  let scores = Map {
+    "math": 95,
+    "english": 88
+  }
+  
+  let math = scores.get("math") or 0
+  scores.set("science", 92)
+  let hasMath = scores.has("math")
+  scores.delete("english")
+  print(math)
+  print(hasMath)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains(".get("), "should generate .get()");
+    assert!(rust_code.contains(".insert("), "should generate .insert()");
+    assert!(rust_code.contains(".contains_key("), "should generate .contains_key()");
+    assert!(rust_code.contains(".remove("), "should generate .remove()");
+    assert_snapshot!("map_get_set_has_delete", rust_code);
+}
+
+#[test]
+fn test_map_keys_values_entries() {
+    let source = r#"
+main() {
+  let config = Map {
+    "host": "localhost",
+    "port": "8080"
+  }
+  
+  let allKeys = config.keys()
+  let allValues = config.values()
+  print(allKeys.length)
+  print(allValues.length)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains(".keys()"), "should generate .keys()");
+    assert!(rust_code.contains(".values()"), "should generate .values()");
+    assert_snapshot!("map_keys_values_entries", rust_code);
+}
+
+#[test]
+fn test_map_foreach() {
+    let source = r#"
+main() {
+  let prices = Map {
+    "apple": 1,
+    "banana": 2
+  }
+  
+  prices.forEach((key, value) => {
+    print(key)
+    print(value)
+  })
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains(".iter().for_each("), "should generate .iter().for_each()");
+    assert_snapshot!("map_foreach", rust_code);
+}
+
+#[test]
+fn test_map_for_loop_iteration() {
+    let source = r#"
+main() {
+  let colors = Map {
+    "red": "FF0000",
+    "green": "00FF00"
+  }
+  
+  for key, value in colors {
+    print(key)
+    print(value)
+  }
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("for ("), "should generate tuple destructuring in for loop");
+    assert!(rust_code.contains(".iter()"), "should iterate with .iter()");
+    assert_snapshot!("map_for_loop", rust_code);
+}
+
+#[test]
+fn test_map_clear() {
+    let source = r#"
+main() {
+  let data = Map {
+    "key1": "value1"
+  }
+  data.clear()
+  print(data.length)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains(".clear()"), "should generate .clear()");
+    assert_snapshot!("map_clear", rust_code);
+}
+
+#[test]
+fn test_map_type_annotation() {
+    let source = r#"
+getDefaults(): Map<string, int> {
+  return Map {
+    "timeout": 30,
+    "retries": 3
+  }
+}
+
+main() {
+  let defaults = getDefaults()
+  print(defaults.length)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("HashMap<"), "should generate HashMap type");
+    assert_snapshot!("map_type_annotation", rust_code);
+}

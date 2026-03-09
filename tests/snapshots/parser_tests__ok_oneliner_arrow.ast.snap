@@ -168,6 +168,7 @@ expression: json
             {
               "For": {
                 "var": "item",
+                "var2": null,
                 "iterable": {
                   "Identifier": "items"
                 },
@@ -262,6 +263,7 @@ expression: json
             {
               "For": {
                 "var": "item",
+                "var2": null,
                 "iterable": {
                   "Identifier": "items"
                 },
@@ -359,6 +361,7 @@ expression: json
             {
               "For": {
                 "var": "item",
+                "var2": null,
                 "iterable": {
                   "Identifier": "items"
                 },
@@ -456,6 +459,7 @@ expression: json
             {
               "For": {
                 "var": "item",
+                "var2": null,
                 "iterable": {
                   "Identifier": "items"
                 },

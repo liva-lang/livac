@@ -1,0 +1,87 @@
+// Test: Map<K, V> — Complete feature test
+// Phase 13: Dictionaries / HashMaps
+
+// ============================================================
+// Test 1: Empty map with type annotation
+// ============================================================
+main() {
+  // --- Map literal (empty) ---
+  let empty: Map<string, int> = Map {}
+  print("Empty map length: " + empty.length)
+
+  // --- Map literal with entries ---
+  let ages = Map {
+    "Alice": 30,
+    "Bob": 25,
+    "Carlos": 35
+  }
+  print("Ages length: " + ages.length)
+
+  // --- map.get with or default ---
+  let aliceAge = ages.get("Alice") or 0
+  print("Alice age: " + aliceAge)
+
+  let unknownAge = ages.get("Unknown") or -1
+  print("Unknown age: " + unknownAge)
+
+  // --- map.set ---
+  ages.set("Diana", 28)
+  print("After set, length: " + ages.length)
+
+  // --- map.has ---
+  let hasBob = ages.has("Bob")
+  print("Has Bob: " + hasBob)
+
+  let hasEve = ages.has("Eve")
+  print("Has Eve: " + hasEve)
+
+  // --- map.delete ---
+  ages.delete("Carlos")
+  print("After delete, length: " + ages.length)
+
+  // --- map.keys / map.values ---
+  let keys = ages.keys()
+  print("Keys count: " + keys.length)
+
+  let values = ages.values()
+  print("Values count: " + values.length)
+
+  // --- map.clear ---
+  ages.clear()
+  print("After clear, length: " + ages.length)
+
+  // --- Map with string values ---
+  let config = Map {
+    "host": "localhost",
+    "port": "8080",
+    "env": "development"
+  }
+  print("Config length: " + config.length)
+
+  let host = config.get("host") or "unknown"
+  print("Host: " + host)
+
+  // --- for key, value in map ---
+  let scores = Map {
+    "math": 95,
+    "english": 88,
+    "science": 92
+  }
+  
+  for key, value in scores {
+    print(key + ": " + value)
+  }
+
+  // --- forEach ---
+  let prices = Map {
+    "apple": 1,
+    "banana": 2,
+    "cherry": 3
+  }
+  
+  prices.forEach((item, price) => {
+    print(item + " costs " + price)
+  })
+
+  print("All map tests passed!")
+}

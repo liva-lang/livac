@@ -80,17 +80,14 @@ expression: json
         "type_params": [],
         "params": [],
         "return_type": {
-          "Generic": {
-            "base": "Map",
-            "args": [
-              {
-                "Simple": "string"
-              },
-              {
-                "Simple": "int"
-              }
-            ]
-          }
+          "Map": [
+            {
+              "Simple": "string"
+            },
+            {
+              "Simple": "int"
+            }
+          ]
         },
         "body": {
           "stmts": [
@@ -102,17 +99,14 @@ expression: json
                       "Identifier": "map"
                     },
                     "type_ref": {
-                      "Generic": {
-                        "base": "Map",
-                        "args": [
-                          {
-                            "Simple": "string"
-                          },
-                          {
-                            "Simple": "int"
-                          }
-                        ]
-                      }
+                      "Map": [
+                        {
+                          "Simple": "string"
+                        },
+                        {
+                          "Simple": "int"
+                        }
+                      ]
                     }
                   }
                 ],

@@ -710,6 +710,7 @@ impl SemanticAnalyzer {
             }
             Expr::ObjectLiteral(fields) => fields.iter().any(|(_, v)| self.expr_contains_async(v)),
             Expr::ArrayLiteral(elements) => elements.iter().any(|e| self.expr_contains_async(e)),
+            Expr::MapLiteral(entries) => entries.iter().any(|(k, v)| self.expr_contains_async(k) || self.expr_contains_async(v)),
             Expr::StringTemplate { parts } => parts.iter().any(|part| match part {
                 StringTemplatePart::Expr(e) => self.expr_contains_async(e),
                 _ => false,
@@ -810,6 +811,7 @@ impl SemanticAnalyzer {
                 }
             }),
             Expr::ArrayLiteral(elements) => elements.iter().any(|e| self.expr_contains_fail(e)),
+            Expr::MapLiteral(entries) => entries.iter().any(|(k, v)| self.expr_contains_fail(k) || self.expr_contains_fail(v)),
             Expr::Index { object, index } => {
                 self.expr_contains_fail(object) || self.expr_contains_fail(index)
             }
@@ -1219,6 +1221,10 @@ impl SemanticAnalyzer {
                         .iter()
                         .any(|arg| self.type_ref_contains_name(arg, name))
             }
+            TypeRef::Map(key, value) => {
+                self.type_ref_contains_name(key, name)
+                    || self.type_ref_contains_name(value, name)
+            }
         }
     }
 
@@ -1281,6 +1287,10 @@ impl SemanticAnalyzer {
                         .collect(),
                 }
             }
+            TypeRef::Map(key, value) => TypeRef::Map(
+                Box::new(self.substitute_type_params(key, params, args)),
+                Box::new(self.substitute_type_params(value, params, args)),
+            ),
         }
     }
 
@@ -1635,6 +1645,13 @@ impl SemanticAnalyzer {
             Expr::ArrayLiteral(elements) => {
                 for elem in elements {
                     self.validate_expr(elem)?;
+                }
+                Ok(())
+            }
+            Expr::MapLiteral(entries) => {
+                for (key, value) in entries {
+                    self.validate_expr(key)?;
+                    self.validate_expr(value)?;
                 }
                 Ok(())
             }
@@ -2342,6 +2359,9 @@ impl SemanticAnalyzer {
             Expr::ArrayLiteral(elements) => elements
                 .iter()
                 .any(|value| Self::expr_contains_await(value)),
+            Expr::MapLiteral(entries) => entries
+                .iter()
+                .any(|(k, v)| Self::expr_contains_await(k) || Self::expr_contains_await(v)),
             Expr::Tuple(elements) => elements
                 .iter()
                 .any(|value| Self::expr_contains_await(value)),
@@ -2725,6 +2745,17 @@ impl SemanticAnalyzer {
                     .unwrap_or_else(|| TypeRef::Simple("unknown".into()));
                 Some(TypeRef::Array(Box::new(inner)))
             }
+            Expr::MapLiteral(entries) => {
+                let key_type = entries
+                    .first()
+                    .and_then(|(k, _)| self.infer_expr_type(k))
+                    .unwrap_or_else(|| TypeRef::Simple("string".into()));
+                let value_type = entries
+                    .first()
+                    .and_then(|(_, v)| self.infer_expr_type(v))
+                    .unwrap_or_else(|| TypeRef::Simple("unknown".into()));
+                Some(TypeRef::Map(Box::new(key_type), Box::new(value_type)))
+            }
             Expr::Tuple(elements) => {
                 // Infer tuple type from element types
                 let mut types = Vec::new();
@@ -2790,6 +2821,7 @@ impl SemanticAnalyzer {
     fn expr_supports_length(&self, object: &Expr) -> bool {
         match object {
             Expr::ArrayLiteral(_) => true,
+            Expr::MapLiteral(_) => true,
             Expr::Literal(Literal::String(_)) => true,
             Expr::StringTemplate { .. } => true,
             // Allow .length on identifiers - will be validated at codegen
@@ -2808,6 +2840,7 @@ impl SemanticAnalyzer {
     fn type_supports_length(&self, ty: &TypeRef) -> bool {
         match ty {
             TypeRef::Array(_) => true,
+            TypeRef::Map(_, _) => true,
             TypeRef::Simple(name) => matches!(
                 name.as_str(),
                 "string" | "bytes" | "Vec" | "Array" | "String"
@@ -3589,6 +3622,10 @@ impl SemanticAnalyzer {
                 }
                 Ok(())
             }
+            TypeRef::Map(key, value) => {
+                self.validate_type_ref(key, available_type_params)?;
+                self.validate_type_ref(value, available_type_params)
+            }
         }
     }
 
@@ -4021,6 +4058,11 @@ impl SemanticAnalyzer {
                     self.validate_json_parse_type_hint(ty)?;
                 }
                 Ok(())
+            }
+            // Maps are serializable if both key and value types are
+            TypeRef::Map(key, value) => {
+                self.validate_json_parse_type_hint(key)?;
+                self.validate_json_parse_type_hint(value)
             }
         }
     }

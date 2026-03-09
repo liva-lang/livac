@@ -839,6 +839,95 @@ main() {
 
 ---
 
+## Collections (Maps) *(v1.3.0)*
+
+Maps (dictionaries/hashmaps) store key-value pairs with O(1) lookup.
+
+### Creation
+
+```liva
+// Empty map with type annotation
+let empty: Map<string, int> = Map {}
+
+// Map literal with entries
+let ages = Map {
+  "Alice": 30,
+  "Bob": 25,
+  "Carlos": 35
+}
+
+// Return type annotation
+getDefaults(): Map<string, int> {
+  return Map { "timeout": 30, "retries": 3 }
+}
+```
+
+### Access & Modification
+
+```liva
+// Get value (returns Option — use `or` for default)
+let age = ages.get("Alice") or 0      // 30
+let miss = ages.get("Unknown") or -1   // -1
+
+// Set value (insert or update)
+ages.set("Diana", 28)
+
+// Check existence
+let hasBob = ages.has("Bob")           // true
+
+// Delete entry
+ages.delete("Carlos")
+
+// Get size
+let count = ages.length                // 3
+
+// Clear all entries
+ages.clear()
+```
+
+### Iteration
+
+```liva
+// for key, value in map
+let scores = Map { "math": 95, "english": 88 }
+
+for key, value in scores {
+  print($"{key}: {value}")
+}
+
+// forEach with lambda
+scores.forEach((key, value) => {
+  print($"{key} = {value}")
+})
+```
+
+### Keys, Values & Entries
+
+```liva
+let config = Map { "host": "localhost", "port": "8080" }
+
+let allKeys = config.keys()      // [string]
+let allValues = config.values()  // [string]
+let pairs = config.entries()     // [(string, string)]
+```
+
+### Map Methods Summary
+
+| Method | Description | Returns |
+|--------|-------------|---------|
+| `map.get(key)` | Get value by key | `value?` (use `or` for default) |
+| `map.set(key, value)` | Insert or update | `void` |
+| `map.has(key)` | Check key exists | `bool` |
+| `map.delete(key)` | Remove entry | `void` |
+| `map.keys()` | All keys | `[K]` |
+| `map.values()` | All values | `[V]` |
+| `map.entries()` | All key-value pairs | `[(K, V)]` |
+| `map.clear()` | Remove all entries | `void` |
+| `map.forEach(fn)` | Iterate with callback | `void` |
+| `map.length` | Number of entries | `int` |
+
+---
+
 ## Strings
 
 ### String Templates

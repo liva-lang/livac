@@ -1081,8 +1081,12 @@ impl Parser {
 
             self.expect(Token::Gt)?;
 
-            // After generic, check for optional/fallible
-            let mut result = TypeRef::Generic { base, args };
+            // Special case: Map<K, V> → TypeRef::Map
+            let mut result = if base == "Map" && args.len() == 2 {
+                TypeRef::Map(Box::new(args[0].clone()), Box::new(args[1].clone()))
+            } else {
+                TypeRef::Generic { base, args }
+            };
 
             // Check for ? or ! suffix
             if self.match_token(&Token::Question) {
@@ -1606,6 +1610,12 @@ impl Parser {
             }
 
             let var = self.parse_identifier()?;
+            // Support `for key, value in map` destructuring
+            let var2 = if self.match_token(&Token::Comma) {
+                Some(self.parse_identifier()?)
+            } else {
+                None
+            };
             self.expect(Token::In)?;
             let iterable = self.parse_expression_no_lambda()?;
 
@@ -1628,6 +1638,7 @@ impl Parser {
             self.match_token(&Token::Semicolon); // Optional semicolon
 
             let mut stmt = ForStmt::new(var, iterable, body);
+            stmt.var2 = var2;
             stmt.policy = policy;
             stmt.options = options;
 
@@ -2089,10 +2100,15 @@ impl Parser {
             } else if self.match_token(&Token::LParen) {
                 expr = self.finish_call(expr)?;
             } else if self.check(&Token::LBrace) {
-                // Check if this is a struct literal like TypeName { field: value }
+                // Check if this is a Map literal or struct literal
                 if let Expr::Identifier(type_name) = &expr {
-                    // Only allow struct literals for identifiers that start with uppercase (type names)
-                    if type_name.chars().next().map_or(false, |c| c.is_uppercase()) {
+                    if type_name == "Map" {
+                        // Map literal: Map { key: value, key2: value2 }
+                        self.advance(); // consume the {
+                        let entries = self.parse_map_entries()?;
+                        self.expect(Token::RBrace)?;
+                        expr = Expr::MapLiteral(entries);
+                    } else if type_name.chars().next().map_or(false, |c| c.is_uppercase()) {
                         // Bug #64 fix: Verify this is actually a struct literal by looking ahead.
                         // A struct literal has: { } or { ident: expr, ... }
                         // This prevents misinterpreting `LIMIT { continue }` as a struct literal
@@ -2760,6 +2776,25 @@ impl Parser {
         let fields = self.parse_object_fields()?;
         self.expect(Token::RBrace)?;
         Ok(Expr::ObjectLiteral(fields))
+    }
+
+    /// Parse map literal entries: expr: expr, expr: expr, ...
+    /// Used for Map { "key": value, "key2": value2 }
+    fn parse_map_entries(&mut self) -> Result<Vec<(Expr, Expr)>> {
+        let mut entries = Vec::new();
+
+        while !self.is_at_end() && self.peek() != Some(&Token::RBrace) {
+            let key = self.parse_expression()?;
+            self.expect(Token::Colon)?;
+            let value = self.parse_expression()?;
+            entries.push((key, value));
+
+            if !self.match_token(&Token::Comma) {
+                break;
+            }
+        }
+
+        Ok(entries)
     }
 
     fn parse_identifier(&mut self) -> Result<String> {

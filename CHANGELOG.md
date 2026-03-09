@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - v1.3.0-dev
 
+### Added - Map<K,V> Collections (Dictionaries) 🗺️
+
+**Full Map/Dictionary support with HashMap-backed implementation.**
+
+```liva
+// Create maps
+let empty: Map<string, int> = Map {}
+let ages = Map { "Alice": 30, "Bob": 25 }
+
+// CRUD operations
+ages.set("Carlos", 35)
+let age = ages.get("Alice") or 0    // 30
+let found = ages.has("Bob")          // true
+ages.delete("Bob")
+
+// Iteration
+for key, value in ages {
+  print($"{key}: {value}")
+}
+ages.forEach((k, v) => print($"{k}={v}"))
+
+// Collection methods
+let keys = ages.keys()       // [string]
+let vals = ages.values()     // [int]
+let pairs = ages.entries()   // [(string, int)]
+ages.clear()
+```
+
+**Implementation:**
+- AST: `TypeRef::Map(Box<TypeRef>, Box<TypeRef>)`, `Expr::MapLiteral(Vec<(Expr, Expr)>)`, `ForStmt.var2: Option<String>` for destructured iteration
+- Parser: `Map { key: value }` literal (intercepted before StructLiteral), `Map<K, V>` type annotation, `for key, value in map` syntax
+- Semantic: Map type inference from first entry, `TypeRef::Map` arms in all type visitors
+- IR: `MapLiteral(Vec<(Expr, Expr)>)` variant with `Type::from_ast` Map→Custom conversion
+- Lowering: MapLiteral lowering + expression analysis
+- Codegen: `HashMap::new()` / `HashMap::from([...])`, full method dispatch (get→`.get(&key).cloned()`, set→`.insert()`, has→`.contains_key()`, delete→`.remove()`, keys/values/entries→`.cloned().collect()`, forEach→`.iter().for_each(|(k,v)| ...)`, clear→`.clear()`), `map.get(key) or default` → `.unwrap_or()`, `for (k, v) in map.iter()` loop generation
+- Formatter: `format_map_literal()`, `var2` in `format_for()`, `TypeRef::Map` formatting
+
+**Tests:**
+- 8 new snapshot tests (map_literal_empty, map_literal_entries, map_get_set_has_delete, map_keys_values_entries, map_foreach, map_for_loop, map_clear, map_type_annotation)
+- 1 integration test (`examples/tests/test_map.liva`)
+- All 306 tests passing
+
 ### Removed
 
 - **`fire` keyword removed** — Fire-and-forget is now auto-inferred. When an `async` or `par` call appears as a statement (not assigned to a variable), it's automatically treated as fire-and-forget. No `fire` keyword needed.

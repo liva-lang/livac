@@ -174,6 +174,7 @@ pub enum Expr {
         fields: Vec<(String, Expr)>,
     },
     ArrayLiteral(Vec<Expr>),
+    MapLiteral(Vec<(Expr, Expr)>),
     TupleLiteral(Vec<Expr>),
     Range {
         start: Box<Expr>,
@@ -293,6 +294,10 @@ impl Type {
             Some(ast::TypeRef::Union(types)) => {
                 // Convert to Rust union enum type
                 let rust_type = ast::TypeRef::Union(types.clone()).to_rust_type();
+                Type::Custom(rust_type)
+            }
+            Some(ast::TypeRef::Map(key, value)) => {
+                let rust_type = ast::TypeRef::Map(key.clone(), value.clone()).to_rust_type();
                 Type::Custom(rust_type)
             }
             None => Type::Inferred,

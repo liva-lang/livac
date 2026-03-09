@@ -216,6 +216,7 @@ pub enum TypeRef {
     Simple(String),
     Generic { base: String, args: Vec<TypeRef> },
     Array(Box<TypeRef>),
+    Map(Box<TypeRef>, Box<TypeRef>), // Map<K, V> → HashMap<K, V>
     Optional(Box<TypeRef>),
     Fallible(Box<TypeRef>),
     Tuple(Vec<TypeRef>), // Tuple types: (int, string, bool)
@@ -245,6 +246,7 @@ impl TypeRef {
                 format!("{}<{}>", base, args_str)
             }
             TypeRef::Array(inner) => format!("Vec<{}>", inner.to_rust_type()),
+            TypeRef::Map(key, value) => format!("std::collections::HashMap<{}, {}>", key.to_rust_type(), value.to_rust_type()),
             TypeRef::Optional(inner) => format!("Option<{}>", inner.to_rust_type()),
             TypeRef::Fallible(inner) => format!("Result<{}, liva_rt::Error>", inner.to_rust_type()),
             TypeRef::Tuple(types) => {
@@ -419,6 +421,7 @@ pub struct WhileStmt {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ForStmt {
     pub var: String,
+    pub var2: Option<String>, // Second variable for Map iteration: for key, value in map
     pub iterable: Expr,
     #[serde(default)]
     pub policy: DataParallelPolicy,
@@ -431,6 +434,7 @@ impl ForStmt {
     pub fn new(var: String, iterable: Expr, body: BlockStmt) -> Self {
         Self {
             var,
+            var2: None,
             iterable,
             policy: DataParallelPolicy::Seq,
             options: ForPolicyOptions::default(),
@@ -647,6 +651,8 @@ pub enum Expr {
         fields: Vec<(String, Expr)>,
     },
     ArrayLiteral(Vec<Expr>),
+    /// Map literal: Map { "key": value, "key2": value2 }
+    MapLiteral(Vec<(Expr, Expr)>),
     Tuple(Vec<Expr>), // Tuple literals: (10, 20, 30)
     Lambda(LambdaExpr),
     StringTemplate {

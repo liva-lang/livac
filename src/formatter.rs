@@ -851,6 +851,13 @@ impl Formatter {
 
     fn format_for(&mut self, for_stmt: &ForStmt) {
         let iterable = self.format_expr(&for_stmt.iterable);
+        
+        // Build the variable pattern: "key, value" or just "var"
+        let var_pattern = if let Some(ref var2) = for_stmt.var2 {
+            format!("{}, {}", for_stmt.var, var2)
+        } else {
+            for_stmt.var.clone()
+        };
 
         // Phase 11.3/11.4: Detect point-free body (single bare identifier or method ref as body)
         // for item in items => print  →  for item in items { print(item) }
@@ -863,7 +870,7 @@ impl Formatter {
             if let Stmt::Expr(expr_stmt) = &for_stmt.body.stmts[0] {
                 match &expr_stmt.expr {
                     Expr::Identifier(func_name) => {
-                        self.write_line(&format!("for {} in {} {{", for_stmt.var, iterable));
+                        self.write_line(&format!("for {} in {} {{", var_pattern, iterable));
                         self.indent_level += 1;
                         self.write_line(&format!("{}({})", func_name, for_stmt.var));
                         self.indent_level -= 1;
@@ -871,7 +878,7 @@ impl Formatter {
                         return;
                     }
                     Expr::MethodRef { object, method } => {
-                        self.write_line(&format!("for {} in {} {{", for_stmt.var, iterable));
+                        self.write_line(&format!("for {} in {} {{", var_pattern, iterable));
                         self.indent_level += 1;
                         self.write_line(&format!("{}::{}({})", object, method, for_stmt.var));
                         self.indent_level -= 1;
@@ -883,7 +890,7 @@ impl Formatter {
             }
         }
 
-        self.write_line(&format!("for {} in {} {{", for_stmt.var, iterable));
+        self.write_line(&format!("for {} in {} {{", var_pattern, iterable));
         self.indent_level += 1;
         self.format_block(&for_stmt.body);
         self.indent_level -= 1;
@@ -1016,6 +1023,7 @@ impl Formatter {
             }
             Expr::MethodCall(mc) => self.format_method_call(mc),
             Expr::Switch(switch_expr) => self.format_switch_expr(switch_expr),
+            Expr::MapLiteral(entries) => self.format_map_literal(entries),
             Expr::MethodRef { object, method } => {
                 format!("{}::{}", object, method)
             }
@@ -1155,6 +1163,39 @@ impl Formatter {
 
         // Fallback: keep single line even if long (for single-arg lambdas etc.)
         single_line
+    }
+
+    fn format_map_literal(&mut self, entries: &[(Expr, Expr)]) -> String {
+        if entries.is_empty() {
+            return "Map {}".to_string();
+        }
+        let items: Vec<String> = entries
+            .iter()
+            .map(|(k, v)| {
+                let key = self.format_expr(k);
+                let val = self.format_expr(v);
+                format!("{}: {}", key, val)
+            })
+            .collect();
+        let single_line = format!("Map {{ {} }}", items.join(", "));
+        if self.current_indent_width() + single_line.len() <= self.options.max_width {
+            single_line
+        } else {
+            let inner_indent = " ".repeat(self.options.indent_size * (self.indent_level + 1));
+            let outer_indent = " ".repeat(self.options.indent_size * self.indent_level);
+            let mut result = "Map {\n".to_string();
+            for (i, item) in items.iter().enumerate() {
+                result.push_str(&inner_indent);
+                result.push_str(item);
+                if i + 1 < items.len() {
+                    result.push(',');
+                }
+                result.push('\n');
+            }
+            result.push_str(&outer_indent);
+            result.push('}');
+            result
+        }
     }
 
     fn format_object_literal(&mut self, fields: &[(String, Expr)]) -> String {
@@ -1427,6 +1468,9 @@ impl Formatter {
             TypeRef::Union(types) => {
                 let ts: Vec<String> = types.iter().map(|t| self.format_type_ref(t)).collect();
                 ts.join(" | ")
+            }
+            TypeRef::Map(key, value) => {
+                format!("Map<{}, {}>", self.format_type_ref(key), self.format_type_ref(value))
             }
         }
     }

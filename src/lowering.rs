@@ -334,6 +334,12 @@ fn lower_expr(expr: &ast::Expr) -> ir::Expr {
         ast::Expr::ArrayLiteral(items) => {
             ir::Expr::ArrayLiteral(items.iter().map(lower_expr).collect())
         }
+        ast::Expr::MapLiteral(entries) => ir::Expr::MapLiteral(
+            entries
+                .iter()
+                .map(|(k, v)| (lower_expr(k), lower_expr(v)))
+                .collect(),
+        ),
         ast::Expr::Tuple(items) => ir::Expr::TupleLiteral(items.iter().map(lower_expr).collect()),
         ast::Expr::ObjectLiteral(fields) => ir::Expr::ObjectLiteral(
             fields
@@ -617,6 +623,9 @@ fn expr_uses_param_as_array(expr: &ast::Expr, name: &str) -> bool {
         ast::Expr::ArrayLiteral(items) => items
             .iter()
             .any(|item| expr_uses_param_as_array(item, name)),
+        ast::Expr::MapLiteral(entries) => entries
+            .iter()
+            .any(|(k, v)| expr_uses_param_as_array(k, name) || expr_uses_param_as_array(v, name)),
         ast::Expr::ObjectLiteral(fields) => fields
             .iter()
             .any(|(_, value)| expr_uses_param_as_array(value, name)),
@@ -648,6 +657,9 @@ fn expr_references_identifier(expr: &ast::Expr, name: &str) -> bool {
         ast::Expr::ArrayLiteral(items) => items
             .iter()
             .any(|item| expr_references_identifier(item, name)),
+        ast::Expr::MapLiteral(entries) => entries
+            .iter()
+            .any(|(k, v)| expr_references_identifier(k, name) || expr_references_identifier(v, name)),
         ast::Expr::ObjectLiteral(fields) => fields
             .iter()
             .any(|(_, value)| expr_references_identifier(value, name)),
@@ -940,6 +952,9 @@ fn contains_fail_in_expr(expr: &ast::Expr) -> bool {
         }
         ast::Expr::ArrayLiteral(elements) => {
             elements.iter().any(|elem| contains_fail_in_expr(elem))
+        }
+        ast::Expr::MapLiteral(entries) => {
+            entries.iter().any(|(k, v)| contains_fail_in_expr(k) || contains_fail_in_expr(v))
         }
         ast::Expr::Lambda(lambda) => match &lambda.body {
             ast::LambdaBody::Expr(body) => contains_fail_in_expr(body),

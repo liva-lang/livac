@@ -1,8 +1,8 @@
 # 🗺️ Liva Language Roadmap
 
 > **Current Version:** v1.3.0-dev (tag: v1.2.0)  
-> **Status:** Session 17 complete + `or <value>` syntax, parser bugfix, Error Trace Chaining  
-> **Next Phase:** Phase 13 — Advanced Features  
+> **Status:** Session 17 complete + `or <value>` syntax, parser bugfix, Error Trace Chaining + Map<K,V>  
+> **Next Phase:** Phase 13 — Advanced Features (in progress)  
 > **Planned:** Phase 13 — Advanced Language Features  
 > **Last Updated:** 2026-03-05
 
@@ -56,6 +56,10 @@ Each phase is broken into sub-tasks with time estimates and clear deliverables.
 - ✅ Type aliases with generics (v0.11.1)
 - ✅ Union types with pattern matching (v0.11.2-v0.11.3)
 
+**Collections:**
+- ✅ Arrays with full method support
+- ✅ Map<K,V> (dictionaries) with HashMap backend (v1.3.0)
+
 **Concurrency:**
 - ✅ Async/await for I/O-bound operations
 - ✅ Parallel execution for CPU-bound operations
@@ -90,6 +94,16 @@ Each phase is broken into sub-tasks with time estimates and clear deliverables.
 - ✅ 7 core LSP features working (completion, diagnostics, navigation, hover)
 - ✅ Full documentation suite (~3,400 lines)
 - ✅ Phase 8.1 fully complete
+
+**Phase 13 — Map<K,V> Collections (v1.3.0):**
+- ✅ `Map { key: value }` literal syntax
+- ✅ `Map<K, V>` type annotations
+- ✅ Methods: get, set, has, delete, keys, values, entries, clear, forEach
+- ✅ `map.get(key) or default` with fallible default value
+- ✅ `for key, value in map` destructured iteration
+- ✅ Full compiler pipeline: AST → Parser → Semantic → IR → Lowering → Codegen → Formatter
+- ✅ 8 snapshot tests + 1 integration test (306 tests total)
+- ✅ Documentation: QUICK_REFERENCE, CHANGELOG
 
 ---
 
