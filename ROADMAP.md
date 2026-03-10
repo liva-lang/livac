@@ -1,10 +1,9 @@
 # 🗺️ Liva Language Roadmap
 
 > **Current Version:** v1.3.0-dev (tag: v1.2.0)  
-> **Status:** Session 17 complete + `or <value>` syntax, parser bugfix, Error Trace Chaining + Map<K,V>  
-> **Next Phase:** Phase 13 — Advanced Features (in progress)  
-> **Planned:** Phase 13 — Advanced Language Features  
-> **Last Updated:** 2026-03-05
+> **Status:** Map<K,V>, Error Trace Chaining, `or <value>`, Enum Types, CI/CD, 306 tests  
+> **Completed:** Phases 1-13, Sessions 14-18  
+> **Last Updated:** 2026-03-10
 
 ---
 
@@ -26,28 +25,32 @@ The roadmap is organized into focused phases:
 - **Phase 5:** 🧬 Generics - Type-safe generic programming (v0.9.0) ✅
 - **Phase 6:** 🔧 Incremental improvements - High-value productivity features (v0.9.x - v0.10.x) ✅
 - **Phase 7:** 🎯 Advanced types - Tuples, unions, type aliases (v0.11.0+) ✅
-  - **Phase 7.1:** ✅ Tuple Types (v0.11.0) - Complete
-  - **Phase 7.3:** ✅ Type Aliases (v0.11.1) - Complete
-  - **Phase 7.2:** ✅ Union Types (v0.11.2-v0.11.3) - Complete with Pattern Matching
-- **Phase 8:** 🚢 Production release - LSP, debugging, stability (v1.0.0) �
-  - **Phase 8.1:** ✅ Language Server Protocol (v0.12.0) - Complete
-
-Each phase is broken into sub-tasks with time estimates and clear deliverables.
+- **Phase 8:** 🚢 Production release - LSP, debugging, stability (v1.0.0) ✅
+- **Phase 9:** 🎨 v1.0 Polish - Code formatter, `or fail`, `=>` one-liners (v1.0.2-v1.1.0) ✅
+- **Phase 10:** 🔗 Method References - Point-free and `::` syntax (v1.1.0) ✅
+- **Phase 11:** 📊 Comprehensive Feature Tests - 44 snapshot tests documenting ALL syntax ✅
+- **Phase 12:** 🧪 Test Framework - Built-in `liva/test` runner (v1.2.0) ✅
+- **Session 14:** 🚀 5 New features - break/continue, `..=`, Math.PI/E, join, data classes ✅
+- **Session 15:** 🐛 Dogfooding - Student Grade Tracker, 9 bugs fixed ✅
+- **Session 16:** 📦 CI/CD - GitHub Actions, cross-platform releases ✅
+- **Session 17:** 🎯 Enum Types - Algebraic data types + Release v1.2.0 ✅
+- **Session 18:** 🗂️ Dir/Sys/contains - New stdlib modules ✅
+- **Phase 13:** 🗺️ Map<K,V> Collections - Dictionaries with HashMap (v1.3.0) ✅
 
 ---
 
-## 📍 Current Status (v0.13.0)
+## 📍 Current Status (v1.3.0-dev)
 
 ### ✅ Completed Features
 
 **Core Language:**
-- ✅ Variables (`let`, `const`) with type inference
-- ✅ Functions (one-liner, block, typed parameters/returns)
-- ✅ Classes (constructors, fields, methods)
+- ✅ Variables (`let`, `const`, top-level `const`) with type inference
+- ✅ Functions (one-liner `=>`, block, typed parameters/returns)
+- ✅ Classes (constructors, fields, methods, auto data classes)
 - ✅ Interfaces (method signatures, multiple implementation)
 - ✅ Enum types (algebraic data types with pattern matching)
-- ✅ Control flow (`if`, `while`, `for`, `switch`, ternary)
-- ✅ Operators (arithmetic, logical, comparison, bitwise)
+- ✅ Control flow (`if`, `while`, `for`, `switch`, ternary, `break`/`continue`)
+- ✅ Operators (arithmetic, logical, comparison, bitwise, inclusive range `..=`)
 - ✅ String templates with interpolation
 - ✅ Visibility modifiers (public, private)
 
@@ -74,6 +77,19 @@ Each phase is broken into sub-tasks with time estimates and clear deliverables.
 - ✅ `or <value>` default value on error (v1.3.0)
 - ✅ Error trace chaining with function names and source locations (v1.3.0)
 
+**Syntax Sugar & Ergonomics (v1.1.0):**
+- ✅ `or fail` error propagation shorthand
+- ✅ `=>` one-liner syntax for if/for/while
+- ✅ Point-free function references (`items.forEach(print)`)
+- ✅ `::` method references (`array.map(Formatter::format)`)
+
+**Stdlib & I/O:**
+- ✅ `Dir.list(path)`, `Dir.isDir(path)` — directory operations
+- ✅ `Sys.args()`, `Sys.env()`, `Sys.exit()` — system access
+- ✅ `string.contains(substring)` — string search
+- ✅ `[string].join(sep)` — array join
+- ✅ `Math.PI`, `Math.E` — math constants
+
 **Tooling & IDE Support:**
 - ✅ Language Server Protocol (LSP) with full IDE features
 - ✅ Real-time diagnostics (lexer, parser, semantic errors)
@@ -83,17 +99,13 @@ Each phase is broken into sub-tasks with time estimates and clear deliverables.
 - ✅ Hover type information
 - ✅ VS Code extension with LSP client integration
 - ✅ Real-time interface validation
-- ✅ Syntax highlighting and snippets
-- ✅ Comprehensive test suite (110+ tests)
-- ✅ Complete documentation (27+ files, 5,500+ lines)
-
-**Recent Changes (2025-10-27):**
-- ✅ Complete Language Server Protocol implementation
-- ✅ LSP server in Rust with tower-lsp framework
-- ✅ VS Code extension with automatic LSP client
-- ✅ 7 core LSP features working (completion, diagnostics, navigation, hover)
-- ✅ Full documentation suite (~3,400 lines)
-- ✅ Phase 8.1 fully complete
+- ✅ Syntax highlighting and snippets (80+)
+- ✅ Code formatter (`--fmt`, `--fmt-check`, LSP formatting)
+- ✅ Test framework (`--test`) with Jest-like API
+- ✅ CI/CD with GitHub Actions (3 OSes: Ubuntu, macOS, Windows)
+- ✅ Release workflow (.deb/.rpm/.tar.gz/.zip)
+- ✅ Comprehensive test suite (306 tests)
+- ✅ Complete documentation (60+ files)
 
 **Phase 13 — Map<K,V> Collections (v1.3.0):**
 - ✅ `Map { key: value }` literal syntax
@@ -170,10 +182,10 @@ Each phase is broken into sub-tasks with time estimates and clear deliverables.
 - [x] Pushed to remote ✅
 
 **Result:** Phase 1 Complete! 🎉
-- [ ] `cargo clippy` - No warnings ✅
-- [ ] `cargo fmt --check` - Code formatted ✅
-- [ ] Documentation builds correctly ✅
-- [ ] VSCode extension works ✅
+- [x] `cargo clippy` - No warnings ✅
+- [x] `cargo fmt --check` - Code formatted ✅
+- [x] Documentation builds correctly ✅
+- [x] VSCode extension works ✅
 
 **Deliverable:** Liva v0.6.1 - Production-ready, zero warnings, 100% tests passing
 
@@ -224,8 +236,8 @@ Each phase is broken into sub-tasks with time estimates and clear deliverables.
   - [x] Tested: indexOf(2, 0, 4, -1), includes(true/false)
 - [x] All 9 core array methods complete! 🎉
 - [x] Comprehensive tests created (6 test files)
-- [ ] Add comprehensive unit tests in tests/stdlib_tests.rs
-- [ ] Update documentation with working examples
+- [x] Add comprehensive unit tests in tests/stdlib_tests.rs
+- [x] Update documentation with working examples
 
 **Achievement Unlocked:** 🚀 Complete array methods implementation in 1 day!
 
@@ -262,8 +274,8 @@ Each phase is broken into sub-tasks with time estimates and clear deliverables.
 - [x] All 11 string methods complete! 🎉
 - [x] Comprehensive tests created (4 test files)
 - [x] Implement `join(separator)` on string arrays ✅ (Session 14)
-- [ ] Add comprehensive unit tests in tests/stdlib_tests.rs
-- [ ] Update documentation with working examples
+- [x] Add comprehensive unit tests in tests/stdlib_tests.rs
+- [x] Update documentation with working examples
 
 **Achievement Unlocked:** 🔥 Complete string methods implementation in 1 day!
 
@@ -888,7 +900,7 @@ Result<T, E> {
   - Created `validate_method_with_params()` to combine class and method type params
   - **File:** examples/test_type_param_validation.liva
   - **Status:** Type parameter validation working correctly
-- [ ] Implement constraint checking (`T: Clone`, `T: Display`) - Deferred to v0.9.1
+- [x] Implement constraint checking (`T: Clone`, `T: Display`) ✅ See Phase 5.8
 - [ ] Implement type inference for generic calls - Deferred to v0.9.1
 - [ ] Implement type substitution algorithm - Deferred to v0.9.1
 
@@ -911,7 +923,7 @@ Result<T, E> {
 
 ### 5.6 Standard Library Integration (Optional)
 - [ ] Convert stdlib `Array` to `Array<T>`  
-- [ ] Add `Map<K, V>` generic collection
+- [x] Add `Map<K, V>` generic collection ✅ (Phase 13, v1.3.0)
 - [ ] Add `Set<T>` generic collection
 - [ ] Add generic utility functions (map, filter, reduce)
 
@@ -1078,7 +1090,7 @@ formatAndCompare<T: Comparable + Display>(a: T, b: T) { ... }
 
 **Goal:** Small, high-value features to improve developer productivity
 
-**Status:** 📋 Planned  
+**Status:** ✅ Mostly Complete (6.6 Spread Operators pending)  
 **Branch:** Multiple feature branches  
 **ETA:** 2-4 hours each
 
@@ -1391,7 +1403,7 @@ let size = switch num {
 
 **Goal:** Improve language ergonomics and generated code quality
 
-**Status:** � In Progress  
+**Status:** ⏸️ Partial (only 7.0 JSON Typed Parsing complete, 7.1-7.5 not started)  
 **Branch:** `feature/optimizations-v0.10.0`  
 **ETA:** Variable (18-28 hours estimated)
 
@@ -1702,7 +1714,7 @@ pub struct User {
 
 **Goal:** Add tuple types and advanced type system features
 
-**Status:** ⏸️ Phase 7.1 Complete, others pending  
+**Status:** ✅ COMPLETED (7.1 Tuples, 7.2 Union Types, 7.3 Type Aliases)  
 **Branch:** `feature/tuple-types-v0.11.0` → Merged to main  
 **ETA:** 8-12 hours
 
@@ -1840,7 +1852,7 @@ type Pair<T, U> = (T, U)
 
 **Status:** ✅ Phase 8.1-8.2 COMPLETED (2025-10-27)  
 **Branch:** `main` (merged from `feature/lsp-v0.12.0` and `feature/lsp-workspace-v0.13.0`)  
-**Latest Release:** v0.13.0
+**Latest Release:** v1.2.0
 
 ### 8.1 Language Server Protocol (LSP) ✅ COMPLETED (v0.12.0)
 
@@ -1959,28 +1971,28 @@ type Pair<T, U> = (T, U)
 - [ ] Variable inspection
 - [ ] Call stack
 
-### 8.3 Performance Optimizations
+### 8.4 Performance Optimizations
 - [ ] Profile compiler performance
 - [ ] Optimize parsing
 - [ ] Optimize type checking
 - [ ] Optimize code generation
 - [ ] Benchmark suite
 
-### 8.4 Stability & Polish
+### 8.5 Stability & Polish
 - [ ] Comprehensive test suite (>90% coverage)
 - [ ] Stress testing
 - [ ] Memory leak detection
 - [ ] Security audit
 - [ ] Performance benchmarks
 
-### 8.5 Documentation
+### 8.6 Documentation
 - [ ] Complete language specification
 - [ ] Tutorial series
 - [ ] API reference
 - [ ] Migration guides
 - [ ] Best practices
 
-### 8.6 Package Manager (Optional)
+### 8.7 Package Manager (Optional)
 - [ ] Design package format
 - [ ] Implement package registry
 - [ ] Package discovery
@@ -2143,10 +2155,10 @@ New `src/formatter.rs` module (~1500 lines) providing:
 
 ---
 
-## 🍬 Phase 11: Syntax Sugar & Ergonomics (v1.1.0) — IN PROGRESS
+## 🍬 Phase 11: Syntax Sugar & Ergonomics (v1.1.0) — ✅ COMPLETED
 
 **Goal:** Reduce boilerplate with ergonomic syntax sugar while maintaining full backward compatibility  
-**Status:** ✅ 11.1, 11.2, 11.3 & 11.4 Complete  
+**Status:** ✅ COMPLETED (11.1, 11.2, 11.3 & 11.4)  
 **Estimated effort:** ~8-12 hours  
 **Backward compatibility:** ✅ All existing syntax continues to work. These are ADDITIONAL alternatives.
 
@@ -2524,6 +2536,275 @@ describe("HTTP Client", () => {
 
 ---
 
+## 🚀 Session 14: 5 New Language Features — ✅ COMPLETE
+
+**Goal:** Implement 5 pending language features for better ergonomics and control flow  
+**Status:** ✅ COMPLETED  
+**Tests:** 272 (up from 264, +8 snapshot tests)
+
+### 14.1 `break` / `continue` Loop Control ✅
+
+- [x] Lexer: `Break`, `Continue` tokens
+- [x] AST: `Stmt::Break`, `Stmt::Continue`
+- [x] Parser: Parse `break`/`continue` in `while` and `for` loops
+- [x] IR: `ir::Stmt::Break`, `ir::Stmt::Continue`
+- [x] Lowering: AST → IR for break/continue
+- [x] Codegen: Rust `break`/`continue` generation
+- [x] Semantic: Validation (only inside loops)
+- [x] Formatter: break/continue formatting
+- [x] LSP: break/continue keyword completions
+- [x] Tests: 3 snapshot tests (break, continue, combined)
+
+### 14.2 `..=` Inclusive Range in Expressions ✅
+
+- [x] AST: `BinOp::RangeInclusive`
+- [x] Parser: `..=` operator parsing in expressions (for loops)
+- [x] IR: `ir::Expr::RangeInclusive`
+- [x] Lowering: AST → IR for inclusive range
+- [x] Codegen: Rust `..=` operator generation
+- [x] Tests: 1 snapshot test (`for i in 1..=5`)
+
+### 14.3 `Math.PI` / `Math.E` Constants ✅
+
+- [x] Codegen: `Math.PI` → `std::f64::consts::PI`, `Math.E` → `std::f64::consts::E`
+- [x] Tests: 1 snapshot test
+
+### 14.4 `[string].join(separator)` Method ✅
+
+- [x] Codegen: `words.join(", ")` → Rust `.join(", ")`
+- [x] Tests: 1 snapshot test
+
+### 14.5 Auto Data Classes ✅
+
+- [x] Parser: `data` as contextual keyword
+- [x] Codegen: Auto-derive positional constructor, `PartialEq`, `Display`
+- [x] Formatter: `data` class prefix
+- [x] Tests: 2 snapshot tests (basic, with methods)
+
+**Files modified:** 10 source files (`lexer.rs`, `ast.rs`, `parser.rs`, `ir.rs`, `lowering.rs`, `codegen.rs`, `semantic.rs`, `formatter.rs`, `lsp/server.rs`, `tests/codegen_tests.rs`)
+
+---
+
+## 🐛 Session 15: Dogfooding & Bug Fixes — ✅ COMPLETE
+
+**Goal:** Write a real Liva program (~300 lines) exercising ALL major features, find and fix bugs  
+**Status:** ✅ COMPLETED  
+**Tests:** 278 (up from 272, +6 regression tests)
+
+**Demo app:** Student Grade Tracker — exercises constants, data classes, interfaces, switch expressions with range patterns, classes, array/string methods, error handling, string templates, Math constants, break/continue, inclusive ranges, visibility.
+
+### Bugs Fixed (9): #63-#74
+
+- [x] **Bug #63**: `return` without value before `}` — parse error fix (check for `RBrace`)
+- [x] **Bug #64**: Uppercase const + `{ continue }` misinterpreted as struct literal — lookahead fix
+- [x] **Bug #65**: `.length` on member/method expressions rejected — extended `expr_supports_length()`
+- [x] **Bug #66**: Data class `Display` had unescaped braces — use `push_str` with escaped braces
+- [x] **Bug #67**: Data class `new()` had no parameters — generate field-based constructor
+- [x] **Bug #68**: Switch expression string arms returned `&str` — added `.to_string()`
+- [x] **Bug #69**: `this.field[i].prop` generated bracket notation — extended typed array detection
+- [x] **Bug #70**: Method `fail` didn't produce `Result` type — added `contains_fail` check
+- [x] **Bug #71**: Method bodies didn't pre-analyze mutated variables — added `mutated_vars` analysis
+- [x] **Bug #74**: For loops consumed collections (ownership) — added `.clone()` for variable iterables
+
+### Regression Tests (6)
+
+- [x] `test_bug63_return_without_value`
+- [x] `test_bug64_const_continue_struct_literal`
+- [x] `test_bug66_data_class_display_and_constructor`
+- [x] `test_bug68_switch_string_literals`
+- [x] `test_bug70_method_fail_result`
+- [x] `test_bug74_for_loop_ownership`
+
+**Files modified:** `parser.rs`, `semantic.rs`, `codegen.rs`, `tests/codegen_tests.rs`
+
+---
+
+## 📦 Session 16: CI/CD & Cross-Platform Releases — ✅ COMPLETE
+
+**Goal:** Production-grade CI/CD with multi-platform packaging  
+**Status:** ✅ COMPLETED  
+**Tests:** 278 pass on Ubuntu, macOS, Windows
+
+### 16.1 GitHub Actions CI ✅
+
+- [x] CI matrix: Ubuntu, macOS, Windows (`fail-fast: false`)
+- [x] Clippy linting (advisory mode)
+- [x] Rustfmt check
+- [x] Cross-platform test normalization (`\r\n` → `\n`)
+- [x] Windows IO error message compatibility
+- [x] LSP import tests `#[cfg(unix)]` for URI format differences
+
+### 16.2 Release Workflow ✅
+
+- [x] Triggered on `v*` tags (e.g., `v1.2.0`)
+- [x] 4 build targets: `x86_64-unknown-linux-gnu`, `x86_64-apple-darwin`, `aarch64-apple-darwin`, `x86_64-pc-windows-msvc`
+- [x] `.deb` package via `cargo-deb` (Ubuntu/Debian)
+- [x] `.rpm` package via `cargo-generate-rpm` (Fedora/RHEL)
+- [x] `.tar.gz` archives for Linux and macOS
+- [x] `.zip` archive for Windows
+- [x] SHA-256 checksums for all artifacts
+- [x] Auto-generated release notes
+
+### 16.3 Project Metadata ✅
+
+- [x] `Cargo.toml`: homepage, repository, license, keywords, categories
+- [x] `Cargo.toml`: `[package.metadata.deb]` and `[package.metadata.generate-rpm]`
+- [x] `LICENSE`: MIT License
+- [x] `README.md`: CI/Release badges, installation section, build from source
+
+**Files modified:** 11 files (`ci.yml`, `release.yml`, `Cargo.toml`, `LICENSE`, `README.md`, `main.rs`, `lsp/imports.rs`, 5 test files)
+
+---
+
+## 🎯 Session 17: Enum Types & Release v1.2.0 — ✅ COMPLETE
+
+**Goal:** Algebraic data types with pattern matching + publish first tagged release  
+**Status:** ✅ COMPLETED  
+**Tests:** 283 (up from 278, +5 snapshot tests)
+
+### 17.1 Enum Types (Algebraic Data Types) ✅
+
+- [x] Lexer: `Token::Enum` keyword
+- [x] AST: `TopLevel::Enum`, `EnumDecl`, `EnumVariant`, `EnumField`, `Pattern::EnumVariant`
+- [x] Parser: `parse_enum_decl`, enum variant pattern parsing in switch
+- [x] Semantic: Register enums in type system, pattern handling
+- [x] Lowering: Skip enums (bypass IR like classes)
+- [x] Codegen: `generate_enum`, variant construction, pattern matching with destructuring
+- [x] Formatter: `format_enum_decl`, enum variant patterns
+- [x] LSP: Handle `TopLevel::Enum` variant in symbols
+- [x] Unit variants: `enum Color { Red, Green, Blue }`
+- [x] Data variants: `enum Shape { Circle(radius: number), Rectangle(width: number, height: number) }`
+- [x] Pattern matching with destructuring: `Shape.Circle(r) => r * r`
+- [x] Tests: 5 snapshot tests + end-to-end test
+
+### 17.2 Release v1.2.0 ✅
+
+- [x] Fixed RPM path in release workflow (dynamic `find`)
+- [x] All 7 release assets published (.deb, .rpm, .tar.gz, .zip, checksums)
+- [x] Rustfmt enforced in CI
+- [x] All 5 CI jobs green (Ubuntu, macOS, Windows, Clippy, Rustfmt)
+
+---
+
+## 🗂️ Session 18: Dir Module, Sys Docs, string.contains() — ✅ COMPLETE
+
+**Goal:** New stdlib modules for file system and system access  
+**Status:** ✅ COMPLETED  
+**Tests:** 290 (up from 283, +2 new tests)
+
+### 18.1 New Stdlib APIs ✅
+
+- [x] `Dir.list(path)` — List directory entries with error binding, returns sorted `[string]`
+- [x] `Dir.isDir(path)` — Check if a path is a directory (returns `bool`)
+- [x] `string.contains(substring)` — Check if a string contains a substring (returns `bool`)
+
+### 18.2 Codegen Improvements ✅
+
+- [x] Track `split()` results as array variables (not string variables)
+- [x] Clone string variables when passed to functions (Rust move semantics)
+- [x] Add `&` prefix for variable arguments in pattern-based string methods
+- [x] Remove unnecessary parentheses around `File.read`/`write`/`append` match expressions
+- [x] Extend `is_file_call()` to recognize `Dir.list` for error binding unwrapping
+
+### 18.3 Documentation ✅
+
+- [x] Added Dir module to `docs/language-reference/file-io.md`
+- [x] Added `contains()` to `docs/language-reference/stdlib/strings.md`
+- [x] Created `docs/language-reference/stdlib/system.md`
+- [x] Updated `docs/QUICK_REFERENCE.md` with Dir, Sys, and contains()
+- [x] Updated `docs/language-reference/stdlib/README.md` index
+
+### 18.4 Demo App ✅
+
+- [x] `buscador/` — Recursive grep-like text search tool in Liva
+
+---
+
+## 🗺️ Phase 13: Map<K,V> Collections (v1.3.0) — ✅ COMPLETE
+
+**Goal:** Full dictionary/map support with HashMap backend  
+**Status:** ✅ COMPLETED  
+**Tests:** 306 (up from 290, +8 snapshot tests + 1 integration test)
+
+### 13.1 Map Literal & Type Syntax ✅
+
+- [x] AST: `TypeRef::Map(Box<TypeRef>, Box<TypeRef>)`, `Expr::MapLiteral(Vec<(Expr, Expr)>)`
+- [x] Parser: `Map { key: value }` literal (intercepted before StructLiteral)
+- [x] Parser: `Map<K, V>` type annotation
+- [x] Semantic: Map type inference from first entry, `TypeRef::Map` arms in all visitors
+- [x] IR: `MapLiteral(Vec<(Expr, Expr)>)` variant
+- [x] Codegen: `HashMap::new()` / `HashMap::from([...])`
+
+### 13.2 Map Methods ✅
+
+- [x] `get` → `.get(&key).cloned()` (fallible with `or default`)
+- [x] `set` → `.insert(key, value)`
+- [x] `has` → `.contains_key(&key)`
+- [x] `delete` → `.remove(&key)`
+- [x] `keys` → `.keys().cloned().collect()`
+- [x] `values` → `.values().cloned().collect()`
+- [x] `entries` → `.iter().map(|(k,v)| (k.clone(), v.clone())).collect()`
+- [x] `clear` → `.clear()`
+- [x] `forEach` → `.iter().for_each(|(k,v)| ...)`
+
+### 13.3 Map Iteration ✅
+
+- [x] `ForStmt.var2: Option<String>` for destructured iteration
+- [x] `for key, value in map` → `for (k, v) in map.iter()`
+- [x] `map.get(key) or default` → `.unwrap_or()`
+
+### 13.4 Formatter & Tooling ✅
+
+- [x] `format_map_literal()`, `var2` in `format_for()`, `TypeRef::Map` formatting
+- [x] Lowering: MapLiteral lowering + expression analysis
+
+### 13.5 Tests & Docs ✅
+
+- [x] 8 snapshot tests: map_literal_empty, map_literal_entries, map_get_set_has_delete, map_keys_values_entries, map_foreach, map_for_loop, map_clear, map_type_annotation
+- [x] 1 integration test: `examples/tests/test_map.liva`
+- [x] Docs: QUICK_REFERENCE, CHANGELOG, language-reference/collections.md, copilot-instructions.md
+
+---
+
+## 🔄 v1.3.0-dev Additional Features — ✅ COMPLETE
+
+**Features added during v1.3.0 development cycle outside of Map:**
+
+### `fire` Keyword Removed ✅
+
+- [x] Fire-and-forget auto-inferred from context (async/par call as statement → fire-and-forget)
+- [x] No `fire` keyword needed — simpler syntax
+
+### `data` Keyword Removed ✅
+
+- [x] Classes with fields + no constructor auto-detected as data classes
+- [x] No `data` keyword needed (breaking change from Session 14)
+- [x] Parser, codegen, formatter updated
+- [x] Tests: 3 new tests (auto_data_class_fields_only, auto_data_class_with_methods, class_with_constructor_not_data)
+
+### `or <value>` Default Value for Fallible Calls ✅
+
+- [x] `let x = fallibleCall() or defaultValue` — returns default when call fails
+- [x] AST: `or_value: Option<Box<Expr>>` on `VarDecl`
+- [x] Codegen: `match expr { Ok(v) => v, Err(_) => default }`
+- [x] Tests: 1 snapshot test
+
+### Error Trace Chaining ✅
+
+- [x] `liva_rt::Error`: `cause`, `function`, `location` fields
+- [x] `Error::chain(msg, fn, loc, cause)` for chaining errors
+- [x] Colored box trace output (`✗` red top error, `⊘` yellow causes)
+- [x] Parser captures source line for `fail` and `or fail`
+- [x] CodeGenerator tracks `current_function_name` and `source_filename`
+- [x] Zero syntax changes — all internal to compiler
+
+### Parser Bug Fix: `if cond => fail` ✅
+
+- [x] `if err => fail "msg"` no longer parsed as lambda
+- [x] Changed to `parse_expression_no_lambda()` for if-conditions
+
+---
+
 | Version | Focus | Status | ETA |
 |---------|-------|--------|-----|
 | **v0.6.1** | Consolidation & Quality | ✅ Completed | 2025-10-20 |
@@ -2539,8 +2820,9 @@ describe("HTTP Client", () => {
 | **v1.0.0** | Stable Release (54/54 bugs) | ✅ Completed | 2026-02-04 |
 | **v1.0.2** | Code Formatter (CLI + LSP) | ✅ Completed | 2026-02-06 |
 | **v1.1.0** | Syntax Sugar & Ergonomics | ✅ Completed | 2026-02-11 |
-| **v1.2.0** | Test Framework (`liva/test`) | ✅ Completed | 2026-02-12 |
-**Total effort completed:** ~85+ hours of focused development 🎉
+| **v1.2.0** | Test Framework (`liva/test`) + Enum Types + Release | ✅ Completed | 2026-02-12 |
+| **v1.3.0-dev** | Map<K,V>, Error Trace, `or <value>`, keyword removals | 🔄 In Progress | — |
+**Total effort completed:** ~100+ hours of focused development 🎉
 
 ---
 
@@ -2589,5 +2871,5 @@ For roadmap discussions, open an issue with the `roadmap` label.
 
 ---
 
-**Last Updated:** 2026-02-11  
+**Last Updated:** 2026-03-10  
 **Maintainer:** Fran Nadal
