@@ -397,7 +397,7 @@ fn main() {
         if _is_ignored(entry.clone()) {
             continue;
         }
-        results.push(entry);
+        results.push(entry.clone());
     }
     println!("{:?}", results);
 }

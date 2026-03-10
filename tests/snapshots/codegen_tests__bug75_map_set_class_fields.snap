@@ -387,32 +387,40 @@ mod liva_rt {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct Library {
-    pub books: Vec<String>,
+pub struct Store {
+    pub prices: std::collections::HashMap<String, i32>,
+    pub tags: std::collections::HashSet<String>,
 }
 
-impl Library {
+impl Store {
     pub fn new() -> Self {
         Self {
-            books: vec![],
+            prices: std::collections::HashMap::new(),
+            tags: std::collections::HashSet::new(),
         }
     }
 
-    // Generating method: addBook
-    pub fn add_book(&mut self, title: String) {
-        self.books.push(title.clone());
+    // Generating method: addPrice
+    pub fn add_price(&mut self, name: String, price: i32) {
+        self.prices.insert(name.clone(), price);
     }
 
-    // Generating method: search
-    pub fn search(&self, query: String) -> Vec<String> {
-        return self.books.iter().filter(|&book| *book == query).cloned().collect::<Vec<_>>();
+    // Generating method: addTag
+    pub fn add_tag(&mut self, tag: String) {
+        self.tags.insert(tag.clone());
+    }
+
+    // Generating method: hasTag
+    pub fn has_tag(&self, tag: String) -> bool {
+        return self.tags.contains(&tag);
     }
 
 }
 
 fn main() {
-    let mut lib = Library::new();
-    lib.add_book("Liva Guide".to_string());
-    let found = lib.search("Liva Guide".to_string());
-    println!("{}", (found.len() as i32));
+    let mut s = Store::new();
+    s.add_price("apple".to_string(), 1);
+    s.add_price("banana".to_string(), 2);
+    s.add_tag("organic".to_string());
+    println!("{}", s.has_tag("organic".to_string()));
 }

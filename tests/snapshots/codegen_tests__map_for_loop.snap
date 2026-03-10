@@ -389,6 +389,8 @@ mod liva_rt {
 fn main() {
     let colors = std::collections::HashMap::from([("red".to_string(), "FF0000".to_string()), ("green".to_string(), "00FF00".to_string())]);
     for (key, value) in colors.iter() {
+        let key = key.clone();
+        let value = value.clone();
         println!("{}", key);
         println!("{}", value);
     }

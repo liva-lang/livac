@@ -386,33 +386,10 @@ mod liva_rt {
     
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct Library {
-    pub books: Vec<String>,
-}
-
-impl Library {
-    pub fn new() -> Self {
-        Self {
-            books: vec![],
-        }
-    }
-
-    // Generating method: addBook
-    pub fn add_book(&mut self, title: String) {
-        self.books.push(title.clone());
-    }
-
-    // Generating method: search
-    pub fn search(&self, query: String) -> Vec<String> {
-        return self.books.iter().filter(|&book| *book == query).cloned().collect::<Vec<_>>();
-    }
-
-}
-
 fn main() {
-    let mut lib = Library::new();
-    lib.add_book("Liva Guide".to_string());
-    let found = lib.search("Liva Guide".to_string());
-    println!("{}", (found.len() as i32));
+    let nums = vec![1, 2, 3, 4, 5];
+    let has_even = nums.iter().any(|&n| n % 2 == 0);
+    let all_positive = nums.iter().all(|&n| n > 0);
+    println!("{}", has_even);
+    println!("{}", all_positive);
 }

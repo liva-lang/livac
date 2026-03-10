@@ -3163,3 +3163,200 @@ main() {
     assert!(rust_code.contains(".difference("), "should generate .difference()");
     assert_snapshot!("set_union_intersection_difference", rust_code);
 }
+
+// ============================================================
+// Dogfooding v2 regression tests (Bugs #75-#82)
+// ============================================================
+
+#[test]
+fn test_bug75_map_set_class_fields() {
+    // Bug #75: Map/Set fields in classes must be recognized for correct method routing
+    let source = r#"
+Store {
+  prices: Map<string, int>
+  tags: Set<string>
+
+  constructor() {
+    this.prices = Map {}
+    this.tags = Set {}
+  }
+
+  addPrice(name: string, price: int) {
+    this.prices.set(name, price)
+  }
+
+  addTag(tag: string) {
+    this.tags.add(tag)
+  }
+
+  hasTag(tag: string): bool {
+    return this.tags.has(tag)
+  }
+}
+
+main() {
+  let s = Store()
+  s.addPrice("apple", 1)
+  s.addPrice("banana", 2)
+  s.addTag("organic")
+  print(s.hasTag("organic"))
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // Map.set → .insert(), Set.add → .insert(), Set.has → .contains()
+    assert!(rust_code.contains(".insert("), "Map.set/Set.add should generate .insert()");
+    assert!(rust_code.contains(".contains("), "Set.has should generate .contains()");
+    assert!(!rust_code.contains(".set("), "should NOT generate .set() for Map");
+    assert!(!rust_code.contains(".add("), "should NOT generate .add() for Set");
+    assert_snapshot!("bug75_map_set_class_fields", rust_code);
+}
+
+#[test]
+fn test_bug77_string_clone_in_instance_method() {
+    // Bug #77: String variables passed to instance methods must be cloned
+    let source = r#"
+Lookup {
+  data: Map<string, string>
+
+  constructor() {
+    this.data = Map {}
+  }
+
+  add(key: string, value: string) {
+    this.data.set(key, value)
+  }
+
+  getName(key: string): string {
+    return this.data.get(key) or "unknown"
+  }
+
+  getCount(key: string): int {
+    return 1
+  }
+}
+
+main() {
+  let lookup = Lookup()
+  lookup.add("a", "Alpha")
+  let key = "a"
+  let name = lookup.getName(key)
+  let count = lookup.getCount(key)
+  print(name)
+  print(count)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // key should be cloned when passed to instance methods
+    assert!(rust_code.contains("key.clone()"), "string var should be cloned for instance method args");
+    assert_snapshot!("bug77_string_clone_instance_method", rust_code);
+}
+
+#[test]
+fn test_bug78_or_string_default() {
+    // Bug #78: 'or "string"' in fallible call should generate .to_string()
+    let source = r#"
+validate(s: string): string {
+  if s == "" => fail "empty"
+  return s
+}
+
+main() {
+  let result = validate("") or "FALLBACK"
+  print(result)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains(".to_string()"), "or-string should add .to_string()");
+    // Verify default value has .to_string() appended
+    assert_snapshot!("bug78_or_string_default", rust_code);
+}
+
+#[test]
+fn test_bug79_some_every_lambda_pattern() {
+    // Bug #79: some()/every() should use |&x| not |&&x| for Copy types
+    let source = r#"
+main() {
+  let nums = [1, 2, 3, 4, 5]
+  let hasEven = nums.some((n) => n % 2 == 0)
+  let allPositive = nums.every((n) => n > 0)
+  print(hasEven)
+  print(allPositive)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // some/every → any/all take FnMut(Self::Item) where .iter() yields &T, so |&x|
+    assert!(rust_code.contains(".any(|&n|"), "some should use |&x| pattern");
+    assert!(rust_code.contains(".all(|&n|"), "every should use |&x| pattern");
+    assert!(!rust_code.contains("|&&"), "should NOT use |&&x| for some/every");
+    assert_snapshot!("bug79_some_every_pattern", rust_code);
+}
+
+#[test]
+fn test_bug80_for_in_map_clone() {
+    // Bug #80: for-in-map variables are references, need cloning
+    let source = r#"
+main() {
+  let prices = Map { "apple": 1, "banana": 2 }
+  for name, price in prices {
+    print(name)
+    print(price)
+  }
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("let name = name.clone()"), "map loop vars should be cloned");
+    assert!(rust_code.contains("let price = price.clone()"), "map loop vars should be cloned");
+    assert_snapshot!("bug80_for_in_map_clone", rust_code);
+}
+
+#[test]
+fn test_bug81_map_get_or_default_expr() {
+    // Bug #81: map.get(key) or default at expression level should use .unwrap_or()
+    let source = r#"
+main() {
+  let config = Map { "host": "localhost", "port": "8080" }
+  let timeout = config.get("timeout") or "30"
+  print(timeout)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains(".unwrap_or("), "map.get or default should use .unwrap_or()");
+    assert!(rust_code.contains("unwrap_or"), "should use unwrap_or for map.get or default");
+    assert_snapshot!("bug81_map_get_or_default_expr", rust_code);
+}
+
+#[test]
+fn test_bug82_mutating_map_set_methods() {
+    // Bug #82: Map.set, Set.add, Set.delete should mark method as &mut self
+    let source = r#"
+Registry {
+  items: Map<string, int>
+  tags: Set<string>
+
+  constructor() {
+    this.items = Map {}
+    this.tags = Set {}
+  }
+
+  register(name: string, count: int) {
+    this.items.set(name, count)
+    this.tags.add(name)
+  }
+
+  unregister(name: string) {
+    this.items.delete(name)
+    this.tags.delete(name)
+  }
+}
+
+main() {
+  let r = Registry()
+  r.register("test", 5)
+  r.unregister("test")
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // Methods calling .set/.add/.delete should get &mut self
+    assert!(rust_code.contains("&mut self"), "mutating methods should use &mut self");
+    assert_snapshot!("bug82_mutating_map_set_methods", rust_code);
+}

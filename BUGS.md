@@ -488,6 +488,64 @@ Use `!` instead of `not` for negation.
 
 **Totals**: 71 bugs tracked, 65 fixed, 6 documented for future work
 
+## Found During Dogfooding v2 — Inventory Manager (Session 18)
+
+8 codegen bugs found via comprehensive 350-line program with 21 test scenarios.
+
+### Bug #75: Map/Set class fields not recognized for method routing ✅ FIXED
+**Severity**: High
+**Location**: `codegen.rs` — Map/Set routing checks
+**Description**: `this.prices.set("x", 1)` generated `.set()` instead of `.insert()` because Map/Set routing only checked `Expr::Identifier`, not `Expr::Member`.
+**Fix**: Added `Expr::Member` branch to both Map and Set routing checks. Also registered class Map/Set fields in `map_vars`/`set_vars` before method generation.
+
+### Bug #76: `is_map_get_call` didn't handle `this._field.get()` ✅ FIXED
+**Severity**: Medium
+**Location**: `codegen.rs` — `is_map_get_call()`
+**Description**: `map.get(key) or default` inside class methods generated `||` instead of `.unwrap_or()`.
+**Fix**: Added `Expr::Member` access check to `is_map_get_call`.
+
+### Bug #77: String variables not cloned in instance method calls ✅ FIXED
+**Severity**: High
+**Location**: `codegen.rs` — `generate_method_call_expr()` argument loop
+**Description**: `inv.getName(sku)` consumed `sku`, preventing reuse in `inv.getQty(sku)`. Regular function calls already cloned strings, but method calls didn't.
+**Fix**: Added string/class-instance variable cloning to the general argument generation loop in `generate_method_call_expr`.
+
+### Bug #78: `or "string"` generates `&str` instead of `.to_string()` ✅ FIXED
+**Severity**: Medium
+**Location**: `codegen.rs` — user fallible match arm
+**Description**: `validate(x) or "FALLBACK"` generated `Err(_) => "FALLBACK"` (type `&str`), but function returns `String`.
+**Fix**: Added string literal check to append `.to_string()` in the `Err(_)` match arm.
+
+### Bug #79: `some()`/`every()` use wrong lambda pattern ✅ FIXED
+**Severity**: Medium
+**Location**: `codegen.rs` — lambda pattern generation
+**Description**: `nums.some(n => n > 0)` generated `|&&n|` but `any`/`all` take `FnMut(Self::Item)` not `FnMut(&Self::Item)`, so the correct pattern is `|&n|`.
+**Fix**: Separated `some`/`every` from `filter`/`find` in lambda pattern generation.
+
+### Bug #80: for-in-map variables are references, need cloning ✅ FIXED
+**Severity**: Medium
+**Location**: `codegen.rs` — for-in-map loop body
+**Description**: `for k, v in map` yields `(&K, &V)` references from `.iter()`, but loop body treats them as owned.
+**Fix**: Added `let key = key.clone(); let val = val.clone();` at start of loop body.
+
+### Bug #81: `map.get or default` at expression level uses `||` ✅ FIXED
+**Severity**: Medium
+**Location**: `codegen.rs` — `generate_binary_operation()`
+**Description**: `let t = config.get("k") or "30"` at expression level generated `||` instead of `.unwrap_or()`.
+**Fix**: Added special case in `generate_binary_operation` to detect `BinOp::Or` with `is_map_get_call` left side.
+
+### Bug #82: Map/Set mutating methods don't trigger `&mut self` ✅ FIXED
+**Severity**: High
+**Location**: `codegen.rs` — `is_mutating_method()`
+**Description**: Class methods calling `this.items.set(...)` / `this.tags.add(...)` got `&self` instead of `&mut self`.
+**Fix**: Added `"set"`, `"add"`, `"delete"` to `is_mutating_method` list.
+
+### Session 18 Summary
+- **Bugs found**: 8 (all fixed)
+- **Regression tests**: 7 new snapshot tests
+- **Test total**: 322 tests, 0 failures
+- **Program**: 350 lines, 21 test scenarios covering Map, Set, Enum, error handling, data classes, interfaces, constants, Math, string/array methods, break/continue
+
 Most bugs were in the Rust code generation phase, particularly around:
 1. Type handling (String vs &str, i32 vs usize)
 2. Field naming with underscores

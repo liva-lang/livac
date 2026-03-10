@@ -400,7 +400,7 @@ impl Library {
 
     // Generating method: addBook
     pub fn add_book(&mut self, title: String) {
-        self.books.push(title);
+        self.books.push(title.clone());
     }
 
     // Generating method: findFirst

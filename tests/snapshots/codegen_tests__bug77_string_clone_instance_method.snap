@@ -387,32 +387,40 @@ mod liva_rt {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct Library {
-    pub books: Vec<String>,
+pub struct Lookup {
+    pub data: std::collections::HashMap<String, String>,
 }
 
-impl Library {
+impl Lookup {
     pub fn new() -> Self {
         Self {
-            books: vec![],
+            data: std::collections::HashMap::new(),
         }
     }
 
-    // Generating method: addBook
-    pub fn add_book(&mut self, title: String) {
-        self.books.push(title.clone());
+    // Generating method: add
+    pub fn add(&mut self, key: String, value: String) {
+        self.data.clone().insert(key.clone(), value.clone());
     }
 
-    // Generating method: search
-    pub fn search(&self, query: String) -> Vec<String> {
-        return self.books.iter().filter(|&book| *book == query).cloned().collect::<Vec<_>>();
+    // Generating method: getName
+    pub fn get_name(&self, key: String) -> String {
+        return self.data.clone().get(&key).cloned().unwrap_or("unknown".to_string());
+    }
+
+    // Generating method: getCount
+    pub fn get_count(&self, key: String) -> i32 {
+        return 1;
     }
 
 }
 
 fn main() {
-    let mut lib = Library::new();
-    lib.add_book("Liva Guide".to_string());
-    let found = lib.search("Liva Guide".to_string());
-    println!("{}", (found.len() as i32));
+    let mut lookup = Lookup::new();
+    lookup.add("a".to_string(), "Alpha".to_string());
+    let key = "a".to_string();
+    let name = lookup.get_name(key.clone());
+    let count = lookup.get_count(key.clone());
+    println!("{}", name);
+    println!("{}", count);
 }

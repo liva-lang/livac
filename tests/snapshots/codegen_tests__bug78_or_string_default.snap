@@ -386,33 +386,14 @@ mod liva_rt {
     
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct Library {
-    pub books: Vec<String>,
-}
-
-impl Library {
-    pub fn new() -> Self {
-        Self {
-            books: vec![],
-        }
+fn validate(s: String) -> Result<String, liva_rt::Error> {
+    if s == "" {
+        return Err(liva_rt::Error::new("empty", "validate", ":3"));
     }
-
-    // Generating method: addBook
-    pub fn add_book(&mut self, title: String) {
-        self.books.push(title.clone());
-    }
-
-    // Generating method: search
-    pub fn search(&self, query: String) -> Vec<String> {
-        return self.books.iter().filter(|&book| *book == query).cloned().collect::<Vec<_>>();
-    }
-
+    return Ok(s);
 }
 
 fn main() {
-    let mut lib = Library::new();
-    lib.add_book("Liva Guide".to_string());
-    let found = lib.search("Liva Guide".to_string());
-    println!("{}", (found.len() as i32));
+    let result = match validate("".to_string()) { Ok(v) => v, Err(_) => "FALLBACK".to_string() };
+    println!("{}", result);
 }

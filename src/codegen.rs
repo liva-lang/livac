@@ -756,6 +756,10 @@ impl CodeGenerator {
                         | "extend"
                         | "retain"
                         | "truncate"
+                        // Bug #76 fix: Liva Map/Set method names that mutate (before codegen translation)
+                        | "set"      // Map.set → HashMap.insert
+                        | "add"      // Set.add → HashSet.insert
+                        | "delete"   // Map/Set.delete → HashMap/HashSet.remove
                 );
 
                 if is_mutating_method {
@@ -2609,6 +2613,14 @@ impl CodeGenerator {
                     if matches!(type_ref, TypeRef::Simple(s) if s == "string" || s == "String") {
                         self.string_vars.insert(field_name.clone());
                     }
+                    // Bug #76 fix: Track Map-typed fields so this._field.mapMethod() routes through Map codegen
+                    if matches!(type_ref, TypeRef::Map(_, _)) {
+                        self.map_vars.insert(field_name.clone());
+                    }
+                    // Bug #76 fix: Track Set-typed fields so this._field.setMethod() routes through Set codegen
+                    if matches!(type_ref, TypeRef::Set(_)) {
+                        self.set_vars.insert(field_name.clone());
+                    }
                 }
             }
         }
@@ -4113,6 +4125,10 @@ impl CodeGenerator {
                         self.generate_expr(&var.init)?;
                         self.output.push_str(" { Ok(v) => v, Err(_) => ");
                         self.generate_expr(default_val)?;
+                        // Bug #77 fix: String literals need .to_string() to match Ok(String) arm
+                        if matches!(default_val.as_ref(), Expr::Literal(Literal::String(_))) {
+                            self.output.push_str(".to_string()");
+                        }
                         self.output.push_str(" };\n");
                     } else {
                         write!(self.output, "let {} = ", var_name).unwrap();
@@ -4155,6 +4171,7 @@ impl CodeGenerator {
                     // BUT: Only track as Option if NOT a tuple-returning function AND NOT typed JSON.parse
                     // AND NOT an await of HTTP task (which returns String error, not Option)
                     // AND NOT a task/concurrency call (match unwrap yields direct values, not Option)
+                    // AND NOT a user-defined fallible call (match Ok(v)/Err(e) yields direct T, not Option)
                     // Tuple functions return (Option<T>, String) - err is String, not Option
                     // Typed JSON.parse returns (T, String) - value is T, not Option<T>
                     let is_task = task_exec_policy.is_some();
@@ -4165,10 +4182,16 @@ impl CodeGenerator {
                         && !is_await_http
                         && !is_task
                         && !is_await_task
+                        && !is_fallible_call
                     {
                         self.error_binding_vars.insert(binding_names[1].clone());
                         self.option_value_vars.insert(binding_names[0].clone());
                     // Also track the value (first binding)
+                    } else if binding_names.len() == 2 && is_fallible_call {
+                        // Bug #80 fix: User fallible calls: match { Ok(v) => (v, None), Err(e) => (Default, Some(e)) }
+                        // value is T (direct), err is Option<Error>
+                        self.error_binding_vars.insert(binding_names[1].clone());
+                        // Do NOT add to option_value_vars - value is direct T, not Option<T>
                     } else if binding_names.len() == 2 && (is_task || is_await_task) {
                         // Task error bindings: match { Ok(v) => (v, None), Err(e) => (Default, Some(e)) }
                         // value is T (direct), err is Option<Error>
@@ -4558,27 +4581,28 @@ impl CodeGenerator {
                             }
                         }
                         // Check if initializing with a map literal — mark variable as map
+                        // Bug #75 fix: Use sanitized name so camelCase vars (e.g., usedTags -> used_tags) match lookups
                         if let Expr::MapLiteral(_) = &var.init {
                             if let Some(name) = binding.name() {
-                                self.map_vars.insert(name.to_string());
+                                self.map_vars.insert(self.sanitize_name(&name));
                             }
                         }
                         // Check if initializing with a set literal — mark variable as set
                         if let Expr::SetLiteral(_) = &var.init {
                             if let Some(name) = binding.name() {
-                                self.set_vars.insert(name.to_string());
+                                self.set_vars.insert(self.sanitize_name(&name));
                             }
                         }
                         // Also track map vars from type annotation Map<K,V>
                         if binding.type_ref.as_ref().map_or(false, |t| matches!(t, TypeRef::Map(_, _))) {
                             if let Some(name) = binding.name() {
-                                self.map_vars.insert(name.to_string());
+                                self.map_vars.insert(self.sanitize_name(&name));
                             }
                         }
                         // Also track set vars from type annotation Set<T>
                         if binding.type_ref.as_ref().map_or(false, |t| matches!(t, TypeRef::Set(_))) {
                             if let Some(name) = binding.name() {
-                                self.set_vars.insert(name.to_string());
+                                self.set_vars.insert(self.sanitize_name(&name));
                             }
                         }
                         // Check if initializing with a method call that returns an array (map, filter, etc.)
@@ -4877,6 +4901,10 @@ impl CodeGenerator {
                     self.output.push_str(".iter()");
                     self.output.push_str(" {\n");
                     self.indent();
+                    // Bug #79 fix: Clone loop variables to get owned values
+                    // (.iter() yields (&K, &V) references, code in body expects owned K, V)
+                    self.writeln(&format!("let {} = {}.clone();", key_name, key_name));
+                    self.writeln(&format!("let {} = {}.clone();", val_name, val_name));
                     // Register both variables as string vars for clone safety
                     self.string_vars.insert(key_name.clone());
                     self.string_vars.insert(val_name.clone());
@@ -7482,6 +7510,13 @@ impl CodeGenerator {
         {
             let is_map_var = if let Expr::Identifier(name) = method_call.object.as_ref() {
                 self.map_vars.contains(&self.sanitize_name(name))
+            } else if let Expr::Member { object, property } = method_call.object.as_ref() {
+                // Bug #76 fix: Also check this._field for Map-typed class fields
+                if matches!(object.as_ref(), Expr::Identifier(name) if name == "this" || name == "self") {
+                    self.map_vars.contains(&self.sanitize_name(property))
+                } else {
+                    false
+                }
             } else {
                 false
             };
@@ -7500,6 +7535,13 @@ impl CodeGenerator {
         {
             let is_set_var = if let Expr::Identifier(name) = method_call.object.as_ref() {
                 self.set_vars.contains(&self.sanitize_name(name))
+            } else if let Expr::Member { object, property } = method_call.object.as_ref() {
+                // Bug #76 fix: Also check this._field for Set-typed class fields
+                if matches!(object.as_ref(), Expr::Identifier(name) if name == "this" || name == "self") {
+                    self.set_vars.contains(&self.sanitize_name(property))
+                } else {
+                    false
+                }
             } else {
                 false
             };
@@ -7870,6 +7912,28 @@ impl CodeGenerator {
                 }
             }
 
+            // Bug #77 fix: Clone string variables and class instances when passed to instance method calls
+            // to avoid ownership issues (Rust moves String/struct by default)
+            // This matches the behavior in generate_call_expr for regular function calls
+            if let Expr::Identifier(var_name) = arg {
+                let is_array_or_iterator_method = matches!(
+                    method_call.method.as_str(),
+                    "map" | "filter" | "reduce" | "forEach" | "find"
+                        | "some" | "every" | "indexOf" | "includes"
+                );
+
+                if !is_array_or_iterator_method {
+                    let sanitized = self.sanitize_name(var_name);
+                    if self.string_vars.contains(&sanitized)
+                        || self.class_instance_vars.contains(&sanitized)
+                    {
+                        self.generate_expr(arg)?;
+                        self.output.push_str(".clone()");
+                        continue;
+                    }
+                }
+            }
+
             // For map/filter/reduce/forEach/find/some/every with .iter(), we need to dereference in the lambda
             // map: |&x| - filter: |&&x| (for .copied()) or |x| (for .cloned())
             // reduce: |acc, &x| - forEach: |&x| - find: |&&x| or |x| - some: |&&x| or |x| - every: |&&x| or |x|
@@ -8148,12 +8212,10 @@ impl CodeGenerator {
                             if !is_json_value && !param.is_destructuring() {
                                 if method_call.method == "filter"
                                     || method_call.method == "find"
-                                    || method_call.method == "some"
-                                    || method_call.method == "every"
                                 {
-                                    // For .cloned() (non-Copy types like String, class instances):
-                                    // closure receives &&T, use |&item| to destructure to &T
-                                    // which can compare with T via PartialEq
+                                    // filter/find: FnMut(&Self::Item) → extra & on top of iter's &T
+                                    // For Copy types: filter(|&&x| ...) - double deref
+                                    // For Clone types: filter(|&x| ...) - single deref
                                     if !will_use_cloned {
                                         self.output.push_str("&&");
                                     } else {
@@ -8162,6 +8224,16 @@ impl CodeGenerator {
                                         // in comparisons (e.g., *item == query instead of item == query)
                                         self.ref_lambda_params.insert(param_name.clone());
                                     }
+                                } else if method_call.method == "some"
+                                    || method_call.method == "every"
+                                {
+                                    // Bug #78 fix: any/all: FnMut(Self::Item) → same as iter output
+                                    // For Copy types: any(|&x| ...) - single deref (iter yields &T)
+                                    // For Clone types: no prefix - work with &T directly
+                                    if !will_use_cloned {
+                                        self.output.push('&');
+                                    }
+                                    // For cloned types, no prefix needed (work with &T directly)
                                 } else if method_call.method == "map"
                                     || method_call.method == "forEach"
                                 {
@@ -8485,13 +8557,21 @@ impl CodeGenerator {
                 self.output.push_str(").cloned()");
             }
             "set" => {
-                // map.set(key, value) → map.insert(key, value)
+                // map.set(key, value) → map.insert(key.clone(), value)
+                // Bug #76 fix: Clone string variable keys/values to avoid ownership moves
                 self.generate_expr(&method_call.object)?;
                 self.output.push_str(".insert(");
                 if let Some(key) = method_call.args.first() {
                     if matches!(key, Expr::Literal(Literal::String(_))) {
                         self.generate_expr(key)?;
                         self.output.push_str(".to_string()");
+                    } else if let Expr::Identifier(name) = key {
+                        if self.string_vars.contains(&self.sanitize_name(name)) {
+                            self.generate_expr(key)?;
+                            self.output.push_str(".clone()");
+                        } else {
+                            self.generate_expr(key)?;
+                        }
                     } else {
                         self.generate_expr(key)?;
                     }
@@ -8501,6 +8581,13 @@ impl CodeGenerator {
                     if matches!(value, Expr::Literal(Literal::String(_))) {
                         self.generate_expr(value)?;
                         self.output.push_str(".to_string()");
+                    } else if let Expr::Identifier(name) = value {
+                        if self.string_vars.contains(&self.sanitize_name(name)) {
+                            self.generate_expr(value)?;
+                            self.output.push_str(".clone()");
+                        } else {
+                            self.generate_expr(value)?;
+                        }
                     } else {
                         self.generate_expr(value)?;
                     }
@@ -8623,12 +8710,20 @@ impl CodeGenerator {
         match method_call.method.as_str() {
             "add" => {
                 // set.add(value) → set.insert(value)
+                // Bug #76 fix: Clone string variable values to avoid ownership moves
                 self.generate_expr(&method_call.object)?;
                 self.output.push_str(".insert(");
                 if let Some(arg) = method_call.args.first() {
                     if matches!(arg, Expr::Literal(Literal::String(_))) {
                         self.generate_expr(arg)?;
                         self.output.push_str(".to_string()");
+                    } else if let Expr::Identifier(name) = arg {
+                        if self.string_vars.contains(&self.sanitize_name(name)) {
+                            self.generate_expr(arg)?;
+                            self.output.push_str(".clone()");
+                        } else {
+                            self.generate_expr(arg)?;
+                        }
                     } else {
                         self.generate_expr(arg)?;
                     }
@@ -9705,6 +9800,21 @@ impl CodeGenerator {
     }
 
     fn generate_binary_operation(&mut self, op: &BinOp, left: &Expr, right: &Expr) -> Result<()> {
+        // Bug #76 fix: map.get(key) or default → map.get(&key).cloned().unwrap_or(default)
+        // When `or` is used with a Map.get expression, it's not boolean OR but Option unwrap
+        if matches!(op, BinOp::Or) && self.is_map_get_call(left) {
+            self.generate_expr(left)?;
+            self.output.push_str(".unwrap_or(");
+            if matches!(right, Expr::Literal(Literal::String(_))) {
+                self.generate_expr(right)?;
+                self.output.push_str(".to_string()");
+            } else {
+                self.generate_expr(right)?;
+            }
+            self.output.push(')');
+            return Ok(());
+        }
+
         // Phase 3: Special handling for error binding variable comparisons with ""
         // Transform: err != "" to err.is_some()
         // Transform: err == "" to err.is_none()
@@ -9931,6 +10041,12 @@ impl CodeGenerator {
                 if let Expr::Identifier(obj_name) = &*mc.object {
                     let sanitized = self.sanitize_name(obj_name);
                     return self.map_vars.contains(&sanitized);
+                }
+                // Bug #76 fix: Also check this._field for Map-typed class fields
+                if let Expr::Member { object, property } = &*mc.object {
+                    if matches!(object.as_ref(), Expr::Identifier(name) if name == "this" || name == "self") {
+                        return self.map_vars.contains(&self.sanitize_name(property));
+                    }
                 }
             }
         }

@@ -386,33 +386,8 @@ mod liva_rt {
     
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct Library {
-    pub books: Vec<String>,
-}
-
-impl Library {
-    pub fn new() -> Self {
-        Self {
-            books: vec![],
-        }
-    }
-
-    // Generating method: addBook
-    pub fn add_book(&mut self, title: String) {
-        self.books.push(title.clone());
-    }
-
-    // Generating method: search
-    pub fn search(&self, query: String) -> Vec<String> {
-        return self.books.iter().filter(|&book| *book == query).cloned().collect::<Vec<_>>();
-    }
-
-}
-
 fn main() {
-    let mut lib = Library::new();
-    lib.add_book("Liva Guide".to_string());
-    let found = lib.search("Liva Guide".to_string());
-    println!("{}", (found.len() as i32));
+    let config = std::collections::HashMap::from([("host".to_string(), "localhost".to_string()), ("port".to_string(), "8080".to_string())]);
+    let timeout = config.get(&"timeout".to_string()).cloned().unwrap_or("30".to_string());
+    println!("{}", timeout);
 }

@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - v1.3.0-dev
 
+### Fixed - Dogfooding v2: Inventory Manager 🏗️
+
+**8 codegen bugs found and fixed via comprehensive real-world program (350 lines, 21 test scenarios).**
+
+- **Bug #75**: Map/Set class fields (`this.prices`, `this.tags`) not recognized for method routing → generated `.set()` instead of `.insert()`, `.add()` instead of `.insert()`, `.has()` instead of `.contains()`
+- **Bug #76**: `is_map_get_call` didn't handle `this._field.get()` → `map.get or default` inside class methods generated `||` instead of `.unwrap_or()`
+- **Bug #77**: String/class-instance variables not cloned when passed to instance method calls → `inv.getName(sku)` consumed `sku`, preventing reuse
+- **Bug #78**: `or "string"` in fallible call generated `&str` literal → needed `.to_string()` for `Err(_) => "FALLBACK".to_string()`
+- **Bug #79**: `some()`/`every()` lambda pattern used `|&&x|` instead of `|&x|` — `any`/`all` take `FnMut(Self::Item)`, not `FnMut(&Self::Item)`
+- **Bug #80**: `for key, value in map` loop variables are references (`&K`, `&V`) — added `let key = key.clone()` at loop body start
+- **Bug #81**: `map.get(key) or default` at expression level (return, let) used `||` operator → added `BinOp::Or` + `is_map_get_call` detection to generate `.unwrap_or()`
+- **Bug #82**: Map `set`/Set `add`/`delete` methods not in `is_mutating_method` list → class methods calling them got `&self` instead of `&mut self`
+
+**Additional codegen improvements:**
+- Map/Set `set`/`add` operations clone string variable keys/values to avoid ownership moves
+- `option_value_vars` no longer incorrectly tracks user fallible call bindings
+- Sanitized names when registering `map_vars`/`set_vars` (camelCase → snake_case consistency)
+
+**Test coverage:** 322 tests (130 codegen snapshots), 0 failures, 7 new regression tests (Bugs #75-#82)
+
 ### Added - Set<T> Collections 🎯
 
 **Full Set support with HashSet-backed implementation.**

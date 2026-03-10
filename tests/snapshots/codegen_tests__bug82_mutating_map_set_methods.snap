@@ -387,32 +387,35 @@ mod liva_rt {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct Library {
-    pub books: Vec<String>,
+pub struct Registry {
+    pub items: std::collections::HashMap<String, i32>,
+    pub tags: std::collections::HashSet<String>,
 }
 
-impl Library {
+impl Registry {
     pub fn new() -> Self {
         Self {
-            books: vec![],
+            items: std::collections::HashMap::new(),
+            tags: std::collections::HashSet::new(),
         }
     }
 
-    // Generating method: addBook
-    pub fn add_book(&mut self, title: String) {
-        self.books.push(title.clone());
+    // Generating method: register
+    pub fn register(&mut self, name: String, count: i32) {
+        self.items.insert(name.clone(), count);
+        self.tags.insert(name.clone());
     }
 
-    // Generating method: search
-    pub fn search(&self, query: String) -> Vec<String> {
-        return self.books.iter().filter(|&book| *book == query).cloned().collect::<Vec<_>>();
+    // Generating method: unregister
+    pub fn unregister(&mut self, name: String) {
+        self.items.remove(&name);
+        self.tags.remove(&name);
     }
 
 }
 
 fn main() {
-    let mut lib = Library::new();
-    lib.add_book("Liva Guide".to_string());
-    let found = lib.search("Liva Guide".to_string());
-    println!("{}", (found.len() as i32));
+    let mut r = Registry::new();
+    r.register("test".to_string(), 5);
+    r.unregister("test".to_string());
 }

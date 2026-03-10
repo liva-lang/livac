@@ -1,8 +1,8 @@
 # 🗺️ Liva Language Roadmap
 
 > **Current Version:** v1.3.0-dev (tag: v1.2.0)  
-> **Status:** Set<T>, Map<K,V>, Error Trace Chaining, `or <value>`, Enum Types, CI/CD, 315 tests  
-> **Completed:** Phases 1-13, Sessions 14-18  
+> **Status:** Set<T>, Map<K,V>, Error Trace Chaining, `or <value>`, Enum Types, CI/CD, Dogfooding v2, 322 tests  
+> **Completed:** Phases 1-13, Sessions 14-18, Dogfooding v2  
 > **Last Updated:** 2026-03-10
 
 ---
@@ -36,6 +36,7 @@ The roadmap is organized into focused phases:
 - **Session 17:** 🎯 Enum Types - Algebraic data types + Release v1.2.0 ✅
 - **Session 18:** 🗂️ Dir/Sys/contains - New stdlib modules ✅
 - **Phase 13:** 🗺️ Map<K,V> & Set<T> Collections - Dictionaries & unique sets (v1.3.0) ✅
+- **Dogfooding v2:** 🏗️ Inventory Manager - 8 bugs fixed, 7 regression tests ✅
 
 ---
 

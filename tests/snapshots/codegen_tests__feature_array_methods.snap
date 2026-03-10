@@ -392,8 +392,8 @@ fn main() {
     let evens = nums.iter().filter(|&&x| x % 2 == 0).copied().collect::<Vec<_>>();
     let sum = nums.iter().fold(0, |acc, &x| acc + x);
     let found = nums.iter().find(|&&x| x > 3).copied();
-    let has_evens = nums.iter().any(|&&x| x % 2 == 0);
-    let all_positive = nums.iter().all(|&&x| x > 0);
+    let has_evens = nums.iter().any(|&x| x % 2 == 0);
+    let all_positive = nums.iter().all(|&x| x > 0);
     nums.iter().for_each(|&n| println!("{}", n));
     let has_three = nums.iter().any(|x| *x == 3);
     let pos = nums.iter().position(|x| *x == 3).map(|i| i as i32).unwrap_or(-1);

@@ -212,8 +212,8 @@ describe("Calculator", () => {
 
 ## 🔄 Estado Actual
 
-- **71/71 bugs** del dogfooding corregidos (Session 15: +9 bugs from Student Grade Tracker)
-- **297 tests** totales (106 snapshot codegen tests documentando TODA la sintaxis)
+- **79/79 bugs** del dogfooding corregidos (Session 15: 9 bugs, Dogfooding v2: 8 bugs)
+- **322 tests** totales (130 snapshot codegen tests documentando TODA la sintaxis)
 - **Phase 10** (Formatter): ✅ Completado
 - **Phase 11.1** (`or fail`): ✅ Completado  
 - **Phase 11.2** (`=>` one-liners): ✅ Completado
@@ -225,6 +225,7 @@ describe("Calculator", () => {
 - **Phase 12.4** (Async Test Support): ✅ Completado
 - **Session 14** (5 Language Features): ✅ Completado
 - **Session 15** (Dogfooding + 9 Bug Fixes): ✅ Completado
+- **Dogfooding v2** (Inventory Manager + 8 Bug Fixes): ✅ Completado
 - **Session 16** (CI/CD & Cross-Platform Releases): ✅ Completado
 - **Session 17** (Enum Types): ✅ Completado
 - **`or <value>`** syntax: ✅ Completado (v1.3.0)
@@ -297,6 +298,18 @@ Found and fixed 9 bugs (#63-#74):
 - **Semantic**: `.length` on member/method expressions (#65)
 - **Codegen**: data class Display/constructor (#66-#67), switch string arms (#68), array element field access (#69), method fail/Result (#70), method mutated vars (#71), for-loop ownership (#74)
 - 6 regression tests added
+
+### Dogfooding v2: Inventory Manager 🏗️
+**350-line program with 21 test scenarios exercising Map, Set, Enum, error handling, data classes, interfaces, constants, Math, string/array methods, break/continue.**
+Found and fixed 8 bugs (#75-#82):
+- **Bug #75-76**: Map/Set class fields not recognized for method routing (this._field)
+- **Bug #77**: String variables not cloned in instance method calls
+- **Bug #78**: `or "string"` generates `&str` instead of `.to_string()`
+- **Bug #79**: `some()`/`every()` wrong lambda pattern (`|&&x|` → `|&x|`)
+- **Bug #80**: for-in-map variables need cloning (references → owned)
+- **Bug #81**: `map.get or default` at expression level used `||` instead of `.unwrap_or()`
+- **Bug #82**: Map/Set mutating methods not triggering `&mut self`
+- 7 regression tests added, 322 total tests
 
 ### Session 14: 5 New Language Features
 1. **`break` / `continue`** — Loop control flow (while/for)
