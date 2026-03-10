@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - v1.3.0-dev
 
+### Added - Set<T> Collections 🎯
+
+**Full Set support with HashSet-backed implementation.**
+
+```liva
+// Create sets
+let empty: Set<string> = Set {}
+let colors = Set { "red", "green", "blue" }
+
+// CRUD operations
+colors.add("yellow")
+let found = colors.has("red")      // true
+colors.delete("green")
+
+// Iteration
+for color in colors {
+  print(color)
+}
+colors.forEach((c) => print(c))
+
+// Set operations
+let a = Set { 1, 2, 3 }
+let b = Set { 3, 4, 5 }
+let u = a.union(b)            // Set { 1, 2, 3, 4, 5 }
+let i = a.intersection(b)     // Set { 3 }
+let d = a.difference(b)       // Set { 1, 2 }
+
+// Collection methods
+let vals = colors.values()    // [string]
+colors.clear()
+```
+
+**Implementation:**
+- AST: `TypeRef::Set(Box<TypeRef>)`, `Expr::SetLiteral(Vec<Expr>)`
+- Parser: `Set { value1, value2 }` literal, `Set<T>` type annotation
+- Semantic: Set type inference from first element, `TypeRef::Set` arms in all type visitors
+- IR: `SetLiteral(Vec<Expr>)` variant with `Type::from_ast` Set→Custom conversion
+- Lowering: SetLiteral lowering + expression analysis
+- Codegen: `HashSet::new()` / `HashSet::from([...])`, full method dispatch (add→`.insert()`, has→`.contains()`, delete→`.remove()`, values→`.iter().cloned().collect()`, forEach→`.iter().for_each()`, union/intersection/difference→set operations with `.cloned().collect()`, clear→`.clear()`)
+- Formatter: `format_set_literal()`, `TypeRef::Set` formatting
+
+**Tests:**
+- 9 new snapshot tests (set_literal_empty, set_literal_values, set_add_has_delete, set_values, set_foreach, set_for_loop, set_clear, set_union_intersection_difference, set_type_annotation)
+- 1 integration test (`examples/tests/test_set.liva`)
+- All 315 tests passing
+
 ### Added - Map<K,V> Collections (Dictionaries) 🗺️
 
 **Full Map/Dictionary support with HashMap-backed implementation.**

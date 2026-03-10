@@ -321,6 +321,7 @@ Snapshot tests serve as **source of truth** for all supported Liva syntax:
 - Concurrency: `async`, `par`, `task`, `await` (fire-and-forget is auto-inferred for unassigned async/par calls)
 - Collections: `map`/`filter`/`reduce`/`find`/`some`/`every`/`forEach`/`includes`/`indexOf`/`push`/`pop`/`join`, chaining
 - **Map<K,V>**: `Map { key: value }` literals, `Map<K,V>` type, methods (get/set/has/delete/keys/values/entries/clear/forEach), `for key, value in map` iteration, `map.get(key) or default`
+- **Set<T>**: `Set { value1, value2 }` literals, `Set<T>` type, methods (add/has/delete/values/clear/forEach/union/intersection/difference), `for value in set` iteration
 - Strings: templates `$"..."`, all methods, concatenation patterns
 - Stdlib: `print`, `console.*`, `Math.*` (including `PI`/`E`), `parseInt`/`parseFloat`/`toString`, `JSON.*`, `HTTP.*`
 - Advanced: tuples, type aliases, generics, test matchers, inclusive range `..=`

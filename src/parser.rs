@@ -1084,6 +1084,8 @@ impl Parser {
             // Special case: Map<K, V> → TypeRef::Map
             let mut result = if base == "Map" && args.len() == 2 {
                 TypeRef::Map(Box::new(args[0].clone()), Box::new(args[1].clone()))
+            } else if base == "Set" && args.len() == 1 {
+                TypeRef::Set(Box::new(args[0].clone()))
             } else {
                 TypeRef::Generic { base, args }
             };
@@ -2108,6 +2110,12 @@ impl Parser {
                         let entries = self.parse_map_entries()?;
                         self.expect(Token::RBrace)?;
                         expr = Expr::MapLiteral(entries);
+                    } else if type_name == "Set" {
+                        // Set literal: Set { value1, value2, value3 }
+                        self.advance(); // consume the {
+                        let entries = self.parse_set_entries()?;
+                        self.expect(Token::RBrace)?;
+                        expr = Expr::SetLiteral(entries);
                     } else if type_name.chars().next().map_or(false, |c| c.is_uppercase()) {
                         // Bug #64 fix: Verify this is actually a struct literal by looking ahead.
                         // A struct literal has: { } or { ident: expr, ... }
@@ -2788,6 +2796,23 @@ impl Parser {
             self.expect(Token::Colon)?;
             let value = self.parse_expression()?;
             entries.push((key, value));
+
+            if !self.match_token(&Token::Comma) {
+                break;
+            }
+        }
+
+        Ok(entries)
+    }
+
+    /// Parse set literal entries: expr, expr, ...
+    /// Used for Set { value1, value2, value3 }
+    fn parse_set_entries(&mut self) -> Result<Vec<Expr>> {
+        let mut entries = Vec::new();
+
+        while !self.is_at_end() && self.peek() != Some(&Token::RBrace) {
+            let value = self.parse_expression()?;
+            entries.push(value);
 
             if !self.match_token(&Token::Comma) {
                 break;

@@ -1024,6 +1024,7 @@ impl Formatter {
             Expr::MethodCall(mc) => self.format_method_call(mc),
             Expr::Switch(switch_expr) => self.format_switch_expr(switch_expr),
             Expr::MapLiteral(entries) => self.format_map_literal(entries),
+            Expr::SetLiteral(elements) => self.format_set_literal(elements),
             Expr::MethodRef { object, method } => {
                 format!("{}::{}", object, method)
             }
@@ -1184,6 +1185,35 @@ impl Formatter {
             let inner_indent = " ".repeat(self.options.indent_size * (self.indent_level + 1));
             let outer_indent = " ".repeat(self.options.indent_size * self.indent_level);
             let mut result = "Map {\n".to_string();
+            for (i, item) in items.iter().enumerate() {
+                result.push_str(&inner_indent);
+                result.push_str(item);
+                if i + 1 < items.len() {
+                    result.push(',');
+                }
+                result.push('\n');
+            }
+            result.push_str(&outer_indent);
+            result.push('}');
+            result
+        }
+    }
+
+    fn format_set_literal(&mut self, elements: &[Expr]) -> String {
+        if elements.is_empty() {
+            return "Set {}".to_string();
+        }
+        let items: Vec<String> = elements
+            .iter()
+            .map(|e| self.format_expr(e))
+            .collect();
+        let single_line = format!("Set {{ {} }}", items.join(", "));
+        if self.current_indent_width() + single_line.len() <= self.options.max_width {
+            single_line
+        } else {
+            let inner_indent = " ".repeat(self.options.indent_size * (self.indent_level + 1));
+            let outer_indent = " ".repeat(self.options.indent_size * self.indent_level);
+            let mut result = "Set {\n".to_string();
             for (i, item) in items.iter().enumerate() {
                 result.push_str(&inner_indent);
                 result.push_str(item);
@@ -1471,6 +1501,9 @@ impl Formatter {
             }
             TypeRef::Map(key, value) => {
                 format!("Map<{}, {}>", self.format_type_ref(key), self.format_type_ref(value))
+            }
+            TypeRef::Set(inner) => {
+                format!("Set<{}>", self.format_type_ref(inner))
             }
         }
     }

@@ -1,0 +1,69 @@
+// Test: Set<T> — Complete feature test
+// Phase 13: Sets / HashSets
+
+main() {
+  // --- Set literal (empty) ---
+  let empty: Set<string> = Set {}
+  print("Empty set length: " + empty.length)
+
+  // --- Set literal with values ---
+  let colors = Set { "red", "green", "blue" }
+  print("Colors length: " + colors.length)
+
+  // --- set.add ---
+  colors.add("yellow")
+  print("After add, length: " + colors.length)
+
+  // --- set.has ---
+  let hasRed = colors.has("red")
+  print("Has red: " + hasRed)
+
+  let hasPurple = colors.has("purple")
+  print("Has purple: " + hasPurple)
+
+  // --- set.delete ---
+  colors.delete("green")
+  print("After delete, length: " + colors.length)
+
+  // --- set.values ---
+  let vals = colors.values()
+  print("Values count: " + vals.length)
+
+  // --- for value in set ---
+  let numbers = Set { 10, 20, 30 }
+  for n in numbers {
+    print("Number: " + n)
+  }
+
+  // --- forEach ---
+  let fruits = Set { "apple", "banana", "cherry" }
+  fruits.forEach((f) => {
+    print("Fruit: " + f)
+  })
+
+  // --- set.union ---
+  let a = Set { 1, 2, 3 }
+  let b = Set { 3, 4, 5 }
+  let u = a.union(b)
+  print("Union length: " + u.length)
+
+  // --- set.intersection ---
+  let inter = a.intersection(b)
+  print("Intersection length: " + inter.length)
+
+  // --- set.difference ---
+  let diff = a.difference(b)
+  print("Difference length: " + diff.length)
+
+  // --- set.clear ---
+  colors.clear()
+  print("After clear, length: " + colors.length)
+
+  // --- Set with number values ---
+  let primes = Set { 2, 3, 5, 7, 11 }
+  print("Primes length: " + primes.length)
+  let has5 = primes.has(5)
+  print("Has 5: " + has5)
+
+  print("All set tests passed!")
+}

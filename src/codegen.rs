@@ -62,6 +62,7 @@ pub struct CodeGenerator {
     class_instance_vars: std::collections::HashSet<String>,
     array_vars: std::collections::HashSet<String>, // Track which variables are arrays
     map_vars: std::collections::HashSet<String>, // Track which variables are Map<K,V>
+    set_vars: std::collections::HashSet<String>, // Track which variables are Set<T>
     json_value_vars: std::collections::HashSet<String>, // Track which variables are JsonValue
     string_vars: std::collections::HashSet<String>, // Track which variables are strings
     native_vec_string_vars: std::collections::HashSet<String>, // Track Vec<String> from Sys.args() - use direct indexing
@@ -131,6 +132,7 @@ impl CodeGenerator {
             class_instance_vars: std::collections::HashSet::new(),
             array_vars: std::collections::HashSet::new(),
             map_vars: std::collections::HashSet::new(),
+            set_vars: std::collections::HashSet::new(),
             json_value_vars: std::collections::HashSet::new(),
             string_vars: std::collections::HashSet::new(),
             native_vec_string_vars: std::collections::HashSet::new(),
@@ -421,6 +423,7 @@ impl CodeGenerator {
                 self.type_contains_param(key, param_name)
                     || self.type_contains_param(value, param_name)
             }
+            TypeRef::Set(inner) => self.type_contains_param(inner, param_name),
         }
     }
 
@@ -2096,6 +2099,10 @@ impl CodeGenerator {
                     self.expand_type_alias(key),
                     self.expand_type_alias(value))
             }
+            TypeRef::Set(inner) => {
+                format!("std::collections::HashSet<{}>",
+                    self.expand_type_alias(inner))
+            }
         }
     }
 
@@ -2163,6 +2170,9 @@ impl CodeGenerator {
             TypeRef::Map(key, value) => TypeRef::Map(
                 Box::new(self.substitute_type_params_codegen(key, params, args)),
                 Box::new(self.substitute_type_params_codegen(value, params, args)),
+            ),
+            TypeRef::Set(inner) => TypeRef::Set(
+                Box::new(self.substitute_type_params_codegen(inner, params, args)),
             ),
         }
     }
@@ -4553,10 +4563,22 @@ impl CodeGenerator {
                                 self.map_vars.insert(name.to_string());
                             }
                         }
+                        // Check if initializing with a set literal — mark variable as set
+                        if let Expr::SetLiteral(_) = &var.init {
+                            if let Some(name) = binding.name() {
+                                self.set_vars.insert(name.to_string());
+                            }
+                        }
                         // Also track map vars from type annotation Map<K,V>
                         if binding.type_ref.as_ref().map_or(false, |t| matches!(t, TypeRef::Map(_, _))) {
                             if let Some(name) = binding.name() {
                                 self.map_vars.insert(name.to_string());
+                            }
+                        }
+                        // Also track set vars from type annotation Set<T>
+                        if binding.type_ref.as_ref().map_or(false, |t| matches!(t, TypeRef::Set(_))) {
+                            if let Some(name) = binding.name() {
+                                self.set_vars.insert(name.to_string());
                             }
                         }
                         // Check if initializing with a method call that returns an array (map, filter, etc.)
@@ -6118,6 +6140,25 @@ impl CodeGenerator {
                     self.output.push_str("])");
                 }
             }
+            Expr::SetLiteral(elements) => {
+                if elements.is_empty() {
+                    self.output.push_str("std::collections::HashSet::new()");
+                } else {
+                    self.output.push_str("std::collections::HashSet::from([");
+                    for (i, elem) in elements.iter().enumerate() {
+                        if i > 0 {
+                            self.output.push_str(", ");
+                        }
+                        if matches!(elem, Expr::Literal(Literal::String(_))) {
+                            self.generate_expr(elem)?;
+                            self.output.push_str(".to_string()");
+                        } else {
+                            self.generate_expr(elem)?;
+                        }
+                    }
+                    self.output.push_str("])");
+                }
+            }
             Expr::Tuple(elements) => {
                 self.output.push('(');
                 for (i, elem) in elements.iter().enumerate() {
@@ -7455,6 +7496,24 @@ impl CodeGenerator {
             }
         }
 
+        // Check if this is a Set method call (add, has, delete, clear, values, forEach, union, intersection, difference)
+        {
+            let is_set_var = if let Expr::Identifier(name) = method_call.object.as_ref() {
+                self.set_vars.contains(&self.sanitize_name(name))
+            } else {
+                false
+            };
+
+            let is_set_method = matches!(
+                method_call.method.as_str(),
+                "add" | "has" | "delete" | "clear" | "values" | "forEach" | "union" | "intersection" | "difference"
+            );
+
+            if is_set_var && is_set_method {
+                return self.generate_set_method_call(method_call);
+            }
+        }
+
         // Check if this is a string method (no adapter means it's not an array method)
         // Special case: indexOf can be both string and array method
         // We detect string indexOf if:
@@ -8539,6 +8598,147 @@ impl CodeGenerator {
                 }
                 self.write_indent();
                 self.output.push_str("})");
+            }
+            _ => {
+                // Fallback: generate as normal method call
+                self.generate_expr(&method_call.object)?;
+                write!(self.output, ".{}(", method_call.method).unwrap();
+                for (i, arg) in method_call.args.iter().enumerate() {
+                    if i > 0 {
+                        self.output.push_str(", ");
+                    }
+                    self.generate_expr(arg)?;
+                }
+                self.output.push(')');
+            }
+        }
+        Ok(())
+    }
+
+    /// Generate code for Set method calls (add, has, delete, clear, values, forEach, union, intersection, difference)
+    fn generate_set_method_call(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
+        match method_call.method.as_str() {
+            "add" => {
+                // set.add(value) → set.insert(value)
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".insert(");
+                if let Some(arg) = method_call.args.first() {
+                    if matches!(arg, Expr::Literal(Literal::String(_))) {
+                        self.generate_expr(arg)?;
+                        self.output.push_str(".to_string()");
+                    } else {
+                        self.generate_expr(arg)?;
+                    }
+                }
+                self.output.push(')');
+            }
+            "has" => {
+                // set.has(value) → set.contains(&value)
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".contains(&");
+                if let Some(arg) = method_call.args.first() {
+                    if matches!(arg, Expr::Literal(Literal::String(_))) {
+                        self.generate_expr(arg)?;
+                        self.output.push_str(".to_string()");
+                    } else {
+                        self.generate_expr(arg)?;
+                    }
+                }
+                self.output.push(')');
+            }
+            "delete" => {
+                // set.delete(value) → set.remove(&value)
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".remove(&");
+                if let Some(arg) = method_call.args.first() {
+                    if matches!(arg, Expr::Literal(Literal::String(_))) {
+                        self.generate_expr(arg)?;
+                        self.output.push_str(".to_string()");
+                    } else {
+                        self.generate_expr(arg)?;
+                    }
+                }
+                self.output.push(')');
+            }
+            "clear" => {
+                // set.clear() → set.clear()
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".clear()");
+            }
+            "values" => {
+                // set.values() → set.iter().cloned().collect::<Vec<_>>()
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".iter().cloned().collect::<Vec<_>>()");
+            }
+            "forEach" => {
+                // set.forEach(callback) → set.iter().for_each(|v| { ... })
+                self.generate_expr(&method_call.object)?;
+                if let Some(callback) = method_call.args.first() {
+                    match callback {
+                        Expr::Lambda(lambda) => {
+                            let param = lambda.params.get(0).and_then(|p| p.name()).map(|n| self.sanitize_name(n)).unwrap_or_else(|| "v".to_string());
+                            write!(self.output, ".iter().for_each(|{}| {{\n", param).unwrap();
+                            self.indent();
+                            match &lambda.body {
+                                LambdaBody::Expr(expr) => {
+                                    self.write_indent();
+                                    self.generate_expr(expr)?;
+                                    self.output.push_str(";\n");
+                                }
+                                LambdaBody::Block(block) => {
+                                    for stmt in &block.stmts {
+                                        self.generate_stmt(stmt)?;
+                                    }
+                                }
+                            }
+                            self.dedent();
+                        }
+                        _ => {
+                            self.output.push_str(".iter().for_each(|v| {\n");
+                            self.indent();
+                            self.write_indent();
+                            self.generate_expr(callback)?;
+                            self.output.push_str("(v);\n");
+                            self.dedent();
+                        }
+                    }
+                } else {
+                    self.output.push_str(".iter().for_each(|v| {\n");
+                    self.indent();
+                    self.dedent();
+                }
+                self.write_indent();
+                self.output.push_str("})");
+            }
+            "union" => {
+                // set.union(other) → set.union(&other).cloned().collect::<HashSet<_>>()
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".union(&");
+                if let Some(arg) = method_call.args.first() {
+                    self.generate_expr(arg)?;
+                }
+                self.output.push_str(").cloned().collect::<std::collections::HashSet<_>>()");
+            }
+            "intersection" => {
+                // set.intersection(other) → set.intersection(&other).cloned().collect::<HashSet<_>>()
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".intersection(&");
+                if let Some(arg) = method_call.args.first() {
+                    self.generate_expr(arg)?;
+                }
+                self.output.push_str(").cloned().collect::<std::collections::HashSet<_>>()");
+            }
+            "difference" => {
+                // set.difference(other) → set.difference(&other).cloned().collect::<HashSet<_>>()
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".difference(&");
+                if let Some(arg) = method_call.args.first() {
+                    self.generate_expr(arg)?;
+                }
+                self.output.push_str(").cloned().collect::<std::collections::HashSet<_>>()");
             }
             _ => {
                 // Fallback: generate as normal method call
@@ -12161,6 +12361,21 @@ impl<'a> IrCodeGenerator<'a> {
                 }
                 Ok(())
             }
+            ir::Expr::SetLiteral(elements) => {
+                if elements.is_empty() {
+                    self.output.push_str("std::collections::HashSet::new()");
+                } else {
+                    self.output.push_str("std::collections::HashSet::from([");
+                    for (i, elem) in elements.iter().enumerate() {
+                        if i > 0 {
+                            self.output.push_str(", ");
+                        }
+                        self.generate_expr(elem)?;
+                    }
+                    self.output.push_str("])");
+                }
+                Ok(())
+            }
             ir::Expr::Unsupported(ast_expr) => {
                 // Handle unsupported IR expressions that are passed through from AST
                 if let Expr::Switch(switch_expr) = ast_expr {
@@ -12628,6 +12843,7 @@ fn expr_has_unsupported(expr: &ir::Expr) -> bool {
         ir::Expr::MapLiteral(entries) => entries
             .iter()
             .any(|(k, v)| expr_has_unsupported(k) || expr_has_unsupported(v)),
+        ir::Expr::SetLiteral(elements) => elements.iter().any(expr_has_unsupported),
     }
 }
 
@@ -12860,6 +13076,7 @@ fn expr_has_async_concurrency(expr: &ir::Expr) -> bool {
         &ir::Expr::MapLiteral(ref entries) => entries
             .iter()
             .any(|(k, v)| expr_has_async_concurrency(k) || expr_has_async_concurrency(v)),
+        &ir::Expr::SetLiteral(ref elements) => elements.iter().any(expr_has_async_concurrency),
         &ir::Expr::Literal(_) | &ir::Expr::Identifier(_) | &ir::Expr::Unsupported(_) => false,
     }
 }
@@ -12937,6 +13154,7 @@ fn expr_has_parallel_concurrency(expr: &ir::Expr) -> bool {
         &ir::Expr::MapLiteral(ref entries) => entries
             .iter()
             .any(|(k, v)| expr_has_parallel_concurrency(k) || expr_has_parallel_concurrency(v)),
+        &ir::Expr::SetLiteral(ref elements) => elements.iter().any(expr_has_parallel_concurrency),
         &ir::Expr::Literal(_) | &ir::Expr::Identifier(_) | &ir::Expr::Unsupported(_) => false,
     }
 }
@@ -13063,6 +13281,7 @@ fn ast_expr_has_async(expr: &Expr) -> bool {
         Expr::MapLiteral(entries) => entries
             .iter()
             .any(|(k, v)| ast_expr_has_async(k) || ast_expr_has_async(v)),
+        Expr::SetLiteral(elements) => elements.iter().any(ast_expr_has_async),
         Expr::Literal(_) | Expr::Identifier(_) | Expr::MethodRef { .. } => false,
     }
 }

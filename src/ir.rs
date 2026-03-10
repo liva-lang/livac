@@ -175,6 +175,7 @@ pub enum Expr {
     },
     ArrayLiteral(Vec<Expr>),
     MapLiteral(Vec<(Expr, Expr)>),
+    SetLiteral(Vec<Expr>),
     TupleLiteral(Vec<Expr>),
     Range {
         start: Box<Expr>,
@@ -298,6 +299,10 @@ impl Type {
             }
             Some(ast::TypeRef::Map(key, value)) => {
                 let rust_type = ast::TypeRef::Map(key.clone(), value.clone()).to_rust_type();
+                Type::Custom(rust_type)
+            }
+            Some(ast::TypeRef::Set(inner)) => {
+                let rust_type = ast::TypeRef::Set(inner.clone()).to_rust_type();
                 Type::Custom(rust_type)
             }
             None => Type::Inferred,

@@ -1,7 +1,7 @@
 # 🗺️ Liva Language Roadmap
 
 > **Current Version:** v1.3.0-dev (tag: v1.2.0)  
-> **Status:** Map<K,V>, Error Trace Chaining, `or <value>`, Enum Types, CI/CD, 306 tests  
+> **Status:** Set<T>, Map<K,V>, Error Trace Chaining, `or <value>`, Enum Types, CI/CD, 315 tests  
 > **Completed:** Phases 1-13, Sessions 14-18  
 > **Last Updated:** 2026-03-10
 
@@ -35,7 +35,7 @@ The roadmap is organized into focused phases:
 - **Session 16:** 📦 CI/CD - GitHub Actions, cross-platform releases ✅
 - **Session 17:** 🎯 Enum Types - Algebraic data types + Release v1.2.0 ✅
 - **Session 18:** 🗂️ Dir/Sys/contains - New stdlib modules ✅
-- **Phase 13:** 🗺️ Map<K,V> Collections - Dictionaries with HashMap (v1.3.0) ✅
+- **Phase 13:** 🗺️ Map<K,V> & Set<T> Collections - Dictionaries & unique sets (v1.3.0) ✅
 
 ---
 
@@ -62,6 +62,7 @@ The roadmap is organized into focused phases:
 **Collections:**
 - ✅ Arrays with full method support
 - ✅ Map<K,V> (dictionaries) with HashMap backend (v1.3.0)
+- ✅ Set<T> (unique collections) with HashSet backend (v1.3.0)
 
 **Concurrency:**
 - ✅ Async/await for I/O-bound operations
@@ -104,18 +105,22 @@ The roadmap is organized into focused phases:
 - ✅ Test framework (`--test`) with Jest-like API
 - ✅ CI/CD with GitHub Actions (3 OSes: Ubuntu, macOS, Windows)
 - ✅ Release workflow (.deb/.rpm/.tar.gz/.zip)
-- ✅ Comprehensive test suite (306 tests)
+- ✅ Comprehensive test suite (315 tests)
 - ✅ Complete documentation (60+ files)
 
-**Phase 13 — Map<K,V> Collections (v1.3.0):**
+**Phase 13 — Map<K,V> & Set<T> Collections (v1.3.0):**
 - ✅ `Map { key: value }` literal syntax
 - ✅ `Map<K, V>` type annotations
-- ✅ Methods: get, set, has, delete, keys, values, entries, clear, forEach
+- ✅ Map methods: get, set, has, delete, keys, values, entries, clear, forEach
 - ✅ `map.get(key) or default` with fallible default value
 - ✅ `for key, value in map` destructured iteration
+- ✅ `Set { value1, value2 }` literal syntax
+- ✅ `Set<T>` type annotations
+- ✅ Set methods: add, has, delete, values, clear, forEach, union, intersection, difference
+- ✅ `for value in set` iteration
 - ✅ Full compiler pipeline: AST → Parser → Semantic → IR → Lowering → Codegen → Formatter
-- ✅ 8 snapshot tests + 1 integration test (306 tests total)
-- ✅ Documentation: QUICK_REFERENCE, CHANGELOG
+- ✅ 17 snapshot tests + 2 integration tests (315 tests total)
+- ✅ Documentation: QUICK_REFERENCE, CHANGELOG, language-reference/collections.md
 
 ---
 
@@ -2720,11 +2725,11 @@ describe("HTTP Client", () => {
 
 ---
 
-## 🗺️ Phase 13: Map<K,V> Collections (v1.3.0) — ✅ COMPLETE
+## 🗺️ Phase 13: Map<K,V> & Set<T> Collections (v1.3.0) — ✅ COMPLETE
 
-**Goal:** Full dictionary/map support with HashMap backend  
+**Goal:** Full dictionary/map and set support with HashMap/HashSet backend  
 **Status:** ✅ COMPLETED  
-**Tests:** 306 (up from 290, +8 snapshot tests + 1 integration test)
+**Tests:** 315 (up from 290, +17 snapshot tests + 2 integration tests)
 
 ### 13.1 Map Literal & Type Syntax ✅
 
@@ -2762,6 +2767,38 @@ describe("HTTP Client", () => {
 
 - [x] 8 snapshot tests: map_literal_empty, map_literal_entries, map_get_set_has_delete, map_keys_values_entries, map_foreach, map_for_loop, map_clear, map_type_annotation
 - [x] 1 integration test: `examples/tests/test_map.liva`
+- [x] Docs: QUICK_REFERENCE, CHANGELOG, language-reference/collections.md, copilot-instructions.md
+
+### 13.6 Set Literal & Type Syntax ✅
+
+- [x] AST: `TypeRef::Set(Box<TypeRef>)`, `Expr::SetLiteral(Vec<Expr>)`
+- [x] Parser: `Set { value1, value2 }` literal (intercepted before StructLiteral)
+- [x] Parser: `Set<T>` type annotation
+- [x] Semantic: Set type inference from first element, `TypeRef::Set` arms in all visitors
+- [x] IR: `SetLiteral(Vec<Expr>)` variant
+- [x] Codegen: `HashSet::new()` / `HashSet::from([...])`
+
+### 13.7 Set Methods ✅
+
+- [x] `add` → `.insert(value)`
+- [x] `has` → `.contains(&value)`
+- [x] `delete` → `.remove(&value)`
+- [x] `values` → `.iter().cloned().collect::<Vec<_>>()`
+- [x] `clear` → `.clear()`
+- [x] `forEach` → `.iter().for_each(|v| ...)`
+- [x] `union` → `.union(&other).cloned().collect::<HashSet<_>>()`
+- [x] `intersection` → `.intersection(&other).cloned().collect::<HashSet<_>>()`
+- [x] `difference` → `.difference(&other).cloned().collect::<HashSet<_>>()`
+
+### 13.8 Set Iteration & Formatter ✅
+
+- [x] `for value in set` → `for v in set.iter()`
+- [x] `format_set_literal()`, `TypeRef::Set` formatting
+
+### 13.9 Set Tests & Docs ✅
+
+- [x] 9 snapshot tests: set_literal_empty, set_literal_values, set_add_has_delete, set_values, set_foreach, set_for_loop, set_clear, set_union_intersection_difference, set_type_annotation
+- [x] 1 integration test: `examples/tests/test_set.liva`
 - [x] Docs: QUICK_REFERENCE, CHANGELOG, language-reference/collections.md, copilot-instructions.md
 
 ---
@@ -2821,7 +2858,7 @@ describe("HTTP Client", () => {
 | **v1.0.2** | Code Formatter (CLI + LSP) | ✅ Completed | 2026-02-06 |
 | **v1.1.0** | Syntax Sugar & Ergonomics | ✅ Completed | 2026-02-11 |
 | **v1.2.0** | Test Framework (`liva/test`) + Enum Types + Release | ✅ Completed | 2026-02-12 |
-| **v1.3.0-dev** | Map<K,V>, Error Trace, `or <value>`, keyword removals | 🔄 In Progress | — |
+| **v1.3.0-dev** | Map<K,V>, Set<T>, Error Trace, `or <value>`, keyword removals | 🔄 In Progress | — |
 **Total effort completed:** ~100+ hours of focused development 🎉
 
 ---

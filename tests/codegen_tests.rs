@@ -3014,3 +3014,152 @@ main() {
     assert!(rust_code.contains("HashMap<"), "should generate HashMap type");
     assert_snapshot!("map_type_annotation", rust_code);
 }
+
+// ============================================================
+// Phase 14: Set<T> Collections
+// ============================================================
+
+#[test]
+fn test_set_literal_empty() {
+    let source = r#"
+main() {
+  let empty: Set<string> = Set {}
+  print(empty.length)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("HashSet"), "should use HashSet");
+    assert_snapshot!("set_literal_empty", rust_code);
+}
+
+#[test]
+fn test_set_literal_with_values() {
+    let source = r#"
+main() {
+  let numbers = Set { 1, 2, 3, 4, 5 }
+  print(numbers.length)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("HashSet::from"), "should use HashSet::from");
+    assert_snapshot!("set_literal_values", rust_code);
+}
+
+#[test]
+fn test_set_add_has_delete() {
+    let source = r#"
+main() {
+  let fruits = Set { "apple", "banana" }
+  
+  fruits.add("cherry")
+  let hasApple = fruits.has("apple")
+  fruits.delete("banana")
+  print(hasApple)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains(".insert("), "should generate .insert() for add");
+    assert!(rust_code.contains(".contains("), "should generate .contains() for has");
+    assert!(rust_code.contains(".remove("), "should generate .remove() for delete");
+    assert_snapshot!("set_add_has_delete", rust_code);
+}
+
+#[test]
+fn test_set_values_method() {
+    let source = r#"
+main() {
+  let tags = Set { "rust", "liva", "wasm" }
+  let allValues = tags.values()
+  print(allValues.length)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains(".iter()"), "should generate .iter() for values");
+    assert_snapshot!("set_values", rust_code);
+}
+
+#[test]
+fn test_set_foreach() {
+    let source = r#"
+main() {
+  let langs = Set { "rust", "liva", "python" }
+  
+  langs.forEach((item) => {
+    print(item)
+  })
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains(".iter().for_each("), "should generate .iter().for_each()");
+    assert_snapshot!("set_foreach", rust_code);
+}
+
+#[test]
+fn test_set_for_loop_iteration() {
+    let source = r#"
+main() {
+  let colors = Set { "red", "green", "blue" }
+  
+  for color in colors {
+    print(color)
+  }
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("for "), "should generate for loop");
+    assert_snapshot!("set_for_loop", rust_code);
+}
+
+#[test]
+fn test_set_clear() {
+    let source = r#"
+main() {
+  let data = Set { "a", "b", "c" }
+  data.clear()
+  print(data.length)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains(".clear()"), "should generate .clear()");
+    assert_snapshot!("set_clear", rust_code);
+}
+
+#[test]
+fn test_set_type_annotation() {
+    let source = r#"
+getDefaults(): Set<string> {
+  return Set { "verbose", "debug" }
+}
+
+main() {
+  let defaults = getDefaults()
+  print(defaults.length)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("HashSet<"), "should generate HashSet type");
+    assert_snapshot!("set_type_annotation", rust_code);
+}
+
+#[test]
+fn test_set_union_intersection_difference() {
+    let source = r#"
+main() {
+  let a = Set { 1, 2, 3 }
+  let b = Set { 2, 3, 4 }
+  
+  let united = a.union(b)
+  let common = a.intersection(b)
+  let diff = a.difference(b)
+  
+  print(united.length)
+  print(common.length)
+  print(diff.length)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains(".union("), "should generate .union()");
+    assert!(rust_code.contains(".intersection("), "should generate .intersection()");
+    assert!(rust_code.contains(".difference("), "should generate .difference()");
+    assert_snapshot!("set_union_intersection_difference", rust_code);
+}

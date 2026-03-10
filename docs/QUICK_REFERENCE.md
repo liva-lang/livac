@@ -928,6 +928,84 @@ let pairs = config.entries()     // [(string, string)]
 
 ---
 
+## Collections (Sets) *(v1.3.0)*
+
+### Creating Sets
+
+```liva
+// Empty set (type annotation required)
+let empty: Set<string> = Set {}
+
+// Set with values (type inferred)
+let colors = Set { "red", "green", "blue" }
+let primes = Set { 2, 3, 5, 7, 11 }
+```
+
+### Set Operations
+
+```liva
+let colors = Set { "red", "green", "blue" }
+
+// Add element
+colors.add("yellow")
+
+// Check membership
+let hasRed = colors.has("red")       // true
+
+// Remove element
+colors.delete("green")
+
+// Get all values as array
+let vals = colors.values()            // [string]
+
+// Clear all elements
+colors.clear()
+```
+
+### Set Algebra
+
+```liva
+let a = Set { 1, 2, 3 }
+let b = Set { 3, 4, 5 }
+
+let u = a.union(b)            // Set { 1, 2, 3, 4, 5 }
+let i = a.intersection(b)     // Set { 3 }
+let d = a.difference(b)       // Set { 1, 2 }
+```
+
+### Iterating Sets
+
+```liva
+let fruits = Set { "apple", "banana", "cherry" }
+
+// for-in loop
+for fruit in fruits {
+  print(fruit)
+}
+
+// forEach with lambda
+fruits.forEach((f) => {
+  print(f)
+})
+```
+
+### Set Methods Summary
+
+| Method | Description | Returns |
+|--------|-------------|--------|
+| `set.add(value)` | Add element | `void` |
+| `set.has(value)` | Check membership | `bool` |
+| `set.delete(value)` | Remove element | `void` |
+| `set.values()` | All values as array | `[T]` |
+| `set.union(other)` | Set union | `Set<T>` |
+| `set.intersection(other)` | Set intersection | `Set<T>` |
+| `set.difference(other)` | Set difference | `Set<T>` |
+| `set.clear()` | Remove all elements | `void` |
+| `set.forEach(fn)` | Iterate with callback | `void` |
+| `set.length` | Number of elements | `int` |
+
+---
+
 ## Strings
 
 ### String Templates

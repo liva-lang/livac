@@ -5,6 +5,7 @@ Complete reference for arrays, maps, objects, and data structures in Liva.
 ## Table of Contents
 - [Arrays](#arrays)
 - [Maps (Dictionaries)](#maps-dictionaries)
+- [Sets](#sets)
 - [Object Literals](#object-literals)
 - [Struct Literals](#struct-literals)
 - [Iteration](#iteration)
@@ -247,6 +248,107 @@ Liva maps compile to Rust's `std::collections::HashMap<K, V>`:
 | `map.set("k", v)` | `map.insert("k".to_string(), v)` |
 | `map.has("k")` | `map.contains_key(&"k".to_string())` |
 | `for k, v in map` | `for (k, v) in map.iter()` |
+
+---
+
+## Sets
+
+> Added in v1.3.0
+
+Sets are unordered collections of unique values, backed by Rust's `HashSet`.
+
+### Creating Sets
+
+```liva
+// Empty set (type annotation required)
+let empty: Set<string> = Set {}
+
+// Set with values (type inferred from first element)
+let colors = Set { "red", "green", "blue" }
+let primes = Set { 2, 3, 5, 7, 11 }
+```
+
+### Adding & Removing Elements
+
+```liva
+let fruits = Set { "apple", "banana" }
+
+fruits.add("cherry")       // Insert element
+fruits.delete("banana")    // Remove element
+fruits.clear()             // Remove all elements
+```
+
+### Checking Membership
+
+```liva
+let colors = Set { "red", "green", "blue" }
+
+let hasRed = colors.has("red")        // true
+let hasPurple = colors.has("purple")  // false
+```
+
+### Set Algebra Operations
+
+```liva
+let a = Set { 1, 2, 3 }
+let b = Set { 3, 4, 5 }
+
+let u = a.union(b)            // Set { 1, 2, 3, 4, 5 }
+let i = a.intersection(b)     // Set { 3 }
+let d = a.difference(b)       // Set { 1, 2 }
+```
+
+### Getting Values
+
+```liva
+let colors = Set { "red", "green", "blue" }
+
+let vals = colors.values()    // [string] — all elements as array
+let count = colors.length     // 3
+```
+
+### Iterating Sets
+
+```liva
+let numbers = Set { 10, 20, 30 }
+
+// for-in loop
+for n in numbers {
+  print(n)
+}
+
+// forEach with lambda
+numbers.forEach((n) => {
+  print("Number: " + n)
+})
+```
+
+### Set Methods
+
+| Method | Description | Returns |
+|--------|-------------|--------|
+| `set.add(value)` | Add element to set | `void` |
+| `set.has(value)` | Check if value exists | `bool` |
+| `set.delete(value)` | Remove element | `void` |
+| `set.values()` | All values as array | `[T]` |
+| `set.union(other)` | Elements in either set | `Set<T>` |
+| `set.intersection(other)` | Elements in both sets | `Set<T>` |
+| `set.difference(other)` | Elements in this but not other | `Set<T>` |
+| `set.clear()` | Remove all elements | `void` |
+| `set.forEach(fn)` | Iterate with callback | `void` |
+| `set.length` | Number of elements | `int` |
+
+### Compiled Output
+
+Liva sets compile to Rust's `std::collections::HashSet<T>`:
+
+| Liva | Rust |
+|------|------|
+| `Set { "a", "b" }` | `HashSet::from(["a".to_string(), "b".to_string()])` |
+| `set.add("x")` | `set.insert("x".to_string())` |
+| `set.has("x")` | `set.contains(&"x".to_string())` |
+| `set.union(other)` | `set.union(&other).cloned().collect::<HashSet<_>>()` |
+| `for v in set` | `for v in set.iter()` |
 
 ---
 
