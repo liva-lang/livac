@@ -1,0 +1,45 @@
+// ============================================================================
+// Configuration Management - Minimal Version
+// ============================================================================
+Config {
+    constructor(defaultUser: string, token: string, cacheEnabled: bool, theme: string) {
+        this.defaultUser = defaultUser
+        this.token = token
+        this.cacheEnabled = cacheEnabled
+        this.theme = theme
+    }
+
+    defaultUser: string
+    token: string
+    cacheEnabled: bool
+    theme: string
+
+    hasToken(): bool => this.token != ""
+
+    isValidTheme(): bool {
+        if this.theme == "default" {
+            return true
+        } else if this.theme == "dark" {
+            return true
+        } else if this.theme == "light" {
+            return true
+        } else {
+            return false
+        }
+    }
+
+    getValidTheme(): string {
+        if this.isValidTheme() {
+            return this.theme
+        } else {
+            return "default"
+        }
+    }
+}
+
+loadConfig(path: string): Config => createDefaultConfig()
+
+saveConfig(config: Config, path: string): bool => true
+
+createDefaultConfig(): Config => Config("octocat", "", true, "default")
+// Return default config for now (simplified)

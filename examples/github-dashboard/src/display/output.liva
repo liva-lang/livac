@@ -1,0 +1,284 @@
+// ============================================================================
+// Display Output Functions
+// Demonstrates: String templates, Console output, Pattern matching, Formatting
+// ============================================================================
+
+import { User, Repo, Issue, PullRequest } from "../models/entities.liva"
+import { Stats, LanguageStat } from "../models/stats.liva"
+import { formatNumber, pluralize } from "../utils/format.liva"
+
+// ============================================================================
+// Constants for display
+// ============================================================================
+
+const SEPARATOR_WIDTH = 60
+const SEPARATOR_CHAR = "="
+
+// ============================================================================
+// Header and Section Display
+// ============================================================================
+
+// Print a styled header
+printHeader(title: string) {
+    let separator = repeatChar(SEPARATOR_CHAR, SEPARATOR_WIDTH)
+    print("")
+    print(separator)
+    print($"  {title}")
+    print(separator)
+}
+
+// Print a sub-header
+printSubHeader(title: string) {
+    print("")
+    print($"── {title} ──")
+}
+
+// Helper to repeat a character (manual since no built-in)
+repeatChar(char: string, count: number): string {
+    let result = ""
+    let i = 0
+    while i < count {
+        result = $"{result}{char}"
+        i = i + 1
+    }
+    return result
+}
+
+// ============================================================================
+// User Display
+// ============================================================================
+
+printUser(user: User) {
+    print("")
+    print($"  👤 {user.display()}")
+    print("")
+    
+    // Display bio if available
+    if user.hasBio() {
+        print($"  📝 {user.bio}")
+        print("")
+    }
+    
+    // Stats in a formatted way
+    print($"  📦 Repositories: {user.publicRepos}")
+    print($"  👥 Followers:    {formatNumber(user.followers)}")
+    print($"  👤 Following:    {formatNumber(user.following)}")
+    
+    // Email if available
+    print($"  📧 Email:        {user.getDisplayEmail()}")
+    
+    // Popularity level with pattern-based styling
+    let popularityIcon = switch user.getPopularityLevel() {
+        "newcomer" => "🌱",
+        "growing" => "🌿",
+        "popular" => "🌳",
+        "superstar" => "⭐",
+        _ => "📊"
+    }
+    print($"  {popularityIcon} Status:       {user.getPopularityLevel()}")
+    
+    print("")
+    print($"  🔗 {user.getUrl()}")
+}
+
+// ============================================================================
+// Repository Display
+// ============================================================================
+
+printRepos(repos: [Repo]) {
+    if repos.length == 0 {
+        print("  No repositories found.")
+        return
+    }
+    
+    print("")
+    
+    for repo in repos {
+        printRepo(repo)
+    }
+}
+
+printRepo(repo: Repo) {
+    // Visibility badge
+    let visibilityBadge = switch repo.getVisibility() {
+        "private" => "🔒",
+        "fork" => "⑂ ",
+        _ => "📂"
+    }
+    
+    // Language badge (or empty)
+    let langBadge = repo.language != "" ? $"[{repo.language}]" : ""
+    
+    // Main line
+    print($"  {visibilityBadge} {repo.name} {langBadge}")
+    
+    // Description (truncated)
+    if repo.hasDescription() {
+        let desc = truncate(repo.description, 50)
+        print($"     {desc}")
+    }
+    
+    // Stats line
+    print($"     ★ {repo.stars}  ⑂ {repo.forks}  👁 {repo.watchers}")
+    
+    print("")
+}
+
+// Print repos as a compact table
+printReposTable(repos: [Repo]) {
+    print("")
+    print("  Name                          Lang        Stars  Forks")
+    print("  " + repeatChar("-", 56))
+    
+    for repo in repos {
+        let name = padRight(repo.name, 28)
+        let lang = padRight(repo.language, 10)
+        let stars = padLeft(toString(repo.stars), 6)
+        let forks = padLeft(toString(repo.forks), 6)
+        
+        print($"  {name}  {lang}  {stars}  {forks}")
+    }
+}
+
+// ============================================================================
+// Stats Display
+// ============================================================================
+
+printStats(stats: Stats) {
+    print("")
+    
+    // Main metrics
+    printSubHeader("Overview")
+    print($"  📦 Total Repositories: {stats.totalRepos}")
+    print($"  ⭐ Total Stars:        {formatNumber(stats.totalStars)}")
+    print($"  ⑂  Total Forks:        {formatNumber(stats.totalForks)}")
+    print($"  📊 Avg Stars/Repo:     {stats.avgStarsPerRepo}")
+    
+    // Issue stats
+    printSubHeader("Issues")
+    print($"  📋 Total Issues:    {stats.totalIssues}")
+    print($"  🟢 Open:            {stats.openIssues}")
+    print($"  🔴 Closed:          {stats.closedIssues}")
+    print($"  📈 Resolution Rate: {stats.getIssueResolutionRate()}%")
+    
+    // Language breakdown
+    printSubHeader("Languages")
+    if stats.languageBreakdown.length > 0 {
+        for langStat in stats.languageBreakdown {
+            let bar = createProgressBar(langStat.percentage, 20)
+            print($"  {padRight(langStat.language, 12)} {bar} {langStat.percentage}%")
+        }
+    } else {
+        print("  No language data available")
+    }
+    
+    // Activity score with visual indicator
+    printSubHeader("Activity")
+    let activityBar = createProgressBar(stats.activityScore, 30)
+    let healthIcon = switch stats.getHealthLevel() {
+        "low" => "🔴",
+        "moderate" => "🟡",
+        "good" => "🟢",
+        _ => "💚"
+    }
+    print($"  {healthIcon} Activity Score: {stats.activityScore}/100")
+    print($"     {activityBar}")
+    print($"     Health: {stats.getHealthLevel()}")
+}
+
+// Create a progress bar string
+createProgressBar(percentage: float, width: number): string {
+    let filledCount = Math.floor(percentage * width / 100.0)
+    let emptyCount = width - filledCount
+    
+    let filled = repeatChar("█", filledCount)
+    let empty = repeatChar("░", emptyCount)
+    
+    return $"[{filled}{empty}]"
+}
+
+// ============================================================================
+// Issue and PR Display
+// ============================================================================
+
+printIssue(issue: Issue) {
+    let stateIcon = issue.isOpen() ? "🟢" : "🔴"
+    print($"  {stateIcon} #{issue.number}: {issue.title}")
+    print($"     by {issue.authorLogin} | {issue.summary()}")
+}
+
+printPullRequest(pr: PullRequest) {
+    let statusIcon = switch pr.getStatus() {
+        "merged" => "🟣",
+        "open" => "🟢",
+        "draft" => "⚪",
+        _ => "🔴"
+    }
+    
+    let sizeLabel = pr.getSize()
+    
+    print($"  {statusIcon} #{pr.number}: {pr.title} [{sizeLabel}]")
+    print($"     {pr.getBranchInfo()} | {pr.summary()}")
+}
+
+// ============================================================================
+// Error Display
+// ============================================================================
+
+printError(message: string) {
+    console.error($"❌ Error: {message}")
+}
+
+printWarning(message: string) {
+    console.warn($"⚠️  Warning: {message}")
+}
+
+printSuccess(message: string) {
+    console.success($"✅ {message}")
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+// Truncate string with ellipsis
+truncate(text: string, maxLen: number): string {
+    if text.length <= maxLen {
+        return text
+    }
+    return text.substring(0, maxLen - 3) + "..."
+}
+
+// Pad string to the right
+padRight(text: string, width: number): string {
+    let result = text
+    while result.length < width {
+        result = $"{result} "
+    }
+    return result.substring(0, width)
+}
+
+// Pad string to the left
+padLeft(text: string, width: number): string {
+    let result = text
+    while result.length < width {
+        result = $" {result}"
+    }
+    return result.substring(0, width)
+}
+
+// Center text
+centerText(text: string, width: number): string {
+    let padding = width - text.length
+    if padding <= 0 {
+        return text
+    }
+    
+    let leftPad = padding / 2
+    let rightPad = padding - leftPad
+    
+    let left = repeatChar(" ", leftPad)
+    let right = repeatChar(" ", rightPad)
+    
+    return $"{left}{text}{right}"
+}

@@ -1,0 +1,236 @@
+// ============================================================================
+// Statistics Models and Calculations
+// Demonstrates: Classes, Tuples, Math operations, Parallel computation
+// ============================================================================
+import { User, Repo, Issue } from "./entities.liva"
+
+// ============================================================================
+// Stats Class - Aggregated statistics
+// ============================================================================
+Stats {
+    constructor(
+        totalRepos: number,
+        totalStars: number,
+        totalForks: number,
+        totalIssues: number,
+        openIssues: number,
+        closedIssues: number,
+        avgStarsPerRepo: float,
+        topLanguage: string,
+        languageBreakdown: [LanguageStat],
+        activityScore: float
+    ) {
+        this.totalRepos = totalRepos
+        this.totalStars = totalStars
+        this.totalForks = totalForks
+        this.totalIssues = totalIssues
+        this.openIssues = openIssues
+        this.closedIssues = closedIssues
+        this.avgStarsPerRepo = avgStarsPerRepo
+        this.topLanguage = topLanguage
+        this.languageBreakdown = languageBreakdown
+        this.activityScore = activityScore
+    }
+
+    totalRepos: number
+    totalStars: number
+    totalForks: number
+    totalIssues: number
+    openIssues: number
+    closedIssues: number
+    avgStarsPerRepo: float
+    topLanguage: string
+    languageBreakdown: [LanguageStat]
+    activityScore: float
+
+    // Get health indicator using pattern matching
+    getHealthLevel(
+    ): string => switch this.activityScore {
+        0.0..=25.0 => "low",
+        25.1..=50.0 => "moderate",
+        50.1..=75.0 => "good",
+        _ => "excellent",
+    }
+
+    // Calculate issue resolution rate
+    getIssueResolutionRate(): float {
+        if this.totalIssues == 0 {
+            return 100.0
+        }
+        let rate = this.closedIssues * 100.0 / this.totalIssues
+        return Math.round(rate * 100.0) / 100.0
+    }
+}
+
+// ============================================================================
+// Language Statistics
+// ============================================================================
+LanguageStat {
+    constructor(language: string, repoCount: number, percentage: float) {
+        this.language = language
+        this.repoCount = repoCount
+        this.percentage = percentage
+    }
+
+    language: string
+    repoCount: number
+    percentage: float
+
+    display(): string => $"{this.language}: {this.repoCount} repos ({this.percentage}%)"
+}
+
+// ============================================================================
+// Repo Statistics (for individual repos)
+// ============================================================================
+RepoStats {
+    constructor(repo: Repo, engagement: float, activityLevel: string, sizeCategory: string) {
+        this.repo = repo
+        this.engagement = engagement
+        this.activityLevel = activityLevel
+        this.sizeCategory = sizeCategory
+    }
+
+    repo: Repo
+    engagement: float
+    activityLevel: string
+    sizeCategory: string
+}
+
+// Main stats calculation - designed for parallel execution
+// ============================================================================
+// Statistics Calculation Functions
+// ============================================================================
+calculateStats(user: User, repos: [Repo], issues: [Issue]): Stats {
+    // Calculate totals using reduce
+    let totalStars = repos.reduce((acc, r) => acc + r.stars, 0)
+    let totalForks = repos.reduce((acc, r) => acc + r.forks, 0)
+    // Calculate averages
+    let avgStars = repos.length > 0 ? totalStars / repos.length : 0.0
+    // Count issues by state
+    let openIssues = issues.filter(i => i.isOpen()).length
+    let closedIssues = issues.filter(i => i.isClosed()).length
+    // Calculate language breakdown
+    let languageStats = calculateLanguageBreakdown(repos)
+    // Find top language
+    let topLang = languageStats.length > 0 ? languageStats[0].language : "None"
+    // Calculate activity score (complex computation)
+    let activityScore = calculateActivityScore(user, repos, issues)
+    return Stats(
+        repos.length,
+        totalStars,
+        totalForks,
+        issues.length,
+        openIssues,
+        closedIssues,
+        avgStars,
+        topLang,
+        languageStats,
+        activityScore
+    )
+}
+
+// Calculate language breakdown from repos
+calculateLanguageBreakdown(repos: [Repo]): [LanguageStat] {
+    // Count repos per language using manual accumulation
+    // (Liva doesn't have Maps yet, so we'll simplify)
+    let languages: [string] = []
+    let counts: [number] = []
+    for repo in repos {
+        let lang = repo.language
+        if lang {
+            // Check if language already counted
+            let found = false
+            let i = 0
+            while i < languages.length {
+                if languages[i] == lang {
+                    counts[i] = counts[i] + 1
+                    found = true
+                }
+                i = i + 1
+            }
+            if not found {
+                languages = languages.concat([lang])
+                counts = counts.concat([1])
+            }
+        }
+    }
+    // Build language stats
+    let total = repos.length
+    let stats: [LanguageStat] = []
+    let j = 0
+    while j < languages.length {
+        let pct = counts[j] * 100.0 / total
+        let roundedPct = Math.round(pct * 10.0) / 10.0
+        stats = stats.concat([LanguageStat(languages[j], counts[j], roundedPct)])
+        j = j + 1
+    }
+    return stats
+}
+
+// Calculate activity score (CPU-intensive, good for par)
+calculateActivityScore(user: User, repos: [Repo], issues: [Issue]): float {
+    // Base score from followers (log scale)
+    let followerScore = Math.sqrt(user.followers) * 2.0
+    // Repo activity score
+    let repoScore = repos.reduce(
+        (acc, r) => {
+        let engagement = r.calculateEngagement()
+        return acc + Math.sqrt(engagement)
+    },
+        0.0
+    )
+    // Issue activity score
+    let issueScore = issues.length * 0.5
+    let totalScore = followerScore * 0.3 + repoScore * 0.5 + issueScore * 0.2
+    // Normalize to 0-100
+    let normalized = Math.min(totalScore, 100.0)
+    return Math.round(normalized * 100.0) / 100.0
+}
+
+// Aggregate stats from multiple repos (parallel-friendly)
+aggregateRepoStats(
+    repos: [Repo]
+): [RepoStats] => repos.map(r => {
+    let engagement = r.calculateEngagement()
+    let activityLevel = switch engagement {
+        0.0..=10.0 => "inactive",
+        10.1..=50.0 => "low",
+        50.1..=200.0 => "moderate",
+        _ => "high",
+    }
+    let sizeCategory = switch r.stars {
+        0..=10 => "small",
+        11..=100 => "medium",
+        _ => "large",
+    }
+    return RepoStats(r, engagement, activityLevel, sizeCategory)
+})
+
+// Calculate percentile ranking
+calculatePercentile(value: number, allValues: [number]): float {
+    if allValues.length == 0 {
+        return 0.0
+    }
+    let belowCount = allValues.filter(v => v < value).length
+    let percentile = belowCount * 100.0 / allValues.length
+    return Math.round(percentile * 100.0) / 100.0
+}
+
+// Tuple return example - get min and max stars
+getStarRange(repos: [Repo]): (number, number) {
+    if repos.length == 0 {
+        return (0, 0)
+    }
+    let min = repos[0].stars
+    let max = repos[0].stars
+    for repo in repos {
+        if repo.stars < min {
+            min = repo.stars
+        }
+        if repo.stars > max {
+            max = repo.stars
+        }
+    }
+    return (min, max)
+}
+// Combine scores with weights

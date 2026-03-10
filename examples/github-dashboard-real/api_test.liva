@@ -1,0 +1,85 @@
+// ============================================================================
+// API Test - JSONPlaceholder (free, no rate limit)
+// Tests: HTTP client, JSON parsing, error handling
+// ============================================================================
+
+main() {
+    print("API Test - JSONPlaceholder")
+    print("===========================")
+    print("")
+    
+    // Test 1: Fetch a single user
+    print("1. Fetching user #1...")
+    let userUrl = "https://jsonplaceholder.typicode.com/users/1"
+    
+    let response, err = HTTP.get(userUrl)
+    
+    if err != "" {
+        print("Error: " + err)
+    } else {
+        print("Status: " + response.status)
+        
+        if response.status == 200 {
+            let user, parseErr = JSON.parse(response.body)
+            if parseErr != "" {
+                print("Parse error: " + parseErr)
+            } else {
+                print("User: " + user["name"])
+                print("Email: " + user["email"])
+                print("Company: " + user["company"]["name"])
+            }
+        }
+    }
+    
+    print("")
+    
+    // Test 2: Fetch posts
+    print("2. Fetching posts...")
+    let postsUrl = "https://jsonplaceholder.typicode.com/posts?_limit=3"
+    
+    let postsResponse, postsErr = HTTP.get(postsUrl)
+    
+    if postsErr != "" {
+        print("Error: " + postsErr)
+    } else {
+        if postsResponse.status == 200 {
+            let posts, parseErr2 = JSON.parse(postsResponse.body)
+            if parseErr2 != "" {
+                print("Parse error: " + parseErr2)
+            } else {
+                print("Found posts:")
+                posts.forEach(post => {
+                    let id = post["id"]
+                    let title = post["title"]
+                    print("  [" + id + "] " + title)
+                })
+            }
+        }
+    }
+    
+    print("")
+    
+    // Test 3: Post data (create)
+    print("3. Creating a post...")
+    let createUrl = "https://jsonplaceholder.typicode.com/posts"
+    let body = "{\"title\":\"Hello from Liva\",\"body\":\"This is a test\",\"userId\":1}"
+    
+    let createResponse, createErr = HTTP.post(createUrl, body)
+    
+    if createErr != "" {
+        print("Error: " + createErr)
+    } else {
+        print("Status: " + createResponse.status)
+        if createResponse.status == 201 {
+            let created, parseErr3 = JSON.parse(createResponse.body)
+            if parseErr3 != "" {
+                print("Parse error: " + parseErr3)
+            } else {
+                print("Created post with ID: " + created["id"])
+            }
+        }
+    }
+    
+    print("")
+    print("Done!")
+}

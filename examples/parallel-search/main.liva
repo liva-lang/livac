@@ -1,0 +1,63 @@
+joinPath(basePath: string, name: string): string {
+    if basePath.endsWith("/") {
+        return $"{basePath}{name}"
+    }
+    return $"{basePath}/{name}"
+}
+
+searchInFile(filePath: string, needle: string): number {
+    let content, err = File.read(filePath)
+    if err != "" {
+        return 0
+    }
+
+    let matches = 0
+    let lineNumber = 1
+    for line in content.split("\n") {
+        if line.contains(needle) {
+            print($"{filePath}:{lineNumber}: {line}")
+            matches = matches + 1
+        }
+        lineNumber = lineNumber + 1
+    }
+
+    return matches
+}
+
+searchInDirectory(dirPath: string, needle: string): number {
+    let entries, err = Dir.list(dirPath)
+    if err != "" {
+        return 0
+    }
+
+    let partialMatches = entries.par().map(entry => {
+        let fullPath = joinPath(dirPath, entry)
+        if Dir.isDir(fullPath) {
+            return searchInDirectory(fullPath, needle)
+        } else {
+            return searchInFile(fullPath, needle)
+        }
+    })
+
+    return partialMatches.reduce(0, (acc, count) => acc + count)
+}
+
+main() {
+    let args = Sys.args()
+
+    if args.length < 3 {
+        print("Uso: buscador \"texto\" /ruta/directorio")
+        Sys.exit(1)
+    }
+
+    let needle = args[1]
+    let rootPath = args[2]
+
+    if not Dir.isDir(rootPath) {
+        console.error($"La ruta no es un directorio: {rootPath}")
+        Sys.exit(1)
+    }
+
+    let total = searchInDirectory(rootPath, needle)
+    print($"Coincidencias totales: {total}")
+}

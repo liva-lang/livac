@@ -1,0 +1,203 @@
+// Todo API Client - Tests HTTP POST, PUT, DELETE with JSONPlaceholder
+// This tests all HTTP methods and JSON serialization
+
+// List all todos (limited)
+listTodos(limit: number) {
+    let url = "https://jsonplaceholder.typicode.com/todos?_limit=" + limit
+    
+    print($"Fetching {limit} todos...")
+    print("")
+    
+    let response, err = async HTTP.get(url)
+    if err == "" {
+        let todos = JSON.parse(response.body)
+        let todoList = todos.as_array()
+        
+        print("ID    Status      Title")
+        print("--    ------      -----")
+        
+        for todo in todoList {
+            let id = todo["id"]
+            let title = todo["title"]
+            let completed = todo["completed"]
+            
+            let status = "[  ]"
+            if completed == true {
+                status = "[✓]"
+            }
+            
+            print($"{id}     {status}     {title}")
+        }
+    } else {
+        print($"Error: {err}")
+    }
+}
+
+// Get a single todo by ID
+getTodo(todoId: number) {
+    let url = "https://jsonplaceholder.typicode.com/todos/" + todoId
+    
+    print($"Fetching todo #{todoId}...")
+    print("")
+    
+    let response, err = async HTTP.get(url)
+    if err == "" {
+        let todo = JSON.parse(response.body)
+        
+        let id = todo["id"]
+        let title = todo["title"]
+        let completed = todo["completed"]
+        let userId = todo["userId"]
+        
+        print($"Todo #{id}")
+        print($"  Title: {title}")
+        print($"  User ID: {userId}")
+        if completed == true {
+            print("  Status: ✓ Completed")
+        } else {
+            print("  Status: ○ Pending")
+        }
+    } else {
+        print($"Error: {err}")
+    }
+}
+
+// Create a new todo (POST)
+createTodo(title: string) {
+    let url = "https://jsonplaceholder.typicode.com/todos"
+    
+    // Build JSON body manually
+    let body = "{\"title\":\"" + title + "\",\"completed\":false,\"userId\":1}"
+    
+    print($"Creating todo: {title}...")
+    print("")
+    
+    let response, err = async HTTP.post(url, body)
+    if err == "" {
+        let result = JSON.parse(response.body)
+        let id = result["id"]
+        
+        print("✓ Todo created successfully!")
+        print($"  ID: {id}")
+        print($"  Title: {title}")
+        print("  Status: Pending")
+    } else {
+        print($"Error: {err}")
+    }
+}
+
+// Update a todo (PUT)
+updateTodo(todoId: number, title: string, completed: bool) {
+    let url = "https://jsonplaceholder.typicode.com/todos/" + todoId
+    
+    // Build JSON body
+    let completedStr = "false"
+    if completed {
+        completedStr = "true"
+    }
+    let body = "{\"id\":" + todoId + ",\"title\":\"" + title + "\",\"completed\":" + completedStr + ",\"userId\":1}"
+    
+    print($"Updating todo #{todoId}...")
+    print("")
+    
+    let response, err = async HTTP.put(url, body)
+    if err == "" {
+        let result = JSON.parse(response.body)
+        
+        print("✓ Todo updated successfully!")
+        print($"  ID: {todoId}")
+        print($"  Title: {title}")
+        if completed {
+            print("  Status: ✓ Completed")
+        } else {
+            print("  Status: ○ Pending")
+        }
+    } else {
+        print($"Error: {err}")
+    }
+}
+
+// Delete a todo (DELETE)
+deleteTodo(todoId: number) {
+    let url = "https://jsonplaceholder.typicode.com/todos/" + todoId
+    
+    print($"Deleting todo #{todoId}...")
+    print("")
+    
+    let response, err = async HTTP.delete(url)
+    if err == "" {
+        print("✓ Todo deleted successfully!")
+        print($"  Removed todo #{todoId}")
+    } else {
+        print($"Error: {err}")
+    }
+}
+
+// Show usage
+showUsage() {
+    print("Todo API Client - JSONPlaceholder Demo")
+    print("")
+    print("Usage:")
+    print("  todo list [N]              List N todos (default: 5)")
+    print("  todo get <id>              Get todo by ID")
+    print("  todo create <title>        Create a new todo")
+    print("  todo complete <id>         Mark todo as completed")
+    print("  todo delete <id>           Delete a todo")
+    print("")
+    print("Examples:")
+    print("  todo list 10")
+    print("  todo get 1")
+    print("  todo create \"Learn Liva\"")
+    print("  todo complete 1")
+    print("  todo delete 1")
+}
+
+// Main entry point
+main() {
+    let args = Sys.args()
+    
+    if args.length >= 2 {
+        let command = args[1]
+        
+        if command == "list" {
+            let limit = 5
+            if args.length >= 3 {
+                // TODO: parse int from args[2]
+                limit = 10
+            }
+            listTodos(limit)
+        } else if command == "get" {
+            if args.length >= 3 {
+                // TODO: parse int - for now hardcode
+                getTodo(1)
+            } else {
+                print("Usage: todo get <id>")
+            }
+        } else if command == "create" {
+            if args.length >= 3 {
+                let title = args[2]
+                createTodo(title)
+            } else {
+                print("Usage: todo create <title>")
+            }
+        } else if command == "complete" {
+            if args.length >= 3 {
+                // TODO: parse int and get current title
+                updateTodo(1, "Updated Task", true)
+            } else {
+                print("Usage: todo complete <id>")
+            }
+        } else if command == "delete" {
+            if args.length >= 3 {
+                // TODO: parse int
+                deleteTodo(1)
+            } else {
+                print("Usage: todo delete <id>")
+            }
+        } else {
+            showUsage()
+        }
+    } else {
+        showUsage()
+    }
+}

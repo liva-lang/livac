@@ -1,0 +1,191 @@
+// ============================================================================
+// GitHub Users API Client
+// Demonstrates: Async HTTP, JSON parsing, Error handling, String templates
+// ============================================================================
+import { User, Repo, createUserFromJson, createRepoFromJson } from "../models/entities.liva"
+
+// ============================================================================
+// Constants
+// ============================================================================
+const GITHUB_API_BASE = "https://api.github.com"
+
+const USER_AGENT = "Liva-GitHub-Dashboard/1.0"
+
+// Fetch a single user by username
+// ============================================================================
+// User API Functions
+// ============================================================================
+fetchUser(username: string, token: string): User {
+    let url = $"{GITHUB_API_BASE}/users/{username}"
+    let response, err = async HTTP.get(url)()
+    if err {
+        fail $"HTTP error: {err}"
+    }
+    if response.status != 200 {
+        // Pattern match on status code
+        let message = switch response.status {
+            404 => $"User '{username}' not found",
+            403 => "Rate limit exceeded or forbidden",
+            401 => "Authentication required",
+            _ => $"API error: status {response.status}",
+        }
+        fail message
+    }
+    let json, parseErr = response.json()
+    if parseErr {
+        fail $"JSON parse error: {parseErr}"
+    }
+    return createUserFromJson(json)
+}
+
+// Fetch user's repositories
+fetchRepos(username: string, token: string, limit: number): [Repo] {
+    let url = $"{GITHUB_API_BASE}/users/{username}/repos?per_page={limit}&sort=updated"
+    let response, err = async HTTP.get(url)()
+    if err {
+        fail $"HTTP error: {err}"
+    }
+    if response.status != 200 {
+        fail $"API error: status {response.status}"
+    }
+    let jsonArray, parseErr = response.json()
+    if parseErr {
+        fail $"JSON parse error: {parseErr}"
+    }
+    // Map JSON array to Repo objects
+    let repos: [Repo] = jsonArray.map(json => createRepoFromJson(json))
+    return repos
+}
+
+// Fetch user statistics (aggregated data)
+fetchUserStats(username: string, token: string): UserApiStats {
+    // Concurrent fetching with task handles
+    let userTask = task async fetchUser(username, token)
+    let reposTask = task async fetchRepos(username, token, 100)
+    let user = await userTask
+    let repos = await reposTask
+    // Calculate stats
+    let totalStars = repos.reduce((acc, r) => acc + r.stars, 0)
+    let totalForks = repos.reduce((acc, r) => acc + r.forks, 0)
+    // Find most popular repo
+    let mostPopular = repos.reduce((best, r) => r.stars > best.stars ? r : best, repos[0])
+    let languages = repos.filter(r => r.language != "").map(r => r.language)
+    return UserApiStats(user, repos.length, totalStars, totalForks, mostPopular, languages)
+}
+
+// ============================================================================
+// User Stats Class (API response wrapper)
+// ============================================================================
+UserApiStats {
+    constructor(
+        user: User,
+        repoCount: number,
+        totalStars: number,
+        totalForks: number,
+        topRepo: Repo,
+        languages: [string]
+    ) {
+        this.user = user
+        this.repoCount = repoCount
+        this.totalStars = totalStars
+        this.totalForks = totalForks
+        this.topRepo = topRepo
+        this.languages = languages
+    }
+
+    user: User
+    repoCount: number
+    totalStars: number
+    totalForks: number
+    topRepo: Repo
+    languages: [string]
+
+    // Get unique language count
+    getLanguageCount(): number {
+        // Simple dedup by checking previous entries
+        let unique: [string] = []
+        for lang in this.languages {
+            let exists = unique.some(l => l == lang)
+            if not exists {
+                unique = unique.concat([lang])
+            }
+        }
+        return unique.length
+    }
+
+    // Summary string
+    getSummary(
+    ): string => $"{this.user.display()}: {this.repoCount} repos, {this.totalStars} stars"
+}
+
+// ============================================================================
+// Search Users (demonstrates complex query building)
+// ============================================================================
+searchUsers(query: string, token: string, limit: number): [User] {
+    let encodedQuery = query.replace(" ", "+")
+    let url = $"{GITHUB_API_BASE}/search/users?q={encodedQuery}&per_page={limit}"
+    let response, err = async HTTP.get(url)()
+    if err {
+        fail $"HTTP error: {err}"
+    }
+    if response.status != 200 {
+        fail $"Search API error: status {response.status}"
+    }
+    let json, parseErr = response.json()
+    if parseErr {
+        fail $"JSON parse error: {parseErr}"
+    }
+    // Search results have items array
+    let items = json.items
+    // For each item, we need to fetch full user data
+    // Using parallel fetching for efficiency
+    let users: [User] = []
+    for item in items {
+        let login = item.login
+        let user, userErr = async fetchUser(login, token)
+        if not userErr {
+            users = users.concat([user])
+        }
+    }
+    return users
+}
+
+// ============================================================================
+// Rate Limit Checker
+// ============================================================================
+RateLimitInfo {
+    constructor(limit: number, remaining: number, resetAt: number) {
+        this.limit = limit
+        this.remaining = remaining
+        this.resetAt = resetAt
+    }
+
+    limit: number
+    remaining: number
+    resetAt: number
+
+    isExhausted(): bool => this.remaining == 0
+
+    getUsagePercent(): float {
+        if this.limit == 0 {
+            return 0.0
+        }
+        let used = this.limit - this.remaining
+        return used * 100.0 / this.limit
+    }
+}
+
+checkRateLimit(token: string): RateLimitInfo {
+    let url = $"{GITHUB_API_BASE}/rate_limit"
+    let response, err = async HTTP.get(url)()
+    if err {
+        fail $"HTTP error: {err}"
+    }
+    let json, parseErr = response.json()
+    if parseErr {
+        fail $"JSON parse error: {parseErr}"
+    }
+    let core = json.resources.core
+    return RateLimitInfo(core.limit, core.remaining, core.reset)
+}
+// Get languages

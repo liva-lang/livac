@@ -1,0 +1,78 @@
+// ============================================================================
+// GitHub Dashboard - Real API Version
+// Tests: HTTP client, JSON parsing, error handling
+// ============================================================================
+
+main() {
+    print("GitHub Dashboard - Real API")
+    print("===========================")
+    print("")
+    
+    let username = "torvalds"
+    
+    // Fetch user data
+    print("Fetching user: " + username)
+    let userUrl = "https://api.github.com/users/" + username
+    
+    let response, err = HTTP.get(userUrl)
+    
+    if err != "" {
+        print("Error fetching user: " + err)
+    } else {
+        print("Status: " + response.status)
+        
+        // Check for rate limiting
+        if response.status == 403 {
+            print("Rate limited! Try again later or use authentication.")
+        } else if response.status == 200 {
+            let data, parseErr = JSON.parse(response.body)
+            if parseErr != "" {
+                print("Parse error: " + parseErr)
+            } else {
+                print("")
+                print("=== GitHub User ===")
+                print("Login: " + data["login"])
+                print("Name: " + data["name"]) 
+                print("Bio: " + data["bio"])
+                print("Public repos: " + data["public_repos"])
+                print("Followers: " + data["followers"])
+                print("Following: " + data["following"])
+            }
+        } else {
+            print("Unexpected status: " + response.status)
+        }
+    }
+    
+    print("")
+    
+    // Fetch repos
+    print("Fetching repositories...")
+    let reposUrl = "https://api.github.com/users/" + username + "/repos?per_page=5&sort=stars"
+    
+    let reposResponse, reposErr = HTTP.get(reposUrl)
+    
+    if reposErr != "" {
+        print("Error fetching repos: " + reposErr)
+    } else {
+        if reposResponse.status == 403 {
+            print("Rate limited!")
+        } else if reposResponse.status == 200 {
+            let repos, parseErr2 = JSON.parse(reposResponse.body)
+            if parseErr2 != "" {
+                print("Parse error: " + parseErr2)
+            } else {
+                print("")
+                print("=== Top Repositories ===")
+                repos.forEach(repo => {
+                    let name = repo["name"]
+                    let stars = repo["stargazers_count"]
+                    let lang = repo["language"]
+                    print("- " + name + " (" + lang + ") | Stars: " + stars)
+                })
+            }
+        }
+    }
+    
+    print("")
+    print("Done!")
+}

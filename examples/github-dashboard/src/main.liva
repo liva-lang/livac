@@ -1,0 +1,121 @@
+// ============================================================================
+// GitHub Dashboard CLI - Main Entry Point (Simplified)
+// ============================================================================
+import { Config, loadConfig } from "./utils/config.liva"
+import { User, Repo } from "./models/entities.liva"
+import { formatNumber, pluralize } from "./utils/format.liva"
+
+// ============================================================================
+// Command Class
+// ============================================================================
+Command {
+    constructor(name: string) {
+        this.name = name
+    }
+
+    name: string
+
+    describe(): string => "Command: " + this.name
+}
+
+// ============================================================================
+// Main Application Class
+// ============================================================================
+App {
+    constructor(username: string) {
+        this.username = username
+        this.commandCount = 0
+    }
+
+    username: string
+    commandCount: number
+
+    run(cmd: Command) {
+        this.commandCount = this.commandCount + 1
+        // Get username once to avoid borrow issues
+        let user = this.username
+        if cmd.name == "user" {
+            showUser(user)
+        } else if cmd.name == "repos" {
+            showRepos(user)
+        } else if cmd.name == "help" {
+            showHelp()
+        } else {
+            print("Unknown command: " + cmd.name)
+            showHelp()
+        }
+    }
+}
+
+// ============================================================================
+// Helper Functions (outside class)
+// ============================================================================
+showUser(username: string) {
+    print("=== User: " + username + " ===")
+    // Create demo user
+    let user = User(
+        1,
+        username,
+        "Demo User",
+        "demo@example.com",
+        "A developer",
+        "",
+        50,
+        1000,
+        100,
+        "2020-01-01"
+    )
+    print("Name: " + user.display())
+    print("Repos: " + user.publicRepos)
+    print("Followers: " + formatNumber(user.followers))
+    print("Level: " + user.getPopularityLevel())
+}
+
+showRepos(username: string) {
+    print("=== Repositories for " + username + " ===")
+    // Demo repos
+    let repo1 = Repo(1, "repo1", username + "/repo1", "First repo", "Rust", 150, 20, false)
+    let repo2 = Repo(2, "repo2", username + "/repo2", "Second repo", "Liva", 75, 10, false)
+    let repo3 = Repo(3, "repo3", username + "/repo3", "Third repo", "Python", 200, 50, false)
+    // Print each
+    print("- " + repo1.display() + " | Stars: " + formatNumber(repo1.stars))
+    print("- " + repo2.display() + " | Stars: " + formatNumber(repo2.stars))
+    print("- " + repo3.display() + " | Stars: " + formatNumber(repo3.stars))
+    // Calculate totals
+    let totalStars = repo1.stars + repo2.stars + repo3.stars
+    let totalForks = repo1.forks + repo2.forks + repo3.forks
+    print("")
+    print("Total: 3 repos")
+    print("Stars: " + totalStars + ", Forks: " + totalForks)
+}
+
+showHelp() {
+    print("=== GitHub Dashboard Help ===")
+    print("Commands:")
+    print("  user  - Show user info")
+    print("  repos - Show repositories")
+    print("  help  - Show this help")
+}
+
+// ============================================================================
+// Main Entry Point
+// ============================================================================
+main() {
+    print("GitHub Dashboard CLI v1.0")
+    print("========================")
+    print("")
+    // Create app
+    let app = App("octocat")
+    // Run commands
+    let userCmd = Command("user")
+    app.run(userCmd)
+    print("")
+    let reposCmd = Command("repos")
+    app.run(reposCmd)
+    print("")
+    let helpCmd = Command("help")
+    app.run(helpCmd)
+    print("")
+    print("Commands executed: " + app.commandCount)
+    print("Done!")
+}

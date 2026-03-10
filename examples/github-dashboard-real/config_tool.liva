@@ -1,0 +1,151 @@
+// ============================================================================
+// Config Tool - Test File I/O + JSON combination
+// A simple config manager that reads/writes JSON config files
+// ============================================================================
+
+main() {
+    let args = Sys.args()
+    
+    if args.len() < 2 {
+        showHelp()
+        Sys.exit(1)
+    }
+    
+    let command = args[1].to_string()
+    
+    if command == "init" {
+        initConfig()
+    } else if command == "get" {
+        if args.len() < 3 {
+            console.error("Error: key required")
+            print("Usage: config-tool get <key>")
+            Sys.exit(1)
+        }
+        getConfig(args[2].to_string())
+    } else if command == "set" {
+        if args.len() < 4 {
+            console.error("Error: key and value required")
+            print("Usage: config-tool set <key> <value>")
+            Sys.exit(1)
+        }
+        setConfig(args[2].to_string(), args[3].to_string())
+    } else if command == "show" {
+        showConfig()
+    } else if command == "help" or command == "--help" {
+        showHelp()
+    } else {
+        console.error("Unknown command: " + command)
+        showHelp()
+        Sys.exit(1)
+    }
+}
+
+showHelp() {
+    print("Config Tool - Written in Liva")
+    print("")
+    print("Usage: config-tool <command> [arguments]")
+    print("")
+    print("Commands:")
+    print("  init              Create default config file")
+    print("  show              Display all config values")
+    print("  get <key>         Get a config value")
+    print("  set <key> <value> Set a config value")
+    print("  help              Show this help message")
+    print("")
+    print("Config file: ./config.json")
+}
+
+getConfigPath(): string {
+    return "./config.json"
+}
+
+initConfig() {
+    let path = getConfigPath()
+    
+    // Check if already exists
+    let exists = File.exists(path)
+    if exists == true {
+        print("Config file already exists at: " + path)
+        print("Use 'show' to view or 'set' to modify")
+    } else {
+        // Create default config
+        let defaultConfig = "{\"username\": \"user\", \"theme\": \"dark\", \"api_url\": \"https://api.github.com\", \"per_page\": 10}"
+        
+        let success, err = File.write(path, defaultConfig)
+        if err != "" {
+            console.error("Error creating config: " + err)
+            Sys.exit(1)
+        }
+        
+        print("Created config file: " + path)
+        print("")
+        showConfig()
+    }
+}
+
+showConfig() {
+    let path = getConfigPath()
+    
+    let content, readErr = File.read(path)
+    if readErr != "" {
+        console.error("Error reading config: " + readErr)
+        print("Run 'config-tool init' to create a config file")
+        Sys.exit(1)
+    }
+    
+    let config, parseErr = JSON.parse(content)
+    if parseErr != "" {
+        console.error("Error parsing config: " + parseErr)
+        Sys.exit(1)
+    }
+    
+    print("=== Current Config ===")
+    print("")
+    print("  username:  " + config["username"])
+    print("  theme:     " + config["theme"])
+    print("  api_url:   " + config["api_url"])
+    print("  per_page:  " + config["per_page"])
+}
+
+getConfig(key: string) {
+    let path = getConfigPath()
+    
+    let content, readErr = File.read(path)
+    if readErr != "" {
+        console.error("Error reading config: " + readErr)
+        Sys.exit(1)
+    }
+    
+    let config, parseErr = JSON.parse(content)
+    if parseErr != "" {
+        console.error("Error parsing config: " + parseErr)
+        Sys.exit(1)
+    }
+    
+    let value = config[key]
+    print(key + " = " + value)
+}
+
+setConfig(key: string, value: string) {
+    let path = getConfigPath()
+    
+    // Read existing config
+    let content, readErr = File.read(path)
+    if readErr != "" {
+        console.error("Error reading config: " + readErr)
+        print("Run 'config-tool init' first")
+        Sys.exit(1)
+    }
+    
+    // For now, we'll do a simple string replace approach
+    // (Full JSON modification would require JSON.stringify which we may not have)
+    
+    // Try to find and replace the value
+    // This is a simplified approach - a real impl would parse/modify/stringify
+    
+    print("Setting " + key + " = " + value)
+    print("")
+    print("Note: Full JSON modification requires JSON.stringify")
+    print("Current config:")
+    print(content)
+}

@@ -1,0 +1,151 @@
+// Crypto Tracker CLI - Real-time crypto prices using CoinGecko API
+// Tests: HTTP, JSON arrays, nested objects, formatting, multiple API calls
+
+// Format price with appropriate decimals
+formatPrice(price: float): string => $"${price}"
+
+// Format percentage change with color indicator
+formatChange(change: float): string {
+    if change >= 0.0 {
+        return $"+{change}%"
+    }
+    return $"{change}%"
+}
+
+// Get crypto price from CoinGecko API
+getCryptoPrice(coinId: string) {
+    let url = "https://api.coingecko.com/api/v3/simple/price?ids=" + coinId + "&vs_currencies=usd&include_24hr_change=true"
+    
+    let response, err = async HTTP.get(url)
+    if err == "" {
+        let data = JSON.parse(response.body)
+        let coin = data[coinId]
+        
+        if coin != null {
+            let price = coin["usd"]
+            let change = coin["usd_24h_change"]
+            print($"  {coinId}: {formatPrice(price.as_float())} ({formatChange(change.as_float())})")
+        } else {
+            print($"  {coinId}: Not found")
+        }
+    } else {
+        print($"Error fetching {coinId}: {err}")
+    }
+}
+
+// Get top coins from CoinGecko API
+getTopCoins(limit: number) {
+    let url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=" + limit + "&page=1&sparkline=false"
+    
+    print($"Fetching top {limit} cryptocurrencies...")
+    print("")
+    
+    let response, err = async HTTP.get(url)
+    if err == "" {
+        let coins = JSON.parse(response.body)
+        let coinList = coins.as_array()
+        
+        if coinList.length > 0 {
+            print("Rank  Symbol    Price              24h Change")
+            print("----  ------    -----              ----------")
+            
+            for coin in coinList {
+                let rank = coin["market_cap_rank"]
+                let symbol = coin["symbol"]
+                let price = coin["current_price"]
+                let change = coin["price_change_percentage_24h"]
+                
+                print($"{rank}     {symbol}      {formatPrice(price.as_float())}      {formatChange(change.as_float())}")
+            }
+        } else {
+            print("No coins found")
+        }
+    } else {
+        print($"Error: {err}")
+    }
+}
+
+// Search for a coin by name
+searchCoin(query: string) {
+    let url = "https://api.coingecko.com/api/v3/search?query=" + query
+    
+    print($"Searching for: {query}...")
+    print("")
+    
+    let response, err = async HTTP.get(url)
+    if err == "" {
+        let data = JSON.parse(response.body)
+        let coins = data["coins"].as_array()
+        
+        if coins.length > 0 {
+            print("ID                    Name                  Symbol")
+            print("--                    ----                  ------")
+            
+            let count = 0
+            for coin in coins {
+                if count < 10 {
+                    let id = coin["id"]
+                    let name = coin["name"]
+                    let symbol = coin["symbol"]
+                    
+                    print($"{id}    {name}    {symbol}")
+                    count = count + 1
+                }
+            }
+        } else {
+            print("No coins found matching your query")
+        }
+    } else {
+        print($"Error: {err}")
+    }
+}
+
+// Show usage
+showUsage() {
+    print("Crypto Tracker CLI")
+    print("")
+    print("Usage:")
+    print("  crypto top [N]        Show top N cryptocurrencies (default: 10)")
+    print("  crypto price <coin>   Get price for a specific coin (e.g., bitcoin)")
+    print("  crypto search <query> Search for coins by name")
+    print("")
+    print("Examples:")
+    print("  crypto top 5")
+    print("  crypto price bitcoin")
+    print("  crypto price ethereum")
+    print("  crypto search solana")
+}
+
+// Main entry point
+main() {
+    let args = Sys.args()
+    
+    if args.length >= 2 {
+        let command = args[1]
+        
+        if command == "top" {
+            getTopCoins(10)
+        } else if command == "price" {
+            if args.length >= 3 {
+                let coinId = args[2]
+                print($"Getting price for {coinId}...")
+                print("")
+                getCryptoPrice(coinId)
+            } else {
+                print("Usage: crypto price <coin-id>")
+                print("Example: crypto price bitcoin")
+            }
+        } else if command == "search" {
+            if args.length >= 3 {
+                let query = args[2]
+                searchCoin(query)
+            } else {
+                print("Usage: crypto search <query>")
+            }
+        } else {
+            showUsage()
+        }
+    } else {
+        showUsage()
+    }
+}

@@ -1,0 +1,576 @@
+// ============================================================
+// Inventory Manager — Liva Dogfooding v2
+// Exercises: Map, Set, Enum, pattern matching, error handling,
+//            or fail, or value, error trace chaining, data classes,
+//            interfaces, string templates, array methods,
+//            break/continue, inclusive range, constants, Math
+// ============================================================
+
+// --- Constants ---
+const MAX_ITEMS = 100
+const LOW_STOCK_THRESHOLD = 5
+const TAX_RATE = 21
+
+// --- Enums ---
+enum Category {
+    Electronics,
+    Clothing,
+    Food,
+    Books,
+    Other
+}
+
+enum Urgency {
+    Critical,
+    High,
+    Normal,
+    Low
+}
+
+// --- Data Classes ---
+Product {
+    name: string
+    price: number
+    quantity: number
+}
+
+// --- Interface ---
+Displayable {
+    display(): string
+}
+
+// --- Helper Functions ---
+categoryLabel(cat: Category): string {
+    return switch cat {
+        Category.Electronics => "Electronics",
+        Category.Clothing => "Clothing",
+        Category.Food => "Food",
+        Category.Books => "Books",
+        Category.Other => "Other"
+    }
+}
+
+urgencyIcon(u: Urgency): string {
+    return switch u {
+        Urgency.Critical => "[!!!]",
+        Urgency.High => "[!!]",
+        Urgency.Normal => "[!]",
+        Urgency.Low => "[-]"
+    }
+}
+
+// One-liner with enum switch expression
+urgencyScore(u: Urgency): number => switch u {
+    Urgency.Critical => 4,
+    Urgency.High => 3,
+    Urgency.Normal => 2,
+    Urgency.Low => 1
+}
+
+// Fallible functions for error handling chain
+validateSku(sku: string): string {
+    if sku.length == 0 { fail "SKU cannot be empty" }
+    if sku.length > 20 { fail "SKU too long (max 20)" }
+    return sku
+}
+
+parseQuantity(s: string): number {
+    let qty, err = parseInt(s)
+    if err { fail $"Invalid quantity: {s}" }
+    if qty < 0 { fail "Quantity must be non-negative" }
+    if qty > MAX_ITEMS { fail $"Quantity exceeds max ({MAX_ITEMS})" }
+    return qty
+}
+
+// Error trace chaining: validateOrder -> validateSku -> parseQuantity
+validateOrder(sku: string, qtyStr: string): string {
+    let validSku = validateSku(sku) or fail "Bad SKU in order"
+    let qty = parseQuantity(qtyStr) or fail "Bad quantity in order"
+    return $"Order: {validSku} x{qty}"
+}
+
+// Apply tax
+withTax(price: number): number {
+    return price + (price * TAX_RATE / 100)
+}
+
+// --- Inventory Class ---
+Inventory : Displayable {
+    _items: Map<string, number>
+    _names: Map<string, string>
+    _tags: Map<string, string>
+    _allTags: Set<string>
+
+    constructor() {
+        this._items = Map {}
+        this._names = Map {}
+        this._tags = Map {}
+        this._allTags = Set {}
+    }
+
+    addItem(sku: string, name: string, qty: number, tag: string) {
+        this._items.set(sku, qty)
+        this._names.set(sku, name)
+        this._tags.set(sku, tag)
+        this._allTags.add(tag)
+    }
+
+    getQuantity(sku: string): number {
+        return this._items.get(sku) or 0
+    }
+
+    getName(sku: string): string {
+        return this._names.get(sku) or "Unknown"
+    }
+
+    itemCount(): number {
+        return this._items.length
+    }
+
+    lowStockSkus(): [string] {
+        let result: [string] = []
+        for sku, qty in this._items {
+            if qty < LOW_STOCK_THRESHOLD {
+                result = result + [sku]
+            }
+        }
+        return result
+    }
+
+    totalUnits(): number {
+        let values = this._items.values()
+        return values.reduce(0, (acc, v) => acc + v)
+    }
+
+    display(): string {
+        return $"Inventory({this.itemCount()} items, {this.totalUnits()} units)"
+    }
+}
+
+main() {
+    print("=== Inventory Manager — Dogfooding v2 ===")
+    print("")
+
+    // -----------------------------------------------
+    // Test 1: Map creation and CRUD
+    // -----------------------------------------------
+    print("--- Test 1: Map CRUD ---")
+
+    let prices = Map {
+        "laptop": 999,
+        "mouse": 25,
+        "keyboard": 75,
+        "monitor": 450,
+        "cable": 10
+    }
+
+    print("Items: " + prices.length)
+    let laptopPrice = prices.get("laptop") or 0
+    print("Laptop price: " + laptopPrice)
+
+    prices.set("webcam", 60)
+    print("After add webcam: " + prices.length)
+
+    let hasMonitor = prices.has("monitor")
+    print("Has monitor: " + hasMonitor)
+
+    prices.delete("cable")
+    print("After remove cable: " + prices.length)
+
+    // -----------------------------------------------
+    // Test 2: Map iteration (for key, value in map)
+    // -----------------------------------------------
+    print("")
+    print("--- Test 2: Map Iteration ---")
+
+    for name, price in prices {
+        print($"  {name}: ${price}")
+    }
+
+    // -----------------------------------------------
+    // Test 3: Map keys, values, reduce
+    // -----------------------------------------------
+    print("")
+    print("--- Test 3: Map keys/values ---")
+
+    let productNames = prices.keys()
+    print("Product count: " + productNames.length)
+
+    let allPrices = prices.values()
+    let totalValue = allPrices.reduce(0, (acc, p) => acc + p)
+    print("Total catalog value: $" + totalValue)
+
+    // -----------------------------------------------
+    // Test 4: Map entries, forEach
+    // -----------------------------------------------
+    print("")
+    print("--- Test 4: Map forEach ---")
+
+    prices.forEach((name, price) => {
+        let taxed = withTax(price)
+        print($"  {name}: ${price} (with tax: ${taxed})")
+    })
+
+    // -----------------------------------------------
+    // Test 5: Set creation and operations
+    // -----------------------------------------------
+    print("")
+    print("--- Test 5: Set CRUD ---")
+
+    let electronics = Set { "laptop", "mouse", "keyboard", "monitor", "webcam" }
+    let onSale = Set { "laptop", "mouse", "headphones", "tablet" }
+
+    print("Electronics: " + electronics.length)
+    print("On sale: " + onSale.length)
+
+    let hasLaptop = electronics.has("laptop")
+    print("Electronics has laptop: " + hasLaptop)
+
+    electronics.add("speakers")
+    print("After add speakers: " + electronics.length)
+
+    electronics.delete("webcam")
+    print("After remove webcam: " + electronics.length)
+
+    // -----------------------------------------------
+    // Test 6: Set algebra
+    // -----------------------------------------------
+    print("")
+    print("--- Test 6: Set Algebra ---")
+
+    let saleElectronics = electronics.intersection(onSale)
+    print("Electronics on sale: " + saleElectronics.length)
+    for item in saleElectronics {
+        print("  Sale: " + item)
+    }
+
+    let combined = electronics.union(onSale)
+    print("All unique items: " + combined.length)
+
+    let exclusiveElectronics = electronics.difference(onSale)
+    print("Electronics NOT on sale: " + exclusiveElectronics.length)
+
+    // -----------------------------------------------
+    // Test 7: Set forEach + values
+    // -----------------------------------------------
+    print("")
+    print("--- Test 7: Set Iteration ---")
+
+    let tags = Set { "premium", "new", "sale", "bestseller" }
+    for tag in tags {
+        print("  Tag: " + tag)
+    }
+
+    tags.forEach((t) => {
+        print("    forEach: " + t)
+    })
+
+    let tagList = tags.values()
+    print("Tag array length: " + tagList.length)
+
+    // -----------------------------------------------
+    // Test 8: Enum + switch expressions
+    // -----------------------------------------------
+    print("")
+    print("--- Test 8: Enum Matching ---")
+
+    let categories = [Category.Electronics, Category.Clothing, Category.Food, Category.Books, Category.Other]
+
+    for cat in categories {
+        let label = categoryLabel(cat)
+        print("  Category: " + label)
+    }
+
+    // -----------------------------------------------
+    // Test 9: Enum one-liner + scoring
+    // -----------------------------------------------
+    print("")
+    print("--- Test 9: Urgency Scores ---")
+
+    let urgencies = [Urgency.Critical, Urgency.High, Urgency.Normal, Urgency.Low]
+
+    for u in urgencies {
+        let icon = urgencyIcon(u)
+        let score = urgencyScore(u)
+        print($"  {icon} score={score}")
+    }
+
+    // -----------------------------------------------
+    // Test 10: or value (default fallback)
+    // -----------------------------------------------
+    print("")
+    print("--- Test 10: Error Handling (or value) ---")
+
+    let q1 = parseQuantity("42") or 0
+    print("Parsed '42': " + q1)
+
+    let q2 = parseQuantity("abc") or 0
+    print("Parsed 'abc' (fallback): " + q2)
+
+    let q3 = parseQuantity("-5") or 0
+    print("Parsed '-5' (fallback): " + q3)
+
+    let q4 = parseQuantity("999") or 0
+    print("Parsed '999' (fallback): " + q4)
+
+    let sku1 = validateSku("SKU-001") or "INVALID"
+    print("Valid SKU: " + sku1)
+
+    let sku2 = validateSku("") or "INVALID"
+    print("Empty SKU (fallback): " + sku2)
+
+    // -----------------------------------------------
+    // Test 11: Error trace chaining
+    // -----------------------------------------------
+    print("")
+    print("--- Test 11: Error Trace Chain ---")
+
+    let order1, err1 = validateOrder("SKU-A1", "10")
+    if err1 {
+        print("Order1 error: " + err1)
+    } else {
+        print("Order1 ok: " + order1)
+    }
+
+    let order2, err2 = validateOrder("", "5")
+    if err2 {
+        print("Order2 error (expected): " + err2)
+    }
+
+    let order3, err3 = validateOrder("SKU-B2", "xyz")
+    if err3 {
+        print("Order3 error (expected): " + err3)
+    }
+
+    // -----------------------------------------------
+    // Test 12: Inventory class with Map/Set
+    // -----------------------------------------------
+    print("")
+    print("--- Test 12: Inventory Class ---")
+
+    let inv = Inventory()
+    inv.addItem("SKU-001", "Laptop", 3, "electronics")
+    inv.addItem("SKU-002", "Mouse", 50, "electronics")
+    inv.addItem("SKU-003", "Novel", 8, "books")
+    inv.addItem("SKU-004", "T-Shirt", 2, "clothing")
+    inv.addItem("SKU-005", "Rice", 100, "food")
+
+    print(inv.display())
+    print("Total units: " + inv.totalUnits())
+
+    let name001 = inv.getName("SKU-001")
+    print("SKU-001: " + name001)
+
+    let qty001 = inv.getQuantity("SKU-001")
+    print("SKU-001 qty: " + qty001)
+
+    let unknown = inv.getName("SKU-999")
+    print("SKU-999: " + unknown)
+
+    let unknownQty = inv.getQuantity("SKU-999")
+    print("SKU-999 qty: " + unknownQty)
+
+    // -----------------------------------------------
+    // Test 13: Low stock detection with Map + break
+    // -----------------------------------------------
+    print("")
+    print("--- Test 13: Low Stock ---")
+
+    let lowStock = inv.lowStockSkus()
+    print("Low stock items: " + lowStock.length)
+    for sku in lowStock {
+        let itemName = inv.getName(sku)
+        let itemQty = inv.getQuantity(sku)
+        print($"  {sku}: {itemName} (qty: {itemQty})")
+    }
+
+    // -----------------------------------------------
+    // Test 14: Data class + equality
+    // -----------------------------------------------
+    print("")
+    print("--- Test 14: Data Classes ---")
+
+    let p1 = Product("Laptop", 999, 10)
+    let p2 = Product("Mouse", 25, 50)
+    let p3 = Product("Laptop", 999, 10)
+
+    print(p1)
+    print(p2)
+    print("p1 == p3: " + (p1 == p3))
+    print("p1 == p2: " + (p1 == p2))
+
+    // -----------------------------------------------
+    // Test 15: String methods
+    // -----------------------------------------------
+    print("")
+    print("--- Test 15: String Methods ---")
+
+    let raw = "  Hello, Liva!  "
+    print("Trimmed: '" + raw.trim() + "'")
+    print("Upper: " + raw.trim().toUpperCase())
+    print("Lower: " + raw.trim().toLowerCase())
+    print("Contains 'Liva': " + raw.contains("Liva"))
+    print("Starts with '  H': " + raw.startsWith("  H"))
+    print("Replace: " + raw.trim().replace("Liva", "World"))
+
+    let csv = "apple,banana,cherry,date"
+    let fruits = csv.split(",")
+    print("Fruits joined: " + fruits.join(" | "))
+    print("Fruit count: " + fruits.length)
+
+    // -----------------------------------------------
+    // Test 16: Array methods
+    // -----------------------------------------------
+    print("")
+    print("--- Test 16: Array Methods ---")
+
+    let nums = [10, 25, 3, 42, 7, 18, 31]
+
+    let doubled = nums.map(x => x * 2)
+    print("Doubled[0]: " + doubled[0])
+
+    let big = nums.filter(x => x > 20)
+    print("Count > 20: " + big.length)
+
+    let sum = nums.reduce(0, (acc, x) => acc + x)
+    print("Sum: " + sum)
+
+    let found = nums.find(x => x > 30)
+    print("First > 30: " + found)
+
+    let hasLarge = nums.some(x => x > 40)
+    print("Has > 40: " + hasLarge)
+
+    let allPositive = nums.every(x => x > 0)
+    print("All positive: " + allPositive)
+
+    let idx = nums.indexOf(42)
+    print("Index of 42: " + idx)
+
+    let hasThree = nums.includes(3)
+    print("Includes 3: " + hasThree)
+
+    // -----------------------------------------------
+    // Test 17: break/continue with inclusive range
+    // -----------------------------------------------
+    print("")
+    print("--- Test 17: Break/Continue ---")
+
+    let oddCount = 0
+    for i in 1..=20 {
+        if i % 2 == 0 { continue }
+        if i > 15 { break }
+        oddCount = oddCount + 1
+    }
+    print("Odd numbers 1-15: " + oddCount)
+
+    // Count items with specific range
+    let rangeSum = 0
+    for i in 1..=10 {
+        rangeSum = rangeSum + i
+    }
+    print("Sum 1..=10: " + rangeSum)
+
+    // -----------------------------------------------
+    // Test 18: Constants + Math
+    // -----------------------------------------------
+    print("")
+    print("--- Test 18: Constants + Math ---")
+
+    print("MAX_ITEMS: " + MAX_ITEMS)
+    print("LOW_STOCK: " + LOW_STOCK_THRESHOLD)
+    print("TAX_RATE: " + TAX_RATE)
+    print("PI: " + Math.PI)
+    print("E: " + Math.E)
+
+    let area = Math.PI * 5.0 * 5.0
+    print("Circle area (r=5): " + area)
+
+    let maxPrice = Math.max(999, 450)
+    print("Max price: " + maxPrice)
+
+    // -----------------------------------------------
+    // Test 19: Map get with or default
+    // -----------------------------------------------
+    print("")
+    print("--- Test 19: Map get defaults ---")
+
+    let config = Map {
+        "host": "localhost",
+        "port": "8080",
+        "debug": "true"
+    }
+
+    let host = config.get("host") or "0.0.0.0"
+    print("Host: " + host)
+
+    let port = config.get("port") or "3000"
+    print("Port: " + port)
+
+    let timeout = config.get("timeout") or "30"
+    print("Timeout (default): " + timeout)
+
+    let debug = config.get("debug") or "false"
+    print("Debug: " + debug)
+
+    // -----------------------------------------------
+    // Test 20: Complex scenario - price report
+    // -----------------------------------------------
+    print("")
+    print("--- Test 20: Price Report ---")
+
+    let catalog = Map {
+        "laptop": 999,
+        "mouse": 25,
+        "keyboard": 75,
+        "monitor": 450
+    }
+
+    let expensiveItems: [string] = []
+    let cheapItems: [string] = []
+
+    for item, price in catalog {
+        if price > 100 {
+            expensiveItems = expensiveItems + [item]
+        } else {
+            cheapItems = cheapItems + [item]
+        }
+    }
+
+    print("Expensive items: " + expensiveItems.length)
+    for item in expensiveItems {
+        let price = catalog.get(item) or 0
+        let taxed = withTax(price)
+        print($"  {item}: ${price} -> ${taxed} with tax")
+    }
+
+    print("Cheap items: " + cheapItems.length)
+    for item in cheapItems {
+        let price = catalog.get(item) or 0
+        print($"  {item}: ${price}")
+    }
+
+    // -----------------------------------------------
+    // Test 21: Set tracking unique categories
+    // -----------------------------------------------
+    print("")
+    print("--- Test 21: Tag Tracking ---")
+
+    let usedTags = Set { "electronics", "books", "clothing", "food" }
+    let availableTags = Set { "electronics", "books", "clothing", "food", "sports", "toys", "garden" }
+
+    let unusedTags = availableTags.difference(usedTags)
+    print("Unused tags: " + unusedTags.length)
+    for tag in unusedTags {
+        print("  Available: " + tag)
+    }
+
+    let allKnown = usedTags.union(availableTags)
+    print("All known tags: " + allKnown.length)
+
+    // -----------------------------------------------
+    // Done
+    // -----------------------------------------------
+    print("")
+    print("=== All Dogfooding v2 tests passed! ===")
+}

@@ -1,0 +1,287 @@
+import {
+    Issue,
+    PullRequest,
+    createIssueFromJson,
+    createPullRequestFromJson
+} from "../models/entities.liva"
+
+// ============================================================================
+// Constants
+// ============================================================================
+const GITHUB_API_BASE = "https://api.github.com"
+
+// Fetch issues for a user (across all repos)
+// ============================================================================
+// Issue API Functions
+// ============================================================================
+fetchIssues(username: string, token: string, limit: number): [Issue] {
+    let url = $"{GITHUB_API_BASE}/search/issues?q=author:{username}+type:issue&per_page={limit}"
+    let response, err = async HTTP.get(url)()
+    if err {
+        fail $"HTTP error: {err}"
+    }
+    if response.status != 200 {
+        fail $"API error: status {response.status}"
+    }
+    let json, parseErr = response.json()
+    if parseErr {
+        fail $"JSON parse error: {parseErr}"
+    }
+    let items = json.items
+    let issues: [Issue] = items.map(item => createIssueFromJson(item))
+    return issues
+}
+
+// Fetch issues for a specific repository
+fetchRepoIssues(owner: string, repo: string, token: string, state: string, limit: number): [Issue] {
+    // Validate state parameter using pattern matching
+    let validState = switch state {
+        "open" | "closed" | "all" => state,
+        _ => "open",
+    }
+    let url = $"{GITHUB_API_BASE}/repos/{owner}/{repo}/issues?state={validState}&per_page={limit}"
+    let response, err = async HTTP.get(url)()
+    if err {
+        fail $"HTTP error: {err}"
+    }
+    if response.status == 404 {
+        fail $"Repository '{owner}/{repo}' not found"
+    }
+    if response.status != 200 {
+        fail $"API error: status {response.status}"
+    }
+    let jsonArray, parseErr = response.json()
+    if parseErr {
+        fail $"JSON parse error: {parseErr}"
+    }
+    let issues: [Issue] =
+        jsonArray.filter(item => item.pull_request == null).map(item => createIssueFromJson(item))
+    return issues
+}
+
+// Fetch pull requests for a user
+// ============================================================================
+// Pull Request API Functions
+// ============================================================================
+fetchPullRequests(username: string, token: string, limit: number): [PullRequest] {
+    let url = $"{GITHUB_API_BASE}/search/issues?q=author:{username}+type:pr&per_page={limit}"
+    let response, err = async HTTP.get(url)()
+    if err {
+        fail $"HTTP error: {err}"
+    }
+    if response.status != 200 {
+        fail $"API error: status {response.status}"
+    }
+    let json, parseErr = response.json()
+    if parseErr {
+        fail $"JSON parse error: {parseErr}"
+    }
+    let items = json.items
+    let prs: [PullRequest] = items.map(item => PullRequest(
+        item.id,
+        item.number,
+        item.title,
+        item.body,
+        item.state,
+        item.draft,
+        false,  // merged - not in search results
+        0,  // additions
+        0,  // deletions
+        0,  // changed_files
+        item.created_at,
+        "",  // merged_at
+        item.html_url,
+        item.user.login,
+        "main",  // base branch
+        ""  // head branch
+    ))
+    return prs
+}
+
+fetchRepoPullRequests(
+    owner: string,
+    repo: string,
+    token: string,
+    state: string,
+    limit: number
+): [PullRequest] {
+    let validState = switch state {
+        "open" | "closed" | "all" => state,
+        _ => "open",
+    }
+    let url = $"{GITHUB_API_BASE}/repos/{owner}/{repo}/pulls?state={validState}&per_page={limit}"
+    let response, err = async HTTP.get(url)()
+    if err {
+        fail $"HTTP error: {err}"
+    }
+    if response.status != 200 {
+        fail $"API error: status {response.status}"
+    }
+    let jsonArray, parseErr = response.json()
+    if parseErr {
+        fail $"JSON parse error: {parseErr}"
+    }
+    let prs: [PullRequest] = jsonArray.map(item => createPullRequestFromJson(item))
+    return prs
+}
+
+// Fetch single PR with full details
+fetchPullRequest(owner: string, repo: string, number: number, token: string): PullRequest {
+    let url = $"{GITHUB_API_BASE}/repos/{owner}/{repo}/pulls/{number}"
+    let response, err = async HTTP.get(url)()
+    if err {
+        fail $"HTTP error: {err}"
+    }
+    if response.status == 404 {
+        fail $"PR #{number} not found in '{owner}/{repo}'"
+    }
+    if response.status != 200 {
+        fail $"API error: status {response.status}"
+    }
+    let json, parseErr = response.json()
+    if parseErr {
+        fail $"JSON parse error: {parseErr}"
+    }
+    return createPullRequestFromJson(json)
+}
+
+// ============================================================================
+// Issue Statistics Functions
+// ============================================================================
+IssueStats {
+    constructor(
+        total: number,
+        open: number,
+        closed: number,
+        avgLabelsPerIssue: float,
+        highPriorityCount: number
+    ) {
+        this.total = total
+        this.open = open
+        this.closed = closed
+        this.avgLabelsPerIssue = avgLabelsPerIssue
+        this.highPriorityCount = highPriorityCount
+    }
+
+    total: number
+    open: number
+    closed: number
+    avgLabelsPerIssue: float
+    highPriorityCount: number
+
+    getOpenRate(): float {
+        if this.total == 0 {
+            return 0.0
+        }
+        return this.open * 100.0 / this.total
+    }
+}
+
+calculateIssueStats(issues: [Issue]): IssueStats {
+    let total = issues.length
+    let open = issues.filter(i => i.isOpen()).length
+    let closed = issues.filter(i => i.isClosed()).length
+    // Calculate average labels
+    let totalLabels = issues.reduce((acc, i) => acc + i.labels.length, 0)
+    let avgLabels = total > 0 ? totalLabels / total : 0.0
+    // Count high priority issues
+    let highPriority = issues.filter(i => i.getPriority() == "high").length
+    return IssueStats(total, open, closed, avgLabels, highPriority)
+}
+
+// ============================================================================
+// PR Statistics Functions
+// ============================================================================
+PRStats {
+    constructor(
+        total: number,
+        open: number,
+        merged: number,
+        drafts: number,
+        avgAdditions: float,
+        avgDeletions: float
+    ) {
+        this.total = total
+        this.open = open
+        this.merged = merged
+        this.drafts = drafts
+        this.avgAdditions = avgAdditions
+        this.avgDeletions = avgDeletions
+    }
+
+    total: number
+    open: number
+    merged: number
+    drafts: number
+    avgAdditions: float
+    avgDeletions: float
+
+    getMergeRate(): float {
+        if this.total == 0 {
+            return 0.0
+        }
+        return this.merged * 100.0 / this.total
+    }
+
+    getAvgChanges(): float => this.avgAdditions + this.avgDeletions
+}
+
+calculatePRStats(prs: [PullRequest]): PRStats {
+    let total = prs.length
+    let open = prs.filter(pr => pr.state == "open").length
+    let merged = prs.filter(pr => pr.merged).length
+    let drafts = prs.filter(pr => pr.draft).length
+    // Calculate averages
+    let totalAdditions = prs.reduce((acc, pr) => acc + pr.additions, 0)
+    let totalDeletions = prs.reduce((acc, pr) => acc + pr.deletions, 0)
+    let avgAdd = total > 0 ? totalAdditions / total : 0.0
+    let avgDel = total > 0 ? totalDeletions / total : 0.0
+    return PRStats(total, open, merged, drafts, avgAdd, avgDel)
+}
+
+// ============================================================================
+// Combined Issue + PR Analysis
+// ============================================================================
+analyzeActivity(issues: [Issue], prs: [PullRequest]): ActivityAnalysis {
+    let issueStats = calculateIssueStats(issues)
+    let prStats = calculatePRStats(prs)
+    // Calculate overall activity score
+    let issueActivity = issues.length * 1.0
+    let prActivity = prs.length * 2.0  // PRs weighted more
+    let totalActivity = issueActivity + prActivity
+    // Determine activity level
+    let level = switch totalActivity {
+        0.0..=5.0 => "inactive",
+        5.1..=20.0 => "light",
+        20.1..=50.0 => "moderate",
+        50.1..=100.0 => "active",
+        _ => "very active",
+    }
+    // Fetch PRs for a specific repository
+    // PRs from search don't have full details, create simplified versions
+    // Filter out pull requests (GitHub API includes PRs in issues endpoint)
+    // ============================================================================
+    // GitHub Issues and Pull Requests API Client
+    // Demonstrates: Async HTTP, Array methods, Pattern matching, Error handling
+    // ============================================================================
+    return ActivityAnalysis(issueStats, prStats, level, totalActivity)
+}
+
+ActivityAnalysis {
+    constructor(
+        issueStats: IssueStats,
+        prStats: PRStats,
+        activityLevel: string,
+        activityScore: float
+    ) {
+        this.issueStats = issueStats
+        this.prStats = prStats
+        this.activityLevel = activityLevel
+        this.activityScore = activityScore
+    }
+
+    issueStats: IssueStats
+    prStats: PRStats
+    activityLevel: string
+    activityScore: float
+}

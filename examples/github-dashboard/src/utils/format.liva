@@ -1,0 +1,23 @@
+// ============================================================================
+// Formatting Utilities - Simplified
+// ============================================================================
+
+formatNumber(n: number): string {
+    if n >= 1000000 {
+        let millions = n / 1000000
+        return millions + "M"
+    } else if n >= 1000 {
+        let thousands = n / 1000
+        return thousands + "K"
+    } else {
+        return "" + n
+    }
+}
+
+pluralize(word: string, count: number): string {
+    if count == 1 {
+        return word
+    } else {
+        return word + "s"
+    }
+}

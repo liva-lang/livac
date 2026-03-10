@@ -1,0 +1,92 @@
+// ============================================================================
+// Advanced JSON Test - Edge cases
+// ============================================================================
+
+main() {
+    print("Advanced JSON Test")
+    print("==================")
+    print("")
+    
+    // Test 1: Nested objects with arrays
+    print("1. Testing nested structure...")
+    let url = "https://jsonplaceholder.typicode.com/users/1"
+    let response, err = HTTP.get(url)
+    
+    if err == "" and response.status == 200 {
+        let user, parseErr = JSON.parse(response.body)
+        
+        // Deep nesting: address.geo.lat
+        print("Address:")
+        print("  Street: " + user["address"]["street"])
+        print("  City: " + user["address"]["city"])
+        print("  Geo lat: " + user["address"]["geo"]["lat"])
+        print("  Geo lng: " + user["address"]["geo"]["lng"])
+        
+        // Company object
+        print("Company:")
+        print("  Name: " + user["company"]["name"])
+        print("  BS: " + user["company"]["bs"])
+    }
+    
+    print("")
+    
+    // Test 2: Array of objects with filtering
+    print("2. Testing array operations...")
+    let todosUrl = "https://jsonplaceholder.typicode.com/todos?_limit=10"
+    let todosResponse, todosErr = HTTP.get(todosUrl)
+    
+    if todosErr == "" and todosResponse.status == 200 {
+        let todos, parseErr2 = JSON.parse(todosResponse.body)
+        
+        // Count completed vs incomplete
+        let completed = 0
+        let incomplete = 0
+        
+        todos.forEach(todo => {
+            let done = todo["completed"]
+            if done == true {
+                completed = completed + 1
+            } else {
+                incomplete = incomplete + 1
+            }
+        })
+        
+        print("Completed: " + completed)
+        print("Incomplete: " + incomplete)
+    }
+    
+    print("")
+    
+    // Test 3: Comments with nested references
+    print("3. Testing comments...")
+    let commentsUrl = "https://jsonplaceholder.typicode.com/comments?_limit=3"
+    let commentsResponse, commentsErr = HTTP.get(commentsUrl)
+    
+    if commentsErr == "" and commentsResponse.status == 200 {
+        let comments, parseErr3 = JSON.parse(commentsResponse.body)
+        
+        comments.forEach(comment => {
+            print("---")
+            print("Email: " + comment["email"])
+            print("Name: " + comment["name"])
+        })
+    }
+    
+    print("")
+    
+    // Test 4: Album with photos (more complex)
+    print("4. Testing albums with photos...")
+    let albumsUrl = "https://jsonplaceholder.typicode.com/albums/1/photos?_limit=2"
+    let albumsResponse, albumsErr = HTTP.get(albumsUrl)
+    
+    if albumsErr == "" and albumsResponse.status == 200 {
+        let photos, parseErr4 = JSON.parse(albumsResponse.body)
+        
+        photos.forEach(photo => {
+            print("Photo ID: " + photo["id"] + " - " + photo["title"])
+        })
+    }
+    
+    print("")
+    print("All tests completed!")
+}
