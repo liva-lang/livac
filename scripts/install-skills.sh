@@ -5,32 +5,44 @@
 # Usage:
 #   install-skills.sh [--uninstall] [--user USERNAME]
 #
-# Creates symlinks from each agent's skills directory to
-# /usr/share/livac/skills/liva-lang/ so that updating livac
-# automatically updates the skills for all agents.
+# Installs to ~/.agents/skills/ (Agent Skills standard, agentskills.io)
+# plus legacy compatibility symlinks for agents that don't yet support
+# the standard directory.
+#
+# Source priority:
+#   1. dist/skill/liva-lang/ (build output from build-skill.sh)
+#   2. /usr/share/livac/skills/liva-lang/ (system package install)
 
 set -euo pipefail
 
-SKILL_SOURCE="/usr/share/livac/skills/liva-lang"
 SKILL_NAME="liva-lang"
 UNINSTALL=false
 
-# Agent directories (relative to $HOME)
+# Determine skill source: prefer local build, fall back to system package
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+BUILD_SOURCE="${PROJECT_ROOT}/dist/skill/${SKILL_NAME}"
+SYSTEM_SOURCE="/usr/share/livac/skills/${SKILL_NAME}"
+
+if [ -d "$BUILD_SOURCE" ]; then
+    SKILL_SOURCE="$BUILD_SOURCE"
+elif [ -d "$SYSTEM_SOURCE" ]; then
+    SKILL_SOURCE="$SYSTEM_SOURCE"
+else
+    echo "⚠ No skill found. Run 'make skill' first or install the livac package."
+    exit 1
+fi
+
+# Standard directory (agentskills.io) + legacy compatibility
 AGENT_DIRS=(
-    ".copilot/skills"
-    ".claude/skills"
-    ".codex/skills"
-    ".cursor/skills"
-    ".codeium/windsurf/skills"
-    ".gemini/skills"
-    ".gemini/antigravity/skills"
-    ".continue/skills"
-    ".openclaw/skills"
+    ".agents/skills"        # Agent Skills standard (all compatible agents)
+    ".copilot/skills"       # GitHub Copilot (legacy)
+    ".claude/skills"        # Claude Code (legacy)
 )
 
 usage() {
     echo "Usage: $0 [--uninstall] [--user USERNAME]"
-    echo "  --uninstall   Remove symlinks instead of creating them"
+    echo "  --uninstall   Remove skill instead of installing"
     echo "  --user USER   Install for a specific user (default: all users with /home/*)"
     exit 1
 }
@@ -52,30 +64,27 @@ install_for_user() {
 
     for agent_dir in "${AGENT_DIRS[@]}"; do
         local target_dir="${user_home}/${agent_dir}"
-        local link_path="${target_dir}/${SKILL_NAME}"
+        local skill_path="${target_dir}/${SKILL_NAME}"
 
         if $UNINSTALL; then
-            if [ -L "$link_path" ]; then
-                rm -f "$link_path"
-                echo "  Removed: ${link_path}"
+            if [ -L "$skill_path" ] || [ -d "$skill_path" ]; then
+                rm -rf "$skill_path"
+                echo "  Removed: ${skill_path}"
             fi
         else
             # Create parent directory
             mkdir -p "$target_dir"
             chown "$username:$username" "$target_dir" 2>/dev/null || true
 
-            # Create or update symlink
-            if [ -L "$link_path" ]; then
-                rm -f "$link_path"
-            elif [ -d "$link_path" ]; then
-                # If a real directory exists, skip (user may have custom content)
-                echo "  Skip (real dir): ${link_path}"
-                continue
+            # Remove existing (symlink or directory)
+            if [ -L "$skill_path" ] || [ -d "$skill_path" ]; then
+                rm -rf "$skill_path"
             fi
 
-            ln -s "$SKILL_SOURCE" "$link_path"
-            chown -h "$username:$username" "$link_path" 2>/dev/null || true
-            echo "  Linked: ${link_path} → ${SKILL_SOURCE}"
+            # Copy skill directory
+            cp -r "$SKILL_SOURCE" "$skill_path"
+            chown -R "$username:$username" "$skill_path" 2>/dev/null || true
+            echo "  Installed: ${skill_path} (from ${SKILL_SOURCE})"
         fi
     done
 }
@@ -104,10 +113,11 @@ get_users() {
     fi
 }
 
-# Check that source exists (skip if not installed yet — e.g. during build)
+# Check that source exists
 if [ ! -d "$SKILL_SOURCE" ] && ! $UNINSTALL; then
-    echo "Warning: ${SKILL_SOURCE} not found. Skills will be linked on next install."
-    exit 0
+    echo "⚠ Skill source not found at ${SKILL_SOURCE}."
+    echo "  Run 'make skill' to build it first."
+    exit 1
 fi
 
 action=$($UNINSTALL && echo "Removing" || echo "Installing")

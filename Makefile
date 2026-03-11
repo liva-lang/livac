@@ -1,4 +1,4 @@
-.PHONY: build test clean install run fmt clippy doc examples help
+.PHONY: build test clean install run fmt clippy doc examples skill help
 
 # Default target
 all: build
@@ -34,13 +34,18 @@ clean:
 	@rm -rf target/liva_build
 	@echo "✓ Clean complete"
 
+# Build AI skill from docs/
+skill:
+	@scripts/build-skill.sh
+
 # Install to ~/.local/bin
-install: build
+install: build skill
 	@echo "📦 Installing livac..."
 	@mkdir -p ~/.local/bin
 	@cp target/release/livac ~/.local/bin/
 	@echo "✓ Installed to ~/.local/bin/livac"
 	@echo "   Make sure ~/.local/bin is in your PATH"
+	@scripts/install-skills.sh --user $$(whoami)
 
 # Uninstall
 uninstall:
@@ -94,8 +99,8 @@ watch:
 	@echo "👀 Watching for changes..."
 	@cargo watch -x build
 
-# Full pipeline: format, clippy, test, build
-ci: fmt clippy test build
+# Full pipeline: format, clippy, test, build, skill
+ci: fmt clippy test build skill
 	@echo "✓ CI pipeline complete"
 
 # Help
@@ -113,8 +118,7 @@ help:
 	@echo "  make fmt           - Format code"
 	@echo "  make clippy        - Run linter"
 	@echo "  make check         - Fast code check"
-	@echo "  make doc           - Generate documentation"
-	@echo "  make examples      - Create examples directory"
+	@echo "  make doc           - Generate documentation"	@echo "  make skill         - Build AI skill from docs/"	@echo "  make examples      - Create examples directory"
 	@echo "  make bench         - Run benchmarks"
 	@echo "  make watch         - Watch and rebuild"
 	@echo "  make ci            - Full CI pipeline"
