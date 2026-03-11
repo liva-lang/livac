@@ -4,7 +4,8 @@
 > **Versión:** v1.3.0-dev (tag: v1.2.0)  
 > **Lenguaje:** Rust  
 > **Tests:** 322 passing  
-> **Última actualización:** 2026-03-10
+> **Próximo objetivo:** v1.4 — Stdlib P0 (String/Array/Math)  
+> **Última actualización:** 2026-03-11
 
 ---
 
@@ -104,7 +105,9 @@ skills/liva-lang/
 | `docs/README.md` | Índice de toda la documentación |
 | `docs/language-reference/` | Referencia detallada por tema (~30 archivos) |
 | `docs/guides/` | Tutoriales y best practices |
-| `ROADMAP.md` | Plan del proyecto y estado |
+| `ROADMAP.md` | Historial del proyecto (sesiones completadas) |
+| `BACKLOG.md` | **Tareas pendientes** por versión (v1.4→v3.x) — checkboxes |
+| `docs/plans/PLAN_PRODUCTION_READINESS.md` | **Diseño** de features futuras (sintaxis, decisiones, alternativas) |
 | `CHANGELOG.md` | Historial de versiones |
 | `BUGS.md` | Bugs encontrados en dogfooding |
 
@@ -135,6 +138,25 @@ skills/liva-lang/
 
 ---
 
+## 🚀 Roadmap de Producción
+
+Liva está en camino a producción. El plan completo está en `docs/plans/PLAN_PRODUCTION_READINESS.md`, las tareas accionables en `BACKLOG.md`.
+
+```
+v1.4  Stdlib P0 — String (+12), Array (+16), Math (+2)       ← usable
+v1.5  rust { } interop + Logging + Config + livac init       ← viable
+v1.6  Stdlib P1 — File, Dir, Date, Regex, CSV/Table          ← scripts reales
+v1.7  Stdlib P2 + HTTP Server                                ← backends reales
+v1.8  DB + REPL + Linter                                     ← adopción
+v2.0  Dogfooding — API REST completa con DB                  ← validación
+```
+
+**Documentos clave:**
+- `BACKLOG.md` — **qué hacer y cuándo** (checkboxes por versión)
+- `docs/plans/PLAN_PRODUCTION_READINESS.md` — **cómo hacerlo** (diseño, sintaxis, decisiones)
+
+---
+
 ## ⚠️ Notas para Desarrollo
 
 1. **codegen.rs** es el archivo más grande (~11300 líneas) — toda la generación de Rust
@@ -151,6 +173,8 @@ skills/liva-lang/
 ## 🔁 Regla: Actualizar Contextos
 
 **Al terminar cada tarea o fase, SIEMPRE actualizar:**
-- `livac/.github/copilot-instructions.md` — este archivo
+- `BACKLOG.md` — marcar `[x]` las tareas completadas
+- `livac/.github/copilot-instructions.md` — este archivo (versión, próximo objetivo)
 - `.github/copilot-instructions.md` (workspace) — versión y estado general
 - `ROADMAP.md` y `CHANGELOG.md` — progreso y changelog
+- `docs/plans/PLAN_PRODUCTION_READINESS.md` — si cambia una decisión de diseño
