@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/liva-lang/livac/actions/workflows/ci.yml/badge.svg)](https://github.com/liva-lang/livac/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/liva-lang/livac?include_prereleases&label=latest)](https://github.com/liva-lang/livac/releases/latest)
-[![Tests](https://img.shields.io/badge/tests-278%20passing-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-337%20passing-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 > **The simplicity of TypeScript, the expressiveness of Python, and the safety of Rust.**
@@ -427,7 +427,7 @@ livac --help              # Show all options
 ## 🧪 Testing
 
 ```bash
-cargo test                 # Run all 278 tests
+cargo test                 # Run all 337 tests
 cargo test lexer           # Run lexer tests
 cargo test codegen         # Run codegen tests
 cargo test -- --nocapture  # With output
@@ -447,6 +447,8 @@ cargo test -- --nocapture  # With output
 | **[LSP Guide](docs/lsp/)** | IDE integration details |
 | **[Troubleshooting](docs/TROUBLESHOOTING.md)** | Common issues & fixes |
 | **[Changelog](CHANGELOG.md)** | Full version history |
+| **[Style Guide](docs/guides/style-guide.md)** | Idiomatic code conventions for Liva |
+| **[Agent Skill](skills/liva-lang/SKILL.md)** | AI coding assistant reference |
 
 ---
 
