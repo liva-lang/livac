@@ -5,6 +5,100 @@ All notable changes to the Liva compiler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v1.4.0-dev
+
+### Added - Stdlib P0: String, Array, Math 📚
+
+**38 new methods/functions expanding the standard library for day-to-day programming.**
+
+#### String — 15 new methods
+
+```liva
+let s = "hello world"
+
+// Search & index
+let pos = s.lastIndexOf("l")          // 9
+let sub = s.slice(0, 5)               // "hello"
+
+// Padding & repetition
+let padded = s.padStart(20, "*")      // "*********hello world"
+let padR = s.padEnd(20, ".")          // "hello world........."
+let rep = "ha".repeat(3)              // "hahaha"
+
+// Transform
+let cap = s.capitalize()              // "Hello world"
+let rev = s.reverse()                 // "dlrow olleh"
+let trunc = s.truncate(5)            // "hello"
+
+// Query
+let blank = "  ".isBlank()            // true
+let empty = "".isEmpty()              // true
+let count = s.countMatches("l")       // 3
+
+// Remove
+let noPre = "prefix_val".removePrefix("prefix_")  // "val"
+let noSuf = "file.txt".removeSuffix(".txt")        // "file"
+
+// Split
+let chars = s.chars()                 // ["h","e","l","l","o"," ","w","o","r","l","d"]
+let replaced = s.replaceAll("l", "L") // "heLLo worLd"
+```
+
+#### Array — 20 new methods
+
+```liva
+let nums = [1, 2, 3, 4, 5]
+
+// Slicing
+let sliced = nums.slice(1, 3)         // [2, 3]
+let top3 = nums.take(3)              // [1, 2, 3]
+let rest = nums.drop(2)              // [3, 4, 5]
+
+// Access
+let f = nums.first()                 // 1
+let l = nums.last()                  // 5
+let empty = nums.isEmpty()           // false
+
+// Transform
+let sorted = nums.sort()             // [1, 2, 3, 4, 5]
+let rev = nums.reversed()            // [5, 4, 3, 2, 1]
+let uniq = [1, 2, 2, 3].distinct()   // [1, 2, 3]
+
+// Combine & split
+let nested = [[1, 2], [3, 4]]
+let flat = nested.flat()             // [1, 2, 3, 4]
+let chunked = nums.chunks(2)         // [[1, 2], [3, 4], [5]]
+let zipped = [1, 2].zip(["a", "b"])  // [(1, "a"), (2, "b")]
+
+// Aggregate
+let total = nums.sum()               // 15
+let lo = nums.min()                  // 1
+let hi = nums.max()                  // 5
+
+// Callback-based
+let idx = nums.findIndex((n) => n > 3)    // 3
+let fm = nums.flatMap((n) => [n, n * 10]) // [1, 10, 2, 20, ...]
+let cnt = nums.count((n) => n > 2)        // 3
+```
+
+#### Math — 3 new functions
+
+```liva
+let clamped = Math.clamp(15, 0, 10)  // 10
+let sign = Math.sign(-42)            // -1
+let ln = Math.log(2.718)             // ~1.0
+```
+
+**Implementation details:**
+- String `slice()` disambiguated from Array `slice()` via type tracking
+- Array method `chunks()` (not `chunk`) to avoid conflict with parallel adapter keyword
+- `object_is_class_instance` guard prevents array method handlers from intercepting class instance methods
+- `sortBy(fn)` and `groupBy(fn)` deferred to future version (high complexity)
+
+**Test coverage:** 341 tests (149 codegen snapshots), 0 failures, 19 new v1.4 snapshot tests + 1 integration test
+
+---
+
 ## [Unreleased] - v1.3.0-dev
 
 ### Fixed - Dogfooding v2: Inventory Manager 🏗️

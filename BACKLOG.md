@@ -3,54 +3,67 @@
 > **Objetivo:** Llevar Liva a producción real  
 > **Plan de diseño:** `docs/plans/PLAN_PRODUCTION_READINESS.md`  
 > **Prioridad:** Orden por versión = orden de implementación  
-> **Última actualización:** 2026-03-11
+> **Última actualización:** 2026-03-12
 
 ---
 
-## v1.4 — Stdlib P0: String, Array, Math
+## v1.4 — Stdlib P0: String, Array, Math ✅
 
 > **Foco:** Ampliar tipos existentes para que el lenguaje sea usable en el día a día.  
-> **Esfuerzo estimado:** ~8h  
-> **Impacto:** Sin esto, cada proyecto choca a los 5 minutos.
+> **Estado:** ✅ Completado — 38 nuevos métodos/funciones, 19 snapshot tests, 341 tests totales  
+> **Esfuerzo real:** ~6h
 
-### String — ampliar `generate_string_method_call()`
+### String — ampliar `generate_string_method_call()` ✅
 
-- [ ] `s.contains(sub)` → `bool`
-- [ ] `s.startsWith(prefix)` → `bool`
-- [ ] `s.endsWith(suffix)` → `bool`
-- [ ] `s.indexOf(sub)` → `int` (-1 if not found)
-- [ ] `s.lastIndexOf(sub)` → `int`
-- [ ] `s.slice(start, end?)` → `string`
-- [ ] `s.padStart(len, char?)` → `string`
-- [ ] `s.padEnd(len, char?)` → `string`
-- [ ] `s.repeat(n)` → `string`
-- [ ] `s.replaceAll(old, new)` → `string`
-- [ ] `s.trimStart()` / `s.trimEnd()` → `string`
-- [ ] `s.chars()` → `[string]`
+**Ya existían (pre-v1.4):** `contains`, `startsWith`, `endsWith`, `indexOf`, `trimStart`, `trimEnd`, `toUpperCase`, `toLowerCase`, `trim`, `split`, `replace`, `substring`, `charAt`
 
-### Array — ampliar generación de métodos
+**Nuevos en v1.4 (15 métodos):**
+- [x] `s.lastIndexOf(sub)` → `int`
+- [x] `s.slice(start, end?)` → `string`
+- [x] `s.padStart(len, char?)` → `string`
+- [x] `s.padEnd(len, char?)` → `string`
+- [x] `s.repeat(n)` → `string`
+- [x] `s.replaceAll(old, new)` → `string`
+- [x] `s.chars()` → `[string]`
+- [x] `s.capitalize()` → `string`
+- [x] `s.isBlank()` → `bool`
+- [x] `s.isEmpty()` → `bool`
+- [x] `s.reverse()` → `string`
+- [x] `s.truncate(len)` → `string`
+- [x] `s.countMatches(sub)` → `int`
+- [x] `s.removePrefix(pre)` → `string`
+- [x] `s.removeSuffix(suf)` → `string`
 
-- [ ] `arr.find(fn)` → `T?` (primer match)
-- [ ] `arr.findIndex(fn)` → `int`
-- [ ] `arr.every(fn)` → `bool`
-- [ ] `arr.some(fn)` → `bool`
-- [ ] `arr.includes(val)` → `bool`
-- [ ] `arr.indexOf(val)` → `int`
-- [ ] `arr.flat()` → `[T]`
-- [ ] `arr.flatMap(fn)` → `[T]`
-- [ ] `arr.reduce(fn, init)` → `T`
-- [ ] `arr.slice(start, end?)` → `[T]`
-- [ ] `arr.sort()` → `[T]`
-- [ ] `arr.distinct()` → `[T]`
-- [ ] `arr.zip(other)` → `[(T, U)]`
-- [ ] `arr.take(n)` / `arr.drop(n)` → `[T]`
-- [ ] `arr.first()` / `arr.last()` → `T?`
-- [ ] `arr.isEmpty()` → `bool`
+### Array — ampliar generación de métodos ✅
 
-### Math — ampliar `generate_math_function_call()`
+**Ya existían (pre-v1.4):** `map`, `filter`, `reduce`, `forEach`, `find`, `some`, `every`, `includes`, `indexOf`, `join`, `length`
 
-- [ ] `Math.clamp(val, min, max)` → `number`
-- [ ] `Math.sign(val)` → `int` (-1, 0, 1)
+**Nuevos en v1.4 (20 métodos):**
+- [x] `arr.findIndex(fn)` → `int`
+- [x] `arr.flat()` → `[T]`
+- [x] `arr.flatMap(fn)` → `[T]`
+- [x] `arr.slice(start, end?)` → `[T]`
+- [x] `arr.sort()` → `[T]`
+- [x] `arr.distinct()` → `[T]`
+- [x] `arr.zip(other)` → `[(T, U)]`
+- [x] `arr.take(n)` / `arr.drop(n)` → `[T]`
+- [x] `arr.first()` / `arr.last()` → `T?`
+- [x] `arr.isEmpty()` → `bool`
+- [x] `arr.chunks(n)` → `[[T]]`
+- [x] `arr.reversed()` → `[T]`
+- [x] `arr.sum()` → `T` (arrays numéricos)
+- [x] `arr.min()` / `arr.max()` → `T`
+- [x] `arr.count(fn)` → `int`
+
+**Pendientes (pospuestos — complejidad alta):**
+- [ ] `arr.sortBy(fn)` → `[T]`
+- [ ] `arr.groupBy(fn)` → `Map<K, [T]>`
+
+### Math — ampliar `generate_math_function_call()` ✅
+
+- [x] `Math.clamp(val, min, max)` → `number`
+- [x] `Math.sign(val)` → `int` (-1, 0, 1)
+- [x] `Math.log(x)` → `float` (logaritmo natural)
 
 ---
 

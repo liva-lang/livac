@@ -4,6 +4,9 @@
 
 Liva provides a rich set of array methods inspired by functional programming languages and modern JavaScript/TypeScript. All array methods support **execution policies** through adapter methods, enabling sequential, parallel, and vectorized execution.
 
+> **Status:** ✅ 31 methods  
+> **Version:** v1.4.0
+
 ## Execution Policies
 
 Liva uses **adapter-style syntax** (inspired by Rust's Rayon) for execution policies:
@@ -393,6 +396,360 @@ let hasTen = numbers.includes(10)
 // Parallel search
 let found = numbers.par().includes(4)
 // Result: true
+```
+
+---
+
+## New Methods *(v1.4.0)*
+
+### `findIndex(fn)`
+
+Returns the index of the first element matching the predicate.
+
+**Signature:**
+```liva
+findIndex<T>(fn: (T) => bool): int
+```
+
+**Examples:**
+```liva
+let numbers = [10, 20, 30, 40]
+let idx = numbers.findIndex(x => x > 25)
+print(idx)  // 2
+
+let notFound = numbers.findIndex(x => x > 100)
+print(notFound)  // -1
+```
+
+**Rust Codegen:**
+```rust
+numbers.iter().position(|x| *x > 25).map(|i| i as i32).unwrap_or(-1)
+```
+
+---
+
+### `flatMap(fn)`
+
+Maps each element and flattens the result by one level.
+
+**Signature:**
+```liva
+flatMap<T, R>(fn: (T) => [R]): [R]
+```
+
+**Examples:**
+```liva
+let numbers = [1, 2, 3]
+let result = numbers.flatMap(n => [n, n * 10])
+print(result)  // [1, 10, 2, 20, 3, 30]
+```
+
+**Rust Codegen:**
+```rust
+numbers.iter().flat_map(|n| vec![*n, *n * 10]).collect::<Vec<_>>()
+```
+
+---
+
+### `count(fn)`
+
+Count how many elements match a predicate.
+
+**Signature:**
+```liva
+count<T>(fn: (T) => bool): int
+```
+
+**Examples:**
+```liva
+let numbers = [1, 2, 3, 4, 5]
+let evens = numbers.count(x => x % 2 == 0)
+print(evens)  // 2
+```
+
+**Rust Codegen:**
+```rust
+numbers.iter().filter(|x| **x % 2 == 0).count() as i32
+```
+
+---
+
+### `slice(start, end?)`
+
+Extract a sub-array from start to optional end index.
+
+**Signature:**
+```liva
+slice<T>(start: int, end?: int): [T]
+```
+
+**Examples:**
+```liva
+let numbers = [1, 2, 3, 4, 5]
+let mid = numbers.slice(1, 3)
+print(mid)  // [2, 3]
+
+// Without end — to end of array
+let rest = numbers.slice(2)
+print(rest)  // [3, 4, 5]
+```
+
+---
+
+### `first()` / `last()`
+
+Get the first or last element.
+
+**Signature:**
+```liva
+first<T>(): T
+last<T>(): T
+```
+
+**Examples:**
+```liva
+let numbers = [10, 20, 30]
+print(numbers.first())  // 10
+print(numbers.last())   // 30
+```
+
+**Rust Codegen:**
+```rust
+numbers.first().cloned().unwrap()
+numbers.last().cloned().unwrap()
+```
+
+---
+
+### `take(n)` / `drop(n)`
+
+Take the first n elements, or skip the first n elements.
+
+**Signature:**
+```liva
+take<T>(n: int): [T]
+drop<T>(n: int): [T]
+```
+
+**Examples:**
+```liva
+let numbers = [1, 2, 3, 4, 5]
+let top3 = numbers.take(3)
+print(top3)  // [1, 2, 3]
+
+let rest = numbers.drop(2)
+print(rest)  // [3, 4, 5]
+```
+
+---
+
+### `sort()`
+
+Sort the array (returns new sorted array).
+
+**Signature:**
+```liva
+sort<T>(): [T]
+```
+
+**Examples:**
+```liva
+let numbers = [3, 1, 4, 1, 5]
+let sorted = numbers.sort()
+print(sorted)  // [1, 1, 3, 4, 5]
+```
+
+**Rust Codegen:**
+```rust
+{ let mut v = numbers.clone(); v.sort_by(|a, b| a.partial_cmp(b).unwrap()); v }
+```
+
+---
+
+### `reversed()`
+
+Reverse the array (returns new reversed array).
+
+**Signature:**
+```liva
+reversed<T>(): [T]
+```
+
+**Examples:**
+```liva
+let numbers = [1, 2, 3]
+let rev = numbers.reversed()
+print(rev)  // [3, 2, 1]
+```
+
+---
+
+### `distinct()`
+
+Remove duplicate elements (preserving first occurrence order).
+
+**Signature:**
+```liva
+distinct<T>(): [T]
+```
+
+**Examples:**
+```liva
+let numbers = [1, 2, 2, 3, 3, 3]
+let unique = numbers.distinct()
+print(unique)  // [1, 2, 3]
+```
+
+**Rust Codegen:**
+```rust
+{
+    let mut seen = std::collections::HashSet::new();
+    numbers.iter().filter(|x| seen.insert((*x).clone())).cloned().collect::<Vec<_>>()
+}
+```
+
+---
+
+### `flat()`
+
+Flatten a nested array by one level.
+
+**Signature:**
+```liva
+flat<T>(): [T]
+```
+
+**Examples:**
+```liva
+let nested = [[1, 2], [3, 4], [5]]
+let flat = nested.flat()
+print(flat)  // [1, 2, 3, 4, 5]
+```
+
+**Rust Codegen:**
+```rust
+nested.concat()
+```
+
+---
+
+### `chunks(n)`
+
+Divide an array into sub-arrays of size n.
+
+**Signature:**
+```liva
+chunks<T>(size: int): [[T]]
+```
+
+**Examples:**
+```liva
+let numbers = [1, 2, 3, 4, 5]
+let chunked = numbers.chunks(2)
+print(chunked)  // [[1, 2], [3, 4], [5]]
+```
+
+**Rust Codegen:**
+```rust
+numbers.chunks(2).map(|c| c.to_vec()).collect::<Vec<Vec<_>>>()
+```
+
+**Notes:**
+- Named `chunks()` (not `chunk()`) — `chunk` is a reserved keyword for parallel adapter options
+
+---
+
+### `zip(other)`
+
+Combine two arrays element-wise into tuples.
+
+**Signature:**
+```liva
+zip<T, U>(other: [U]): [(T, U)]
+```
+
+**Examples:**
+```liva
+let names = ["Alice", "Bob"]
+let ages = [30, 25]
+let pairs = names.zip(ages)
+print(pairs)  // [("Alice", 30), ("Bob", 25)]
+```
+
+**Rust Codegen:**
+```rust
+names.iter().zip(ages.iter()).map(|(a, b)| (a.clone(), b.clone())).collect::<Vec<_>>()
+```
+
+**Notes:**
+- If arrays have different lengths, stops at the shorter one
+
+---
+
+### `sum()`
+
+Sum all elements in a numeric array.
+
+**Signature:**
+```liva
+sum(): number
+```
+
+**Examples:**
+```liva
+let numbers = [1, 2, 3, 4, 5]
+let total = numbers.sum()
+print(total)  // 15
+```
+
+**Rust Codegen:**
+```rust
+numbers.iter().sum::<i32>()
+```
+
+---
+
+### `min()` / `max()`
+
+Find the minimum or maximum element.
+
+**Signature:**
+```liva
+min(): number
+max(): number
+```
+
+**Examples:**
+```liva
+let numbers = [3, 1, 4, 1, 5, 9]
+print(numbers.min())  // 1
+print(numbers.max())  // 9
+```
+
+**Rust Codegen:**
+```rust
+numbers.iter().min_by(|a, b| a.partial_cmp(b).unwrap()).cloned().unwrap()
+numbers.iter().max_by(|a, b| a.partial_cmp(b).unwrap()).cloned().unwrap()
+```
+
+---
+
+### `isEmpty()`
+
+Check if the array has no elements.
+
+**Signature:**
+```liva
+isEmpty(): bool
+```
+
+**Examples:**
+```liva
+let empty: [int] = []
+print(empty.isEmpty())  // true
+
+let numbers = [1, 2, 3]
+print(numbers.isEmpty())  // false
 ```
 
 ---

@@ -1,7 +1,7 @@
 # Liva Standard Library
 
-> **Status:** ✅ Complete (v1.3.0) - 42 functions implemented! 🎉  
-> **Completion:** Arrays ✅ | Strings ✅ | Math ✅ | Conversions ✅ | I/O ✅ | System ✅
+> **Status:** ✅ Complete (v1.4.0) - 73+ functions implemented! 🎉  
+> **Completion:** Arrays ✅ (31) | Strings ✅ (28) | Math ✅ (14) | Conversions ✅ | I/O ✅ | System ✅
 
 The Liva Standard Library provides built-in functions and methods for common programming tasks.
 
@@ -12,41 +12,43 @@ The Liva Standard Library provides built-in functions and methods for common pro
 ### ✅ [Array Methods](./arrays.md)
 Methods for working with arrays and collections.
 
-**Status:** Complete (9/9 methods)
+**Status:** Complete (31 methods)
 
-- `map(fn)` - Transform elements
-- `filter(fn)` - Filter by predicate
-- `reduce(fn, initial)` - Reduce to single value
-- `forEach(fn)` - Iterate with side effects
-- `find(fn)` - Find first match
-- `some(fn)` - Check if any match
-- `every(fn)` - Check if all match
-- `indexOf(value)` - Find index of value
-- `includes(value)` - Check if contains value
+**Core (v1.0-v1.3):**
+- `map(fn)`, `filter(fn)`, `reduce(fn, initial)`, `forEach(fn)`, `find(fn)`
+- `some(fn)`, `every(fn)`, `indexOf(value)`, `includes(value)`, `join(sep)`, `length`
+
+**v1.4 — Access & Slicing:**
+- `first()`, `last()`, `isEmpty()`, `slice(start, end?)`, `take(n)`, `drop(n)`
+
+**v1.4 — Transform:**
+- `sort()`, `reversed()`, `distinct()`, `flat()`, `chunks(n)`, `zip(other)`
+
+**v1.4 — Aggregate:**
+- `sum()`, `min()`, `max()`
+
+**v1.4 — Callback-based:**
+- `findIndex(fn)`, `flatMap(fn)`, `count(fn)`
 
 ### ✅ [String Methods](./strings.md)
 Methods for string manipulation and queries.
 
-**Status:** Complete (12/12 methods)
+**Status:** Complete (28 methods)
 
-- `split(delimiter)` - Split into array
-- `replace(old, new)` - Replace substring
-- `toUpperCase()` - Convert to uppercase
-- `toLowerCase()` - Convert to lowercase
-- `trim()` - Remove whitespace
-- `trimStart()` - Remove leading whitespace
-- `trimEnd()` - Remove trailing whitespace
-- `startsWith(prefix)` - Check prefix
-- `endsWith(suffix)` - Check suffix
-- `contains(substring)` - Check if contains substring
-- `substring(start, end)` - Extract substring
-- `charAt(index)` - Get character
-- `indexOf(substring)` - Find substring position
+**Core (v1.0-v1.3):**
+- `split(delimiter)`, `replace(old, new)`, `toUpperCase()`, `toLowerCase()`
+- `trim()`, `trimStart()`, `trimEnd()`, `startsWith(prefix)`, `endsWith(suffix)`
+- `contains(substring)`, `substring(start, end)`, `charAt(index)`, `indexOf(substring)`
+
+**v1.4 — New:**
+- `lastIndexOf(sub)`, `slice(start, end?)`, `padStart(len, char?)`, `padEnd(len, char?)`
+- `repeat(n)`, `replaceAll(old, new)`, `chars()`, `capitalize()`, `isBlank()`, `isEmpty()`
+- `reverse()`, `truncate(len)`, `countMatches(sub)`, `removePrefix(pre)`, `removeSuffix(suf)`
 
 ### ✅ [Math Functions](./math.md)
 Mathematical operations and constants.
 
-**Status:** Complete (9/9 functions)
+**Status:** Complete (14 functions/constants)
 
 - `Math.sqrt(x)` - Square root ✅
 - `Math.pow(base, exp)` - Power ✅
@@ -54,7 +56,10 @@ Mathematical operations and constants.
 - `Math.floor(x)`, `ceil(x)`, `round(x)` - Rounding ✅
 - `Math.min(a, b)`, `max(a, b)` - Min/max values ✅
 - `Math.random()` - Random number ✅
-- `Math.PI`, `Math.E` - Constants (planned)
+- `Math.PI`, `Math.E` - Constants ✅
+- `Math.clamp(val, min, max)` - Clamp to range ✅ *(v1.4)*
+- `Math.sign(val)` - Sign (-1, 0, 1) ✅ *(v1.4)*
+- `Math.log(x)` - Natural logarithm ✅ *(v1.4)*
 
 ### ✅ [Type Conversion](./conversions.md)
 Functions for converting between types.

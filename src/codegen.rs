@@ -961,7 +961,35 @@ impl CodeGenerator {
                     || mc.method == "flatMap"
                     || mc.method == "entries"
                     || mc.method == "keys"
-                    || mc.method == "values";
+                    || mc.method == "values"
+                    // v1.4 String methods (non-mutating)
+                    || mc.method == "padStart"
+                    || mc.method == "padEnd"
+                    || mc.method == "repeat"
+                    || mc.method == "replaceAll"
+                    || mc.method == "chars"
+                    || mc.method == "capitalize"
+                    || mc.method == "isEmpty"
+                    || mc.method == "reverse"
+                    || mc.method == "truncate"
+                    || mc.method == "countMatches"
+                    || mc.method == "removePrefix"
+                    || mc.method == "removeSuffix"
+                    // v1.4 Array methods (non-mutating)
+                    || mc.method == "findIndex"
+                    || mc.method == "first"
+                    || mc.method == "last"
+                    || mc.method == "distinct"
+                    || mc.method == "zip"
+                    || mc.method == "take"
+                    || mc.method == "drop"
+                    || mc.method == "chunks"
+                    || mc.method == "sortBy"
+                    || mc.method == "groupBy"
+                    || mc.method == "reversed"
+                    || mc.method == "sum"
+                    || mc.method == "min"
+                    || mc.method == "max";
 
                 if !is_likely_getter && !is_mutating_method {
                     // This could be a mutating method on a class instance
@@ -7591,6 +7619,7 @@ impl CodeGenerator {
                 method_call.method.as_str(),
                 "split"
                     | "replace"
+                    | "replaceAll"
                     | "toUpperCase"
                     | "toLowerCase"
                     | "trim"
@@ -7601,6 +7630,19 @@ impl CodeGenerator {
                     | "substring"
                     | "charAt"
                     | "contains"
+                    | "lastIndexOf"
+                    | "padStart"
+                    | "padEnd"
+                    | "repeat"
+                    | "chars"
+                    | "capitalize"
+                    | "isBlank"
+                    | "isEmpty"
+                    | "reverse"
+                    | "truncate"
+                    | "countMatches"
+                    | "removePrefix"
+                    | "removeSuffix"
             ))
             || is_string_indexof;
 
@@ -7631,6 +7673,170 @@ impl CodeGenerator {
                 self.output.push_str("\"\"");
             }
             self.output.push(')');
+            return Ok(());
+        }
+
+        // Guard: check if the object is a known class instance
+        // If so, skip array-specific handlers to avoid intercepting user class methods
+        // (e.g., Color.sum() should call the class method, not treat it as array sum)
+        let object_is_class_instance =
+            if let Expr::Identifier(var_name) = method_call.object.as_ref() {
+                let sanitized = self.sanitize_name(var_name);
+                self.class_instance_vars.contains(&sanitized)
+            } else {
+                false
+            };
+
+        // Handle slice() — works for both strings and arrays
+        // String: obj[start..end].to_string()
+        // Array:  obj[start..end].to_vec()
+        if method_call.method == "slice" && !method_call.args.is_empty() {
+            let is_string = if let Expr::Identifier(var_name) = method_call.object.as_ref() {
+                self.string_vars.contains(&self.sanitize_name(var_name))
+            } else if let Expr::Literal(Literal::String(_)) = method_call.object.as_ref() {
+                true
+            } else {
+                false
+            };
+            self.generate_expr(&method_call.object)?;
+            self.output.push_str("[(");
+            self.generate_expr(&method_call.args[0])?;
+            self.output.push_str(") as usize..");
+            if method_call.args.len() >= 2 {
+                self.output.push('(');
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str(") as usize");
+            }
+            self.output.push(']');
+            if is_string {
+                self.output.push_str(".to_string()");
+            } else {
+                self.output.push_str(".to_vec()");
+            }
+            return Ok(());
+        }
+
+        // Handle arr.first() — returns first element (Option<T>)
+        if method_call.method == "first" && method_call.args.is_empty() && !object_is_class_instance {
+            self.generate_expr(&method_call.object)?;
+            self.output.push_str(".first().cloned()");
+            return Ok(());
+        }
+
+        // Handle arr.last() — returns last element (Option<T>)
+        if method_call.method == "last" && method_call.args.is_empty() && !object_is_class_instance {
+            self.generate_expr(&method_call.object)?;
+            self.output.push_str(".last().cloned()");
+            return Ok(());
+        }
+
+        // Handle arr.take(n) — first n elements
+        if method_call.method == "take" && !method_call.args.is_empty() && !object_is_class_instance {
+            self.generate_expr(&method_call.object)?;
+            self.output.push_str("[..(");
+            self.generate_expr(&method_call.args[0])?;
+            self.output.push_str(") as usize].to_vec()");
+            return Ok(());
+        }
+
+        // Handle arr.drop(n) — all elements except first n
+        if method_call.method == "drop" && !method_call.args.is_empty() && !object_is_class_instance {
+            self.generate_expr(&method_call.object)?;
+            self.output.push_str("[(");
+            self.generate_expr(&method_call.args[0])?;
+            self.output.push_str(") as usize..].to_vec()");
+            return Ok(());
+        }
+
+        // Handle arr.reversed() — returns new reversed array
+        if method_call.method == "reversed" && !object_is_class_instance {
+            self.output.push_str("{ let mut __v = ");
+            self.generate_expr(&method_call.object)?;
+            self.output.push_str(".clone(); __v.reverse(); __v }");
+            return Ok(());
+        }
+
+        // Handle arr.sort() — returns new sorted array
+        if method_call.method == "sort" && method_call.args.is_empty() && !object_is_class_instance {
+            self.output.push_str("{ let mut __v = ");
+            self.generate_expr(&method_call.object)?;
+            self.output.push_str(".clone(); __v.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)); __v }");
+            return Ok(());
+        }
+
+        // Handle arr.distinct() — removes duplicates preserving order
+        if method_call.method == "distinct" && !object_is_class_instance {
+            self.output.push_str("{ let mut __seen = std::collections::HashSet::new(); ");
+            self.generate_expr(&method_call.object)?;
+            self.output.push_str(
+                ".iter().filter(|x| __seen.insert((*x).clone())).cloned().collect::<Vec<_>>() }",
+            );
+            return Ok(());
+        }
+
+        // Handle arr.flat() — flattens one level of nesting
+        if (method_call.method == "flat" || method_call.method == "flatten") && !object_is_class_instance {
+            self.generate_expr(&method_call.object)?;
+            self.output.push_str(".concat()");
+            return Ok(());
+        }
+
+        // Handle arr.chunks(size) — splits into sub-arrays of given size
+        if method_call.method == "chunks" && !method_call.args.is_empty() && !object_is_class_instance {
+            self.generate_expr(&method_call.object)?;
+            self.output.push_str(".chunks((");
+            self.generate_expr(&method_call.args[0])?;
+            self.output
+                .push_str(") as usize).map(|c| c.to_vec()).collect::<Vec<Vec<_>>>()");
+            return Ok(());
+        }
+
+        // Handle arr.zip(other) — combines two arrays into array of tuples
+        if method_call.method == "zip" && !method_call.args.is_empty() && !object_is_class_instance {
+            self.generate_expr(&method_call.object)?;
+            self.output.push_str(".iter().zip(");
+            self.generate_expr(&method_call.args[0])?;
+            self.output
+                .push_str(".iter()).map(|(a, b)| (a.clone(), b.clone())).collect::<Vec<_>>()");
+            return Ok(());
+        }
+
+        // Handle arr.sum() — sums all elements
+        if method_call.method == "sum" && method_call.args.is_empty() && !object_is_class_instance {
+            self.generate_expr(&method_call.object)?;
+            let sum_type =
+                if let Some(base_var) = self.get_base_var_name(&method_call.object) {
+                    if let Some(elem_type) = self.typed_array_vars.get(&base_var) {
+                        if elem_type == "float" || elem_type == "f64" {
+                            "f64"
+                        } else {
+                            "i32"
+                        }
+                    } else {
+                        "i32"
+                    }
+                } else {
+                    "i32"
+                };
+            write!(self.output, ".iter().sum::<{}>()", sum_type).unwrap();
+            return Ok(());
+        }
+
+        // Handle arr.min() — returns minimum element
+        if method_call.method == "min" && method_call.args.is_empty() && !object_is_class_instance {
+            self.generate_expr(&method_call.object)?;
+            self.output.push_str(
+                ".iter().min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)).cloned()",
+            );
+            return Ok(());
+        }
+
+        // Handle arr.max() — returns maximum element
+        if method_call.method == "max" && method_call.args.is_empty() && !object_is_class_instance {
+            self.generate_expr(&method_call.object)?;
+            self.output.push_str(
+                ".iter().max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)).cloned()",
+            );
             return Ok(());
         }
 
@@ -7744,9 +7950,18 @@ impl CodeGenerator {
                             self.output.push_str(".cloned()");
                         }
                     }
-                    "find" | "some" | "every" | "indexOf" | "includes" => {
+                    "find" | "some" | "every" | "indexOf" | "includes" | "findIndex" | "count" => {
                         self.output.push_str(".iter()");
                         if is_json_value && !is_direct_json {
+                            self.output.push_str(".cloned()");
+                        }
+                    }
+                    "flatMap" => {
+                        // flatMap uses iter() like map
+                        self.output.push_str(".iter()");
+                        if is_json_value && !is_direct_json {
+                            self.output.push_str(".cloned()");
+                        } else if iter_needs_clone {
                             self.output.push_str(".cloned()");
                         }
                     }
@@ -7766,7 +7981,7 @@ impl CodeGenerator {
                     // For non-Copy types (String, classes) with map/forEach, add .cloned()
                     // to get owned values. Without this, par_iter() yields &T and passing
                     // lambda params to functions expecting T causes E0308 type mismatch.
-                    if matches!(method_call.method.as_str(), "map" | "forEach")
+                    if matches!(method_call.method.as_str(), "map" | "forEach" | "flatMap")
                         && iter_needs_clone
                     {
                         self.output.push_str(".cloned()");
@@ -7848,6 +8063,9 @@ impl CodeGenerator {
             "reduce" => "fold".to_string(),
             "some" => "any".to_string(),  // Liva: some, Rust: any
             "every" => "all".to_string(), // Liva: every, Rust: all
+            "findIndex" => "position".to_string(), // Liva: findIndex, Rust: position
+            "flatMap" => "flat_map".to_string(),   // Liva: flatMap, Rust: flat_map
+            "count" => "filter".to_string(),       // Liva: count(fn), Rust: filter(fn).count()
             method_name => self.sanitize_name(method_name), // Sanitize custom method names (e.g., isAdult -> is_adult)
         };
 
@@ -7900,6 +8118,9 @@ impl CodeGenerator {
                         | "every"
                         | "indexOf"
                         | "includes"
+                        | "findIndex"
+                        | "flatMap"
+                        | "count"
                         | "get"
                         | "get_field"
                         | "join"
@@ -7920,6 +8141,7 @@ impl CodeGenerator {
                     method_call.method.as_str(),
                     "map" | "filter" | "reduce" | "forEach" | "find"
                         | "some" | "every" | "indexOf" | "includes"
+                        | "findIndex" | "flatMap" | "count"
                 );
 
                 if !is_array_or_iterator_method {
@@ -7972,7 +8194,10 @@ impl CodeGenerator {
                 || method_call.method == "forEach"
                 || method_call.method == "find"
                 || method_call.method == "some"
-                || method_call.method == "every")
+                || method_call.method == "every"
+                || method_call.method == "findIndex"
+                || method_call.method == "flatMap"
+                || method_call.method == "count")
                 && (matches!(method_call.adapter, ArrayAdapter::Seq | ArrayAdapter::Vec)
                     // Bug #47-48 fix: par_iter() also returns &T, so we need lambda patterns for dereferencing
                     // Exception: JsonValue with .to_vec().into_par_iter() gets owned values (no deref needed only for is_direct_json)
@@ -7988,7 +8213,7 @@ impl CodeGenerator {
                     // Function references are bare identifiers used where a closure is expected
                     let is_callback_method = matches!(
                         method_call.method.as_str(),
-                        "forEach" | "map" | "filter" | "find" | "some" | "every"
+                        "forEach" | "map" | "filter" | "find" | "some" | "every" | "findIndex" | "flatMap" | "count"
                     );
 
                     if is_callback_method {
@@ -7999,13 +8224,17 @@ impl CodeGenerator {
                             || method_call.method == "find"
                             || method_call.method == "some"
                             || method_call.method == "every"
+                            || method_call.method == "findIndex"
+                            || method_call.method == "count"
                         {
                             if will_use_cloned {
                                 "_x".to_string()
                             } else {
                                 "&&_x".to_string()
                             }
-                        } else if method_call.method == "map" || method_call.method == "forEach" {
+                        } else if method_call.method == "map" || method_call.method == "forEach"
+                            || method_call.method == "flatMap"
+                        {
                             if will_use_cloned {
                                 "_x".to_string()
                             } else {
@@ -8043,7 +8272,7 @@ impl CodeGenerator {
                 if let Expr::MethodRef { object, method } = arg {
                     let is_callback_method = matches!(
                         method_call.method.as_str(),
-                        "forEach" | "map" | "filter" | "find" | "some" | "every"
+                        "forEach" | "map" | "filter" | "find" | "some" | "every" | "findIndex" | "flatMap" | "count"
                     );
 
                     if is_callback_method {
@@ -8053,13 +8282,17 @@ impl CodeGenerator {
                             || method_call.method == "find"
                             || method_call.method == "some"
                             || method_call.method == "every"
+                            || method_call.method == "findIndex"
+                            || method_call.method == "count"
                         {
                             if will_use_cloned {
                                 "_x".to_string()
                             } else {
                                 "&&_x".to_string()
                             }
-                        } else if method_call.method == "map" || method_call.method == "forEach" {
+                        } else if method_call.method == "map" || method_call.method == "forEach"
+                            || method_call.method == "flatMap"
+                        {
                             if will_use_cloned {
                                 "_x".to_string()
                             } else {
@@ -8212,8 +8445,9 @@ impl CodeGenerator {
                             if !is_json_value && !param.is_destructuring() {
                                 if method_call.method == "filter"
                                     || method_call.method == "find"
+                                    || method_call.method == "count"
                                 {
-                                    // filter/find: FnMut(&Self::Item) → extra & on top of iter's &T
+                                    // filter/find/count: FnMut(&Self::Item) → extra & on top of iter's &T
                                     // For Copy types: filter(|&&x| ...) - double deref
                                     // For Clone types: filter(|&x| ...) - single deref
                                     if !will_use_cloned {
@@ -8226,8 +8460,9 @@ impl CodeGenerator {
                                     }
                                 } else if method_call.method == "some"
                                     || method_call.method == "every"
+                                    || method_call.method == "findIndex"
                                 {
-                                    // Bug #78 fix: any/all: FnMut(Self::Item) → same as iter output
+                                    // Bug #78 fix: any/all/position: FnMut(Self::Item) → same as iter output
                                     // For Copy types: any(|&x| ...) - single deref (iter yields &T)
                                     // For Clone types: no prefix - work with &T directly
                                     if !will_use_cloned {
@@ -8236,6 +8471,7 @@ impl CodeGenerator {
                                     // For cloned types, no prefix needed (work with &T directly)
                                 } else if method_call.method == "map"
                                     || method_call.method == "forEach"
+                                    || method_call.method == "flatMap"
                                 {
                                     // Bug #22/#35 fix: For non-Copy types (class instances, strings),
                                     // don't add & because we can't move out of a shared reference
@@ -8342,7 +8578,7 @@ impl CodeGenerator {
             if let Expr::Lambda(lambda) = arg {
                 if matches!(
                     method_call.method.as_str(),
-                    "forEach" | "map" | "filter" | "reduce" | "find" | "some" | "every"
+                    "forEach" | "map" | "filter" | "reduce" | "find" | "some" | "every" | "findIndex" | "flatMap" | "count"
                 ) {
                     if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
                         if let Some(element_type) =
@@ -8457,11 +8693,19 @@ impl CodeGenerator {
                 }
             }
             // indexOf/position returns Option<usize>
-            (_, "indexOf") => {
+            (_, "indexOf") | (_, "findIndex") => {
                 self.output.push_str(".map(|i| i as i32).unwrap_or(-1)");
             }
             // some, every, includes return bool - no transformation needed
             (_, "some") | (_, "every") | (_, "includes") => {}
+            // flatMap returns an iterator, collect to Vec
+            (_, "flatMap") => {
+                self.output.push_str(".collect::<Vec<_>>()");
+            }
+            // count(fn) uses filter(fn).count() → append .count() as i32
+            (_, "count") => {
+                self.output.push_str(".count() as i32");
+            }
             // Bug #38: JsonValue conversion methods return Option<T>, unwrap to T
             // asString -> as_string().unwrap_or_default()
             // asBool -> as_bool().unwrap_or_default()
@@ -8855,7 +9099,7 @@ impl CodeGenerator {
         &mut self,
         method_call: &crate::ast::MethodCallExpr,
     ) -> Result<()> {
-        // Special handling for substring and charAt - they need different syntax
+        // Special handling for methods that need different syntax
         match method_call.method.as_str() {
             "substring" => {
                 // substring(start, end) -> &str[(start) as usize..(end) as usize].to_string()
@@ -8910,6 +9154,208 @@ impl CodeGenerator {
                 self.output.push_str(").map(|i| i as i32).unwrap_or(-1)");
                 return Ok(());
             }
+            "lastIndexOf" => {
+                // lastIndexOf(substring) -> str.rfind(substring).map(|i| i as i32).unwrap_or(-1)
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".rfind(");
+                if !method_call.args.is_empty() {
+                    let needs_ref = match &method_call.args[0] {
+                        Expr::Identifier(var_name) => {
+                            self.string_vars.contains(&self.sanitize_name(var_name))
+                        }
+                        Expr::Member { .. } => true,
+                        Expr::Literal(Literal::String(_)) => false,
+                        _ => true,
+                    };
+                    if needs_ref {
+                        self.output.push('&');
+                    }
+                    self.generate_expr(&method_call.args[0])?;
+                }
+                self.output.push_str(").map(|i| i as i32).unwrap_or(-1)");
+                return Ok(());
+            }
+            "slice" => {
+                // slice(start, end?) -> &str[(start) as usize..(end) as usize].to_string()
+                // Same semantics as substring
+                self.generate_expr(&method_call.object)?;
+                self.output.push('[');
+                if method_call.args.len() >= 1 {
+                    self.output.push('(');
+                    self.generate_expr(&method_call.args[0])?;
+                    self.output.push_str(") as usize");
+                }
+                self.output.push_str("..");
+                if method_call.args.len() >= 2 {
+                    self.output.push('(');
+                    self.generate_expr(&method_call.args[1])?;
+                    self.output.push_str(") as usize");
+                }
+                self.output.push_str("].to_string()");
+                return Ok(());
+            }
+            "padStart" => {
+                // padStart(len, char?) -> block expression with padding
+                self.output.push_str("{ let __s = &(");
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str("); let __len = (");
+                if !method_call.args.is_empty() {
+                    self.generate_expr(&method_call.args[0])?;
+                }
+                self.output
+                    .push_str(") as usize; if __s.len() >= __len { __s.to_string() } else { ");
+                if method_call.args.len() >= 2 {
+                    self.generate_expr(&method_call.args[1])?;
+                    self.output.push_str(".repeat(__len - __s.len()) + __s");
+                } else {
+                    self.output
+                        .push_str("\" \".repeat(__len - __s.len()) + __s");
+                }
+                self.output.push_str(" } }");
+                return Ok(());
+            }
+            "padEnd" => {
+                // padEnd(len, char?) -> block expression with padding
+                self.output.push_str("{ let __s = &(");
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str("); let __len = (");
+                if !method_call.args.is_empty() {
+                    self.generate_expr(&method_call.args[0])?;
+                }
+                self.output.push_str(
+                    ") as usize; if __s.len() >= __len { __s.to_string() } else { __s.to_string() + &",
+                );
+                if method_call.args.len() >= 2 {
+                    self.generate_expr(&method_call.args[1])?;
+                    self.output.push_str(".repeat(__len - __s.len())");
+                } else {
+                    self.output
+                        .push_str("\" \".repeat(__len - __s.len())");
+                }
+                self.output.push_str(" } }");
+                return Ok(());
+            }
+            "repeat" => {
+                // repeat(n) -> str.repeat(n as usize)
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".repeat((");
+                if !method_call.args.is_empty() {
+                    self.generate_expr(&method_call.args[0])?;
+                }
+                self.output.push_str(") as usize)");
+                return Ok(());
+            }
+            "capitalize" => {
+                // capitalize() -> { let __s = &(obj); let mut __c = __s.chars(); match __c.next() { ... } }
+                self.output.push_str("{ let __s = &(");
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str("); let mut __c = __s.chars(); match __c.next() { None => String::new(), Some(__f) => __f.to_uppercase().to_string() + __c.as_str() } }");
+                return Ok(());
+            }
+            "isBlank" => {
+                // isBlank() -> str.trim().is_empty()
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".trim().is_empty()");
+                return Ok(());
+            }
+            "isEmpty" => {
+                // isEmpty() -> str.is_empty() (also works for Vec)
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".is_empty()");
+                return Ok(());
+            }
+            "reverse" => {
+                // reverse() -> str.chars().rev().collect::<String>()
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".chars().rev().collect::<String>()");
+                return Ok(());
+            }
+            "truncate" => {
+                // truncate(len) -> str.chars().take(len as usize).collect::<String>()
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".chars().take((");
+                if !method_call.args.is_empty() {
+                    self.generate_expr(&method_call.args[0])?;
+                }
+                self.output.push_str(") as usize).collect::<String>()");
+                return Ok(());
+            }
+            "countMatches" => {
+                // countMatches(sub) -> str.matches(sub).count() as i32
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".matches(");
+                if !method_call.args.is_empty() {
+                    let needs_ref = match &method_call.args[0] {
+                        Expr::Identifier(var_name) => {
+                            self.string_vars.contains(&self.sanitize_name(var_name))
+                        }
+                        Expr::Member { .. } => true,
+                        Expr::Literal(Literal::String(_)) => false,
+                        _ => true,
+                    };
+                    if needs_ref {
+                        self.output.push('&');
+                    }
+                    self.generate_expr(&method_call.args[0])?;
+                }
+                self.output.push_str(").count() as i32");
+                return Ok(());
+            }
+            "removePrefix" => {
+                // removePrefix(pre) -> { let __s = &(obj); match __s.strip_prefix(pre) { Some(r) => r.to_string(), None => __s.to_string() } }
+                self.output.push_str("{ let __s = &(");
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str("); match __s.strip_prefix(");
+                if !method_call.args.is_empty() {
+                    let needs_ref = match &method_call.args[0] {
+                        Expr::Identifier(var_name) => {
+                            self.string_vars.contains(&self.sanitize_name(var_name))
+                        }
+                        Expr::Member { .. } => true,
+                        Expr::Literal(Literal::String(_)) => false,
+                        _ => true,
+                    };
+                    if needs_ref {
+                        self.output.push('&');
+                    }
+                    self.generate_expr(&method_call.args[0])?;
+                }
+                self.output.push_str(
+                    ") { Some(__r) => __r.to_string(), None => __s.to_string() } }",
+                );
+                return Ok(());
+            }
+            "removeSuffix" => {
+                // removeSuffix(suf) -> { let __s = &(obj); match __s.strip_suffix(suf) { Some(r) => r.to_string(), None => __s.to_string() } }
+                self.output.push_str("{ let __s = &(");
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str("); match __s.strip_suffix(");
+                if !method_call.args.is_empty() {
+                    let needs_ref = match &method_call.args[0] {
+                        Expr::Identifier(var_name) => {
+                            self.string_vars.contains(&self.sanitize_name(var_name))
+                        }
+                        Expr::Member { .. } => true,
+                        Expr::Literal(Literal::String(_)) => false,
+                        _ => true,
+                    };
+                    if needs_ref {
+                        self.output.push('&');
+                    }
+                    self.generate_expr(&method_call.args[0])?;
+                }
+                self.output.push_str(
+                    ") { Some(__r) => __r.to_string(), None => __s.to_string() } }",
+                );
+                return Ok(());
+            }
+            "chars" => {
+                // chars() -> str.chars().map(|c| c.to_string()).collect::<Vec<String>>()
+                self.generate_expr(&method_call.object)?;
+                self.output
+                    .push_str(".chars().map(|c| c.to_string()).collect::<Vec<String>>()");
+                return Ok(());
+            }
             _ => {}
         }
 
@@ -8924,6 +9370,7 @@ impl CodeGenerator {
             "trimEnd" => "trim_end",
             "startsWith" => "starts_with",
             "endsWith" => "ends_with",
+            "replaceAll" => "replace",
             method_name => method_name, // split, replace, trim, substring, charAt, contains
         };
 
@@ -8935,7 +9382,7 @@ impl CodeGenerator {
         // Methods that take Pattern/&str args need & for String variables
         let needs_ref_for_args = matches!(
             method_call.method.as_str(),
-            "contains" | "startsWith" | "endsWith" | "split" | "replace" | "starts_with" | "ends_with"
+            "contains" | "startsWith" | "endsWith" | "split" | "replace" | "replaceAll" | "starts_with" | "ends_with"
         );
 
         // Generate arguments
@@ -9075,12 +9522,56 @@ impl CodeGenerator {
                 // Note: requires use rand::Rng in the generated code
                 self.output.push_str("rand::random::<f64>()");
             }
+            "clamp" => {
+                // clamp(val, min, max) -> val.max(min).min(max)
+                if method_call.args.len() < 3 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Math.clamp requires 3 arguments",
+                        "Math.clamp(value, min, max) takes exactly three arguments",
+                    )));
+                }
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(".max(");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str(").min(");
+                self.generate_expr(&method_call.args[2])?;
+                self.output.push(')');
+            }
+            "sign" => {
+                // sign(val) -> if val > 0 { 1 } else if val < 0 { -1 } else { 0 }
+                if method_call.args.is_empty() {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Math.sign requires 1 argument",
+                        "Math.sign takes exactly one argument",
+                    )));
+                }
+                self.output.push_str("{ let __v = ");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(
+                    "; if __v > 0.0 { 1 } else if __v < 0.0 { -1 } else { 0 } }",
+                );
+            }
+            "log" => {
+                // log(x) -> (x as f64).ln()
+                if method_call.args.is_empty() {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Math.log requires 1 argument",
+                        "Math.log takes exactly one argument",
+                    )));
+                }
+                self.output.push('(');
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(" as f64).ln()");
+            }
             _ => {
                 return Err(CompilerError::CodegenError(
                     SemanticErrorInfo::new(
                         "E3000",
                         &format!("Unknown Math function: {}", method_call.method),
-                        "Available Math functions: sqrt, pow, abs, floor, ceil, round, min, max, random"
+                        "Available Math functions: sqrt, pow, abs, floor, ceil, round, min, max, random, clamp, sign, log"
                     )
                 ));
             }

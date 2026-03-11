@@ -1,9 +1,9 @@
 # 🚀 Plan: Production Readiness
 
 > **Objetivo:** Llevar Liva a un estado donde se puedan hacer proyectos serios en producción  
-> **Estado:** Planificación  
+> **Estado:** v1.4 P0 completado ✅  
 > **Creado:** 2026-03-11  
-> **Última actualización:** 2026-03-11
+> **Última actualización:** 2026-03-12
 
 ---
 
@@ -48,7 +48,10 @@ Cero dependencias externas para P0. Crates auto-inyectados para P1 (chrono, rege
 
 ---
 
-### P0 — String: ampliar métodos nativos (+12)
+### P0 — String: ampliar métodos nativos (+15) ✅
+
+> **Completado:** v1.4.0-dev — 15 nuevos métodos implementados y testeados.  
+> **Nota:** Se usaron `padStart`/`padEnd` (estilo JS) en lugar de `padLeft`/`padRight`.
 
 No se crea librería. Se añaden ramas al `match` en `generate_string_method_call()`:
 
@@ -67,7 +70,10 @@ No se crea librería. Se añaden ramas al `match` en `generate_string_method_cal
 | `str.removeSuffix(suf)` | Quita sufijo si existe | `.strip_suffix().unwrap_or(s)` |
 | `str.chars()` | Array de caracteres | `.chars().map(\|c\| c.to_string()).collect()` |
 
-### P0 — Array: ampliar métodos nativos (+16)
+### P0 — Array: ampliar métodos nativos (+20) ✅
+
+> **Completado:** v1.4.0-dev — 20 nuevos métodos implementados y testeados.  
+> **Nota:** `chunk()` renombrado a `chunks()` (conflicto con keyword `chunk` de parallel adapter). `flatten()` implementado como `flat()` (estilo JS). `sortBy(fn)` y `groupBy(fn)` pospuestos por complejidad.
 
 No se crea librería. Se añaden al pipeline de generación de method calls de arrays:
 
@@ -89,7 +95,10 @@ No se crea librería. Se añaden al pipeline de generación de method calls de a
 | `arr.min()` / `arr.max()` | Mínimo/máximo | `.iter().min()` / `.max()` |
 | `arr.take(n)` / `arr.drop(n)` | Primeros n / sin primeros n | `&arr[..n]` / `&arr[n..]` |
 
-### P0 — Math: ampliar funciones (+2)
+### P0 — Math: ampliar funciones (+3) ✅
+
+> **Completado:** v1.4.0-dev — 3 nuevas funciones implementadas y testeadas.  
+> **Nota:** Se añadió `Math.log(x)` además de lo planificado originalmente.
 
 | Función | Descripción | Rust equivalente |
 |---------|-------------|-----------------|

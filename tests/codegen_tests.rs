@@ -3360,3 +3360,311 @@ main() {
     assert!(rust_code.contains("&mut self"), "mutating methods should use &mut self");
     assert_snapshot!("bug82_mutating_map_set_methods", rust_code);
 }
+
+// ============================================================
+// v1.4 — Stdlib P0: String methods
+// ============================================================
+
+#[test]
+fn test_v14_string_pad_repeat() {
+    let source = r#"
+main() {
+    let s = "42"
+    let padded = s.padStart(5)
+    let padded2 = s.padStart(5, "0")
+    let padEnd = s.padEnd(5)
+    let padEnd2 = s.padEnd(5, ".")
+    let repeated = s.repeat(3)
+    print(padded)
+    print(padded2)
+    print(padEnd)
+    print(padEnd2)
+    print(repeated)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v14_string_pad_repeat", rust_code);
+}
+
+#[test]
+fn test_v14_string_capitalize_reverse() {
+    let source = r#"
+main() {
+    let s = "hello world"
+    let cap = s.capitalize()
+    let rev = s.reverse()
+    let trunc = s.truncate(5)
+    print(cap)
+    print(rev)
+    print(trunc)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v14_string_capitalize_reverse", rust_code);
+}
+
+#[test]
+fn test_v14_string_blank_empty() {
+    let source = r#"
+main() {
+    let s = "hello"
+    let empty = ""
+    let blank = "   "
+    let a = s.isEmpty()
+    let b = empty.isEmpty()
+    let c = blank.isBlank()
+    let d = s.isBlank()
+    print(a)
+    print(b)
+    print(c)
+    print(d)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v14_string_blank_empty", rust_code);
+}
+
+#[test]
+fn test_v14_string_last_index_of() {
+    let source = r#"
+main() {
+    let s = "hello world hello"
+    let idx = s.lastIndexOf("hello")
+    print(idx)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v14_string_last_index_of", rust_code);
+}
+
+#[test]
+fn test_v14_string_slice() {
+    let source = r#"
+main() {
+    let s = "hello world"
+    let sliced = s.slice(0, 5)
+    print(sliced)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v14_string_slice", rust_code);
+}
+
+#[test]
+fn test_v14_string_replace_all() {
+    let source = r#"
+main() {
+    let s = "aabbcc"
+    let replaced = s.replaceAll("a", "x")
+    print(replaced)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v14_string_replace_all", rust_code);
+}
+
+#[test]
+fn test_v14_string_chars() {
+    let source = r#"
+main() {
+    let s = "abc"
+    let chars = s.chars()
+    print(chars)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v14_string_chars", rust_code);
+}
+
+#[test]
+fn test_v14_string_count_matches() {
+    let source = r#"
+main() {
+    let s = "banana"
+    let count = s.countMatches("an")
+    print(count)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v14_string_count_matches", rust_code);
+}
+
+#[test]
+fn test_v14_string_remove_prefix_suffix() {
+    let source = r#"
+main() {
+    let s = "hello_world"
+    let noPrefix = s.removePrefix("hello_")
+    let noSuffix = s.removeSuffix("_world")
+    print(noPrefix)
+    print(noSuffix)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v14_string_remove_prefix_suffix", rust_code);
+}
+
+// ============================================================
+// v1.4 — Stdlib P0: Math methods
+// ============================================================
+
+#[test]
+fn test_v14_math_clamp_sign_log() {
+    let source = r#"
+main() {
+    let clamped = Math.clamp(15.0, 0.0, 10.0)
+    let s1 = Math.sign(5.0)
+    let s2 = Math.sign(-3.0)
+    let s3 = Math.sign(0.0)
+    let lg = Math.log(2.718)
+    print(clamped)
+    print(s1)
+    print(s2)
+    print(s3)
+    print(lg)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v14_math_clamp_sign_log", rust_code);
+}
+
+// ============================================================
+// v1.4 — Stdlib P0: Array methods
+// ============================================================
+
+#[test]
+fn test_v14_array_slice_take_drop() {
+    let source = r#"
+main() {
+    let nums = [1, 2, 3, 4, 5]
+    let sliced = nums.slice(1, 4)
+    let taken = nums.take(3)
+    let dropped = nums.drop(2)
+    print(sliced)
+    print(taken)
+    print(dropped)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v14_array_slice_take_drop", rust_code);
+}
+
+#[test]
+fn test_v14_array_first_last_empty() {
+    let source = r#"
+main() {
+    let nums = [10, 20, 30]
+    let f = nums.first()
+    let l = nums.last()
+    let empty = nums.isEmpty()
+    print(f)
+    print(l)
+    print(empty)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v14_array_first_last_empty", rust_code);
+}
+
+#[test]
+fn test_v14_array_sort_reversed_distinct() {
+    let source = r#"
+main() {
+    let nums = [3, 1, 4, 1, 5, 9, 2, 6]
+    let sorted = nums.sort()
+    let rev = nums.reversed()
+    let unique = nums.distinct()
+    print(sorted)
+    print(rev)
+    print(unique)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v14_array_sort_reversed_distinct", rust_code);
+}
+
+#[test]
+fn test_v14_array_flat_chunk() {
+    let source = r#"
+main() {
+    let nested = [[1, 2], [3, 4], [5, 6]]
+    let flat = nested.flat()
+    let nums = [1, 2, 3, 4, 5, 6]
+    let chunks = nums.chunks(2)
+    print(flat)
+    print(chunks)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v14_array_flat_chunk", rust_code);
+}
+
+#[test]
+fn test_v14_array_zip() {
+    let source = r#"
+main() {
+    let names = ["Alice", "Bob", "Charlie"]
+    let ages = [30, 25, 35]
+    let pairs = names.zip(ages)
+    print(pairs)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v14_array_zip", rust_code);
+}
+
+#[test]
+fn test_v14_array_sum_min_max() {
+    let source = r#"
+main() {
+    let nums = [3, 1, 4, 1, 5]
+    let total = nums.sum()
+    let smallest = nums.min()
+    let largest = nums.max()
+    print(total)
+    print(smallest)
+    print(largest)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v14_array_sum_min_max", rust_code);
+}
+
+#[test]
+fn test_v14_array_find_index() {
+    let source = r#"
+main() {
+    let nums = [10, 20, 30, 40, 50]
+    let idx = nums.findIndex(x => x > 25)
+    print(idx)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v14_array_find_index", rust_code);
+}
+
+#[test]
+fn test_v14_array_flat_map() {
+    let source = r#"
+main() {
+    let nums = [1, 2, 3]
+    let expanded = nums.flatMap(x => [x, x * 2])
+    print(expanded)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v14_array_flat_map", rust_code);
+}
+
+#[test]
+fn test_v14_array_count() {
+    let source = r#"
+main() {
+    let nums = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    let evens = nums.count(x => x % 2 == 0)
+    print(evens)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v14_array_count", rust_code);
+}

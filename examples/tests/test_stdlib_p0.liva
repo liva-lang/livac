@@ -1,0 +1,138 @@
+// v1.4 — Stdlib P0: String, Array, Math
+// Integration test for all new methods
+
+main() {
+    // === String methods ===
+    let s = "Hello World"
+
+    // padStart / padEnd / repeat
+    let padded = "42".padStart(5, "0")
+    print("padStart: $padded")
+
+    let padEnd = "42".padEnd(5, ".")
+    print("padEnd: $padEnd")
+
+    let repeated = "ab".repeat(3)
+    print("repeat: $repeated")
+
+    // capitalize / reverse / truncate
+    let cap = "hello".capitalize()
+    print("capitalize: $cap")
+
+    let rev = "hello".reverse()
+    print("reverse: $rev")
+
+    let trunc = s.truncate(5)
+    print("truncate: $trunc")
+
+    // isBlank / isEmpty
+    let blank = "   ".isBlank()
+    print("isBlank('   '): $blank")
+
+    let empty = "".isEmpty()
+    print("isEmpty(''): $empty")
+
+    // lastIndexOf / slice
+    let text = "hello world hello"
+    let idx = text.lastIndexOf("hello")
+    print("lastIndexOf: $idx")
+
+    let sliced = text.slice(6, 11)
+    print("slice: $sliced")
+
+    // replaceAll / countMatches
+    let replaced = "aabbcc".replaceAll("a", "x")
+    print("replaceAll: $replaced")
+
+    let count = "banana".countMatches("an")
+    print("countMatches: $count")
+
+    // removePrefix / removeSuffix
+    let noPrefix = "hello_world".removePrefix("hello_")
+    print("removePrefix: $noPrefix")
+
+    let noSuffix = "hello_world".removeSuffix("_world")
+    print("removeSuffix: $noSuffix")
+
+    // chars
+    let chars = "abc".chars()
+    print("chars: $chars")
+
+    // === Math methods ===
+    let clamped = Math.clamp(15.0, 0.0, 10.0)
+    print("clamp: $clamped")
+
+    let sign = Math.sign(5.0)
+    print("sign: $sign")
+
+    let lg = Math.log(2.718)
+    print("log: $lg")
+
+    // === Array methods ===
+    let nums = [3, 1, 4, 1, 5, 9, 2, 6]
+
+    // slice / take / drop
+    let slicedArr = nums.slice(1, 4)
+    print("slice: $slicedArr")
+
+    let taken = nums.take(3)
+    print("take: $taken")
+
+    let dropped = nums.drop(5)
+    print("drop: $dropped")
+
+    // first / last / isEmpty
+    let f = nums.first()
+    print("first: $f")
+
+    let l = nums.last()
+    print("last: $l")
+
+    let emp = nums.isEmpty()
+    print("isEmpty: $emp")
+
+    // sort / reversed / distinct
+    let sorted = nums.sort()
+    print("sort: $sorted")
+
+    let rev2 = nums.reversed()
+    print("reversed: $rev2")
+
+    let unique = nums.distinct()
+    print("distinct: $unique")
+
+    // sum / min / max
+    let total = nums.sum()
+    print("sum: $total")
+
+    let smallest = nums.min()
+    print("min: $smallest")
+
+    let largest = nums.max()
+    print("max: $largest")
+
+    // findIndex / count
+    let idx2 = nums.findIndex(x => x > 4)
+    print("findIndex: $idx2")
+
+    let evenCount = nums.count(x => x % 2 == 0)
+    print("count evens: $evenCount")
+
+    // flat / chunks
+    let nested = [[1, 2], [3, 4], [5, 6]]
+    let flat = nested.flat()
+    print("flat: $flat")
+
+    let chunks = nums.chunks(3)
+    print("chunks: $chunks")
+
+    // zip
+    let names = ["a", "b", "c"]
+    let ages = [1, 2, 3]
+    let pairs = names.zip(ages)
+    print("zip: $pairs")
+
+    // flatMap
+    let expanded = [1, 2, 3].flatMap(x => [x, x * 10])
+    print("flatMap: $expanded")
+}

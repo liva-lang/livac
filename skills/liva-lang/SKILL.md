@@ -202,6 +202,20 @@ nums.every(x => x > 0)              // true
 nums.includes(3)                     // true
 nums.indexOf(2)                      // 1
 ["a", "b"].join(", ")               // "a, b"
+
+// v1.4 — Access & slicing
+nums.first() / nums.last() / nums.isEmpty()
+nums.slice(1, 3) / nums.take(2) / nums.drop(1)
+
+// v1.4 — Transform
+nums.sort() / nums.reversed() / nums.distinct()
+[[1,2],[3]].flat() / nums.chunks(2) / nums.zip([4,5,6])
+
+// v1.4 — Aggregate
+nums.sum() / nums.min() / nums.max()
+
+// v1.4 — Callback
+nums.findIndex(x => x > 2) / nums.flatMap(x => [x, x*10]) / nums.count(x => x > 1)
 ```
 
 ### Maps (v1.3.0)
@@ -234,8 +248,13 @@ for color in colors { print(color) }
 ```liva
 let msg = $"Hello, {name}! Sum: {a + b}"    // String templates
 text.split(", ") / text.trim() / text.toUpperCase() / text.toLowerCase()
-text.replace("a", "b") / text.contains("x") / text.substring(0, 5)
-text.startsWith("H") / text.endsWith("!") / text.indexOf("W")
+text.replace("a", "b") / text.replaceAll("a", "b") / text.contains("x")
+text.substring(0, 5) / text.slice(0, 5) / text.charAt(0)
+text.startsWith("H") / text.endsWith("!") / text.indexOf("W") / text.lastIndexOf("W")
+text.padStart(5, "0") / text.padEnd(5, ".") / text.repeat(3)
+text.capitalize() / text.reverse() / text.truncate(10)
+text.isBlank() / text.isEmpty() / text.countMatches("x")
+text.removePrefix("pre_") / text.removeSuffix(".txt") / text.chars()
 // Escape braces: $"\{\"key\": \"{val}\"\}"
 ```
 
@@ -258,7 +277,8 @@ let input = console.input("Name: ")
 // Math
 Math.PI / Math.E / Math.sqrt(16.0) / Math.pow(2.0, 3.0) / Math.abs(-10.5)
 Math.floor(3.7) / Math.ceil(3.2) / Math.round(3.5) / Math.random()
-Math.min(a, b) / Math.max(a, b)
+Math.min(a, b) / Math.max(a, b) / Math.clamp(val, 0, 10)
+Math.sign(-42) / Math.log(2.718)
 
 // Type conversion (fallible)
 let num, err = parseInt("42")

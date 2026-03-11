@@ -1,6 +1,6 @@
 # Liva Language Quick Reference
 
-> **Version:** 1.3.0  
+> **Version:** 1.4.0  
 > **Liva** — Python's simplicity, TypeScript's clarity, Rust's performance
 
 ---
@@ -779,6 +779,42 @@ let sentence = words.join(" ")               // "hello world"
 let csv = words.join(",")                    // "hello,world"
 ```
 
+### v1.4 — New Array Methods
+
+```liva
+let numbers = [1, 2, 3, 4, 5]
+
+// Access
+let f = numbers.first()                      // 1
+let l = numbers.last()                       // 5
+let empty = numbers.isEmpty()                // false
+
+// Slicing
+let mid = numbers.slice(1, 3)                // [2, 3]
+let top3 = numbers.take(3)                   // [1, 2, 3]
+let rest = numbers.drop(2)                   // [3, 4, 5]
+
+// Transform
+let sorted = numbers.sort()                  // [1, 2, 3, 4, 5]
+let rev = numbers.reversed()                 // [5, 4, 3, 2, 1]
+let uniq = [1, 2, 2, 3].distinct()           // [1, 2, 3]
+
+// Combine & split
+let flat = [[1, 2], [3, 4]].flat()           // [1, 2, 3, 4]
+let chunked = numbers.chunks(2)              // [[1,2],[3,4],[5]]
+let zipped = [1, 2].zip(["a", "b"])          // [(1,"a"),(2,"b")]
+
+// Aggregate
+let total = numbers.sum()                    // 15
+let lo = numbers.min()                       // 1
+let hi = numbers.max()                       // 5
+
+// Callback-based
+let idx = numbers.findIndex(x => x > 3)      // 3
+let fm = numbers.flatMap(n => [n, n * 10])    // [1,10,2,20,...]
+let cnt = numbers.count(x => x > 2)           // 3
+```
+
 ### Chaining
 
 ```liva
@@ -1021,6 +1057,7 @@ let greeting = $"Hello, {name}! You are {age} years old."
 ```liva
 let text = "Hello, World!"
 
+// Core methods
 text.split(", ")              // ["Hello", "World!"]
 text.toUpperCase()            // "HELLO, WORLD!"
 text.toLowerCase()            // "hello, world!"
@@ -1032,6 +1069,31 @@ text.contains("World")        // true
 text.substring(0, 5)          // "Hello"
 text.charAt(0)                // 'H'
 text.indexOf("World")         // 7
+
+// v1.4 — Search & slicing
+text.lastIndexOf("l")         // 10
+text.slice(0, 5)              // "Hello"
+"hello".chars()               // ["h","e","l","l","o"]
+
+// v1.4 — Transform
+"hello".capitalize()          // "Hello"
+"hello".reverse()             // "olleh"
+"hello world".truncate(5)     // "hello"
+"ha".repeat(3)                // "hahaha"
+text.replaceAll("l", "L")     // "HeLLo, WorLd!"
+
+// v1.4 — Padding
+"5".padStart(3, "0")          // "005"
+"hi".padEnd(5, ".")           // "hi..."
+
+// v1.4 — Query
+"  ".isBlank()                // true
+"".isEmpty()                  // true
+"banana".countMatches("an")   // 2
+
+// v1.4 — Remove prefix/suffix
+"prefix_val".removePrefix("prefix_")   // "val"
+"file.txt".removeSuffix(".txt")        // "file"
 ```
 
 ---
@@ -1190,6 +1252,11 @@ Math.round(3.5)      // 4
 Math.min(10.5, 20.3) // 10.5
 Math.max(10.5, 20.3) // 20.3
 Math.random()        // 0.0 to 1.0
+
+// v1.4
+Math.clamp(15, 0, 10) // 10
+Math.sign(-42)        // -1
+Math.log(2.718)       // ~1.0
 ```
 
 ### Type Conversion
