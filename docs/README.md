@@ -97,6 +97,7 @@ Built-in modules and APIs.
 | Module | Description |
 |--------|-------------|
 | [Console](language-reference/console-api.md) | `print()`, `console.log()`, `console.input()` |
+| [Logging](language-reference/stdlib/logging.md) | `Log.info()`, `Log.warn()`, `Log.error()`, smart tables |
 | **JSON** | |
 | [JSON — Basics](language-reference/json-basics.md) | Parsing, serialization, type-safe parsing |
 | [JSON — Advanced](language-reference/json-advanced.md) | Error handling, type mapping, migration |

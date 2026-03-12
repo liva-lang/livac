@@ -1295,6 +1295,34 @@ console.success("Done!")             // Green, to stdout
 let input = console.input("Name: ") // Read user input
 ```
 
+### Logging
+
+```liva
+Log.info("Server started")                    // Timestamped info to stderr
+Log.warn("Disk space low")
+Log.error("Connection failed")
+Log.debug("Payload received")                 // Only with --verbose
+
+// Variadic args
+Log.info("User", name, "from", ip)            // Concatenated with spaces
+
+// Map 4+ keys → Key/Value table
+Log.info("Config:", { host: "localhost", port: 8080, db: "mydb", pool: 10 })
+
+// Map ≤3 keys → inline
+Log.info("Status:", { code: 200, ok: true })  // {code: 200, ok: true}
+
+// Array<Map> → columnar table (console.table)
+Log.info("Users:", [{ name: "Alice", age: 30 }, { name: "Bob", age: 25 }])
+
+// JSON runtime tables
+let data, _err = JSON.parse(jsonString)
+Log.info("Data:", data)                       // Auto table rendering
+
+// Set minimum level
+Log.setLevel("debug")                         // debug/info/warn/error
+```
+
 ### Math
 
 ```liva

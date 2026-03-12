@@ -61,6 +61,70 @@ use rust "tokio" version "2.0"
 - **Error codes**: E9002 + new `Interop` error category (9000-9999)
 - **Tests**: 348 total (7 new: 5 codegen, 1 desugar, 1 semantic)
 
+### Added - Logging Module `Log` 📋
+
+**Structured logging with smart table rendering for maps, arrays, and JSON.**
+
+#### Basic Logging
+
+```liva
+Log.info("Server started")           // 2026-03-12T10:30:00 [INFO ] Server started
+Log.warn("Disk space low")
+Log.error("Connection failed")
+Log.debug("Payload received")         // Only with --verbose
+Log.setLevel("debug")                 // Change minimum level at runtime
+```
+
+#### Variadic Arguments
+
+```liva
+Log.info("User", username, "logged in from", ip)
+// 2026-03-12T10:30:00 [INFO ] User alice logged in from 192.168.1.1
+```
+
+#### Smart Table Rendering
+
+```liva
+// Map with 4+ keys → Key/Value table
+Log.info("Config:", { host: "localhost", port: 8080, db: "mydb", pool: 10 })
+// ┌──────┬───────────┐
+// │ Key  │ Value     │
+// ├──────┼───────────┤
+// │ db   │ mydb      │
+// │ host │ localhost │
+// │ pool │ 10        │
+// │ port │ 8080      │
+// └──────┴───────────┘
+
+// Map with ≤3 keys → inline
+Log.info("Status:", { code: 200, ok: true })
+// {code: 200, ok: true}
+
+// Array of Maps → columnar table (console.table style)
+Log.info("Users:", [{ name: "Alice", age: 30 }, { name: "Bob", age: 25 }])
+// ┌─────┬───────┐
+// │ age │ name  │
+// ├─────┼───────┤
+// │ 30  │ Alice │
+// │ 25  │ Bob   │
+// └─────┴───────┘
+```
+
+#### JSON Runtime Tables
+
+```liva
+let config, _err = JSON.parse(jsonString)
+Log.info("Config:", config)  // Auto-detects Object/Array → table rendering
+```
+
+#### Compiler Changes
+
+- **Desugaring**: `has_logging` flag for chrono dependency
+- **Codegen**: `ArgKind` enum (Scalar, InlineMap, TableMap, TableArray, Json)
+- **Runtime**: 5 helpers — `liva_log`, `liva_log_table_kv`, `liva_log_table_rows`, `liva_log_json`, `liva_log_set_level`
+- **CLI**: `--verbose` passes `LIVA_VERBOSE=1` env var for debug output
+- **Tests**: 14 snapshot tests (374 total)
+
 ---
 
 ## [Unreleased] - v1.4.0-dev

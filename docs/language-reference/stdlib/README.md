@@ -93,6 +93,21 @@ System-level functions for CLI args, environment, and process control.
 - `Sys.env(name)` - Read environment variable ✅
 - `Sys.exit(code)` - Exit with code ✅
 
+### ✅ [Logging](./logging.md)
+Structured logging with timestamps, levels, and smart table rendering.
+
+**Status:** Complete (v1.5) — 5 methods + variadic args + table rendering
+
+- `Log.info(args...)` - Informational messages ✅
+- `Log.warn(args...)` - Warning messages ✅
+- `Log.error(args...)` - Error messages ✅
+- `Log.debug(args...)` - Debug messages (only with `--verbose`) ✅
+- `Log.setLevel(level)` - Set minimum log level at runtime ✅
+- Variadic arguments (concatenated with spaces) ✅
+- Map 4+ keys → Key/Value table, ≤3 keys → inline ✅
+- Array of Maps → columnar table (console.table style) ✅
+- JSON runtime detection → auto table rendering ✅
+
 ---
 
 ## 🚀 Quick Start

@@ -94,7 +94,13 @@
 - [x] `Log.error(msg, ...context)`
 - [x] `Log.debug(msg, ...context)` — solo con `--verbose`
 - [x] `Log.setLevel(level)` — cambiar nivel en runtime
-- [x] Tests
+- [x] Variadic args — `Log.info("User", name, "logged in")` concatena con espacios
+- [x] Table rendering — Map 4+ keys → Key/Value table (box-drawing Unicode)
+- [x] Table rendering — Map ≤3 keys → inline `{k: v}`
+- [x] Table rendering — Array<Map> → columnar table (console.table style)
+- [x] JSON runtime tables — `JSON.parse()` results auto-detected → table/inline
+- [x] Tests (14 snapshot tests)
+- [x] Docs (`docs/language-reference/stdlib/logging.md`)
 
 ### Config / .env — módulo `Config`
 
