@@ -297,6 +297,14 @@ Dir.isDir("/path")                     // bool, no error binding
 // System
 Sys.args() / Sys.env("HOME") / Sys.exit(1)
 
+// Logging (stderr, timestamped)
+Log.info("msg", arg1, arg2)            // Variadic args, concatenated with spaces
+Log.warn("warning") / Log.error("err") / Log.debug("detail")  // debug only with --verbose
+Log.setLevel("debug")                  // debug/info/warn/error
+// Map 4+ keys → Key/Value table, ≤3 keys → inline {k: v}
+// Array<Map> → columnar table (console.table style)
+// JSON.parse results → runtime auto-detection for table rendering
+
 // JSON
 let data: User, err = JSON.parse(jsonStr)
 let json = JSON.stringify(obj)
