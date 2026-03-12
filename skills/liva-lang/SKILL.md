@@ -307,6 +307,33 @@ let resp, err = async HTTP.post(url, body)        // Also: .put(), .delete()
 resp.status / resp.body / resp.json()
 ```
 
+## Rust Interop *(v1.5.0)*
+
+```liva
+// Inline Rust code as expression
+let result = rust {
+    let x: i32 = 42;
+    x * 2
+}
+
+// Crate dependencies (top-level)
+use rust "chrono" version "0.4"
+use rust "uuid" version "1.0" features ["v4", "serde"]
+use rust "tokio" features ["net"]   // Merges with built-in features
+
+// use statements inside rust { } are hoisted to file top
+let hash = rust {
+    use std::collections::HashMap;
+    let mut map = HashMap::new();
+    map.insert("key", "value");
+    map.len()
+}
+// Internal crates (always available): tokio, serde, serde_json, reqwest, rayon, rand
+// E9002: Cannot override internal crate version — only add features
+// Liva names are snake_case in generated Rust: myValue → my_value
+// No semantic validation of rust block content — errors come from rustc
+```
+
 ## Testing
 
 ```liva
@@ -368,6 +395,7 @@ For detailed documentation on each topic, read the corresponding file in `refere
 - `references/error-handling.md` — fail, error binding, or fail, or default, error traces
 - `references/collections.md` — Arrays, Maps, Sets, functional methods, parallel execution
 - `references/concurrency.md` — async, par, task, await, fire-and-forget, array policies
+- `references/rust-interop.md` — Inline `rust { }` blocks, crate dependencies, use hoisting, internal crates, limitations
 - `references/modules.md` — Imports, exports, path resolution, visibility rules
 - `references/string-templates.md` — String interpolation, escaping braces
 

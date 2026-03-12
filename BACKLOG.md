@@ -85,7 +85,7 @@
 - [x] Protección: features adicionales a crates internos permitidas (merge)
 - [x] Formatter: soporte `rust { }` y `use rust` con version/features
 - [x] Tests: bloque rust básico, nested braces, use hoisting, versión/features, E9002, desugar
-- [ ] Docs: documentar sintaxis y limitaciones
+- [x] Docs: documentar sintaxis y limitaciones
 
 ### Logging — módulo `Log`
 

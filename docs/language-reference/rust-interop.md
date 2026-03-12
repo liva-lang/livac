@@ -11,6 +11,7 @@ Liva compiles to Rust, so interop is natural. You can embed raw Rust code, decla
 5. [Rust Types in Liva](#rust-types-in-liva)
 6. [Error Codes](#error-codes)
 7. [Best Practices](#best-practices)
+8. [Limitations & Known Caveats](#limitations--known-caveats)
 
 ---
 
@@ -408,6 +409,79 @@ let digest = rust {
     hasher.update(b"hello");
     format!("{:x}", hasher.finalize())
 }
+```
+
+---
+
+## Limitations & Known Caveats
+
+### No Semantic Validation of Rust Code
+
+Liva does **not** analyze the content of `rust { }` blocks. Any type errors, borrow checker violations, or invalid syntax inside the block will only surface when `rustc` compiles the generated Rust code. The compiler reports those errors with `rustc`'s original messages.
+
+```liva
+// This compiles through Liva with no errors...
+let x = rust {
+    let s: String = 42;  // ← Rust type error — caught only by rustc
+    s
+}
+```
+
+### No Type Checking Across Boundaries
+
+The type of a `rust { }` expression is **not validated** by Liva's type checker. If you assign a Rust block that evaluates to `i64` to a Liva variable typed as `string`, Liva won't flag it — `rustc` will.
+
+```liva
+// Liva accepts this, but rustc will emit a type mismatch error
+let name: string = rust { 42_i64 }
+```
+
+### Variable Naming: snake_case Translation
+
+Liva variables are available inside `rust { }` blocks because the generated Rust code lives in the same function scope. However, Liva's codegen converts camelCase names to snake_case:
+
+```liva
+let myValue = 10
+let doubled = rust {
+    // Use snake_case: my_value, not myValue
+    my_value * 2
+}
+```
+
+### Formatter Preserves Block Content
+
+The Liva formatter (`livac --format`) does **not** reformat the interior of `rust { }` blocks. The content is emitted exactly as written. Use `rustfmt` conventions manually inside the block.
+
+### Raw Strings Not Handled in Brace Balancing
+
+The lexer's brace balancer correctly handles regular strings (`"..."`), char literals (`'...'`), line comments (`//`), and block comments (`/* */`). However, **Rust raw strings** (`r"..."`, `r#"..."#`) are not specifically handled. If a raw string contains unbalanced braces, it may confuse the block detection:
+
+```liva
+// ⚠️ May fail if raw string contains unbalanced braces
+let x = rust {
+    let pattern = r#"{ unclosed"#;  // Could confuse brace balancing
+    42
+}
+```
+
+**Workaround:** Avoid unbalanced braces inside raw strings, or construct the string via a Rust function call instead.
+
+### No `rustc` Error Line Mapping
+
+When `rustc` reports errors from generated Rust code, line numbers refer to the **generated `.rs` file**, not the original `.liva` source. Check the generated output with `livac file.liva --verbose` to correlate errors.
+
+### Expression Context Only
+
+`rust { }` blocks can only appear where Liva expects an **expression** — inside functions, assigned to variables, or as standalone statements. They cannot be used at the module top level outside functions.
+
+```liva
+// ✅ Inside a function
+main() {
+    let x = rust { 42 }
+}
+
+// ❌ At module top level — not supported
+rust { static MY_CONST: i32 = 42; }
 ```
 
 ---
