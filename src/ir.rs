@@ -186,6 +186,8 @@ pub enum Expr {
         end: Box<Expr>,
     },
     Lambda(LambdaExpr),
+    /// Inline Rust code block — emitted verbatim in codegen
+    RustBlock(String),
     Unsupported(ast::Expr),
 }
 

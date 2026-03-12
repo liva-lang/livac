@@ -114,6 +114,8 @@ pub struct CodeGenerator {
     // --- Error trace context
     current_function_name: String,  // Current function/method name for error traces
     source_filename: String,        // Source filename for error traces
+    /// Hoisted `use` statements extracted from `rust { }` blocks (emitted at top of file)
+    rust_block_uses: Vec<String>,
 }
 
 impl CodeGenerator {
@@ -169,6 +171,7 @@ impl CodeGenerator {
             float_literal_suffix: "f64".to_string(),
             current_function_name: String::new(),
             source_filename,
+            rust_block_uses: Vec::new(),
         }
     }
 
@@ -1078,11 +1081,11 @@ impl CodeGenerator {
 
     fn generate_program(&mut self, program: &Program) -> Result<()> {
         // Generate use statements for Rust crates
-        for (crate_name, alias) in &self.ctx.rust_crates {
-            if let Some(alias_name) = alias {
-                writeln!(self.output, "use {} as {};", crate_name, alias_name).unwrap();
+        for dep in &self.ctx.rust_crates {
+            if let Some(alias_name) = &dep.alias {
+                writeln!(self.output, "use {} as {};", dep.name, alias_name).unwrap();
             } else {
-                writeln!(self.output, "use {};", crate_name).unwrap();
+                writeln!(self.output, "use {};", dep.name).unwrap();
             }
         }
 
@@ -6596,7 +6599,41 @@ impl CodeGenerator {
                     .unwrap();
                 }
             }
+            Expr::RustBlock { code } => {
+                self.generate_rust_block(code)?;
+            }
         }
+        Ok(())
+    }
+
+    /// Generate inline Rust code block.
+    /// Extracts `use` statements from the block and hoists them to the top of the file.
+    /// The remaining code is emitted as a Rust block expression `{ ... }`.
+    fn generate_rust_block(&mut self, code: &str) -> Result<()> {
+        let mut remaining_lines = Vec::new();
+
+        for line in code.lines() {
+            let trimmed = line.trim();
+            // Hoist `use ...;` statements to file top
+            if trimmed.starts_with("use ") && trimmed.ends_with(';') {
+                let use_stmt = trimmed.to_string();
+                if !self.rust_block_uses.contains(&use_stmt) {
+                    self.rust_block_uses.push(use_stmt);
+                }
+            } else {
+                remaining_lines.push(line);
+            }
+        }
+
+        // Emit as a block expression
+        self.output.push_str("{\n");
+        for line in &remaining_lines {
+            self.output.push_str("    ");
+            self.output.push_str(line);
+            self.output.push('\n');
+        }
+        self.output.push('}');
+
         Ok(())
     }
 
@@ -11228,6 +11265,7 @@ struct IrCodeGenerator<'a> {
     in_test_block: bool,
     #[allow(dead_code)]
     error_binding_vars: HashSet<String>,
+    rust_block_uses: Vec<String>,
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -11258,6 +11296,7 @@ impl<'a> IrCodeGenerator<'a> {
             in_method: false,
             in_test_block: false,
             error_binding_vars: HashSet::new(),
+            rust_block_uses: Vec::new(),
         }
     }
 
@@ -11609,8 +11648,8 @@ impl<'a> IrCodeGenerator<'a> {
         use std::collections::BTreeSet;
 
         let mut emitted = BTreeSet::new();
-        for (crate_name, alias) in &self.ctx.rust_crates {
-            emitted.insert((crate_name.clone(), alias.clone()));
+        for dep in &self.ctx.rust_crates {
+            emitted.insert((dep.name.clone(), dep.alias.clone()));
         }
         for ext in &module.extern_crates {
             emitted.insert((ext.crate_name.clone(), ext.alias.clone()));
@@ -12032,6 +12071,34 @@ impl<'a> IrCodeGenerator<'a> {
         for stmt in &block.statements {
             self.generate_stmt(stmt)?;
         }
+        Ok(())
+    }
+
+    /// Generate inline Rust code block (IR path).
+    /// Extracts `use` statements from the block and hoists them to the top of the file.
+    fn generate_rust_block(&mut self, code: &str) -> Result<()> {
+        let mut remaining_lines = Vec::new();
+
+        for line in code.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("use ") && trimmed.ends_with(';') {
+                let use_stmt = trimmed.to_string();
+                if !self.rust_block_uses.contains(&use_stmt) {
+                    self.rust_block_uses.push(use_stmt);
+                }
+            } else {
+                remaining_lines.push(line);
+            }
+        }
+
+        self.output.push_str("{\n");
+        for line in &remaining_lines {
+            self.output.push_str("    ");
+            self.output.push_str(line);
+            self.output.push('\n');
+        }
+        self.output.push('}');
+
         Ok(())
     }
 
@@ -13045,6 +13112,10 @@ impl<'a> IrCodeGenerator<'a> {
                 }
                 Ok(())
             }
+            ir::Expr::RustBlock(code) => {
+                self.generate_rust_block(code)?;
+                Ok(())
+            }
             ir::Expr::Unsupported(ast_expr) => {
                 // Handle unsupported IR expressions that are passed through from AST
                 if let Expr::Switch(switch_expr) = ast_expr {
@@ -13513,6 +13584,7 @@ fn expr_has_unsupported(expr: &ir::Expr) -> bool {
             .iter()
             .any(|(k, v)| expr_has_unsupported(k) || expr_has_unsupported(v)),
         ir::Expr::SetLiteral(elements) => elements.iter().any(expr_has_unsupported),
+        ir::Expr::RustBlock(_) => false,
     }
 }
 
@@ -13746,7 +13818,7 @@ fn expr_has_async_concurrency(expr: &ir::Expr) -> bool {
             .iter()
             .any(|(k, v)| expr_has_async_concurrency(k) || expr_has_async_concurrency(v)),
         &ir::Expr::SetLiteral(ref elements) => elements.iter().any(expr_has_async_concurrency),
-        &ir::Expr::Literal(_) | &ir::Expr::Identifier(_) | &ir::Expr::Unsupported(_) => false,
+        &ir::Expr::Literal(_) | &ir::Expr::Identifier(_) | &ir::Expr::Unsupported(_) | &ir::Expr::RustBlock(_) => false,
     }
 }
 
@@ -13824,7 +13896,7 @@ fn expr_has_parallel_concurrency(expr: &ir::Expr) -> bool {
             .iter()
             .any(|(k, v)| expr_has_parallel_concurrency(k) || expr_has_parallel_concurrency(v)),
         &ir::Expr::SetLiteral(ref elements) => elements.iter().any(expr_has_parallel_concurrency),
-        &ir::Expr::Literal(_) | &ir::Expr::Identifier(_) | &ir::Expr::Unsupported(_) => false,
+        &ir::Expr::Literal(_) | &ir::Expr::Identifier(_) | &ir::Expr::Unsupported(_) | &ir::Expr::RustBlock(_) => false,
     }
 }
 
@@ -13951,7 +14023,7 @@ fn ast_expr_has_async(expr: &Expr) -> bool {
             .iter()
             .any(|(k, v)| ast_expr_has_async(k) || ast_expr_has_async(v)),
         Expr::SetLiteral(elements) => elements.iter().any(ast_expr_has_async),
-        Expr::Literal(_) | Expr::Identifier(_) | Expr::MethodRef { .. } => false,
+        Expr::Literal(_) | Expr::Identifier(_) | Expr::MethodRef { .. } | Expr::RustBlock { .. } => false,
     }
 }
 
@@ -14328,6 +14400,20 @@ pub fn generate_with_ast(program: &Program, ctx: DesugarContext) -> Result<(Stri
 
     generator.generate_program(program)?;
 
+    // Insert hoisted `use` statements from `rust { }` blocks at the top of the file
+    if !generator.rust_block_uses.is_empty() {
+        let mut hoisted = String::new();
+        for use_stmt in &generator.rust_block_uses {
+            hoisted.push_str(use_stmt);
+            hoisted.push('\n');
+        }
+        hoisted.push('\n');
+        // Insert after the #![allow(...)] line
+        if let Some(pos) = generator.output.find('\n') {
+            generator.output.insert_str(pos + 1, &hoisted);
+        }
+    }
+
     let cargo_toml = generate_cargo_toml(&generator.ctx)?;
 
     Ok((generator.output, cargo_toml))
@@ -14342,15 +14428,42 @@ pub fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
          [dependencies]\n",
     );
 
+    // Helper: collect extra features a user wants for an internal crate
+    let user_features_for = |crate_name: &str| -> Vec<String> {
+        ctx.rust_crates
+            .iter()
+            .filter(|dep| dep.name == crate_name)
+            .flat_map(|dep| dep.features.clone())
+            .collect()
+    };
+
     // Always add tokio since liva_rt uses it
-    cargo_toml.push_str("tokio = { version = \"1\", features = [\"full\"] }\n");
+    {
+        let mut feats: Vec<String> = vec!["full".to_string()];
+        feats.extend(user_features_for("tokio"));
+        feats.dedup();
+        let feats_str: Vec<String> = feats.iter().map(|f| format!("\"{}\"", f)).collect();
+        writeln!(cargo_toml, "tokio = {{ version = \"1\", features = [{}] }}", feats_str.join(", ")).unwrap();
+    }
 
     // Add serde and serde_json (serde needed for derive macros in Phase 2)
-    cargo_toml.push_str("serde = { version = \"1.0\", features = [\"derive\"] }\n");
+    {
+        let mut feats: Vec<String> = vec!["derive".to_string()];
+        feats.extend(user_features_for("serde"));
+        feats.dedup();
+        let feats_str: Vec<String> = feats.iter().map(|f| format!("\"{}\"", f)).collect();
+        writeln!(cargo_toml, "serde = {{ version = \"1.0\", features = [{}] }}", feats_str.join(", ")).unwrap();
+    }
     cargo_toml.push_str("serde_json = \"1.0\"\n");
 
     // Add reqwest for HTTP client
-    cargo_toml.push_str("reqwest = { version = \"0.11\", default-features = false, features = [\"json\", \"rustls-tls\"] }\n");
+    {
+        let mut feats: Vec<String> = vec!["json".to_string(), "rustls-tls".to_string()];
+        feats.extend(user_features_for("reqwest"));
+        feats.dedup();
+        let feats_str: Vec<String> = feats.iter().map(|f| format!("\"{}\"", f)).collect();
+        writeln!(cargo_toml, "reqwest = {{ version = \"0.11\", default-features = false, features = [{}] }}", feats_str.join(", ")).unwrap();
+    }
 
     if ctx.has_parallel {
         cargo_toml.push_str("rayon = \"1.11\"\n");
@@ -14360,10 +14473,29 @@ pub fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
         cargo_toml.push_str("rand = \"0.8\"\n");
     }
 
-    // Add user-specified crates
-    for (crate_name, _) in &ctx.rust_crates {
-        if crate_name != "tokio" && crate_name != "serde_json" && crate_name != "rand" {
-            writeln!(cargo_toml, "{} = \"*\"", crate_name).unwrap();
+    // Add user-specified crates (with version and features support)
+    for dep in &ctx.rust_crates {
+        let crate_name = &dep.name;
+        // Skip internal crates that are already added above
+        if crate_name == "tokio" || crate_name == "serde" || crate_name == "serde_json"
+            || crate_name == "reqwest" || crate_name == "rayon" || crate_name == "rand" {
+            // For internal crates, only merge additional features
+            if !dep.features.is_empty() {
+                // Already handled: user can add features to internal crates
+                // The merge will be done in the internal crate section above
+            }
+            continue;
+        }
+        if dep.features.is_empty() {
+            if let Some(ver) = &dep.version {
+                writeln!(cargo_toml, "{} = \"{}\"", crate_name, ver).unwrap();
+            } else {
+                writeln!(cargo_toml, "{} = \"*\"", crate_name).unwrap();
+            }
+        } else {
+            let ver = dep.version.as_deref().unwrap_or("*");
+            let feats: Vec<String> = dep.features.iter().map(|f| format!("\"{}\"", f)).collect();
+            writeln!(cargo_toml, "{} = {{ version = \"{}\", features = [{}] }}", crate_name, ver, feats.join(", ")).unwrap();
         }
     }
 
@@ -14381,6 +14513,7 @@ mod tests {
             has_async: false,
             has_parallel: false,
             has_random: false,
+            has_rust_blocks: false,
             async_functions: std::collections::BTreeSet::new(),
             source_filename: String::new(),
         });

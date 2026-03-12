@@ -240,6 +240,11 @@ pub enum Token {
 
     #[regex(r"[a-zA-Z][a-zA-Z0-9_]*", |lex| lex.slice().to_string())]
     Ident(String),
+
+    /// Inline Rust code block — NOT produced by logos, synthesized in `tokenize()`
+    /// when `rust { ... }` is detected. The String contains the raw Rust source
+    /// between the braces (exclusive).
+    RustBlock(String),
 }
 
 #[derive(Debug, Clone)]
@@ -271,10 +276,167 @@ impl TokenWithSpan {
     }
 }
 
+/// Information about a `rust { ... }` block found during pre-processing.
+#[derive(Debug)]
+struct RustBlockInfo {
+    /// Byte offset where the `rust` keyword starts
+    rust_keyword_start: usize,
+    /// Byte offset right after the opening `{`
+    content_start: usize,
+    /// Byte offset of the closing `}` (exclusive of content)
+    content_end: usize,
+    /// Byte offset right after the closing `}`
+    closing_brace_end: usize,
+    /// The raw Rust source code between the braces
+    content: String,
+}
+
+/// Scan source for `rust { ... }` blocks (not `use rust "..."`) and extract them.
+/// Returns a list of blocks with byte ranges and raw content.
+fn find_rust_blocks(source: &str) -> Vec<RustBlockInfo> {
+    let bytes = source.as_bytes();
+    let mut blocks = Vec::new();
+    let mut i = 0;
+
+    while i + 4 <= bytes.len() {
+        // Look for "rust" as a whole word (compare bytes to avoid UTF-8 boundary issues)
+        if bytes[i] == b'r' && bytes[i + 1] == b'u' && bytes[i + 2] == b's' && bytes[i + 3] == b't'
+        {
+            let prev_is_word =
+                i > 0 && (bytes[i - 1].is_ascii_alphanumeric() || bytes[i - 1] == b'_');
+            let next_is_word = i + 4 < bytes.len()
+                && (bytes[i + 4].is_ascii_alphanumeric() || bytes[i + 4] == b'_');
+
+            if !prev_is_word && !next_is_word {
+                let rust_start = i;
+                let mut j = i + 4;
+
+                // Skip whitespace
+                while j < bytes.len() && bytes[j].is_ascii_whitespace() {
+                    j += 1;
+                }
+
+                // Check for opening brace (not a string → that's `use rust "crate"`)
+                if j < bytes.len() && bytes[j] == b'{' {
+                    let content_start = j + 1;
+                    if let Some((content_end, closing_brace_end)) =
+                        find_balanced_brace(source, j)
+                    {
+                        let content = source[content_start..content_end].to_string();
+                        blocks.push(RustBlockInfo {
+                            rust_keyword_start: rust_start,
+                            content_start,
+                            content_end,
+                            closing_brace_end,
+                            content,
+                        });
+                        i = closing_brace_end;
+                        continue;
+                    }
+                }
+            }
+        }
+        i += 1;
+    }
+
+    blocks
+}
+
+/// Find the matching closing `}` for the opening `{` at byte position `open_pos`.
+/// Handles Rust string literals, char literals, line comments, and block comments.
+/// Returns `Some((content_end, brace_end))` where content_end is at the `}` and
+/// brace_end is one byte past it.
+fn find_balanced_brace(source: &str, open_pos: usize) -> Option<(usize, usize)> {
+    let bytes = source.as_bytes();
+    let mut depth: usize = 0;
+    let mut i = open_pos;
+
+    while i < bytes.len() {
+        match bytes[i] {
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some((i, i + 1));
+                }
+            }
+            b'"' => {
+                // Skip string literal (handle escaped chars)
+                i += 1;
+                while i < bytes.len() {
+                    if bytes[i] == b'\\' {
+                        i += 1; // skip next byte (escaped)
+                    } else if bytes[i] == b'"' {
+                        break;
+                    }
+                    i += 1;
+                }
+            }
+            b'\'' => {
+                // Skip char literal / lifetime. Rust chars: 'x', '\n', '\u{XXXX}'
+                // Lifetimes: 'a, 'static — no closing quote immediately in some contexts
+                // Simple heuristic: skip to next unescaped '
+                i += 1;
+                while i < bytes.len() {
+                    if bytes[i] == b'\\' {
+                        i += 1;
+                    } else if bytes[i] == b'\'' {
+                        break;
+                    }
+                    i += 1;
+                }
+            }
+            b'/' if i + 1 < bytes.len() && bytes[i + 1] == b'/' => {
+                // Line comment — skip to end of line
+                i += 2;
+                while i < bytes.len() && bytes[i] != b'\n' {
+                    i += 1;
+                }
+                continue; // don't double-increment
+            }
+            b'/' if i + 1 < bytes.len() && bytes[i + 1] == b'*' => {
+                // Block comment — skip to */
+                i += 2;
+                while i + 1 < bytes.len() {
+                    if bytes[i] == b'*' && bytes[i + 1] == b'/' {
+                        i += 1; // will be incremented again below
+                        break;
+                    }
+                    i += 1;
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+
+    None // unmatched
+}
+
 pub fn tokenize(source: &str) -> Result<Vec<TokenWithSpan>> {
-    let mut lexer = Token::lexer(source);
+    // Phase 1: Find rust { } blocks and extract their content
+    let rust_blocks = find_rust_blocks(source);
+
+    // Phase 2: Replace rust block interiors with spaces so logos doesn't choke
+    // on Rust-specific syntax like &, ->, #[...], etc.
+    let tokenize_source = if rust_blocks.is_empty() {
+        source.to_string()
+    } else {
+        let mut bytes = source.as_bytes().to_vec();
+        for block in &rust_blocks {
+            // Replace content between { and } (exclusive) with spaces
+            for b in bytes[block.content_start..block.content_end].iter_mut() {
+                *b = b' ';
+            }
+        }
+        // Safety: replacing valid UTF-8 bytes with ASCII spaces always yields valid UTF-8
+        String::from_utf8(bytes).unwrap()
+    };
+
+    // Phase 3: Tokenize the (possibly modified) source with logos
+    let mut lexer = Token::lexer(&tokenize_source);
     let mut tokens = Vec::new();
-    let source_map = SourceMap::new(source);
+    let source_map = SourceMap::new(source); // Use ORIGINAL source for line/col
 
     while let Some(result) = lexer.next() {
         match result {
@@ -309,7 +471,39 @@ pub fn tokenize(source: &str) -> Result<Vec<TokenWithSpan>> {
         }
     }
 
-    Ok(tokens)
+    // Phase 4: Post-process — replace Token::Rust + Token::LBrace + Token::RBrace patterns
+    // that correspond to extracted rust blocks with Token::RustBlock(content)
+    if rust_blocks.is_empty() {
+        return Ok(tokens);
+    }
+
+    let mut result_tokens = Vec::with_capacity(tokens.len());
+    let mut idx = 0;
+    while idx < tokens.len() {
+        if tokens[idx].token == Token::Rust {
+            // Check if this Rust keyword position matches a known block
+            if let Some(block) = rust_blocks
+                .iter()
+                .find(|b| b.rust_keyword_start == tokens[idx].span.start)
+            {
+                // Emit a single RustBlock token spanning the whole `rust { ... }`
+                result_tokens.push(TokenWithSpan::new(
+                    Token::RustBlock(block.content.clone()),
+                    Span {
+                        start: block.rust_keyword_start,
+                        end: block.closing_brace_end,
+                    },
+                ));
+                // Skip the Rust token + LBrace + RBrace (3 tokens)
+                idx += 3;
+                continue;
+            }
+        }
+        result_tokens.push(tokens[idx].clone());
+        idx += 1;
+    }
+
+    Ok(result_tokens)
 }
 
 #[cfg(test)]

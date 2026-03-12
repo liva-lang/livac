@@ -70,6 +70,11 @@ impl Parser {
         }
     }
 
+    /// Check if the current token is an identifier with a specific name
+    fn check_ident(&self, name: &str) -> bool {
+        matches!(self.peek(), Some(Token::Ident(s)) if s == name)
+    }
+
     fn match_token(&mut self, token: &Token) -> bool {
         if self.check(token) {
             self.advance();
@@ -312,12 +317,48 @@ impl Parser {
         if self.match_token(&Token::Use) {
             self.expect(Token::Rust)?;
             let crate_name = self.parse_string_literal()?;
+
+            // Optional: version "x.y"
+            let version = if self.check_ident("version") {
+                self.advance(); // consume "version"
+                Some(self.parse_string_literal()?)
+            } else {
+                None
+            };
+
+            // Optional: features ["a", "b"]
+            let features = if self.check_ident("features") {
+                self.advance(); // consume "features"
+                self.expect(Token::LBracket)?;
+                let mut feats = Vec::new();
+                if !self.check(&Token::RBracket) {
+                    loop {
+                        feats.push(self.parse_string_literal()?);
+                        if !self.match_token(&Token::Comma) {
+                            break;
+                        }
+                        if self.check(&Token::RBracket) {
+                            break;
+                        }
+                    }
+                }
+                self.expect(Token::RBracket)?;
+                feats
+            } else {
+                Vec::new()
+            };
+
             let alias = if self.match_token(&Token::As) {
                 Some(self.parse_identifier()?)
             } else {
                 None
             };
-            return Ok(TopLevel::UseRust(UseRustDecl { crate_name, alias }));
+            return Ok(TopLevel::UseRust(UseRustDecl {
+                crate_name,
+                alias,
+                version,
+                features,
+            }));
         }
 
         if self.match_token(&Token::Type) {
@@ -2471,6 +2512,11 @@ impl Parser {
                 Token::Test => {
                     self.advance();
                     return Ok(Expr::Identifier("test".to_string()));
+                }
+                Token::RustBlock(code) => {
+                    let code = code.clone();
+                    self.advance();
+                    return Ok(Expr::RustBlock { code });
                 }
                 _ => {}
             }

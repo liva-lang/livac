@@ -187,11 +187,18 @@ impl Formatter {
     }
 
     fn format_use_rust(&mut self, decl: &UseRustDecl) {
+        let mut parts = vec![format!("use rust {}", decl.crate_name)];
         if let Some(alias) = &decl.alias {
-            self.write_line(&format!("use rust {} as {}", decl.crate_name, alias));
-        } else {
-            self.write_line(&format!("use rust {}", decl.crate_name));
+            parts.push(format!("as {}", alias));
         }
+        if let Some(version) = &decl.version {
+            parts.push(format!("version \"{}\"", version));
+        }
+        if !decl.features.is_empty() {
+            let feats: Vec<String> = decl.features.iter().map(|f| format!("\"{}\"", f)).collect();
+            parts.push(format!("features [{}]", feats.join(", ")));
+        }
+        self.write_line(&parts.join(" "));
     }
 
     // ======================================================================
@@ -1027,6 +1034,9 @@ impl Formatter {
             Expr::SetLiteral(elements) => self.format_set_literal(elements),
             Expr::MethodRef { object, method } => {
                 format!("{}::{}", object, method)
+            }
+            Expr::RustBlock { code } => {
+                format!("rust {{{}}}", code)
             }
         }
     }

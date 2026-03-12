@@ -3,12 +3,22 @@ use crate::error::Result;
 use serde::Serialize;
 use std::collections::BTreeSet;
 
+/// Dependency info for a user-declared `use rust` crate
+#[derive(Debug, Clone, Serialize)]
+pub struct RustCrateDep {
+    pub name: String,
+    pub alias: Option<String>,
+    pub version: Option<String>,
+    pub features: Vec<String>,
+}
+
 #[derive(Serialize, Clone)]
 pub struct DesugarContext {
-    pub rust_crates: Vec<(String, Option<String>)>,
+    pub rust_crates: Vec<RustCrateDep>,
     pub has_async: bool,
     pub has_parallel: bool,
     pub has_random: bool,                  // true if Math.random() is used
+    pub has_rust_blocks: bool,             // true if any `rust { }` block is used
     pub async_functions: BTreeSet<String>, // Functions that are async (BTreeSet for deterministic order)
     #[serde(skip)]
     pub source_filename: String,           // Source filename for error traces
@@ -21,6 +31,7 @@ impl DesugarContext {
             has_async: false,
             has_parallel: false,
             has_random: false,
+            has_rust_blocks: false,
             async_functions: BTreeSet::new(),
             source_filename: String::new(),
         }
@@ -33,17 +44,26 @@ pub fn desugar(program: Program) -> Result<DesugarContext> {
     // Collect use rust declarations
     for item in &program.items {
         if let TopLevel::UseRust(use_rust) = item {
-            ctx.rust_crates
-                .push((use_rust.crate_name.clone(), use_rust.alias.clone()));
+            ctx.rust_crates.push(RustCrateDep {
+                name: use_rust.crate_name.clone(),
+                alias: use_rust.alias.clone(),
+                version: use_rust.version.clone(),
+                features: use_rust.features.clone(),
+            });
         }
 
-        // Check for async/parallel usage
+        // Check for async/parallel usage and rust blocks
         check_concurrency(&item, &mut ctx);
     }
 
     // Add tokio if async is used
     if ctx.has_async {
-        ctx.rust_crates.push(("tokio".to_string(), None));
+        ctx.rust_crates.push(RustCrateDep {
+            name: "tokio".to_string(),
+            alias: None,
+            version: None,
+            features: Vec::new(),
+        });
     }
 
     Ok(ctx)
@@ -219,6 +239,9 @@ fn check_expr_concurrency(expr: &Expr, ctx: &mut DesugarContext) {
                 check_expr_concurrency(value, ctx);
             }
         }
+        Expr::RustBlock { .. } => {
+            ctx.has_rust_blocks = true;
+        }
         _ => {}
     }
 }
@@ -284,10 +307,10 @@ mod tests {
         assert!(ctx
             .rust_crates
             .iter()
-            .any(|(name, alias)| name == "serde" && alias.as_deref() == Some("sd")));
+            .any(|dep| dep.name == "serde" && dep.alias.as_deref() == Some("sd")));
         assert!(ctx
             .rust_crates
             .iter()
-            .any(|(name, alias)| name == "tokio" && alias.is_none()));
+            .any(|dep| dep.name == "tokio" && dep.alias.is_none()));
     }
 }

@@ -123,6 +123,13 @@ pub const E5002_MISSING_TRAIT_CONSTRAINT: &str = "E5002";
 pub const E5003_TYPE_ARG_COUNT_MISMATCH: &str = "E5003";
 
 // ============================================================================
+// E9xxx: Rust Interop Errors
+// ============================================================================
+
+/// Attempt to override version of an internal crate
+pub const E9002_INTERNAL_CRATE_OVERRIDE: &str = "E9002";
+
+// ============================================================================
 // Error Categories
 // ============================================================================
 
@@ -136,6 +143,7 @@ pub enum ErrorCategory {
     Type,
     Concurrency,
     ErrorHandling,
+    Interop,
 }
 
 impl ErrorCategory {
@@ -163,6 +171,7 @@ impl ErrorCategory {
             3000..=3999 => Some(ErrorCategory::Codegen),
             4000..=4999 => Some(ErrorCategory::Module),
             5000..=5999 => Some(ErrorCategory::Type),
+            9000..=9999 => Some(ErrorCategory::Interop),
             _ => None,
         }
     }
@@ -178,6 +187,7 @@ impl ErrorCategory {
             ErrorCategory::Type => "Type System",
             ErrorCategory::Concurrency => "Concurrency",
             ErrorCategory::ErrorHandling => "Error Handling",
+            ErrorCategory::Interop => "Rust Interop",
         }
     }
 
@@ -192,6 +202,7 @@ impl ErrorCategory {
             ErrorCategory::Type => "Type checking and inference errors",
             ErrorCategory::Concurrency => "Async and parallel execution errors",
             ErrorCategory::ErrorHandling => "Fallibility and error binding errors",
+            ErrorCategory::Interop => "Rust interop and foreign function errors",
         }
     }
 }
@@ -248,8 +259,13 @@ mod tests {
             ErrorCategory::from_code("E0902"),
             Some(ErrorCategory::Semantic)
         );
+        // Interop (E9000-E9999)
+        assert_eq!(
+            ErrorCategory::from_code("E9002"),
+            Some(ErrorCategory::Interop)
+        );
         // Invalid
-        assert_eq!(ErrorCategory::from_code("E9999"), None);
+        assert_eq!(ErrorCategory::from_code("EAAAA"), None);
         assert_eq!(ErrorCategory::from_code("invalid"), None);
     }
 

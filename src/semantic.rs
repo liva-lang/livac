@@ -398,6 +398,45 @@ impl SemanticAnalyzer {
                     } else {
                         self.external_modules.insert(use_rust.crate_name.clone());
                     }
+
+                    // Validate: cannot override internal crate version (E9002)
+                    if let Some(user_version) = &use_rust.version {
+                        const INTERNAL_CRATES: &[(&str, &str)] = &[
+                            ("tokio", "1"),
+                            ("serde", "1.0"),
+                            ("serde_json", "1.0"),
+                            ("reqwest", "0.11"),
+                            ("rayon", "1.11"),
+                            ("rand", "0.8"),
+                        ];
+                        for &(internal_name, internal_ver) in INTERNAL_CRATES {
+                            if use_rust.crate_name == internal_name
+                                && !user_version.starts_with(
+                                    internal_ver.split('.').next().unwrap_or(""),
+                                )
+                            {
+                                return Err(CompilerError::SemanticError(
+                                    SemanticErrorInfo::new(
+                                        "E9002",
+                                        "Internal crate version override",
+                                        &format!(
+                                            "Cannot override internal crate \"{}\" (v{})",
+                                            internal_name, internal_ver
+                                        ),
+                                    )
+                                    .with_help(&format!(
+                                        "Liva uses {} v{} internally. \
+                                         The crate is already available inside rust {{ }} blocks. \
+                                         To add features: use rust \"{}\" features [\"...\"]",
+                                        internal_name, internal_ver, internal_name,
+                                    ))
+                                    .with_hint(&format!(
+                                        "Internal crates: tokio, serde, serde_json, reqwest, rayon, rand"
+                                    )),
+                                ));
+                            }
+                        }
+                    }
                 }
                 TopLevel::Class(class) => {
                     let mut fields = HashMap::new();
@@ -1772,6 +1811,10 @@ impl SemanticAnalyzer {
                 }
                 Ok(())
             }
+            Expr::RustBlock { .. } => {
+                // Raw Rust code — no semantic validation needed
+                Ok(())
+            }
         }
     }
 
@@ -2409,6 +2452,7 @@ impl SemanticAnalyzer {
                             }
                     })
             }
+            Expr::RustBlock { .. } => false,
         }
     }
 

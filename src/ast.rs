@@ -71,6 +71,12 @@ pub struct ImportDecl {
 pub struct UseRustDecl {
     pub crate_name: String,
     pub alias: Option<String>,
+    /// Explicit version: `use rust "sha2" version "0.10"`
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    /// Explicit features: `use rust "tokio" features ["net"]`
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub features: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -670,6 +676,11 @@ pub enum Expr {
     MethodRef {
         object: String, // Class name or variable name
         method: String, // Method name or "new" for constructors
+    },
+    /// Inline Rust code block (v1.5.0)
+    /// Example: `rust { use std::collections::HashMap; HashMap::new() }`
+    RustBlock {
+        code: String,
     },
 }
 
