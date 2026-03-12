@@ -102,6 +102,14 @@
 - [x] Tests (14 snapshot tests)
 - [x] Docs (`docs/language-reference/stdlib/logging.md`)
 
+### CLI — Subcomandos ✅
+
+- [x] Migrar de flags (`--run`, `--check`, `--fmt`, `--test`, `--lsp`, `--update`) a subcomandos (`build`, `run`, `check`, `fmt`, `test`, `lsp`, `update`)
+- [x] Struct `CompileArgs` interna para `compile()`
+- [x] Actualizar `run_format()` y `run_tests()` a parámetros directos
+- [x] Actualizar LSP client en vscode-extension (`'--lsp'` → `'lsp'`)
+- [x] Actualizar toda la documentación, ejemplos, scripts y CI
+
 ### Config / .env — módulo `Config`
 
 - [ ] `Config.load(path)` — parsear archivo `.env` (KEY=VALUE)

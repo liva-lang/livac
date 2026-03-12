@@ -125,6 +125,26 @@ Log.info("Config:", config)  // Auto-detects Object/Array → table rendering
 - **CLI**: `--verbose` passes `LIVA_VERBOSE=1` env var for debug output
 - **Tests**: 14 snapshot tests (374 total)
 
+### Changed - CLI Subcommands 🔧
+
+**Migrated from flat flags to proper subcommands for better discoverability and UX.**
+
+| Before | After |
+|--------|-------|
+| `livac file.liva` | `livac build file.liva` |
+| `livac file.liva --run` | `livac run file.liva` |
+| `livac file.liva --check` | `livac check file.liva` |
+| `livac file.liva --fmt` | `livac fmt file.liva` |
+| `livac --test` | `livac test` |
+| `livac --lsp` | `livac lsp` |
+| `livac --update` | `livac update` |
+
+- Refactored `Cli` struct to use clap `#[command(subcommand)]` with `Commands` enum
+- Each subcommand has its own specific flags (e.g., `--release` only on `build`/`run`)
+- Internal `CompileArgs` struct replaces flat `Cli` reference in `compile()`
+- Updated VS Code extension LSP client args
+- Updated all docs, examples, scripts, CI, and website
+
 ---
 
 ## [Unreleased] - v1.4.0-dev

@@ -116,6 +116,7 @@ skills/liva-lang/
 ## 🔄 Estado Actual (v1.5.0-dev)
 
 ### Features completados
+- **CLI Subcomandos** — `build`, `run`, `check`, `fmt`, `test`, `lsp`, `update` (reemplaza flags planos)
 - **`rust { }` Interop** — Inline Rust blocks + `use rust` with version/features + E9002 protection
 - **Logging (`Log` module)** — info/warn/error/debug + variadic args + table rendering (Map/Array/JSON) + `setLevel`
 - **Stdlib P0** — 38 nuevos métodos/funciones (15 String + 20 Array + 3 Math)
@@ -123,7 +124,7 @@ skills/liva-lang/
 - **Error Trace Chaining** — Trazabilidad automática con función + línea
 - **`or <value>`** — Default value para fallibles: `divide(10, 0) or 42`
 - **Map<K,V> / Set<T>** — Colecciones completas con literales, métodos, iteración
-- **Code Formatter** (`--fmt`, `--fmt-check`)
+- **Code Formatter** (`fmt`, `fmt --check`)
 - **Test Framework** — Jest-like API con describe/test/expect + lifecycle hooks + async
 - **`or fail`** — Propagación simplificada de errores
 - **`=>` one-liners** — if/for/while de una expresión
