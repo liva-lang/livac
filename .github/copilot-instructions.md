@@ -1,11 +1,11 @@
 # 🔧 Liva Compiler Context
 
 > **Proyecto:** livac - El compilador de Liva  
-> **Versión:** v1.4.0-dev (tag: v1.2.0)  
+> **Versión:** v1.5.0-dev (tag: v1.2.0)  
 > **Lenguaje:** Rust  
-> **Tests:** 341 passing  
-> **Próximo objetivo:** v1.5 — Rust Interop + Logging + Config + livac init  
-> **Última actualización:** 2026-03-12
+> **Tests:** 348 passing  
+> **Próximo objetivo:** v1.5 — Logging + Config + livac init (rust {} done)  
+> **Última actualización:** 2026-03-13
 
 ---
 
@@ -34,7 +34,7 @@ src/
 ├── desugaring.rs     # Transformaciones sintácticas
 ├── ir.rs             # Representación intermedia
 ├── lowering.rs       # AST → IR
-├── codegen.rs        # IR → Código Rust (~480KB, ~14400 líneas)
+├── codegen.rs        # IR → Código Rust (~490KB, ~14500 líneas)
 ├── formatter.rs      # Code formatter (--fmt)
 ├── module.rs         # Sistema de módulos e imports
 ├── traits.rs         # Sistema de traits/interfaces
@@ -113,9 +113,10 @@ skills/liva-lang/
 
 ---
 
-## 🔄 Estado Actual (v1.4.0-dev)
+## 🔄 Estado Actual (v1.5.0-dev)
 
 ### Features completados
+- **`rust { }` Interop** — Inline Rust blocks + `use rust` with version/features + E9002 protection
 - **Stdlib P0** — 38 nuevos métodos/funciones (15 String + 20 Array + 3 Math)
 - **Enum Types** — Algebraic data types con pattern matching y destructuring
 - **Error Trace Chaining** — Trazabilidad automática con función + línea
@@ -140,7 +141,7 @@ skills/liva-lang/
 
 ### Dogfooding
 - **79/79 bugs corregidos** (Dogfooding v1: 9 bugs #63-#74, v2: 8 bugs #75-#82)
-- **341 tests** totales (149 codegen snapshot tests)
+- **348 tests** totales (154 codegen, 6 desugar, 17 semantic snapshot tests)
 - **63 Liva assertion tests** (28 string + 26 array + 9 math) — cobertura completa de stdlib
 
 ---
@@ -151,7 +152,7 @@ Liva está en camino a producción. El plan completo está en `docs/plans/PLAN_P
 
 ```
 v1.4  Stdlib P0 — String (+15), Array (+20), Math (+3)       ✅ completado
-v1.5  rust { } interop + Logging + Config + livac init       ← NEXT (viable)
+v1.5  rust { } interop + Logging + Config + livac init       ← IN PROGRESS (rust {} done)
 v1.6  Stdlib P1 — File, Dir, Date, Regex, CSV/Table          ← scripts reales
 v1.7  Stdlib P2 + HTTP Server                                ← backends reales
 v1.8  DB + REPL + Linter                                     ← adopción
@@ -166,7 +167,7 @@ v2.0  Dogfooding — API REST completa con DB                  ← validación
 
 ## ⚠️ Notas para Desarrollo
 
-1. **codegen.rs** es el archivo más grande (~14400 líneas) — toda la generación de Rust
+1. **codegen.rs** es el archivo más grande (~14500 líneas) — toda la generación de Rust
 2. **formatter.rs** maneja el formateo de código
 3. Tests en `tests/` → `cargo test`
 4. LSP se comunica por stdio con la extensión VS Code

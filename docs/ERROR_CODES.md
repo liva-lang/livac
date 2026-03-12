@@ -18,6 +18,7 @@ Error codes in Liva follow a structured numbering system:
 | **E3xxx** | Codegen | Code generation & build errors |
 | **E4xxx** | Module | Module import & resolution errors |
 | **E5xxx** | Type System | Type checking & inference errors |
+| **E9xxx** | Interop | Rust interop errors |
 
 ---
 
@@ -294,6 +295,26 @@ Wrong number of type arguments provided for a generic type alias.
 ```liva
 type Pair<A, B> = (A, B)
 let p: Pair<int> = (1, 2)  // Error: expects 2 type args, got 1
+```
+
+---
+
+## E9xxx: Interop Errors
+
+### E9002 - Internal Crate Version Override
+Attempting to override the version of a Rust crate that Liva uses internally.
+
+Internal crates: `tokio` (v1), `serde` (v1.0), `serde_json` (v1.0), `reqwest` (v0.11), `rayon` (v1.11), `rand` (v0.8).
+
+```liva
+// ❌ Error: tokio is an internal crate
+use rust "tokio" version "2.0"
+```
+
+**Fix:** Remove the version, or only add features:
+```liva
+// ✅ Add features without changing version
+use rust "tokio" features ["net", "io-util"]
 ```
 
 ---

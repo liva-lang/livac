@@ -25,6 +25,7 @@
 - [Collections (Arrays)](#collections-arrays)
 - [Strings](#strings)
 - [Modules](#modules)
+- [Rust Interop](#rust-interop-v150-)
 - [Testing](#testing)
 - [Standard Library](#standard-library)
 - [Complete Example](#complete-example)
@@ -1131,6 +1132,62 @@ main() {
     print(math.add(10, 5))
 }
 ```
+
+---
+
+## Rust Interop *(v1.5.0)* 🆕
+
+### Inline Rust Blocks
+
+Embed raw Rust code as an expression with `rust { ... }`:
+
+```liva
+main() {
+    let result = rust {
+        let x: i32 = 42;
+        x * 2
+    }
+    print(result)  // 84
+}
+```
+
+### Rust Blocks with Use Hoisting
+
+`use` statements inside `rust { }` are automatically hoisted to the top of the generated file:
+
+```liva
+main() {
+    let size = rust {
+        use std::collections::HashMap;
+        let mut map = HashMap::new();
+        map.insert("key", "value");
+        map.len()
+    }
+}
+```
+
+### Crate Dependencies
+
+Declare Cargo dependencies at the top level:
+
+```liva
+use rust "chrono" version "0.4"
+use rust "uuid" version "1.0" features ["v4", "serde"]
+use rust "serde_json" as json
+use rust "tokio" features ["net"]   // Merges with built-in features
+```
+
+### Rust Block as Statement
+
+```liva
+main() {
+    rust {
+        println!("Direct Rust output!");
+    }
+}
+```
+
+> See [Rust Interop](language-reference/rust-interop.md) for full documentation.
 
 ---
 

@@ -5,6 +5,64 @@ All notable changes to the Liva compiler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v1.5.0-dev
+
+### Added - `rust { }` Interop 🦀
+
+**Inline Rust code blocks and enhanced crate management unlock the entire Rust ecosystem from Liva.**
+
+#### `rust { }` Expression Blocks
+
+```liva
+// Inline Rust code as an expression
+let result = rust {
+    let x: i32 = 42;
+    x * 2
+}
+
+// Use statements are hoisted to file top
+let hash = rust {
+    use std::collections::HashMap;
+    let mut map = HashMap::new();
+    map.insert("key", "value");
+    map.len()
+}
+```
+
+#### Enhanced `use rust` with Version & Features
+
+```liva
+use rust "chrono" version "0.4"
+use rust "uuid" version "1.0" features ["v4", "serde"]
+use rust "my_lib" as mylib
+
+// Add features to internal crates (merge, not override)
+use rust "tokio" features ["net", "io-util"]
+```
+
+#### Internal Crate Protection (E9002)
+
+```liva
+// ERROR: E9002 — Cannot override internal crate version
+use rust "tokio" version "2.0"
+// Internal crates: tokio(v1), serde(v1.0), serde_json(v1.0),
+//                  reqwest(v0.11), rayon(v1.11), rand(v0.8)
+```
+
+#### Compiler Changes
+
+- **Lexer**: Pre-scan `rust { }` blocks with balanced brace counting (handles nested braces, Rust strings, comments)
+- **Parser**: `rust { }` as expression + `use rust` with optional `version`/`features`
+- **Desugaring**: `RustCrateDep` struct with name/alias/version/features
+- **Semantic**: E9002 validation for internal crate version override attempts
+- **IR + Lowering**: `RustBlock` variant pass-through
+- **Codegen**: Inline block emission, `use` hoisting, Cargo.toml version/features/merge
+- **Formatter**: Round-trip support for `rust { }` and `use rust` with all options
+- **Error codes**: E9002 + new `Interop` error category (9000-9999)
+- **Tests**: 348 total (7 new: 5 codegen, 1 desugar, 1 semantic)
+
+---
+
 ## [Unreleased] - v1.4.0-dev
 
 ### Added - Stdlib P0: String, Array, Math 📚

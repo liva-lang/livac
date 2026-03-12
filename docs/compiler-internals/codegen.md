@@ -260,7 +260,39 @@ values.into_par_iter()
     });
 ```
 
-### 6. String Templates
+### 6. Rust Block Generation *(v1.5.0)*
+
+`rust { }` blocks are handled by `generate_rust_block()`:
+
+**Inline Rust Block**:
+```liva
+let result = rust {
+    use std::collections::HashMap;
+    let mut map = HashMap::new();
+    map.insert("key", "value");
+    map.len()
+}
+```
+↓
+```rust
+use std::collections::HashMap;  // Hoisted to file top
+
+fn main() {
+    let result = {
+        let mut map = HashMap::new();
+        map.insert("key", "value");
+        map.len()
+    };
+}
+```
+
+**Key mechanisms:**
+- `use` statements inside rust blocks are extracted and stored in `rust_block_uses`
+- After full codegen, hoisted `use` statements are inserted after `#![allow(...)]`
+- Duplicate `use` statements are deduplicated automatically
+- Remaining code (non-`use` lines) is emitted as a Rust block expression `{ ... }`
+
+### 7. String Templates
 
 ```liva
 let name = "Alice"
@@ -281,7 +313,7 @@ let msg = $"User {user.name} (age {user.age}) at {timestamp}"
 let msg = format!("User {} (age {}) at {}", user.name, user.age, timestamp);
 ```
 
-### 7. Classes
+### 8. Classes
 
 ```liva
 Person {
@@ -355,10 +387,10 @@ fn generate_call(&mut self, call: &ir::CallExpr)
 
 Generated Rust code includes:
 
-1. **Module header**: `use` statements for dependencies
+1. **Module header**: `#![allow(...)]` + hoisted `use` statements from `rust { }` blocks
 2. **`liva_rt` module**: Runtime helpers
 3. **Type definitions**: Structs, enums
-4. **Functions**: Public and private
+4. **Functions**: Public and private (may contain inline `rust { }` block expressions)
 5. **Main function**: Entry point (if present)
 
 ## Summary
@@ -369,6 +401,7 @@ Generated Rust code includes:
 - **Concurrency Transformation**: Handles async/par/task + auto fire-and-forget
 - **Error Binding**: Implements fallibility system
 - **Data-Parallel**: Rayon and SIMD code generation
+- **Rust Interop**: Inline `rust { }` blocks with use hoisting
 
 **Next**: [Desugaring →](desugaring.md)
 

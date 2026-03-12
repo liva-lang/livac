@@ -330,19 +330,32 @@ Current and planned features:
 
 ## Rust Interop
 
-All Rust primitive types work in Liva:
+All Rust primitive types work directly in Liva:
 
 ```liva
 // Use any Rust type
 let byte: u8 = 255
 let huge: u128 = 340282366920938463463374607431768211455
 let ptr: usize = 0x1000
-
-// Rust standard types (future)
-use rust "std::collections::HashMap" as HashMap
-
-let map: HashMap<string, number> = HashMap.new()
 ```
+
+Since v1.5.0, Liva supports full Rust interop:
+
+```liva
+// Inline Rust code blocks
+let hash = rust {
+    use std::collections::HashMap;
+    let mut map = HashMap::new();
+    map.insert("key", "value");
+    map.len()
+}
+
+// Crate dependencies with version/features
+use rust "chrono" version "0.4"
+use rust "uuid" version "1.0" features ["v4", "serde"]
+```
+
+> **Full documentation:** [Rust Interop](rust-interop.md) — inline blocks, crate dependencies, use hoisting, internal crates, error E9002.
 
 ## Best Practices
 

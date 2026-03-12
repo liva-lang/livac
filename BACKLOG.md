@@ -73,17 +73,18 @@
 > **Esfuerzo estimado:** ~18h (12h rust interop + 2h×3 tooling)  
 > **Impacto:** Force multiplier — de "usable" a "viable".
 
-### `rust { }` interop — Ver plan §Línea 2
+### `rust { }` interop — Ver plan §Línea 2 ✅
 
-- [ ] Parser: reconocer `rust { ... }` como expresión
-- [ ] Parser: reconocer `use rust "crate" version "x.y"` con features opcionales
-- [ ] Desugaring: registrar crates del `rust { }` y `use rust`
-- [ ] Codegen: emitir bloque Rust inline tal cual
-- [ ] Codegen: inferir crate de uso (`use xxx::yyy` → detectar crate)
-- [ ] Codegen: `generate_cargo_toml()` — inyectar crates de usuario + internos
-- [ ] Protección: error L9001 si `use rust` usa crate interno sin versión diferente
-- [ ] Protección: error L9002 si intenta override de versión de crate interno
-- [ ] Tests: bloque rust básico, con crate, con crate interno, errores
+- [x] Parser: reconocer `rust { ... }` como expresión
+- [x] Parser: reconocer `use rust "crate" version "x.y"` con features opcionales
+- [x] Desugaring: registrar crates del `rust { }` y `use rust`
+- [x] Codegen: emitir bloque Rust inline tal cual
+- [x] Codegen: hoisting de `use` statements del bloque rust al top del archivo
+- [x] Codegen: `generate_cargo_toml()` — inyectar crates de usuario con versión/features + internos
+- [x] Protección: error E9002 si intenta override de versión de crate interno
+- [x] Protección: features adicionales a crates internos permitidas (merge)
+- [x] Formatter: soporte `rust { }` y `use rust` con version/features
+- [x] Tests: bloque rust básico, nested braces, use hoisting, versión/features, E9002, desugar
 - [ ] Docs: documentar sintaxis y limitaciones
 
 ### Logging — módulo `Log`

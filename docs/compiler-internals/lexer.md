@@ -66,6 +66,7 @@ FloatLiteral(f64)       // 3.14, 1.5, 0.001
 StringLiteral(String)   // "hello", "world"
 CharLiteral(char)       // 'a', 'Z', '\n'
 StringTemplate(String)  // $"Hello {name}"
+RustBlock(String)       // rust { ... } — raw Rust code (v1.5.0)
 ```
 
 ### Identifiers
@@ -78,6 +79,26 @@ PrivateIdent(String)    // private: _helper, _secret
 Visibility is determined by leading underscore:
 - No prefix: Public
 - `_`: Private
+
+## Rust Block Pre-Processing *(v1.5.0)*
+
+Before tokenization, the lexer runs a 4-phase pipeline to handle `rust { ... }` blocks:
+
+1. **Phase 1 — Extract**: `find_rust_blocks()` scans for `rust {` (not `use rust "..."`) and finds matching `}` using `find_balanced_brace()`
+2. **Phase 2 — Blank**: Replace block interiors with spaces so Logos doesn't choke on Rust-specific syntax (`&`, `->`, `#[...]`, etc.)
+3. **Phase 3 — Tokenize**: Run Logos on the (modified) source
+4. **Phase 4 — Reconstruct**: Replace `Token::Rust + Token::LBrace + Token::RBrace` triples with a single `Token::RustBlock(content)` carrying the original raw Rust code
+
+### Balanced Brace Matching
+
+`find_balanced_brace()` handles:
+- **Nested braces**: Closures, `if/else`, `match`, iterator chains
+- **String literals**: `"text with { braces }"` (with `\` escapes)
+- **Char literals**: `'{'`, `'}'`, `'\''`
+- **Line comments**: `// comment with { brace }`
+- **Block comments**: `/* comment with { braces } */`
+
+This ensures that braces inside Rust strings/comments/chars don't break the block detection.
 
 ## Implementation
 

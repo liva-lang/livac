@@ -83,6 +83,7 @@ Complete language specification and syntax reference.
 | [Error Handling](language-reference/error-handling.md) | fail, error binding, `or fail`, fallibility |
 | [Concurrency](language-reference/concurrency.md) | async, par, task keywords |
 | [Modules](language-reference/modules.md) | Multi-file projects and imports |
+| [Rust Interop](language-reference/rust-interop.md) | Inline `rust { }` blocks, crate dependencies |
 | [Collections](language-reference/collections.md) | Arrays, vectors, and data structures |
 | [String Templates](language-reference/string-templates.md) | String interpolation with `$"..."` |
 | [Union Types](language-reference/union-types.md) | Type unions and matching |
