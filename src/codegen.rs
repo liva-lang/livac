@@ -9482,7 +9482,10 @@ impl CodeGenerator {
                         "Math.pow(base, exponent) takes exactly two arguments",
                     )));
                 }
+                let needs_parens = matches!(&method_call.args[0], Expr::Unary { .. });
+                if needs_parens { self.output.push('('); }
                 self.generate_expr(&method_call.args[0])?;
+                if needs_parens { self.output.push(')'); }
                 self.output.push_str(".powf(");
                 self.generate_expr(&method_call.args[1])?;
                 self.output.push(')');
@@ -9496,7 +9499,10 @@ impl CodeGenerator {
                         &format!("Math.{} takes exactly one argument", method_call.method),
                     )));
                 }
+                let needs_parens = matches!(&method_call.args[0], Expr::Unary { .. });
+                if needs_parens { self.output.push('('); }
                 self.generate_expr(&method_call.args[0])?;
+                if needs_parens { self.output.push(')'); }
                 self.output.push('.');
                 self.output.push_str(&method_call.method);
                 self.output.push_str("() as i32");
@@ -9510,7 +9516,10 @@ impl CodeGenerator {
                         &format!("Math.{} takes exactly two arguments", method_call.method),
                     )));
                 }
+                let needs_parens = matches!(&method_call.args[0], Expr::Unary { .. });
+                if needs_parens { self.output.push('('); }
                 self.generate_expr(&method_call.args[0])?;
+                if needs_parens { self.output.push(')'); }
                 self.output.push('.');
                 self.output.push_str(&method_call.method);
                 self.output.push('(');
@@ -9531,7 +9540,10 @@ impl CodeGenerator {
                         "Math.clamp(value, min, max) takes exactly three arguments",
                     )));
                 }
+                let needs_parens = matches!(&method_call.args[0], Expr::Unary { .. });
+                if needs_parens { self.output.push('('); }
                 self.generate_expr(&method_call.args[0])?;
+                if needs_parens { self.output.push(')'); }
                 self.output.push_str(".max(");
                 self.generate_expr(&method_call.args[1])?;
                 self.output.push_str(").min(");
@@ -9547,7 +9559,7 @@ impl CodeGenerator {
                         "Math.sign takes exactly one argument",
                     )));
                 }
-                self.output.push_str("{ let __v = ");
+                self.output.push_str("{ let __v: f64 = ");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(
                     "; if __v > 0.0 { 1 } else if __v < 0.0 { -1 } else { 0 } }",
