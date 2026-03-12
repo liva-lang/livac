@@ -1854,6 +1854,142 @@ impl CodeGenerator {
             self.writeln("");
         }
 
+        // Add logging runtime helpers if Log.* is used
+        if self.ctx.has_logging {
+            self.writeln("// Logging runtime helpers");
+            self.writeln("use std::sync::atomic::{AtomicU8, Ordering};");
+            self.writeln("");
+            self.writeln("static LIVA_LOG_LEVEL: AtomicU8 = AtomicU8::new(1); // 0=debug, 1=info, 2=warn, 3=error");
+            self.writeln("");
+            // liva_log: simplified — no context param, variadic message built at call site
+            self.writeln("#[allow(dead_code)]");
+            self.writeln("fn liva_log(level: u8, label: &str, msg: &str) {");
+            self.indent();
+            self.writeln("if level < LIVA_LOG_LEVEL.load(Ordering::Relaxed) { return; }");
+            self.writeln("if level == 0 && std::env::var(\"LIVA_VERBOSE\").is_err() { return; }");
+            self.writeln("let now = chrono::Local::now().format(\"%Y-%m-%dT%H:%M:%S\");");
+            self.writeln("eprintln!(\"{} [{:<5}] {}\", now, label, msg);");
+            self.dedent();
+            self.writeln("}");
+            self.writeln("");
+            // liva_log_table_kv: Key/Value table for maps with 4+ entries
+            self.writeln("#[allow(dead_code)]");
+            self.writeln("fn liva_log_table_kv(level: u8, keys: &[&str], values: &[String]) {");
+            self.indent();
+            self.writeln("if level < LIVA_LOG_LEVEL.load(Ordering::Relaxed) { return; }");
+            self.writeln("if level == 0 && std::env::var(\"LIVA_VERBOSE\").is_err() { return; }");
+            self.writeln("let kw = keys.iter().map(|k| k.len()).max().unwrap_or(3).max(3);");
+            self.writeln("let vw = values.iter().map(|v| v.len()).max().unwrap_or(5).max(5);");
+            self.writeln("let ks = \"\\u{2500}\".repeat(kw + 2);");
+            self.writeln("let vs = \"\\u{2500}\".repeat(vw + 2);");
+            self.writeln("eprintln!(\"   \\u{250c}{}\\u{252c}{}\\u{2510}\", ks, vs);");
+            self.writeln("eprintln!(\"   \\u{2502} {:<kw$} \\u{2502} {:<vw$} \\u{2502}\", \"Key\", \"Value\", kw = kw, vw = vw);");
+            self.writeln("eprintln!(\"   \\u{251c}{}\\u{253c}{}\\u{2524}\", ks, vs);");
+            self.writeln("for (k, v) in keys.iter().zip(values.iter()) {");
+            self.indent();
+            self.writeln("eprintln!(\"   \\u{2502} {:<kw$} \\u{2502} {:<vw$} \\u{2502}\", k, v, kw = kw, vw = vw);");
+            self.dedent();
+            self.writeln("}");
+            self.writeln("eprintln!(\"   \\u{2514}{}\\u{2534}{}\\u{2518}\", ks, vs);");
+            self.dedent();
+            self.writeln("}");
+            self.writeln("");
+            // liva_log_table_rows: columnar table for arrays of maps
+            self.writeln("#[allow(dead_code)]");
+            self.writeln("fn liva_log_table_rows(level: u8, headers: &[&str], rows: &[Vec<String>]) {");
+            self.indent();
+            self.writeln("if level < LIVA_LOG_LEVEL.load(Ordering::Relaxed) { return; }");
+            self.writeln("if level == 0 && std::env::var(\"LIVA_VERBOSE\").is_err() { return; }");
+            self.writeln("let widths: Vec<usize> = headers.iter().enumerate().map(|(i, h)| {");
+            self.indent();
+            self.writeln("rows.iter().map(|r| r.get(i).map_or(0, |v| v.len())).max().unwrap_or(0).max(h.len())");
+            self.dedent();
+            self.writeln("}).collect();");
+            self.writeln("let border = |left: &str, mid: &str, right: &str| {");
+            self.indent();
+            self.writeln("let parts: Vec<String> = widths.iter().map(|w| \"\\u{2500}\".repeat(w + 2)).collect();");
+            self.writeln("eprintln!(\"   {}{}{}\", left, parts.join(mid), right);");
+            self.dedent();
+            self.writeln("};");
+            self.writeln("border(\"\\u{250c}\", \"\\u{252c}\", \"\\u{2510}\");");
+            self.writeln("let hdr: Vec<String> = headers.iter().zip(widths.iter()).map(|(h, w)| format!(\" {:<width$} \", h, width = *w)).collect();");
+            self.writeln("eprintln!(\"   \\u{2502}{}\\u{2502}\", hdr.join(\"\\u{2502}\"));");
+            self.writeln("border(\"\\u{251c}\", \"\\u{253c}\", \"\\u{2524}\");");
+            self.writeln("for row in rows {");
+            self.indent();
+            self.writeln("let cells: Vec<String> = row.iter().zip(widths.iter()).map(|(v, w)| format!(\" {:<width$} \", v, width = *w)).collect();");
+            self.writeln("eprintln!(\"   \\u{2502}{}\\u{2502}\", cells.join(\"\\u{2502}\"));");
+            self.dedent();
+            self.writeln("}");
+            self.writeln("border(\"\\u{2514}\", \"\\u{2534}\", \"\\u{2518}\");");
+            self.dedent();
+            self.writeln("}");
+            self.writeln("");
+            // liva_log_json: runtime JSON table rendering (Object → KV table, Array of Objects → columnar table)
+            self.writeln("#[allow(dead_code)]");
+            self.writeln("fn liva_log_json(level: u8, json: &liva_rt::JsonValue) {");
+            self.indent();
+            self.writeln("if level < LIVA_LOG_LEVEL.load(Ordering::Relaxed) { return; }");
+            self.writeln("if level == 0 && std::env::var(\"LIVA_VERBOSE\").is_err() { return; }");
+            self.writeln("match &json.0 {");
+            self.indent();
+            // Object with 4+ keys → Key/Value table
+            self.writeln("serde_json::Value::Object(obj) if obj.len() >= 4 => {");
+            self.indent();
+            self.writeln("let keys: Vec<&str> = obj.keys().map(|k| k.as_str()).collect();");
+            self.writeln("let values: Vec<String> = obj.values().map(|v| match v { serde_json::Value::String(s) => s.clone(), other => other.to_string() }).collect();");
+            self.writeln("liva_log_table_kv(level, &keys, &values);");
+            self.dedent();
+            self.writeln("}");
+            // Object with <4 keys → inline
+            self.writeln("serde_json::Value::Object(obj) => {");
+            self.indent();
+            self.writeln("let parts: Vec<String> = obj.iter().map(|(k, v)| match v { serde_json::Value::String(s) => format!(\"{}: {}\", k, s), other => format!(\"{}: {}\", k, other) }).collect();");
+            self.writeln("eprintln!(\"   {{{}}}\", parts.join(\", \"));");
+            self.dedent();
+            self.writeln("}");
+            // Array of Objects → columnar table
+            self.writeln("serde_json::Value::Array(arr) if !arr.is_empty() && arr.iter().all(|v| v.is_object()) => {");
+            self.indent();
+            self.writeln("if let Some(serde_json::Value::Object(first)) = arr.first() {");
+            self.indent();
+            self.writeln("let headers: Vec<&str> = first.keys().map(|k| k.as_str()).collect();");
+            self.writeln("let rows: Vec<Vec<String>> = arr.iter().filter_map(|v| v.as_object()).map(|obj| {");
+            self.indent();
+            self.writeln("headers.iter().map(|h| match obj.get(*h) { Some(serde_json::Value::String(s)) => s.clone(), Some(other) => other.to_string(), None => String::new() }).collect()");
+            self.dedent();
+            self.writeln("}).collect();");
+            self.writeln("liva_log_table_rows(level, &headers, &rows);");
+            self.dedent();
+            self.writeln("}");
+            self.dedent();
+            self.writeln("}");
+            // Anything else → plain eprintln
+            self.writeln("other => eprintln!(\"   {}\", other),");
+            self.dedent();
+            self.writeln("}");
+            self.dedent();
+            self.writeln("}");
+            self.writeln("");
+            // liva_log_set_level: unchanged
+            self.writeln("#[allow(dead_code)]");
+            self.writeln("fn liva_log_set_level(level: &str) {");
+            self.indent();
+            self.writeln("let n = match level {");
+            self.indent();
+            self.writeln("\"debug\" => 0,");
+            self.writeln("\"info\" => 1,");
+            self.writeln("\"warn\" => 2,");
+            self.writeln("\"error\" => 3,");
+            self.writeln("_ => 1,");
+            self.dedent();
+            self.writeln("};");
+            self.writeln("LIVA_LOG_LEVEL.store(n, Ordering::Relaxed);");
+            self.dedent();
+            self.writeln("}");
+            self.writeln("");
+        }
+
         // Pre-pass: Collect all type aliases
         for item in &program.items {
             if let TopLevel::TypeAlias(alias) = item {
@@ -7565,6 +7701,11 @@ impl CodeGenerator {
                 return self.generate_sys_function_call(method_call);
             }
 
+            // Check if this is a Log function call (Log.info, Log.warn, etc.)
+            if name == "Log" {
+                return self.generate_log_function_call(method_call);
+            }
+
             // Bug #40: Check if this is a module alias call (import * as alias from "...")
             // Generate module::function() instead of alias.function()
             if let Some(module_name) = self.module_aliases.get(name).cloned() {
@@ -10146,6 +10287,222 @@ impl CodeGenerator {
                     "E3000",
                     &format!("Unknown Sys function: {}", method_call.method),
                     "Available Sys functions: args, env, exit",
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Generate Log module function calls (Log.info, Log.warn, Log.error, Log.debug, Log.setLevel)
+    fn generate_log_function_call(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
+        match method_call.method.as_str() {
+            "info" | "warn" | "error" | "debug" => {
+                let level: u8 = match method_call.method.as_str() {
+                    "debug" => 0,
+                    "info" => 1,
+                    "warn" => 2,
+                    "error" => 3,
+                    _ => unreachable!(),
+                };
+                let label = method_call.method.to_uppercase();
+
+                if method_call.args.is_empty() {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        &format!("Log.{} requires at least 1 argument", method_call.method),
+                        &format!("Usage: Log.{}(\"message\", arg1, arg2, ...)", method_call.method),
+                    )));
+                }
+
+                // Classify arguments: Scalar, InlineMap (≤3 keys), TableMap (4+ keys), TableArray, Json
+                #[derive(Debug)]
+                enum ArgKind { Scalar, InlineMap, TableMap, TableArray, Json }
+
+                let arg_kinds: Vec<ArgKind> = method_call.args.iter().map(|arg| {
+                    match arg {
+                        Expr::MapLiteral(entries) if entries.len() >= 4 => ArgKind::TableMap,
+                        Expr::ArrayLiteral(elements) if !elements.is_empty()
+                            && elements.iter().all(|e| matches!(e, Expr::MapLiteral(_))) =>
+                        {
+                            ArgKind::TableArray
+                        }
+                        Expr::MapLiteral(_) => ArgKind::InlineMap,
+                        _ => ArgKind::Scalar,
+                    }
+                }).collect();
+
+                // Post-pass: reclassify Scalar args that are JsonValue as Json
+                let arg_kinds: Vec<ArgKind> = arg_kinds.into_iter().enumerate().map(|(i, kind)| {
+                    if matches!(kind, ArgKind::Scalar) && self.is_json_value_expr(&method_call.args[i]) {
+                        ArgKind::Json
+                    } else {
+                        kind
+                    }
+                }).collect();
+
+                let has_tables = arg_kinds.iter().any(|k| matches!(k, ArgKind::TableMap | ArgKind::TableArray | ArgKind::Json));
+
+                // Build format string for message (non-table args only)
+                let mut fmt_parts: Vec<String> = Vec::new();
+                for (arg, kind) in method_call.args.iter().zip(arg_kinds.iter()) {
+                    match kind {
+                        ArgKind::Scalar => fmt_parts.push("{}".to_string()),
+                        ArgKind::InlineMap => {
+                            if let Expr::MapLiteral(entries) = arg {
+                                let parts: Vec<String> = entries.iter().map(|(k, _)| {
+                                    if let Expr::Literal(Literal::String(key)) = k {
+                                        format!("{}: {{}}", key)
+                                    } else {
+                                        "?: {}".to_string()
+                                    }
+                                }).collect();
+                                fmt_parts.push(format!("{{{{{}}}}}", parts.join(", ")));
+                            }
+                        }
+                        _ => {} // Table args don't contribute to message format
+                    }
+                }
+
+                if has_tables {
+                    self.output.push_str("{ ");
+                }
+
+                // Generate liva_log() call
+                write!(self.output, "liva_log({}, \"{}\", ", level, label).unwrap();
+
+                if fmt_parts.is_empty() {
+                    self.output.push_str("\"\"");
+                } else {
+                    let fmt_str = fmt_parts.join(" ");
+                    write!(self.output, "&format!(\"{}\"", fmt_str).unwrap();
+
+                    // Generate format arguments for non-table args
+                    for (arg, kind) in method_call.args.iter().zip(arg_kinds.iter()) {
+                        match kind {
+                            ArgKind::Scalar => {
+                                self.output.push_str(" , ");
+                                self.generate_expr(arg)?;
+                            }
+                            ArgKind::InlineMap => {
+                                if let Expr::MapLiteral(entries) = arg {
+                                    for (_, v) in entries {
+                                        self.output.push_str(", ");
+                                        self.generate_expr(v)?;
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    self.output.push(')');
+                }
+                self.output.push(')'); // close liva_log(
+
+                if has_tables {
+                    // Generate table calls for TableMap and TableArray args
+                    for (arg, kind) in method_call.args.iter().zip(arg_kinds.iter()) {
+                        match kind {
+                            ArgKind::TableMap => {
+                                if let Expr::MapLiteral(entries) = arg {
+                                    write!(self.output, "; liva_log_table_kv({}, &[", level).unwrap();
+                                    for (i, (k, _)) in entries.iter().enumerate() {
+                                        if i > 0 { self.output.push_str(", "); }
+                                        if let Expr::Literal(Literal::String(key)) = k {
+                                            write!(self.output, "\"{}\"", key).unwrap();
+                                        } else {
+                                            self.output.push_str("\"?\"");
+                                        }
+                                    }
+                                    self.output.push_str("], &[");
+                                    for (i, (_, v)) in entries.iter().enumerate() {
+                                        if i > 0 { self.output.push_str(", "); }
+                                        self.output.push_str("format!(\"{}\", ");
+                                        self.generate_expr(v)?;
+                                        self.output.push(')');
+                                    }
+                                    self.output.push_str("])");
+                                }
+                            }
+                            ArgKind::TableArray => {
+                                if let Expr::ArrayLiteral(elements) = arg {
+                                    if let Some(Expr::MapLiteral(first_entries)) = elements.first() {
+                                        write!(self.output, "; liva_log_table_rows({}, &[", level).unwrap();
+                                        for (i, (k, _)) in first_entries.iter().enumerate() {
+                                            if i > 0 { self.output.push_str(", "); }
+                                            if let Expr::Literal(Literal::String(key)) = k {
+                                                write!(self.output, "\"{}\"", key).unwrap();
+                                            } else {
+                                                self.output.push_str("\"?\"");
+                                            }
+                                        }
+                                        self.output.push_str("], &[");
+                                        for (j, elem) in elements.iter().enumerate() {
+                                            if j > 0 { self.output.push_str(", "); }
+                                            if let Expr::MapLiteral(row_entries) = elem {
+                                                self.output.push_str("vec![");
+                                                for (i, (_, v)) in row_entries.iter().enumerate() {
+                                                    if i > 0 { self.output.push_str(", "); }
+                                                    self.output.push_str("format!(\"{}\", ");
+                                                    self.generate_expr(v)?;
+                                                    self.output.push(')');
+                                                }
+                                                self.output.push(']');
+                                            }
+                                        }
+                                        self.output.push_str("])");
+                                    }
+                                }
+                            }
+                            ArgKind::Json => {
+                                write!(self.output, "; liva_log_json({}, ", level).unwrap();
+                                // Check if the arg is an Option<JsonValue> (from JSON.parse)
+                                let is_option = if let Expr::Identifier(name) = arg {
+                                    self.option_value_vars.contains(name)
+                                } else {
+                                    false
+                                };
+                                if is_option {
+                                    self.output.push_str("&");
+                                    // Temporarily remove from option_value_vars to avoid double-unwrap
+                                    let name = if let Expr::Identifier(n) = arg { n.clone() } else { String::new() };
+                                    self.option_value_vars.remove(&name);
+                                    self.generate_expr(arg)?;
+                                    self.option_value_vars.insert(name);
+                                    self.output.push_str(".as_ref().unwrap_or(&liva_rt::JsonValue::default())");
+                                } else {
+                                    self.output.push_str("&");
+                                    self.generate_expr(arg)?;
+                                }
+                                self.output.push(')');
+                            }
+                            _ => {}
+                        }
+                    }
+                    self.output.push_str("; }");
+                }
+            }
+            "setLevel" => {
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Log.setLevel requires exactly 1 argument",
+                        "Usage: Log.setLevel(\"info\") — levels: debug, info, warn, error",
+                    )));
+                }
+
+                self.output.push_str("liva_log_set_level(&format!(\"{}\", ");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str("))");
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3000",
+                    &format!("Unknown Log function: {}", method_call.method),
+                    "Available Log functions: info, warn, error, debug, setLevel",
                 )));
             }
         }
@@ -14473,12 +14830,17 @@ pub fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
         cargo_toml.push_str("rand = \"0.8\"\n");
     }
 
+    if ctx.has_logging {
+        cargo_toml.push_str("chrono = \"0.4\"\n");
+    }
+
     // Add user-specified crates (with version and features support)
     for dep in &ctx.rust_crates {
         let crate_name = &dep.name;
         // Skip internal crates that are already added above
         if crate_name == "tokio" || crate_name == "serde" || crate_name == "serde_json"
-            || crate_name == "reqwest" || crate_name == "rayon" || crate_name == "rand" {
+            || crate_name == "reqwest" || crate_name == "rayon" || crate_name == "rand"
+            || (crate_name == "chrono" && ctx.has_logging) {
             // For internal crates, only merge additional features
             if !dep.features.is_empty() {
                 // Already handled: user can add features to internal crates
@@ -14514,6 +14876,7 @@ mod tests {
             has_parallel: false,
             has_random: false,
             has_rust_blocks: false,
+            has_logging: false,
             async_functions: std::collections::BTreeSet::new(),
             source_filename: String::new(),
         });

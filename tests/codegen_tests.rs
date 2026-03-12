@@ -3979,3 +3979,187 @@ main() {
     let (_, cargo_toml) = compile_and_generate_full(source);
     assert_snapshot!("v15_use_rust_with_alias_cargo", cargo_toml);
 }
+
+// ─────────────────────────────────────────────────────
+// v1.5 — Logging module tests
+// ─────────────────────────────────────────────────────
+
+#[test]
+fn test_v15_log_info_basic() {
+    let source = r#"
+main() {
+    Log.info("Server started")
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_log_info_basic", rust_code);
+}
+
+#[test]
+fn test_v15_log_all_levels() {
+    let source = r#"
+main() {
+    Log.debug("Cache hit ratio: 0.95")
+    Log.info("User login successful")
+    Log.warn("Disk space low")
+    Log.error("Connection failed")
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_log_all_levels", rust_code);
+}
+
+#[test]
+fn test_v15_log_with_context_map() {
+    let source = r#"
+main() {
+    Log.info("User login", Map { "userId": 42, "ip": "10.0.0.1" })
+    Log.warn("Rate limit close", Map { "current": 95, "max": 100 })
+    Log.error("Connection failed", Map { "host": "db.prod" })
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_log_with_context_map", rust_code);
+}
+
+#[test]
+fn test_v15_log_set_level() {
+    let source = r#"
+main() {
+    Log.info("Before level change")
+    Log.setLevel("warn")
+    Log.info("This should be filtered")
+    Log.warn("This should show")
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_log_set_level", rust_code);
+}
+
+#[test]
+fn test_v15_log_with_variable_message() {
+    let source = r#"
+main() {
+    let msg = "Server started on port 3000"
+    Log.info(msg)
+    let level = "warn"
+    Log.setLevel(level)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_log_with_variable_message", rust_code);
+}
+
+#[test]
+fn test_v15_log_cargo_toml_chrono() {
+    let source = r#"
+main() {
+    Log.info("test")
+}
+"#;
+    let (_, cargo_toml) = compile_and_generate_full(source);
+    assert!(cargo_toml.contains("chrono"), "Cargo.toml should contain chrono dependency");
+    assert_snapshot!("v15_log_cargo_toml", cargo_toml);
+}
+
+#[test]
+fn test_v15_log_unknown_function_error() {
+    let source = r#"
+main() {
+    Log.trace("test")
+}
+"#;
+    let tokens = tokenize(source).unwrap();
+    let program = parse(tokens, source).unwrap();
+    let analyzed_program = analyze(program).unwrap();
+    let ctx = livac::desugaring::desugar(analyzed_program.clone()).unwrap();
+    let result = generate_with_ast(&analyzed_program, ctx);
+    assert!(result.is_err(), "Log.trace should produce an error");
+}
+
+#[test]
+fn test_v15_log_in_function() {
+    let source = r#"
+processData(data: string) {
+    Log.info("Processing", Map { "data": data })
+    Log.debug("Details available")
+}
+
+main() {
+    processData("test")
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_log_in_function", rust_code);
+}
+
+#[test]
+fn test_v15_log_variadic_args() {
+    let source = r#"
+main() {
+    Log.info("Server started on port", 8080)
+    Log.warn("Request from", "192.168.1.1", "method:", "GET")
+    Log.error("Failed after", 3, "retries")
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_log_variadic_args", rust_code);
+}
+
+#[test]
+fn test_v15_log_table_map() {
+    let source = r#"
+main() {
+    Log.info("Config loaded", Map { "host": "localhost", "port": 8080, "env": "prod", "debug": false })
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_log_table_map", rust_code);
+}
+
+#[test]
+fn test_v15_log_table_array() {
+    let source = r#"
+main() {
+    Log.info("Active users", [Map { "name": "Alice", "age": 30 }, Map { "name": "Bob", "age": 25 }])
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_log_table_array", rust_code);
+}
+
+#[test]
+fn test_v15_log_variadic_with_table() {
+    let source = r#"
+main() {
+    let ip = "10.0.0.1"
+    Log.warn("Request from", ip, Map { "method": "GET", "path": "/api", "status": 200, "duration": "45ms" })
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_log_variadic_with_table", rust_code);
+}
+
+#[test]
+fn test_v15_log_json_object() {
+    let source = r#"
+main() {
+    let config, _err = JSON.parse("{\"host\":\"localhost\",\"port\":8080}")
+    Log.info("Config", config)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_log_json_object", rust_code);
+}
+
+#[test]
+fn test_v15_log_json_array() {
+    let source = r#"
+main() {
+    let users, _err = JSON.parse("[{\"name\":\"Alice\"},{\"name\":\"Bob\"}]")
+    Log.info("Users", users)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_log_json_array", rust_code);
+}

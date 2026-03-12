@@ -87,14 +87,14 @@
 - [x] Tests: bloque rust básico, nested braces, use hoisting, versión/features, E9002, desugar
 - [x] Docs: documentar sintaxis y limitaciones
 
-### Logging — módulo `Log`
+### Logging — módulo `Log` ✅
 
-- [ ] `Log.info(msg, ...context)` → stderr con timestamp + nivel + contexto
-- [ ] `Log.warn(msg, ...context)`
-- [ ] `Log.error(msg, ...context)`
-- [ ] `Log.debug(msg, ...context)` — solo con `--verbose`
-- [ ] `Log.setLevel(level)` — cambiar nivel en runtime
-- [ ] Tests
+- [x] `Log.info(msg, ...context)` → stderr con timestamp + nivel + contexto
+- [x] `Log.warn(msg, ...context)`
+- [x] `Log.error(msg, ...context)`
+- [x] `Log.debug(msg, ...context)` — solo con `--verbose`
+- [x] `Log.setLevel(level)` — cambiar nivel en runtime
+- [x] Tests
 
 ### Config / .env — módulo `Config`
 

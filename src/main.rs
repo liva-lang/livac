@@ -1040,6 +1040,11 @@ fn compile(cli: &Cli, input: &PathBuf) -> Result<(), CompilerError> {
 
             let mut cmd = Command::new(&binary_path);
 
+            // Pass LIVA_VERBOSE env var when --verbose is set (enables Log.debug output)
+            if cli.verbose {
+                cmd.env("LIVA_VERBOSE", "1");
+            }
+
             // Pass through program arguments after --
             for arg in &cli.program_args {
                 cmd.arg(arg);

@@ -8,5 +8,6 @@ expression: json
   "has_parallel": false,
   "has_random": false,
   "has_rust_blocks": false,
+  "has_logging": false,
   "async_functions": []
 }

@@ -19,6 +19,7 @@ pub struct DesugarContext {
     pub has_parallel: bool,
     pub has_random: bool,                  // true if Math.random() is used
     pub has_rust_blocks: bool,             // true if any `rust { }` block is used
+    pub has_logging: bool,                 // true if Log.* is used
     pub async_functions: BTreeSet<String>, // Functions that are async (BTreeSet for deterministic order)
     #[serde(skip)]
     pub source_filename: String,           // Source filename for error traces
@@ -32,6 +33,7 @@ impl DesugarContext {
             has_parallel: false,
             has_random: false,
             has_rust_blocks: false,
+            has_logging: false,
             async_functions: BTreeSet::new(),
             source_filename: String::new(),
         }
@@ -189,6 +191,9 @@ fn check_expr_concurrency(expr: &Expr, ctx: &mut DesugarContext) {
             if let Expr::Identifier(name) = method_call.object.as_ref() {
                 if name == "Math" && method_call.method == "random" {
                     ctx.has_random = true;
+                }
+                if name == "Log" {
+                    ctx.has_logging = true;
                 }
             }
 

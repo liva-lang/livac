@@ -3,8 +3,8 @@
 > **Proyecto:** livac - El compilador de Liva  
 > **Versión:** v1.5.0-dev (tag: v1.2.0)  
 > **Lenguaje:** Rust  
-> **Tests:** 348 passing  
-> **Próximo objetivo:** v1.5 — Logging + Config + livac init (rust {} done)  
+> **Tests:** 368 passing  
+> **Próximo objetivo:** v1.5 — Config + livac init (rust {} + Logging done)  
 > **Última actualización:** 2026-03-13
 
 ---

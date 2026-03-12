@@ -1,0 +1,89 @@
+// Stdlib Log — end-to-end tests
+// Log functions write to stderr, so we test that they compile and run without error.
+// Level filtering is tested by ensuring setLevel does not crash.
+import { describe, test, expect } from "liva/test"
+
+describe("Log Basic", () => {
+    test("info logs without error", () => {
+        Log.info("test info message")
+        expect(true).toBe(true)
+    })
+
+    test("warn logs without error", () => {
+        Log.warn("test warning message")
+        expect(true).toBe(true)
+    })
+
+    test("error logs without error", () => {
+        Log.error("test error message")
+        expect(true).toBe(true)
+    })
+
+    test("debug logs without error", () => {
+        Log.debug("test debug message")
+        expect(true).toBe(true)
+    })
+})
+
+describe("Log with Context", () => {
+    test("info with map context", () => {
+        Log.info("user login", Map { "userId": 42, "ip": "10.0.0.1" })
+        expect(true).toBe(true)
+    })
+
+    test("warn with map context", () => {
+        Log.warn("rate limit", Map { "current": 95, "max": 100 })
+        expect(true).toBe(true)
+    })
+
+    test("error with map context", () => {
+        Log.error("db failed", Map { "host": "db.prod" })
+        expect(true).toBe(true)
+    })
+})
+
+describe("Log Level Control", () => {
+    test("setLevel to warn", () => {
+        Log.setLevel("warn")
+        Log.info("this should be filtered")
+        Log.warn("this should show")
+        expect(true).toBe(true)
+    })
+
+    test("setLevel to error", () => {
+        Log.setLevel("error")
+        Log.warn("filtered")
+        Log.error("visible")
+        expect(true).toBe(true)
+    })
+
+    test("setLevel back to debug", () => {
+        Log.setLevel("debug")
+        Log.debug("visible again")
+        Log.info("also visible")
+        expect(true).toBe(true)
+    })
+})
+
+describe("Log with Variables", () => {
+    test("variable message", () => {
+        let msg = "server started on port 3000"
+        Log.info(msg)
+        expect(true).toBe(true)
+    })
+
+    test("variable in context", () => {
+        let port = 3000
+        let host = "localhost"
+        Log.info("server config", Map { "host": host, "port": port })
+        expect(true).toBe(true)
+    })
+
+    test("setLevel with variable", () => {
+        let level = "warn"
+        Log.setLevel(level)
+        Log.info("filtered by variable level")
+        Log.setLevel("info")
+        expect(true).toBe(true)
+    })
+})
