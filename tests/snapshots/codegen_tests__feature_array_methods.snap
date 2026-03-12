@@ -391,7 +391,7 @@ fn main() {
     let doubled = nums.iter().map(|&x| x * 2).collect::<Vec<_>>();
     let evens = nums.iter().filter(|&&x| x % 2 == 0).copied().collect::<Vec<_>>();
     let sum = nums.iter().fold(0, |acc, &x| acc + x);
-    let found = nums.iter().find(|&&x| x > 3).copied();
+    let found = nums.iter().find(|&&x| x > 3).copied().unwrap();
     let has_evens = nums.iter().any(|&x| x % 2 == 0);
     let all_positive = nums.iter().all(|&x| x > 0);
     nums.iter().for_each(|&n| println!("{}", n));

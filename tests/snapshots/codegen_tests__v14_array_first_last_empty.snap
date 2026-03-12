@@ -388,8 +388,8 @@ mod liva_rt {
 
 fn main() {
     let nums = vec![10, 20, 30];
-    let f = nums.first().cloned();
-    let l = nums.last().cloned();
+    let f = nums.first().cloned().unwrap();
+    let l = nums.last().cloned().unwrap();
     let empty = nums.is_empty();
     println!("{}", f);
     println!("{}", l);

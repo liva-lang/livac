@@ -133,6 +133,11 @@ describe("String Query", () => {
 })
 
 describe("String Access", () => {
+    test("charAt", () => {
+        expect("Hello".charAt(0)).toBe("H")
+        expect("Hello".charAt(4)).toBe("o")
+    })
+
     test("substring", () => {
         expect("Hello World".substring(0, 5)).toBe("Hello")
         expect("Hello World".substring(6, 11)).toBe("World")

@@ -416,5 +416,5 @@ impl std::fmt::Display for Vec2 {
 fn main() {
     let v = Vec2::new(3_f64, 4_f64);
     println!("{}", v);
-    println!("{}", v.length());
+    println!("{}", (v.len() as i32));
 }

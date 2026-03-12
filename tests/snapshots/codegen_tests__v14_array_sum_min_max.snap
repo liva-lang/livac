@@ -389,8 +389,8 @@ mod liva_rt {
 fn main() {
     let nums = vec![3, 1, 4, 1, 5];
     let total = nums.iter().sum::<i32>();
-    let smallest = nums.iter().min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)).cloned();
-    let largest = nums.iter().max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)).cloned();
+    let smallest = nums.iter().min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)).cloned().unwrap();
+    let largest = nums.iter().max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)).cloned().unwrap();
     println!("{}", total);
     println!("{}", smallest);
     println!("{}", largest);

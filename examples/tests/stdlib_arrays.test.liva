@@ -16,6 +16,11 @@ describe("Array Core Methods", () => {
         expect([1, 2, 3, 4, 5].reduce(1, (acc, x) => acc * x)).toBe(120)
     })
 
+    test("find", () => {
+        let result = [1, 2, 3, 4, 5].find(x => x > 3)
+        expect(result).toBe(4)
+    })
+
     test("some", () => {
         expect([1, 2, 3, 4, 5].some(x => x % 2 == 0)).toBe(true)
         expect([1, 3, 5].some(x => x % 2 == 0)).toBe(false)
@@ -46,9 +51,24 @@ describe("Array Callback Methods", () => {
         expect([1, 2, 3, 4, 5].count(x => x % 2 == 0)).toBe(2)
         expect([1, 3, 5].count(x => x % 2 == 0)).toBe(0)
     })
+
+    test("findIndex", () => {
+        expect([10, 20, 30, 40].findIndex(x => x > 25)).toBe(2)
+        expect([10, 20, 30].findIndex(x => x > 100)).toBe(-1)
+    })
 })
 
 describe("Array Access and Slicing", () => {
+    test("first", () => {
+        let result = [10, 20, 30].first()
+        expect(result).toBe(10)
+    })
+
+    test("last", () => {
+        let result = [10, 20, 30].last()
+        expect(result).toBe(30)
+    })
+
     test("slice", () => {
         expect([1, 2, 3, 4, 5].slice(1, 3)).toBe([2, 3])
         expect([1, 2, 3, 4, 5].slice(2)).toBe([3, 4, 5])
@@ -79,11 +99,31 @@ describe("Array Transformation", () => {
     test("flat", () => {
         expect([[1, 2], [3, 4], [5]].flat()).toBe([1, 2, 3, 4, 5])
     })
+
+    test("zip", () => {
+        let result = [1, 2, 3].zip(["a", "b", "c"])
+        expect(result.length()).toBe(3)
+    })
+
+    test("chunks", () => {
+        let result = [1, 2, 3, 4, 5].chunks(2)
+        expect(result.length()).toBe(3)
+    })
 })
 
 describe("Array Aggregation", () => {
     test("sum", () => {
         expect([1, 2, 3, 4, 5].sum()).toBe(15)
+    })
+
+    test("min", () => {
+        let result = [3, 1, 4, 1, 5].min()
+        expect(result).toBe(1)
+    })
+
+    test("max", () => {
+        let result = [3, 1, 4, 1, 5].max()
+        expect(result).toBe(5)
     })
 
     test("isEmpty", () => {

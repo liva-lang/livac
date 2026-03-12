@@ -391,6 +391,6 @@ use rayon::prelude::*;
 
 fn main() {
     let numbers = vec![1, 2, 3, 4, 5];
-    let found = numbers.par_iter().find_first(|&&x| x > 3).copied();
+    let found = numbers.par_iter().find_first(|&&x| x > 3).copied().unwrap();
     println!("{}", found);
 }

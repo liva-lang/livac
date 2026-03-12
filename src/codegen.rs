@@ -76,6 +76,7 @@ pub struct CodeGenerator {
     array_returning_functions: std::collections::HashMap<String, String>, // Track functions that return [T] (Vec) -> elem type
     string_returning_functions: std::collections::HashSet<String>, // Track functions that return string (String)
     ref_lambda_params: std::collections::HashSet<String>, // Lambda params that are &T references (need *deref in comparisons)
+    suppress_option_unwrap: bool, // When true, Option-returning methods (find/first/last/min/max) don't add .unwrap()
     // --- Type aliases (for expansion during codegen)
     type_aliases: std::collections::HashMap<String, (Vec<TypeParameter>, TypeRef)>,
     // --- Union types (for enum generation)
@@ -145,6 +146,7 @@ impl CodeGenerator {
             array_returning_functions: std::collections::HashMap::new(),
             string_returning_functions: std::collections::HashSet::new(),
             ref_lambda_params: std::collections::HashSet::new(),
+            suppress_option_unwrap: false,
             type_aliases: std::collections::HashMap::new(),
             union_types: std::collections::HashSet::new(),
             pending_tasks: std::collections::HashMap::new(),
@@ -4093,6 +4095,15 @@ impl CodeGenerator {
                             .push_str(" { Ok(v) => v, Err(e) => return Err(liva_rt::Error::chain(");
                         self.generate_expr(fail_msg)?;
                         write!(self.output, ", \"{}\", \"{}\", e)) }};\n", fn_name, location).unwrap();
+                    } else if self.is_option_returning_method(&var.init) {
+                        // Option-returning methods (find, first, last, min, max) with or fail
+                        self.suppress_option_unwrap = true;
+                        write!(self.output, "let {} = match ", var_name).unwrap();
+                        self.generate_expr(&var.init)?;
+                        self.suppress_option_unwrap = false;
+                        self.output.push_str(" { Some(v) => v, None => panic!(\"or fail: {}\", ");
+                        self.generate_expr(fail_msg)?;
+                        self.output.push_str(") };\n");
                     } else {
                         // Non-fallible expression with or fail — just assign directly (or fail never triggers)
                         write!(self.output, "let {} = ", var_name).unwrap();
@@ -4158,6 +4169,15 @@ impl CodeGenerator {
                             self.output.push_str(".to_string()");
                         }
                         self.output.push_str(" };\n");
+                    } else if self.is_option_returning_method(&var.init) {
+                        // Option-returning methods (find, first, last, min, max) with or default
+                        self.suppress_option_unwrap = true;
+                        write!(self.output, "let {} = ", var_name).unwrap();
+                        self.generate_expr(&var.init)?;
+                        self.suppress_option_unwrap = false;
+                        self.output.push_str(".unwrap_or(");
+                        self.generate_expr(default_val)?;
+                        self.output.push_str(");\n");
                     } else {
                         write!(self.output, "let {} = ", var_name).unwrap();
                         self.generate_expr(&var.init)?;
@@ -4670,12 +4690,6 @@ impl CodeGenerator {
                                     self.array_vars.insert(name.to_string());
                                     self.typed_array_vars
                                         .insert(name.to_string(), "string".to_string());
-                                }
-                            }
-                            // .find() returns Option<T> - mark variable as option_value_vars
-                            else if method_call.method.as_str() == "find" {
-                                if let Some(name) = binding.name() {
-                                    self.option_value_vars.insert(name.to_string());
                                 }
                             }
                             // Sys.args() returns Vec<String> - need direct indexing
@@ -7470,6 +7484,14 @@ impl CodeGenerator {
         }
         // ─────────────────────────────────────────────────────────────
 
+        // Handle .length() as method call → .len() as i32
+        if method_call.method == "length" && method_call.args.is_empty() {
+            self.output.push('(');
+            self.generate_expr(&method_call.object)?;
+            self.output.push_str(".len() as i32)");
+            return Ok(());
+        }
+
         // Check if this is a Math function call (Math.sqrt, Math.pow, etc.)
         if let Expr::Identifier(name) = method_call.object.as_ref() {
             if name == "Math" {
@@ -7720,6 +7742,9 @@ impl CodeGenerator {
         if method_call.method == "first" && method_call.args.is_empty() && !object_is_class_instance {
             self.generate_expr(&method_call.object)?;
             self.output.push_str(".first().cloned()");
+            if !self.suppress_option_unwrap {
+                self.output.push_str(".unwrap()");
+            }
             return Ok(());
         }
 
@@ -7727,6 +7752,9 @@ impl CodeGenerator {
         if method_call.method == "last" && method_call.args.is_empty() && !object_is_class_instance {
             self.generate_expr(&method_call.object)?;
             self.output.push_str(".last().cloned()");
+            if !self.suppress_option_unwrap {
+                self.output.push_str(".unwrap()");
+            }
             return Ok(());
         }
 
@@ -7828,6 +7856,9 @@ impl CodeGenerator {
             self.output.push_str(
                 ".iter().min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)).cloned()",
             );
+            if !self.suppress_option_unwrap {
+                self.output.push_str(".unwrap()");
+            }
             return Ok(());
         }
 
@@ -7837,6 +7868,9 @@ impl CodeGenerator {
             self.output.push_str(
                 ".iter().max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)).cloned()",
             );
+            if !self.suppress_option_unwrap {
+                self.output.push_str(".unwrap()");
+            }
             return Ok(());
         }
 
@@ -8464,9 +8498,13 @@ impl CodeGenerator {
                                 {
                                     // Bug #78 fix: any/all/position: FnMut(Self::Item) → same as iter output
                                     // For Copy types: any(|&x| ...) - single deref (iter yields &T)
-                                    // For Clone types: no prefix - work with &T directly
+                                    // For Clone types: no prefix - work with &T directly, but track
+                                    //   as ref param so comparisons auto-dereference
                                     if !will_use_cloned {
                                         self.output.push('&');
+                                    } else {
+                                        // Track for dereference in comparisons (x > val where x is &T)
+                                        self.ref_lambda_params.insert(param_name.clone());
                                     }
                                     // For cloned types, no prefix needed (work with &T directly)
                                 } else if method_call.method == "map"
@@ -8689,6 +8727,9 @@ impl CodeGenerator {
                         self.output.push_str(".cloned()");
                     } else {
                         self.output.push_str(".copied()");
+                    }
+                    if !self.suppress_option_unwrap {
+                        self.output.push_str(".unwrap()");
                     }
                 }
             }
@@ -9121,14 +9162,14 @@ impl CodeGenerator {
                 return Ok(());
             }
             "charAt" => {
-                // charAt(index) -> str.chars().nth((index) as usize).unwrap_or(' ')
+                // charAt(index) -> str.chars().nth((index) as usize).map(|c| c.to_string()).unwrap_or_default()
                 self.generate_expr(&method_call.object)?;
                 self.output.push_str(".chars().nth((");
                 if !method_call.args.is_empty() {
                     self.generate_expr(&method_call.args[0])?;
                     self.output.push_str(") as usize");
                 }
-                self.output.push_str(").unwrap_or(' ')");
+                self.output.push_str(").map(|c| c.to_string()).unwrap_or_default()");
                 return Ok(());
             }
             "indexOf" => {
@@ -10414,8 +10455,8 @@ impl CodeGenerator {
         }
 
         // Special handling for ref_lambda_params: when comparing &T with T,
-        // dereference the lambda param: *item == query
-        if matches!(op, BinOp::Eq | BinOp::Ne) && !self.ref_lambda_params.is_empty() {
+        // dereference the lambda param: *item == query (or *item > value, etc.)
+        if matches!(op, BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Gt | BinOp::Le | BinOp::Ge) && !self.ref_lambda_params.is_empty() {
             let left_is_ref = if let Expr::Identifier(name) = left {
                 self.ref_lambda_params.contains(name)
             } else {
@@ -10554,6 +10595,15 @@ impl CodeGenerator {
             }
         }
         false
+    }
+
+    /// Check if expression is a method call that returns Option<T> (find, first, last, min, max)
+    fn is_option_returning_method(&self, expr: &Expr) -> bool {
+        if let Expr::MethodCall(mc) = expr {
+            matches!(mc.method.as_str(), "find" | "first" | "last" | "min" | "max")
+        } else {
+            false
+        }
     }
 
     fn is_fallible_expr(&self, expr: &Expr) -> bool {
