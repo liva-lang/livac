@@ -1,0 +1,13 @@
+// Test: Rust block with char literals and lifetimes
+main() {
+    let val = rust {
+        let ch: char = 'x';
+        let newline: char = '\n';
+        let brace_char: char = '{';
+        let close_brace: char = '}';
+        let tick: char = '\'';
+        let count = if ch == 'x' { 1_i32 } else { 0_i32 };
+        count
+    }
+    print(val)
+}

@@ -123,3 +123,8 @@ fn test_for_seq_simd_invalid() {
 fn test_for_par_chunk_invalid() {
     test_semantics_err("for_par_chunk_invalid");
 }
+
+#[test]
+fn test_internal_crate_override() {
+    test_semantics_err("internal_crate_override");
+}

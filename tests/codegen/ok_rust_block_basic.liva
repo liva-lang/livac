@@ -1,0 +1,8 @@
+// Test: Basic rust { } block expression
+main() {
+    let result = rust {
+        let x: i32 = 42;
+        x * 2
+    }
+    print(result)
+}

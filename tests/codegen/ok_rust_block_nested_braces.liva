@@ -1,0 +1,19 @@
+// Test: Rust block with deeply nested braces (closures, blocks, match)
+main() {
+    let val = rust {
+        let v: Vec<i32> = vec![1, 2, 3, 4, 5];
+        let result: i32 = v.iter()
+            .filter(|x| { **x > 2 })
+            .map(|x| {
+                let doubled = x * 2;
+                if doubled > 8 {
+                    doubled + 1
+                } else {
+                    doubled
+                }
+            })
+            .sum();
+        result
+    }
+    print(val)
+}

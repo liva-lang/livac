@@ -1,0 +1,11 @@
+// Test: Rust block with string literals containing braces and escapes
+main() {
+    let s = rust {
+        let a = "Hello {world}";
+        let b = "Nested {{ double }} braces";
+        let c = "Escaped \"quotes\" inside";
+        let d = "Mix {of} \"everything\" {{here}}";
+        format!("{} {} {} {}", a, b, c, d)
+    }
+    print(s)
+}

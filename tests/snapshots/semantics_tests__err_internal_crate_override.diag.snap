@@ -1,0 +1,14 @@
+---
+source: tests/semantics_tests.rs
+expression: error_msg
+---
+
+● E9002: Internal crate version override [Rust Interop]
+────────────────────────────────────────────────────────────
+
+  ⓘ Cannot override internal crate "tokio" (v1)
+
+  💡 Liva uses tokio v1 internally. The crate is already available inside rust { } blocks. To add features: use rust "tokio" features ["..."]
+
+  📚 Learn more: https://github.com/liva-lang/livac/blob/main/docs/ERROR_CODES.md#e9002
+────────────────────────────────────────────────────────────

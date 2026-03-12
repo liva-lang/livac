@@ -1,0 +1,14 @@
+// Test: Rust block with use statement hoisting
+main() {
+    let hash = rust {
+        use std::collections::HashMap;
+        use std::collections::BTreeSet;
+        let mut map = HashMap::new();
+        map.insert("a", 1);
+        map.insert("b", 2);
+        let mut set = BTreeSet::new();
+        set.insert(1);
+        map.len() + set.len()
+    }
+    print(hash)
+}

@@ -1,0 +1,26 @@
+// Test: Multiple rust blocks in the same function + dedup of use statements
+main() {
+    let a = rust {
+        use std::collections::HashMap;
+        let mut m = HashMap::new();
+        m.insert("x", 1);
+        m.len()
+    }
+
+    let b = rust {
+        use std::collections::HashMap;
+        use std::collections::HashSet;
+        let mut m = HashMap::new();
+        m.insert("y", 2);
+        let mut s = HashSet::new();
+        s.insert(42);
+        m.len() + s.len()
+    }
+
+    let c = rust {
+        let plain: i32 = 99;
+        plain
+    }
+
+    print(a + b + c)
+}

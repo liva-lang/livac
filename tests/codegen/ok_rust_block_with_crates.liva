@@ -1,0 +1,12 @@
+// Test: Combining use rust crate declarations + rust { } blocks
+use rust "serde" version "1.0"
+use rust "chrono" version "0.4"
+
+main() {
+    let timestamp = rust {
+        use std::time::SystemTime;
+        let now = SystemTime::now();
+        42_i32
+    }
+    print($"Result: {timestamp}")
+}

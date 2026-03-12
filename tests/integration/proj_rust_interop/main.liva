@@ -1,0 +1,111 @@
+// ============================================
+// Integration Test: Rust Interop
+// Tests rust { } blocks + use rust declarations
+// ============================================
+
+// External crate with version
+use rust "chrono" version "0.4"
+
+// External crate with version + features
+use rust "uuid" version "1.0" features ["v4", "serde"]
+
+// External crate with alias
+use rust "serde_json" as json
+
+// Internal crate feature merging (tokio already added by async)
+use rust "tokio" features ["net", "io-util"]
+
+// ---- Basic rust block ----
+computeValue(): number {
+    let result = rust {
+        let x: i32 = 42;
+        x * 2
+    }
+    return result
+}
+
+// ---- Rust block with use hoisting ----
+hashMapSize(): number {
+    let size = rust {
+        use std::collections::HashMap;
+        let mut map = HashMap::new();
+        map.insert("key", "value");
+        map.insert("other", "data");
+        map.len()
+    }
+    return size
+}
+
+// ---- Rust block with nested braces (closures) ----
+sumDoubled(): number {
+    let val = rust {
+        let v: Vec<i32> = vec![1, 2, 3, 4, 5];
+        let sum: i32 = v.iter().map(|x| { x * 2 }).sum();
+        sum
+    }
+    return val
+}
+
+// ---- Multiple rust blocks in one function ----
+multipleBlocks(): number {
+    let a = rust {
+        let x: i32 = 10;
+        x + 5
+    }
+    let b = rust {
+        let y: i32 = 20;
+        y + 5
+    }
+    return a + b
+}
+
+// ---- Rust block with string literals containing braces ----
+stringWithBraces(): string {
+    let s = rust {
+        let msg = "Hello {world} with {{ braces }}";
+        msg.to_string()
+    }
+    return s
+}
+
+// ---- Rust block with comments ----
+withComments(): number {
+    let val = rust {
+        // This is a line comment with { braces }
+        let x: i32 = 100;
+        /* This is a block comment
+           with { nested } braces
+           spanning multiple lines */
+        x + 1
+    }
+    return val
+}
+
+// ---- Rust block combined with Liva code ----
+main() {
+    // Regular Liva code
+    let name = "Liva"
+    print($"Hello from {name}!")
+
+    // Use rust block result
+    let computed = computeValue()
+    print($"Computed: {computed}")
+
+    let size = hashMapSize()
+    print($"HashMap size: {size}")
+
+    let sum = sumDoubled()
+    print($"Sum doubled: {sum}")
+
+    let multi = multipleBlocks()
+    print($"Multiple blocks: {multi}")
+
+    // Inline rust block in main
+    let inline = rust {
+        let data: Vec<i32> = vec![10, 20, 30];
+        data.iter().sum::<i32>()
+    }
+    print($"Inline result: {inline}")
+
+    print("All interop tests passed!")
+}

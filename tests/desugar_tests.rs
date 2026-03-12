@@ -43,3 +43,8 @@ fn test_string_templates() {
 fn test_rust_crates() {
     test_desugar_ok("rust_crates");
 }
+
+#[test]
+fn test_rust_interop() {
+    test_desugar_ok("rust_interop");
+}

@@ -1,0 +1,22 @@
+// Test: Rust blocks in non-main functions
+compute(): number {
+    let val = rust {
+        let data: Vec<i32> = vec![10, 20, 30];
+        data.iter().sum::<i32>()
+    }
+    return val
+}
+
+transform(x: number): number {
+    let result = rust {
+        let base: i32 = 100;
+        base
+    }
+    return result + x
+}
+
+main() {
+    let a = compute()
+    let b = transform(5)
+    print($"compute={a}, transform={b}")
+}

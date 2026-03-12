@@ -3668,3 +3668,314 @@ main() {
     let rust_code = compile_and_generate(source);
     assert_snapshot!("v14_array_count", rust_code);
 }
+
+// =========================================================================
+// v1.5 — rust {} interop tests
+// =========================================================================
+
+fn compile_and_generate_full(source: &str) -> (String, String) {
+    let tokens = tokenize(source).unwrap();
+    let program = parse(tokens, source).unwrap();
+    let analyzed_program = analyze(program).unwrap();
+    let ctx = livac::desugaring::desugar(analyzed_program.clone()).unwrap();
+    generate_with_ast(&analyzed_program, ctx).unwrap()
+}
+
+#[test]
+fn test_v15_rust_block_basic() {
+    let source = r#"
+main() {
+    let result = rust {
+        let x: i32 = 42;
+        x * 2
+    }
+    print(result)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_rust_block_basic", rust_code);
+}
+
+#[test]
+fn test_v15_rust_block_with_use_hoisting() {
+    let source = r#"
+main() {
+    let hash = rust {
+        use std::collections::HashMap;
+        let mut map = HashMap::new();
+        map.insert("key", "value");
+        map.len()
+    }
+    print(hash)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_rust_block_use_hoisting", rust_code);
+}
+
+#[test]
+fn test_v15_rust_block_nested_braces() {
+    let source = r#"
+main() {
+    let val = rust {
+        let v: Vec<i32> = vec![1, 2, 3];
+        let sum: i32 = v.iter().map(|x| { x * 2 }).sum();
+        sum
+    }
+    print(val)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_rust_block_nested_braces", rust_code);
+}
+
+#[test]
+fn test_v15_use_rust_version_features_cargo() {
+    let source = r#"
+use rust "chrono" version "0.4"
+use rust "uuid" version "1.0" features ["v4", "serde"]
+
+main() {
+    print("with deps")
+}
+"#;
+    let (rust_code, cargo_toml) = compile_and_generate_full(source);
+    assert_snapshot!("v15_use_rust_version_features_rs", rust_code);
+    assert_snapshot!("v15_use_rust_version_features_cargo", cargo_toml);
+}
+
+#[test]
+fn test_v15_use_rust_internal_features() {
+    let source = r#"
+use rust "tokio" features ["net", "io-util"]
+
+main() {
+    print("tokio with extra features")
+}
+"#;
+    let (_rust_code, cargo_toml) = compile_and_generate_full(source);
+    assert_snapshot!("v15_use_rust_internal_features_cargo", cargo_toml);
+}
+
+// ==========================================
+// v1.5 Comprehensive Rust Interop Tests
+// ==========================================
+
+#[test]
+fn test_v15_rust_block_strings_with_braces() {
+    let source = r#"
+main() {
+    let s = rust {
+        let a = "Hello {world}";
+        let b = "Nested {{ double }} braces";
+        let c = "Escaped \"quotes\" inside";
+        let d = "Mix {of} \"everything\" {{here}}";
+        format!("{} {} {} {}", a, b, c, d)
+    }
+    print(s)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_rust_block_strings_with_braces", rust_code);
+}
+
+#[test]
+fn test_v15_rust_block_comments_with_braces() {
+    let source = r#"
+main() {
+    let a = rust {
+        // Comment with { braces } that should be ignored
+        let x: i32 = 42;
+        x
+    }
+    let b = rust {
+        /* Block comment with { braces }
+           and more { nested { stuff } }
+           across lines */
+        let y: i32 = 100;
+        y
+    }
+    print(a + b)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_rust_block_comments_with_braces", rust_code);
+}
+
+#[test]
+fn test_v15_rust_block_char_literals() {
+    let source = r#"
+main() {
+    let val = rust {
+        let ch: char = 'x';
+        let brace_char: char = '{';
+        let close_brace: char = '}';
+        let count = if ch == 'x' { 1_i32 } else { 0_i32 };
+        count
+    }
+    print(val)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_rust_block_char_literals", rust_code);
+}
+
+#[test]
+fn test_v15_rust_block_multiple_blocks() {
+    let source = r#"
+main() {
+    let a = rust {
+        use std::collections::HashMap;
+        let mut m = HashMap::new();
+        m.insert("x", 1);
+        m.len()
+    }
+    let b = rust {
+        use std::collections::HashMap;
+        use std::collections::HashSet;
+        let mut m = HashMap::new();
+        m.insert("y", 2);
+        let mut s = HashSet::new();
+        s.insert(42);
+        m.len() + s.len()
+    }
+    let c = rust {
+        let plain: i32 = 99;
+        plain
+    }
+    print(a + b + c)
+}
+"#;
+    let (rust_code, _) = compile_and_generate_full(source);
+    // Verify use dedup: HashMap should appear only once in hoisted uses
+    let hashmap_count = rust_code.matches("use std::collections::HashMap;").count();
+    assert_eq!(hashmap_count, 1, "HashMap use should be deduplicated; found {} occurrences", hashmap_count);
+    assert_snapshot!("v15_rust_block_multiple_blocks", rust_code);
+}
+
+#[test]
+fn test_v15_rust_block_in_non_main_function() {
+    let source = r#"
+compute(): number {
+    let val = rust {
+        let data: Vec<i32> = vec![10, 20, 30];
+        data.iter().sum::<i32>()
+    }
+    return val
+}
+
+main() {
+    let result = compute()
+    print(result)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_rust_block_in_non_main", rust_code);
+}
+
+#[test]
+fn test_v15_rust_block_as_statement() {
+    let source = r#"
+main() {
+    let x = 10
+    rust {
+        println!("Direct rust statement");
+    }
+    print(x)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_rust_block_as_statement", rust_code);
+}
+
+#[test]
+fn test_v15_rust_block_deeply_nested() {
+    let source = r#"
+main() {
+    let val = rust {
+        let v: Vec<i32> = vec![1, 2, 3, 4, 5];
+        let result: i32 = v.iter()
+            .filter(|x| { **x > 2 })
+            .map(|x| {
+                let doubled = x * 2;
+                if doubled > 8 {
+                    doubled + 1
+                } else {
+                    doubled
+                }
+            })
+            .sum();
+        result
+    }
+    print(val)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_rust_block_deeply_nested", rust_code);
+}
+
+#[test]
+fn test_v15_rust_block_with_crate_decls() {
+    let source = r#"
+use rust "serde" version "1.0"
+use rust "chrono" version "0.4"
+
+main() {
+    let val = rust {
+        use std::time::SystemTime;
+        let now = SystemTime::now();
+        42_i32
+    }
+    print(val)
+}
+"#;
+    let (rust_code, cargo_toml) = compile_and_generate_full(source);
+    assert_snapshot!("v15_rust_block_with_crate_decls_rs", rust_code);
+    assert_snapshot!("v15_rust_block_with_crate_decls_cargo", cargo_toml);
+}
+
+#[test]
+fn test_v15_rust_block_mixed_with_liva() {
+    let source = r#"
+square(x: number): number = x * x
+
+main() {
+    let liva_val = square(5)
+    let rust_val = rust {
+        let x: i32 = 25;
+        x + 1
+    }
+    print($"Liva: {liva_val}, Rust: {rust_val}")
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_rust_block_mixed_with_liva", rust_code);
+}
+
+#[test]
+fn test_v15_use_rust_combined_features() {
+    let source = r#"
+use rust "tokio" version "1" features ["rt-multi-thread", "macros"]
+use rust "tokio" features ["net", "io-util"]
+
+main() {
+    print("combined features")
+}
+"#;
+    let (_, cargo_toml) = compile_and_generate_full(source);
+    assert_snapshot!("v15_use_rust_combined_features_cargo", cargo_toml);
+}
+
+#[test]
+fn test_v15_use_rust_with_alias() {
+    let source = r#"
+use rust "serde_json" as json
+use rust "chrono" version "0.4"
+
+main() {
+    print("aliased crate")
+}
+"#;
+    let (_, cargo_toml) = compile_and_generate_full(source);
+    assert_snapshot!("v15_use_rust_with_alias_cargo", cargo_toml);
+}

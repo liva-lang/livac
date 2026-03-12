@@ -7,5 +7,6 @@ expression: json
   "has_async": false,
   "has_parallel": false,
   "has_random": false,
+  "has_rust_blocks": false,
   "async_functions": []
 }

@@ -1,0 +1,6 @@
+// Error: cannot override internal crate version
+use rust "tokio" version "2.0"
+
+main() {
+    print("should fail")
+}

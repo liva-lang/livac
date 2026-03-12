@@ -4,14 +4,17 @@ expression: json
 ---
 {
   "rust_crates": [
-    [
-      "tokio",
-      null
-    ]
+    {
+      "name": "tokio",
+      "alias": null,
+      "version": null,
+      "features": []
+    }
   ],
   "has_async": true,
   "has_parallel": false,
   "has_random": false,
+  "has_rust_blocks": false,
   "async_functions": [
     "fetch",
     "main"

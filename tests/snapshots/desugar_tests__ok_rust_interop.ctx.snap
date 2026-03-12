@@ -5,20 +5,23 @@ expression: json
 {
   "rust_crates": [
     {
-      "name": "serde",
+      "name": "chrono",
       "alias": null,
-      "version": null,
+      "version": "0.4",
       "features": []
     },
     {
-      "name": "tokio",
+      "name": "uuid",
       "alias": null,
-      "version": null,
-      "features": []
+      "version": "1.0",
+      "features": [
+        "v4",
+        "serde"
+      ]
     },
     {
-      "name": "reqwest",
-      "alias": null,
+      "name": "my_lib",
+      "alias": "mylib",
       "version": null,
       "features": []
     }

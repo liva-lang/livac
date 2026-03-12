@@ -1,0 +1,10 @@
+// Test: Rust block as a statement (not bound to variable)
+main() {
+    let x = 10
+
+    rust {
+        println!("Direct rust statement");
+    }
+
+    print($"After rust block: {x}")
+}

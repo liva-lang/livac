@@ -164,6 +164,11 @@ fn test_comprehensive_integration() {
 }
 
 #[test]
+fn test_rust_interop_integration() {
+    test_integration_project("proj_rust_interop");
+}
+
+#[test]
 fn test_compile_check_only() {
     let project_path = PathBuf::from("tests/integration/proj_hello");
     let main_liva = project_path.join("main.liva");

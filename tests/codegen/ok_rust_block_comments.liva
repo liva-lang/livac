@@ -1,0 +1,24 @@
+// Test: Rust block with line and block comments containing braces
+main() {
+    let a = rust {
+        // Comment with { braces } that should be ignored
+        // Another comment with } just a closing brace
+        let x: i32 = 42;
+        x
+    }
+
+    let b = rust {
+        /* Block comment with { braces }
+           and more { nested { stuff } }
+           across lines */
+        let y: i32 = 100;
+        y
+    }
+
+    let c = rust {
+        let z: i32 = 5; // inline comment with { brace
+        /* inline block */ z + 1
+    }
+
+    print(a + b + c)
+}
