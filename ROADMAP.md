@@ -2152,8 +2152,8 @@ New `src/formatter.rs` module (~1500 lines) providing:
 
 ### CLI Integration
 
-- `livac file.liva --fmt` — Format file in place
-- `livac file.liva --fmt-check` — Check formatting (exit code 1 if not formatted)
+- `livac fmt file.liva` — Format file in place
+- `livac fmt --check file.liva` — Check formatting (exit code 1 if not formatted)
 
 ### LSP Integration
 
@@ -2399,12 +2399,12 @@ ejecutar(Utils::log)
 
 ### 12.1 Test Runner (Compiler)
 
-**Goal:** `livac --test` discovers and runs `*.test.liva` files
+**Goal:** `livac test` discovers and runs `*.test.liva` files
 
 ```bash
-livac --test                          # Run all *.test.liva
-livac --test tests/math.test.liva     # Run specific file
-livac --test --filter "add"           # Filter by test name
+livac test                          # Run all *.test.liva
+livac test tests/math.test.liva     # Run specific file
+livac test --filter "add"           # Filter by test name
 ```
 
 **Output:**

@@ -659,7 +659,7 @@ let reply = async conn.receive()
 
 Implementación: `tokio-tungstenite` auto-inyectado.
 
-### Benchmarking (`livac --bench`)
+### Benchmarking (`livac bench`)
 
 Medir rendimiento, mostrar la ventaja sobre Python:
 
@@ -702,7 +702,7 @@ warning[W002]: Import 'math' is unused
 
 Implementación: análisis en `semantic.rs`, emitir warnings además de errores.
 
-### Doc generator (`livac --doc`)
+### Doc generator (`livac doc`)
 
 Generar documentación desde comentarios:
 
@@ -714,15 +714,15 @@ circleArea(radius: float): float => Math.PI * Math.pow(radius, 2.0)
 ```
 
 ```bash
-livac --doc src/          # Genera docs/api/ con HTML o markdown
+livac doc src/          # Genera docs/api/ con HTML o markdown
 ```
 
 Implementación: parsear `///` comments, generar markdown o HTML. Medio esfuerzo.
 
-### Test coverage (`livac --test --coverage`)
+### Test coverage (`livac test --coverage`)
 
 ```bash
-livac --test --coverage
+livac test --coverage
 # ────────────────────────────
 # File              Lines   Covered   %
 # src/math.liva     45      42        93.3%
@@ -778,7 +778,7 @@ Implementación: ALTO esfuerzo (DWARF debug info, DAP protocol para VS Code). Di
 Encontrar cuellos de botella:
 
 ```bash
-livac main.liva --profile --run
+livac run --profile main.liva
 # ────────────────────────────
 # Function          Calls    Total ms    Avg ms
 # processData       1        450.2       450.2
@@ -804,13 +804,13 @@ TIER 1 — Sin esto no hay producción real:
 TIER 2 — Diferenciadores competitivos:
 ──────────────────────────────────────────
 • livac repl       → REPL interactivo (killer feature vs Python)
-• livac --bench    → Benchmarking built-in
+• livac bench      → Benchmarking built-in
 • Linter/Warnings  → Detección de code smells
 
 TIER 3 — Ecosistema maduro:
 ──────────────────────────────────────────
-• livac --doc      → Generación de documentación
-• --test --coverage → Cobertura de tests
+• livac doc        → Generación de documentación
+• livac test --coverage → Cobertura de tests
 • WebSockets       → Comunicación en tiempo real
 • YAML/TOML        → Formatos de config estándar
 
@@ -852,4 +852,4 @@ TIER 4 — Largo plazo (alto esfuerzo):
 - [ ] ¿DB: solo SQLite para empezar, o soporte multi-driver desde el inicio?
 - [ ] ¿REPL: compila cada línea individualmente o mantiene un programa incremental?
 - [ ] ¿Logging: formato propio o compatible con estándares (JSON structured, OpenTelemetry)?
-- [ ] ¿Linter: integrado en `livac` o flag separado (`livac --lint`)?
+- [ ] ¿Linter: integrado en `livac` o flag separado (`livac lint`)?

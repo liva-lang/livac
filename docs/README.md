@@ -37,7 +37,7 @@ main() {
 ```
 
 ```bash
-livac weather.liva --run
+livac run weather.liva
 # Weather in London: 12°C, Partly cloudy
 ```
 

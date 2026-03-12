@@ -450,7 +450,7 @@ let doubled = rust {
 
 ### Formatter Preserves Block Content
 
-The Liva formatter (`livac --format`) does **not** reformat the interior of `rust { }` blocks. The content is emitted exactly as written. Use `rustfmt` conventions manually inside the block.
+The Liva formatter (`livac fmt`) does **not** reformat the interior of `rust { }` blocks. The content is emitted exactly as written. Use `rustfmt` conventions manually inside the block.
 
 ### Raw Strings Not Handled in Brace Balancing
 
@@ -468,7 +468,7 @@ let x = rust {
 
 ### No `rustc` Error Line Mapping
 
-When `rustc` reports errors from generated Rust code, line numbers refer to the **generated `.rs` file**, not the original `.liva` source. Check the generated output with `livac file.liva --verbose` to correlate errors.
+When `rustc` reports errors from generated Rust code, line numbers refer to the **generated `.rs` file**, not the original `.liva` source. Check the generated output with `livac build --verbose file.liva` to correlate errors.
 
 ### Expression Context Only
 

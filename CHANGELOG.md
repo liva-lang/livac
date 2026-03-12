@@ -733,7 +733,7 @@ Total tests: 264 (up from 220). Codegen snapshot tests: 72 (up from 28).
 ### Added - Phase 12: Test Framework 🧪
 
 **12.1 Test Runner** ✅
-- New `livac --test` CLI flag to discover and run test files
+- New `livac test` CLI flag to discover and run test files
 - Auto-discovery: finds `*.test.liva` files recursively
 - `--filter <name>` to run only tests matching a substring
 - Colorized output: PASS (green), FAIL (red), SKIP (yellow)
@@ -744,9 +744,9 @@ Total tests: 264 (up from 220). Codegen snapshot tests: 72 (up from 28).
 - Codegen fix: `throw` in `test` blocks generates `panic!()` instead of `return Err()`
 - Examples:
   ```bash
-  livac --test                          # Run all *.test.liva
-  livac --test tests/math.test.liva     # Run specific file
-  livac --test --filter "sum"           # Filter by test name
+  livac test                          # Run all *.test.liva
+  livac test tests/math.test.liva     # Run specific file
+  livac test --filter "sum"           # Filter by test name
   ```
 
 **12.2 Test Library (`liva/test`)** ✅
@@ -901,8 +901,8 @@ Total tests: 264 (up from 220). Codegen snapshot tests: 72 (up from 28).
 - 24 unit tests covering all patterns
 
 **CLI Integration**
-- `livac file.liva --fmt` - Format file in place
-- `livac file.liva --fmt-check` - Check if formatting needed (exit 1 if not)
+- `livac fmt file.liva` - Format file in place
+- `livac fmt --check file.liva` - Check if formatting needed (exit 1 if not)
 
 **LSP Integration**
 - `textDocument/formatting` handler

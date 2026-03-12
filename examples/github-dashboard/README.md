@@ -90,7 +90,7 @@ cd livac
 cargo build --release
 
 # Compile and run the dashboard
-./target/release/livac ../github-dashboard/src/main.liva --run
+./target/release/livac run ../github-dashboard/src/main.liva
 ```
 
 ## Commands

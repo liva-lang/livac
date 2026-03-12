@@ -63,15 +63,15 @@ cargo build --release
 cargo test
 
 # Compilar y ejecutar
-livac archivo.liva --run
+livac run archivo.liva
 
 # Verificar sintaxis / formatear / tests
-livac archivo.liva --check
-livac archivo.liva --fmt
-livac archivo.test.liva --test
+livac check archivo.liva
+livac fmt archivo.liva
+livac test archivo.test.liva
 
 # LSP
-livac --lsp
+livac lsp
 
 # Build skill (genera dist/skills/liva-lang/)
 make build-skill
@@ -172,7 +172,7 @@ v2.0  Dogfooding — API REST completa con DB                  ← validación
 2. **formatter.rs** maneja el formateo de código
 3. Tests en `tests/` → `cargo test`
 4. LSP se comunica por stdio con la extensión VS Code
-5. Archivos `.test.liva` → `livac --test` genera tests Rust nativos
+5. Archivos `.test.liva` → `livac test` genera tests Rust nativos
 6. Switch **statements** usan `case X:` (colon); switch **expressions** usan `X =>` (arrow)
 7. Function `=>` tiene implicit return; `if`/`for`/`while =>` NO (solo reemplaza `{}`)
 8. `data` keyword **removido** en v1.3.0 — data classes se auto-detectan

@@ -15,7 +15,7 @@ main() {
 Compile and run it:
 
 ```bash
-livac hello.liva --run
+livac run hello.liva
 ```
 
 **Output:**
@@ -343,26 +343,26 @@ main() {
 
 ```bash
 # Just compile
-livac program.liva
+livac build program.liva
 
 # Compile and run
-livac program.liva --run
+livac run program.liva
 
 # Check syntax only
-livac program.liva --check
+livac check program.liva
 
 # Show generated Rust code
-livac program.liva --verbose
+livac build --verbose program.liva
 ```
 
 ### Advanced Options
 
 ```bash
 # Custom output directory
-livac program.liva --output ./build
+livac build --output ./build program.liva
 
 # JSON error output (for IDEs)
-livac program.liva --check --json
+livac check --json program.liva
 
 # Help
 livac --help
@@ -456,7 +456,7 @@ main() {
 
 **Compile multi-file project:**
 ```bash
-livac main.liva --output my_project
+livac build --output my_project main.liva
 cd my_project
 cargo run
 ```

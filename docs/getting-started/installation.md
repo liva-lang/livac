@@ -84,7 +84,7 @@ main() {
 4. **Compile and run:**
 
 ```bash
-livac main.liva --run
+livac run main.liva
 ```
 
 ## IDE Support
@@ -121,7 +121,7 @@ Emacs mode is available in `editors/emacs/`.
 
 - `LIVAC_SKIP_CARGO` - Skip Cargo build step (useful for testing code generation)
 - `LIVAC_OUTPUT` - Default output directory (overrides `--output`)
-- `RUST_LOG` - Enable debug logging (`RUST_LOG=debug livac file.liva`)
+- `RUST_LOG` - Enable debug logging (`RUST_LOG=debug livac build file.liva`)
 
 ## Troubleshooting
 

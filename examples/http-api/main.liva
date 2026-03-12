@@ -1,5 +1,5 @@
 // HTTP API Client - Consumir APIs REST
-// Ejecutar: livac http-api/main.liva --run
+// Ejecutar: livac run http-api/main.liva
 
 class User {
     id: Int

@@ -91,9 +91,9 @@ if command -v livac &> /dev/null; then
     echo "  livac <input.liva> [OPTIONS]"
     echo ""
     echo "Examples:"
-    echo "  livac hello.liva --run"
-    echo "  livac my_app.liva --verbose"
-    echo "  livac program.liva --check"
+    echo "  livac run hello.liva"
+    echo "  livac build --verbose my_app.liva"
+    echo "  livac check program.liva"
     echo ""
     echo "For more information, run: livac --help"
 else

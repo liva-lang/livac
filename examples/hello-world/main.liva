@@ -1,5 +1,5 @@
 // Hello World - Tu primer programa en Liva
-// Ejecutar: livac hello-world/main.liva --run
+// Ejecutar: livac run hello-world/main.liva
 
 fn main() {
     print("¡Hola, Liva!")

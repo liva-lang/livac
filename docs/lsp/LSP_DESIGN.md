@@ -25,7 +25,7 @@
                       │
                       ▼
 ┌─────────────────────────────────────────────────────────┐
-│           Liva Language Server (livac --lsp)            │
+│           Liva Language Server (livac lsp)             │
 │  ┌─────────────────────────────────────────────────┐   │
 │  │  LSP Protocol Handler (tower-lsp)               │   │
 │  │  - Initialize                                   │   │

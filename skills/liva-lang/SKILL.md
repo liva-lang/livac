@@ -15,13 +15,14 @@ Liva compiles to Rust. It has Python/TypeScript-like syntax with Rust performanc
 ## CLI
 
 ```bash
-livac file.liva --run            # Compile and run
-livac file.liva --release --run  # Release mode
-livac file.liva --check          # Syntax check only
-livac file.liva --fmt            # Format in place
-livac --test                     # Run *.test.liva files
-livac --test --filter "name"     # Filter tests
-livac file.liva --verbose        # Show generated Rust
+livac build file.liva             # Compile to native binary
+livac run file.liva               # Compile and run
+livac run --release file.liva     # Release mode
+livac check file.liva             # Syntax check only
+livac fmt file.liva               # Format in place
+livac test                        # Run *.test.liva files
+livac test --filter "name"        # Filter tests
+livac build --verbose file.liva   # Show generated Rust
 ```
 
 ## Variables & Types
@@ -356,7 +357,7 @@ describe("Math", () => {
 // Matchers: toBe, toEqual, toBeTruthy, toBeFalsy, toBeGreaterThan, toBeLessThan,
 //           toContain, toBeNull, toThrow, .not.*
 // Hooks: beforeAll, afterAll, beforeEach, afterEach
-// Run: livac --test / livac --test --filter "name"
+// Run: livac test / livac test --filter "name"
 ```
 
 ## Critical Rules

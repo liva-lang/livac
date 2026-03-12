@@ -35,21 +35,21 @@
 ## CLI Commands
 
 ```bash
-livac file.liva               # Compile to Rust project (debug mode)
-livac file.liva --run         # Compile and run
-livac file.liva --release     # Compile with optimizations (release mode)
-livac file.liva --release --run  # Compile optimized and run
-livac file.liva --check       # Syntax check only
-livac file.liva --fmt         # Format file in place (v1.0.2+)
-livac file.liva --fmt-check   # Check if file needs formatting
-livac --test                  # Run all *.test.liva files (v1.2.0+)
-livac --test file.test.liva   # Run specific test file
-livac --test --filter "name"  # Filter tests by name
-livac file.liva --verbose     # Show generated Rust code
-livac file.liva --output dir  # Set output directory
-livac file.liva --json        # Output errors as JSON (IDE integration)
-livac --help                  # Show help
-livac --version               # Show version
+livac build file.liva          # Compile to Rust project (debug mode)
+livac run file.liva            # Compile and run
+livac build --release file.liva  # Compile with optimizations (release mode)
+livac run --release file.liva  # Compile optimized and run
+livac check file.liva          # Syntax check only
+livac fmt file.liva            # Format file in place (v1.0.2+)
+livac fmt --check file.liva    # Check if file needs formatting
+livac test                     # Run all *.test.liva files (v1.2.0+)
+livac test file.test.liva      # Run specific test file
+livac test --filter "name"     # Filter tests by name
+livac build --verbose file.liva  # Show generated Rust code
+livac build --output dir file.liva  # Set output directory
+livac build --json file.liva   # Output errors as JSON (IDE integration)
+livac --help                   # Show help
+livac --version                # Show version
 ```
 
 ---
@@ -1273,10 +1273,10 @@ describe("Suite", () => {
 ### Running Tests
 
 ```bash
-livac --test                          # Run all *.test.liva files
-livac --test file.test.liva           # Run specific test file
-livac --test --filter "math"          # Filter tests by name
-livac --test --verbose                # Show individual test results
+livac test                            # Run all *.test.liva files
+livac test file.test.liva             # Run specific test file
+livac test --filter "math"            # Filter tests by name
+livac test --verbose                  # Show individual test results
 ```
 
 ---

@@ -49,7 +49,7 @@ Each log line includes:
 | 2 | `Log.warn()` | Warning conditions | Always |
 | 3 | `Log.error()` | Error conditions | Always |
 
-Default level is `info` (1). `Log.debug()` messages are only visible when running with `livac --run --verbose` or when `LIVA_VERBOSE=1` environment variable is set.
+Default level is `info` (1). `Log.debug()` messages are only visible when running with `livac run --verbose` or when `LIVA_VERBOSE=1` environment variable is set.
 
 ---
 
@@ -233,7 +233,7 @@ main() {
 
 `Log.debug()` is only visible when:
 1. `Log.setLevel("debug")` has been called, **or**
-2. The program is run with `livac --run --verbose`, which sets `LIVA_VERBOSE=1`
+2. The program is run with `livac run --verbose`, which sets `LIVA_VERBOSE=1`
 
 This allows adding debug logging that is silent in production:
 
@@ -245,8 +245,8 @@ main() {
 ```
 
 ```bash
-livac app.liva --run              # Only shows INFO and above
-livac app.liva --run --verbose    # Also shows DEBUG messages
+livac run app.liva                # Only shows INFO and above
+livac run --verbose app.liva      # Also shows DEBUG messages
 ```
 
 ---

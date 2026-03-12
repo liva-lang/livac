@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use colored::*;
 use std::path::PathBuf;
 use std::process::Command;
@@ -12,137 +12,217 @@ const GITHUB_REPO: &str = "liva-lang/livac";
 #[command(version = env!("CARGO_PKG_VERSION"))]
 #[command(about = "Liva → Rust compiler", long_about = None)]
 struct Cli {
-    /// Input Liva file
-    input: Option<PathBuf>,
+    #[command(subcommand)]
+    command: Commands,
+}
 
-    /// Output directory (default: ./target/liva_build)
-    #[arg(short, long)]
-    output: Option<PathBuf>,
+#[derive(Subcommand)]
+enum Commands {
+    /// Compile a Liva file to a native binary
+    Build {
+        /// Input Liva file
+        input: PathBuf,
 
-    /// Run after compilation
-    #[arg(short, long)]
-    run: bool,
+        /// Output directory (default: ./target/liva_build)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
 
-    /// Show generated Rust code
-    #[arg(short, long)]
-    verbose: bool,
+        /// Show generated Rust code
+        #[arg(short, long)]
+        verbose: bool,
 
-    /// Only check, don't compile
-    #[arg(short, long)]
-    check: bool,
+        /// Compile with optimizations (cargo build --release)
+        #[arg(long)]
+        release: bool,
 
-    /// Output errors in JSON format for IDE integration
-    #[arg(long)]
-    json: bool,
+        /// Output errors in JSON format for IDE integration
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Compile and run a Liva file
+    Run {
+        /// Input Liva file
+        input: PathBuf,
+
+        /// Output directory (default: ./target/liva_build)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Show generated Rust code
+        #[arg(short, long)]
+        verbose: bool,
+
+        /// Compile with optimizations (cargo build --release)
+        #[arg(long)]
+        release: bool,
+
+        /// Output errors in JSON format for IDE integration
+        #[arg(long)]
+        json: bool,
+
+        /// Arguments to pass to the compiled program (after --)
+        #[arg(last = true)]
+        program_args: Vec<String>,
+    },
+
+    /// Check a Liva file for errors without compiling
+    Check {
+        /// Input Liva file
+        input: PathBuf,
+
+        /// Output errors in JSON format for IDE integration
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Format Liva source files
+    Fmt {
+        /// Input Liva file
+        input: PathBuf,
+
+        /// Check formatting without modifying (exit 1 if not formatted)
+        #[arg(long)]
+        check: bool,
+
+        /// Show diff details
+        #[arg(short, long)]
+        verbose: bool,
+
+        /// Output errors in JSON format for IDE integration
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Run tests (discover and execute *.test.liva files)
+    Test {
+        /// Specific test file (default: discover *.test.liva recursively)
+        input: Option<PathBuf>,
+
+        /// Filter tests by name (substring match)
+        #[arg(long)]
+        filter: Option<String>,
+
+        /// Show detailed output
+        #[arg(short, long)]
+        verbose: bool,
+    },
 
     /// Start Language Server Protocol mode
-    #[arg(long)]
-    lsp: bool,
-
-    /// Format source file(s) in place
-    #[arg(long)]
-    fmt: bool,
-
-    /// Check if files are formatted (exit 1 if not)
-    #[arg(long)]
-    fmt_check: bool,
-
-    /// Run tests: discover and execute *.test.liva files
-    #[arg(long)]
-    test: bool,
-
-    /// Filter tests by name (substring match)
-    #[arg(long)]
-    filter: Option<String>,
+    Lsp,
 
     /// Update livac to the latest version
-    #[arg(long)]
-    update: bool,
+    Update,
+}
 
-    /// Compile with optimizations (cargo build --release)
-    #[arg(long)]
+/// Internal struct passed to compile() with resolved options
+struct CompileArgs {
+    output: Option<PathBuf>,
+    run: bool,
+    verbose: bool,
+    check: bool,
+    json: bool,
     release: bool,
-
-    /// Arguments to pass to the compiled program (after --)
-    #[arg(last = true)]
     program_args: Vec<String>,
+}
+
+fn handle_compile_error(json: bool, e: CompilerError) -> ! {
+    if json {
+        if let Some(json_str) = e.to_json() {
+            println!("{}", json_str);
+            std::process::exit(1);
+        }
+        eprintln!(r#"{{"error": "{}"}}"#, e);
+    } else {
+        eprintln!("{} {}", "Error:".red().bold(), e);
+    }
+    std::process::exit(1);
 }
 
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
 
-    // Self-update mode
-    if cli.update {
-        if let Err(e) = self_update().await {
-            eprintln!("{} {}", "Error:".red().bold(), e);
-            std::process::exit(1);
-        }
-        return;
-    }
-
-    // LSP mode
-    if cli.lsp {
-        if let Err(e) = run_lsp_server().await {
-            eprintln!("LSP server error: {}", e);
-            std::process::exit(1);
-        }
-        return;
-    }
-
-    // Format mode
-    if cli.fmt || cli.fmt_check {
-        let input = cli
-            .input
-            .as_ref()
-            .expect("input file required for formatting");
-        if let Err(e) = run_format(&cli, input) {
-            if cli.json {
-                eprintln!(r#"{{"error": "{}"}}"#, e);
-            } else {
+    match cli.command {
+        Commands::Update => {
+            if let Err(e) = self_update().await {
                 eprintln!("{} {}", "Error:".red().bold(), e);
-            }
-            std::process::exit(1);
-        }
-        return;
-    }
-
-    // Test mode
-    if cli.test {
-        let exit_code = run_tests(&cli);
-        std::process::exit(exit_code);
-    }
-
-    // Regular compilation mode
-    let input = cli
-        .input
-        .as_ref()
-        .expect("input file required for compilation");
-
-    if let Err(e) = compile(&cli, input) {
-        // Output errors in JSON format if requested
-        if cli.json {
-            if let Some(json) = e.to_json() {
-                println!("{}", json);
                 std::process::exit(1);
             }
-            // For non-structured errors, output simple JSON
-            eprintln!(r#"{{"error": "{}"}}"#, e);
-        } else {
-            eprintln!("{} {}", "Error:".red().bold(), e);
         }
-        std::process::exit(1);
+        Commands::Lsp => {
+            if let Err(e) = run_lsp_server().await {
+                eprintln!("LSP server error: {}", e);
+                std::process::exit(1);
+            }
+        }
+        Commands::Fmt { input, check, verbose, json } => {
+            if let Err(e) = run_format(&input, check, verbose) {
+                if json {
+                    eprintln!(r#"{{"error": "{}"}}"#, e);
+                } else {
+                    eprintln!("{} {}", "Error:".red().bold(), e);
+                }
+                std::process::exit(1);
+            }
+        }
+        Commands::Test { input, filter, verbose } => {
+            let exit_code = run_tests(input.as_ref(), filter.as_deref(), verbose);
+            std::process::exit(exit_code);
+        }
+        Commands::Check { input, json } => {
+            let args = CompileArgs {
+                output: None,
+                run: false,
+                verbose: false,
+                check: true,
+                json,
+                release: false,
+                program_args: vec![],
+            };
+            if let Err(e) = compile(&args, &input) {
+                handle_compile_error(args.json, e);
+            }
+        }
+        Commands::Build { input, output, verbose, release, json } => {
+            let args = CompileArgs {
+                output,
+                run: false,
+                verbose,
+                check: false,
+                json,
+                release,
+                program_args: vec![],
+            };
+            if let Err(e) = compile(&args, &input) {
+                handle_compile_error(args.json, e);
+            }
+        }
+        Commands::Run { input, output, verbose, release, json, program_args } => {
+            let args = CompileArgs {
+                output,
+                run: true,
+                verbose,
+                check: false,
+                json,
+                release,
+                program_args,
+            };
+            if let Err(e) = compile(&args, &input) {
+                handle_compile_error(args.json, e);
+            }
+        }
     }
 }
 
-fn run_format(cli: &Cli, input: &PathBuf) -> Result<(), CompilerError> {
+fn run_format(input: &PathBuf, check_only: bool, verbose: bool) -> Result<(), CompilerError> {
     use livac::formatter::{check_format, format_source, FormatOptions};
 
     let options = FormatOptions::default();
     let source = std::fs::read_to_string(input)
         .map_err(|e| CompilerError::IoError(format!("Failed to read file: {}", e)))?;
 
-    if cli.fmt_check {
+    if check_only {
         // Check mode: report whether file is formatted
         let is_formatted = check_format(&source, &options)?;
         if is_formatted {
@@ -152,7 +232,7 @@ fn run_format(cli: &Cli, input: &PathBuf) -> Result<(), CompilerError> {
             println!("{} {} (needs formatting)", "✗".red(), input.display());
 
             // Show a simple diff
-            if cli.verbose {
+            if verbose {
                 println!();
                 for diff in simple_diff(&source, &formatted) {
                     println!("{}", diff);
@@ -467,7 +547,7 @@ fn dirs_or_home() -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from("."))
 }
 
-fn run_tests(cli: &Cli) -> i32 {
+fn run_tests(input: Option<&PathBuf>, filter: Option<&str>, verbose: bool) -> i32 {
     use std::time::Instant;
     use walkdir::WalkDir;
 
@@ -487,7 +567,7 @@ fn run_tests(cli: &Cli) -> i32 {
     let total_start = Instant::now();
 
     // Discover test files
-    let test_files: Vec<PathBuf> = if let Some(input) = &cli.input {
+    let test_files: Vec<PathBuf> = if let Some(input) = input {
         // Specific file given
         if !input.exists() {
             eprintln!(
@@ -671,7 +751,7 @@ fn run_tests(cli: &Cli) -> i32 {
             .current_dir(&build_dir);
 
         // Add filter if specified
-        if let Some(filter) = &cli.filter {
+        if let Some(filter) = filter {
             cmd.arg("--").arg(filter);
         }
 
@@ -709,7 +789,7 @@ fn run_tests(cli: &Cli) -> i32 {
             );
 
             // Show individual test results if verbose
-            if cli.verbose {
+            if verbose {
                 for line in stdout.lines() {
                     if line.contains("test test_") {
                         let display_line =
@@ -878,30 +958,30 @@ fn check_cargo_available() -> Result<(), CompilerError> {
     }
 }
 
-fn compile(cli: &Cli, input: &PathBuf) -> Result<(), CompilerError> {
+fn compile(args: &CompileArgs, input: &PathBuf) -> Result<(), CompilerError> {
     let skip_cargo = std::env::var("LIVAC_SKIP_CARGO").is_ok();
 
     // Check Rust toolchain early (unless we're skipping cargo or just checking)
-    if !skip_cargo && !cli.check {
+    if !skip_cargo && !args.check {
         check_cargo_available()?;
     }
 
-    if !cli.json {
+    if !args.json {
         println!("{}", format!("🧩 Liva Compiler v{}", env!("CARGO_PKG_VERSION")).cyan().bold());
         println!("{} {}", "→ Compiling".green(), input.display());
     }
 
     let options = CompilerOptions {
         input: input.clone(),
-        output: cli.output.clone(),
+        output: args.output.clone(),
         verbose: false,
-        check_only: cli.check,
+        check_only: args.check,
     };
 
     let result = livac::compile_file(&options)?;
 
-    if cli.check {
-        if !cli.json {
+    if args.check {
+        if !args.json {
             println!("{}", "✓ Check passed".green().bold());
         }
         return Ok(());
@@ -923,10 +1003,10 @@ fn compile(cli: &Cli, input: &PathBuf) -> Result<(), CompilerError> {
     })?;
 
     // Determine output directory
-    let output_dir = if let Some(output) = &cli.output {
+    let output_dir = if let Some(output) = &args.output {
         // User specified --output, use that
         output.clone()
-    } else if cli.run && result.has_imports {
+    } else if args.run && result.has_imports {
         // --run with imports: use .liva_build/ next to source file
         let input_dir = input.parent().unwrap_or_else(|| std::path::Path::new("."));
         input_dir.join(".liva_build")
@@ -960,7 +1040,7 @@ fn compile(cli: &Cli, input: &PathBuf) -> Result<(), CompilerError> {
     std::fs::write(output_dir.join("Cargo.toml"), &cargo_toml)
         .map_err(|e| CompilerError::IoError(e.to_string()))?;
 
-    if cli.verbose {
+    if args.verbose {
         println!("\n{}", "Generated Rust code:".yellow().bold());
         println!("{}", "=".repeat(60));
         println!("{}", main_rs);
@@ -976,12 +1056,12 @@ fn compile(cli: &Cli, input: &PathBuf) -> Result<(), CompilerError> {
             "→".blue()
         );
     } else {
-        println!("  {} Running cargo build{}...", "→".blue(), if cli.release { " --release" } else { "" });
+        println!("  {} Running cargo build{}...", "→".blue(), if args.release { " --release" } else { "" });
         let mut cargo_cmd = Command::new("cargo");
         cargo_cmd
             .arg("build")
             .arg("--color=always");
-        if cli.release {
+        if args.release {
             cargo_cmd.arg("--release");
         }
         let output = cargo_cmd
@@ -1021,7 +1101,7 @@ fn compile(cli: &Cli, input: &PathBuf) -> Result<(), CompilerError> {
     println!("{}", "✓ Compilation successful!".green().bold());
 
     // 9. Run if requested
-    if cli.run {
+    if args.run {
         if skip_cargo {
             println!(
                 "\n{}",
@@ -1035,18 +1115,18 @@ fn compile(cli: &Cli, input: &PathBuf) -> Result<(), CompilerError> {
 
             // Run the compiled binary from the user's working directory
             // (not from the build dir, so relative paths in the program work correctly)
-            let profile = if cli.release { "release" } else { "debug" };
+            let profile = if args.release { "release" } else { "debug" };
             let binary_path = output_dir.join("target").join(profile).join("liva_project");
 
             let mut cmd = Command::new(&binary_path);
 
             // Pass LIVA_VERBOSE env var when --verbose is set (enables Log.debug output)
-            if cli.verbose {
+            if args.verbose {
                 cmd.env("LIVA_VERBOSE", "1");
             }
 
             // Pass through program arguments after --
-            for arg in &cli.program_args {
+            for arg in &args.program_args {
                 cmd.arg(arg);
             }
 
@@ -1105,25 +1185,18 @@ mod tests {
         "#,
         );
 
-        let cli = Cli {
-            input: Some(input.clone()),
+        let args = CompileArgs {
             output: None,
             run: false,
             verbose: false,
             check: true,
             json: false,
-            lsp: false,
-            fmt: false,
-            fmt_check: false,
-            test: false,
-            filter: None,
-            update: false,
             release: false,
             program_args: vec![],
         };
 
         let _guard = EnvVarGuard::set("LIVAC_SKIP_CARGO", "1");
-        let result = compile(&cli, &input);
+        let result = compile(&args, &input);
         assert!(result.is_ok());
     }
 
@@ -1140,25 +1213,18 @@ mod tests {
         );
         let output_dir = tempdir().unwrap();
 
-        let cli = Cli {
-            input: Some(input.clone()),
+        let args = CompileArgs {
             output: Some(output_dir.path().to_path_buf()),
             run: false,
             verbose: true,
             check: false,
             json: false,
-            lsp: false,
-            fmt: false,
-            fmt_check: false,
-            test: false,
-            filter: None,
-            update: false,
             release: false,
             program_args: vec![],
         };
 
         let _guard = EnvVarGuard::set("LIVAC_SKIP_CARGO", "1");
-        compile(&cli, &input).expect("compile should succeed");
+        compile(&args, &input).expect("compile should succeed");
 
         let src_main = output_dir.path().join("src/main.rs");
         let cargo_toml = output_dir.path().join("Cargo.toml");
@@ -1169,24 +1235,17 @@ mod tests {
     #[test]
     fn test_compile_missing_file_error() {
         let input = PathBuf::from("does_not_exist.liva");
-        let cli = Cli {
-            input: Some(input.clone()),
+        let args = CompileArgs {
             output: None,
             run: false,
             verbose: false,
             check: false,
             json: false,
-            lsp: false,
-            fmt: false,
-            fmt_check: false,
-            test: false,
-            filter: None,
-            update: false,
             release: false,
             program_args: vec![],
         };
 
-        let err = compile(&cli, &input).expect_err("expected IO error");
+        let err = compile(&args, &input).expect_err("expected IO error");
         match err {
             CompilerError::IoError(msg) => {
                 // "No such file" on Unix, "cannot find" on Windows

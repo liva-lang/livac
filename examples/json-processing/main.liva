@@ -1,5 +1,5 @@
 // JSON Processing - Trabajar con datos JSON
-// Ejecutar: livac json-processing/main.liva --run
+// Ejecutar: livac run json-processing/main.liva
 
 class Product {
     id: Int

@@ -282,11 +282,11 @@
 
 > **Priorizar según demanda de usuarios.**
 
-- [ ] `livac --doc` — generación de documentación desde `///` comments
-- [ ] `--test --coverage` — cobertura de tests
+- [ ] `livac doc` — generación de documentación desde `///` comments
+- [ ] `livac test --coverage` — cobertura de tests
 - [ ] WebSockets — módulo `WS` (tokio-tungstenite)
 - [ ] YAML/TOML parsing — módulos nuevos (crates serde_yaml/toml)
-- [ ] `livac --bench` — benchmarking built-in
+- [ ] `livac bench` — benchmarking built-in
 
 ---
 

@@ -1,7 +1,7 @@
 // Test: print() vs console.log() comparison
 // Purpose: Demonstrate the differences between simple print() and console.* functions
 // 
-// Run with: livac examples/manual-tests/test_print_vs_console.liva --run
+// Run with: livac run examples/manual-tests/test_print_vs_console.liva
 
 main() {
     print("==================================================")

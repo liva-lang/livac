@@ -1,5 +1,5 @@
 // Concurrency - Async y Parallel en Liva
-// Ejecutar: livac concurrency/main.liva --run
+// Ejecutar: livac run concurrency/main.liva
 
 fetchUser(id: number): string {
     return "User_" + id

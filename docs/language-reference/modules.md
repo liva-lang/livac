@@ -240,7 +240,7 @@ main() {
 
 **Compile and run:**
 ```bash
-livac main.liva --run
+livac run main.liva
 ```
 
 ## Validation and Error Handling
@@ -521,7 +521,7 @@ To use the module system today:
 
 3. **Try the examples:**
    ```bash
-   ./target/release/livac examples/modules/main.liva
+   ./target/release/livac build examples/modules/main.liva
    ```
 
 4. **Report issues:**

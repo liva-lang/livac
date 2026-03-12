@@ -272,7 +272,7 @@ jobs:
             ### Self-update (if already installed)
 
             ```bash
-            livac --update
+            livac update
             ```
 
             ### Package Managers

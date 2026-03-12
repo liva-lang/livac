@@ -6,11 +6,11 @@ Ejemplos demostrativos del lenguaje Liva. Cada carpeta es un proyecto independie
 
 ```bash
 # Desde la raíz del proyecto livac
-livac examples/hello-world/main.liva --run
-livac examples/calculator/calculator.liva --run
-livac examples/http-api/main.liva --run
-livac examples/json-processing/main.liva --run
-livac examples/concurrency/main.liva --run
+livac run examples/hello-world/main.liva
+livac run examples/calculator/calculator.liva
+livac run examples/http-api/main.liva
+livac run examples/json-processing/main.liva
+livac run examples/concurrency/main.liva
 ```
 
 ## 📁 Proyectos

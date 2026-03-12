@@ -113,7 +113,7 @@ main() => print("Hello, World!")
 Run it:
 
 ```bash
-livac hello.liva --run
+livac run hello.liva
 # Hello, World!
 ```
 
@@ -413,13 +413,13 @@ Liva was built through extensive **dogfooding** — 10+ real applications were b
 ## 📖 Commands
 
 ```bash
-livac file.liva           # Compile to Rust project (debug mode)
-livac file.liva --run     # Compile and execute
-livac file.liva --release # Compile with optimizations (release mode)
-livac file.liva --check   # Syntax check only (fast!)
-livac file.liva --verbose # Show generated Rust code
-livac --lsp               # Start language server
-livac --help              # Show all options
+livac build file.liva      # Compile to Rust project (debug mode)
+livac run file.liva        # Compile and execute
+livac build --release file.liva  # Compile with optimizations (release mode)
+livac check file.liva      # Syntax check only (fast!)
+livac build --verbose file.liva  # Show generated Rust code
+livac lsp                  # Start language server
+livac --help               # Show all options
 ```
 
 ---
@@ -501,5 +501,5 @@ MIT License — See [LICENSE](LICENSE) for details.
 <p align="center">
   <b>Made with ❤️ for developers who want Python's simplicity and Rust's performance.</b>
   <br><br>
-  <code>livac hello.liva --run</code>
+  <code>livac run hello.liva</code>
 </p>

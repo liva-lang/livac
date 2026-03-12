@@ -379,7 +379,7 @@ fn divide(a: i32, b: i32) -> i32 {
 
 **Compilation:**
 ```bash
-./livac examples/modules/test_import_syntax.liva --output /tmp/test_modules
+./livac build --output /tmp/test_modules examples/modules/test_import_syntax.liva
 ```
 
 **Output:**

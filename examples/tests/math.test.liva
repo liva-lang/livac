@@ -29,5 +29,5 @@ test "factorial of 5" {
 }
 
 main() {
-    print("Math tests should be run with: livac --test")
+    print("Math tests should be run with: livac test")
 }

@@ -709,7 +709,7 @@ fetchUser(id: number): User { ... }
 
 ### Indentation
 
-4 spaces. No tabs. (The `livac --fmt` formatter handles this.)
+4 spaces. No tabs. (The `livac fmt` formatter handles this.)
 
 ### Line length
 
@@ -879,4 +879,4 @@ Mapping values from enum/string?
 
 ---
 
-*This guide reflects Liva v1.3.0. Run `livac --fmt` to auto-format your code.*
+*This guide reflects Liva v1.3.0. Run `livac fmt` to auto-format your code.*
