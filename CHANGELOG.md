@@ -97,6 +97,19 @@ let ln = Math.log(2.718)             // ~1.0
 
 **Test coverage:** 341 tests (149 codegen snapshots), 0 failures, 19 new v1.4 snapshot tests + 1 integration test
 
+### Fixed - Codegen bugfixes for stdlib methods 🐛
+
+**6 codegen bugs fixed — all stdlib methods are now fully testable with `expect().toBe()` assertions.**
+
+- **Option unwrapping:** `find()`, `first()`, `last()`, `min()`, `max()` returned `Option<T>` in generated Rust but Liva expects `T` — added automatic `.unwrap()` in normal context
+- **`or fail` for Option methods:** `arr.first() or fail "empty"` was silently ignored — now generates `match Some/None` with `panic!` on `None`
+- **`or value` for Option methods:** `arr.first() or 0` was silently ignored — now generates `.unwrap_or(default)`
+- **`findIndex` closure type mismatch:** Lambda parameter `x` was `&T` from `.iter()` but comparison `x > 25` failed for non-Copy types — added `ref_lambda_params` tracking + extended deref to all comparison operators (`<`, `>`, `<=`, `>=`, not just `==`/`!=`)
+- **`charAt` return type:** Generated `.unwrap_or(' ')` returning Rust `char` instead of `String` — fixed to `.map(|c| c.to_string()).unwrap_or_default()`
+- **`.length()` as method call:** Only handled as property access, not method call — `zip`/`chunks` results couldn't use `.length()` — added handler generating `(.len() as i32)`
+
+**Liva assertion tests:** 63 total (28 string + 26 array + 9 math) — all documented methods now have assertion test coverage.
+
 ---
 
 ## [Unreleased] - v1.3.0-dev

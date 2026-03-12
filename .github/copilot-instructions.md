@@ -34,7 +34,7 @@ src/
 ├── desugaring.rs     # Transformaciones sintácticas
 ├── ir.rs             # Representación intermedia
 ├── lowering.rs       # AST → IR
-├── codegen.rs        # IR → Código Rust (~480KB, ~14300 líneas)
+├── codegen.rs        # IR → Código Rust (~480KB, ~14400 líneas)
 ├── formatter.rs      # Code formatter (--fmt)
 ├── module.rs         # Sistema de módulos e imports
 ├── traits.rs         # Sistema de traits/interfaces
@@ -141,6 +141,7 @@ skills/liva-lang/
 ### Dogfooding
 - **79/79 bugs corregidos** (Dogfooding v1: 9 bugs #63-#74, v2: 8 bugs #75-#82)
 - **341 tests** totales (149 codegen snapshot tests)
+- **63 Liva assertion tests** (28 string + 26 array + 9 math) — cobertura completa de stdlib
 
 ---
 
@@ -165,7 +166,7 @@ v2.0  Dogfooding — API REST completa con DB                  ← validación
 
 ## ⚠️ Notas para Desarrollo
 
-1. **codegen.rs** es el archivo más grande (~14300 líneas) — toda la generación de Rust
+1. **codegen.rs** es el archivo más grande (~14400 líneas) — toda la generación de Rust
 2. **formatter.rs** maneja el formateo de código
 3. Tests en `tests/` → `cargo test`
 4. LSP se comunica por stdio con la extensión VS Code
