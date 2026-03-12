@@ -1,9 +1,9 @@
 # 🗺️ Liva Language Roadmap
 
-> **Current Version:** v1.4.0-dev (tag: v1.2.0)  
-> **Status:** Stdlib P0 (String/Array/Math), Set<T>, Map<K,V>, Error Trace Chaining, `or <value>`, Enum Types, CI/CD, Dogfooding v2, 341 tests  
-> **Completed:** Phases 1-13, Sessions 14-18, Dogfooding v2, Stdlib P0  
-> **Last Updated:** 2026-03-12
+> **Current Version:** v1.5.0-dev (tag: v1.2.0)  
+> **Status:** Stdlib P0, `rust { }` interop, Logging, Config, CLI subcommands, 381+ tests  
+> **Completed:** Phases 1-13, Sessions 14-18, Dogfooding v2, Stdlib P0, rust {}, Log, Config  
+> **Last Updated:** 2025-07-17
 
 ---
 

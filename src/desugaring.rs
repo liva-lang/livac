@@ -20,6 +20,7 @@ pub struct DesugarContext {
     pub has_random: bool,                  // true if Math.random() is used
     pub has_rust_blocks: bool,             // true if any `rust { }` block is used
     pub has_logging: bool,                 // true if Log.* is used
+    pub has_config: bool,                  // true if Config.* is used
     pub async_functions: BTreeSet<String>, // Functions that are async (BTreeSet for deterministic order)
     #[serde(skip)]
     pub source_filename: String,           // Source filename for error traces
@@ -34,6 +35,7 @@ impl DesugarContext {
             has_random: false,
             has_rust_blocks: false,
             has_logging: false,
+            has_config: false,
             async_functions: BTreeSet::new(),
             source_filename: String::new(),
         }
@@ -102,6 +104,12 @@ fn check_concurrency(item: &TopLevel, ctx: &mut DesugarContext) {
                     }
                 }
             }
+        }
+        TopLevel::Test(test) => {
+            check_block_concurrency_block(&test.body, ctx);
+        }
+        TopLevel::ExprStmt(expr) => {
+            check_expr_concurrency(expr, ctx);
         }
         _ => {}
     }
@@ -194,6 +202,9 @@ fn check_expr_concurrency(expr: &Expr, ctx: &mut DesugarContext) {
                 }
                 if name == "Log" {
                     ctx.has_logging = true;
+                }
+                if name == "Config" {
+                    ctx.has_config = true;
                 }
             }
 

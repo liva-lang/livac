@@ -1378,6 +1378,24 @@ for i in 0..entries.length {
 }
 ```
 
+### Configuration *(v1.5.0)*
+
+```liva
+// Load .env file
+let config, err = Config.load(".env")
+if err {
+    Log.error("Config error:", err)
+}
+
+// Get string, int, bool values
+let host, _ = Config.get(config, "HOST")        // "localhost"
+let port, _ = Config.getInt(config, "PORT")      // 8080
+let debug, _ = Config.getBool(config, "DEBUG")   // true
+
+// Get all entries as sorted map
+let all = Config.getAll(config)
+```
+
 ### System *(v1.3.0)*
 
 ```liva

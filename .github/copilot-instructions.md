@@ -4,7 +4,7 @@
 > **Versión:** v1.5.0-dev (tag: v1.2.0)  
 > **Lenguaje:** Rust  
 > **Tests:** 374 passing  
-> **Próximo objetivo:** v1.5 — Config + livac init (rust {} + Logging done)  
+> **Próximo objetivo:** v1.5 — livac init (rust {} + Logging + Config done)  
 > **Última actualización:** 2026-03-13
 
 ---
@@ -143,7 +143,7 @@ skills/liva-lang/
 
 ### Dogfooding
 - **79/79 bugs corregidos** (Dogfooding v1: 9 bugs #63-#74, v2: 8 bugs #75-#82)
-- **374 tests** totales (179 codegen, 6 desugar, 17 semantic snapshot tests)
+- **381+ tests** totales (186 codegen, 6 desugar, 17 semantic snapshot tests + 11 Liva e2e)
 - **63 Liva assertion tests** (28 string + 26 array + 9 math) — cobertura completa de stdlib
 
 ---
@@ -154,7 +154,7 @@ Liva está en camino a producción. El plan completo está en `docs/plans/PLAN_P
 
 ```
 v1.4  Stdlib P0 — String (+15), Array (+20), Math (+3)       ✅ completado
-v1.5  rust { } interop + Logging + Config + livac init       ← IN PROGRESS (rust {} + Log done)
+v1.5  rust { } interop + Logging + Config + livac init       ← IN PROGRESS (rust {} + Log + Config done)
 v1.6  Stdlib P1 — File, Dir, Date, Regex, CSV/Table          ← scripts reales
 v1.7  Stdlib P2 + HTTP Server                                ← backends reales
 v1.8  DB + REPL + Linter                                     ← adopción

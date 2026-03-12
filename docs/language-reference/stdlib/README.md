@@ -1,7 +1,7 @@
 # Liva Standard Library
 
-> **Status:** ✅ Complete (v1.4.0) - 73+ functions implemented! 🎉  
-> **Completion:** Arrays ✅ (31) | Strings ✅ (28) | Math ✅ (14) | Conversions ✅ | I/O ✅ | System ✅
+> **Status:** ✅ Complete (v1.5.0) - 78+ functions implemented! 🎉  
+> **Completion:** Arrays ✅ (31) | Strings ✅ (28) | Math ✅ (14) | Config ✅ (5) | Conversions ✅ | I/O ✅ | System ✅ | Logging ✅
 
 The Liva Standard Library provides built-in functions and methods for common programming tasks.
 
@@ -107,6 +107,18 @@ Structured logging with timestamps, levels, and smart table rendering.
 - Map 4+ keys → Key/Value table, ≤3 keys → inline ✅
 - Array of Maps → columnar table (console.table style) ✅
 - JSON runtime detection → auto table rendering ✅
+
+### ✅ [Config](./config.md)
+Environment configuration loading from `.env` files with typed getters.
+
+**Status:** Complete (v1.5) — 5 functions
+
+- `Config.load(path)` - Load and parse `.env` file ✅
+- `Config.get(config, key)` - Get string value ✅
+- `Config.getInt(config, key)` - Get integer value ✅
+- `Config.getBool(config, key)` - Get boolean value ✅
+- `Config.getAll(config)` - Get all entries as sorted map ✅
+- No external crates — uses only `std::fs` and `std::collections` ✅
 
 ---
 

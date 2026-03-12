@@ -112,12 +112,13 @@
 
 ### Config / .env — módulo `Config`
 
-- [ ] `Config.load(path)` — parsear archivo `.env` (KEY=VALUE)
-- [ ] `Config.get(key)` → `string, error`
-- [ ] `Config.getInt(key)` → `int, error`
-- [ ] `Config.getBool(key)` → `bool, error`
-- [ ] `Config.getAll()` → `Map<string, string>`
-- [ ] Tests
+- [x] `Config.load(path)` — parsear archivo `.env` (KEY=VALUE)
+- [x] `Config.get(config, key)` → `string, error`
+- [x] `Config.getInt(config, key)` → `int, error`
+- [x] `Config.getBool(config, key)` → `bool, error`
+- [x] `Config.getAll(config)` → `Map<string, string>`
+- [x] Tests (7 Rust snapshot tests + 11 Liva tests)
+- [x] Documentación (docs/language-reference/stdlib/config.md + QUICK_REFERENCE)
 
 ### `livac init` — scaffolding
 

@@ -1,0 +1,84 @@
+// Stdlib Config — end-to-end tests
+// Tests for Config.load, Config.get, Config.getInt, Config.getBool, Config.getAll
+// Note: paths are relative to the test build directory (.liva_test_build/stdlib_config.test/)
+import { describe, test, expect } from "liva/test"
+
+describe("Config load", () => {
+    test("loads env file without error", () => {
+        let config, err = Config.load("../../test_config.env")
+        expect(err).toBe("")
+    })
+
+    test("returns error for missing file", () => {
+        let _config, err = Config.load("nonexistent.env")
+        expect(err != "").toBe(true)
+    })
+})
+
+describe("Config get", () => {
+    test("returns string value", () => {
+        let config, _err = Config.load("../../test_config.env")
+        let host, err = Config.get(config, "HOST")
+        expect(err).toBe("")
+        expect(host).toBe("localhost")
+    })
+
+    test("strips double quotes from values", () => {
+        let config, _err = Config.load("../../test_config.env")
+        let appName, err = Config.get(config, "APP_NAME")
+        expect(err).toBe("")
+        expect(appName).toBe("LiveTest")
+    })
+
+    test("strips single quotes from values", () => {
+        let config, _err = Config.load("../../test_config.env")
+        let secret, err = Config.get(config, "SECRET_KEY")
+        expect(err).toBe("")
+        expect(secret).toBe("test-secret-123")
+    })
+
+    test("returns error for missing key", () => {
+        let config, _err = Config.load("../../test_config.env")
+        let _val, err = Config.get(config, "MISSING_KEY")
+        expect(err != "").toBe(true)
+    })
+})
+
+describe("Config getInt", () => {
+    test("returns integer value", () => {
+        let config, _err = Config.load("../../test_config.env")
+        let port, err = Config.getInt(config, "PORT")
+        expect(err).toBe("")
+        expect(port).toBe(8080)
+    })
+
+    test("returns error for non-integer value", () => {
+        let config, _err = Config.load("../../test_config.env")
+        let _val, err = Config.getInt(config, "HOST")
+        expect(err != "").toBe(true)
+    })
+})
+
+describe("Config getBool", () => {
+    test("returns true for true value", () => {
+        let config, _err = Config.load("../../test_config.env")
+        let debug, err = Config.getBool(config, "DEBUG")
+        expect(err).toBe("")
+        expect(debug).toBe(true)
+    })
+
+    test("returns false for false value", () => {
+        let config, _err = Config.load("../../test_config.env")
+        let verbose, err = Config.getBool(config, "VERBOSE")
+        expect(err).toBe("")
+        expect(verbose).toBe(false)
+    })
+})
+
+describe("Config getAll", () => {
+    test("returns all config keys", () => {
+        let config, _err = Config.load("../../test_config.env")
+        let all = Config.getAll(config)
+        expect(all.length()).toBe(10)
+    })
+})

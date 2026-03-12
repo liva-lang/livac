@@ -1,0 +1,58 @@
+// Config module demo — loads .env files and reads typed values
+// Run: livac run examples/config_demo.liva
+
+main() {
+    // Load configuration from .env file
+    let config, err = Config.load("examples/config_demo.env")
+    if err {
+        print("Failed to load config: " + err)
+        return
+    }
+    print("✓ Config loaded successfully")
+
+    // Get string values
+    let host, e1 = Config.get(config, "HOST")
+    let appName, e2 = Config.get(config, "APP_NAME")
+    if e1 {
+        print("Missing HOST: " + e1)
+    }
+    print("Host: " + host)
+    print("App: " + appName)
+
+    // Get integer values
+    let port, e3 = Config.getInt(config, "PORT")
+    let maxConn, e4 = Config.getInt(config, "MAX_CONNECTIONS")
+    if e3 {
+        print("Invalid PORT: " + e3)
+    }
+    print("Port: " + port)
+    print("Max connections: " + maxConn)
+
+    // Get boolean values
+    let debug, e5 = Config.getBool(config, "DEBUG")
+    let verbose, e6 = Config.getBool(config, "VERBOSE")
+    if debug {
+        print("Debug mode: ON")
+    }
+    if verbose {
+        print("Verbose mode: ON")
+    } else {
+        print("Verbose mode: OFF")
+    }
+
+    // Get all config as a map
+    let all = Config.getAll(config)
+    print("Total config keys: " + all.length())
+
+    // Handle missing keys gracefully
+    let missing, eMissing = Config.get(config, "NONEXISTENT_KEY")
+    if eMissing {
+        print("Expected error: " + eMissing)
+    }
+
+    // Handle invalid type conversion
+    let notAnInt, eType = Config.getInt(config, "HOST")
+    if eType {
+        print("Expected type error: " + eType)
+    }
+}

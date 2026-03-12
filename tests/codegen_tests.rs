@@ -4163,3 +4163,129 @@ main() {
     let rust_code = compile_and_generate(source);
     assert_snapshot!("v15_log_json_array", rust_code);
 }
+
+// ─────────────────────────────────────────────────────
+// v1.5 — Config module tests
+// ─────────────────────────────────────────────────────
+
+#[test]
+fn test_v15_config_load() {
+    let source = r#"
+main() {
+    let config, err = Config.load(".env")
+    if err {
+        print("Error: " + err)
+        return
+    }
+    print("Config loaded")
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_config_load", rust_code);
+}
+
+#[test]
+fn test_v15_config_get() {
+    let source = r#"
+main() {
+    let config, err = Config.load(".env")
+    if err {
+        print("Error: " + err)
+        return
+    }
+    let host, err2 = Config.get(config, "HOST")
+    if err2 {
+        print("Missing HOST")
+    }
+    print(host)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_config_get", rust_code);
+}
+
+#[test]
+fn test_v15_config_get_int() {
+    let source = r#"
+main() {
+    let config, err = Config.load(".env")
+    let port, err2 = Config.getInt(config, "PORT")
+    if err2 {
+        print("Invalid PORT")
+    }
+    print(port)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_config_get_int", rust_code);
+}
+
+#[test]
+fn test_v15_config_get_bool() {
+    let source = r#"
+main() {
+    let config, _err = Config.load(".env")
+    let verbose, err2 = Config.getBool(config, "VERBOSE")
+    if err2 {
+        print("Invalid VERBOSE")
+    }
+    if verbose {
+        print("Verbose mode enabled")
+    }
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_config_get_bool", rust_code);
+}
+
+#[test]
+fn test_v15_config_get_all() {
+    let source = r#"
+main() {
+    let config, _err = Config.load(".env")
+    let all = Config.getAll(config)
+    print(all)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_config_get_all", rust_code);
+}
+
+#[test]
+fn test_v15_config_unknown_function_error() {
+    let source = r#"
+main() {
+    let x = Config.unknown("test")
+}
+"#;
+    let tokens = tokenize(source).unwrap();
+    let program = parse(tokens, source).unwrap();
+    let analyzed_program = analyze(program).unwrap();
+    let ctx = livac::desugaring::desugar(analyzed_program.clone()).unwrap();
+    let result = generate_with_ast(&analyzed_program, ctx);
+    assert!(result.is_err());
+    let err_msg = format!("{}", result.unwrap_err());
+    assert!(err_msg.contains("Unknown Config function"), "Error should mention unknown Config function, got: {}", err_msg);
+}
+
+#[test]
+fn test_v15_config_load_and_use() {
+    let source = r#"
+main() {
+    let config, err = Config.load("config.env")
+    if err {
+        print("Cannot load config: " + err)
+        return
+    }
+    let host, e1 = Config.get(config, "HOST")
+    let port, e2 = Config.getInt(config, "PORT")
+    let debug, e3 = Config.getBool(config, "DEBUG")
+    print("Server: " + host + ":" + port)
+    if debug {
+        print("Debug mode on")
+    }
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_config_load_and_use", rust_code);
+}

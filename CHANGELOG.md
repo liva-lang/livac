@@ -125,6 +125,58 @@ Log.info("Config:", config)  // Auto-detects Object/Array → table rendering
 - **CLI**: `--verbose` passes `LIVA_VERBOSE=1` env var for debug output
 - **Tests**: 14 snapshot tests (374 total)
 
+### Added - Config Module `Config` 🔧
+
+**Environment configuration loading from `.env` files with typed getters. No external dependencies.**
+
+#### Basic Usage
+
+```liva
+let config, err = Config.load(".env")
+if err {
+    Log.error("Config error:", err)
+}
+
+let host, _ = Config.get(config, "HOST")           // "localhost"
+let port, _ = Config.getInt(config, "PORT")          // 8080
+let debug, _ = Config.getBool(config, "DEBUG")       // true
+let all = Config.getAll(config)                      // Map<string, string>
+```
+
+#### .env Format
+
+```env
+# Supported format
+HOST=localhost
+PORT=8080
+DEBUG=true
+APP_NAME="My Application"    # Quotes stripped automatically
+SECRET_KEY='super-secret'    # Single quotes too
+# Comments and blank lines are skipped
+```
+
+#### Error Handling
+
+```liva
+let config, err = Config.load("missing.env")
+if err {
+    print("File error:", err)  // "Config load error: No such file..."
+}
+
+let val, err = Config.get(config, "MISSING_KEY")
+if err {
+    print("Key error:", err)   // "Config key not found: MISSING_KEY"
+}
+```
+
+#### Compiler Changes
+
+- **Desugaring**: `has_config` flag, detection in `TopLevel::Test` and `TopLevel::ExprStmt` blocks
+- **Codegen**: Dispatch + 5 runtime helpers (`liva_config_load`, `liva_config_get`, `liva_config_get_int`, `liva_config_get_bool`, `liva_config_get_all`)
+- **Bug fix**: Error binding pre-pass now excludes Config calls from `error_binding_vars` (same fix as File/Dir)
+- **No external crates**: Uses only `std::fs`, `std::collections::HashMap`, `std::collections::BTreeMap`
+- **Tests**: 7 codegen snapshot tests + 11 Liva end-to-end tests (392 total)
+
 ### Changed - CLI Subcommands 🔧
 
 **Migrated from flat flags to proper subcommands for better discoverability and UX.**

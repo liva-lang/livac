@@ -283,6 +283,9 @@ impl CodeGenerator {
                     if obj == "Dir" {
                         return matches!(mc.method.as_str(), "list");
                     }
+                    if obj == "Config" {
+                        return matches!(mc.method.as_str(), "get" | "getInt" | "getBool" | "load");
+                    }
                 }
                 false
             }
@@ -1985,6 +1988,103 @@ impl CodeGenerator {
             self.dedent();
             self.writeln("};");
             self.writeln("LIVA_LOG_LEVEL.store(n, Ordering::Relaxed);");
+            self.dedent();
+            self.writeln("}");
+            self.writeln("");
+        }
+
+        // Add Config runtime helpers if Config.* is used
+        if self.ctx.has_config {
+            self.writeln("// Config runtime helpers (.env file parser)");
+            self.writeln("use std::collections::HashMap;");
+            self.writeln("");
+            self.writeln("#[allow(dead_code)]");
+            self.writeln("fn liva_config_load(path: &str) -> (Option<HashMap<String, String>>, String) {");
+            self.indent();
+            self.writeln("match std::fs::read_to_string(path) {");
+            self.indent();
+            self.writeln("Ok(content) => {");
+            self.indent();
+            self.writeln("let mut map = HashMap::new();");
+            self.writeln("for line in content.lines() {");
+            self.indent();
+            self.writeln("let line = line.trim();");
+            self.writeln("if line.is_empty() || line.starts_with('#') { continue; }");
+            self.writeln("if let Some(eq_pos) = line.find('=') {");
+            self.indent();
+            self.writeln("let key = line[..eq_pos].trim().to_string();");
+            self.writeln("let mut value = line[eq_pos + 1..].trim().to_string();");
+            self.writeln("// Strip surrounding quotes");
+            self.writeln("if (value.starts_with('\"') && value.ends_with('\"')) || (value.starts_with('\\'') && value.ends_with('\\'')) {");
+            self.indent();
+            self.writeln("value = value[1..value.len()-1].to_string();");
+            self.dedent();
+            self.writeln("}");
+            self.writeln("if !key.is_empty() { map.insert(key, value); }");
+            self.dedent();
+            self.writeln("}");
+            self.dedent();
+            self.writeln("}");
+            self.writeln("(Some(map), String::new())");
+            self.dedent();
+            self.writeln("}");
+            self.writeln("Err(e) => (None, format!(\"Config load error: {}\", e)),");
+            self.dedent();
+            self.writeln("}");
+            self.dedent();
+            self.writeln("}");
+            self.writeln("");
+            self.writeln("#[allow(dead_code)]");
+            self.writeln("fn liva_config_get(map: &HashMap<String, String>, key: &str) -> (Option<String>, String) {");
+            self.indent();
+            self.writeln("match map.get(key) {");
+            self.indent();
+            self.writeln("Some(v) => (Some(v.clone()), String::new()),");
+            self.writeln("None => (None, format!(\"Config key not found: {}\", key)),");
+            self.dedent();
+            self.writeln("}");
+            self.dedent();
+            self.writeln("}");
+            self.writeln("");
+            self.writeln("#[allow(dead_code)]");
+            self.writeln("fn liva_config_get_int(map: &HashMap<String, String>, key: &str) -> (Option<i32>, String) {");
+            self.indent();
+            self.writeln("match map.get(key) {");
+            self.indent();
+            self.writeln("Some(v) => match v.parse::<i32>() {");
+            self.indent();
+            self.writeln("Ok(n) => (Some(n), String::new()),");
+            self.writeln("Err(e) => (None, format!(\"Config key '{}' is not a valid int: {}\", key, e)),");
+            self.dedent();
+            self.writeln("},");
+            self.writeln("None => (None, format!(\"Config key not found: {}\", key)),");
+            self.dedent();
+            self.writeln("}");
+            self.dedent();
+            self.writeln("}");
+            self.writeln("");
+            self.writeln("#[allow(dead_code)]");
+            self.writeln("fn liva_config_get_bool(map: &HashMap<String, String>, key: &str) -> (Option<bool>, String) {");
+            self.indent();
+            self.writeln("match map.get(key) {");
+            self.indent();
+            self.writeln("Some(v) => match v.to_lowercase().as_str() {");
+            self.indent();
+            self.writeln("\"true\" | \"1\" | \"yes\" | \"on\" => (Some(true), String::new()),");
+            self.writeln("\"false\" | \"0\" | \"no\" | \"off\" => (Some(false), String::new()),");
+            self.writeln("_ => (None, format!(\"Config key '{}' is not a valid bool: {}\", key, v)),");
+            self.dedent();
+            self.writeln("},");
+            self.writeln("None => (None, format!(\"Config key not found: {}\", key)),");
+            self.dedent();
+            self.writeln("}");
+            self.dedent();
+            self.writeln("}");
+            self.writeln("");
+            self.writeln("#[allow(dead_code)]");
+            self.writeln("fn liva_config_get_all(map: &HashMap<String, String>) -> std::collections::BTreeMap<String, String> {");
+            self.indent();
+            self.writeln("map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()");
             self.dedent();
             self.writeln("}");
             self.writeln("");
@@ -4363,6 +4463,7 @@ impl CodeGenerator {
                     // Typed JSON.parse returns (T, String) - value is T, not Option<T>
                     let is_task = task_exec_policy.is_some();
                     let is_await_task = self.is_await_of_pending_task(&var.init).is_some();
+                    let is_file_or_config = self.is_file_call(&var.init);
                     if binding_names.len() == 2
                         && !returns_tuple
                         && !is_typed_json_parse
@@ -4370,6 +4471,7 @@ impl CodeGenerator {
                         && !is_task
                         && !is_await_task
                         && !is_fallible_call
+                        && !is_file_or_config
                     {
                         self.error_binding_vars.insert(binding_names[1].clone());
                         self.option_value_vars.insert(binding_names[0].clone());
@@ -4596,6 +4698,15 @@ impl CodeGenerator {
                                                     self.array_vars.insert(sanitized.clone());
                                                     self.native_vec_string_vars.insert(sanitized.clone());
                                                     self.typed_array_vars.insert(sanitized, "string".to_string());
+                                                }
+                                            }
+                                        }
+                                        // Track Config.load() result as map variable
+                                        if obj == "Config" && mc.method == "load" {
+                                            if let Some(first_binding) = var.bindings.first() {
+                                                if let Some(name) = first_binding.name() {
+                                                    let sanitized = self.sanitize_name(name);
+                                                    self.map_vars.insert(sanitized);
                                                 }
                                             }
                                         }
@@ -7706,6 +7817,11 @@ impl CodeGenerator {
                 return self.generate_log_function_call(method_call);
             }
 
+            // Check if this is a Config function call (Config.load, Config.get, etc.)
+            if name == "Config" {
+                return self.generate_config_function_call(method_call);
+            }
+
             // Bug #40: Check if this is a module alias call (import * as alias from "...")
             // Generate module::function() instead of alias.function()
             if let Some(module_name) = self.module_aliases.get(name).cloned() {
@@ -10503,6 +10619,94 @@ impl CodeGenerator {
                     "E3000",
                     &format!("Unknown Log function: {}", method_call.method),
                     "Available Log functions: info, warn, error, debug, setLevel",
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn generate_config_function_call(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
+        match method_call.method.as_str() {
+            "load" => {
+                // Config.load(path) returns (Option<HashMap<String, String>>, String)
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Config.load requires exactly 1 argument",
+                        "Usage: Config.load(\"path/to/.env\")",
+                    )));
+                }
+                self.output.push_str("liva_config_load(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(")");
+            }
+            "get" => {
+                // Config.get(map, key) returns (Option<String>, String)
+                if method_call.args.len() != 2 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Config.get requires exactly 2 arguments",
+                        "Usage: Config.get(config, \"KEY\")",
+                    )));
+                }
+                self.output.push_str("liva_config_get(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(", &");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str(")");
+            }
+            "getInt" => {
+                // Config.getInt(map, key) returns (Option<i32>, String)
+                if method_call.args.len() != 2 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Config.getInt requires exactly 2 arguments",
+                        "Usage: Config.getInt(config, \"PORT\")",
+                    )));
+                }
+                self.output.push_str("liva_config_get_int(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(", &");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str(")");
+            }
+            "getBool" => {
+                // Config.getBool(map, key) returns (Option<bool>, String)
+                if method_call.args.len() != 2 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Config.getBool requires exactly 2 arguments",
+                        "Usage: Config.getBool(config, \"VERBOSE\")",
+                    )));
+                }
+                self.output.push_str("liva_config_get_bool(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(", &");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str(")");
+            }
+            "getAll" => {
+                // Config.getAll(map) returns BTreeMap<String, String> as Map<string, string>
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Config.getAll requires exactly 1 argument",
+                        "Usage: Config.getAll(config)",
+                    )));
+                }
+                self.output.push_str("liva_config_get_all(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(")");
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3000",
+                    &format!("Unknown Config function: {}", method_call.method),
+                    "Available Config functions: load, get, getInt, getBool, getAll",
                 )));
             }
         }
@@ -14877,6 +15081,7 @@ mod tests {
             has_random: false,
             has_rust_blocks: false,
             has_logging: false,
+            has_config: false,
             async_functions: std::collections::BTreeSet::new(),
             source_filename: String::new(),
         });
