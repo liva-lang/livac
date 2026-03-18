@@ -171,7 +171,7 @@ Bugs que afectan 1-2 proyectos o patrones menos frecuentes.
 
 ### Arrays y Collections (`codegen.rs`)
 
-- [ ] **B15** — `.filter()` genera `.copied()` en vez de `.cloned()` para non-Copy types  
+- [x] **B15** — `.filter()` genera `.copied()` en vez de `.cloned()` para non-Copy types  ✅ 2026-03-18
   Proyectos: text-search, csv-reader
 - [ ] **B39** — Array element assignment (`arr[i] = val`) genera LHS inválido  
   Proyectos: mini-interpreter
@@ -269,6 +269,7 @@ Features que ya están o deberían estar en el backlog del compilador por versi�
 | 2026-03-18 | B01: `_` en error binding | ✅ Done | 389 passed, 0 failed | Parser: `Token::Underscore` → `BindingPattern::Identifier("_")`, Semantic: skip declare for `_` |
 | 2026-03-18 | B42: `find_rust_blocks()` skip comments | ✅ Done | 399 passed, 0 failed | Lexer: skip `//`, `/* */`, and string literals before scanning for `rust` keyword |
 | 2026-03-18 | B43: `find_balanced_brace()` lifetimes | ✅ Done | 399 passed, 0 failed | Lexer: proper char literal vs lifetime detection — lifetimes don't consume braces |
+| 2026-03-18 | B15: `.filter()` .copied → .cloned | ✅ Done | 400 passed, 0 failed | Codegen: default to `.cloned()` for untracked arrays — always safe (Copy implies Clone) |
 
 ---
 

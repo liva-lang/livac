@@ -8510,7 +8510,9 @@ impl CodeGenerator {
                     {
                         true
                     } else {
-                        false
+                        // B15 fix: Default to .cloned() for safety — .cloned() works for
+                        // both Copy and non-Copy types (Copy implies Clone)
+                        true
                     }
                 } else {
                     true // Default to cloned for safety
@@ -8964,7 +8966,9 @@ impl CodeGenerator {
                     // default to .cloned() as it's safer (works for both Copy and non-Copy)
                     true
                 } else {
-                    false
+                    // B15 fix: Default to .cloned() for safety — .cloned() works for
+                    // both Copy and non-Copy types (Copy implies Clone)
+                    true
                 }
             } else {
                 // No base variable name - default to .cloned() for safety

@@ -2737,6 +2737,30 @@ main() {
     assert_snapshot!("filter_contains_lambda", rust_code);
 }
 
+#[test]
+fn test_filter_string_array_uses_cloned() {
+    // B15: .filter() on string arrays should generate .cloned() not .copied()
+    // String does NOT implement Copy, only Clone
+    let source = r#"
+getUniqueWords(words: [string]): [string] {
+    let unique = words.filter(w => w.length > 3)
+    return unique
+}
+
+main() {
+    let words = ["hello", "hi", "world", "ok", "testing"]
+    let result = getUniqueWords(words)
+    print(result)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    // Must use .cloned() not .copied() for String arrays
+    assert!(rust_code.contains(".cloned()"), "String filter should use .cloned() not .copied()");
+    assert!(!rust_code.contains(".copied()"), "Should NOT use .copied() for String arrays");
+    assert_snapshot!("filter_string_array_uses_cloned", rust_code);
+}
+
 // ============================================================
 // Auto-detected data classes (no `data` keyword needed)
 // ============================================================
