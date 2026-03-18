@@ -1063,8 +1063,11 @@ impl CodeGenerator {
                 if !is_likely_getter && !is_mutating_method {
                     // This could be a mutating method on a class instance
                     if let Expr::Identifier(name) = mc.object.as_ref() {
-                        // Mark as potentially mutated (sanitized to match VarDecl lookup)
-                        mutated.insert(self.sanitize_name(name));
+                        // Skip class/module names (start with uppercase) — they're not variables
+                        if !name.chars().next().map_or(false, |c| c.is_uppercase()) {
+                            // Mark as potentially mutated (sanitized to match VarDecl lookup)
+                            mutated.insert(self.sanitize_name(name));
+                        }
                     }
                 }
 
@@ -4681,7 +4684,13 @@ impl CodeGenerator {
                                 self.output.push_str(", ");
                             }
                             if let Some(name) = binding.name() {
-                                write!(self.output, "{}", self.sanitize_name(name)).unwrap();
+                                // B34 fix: Mark error binding vars as mut when reassigned
+                                let sanitized = self.sanitize_name(name);
+                                if self.mutated_vars.contains(&sanitized) {
+                                    write!(self.output, "mut {}", sanitized).unwrap();
+                                } else {
+                                    write!(self.output, "{}", sanitized).unwrap();
+                                }
                             }
                         }
 

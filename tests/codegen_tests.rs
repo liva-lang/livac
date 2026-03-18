@@ -4724,3 +4724,28 @@ main() {
     assert!(rust_code.contains(".iter_mut()"), "Mutating for-loop should use iter_mut: {}", rust_code);
     assert_snapshot!("for_self_field_iter", rust_code);
 }
+
+#[test]
+fn test_error_binding_mut_when_reassigned() {
+    // B34: Error binding vars should be mut when reassigned later
+    let source = r#"
+tryParse(s: string): int {
+    if s == "" {
+        fail "empty string"
+    }
+    return 42
+}
+
+main() {
+    let val, err = tryParse("42")
+    if err {
+        val = 0
+    }
+    print(val)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // val should be declared as mut since it's reassigned
+    assert!(rust_code.contains("mut val"), "Error binding var should be mut when reassigned: {}", rust_code);
+    assert_snapshot!("error_binding_mut_reassigned", rust_code);
+}
