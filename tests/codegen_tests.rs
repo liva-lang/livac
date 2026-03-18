@@ -4813,3 +4813,29 @@ main() {
     assert!(user_code.contains("item.name"), "Should access .name directly: {}", user_code);
     assert_snapshot!("class_param_dot_notation", rust_code);
 }
+
+#[test]
+fn test_type_as_field_name() {
+    // B37: `type` as field name should use r#type in Rust
+    let source = r#"
+Token {
+    type: string
+    value: string
+    line: int
+
+    constructor(t: string, v: string, l: int) {
+        this.type = t
+        this.value = v
+        this.line = l
+    }
+}
+
+main() {
+    let tok = Token("ident", "hello", 1)
+    print(tok.type)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("r#type"), "Should escape `type` keyword with r#: {}", rust_code);
+    assert_snapshot!("type_as_field_name", rust_code);
+}

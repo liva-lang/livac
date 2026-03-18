@@ -3,7 +3,7 @@
 > **Inicio:** 2026-03-18  
 > **Objetivo:** Implementar los fixes del compilador y mejoras de la skill identificados en la auditoría de 10 proyectos AI-generated  
 > **Fuente:** `examples/ai/REPORT_SUMMARY.md` (informe consolidado) + 10× `REPORT.md` por proyecto  
-> **Estado:** En progreso — 14/47 bugs corregidos
+> **Estado:** En progreso — 21/47 bugs corregidos
 
 ---
 
@@ -50,8 +50,8 @@ La auditoría de 10 proyectos AI-generated reveló **47 bugs únicos del compila
 ## Baseline de tests
 
 ```
-cargo test → 406 passed, 0 failed, 3 ignored
-Snapshots:   266 archivos en tests/snapshots/
+cargo test → 413 passed, 0 failed, 3 ignored
+Snapshots:   274 archivos en tests/snapshots/
 Ejemplos:    40 archivos .liva en examples/ (no-AI)
 ```
 
@@ -86,17 +86,17 @@ Bugs que afectan 3+ proyectos o bloquean patrones fundamentales del lenguaje.
   Archivo: `codegen.rs` | Proyectos: text-search, csv-reader, json-parser, rest-api, mini-interpreter
 - [x] **B36** — Valores movidos en iteraciones de loop → variable consumida en primera iteración  ✅ 2026-03-18
   Archivo: `codegen.rs` | Proyectos: csv-reader, rest-api, mini-interpreter
-- [ ] **B35** — Array index access (`arr[i]`) como argumento mueve en vez de clonar  
+- [x] **B35** — Array index access (`arr[i]`) como argumento mueve en vez de clonar  ✅ 2026-03-19
   Archivo: `codegen.rs` | Proyectos: csv-reader, json-parser
-- [ ] **B21** — `self.tokens[idx]` mueve Token del Vec en vez de `.clone()`  
+- [x] **B21** — `self.tokens[idx]` mueve Token del Vec en vez de `.clone()`  ✅ 2026-03-19
   Archivo: `codegen.rs` | Proyectos: calculator, json-parser
-- [ ] **B44** — `.clone()` no añadido para campos non-Copy de `&self`  
+- [x] **B44** — `.clone()` no añadido para campos non-Copy de `&self`  ✅ 2026-03-19
   Archivo: `codegen.rs` | Proyectos: todo-list
-- [ ] **B45** — `for item in this.collection` itera sobre copia — mutaciones perdidas  
+- [x] **B45** — `for item in this.collection` itera sobre copia — mutaciones perdidas  ✅ 2026-03-19
   Archivo: `codegen.rs` | Proyectos: todo-list
 - [x] **B47** — Array concat `arr + [value]` mueve el valor  ✅ 2026-03-18 (cubierto por B36)
   Archivo: `codegen.rs` | Proyectos: rest-api
-- [ ] **B34** — Error binding vars no marcadas `mut` cuando se reasignan  
+- [x] **B34** — Error binding vars no marcadas `mut` cuando se reasignan  ✅ 2026-03-19
   Archivo: `codegen.rs` | Proyectos: csv-reader
 
 ### Error Binding y `or fail` (`codegen.rs`)
@@ -119,7 +119,7 @@ Bugs que afectan 3+ proyectos o bloquean patrones fundamentales del lenguaje.
 ### Acceso a Campos (`codegen.rs`)
 > Área: `get_field()` heuristic vs `.field` directo.
 
-- [ ] **B07** — `get_field()` heuristic — locals/params caen al path JSON en vez de `.field`  
+- [x] **B07** — `get_field()` heuristic — locals/params caen al path JSON en vez de `.field`  ✅ 2026-03-19
   Archivo: `codegen.rs` | Proyectos: todo-list, json-parser, mini-interpreter
 - [ ] **B06** — `enum_names` no populado en `generate_module_code()`  
   Archivo: `codegen.rs` | Proyectos: todo-list
@@ -133,7 +133,7 @@ Bugs que afectan 3+ proyectos o bloquean patrones fundamentales del lenguaje.
 
 - [x] **B08** — `&mut self` detección incompleta — solo detecta `this.field = x` directo  ✅ 2026-03-18
   Archivo: `codegen.rs` | Proyectos: todo-list, calculator, mini-interpreter
-- [ ] **B09** — `&mut self` transitivo no propagado — método que llama `&mut` no se marca  
+- [x] **B09** — `&mut self` transitivo no propagado — método que llama `&mut` no se marca  ✅ 2026-03-19
   Archivo: `codegen.rs` | Proyectos: mini-interpreter
 - [x] **B18** — Arrow method return type `=> expr` genera `-> ()` en vez de inferir  ✅ 2026-03-18
   Archivo: `codegen.rs` | Proyectos: calculator, json-parser, rest-api

@@ -6194,7 +6194,7 @@ impl CodeGenerator {
 
                         if is_http_struct_field {
                             // Convert camelCase to snake_case for Rust structs
-                            let rust_field = self.to_snake_case(property);
+                            let rust_field = self.sanitize_name(property);
                             write!(
                                 self.output,
                                 "{}.as_ref().unwrap().{}",
@@ -6207,7 +6207,7 @@ impl CodeGenerator {
                         // For Option<T> from .find() on class arrays, unwrap before field access
                         // If it's not a JSON value, it's a class instance wrapped in Option
                         if !is_json_value {
-                            let rust_field = self.to_snake_case(property);
+                            let rust_field = self.sanitize_name(property);
                             write!(
                                 self.output,
                                 "{}.as_ref().unwrap().{}",
@@ -6291,8 +6291,8 @@ impl CodeGenerator {
                             || var_name.contains("person")
                             || var_name.contains("user")
                         {
-                            // Convert camelCase to snake_case for Rust structs
-                            let rust_field = self.to_snake_case(property);
+                            // Convert camelCase to snake_case for Rust structs (+ keyword escape)
+                            let rust_field = self.sanitize_name(property);
                             write!(self.output, ".{}", rust_field).unwrap();
 
                             // Clone common owned types when returning by value and not assigning
@@ -6392,8 +6392,8 @@ impl CodeGenerator {
                         };
 
                         if use_dot_notation {
-                            // Class element - use dot notation with snake_case field name
-                            let rust_field = self.to_snake_case(property);
+                            // Class element - use dot notation with snake_case field name (+ keyword escape)
+                            let rust_field = self.sanitize_name(property);
                             write!(self.output, ".{}", rust_field).unwrap();
 
                             // Bug #51: String fields need .clone() to avoid move errors
@@ -12162,11 +12162,14 @@ impl CodeGenerator {
         let name_without_prefix = name.trim_start_matches('_');
         let snake = self.to_snake_case(name_without_prefix);
 
-        if has_leading_underscore {
+        let result = if has_leading_underscore {
             format!("_{}", snake)
         } else {
             snake
-        }
+        };
+
+        // B37: Escape Rust reserved keywords with r# prefix
+        escape_rust_keyword(&result)
     }
 
     fn sanitize_test_name(&self, name: &str) -> String {
@@ -14363,7 +14366,8 @@ impl<'a> IrCodeGenerator<'a> {
 
     fn sanitize_name(&self, name: &str) -> String {
         let name = name.trim_start_matches('_');
-        to_snake_case(name)
+        let snake = to_snake_case(name);
+        escape_rust_keyword(&snake)
     }
 
     fn sanitize_test_name(&self, name: &str) -> String {
@@ -14392,6 +14396,25 @@ fn to_snake_case(s: &str) -> String {
         "_".into()
     } else {
         result
+    }
+}
+
+/// B37: Escape Rust reserved keywords with r# prefix.
+/// This allows Liva identifiers like `type`, `match`, `mod` to compile as valid Rust.
+fn escape_rust_keyword(name: &str) -> String {
+    match name {
+        // Strict keywords (cannot be used as identifiers without r#)
+        "as" | "break" | "const" | "continue" | "crate" | "else" | "enum" | "extern"
+        | "false" | "fn" | "for" | "if" | "impl" | "in" | "let" | "loop" | "match"
+        | "mod" | "move" | "mut" | "pub" | "ref" | "return" | "static" | "struct"
+        | "super" | "trait" | "true" | "type" | "unsafe" | "use" | "where" | "while"
+        | "async" | "await" | "dyn"
+        // Reserved keywords (reserved for potential future use)
+        | "abstract" | "become" | "box" | "do" | "final" | "macro" | "override"
+        | "priv" | "typeof" | "unsized" | "virtual" | "yield" | "try" => {
+            format!("r#{}", name)
+        }
+        _ => name.to_string(),
     }
 }
 
