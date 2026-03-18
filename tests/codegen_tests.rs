@@ -4616,3 +4616,28 @@ main() {
     assert!(rust_code.contains(".clone()"), "Array index access as arg should clone: {}", rust_code);
     assert_snapshot!("array_index_as_arg_clones", rust_code);
 }
+
+#[test]
+fn test_self_array_index_clones() {
+    // B21: this.tokens[idx] should generate .clone() for non-Copy types
+    let source = r#"
+Parser {
+    tokens: [string]
+
+    constructor(t: [string]) {
+        this.tokens = t
+    }
+
+    current() => this.tokens[0]
+}
+
+main() {
+    let p = Parser(["hello", "world"])
+    print(p.current())
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // Should contain .clone() for this.tokens[0] access
+    assert!(rust_code.contains(".clone()"), "this.tokens[i] should clone: {}", rust_code);
+    assert_snapshot!("self_array_index_clones", rust_code);
+}

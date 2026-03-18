@@ -52,6 +52,7 @@ pub struct CodeGenerator {
     indent_level: usize,
     ctx: DesugarContext,
     in_method: bool,
+    current_class_name: Option<String>,
     in_assignment_target: bool,
     in_fallible_function: bool,
     in_test_block: bool,
@@ -129,6 +130,7 @@ impl CodeGenerator {
             indent_level: 0,
             ctx,
             in_method: false,
+            current_class_name: None,
             in_assignment_target: false,
             in_fallible_function: false,
             in_test_block: false,
@@ -3415,6 +3417,8 @@ impl CodeGenerator {
         .unwrap();
 
         self.in_method = true;
+        let prev_class_name = self.current_class_name.take();
+        self.current_class_name = class.map(|c| c.name.clone());
         let prev_fallible = self.in_fallible_function;
         self.in_fallible_function = method.contains_fail;
 
@@ -3449,6 +3453,7 @@ impl CodeGenerator {
         }
         self.in_fallible_function = prev_fallible;
         self.in_method = false;
+        self.current_class_name = prev_class_name;
 
         // Restore previous function name
         self.current_function_name = prev_function_name;
@@ -6458,13 +6463,20 @@ impl CodeGenerator {
                     // Handle obj.field[i] — check class_array_field_types
                     if let Expr::Identifier(obj_name) = ma_obj.as_ref() {
                         let sanitized_obj = self.sanitize_name(obj_name);
-                        if let Some(class_name) = self.var_types.get(&sanitized_obj) {
+                        // B21 fix: Handle this.field[i] — look up current class name
+                        let resolved_class = if (obj_name == "this" || obj_name == "self") && self.in_method {
+                            self.current_class_name.as_deref()
+                        } else {
+                            self.var_types.get(&sanitized_obj).map(|s| s.as_str())
+                        };
+                        if let Some(class_name) = resolved_class {
                             if let Some(field_types) = self.class_array_field_types.get(class_name) {
                                 if let Some(elem_type) = field_types.get(ma_prop.as_str()) {
                                     // Clone for non-primitive types
                                     elem_type == "string" || self.class_fields.contains_key(elem_type.as_str())
                                 } else {
-                                    false
+                                    // Field is in an array class but element type unknown — clone to be safe
+                                    true
                                 }
                             } else {
                                 false
@@ -6482,7 +6494,8 @@ impl CodeGenerator {
                 self.output.push(']');
 
                 // For non-Copy arrays, add .clone() because indexing returns a reference
-                if needs_clone {
+                // But NOT when this is an assignment target (LHS of =)
+                if needs_clone && !self.in_assignment_target {
                     self.output.push_str(".clone()");
                 }
 
