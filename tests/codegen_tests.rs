@@ -4914,3 +4914,20 @@ main() {
     assert!(!const_line.contains(".to_string()"), "Const should not have .to_string(): {}", const_line);
     assert_snapshot!("const_string_type", rust_code);
 }
+
+#[test]
+fn test_console_input_template() {
+    // B11: console.input with template string shouldn't nest print!(format!(...))
+    let source = r#"
+main() {
+    let id = 42
+    let name = console.input($"Enter name for #{id}: ")
+    print(name)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // Should use print!("{}", format!(...)) not print!(format!(...))
+    assert!(rust_code.contains("print!(\"{}\","), "Should use print!(\"{{}}\", ...) pattern: {}", rust_code);
+    assert!(!rust_code.contains("print!(format!"), "Should NOT nest print!(format!(...)): {}", rust_code);
+    assert_snapshot!("console_input_template", rust_code);
+}

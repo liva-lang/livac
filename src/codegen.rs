@@ -10639,7 +10639,9 @@ impl CodeGenerator {
 
                 // Print the prompt message if provided
                 if !method_call.args.is_empty() {
-                    self.output.push_str("print!(");
+                    // B11: Use print!("{}", expr) to avoid nested print!(format!(...))
+                    // when the argument is a template string
+                    self.output.push_str("print!(\"{}\", ");
                     self.generate_expr(&method_call.args[0])?;
                     self.output.push_str(");\n");
                     // Flush to ensure prompt is displayed before reading
