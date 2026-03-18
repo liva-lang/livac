@@ -86,6 +86,7 @@ pub struct CodeGenerator {
     pending_tasks: std::collections::HashMap<String, TaskInfo>, // Variables that hold unawaited Tasks
     // --- Phase 3: Error binding variables (Option<String> type)
     error_binding_vars: std::collections::HashSet<String>, // Variables from error binding (second variable in let x, err = ...)
+    error_binding_scope_stack: Vec<Vec<String>>, // B20: Stack of error binding vars per scope level (for fail scope checking)
     string_error_vars: std::collections::HashSet<String>, // String error variables from HTTP/File calls (for `if err` sugar)
     option_value_vars: std::collections::HashSet<String>, // Variables from error binding (first variable in let value, err = ..., which is Option<T>)
     struct_destructured_vars: std::collections::HashSet<String>, // Variables from struct destructuring (may be Option<T>)
@@ -155,6 +156,7 @@ impl CodeGenerator {
             union_types: std::collections::HashSet::new(),
             pending_tasks: std::collections::HashMap::new(),
             error_binding_vars: std::collections::HashSet::new(),
+            error_binding_scope_stack: vec![vec![]], // Start with one root scope
             string_error_vars: std::collections::HashSet::new(),
             option_value_vars: std::collections::HashSet::new(),
             struct_destructured_vars: std::collections::HashSet::new(),
@@ -1066,10 +1068,14 @@ impl CodeGenerator {
 
     fn indent(&mut self) {
         self.indent_level += 1;
+        // B20: Push new scope level for error binding var tracking
+        self.error_binding_scope_stack.push(vec![]);
     }
 
     fn dedent(&mut self) {
         self.indent_level = self.indent_level.saturating_sub(1);
+        // B20: Pop scope level — vars declared in this scope are no longer visible to find_error_var_in_scope
+        self.error_binding_scope_stack.pop();
     }
 
     fn write_indent(&mut self) {
@@ -4523,17 +4529,26 @@ impl CodeGenerator {
                         && !is_file_or_config
                     {
                         self.error_binding_vars.insert(binding_names[1].clone());
+                        if let Some(scope) = self.error_binding_scope_stack.last_mut() {
+                            scope.push(binding_names[1].clone());
+                        }
                         self.option_value_vars.insert(binding_names[0].clone());
                     // Also track the value (first binding)
                     } else if binding_names.len() == 2 && is_fallible_call {
                         // Bug #80 fix: User fallible calls: match { Ok(v) => (v, None), Err(e) => (Default, Some(e)) }
                         // value is T (direct), err is Option<Error>
                         self.error_binding_vars.insert(binding_names[1].clone());
+                        if let Some(scope) = self.error_binding_scope_stack.last_mut() {
+                            scope.push(binding_names[1].clone());
+                        }
                         // Do NOT add to option_value_vars - value is direct T, not Option<T>
                     } else if binding_names.len() == 2 && (is_task || is_await_task) {
                         // Task error bindings: match { Ok(v) => (v, None), Err(e) => (Default, Some(e)) }
                         // value is T (direct), err is Option<Error>
                         self.error_binding_vars.insert(binding_names[1].clone());
+                        if let Some(scope) = self.error_binding_scope_stack.last_mut() {
+                            scope.push(binding_names[1].clone());
+                        }
                         // Do NOT add to option_value_vars - value is direct, not Option
                     } else if binding_names.len() == 2 && (returns_tuple || is_typed_json_parse) {
                         // For tuple-returning functions AND typed JSON.parse: response is T (not Option), err is String
@@ -5569,10 +5584,36 @@ impl CodeGenerator {
                 } else {
                     filename.clone()
                 };
-                // Check if there's an error binding variable in scope to chain with
-                // Look for the most recent error binding var (err, err2, etc.)
-                let err_var_in_scope = self.find_error_var_in_scope();
-                if let Some(err_var) = err_var_in_scope {
+                // B20 fix: Determine whether to chain or create a new error.
+                // Case 1: `fail err` (identifier that IS an error binding var) → always chain
+                // Case 2: `fail "string"` → only chain if there's an error var in scope (by indent level)
+                // Case 3: otherwise → Error::new
+                let is_fail_with_error_var = if let Expr::Identifier(name) = &fail_stmt.expr {
+                    self.error_binding_vars.contains(name)
+                } else {
+                    false
+                };
+                if is_fail_with_error_var {
+                    // Case 1: `fail err` — chain using the error variable itself
+                    let err_var = if let Expr::Identifier(name) = &fail_stmt.expr {
+                        name.clone()
+                    } else {
+                        unreachable!()
+                    };
+                    write!(self.output,
+                        "return Err(liva_rt::Error::chain(",
+                    ).unwrap();
+                    // Use the error's message as the chain message
+                    write!(self.output,
+                        "{}.as_ref().unwrap().message.clone()", err_var
+                    ).unwrap();
+                    write!(self.output,
+                        ", \"{}\", \"{}\", {}.unwrap()))",
+                        fn_name, location, err_var
+                    ).unwrap();
+                    self.output.push_str(";\n");
+                } else if let Some(err_var) = self.find_error_var_in_scope() {
+                    // Case 2: `fail "string"` with an error var in scope — chain with custom message
                     write!(self.output,
                         "return Err(liva_rt::Error::chain(",
                     ).unwrap();
@@ -5583,6 +5624,7 @@ impl CodeGenerator {
                     ).unwrap();
                     self.output.push_str(";\n");
                 } else {
+                    // Case 3: No error var in scope — standalone error
                     write!(self.output,
                         "return Err(liva_rt::Error::new(",
                     ).unwrap();
@@ -5599,12 +5641,16 @@ impl CodeGenerator {
     }
 
     /// Find the most recent error binding variable in scope (for error chaining in `fail`)
-    /// Returns the variable name if there's an error binding var (e.g., `err`, `err2`) in scope
+    /// B20 fix: Uses scope stack to properly track which error vars are visible.
+    /// Only vars declared in the current scope or parent scopes are returned.
+    /// Vars from sibling/child blocks that have been exited are not visible.
     fn find_error_var_in_scope(&self) -> Option<String> {
-        // Check Option<Error> error binding vars first (from user-defined fallible functions)
-        if !self.error_binding_vars.is_empty() {
-            // Return the most recently added one (heuristic: alphabetically last)
-            return self.error_binding_vars.iter().max().cloned();
+        // Walk the scope stack from top (innermost) to bottom (outermost)
+        // Return the first (most recent) error binding var found
+        for scope in self.error_binding_scope_stack.iter().rev() {
+            if let Some(last) = scope.last() {
+                return Some(last.clone());
+            }
         }
         None
     }

@@ -1665,6 +1665,62 @@ main() {
     assert_snapshot!("or_fail_method_call", rust_code);
 }
 
+#[test]
+fn test_fail_string_uses_error_new() {
+    // B20: `fail "msg"` should generate Error::new when error var is out of scope
+    // Previously, error_binding_vars was a flat set with no scope tracking,
+    // so `fail "msg"` after an error binding in a nested block would reference
+    // an out-of-scope variable
+    let source = r#"
+Parser {
+    parseItem(input: string): number {
+        if input == "special" {
+            let val, err = this.tryParse(input)
+            if err {
+                fail err
+            }
+            return val
+        }
+        // err was declared inside the if block above — NOT in scope here
+        // fail "string" should use Error::new, not Error::chain
+        if input == "" {
+            fail "Empty input"
+        }
+        fail $"Unknown input: '{input}'"
+    }
+
+    tryParse(input: string): number {
+        fail "Not implemented"
+    }
+}
+
+process(): number {
+    let p = Parser()
+    let result, err = p.parseItem("test")
+    if err {
+        // err IS in scope here — fail "string" should chain
+        fail "Processing failed"
+    }
+    return result
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    // fail "Empty input" outside the error binding scope → Error::new
+    assert!(rust_code.contains("Error::new(\"Empty input\""),
+        "fail with string literal outside error scope should use Error::new");
+    // fail $"..." outside scope → Error::new
+    assert!(rust_code.contains("Error::new(format!"),
+        "fail with interpolated string outside error scope should use Error::new");
+    // fail err inside scope → Error::chain
+    assert!(rust_code.contains("Error::chain(err"),
+        "fail with error variable should use Error::chain");
+    // fail "Processing failed" inside error scope → Error::chain
+    assert!(rust_code.contains("Error::chain(\"Processing failed\""),
+        "fail with string inside error scope should use Error::chain");
+    assert_snapshot!("fail_string_uses_error_new", rust_code);
+}
+
 // ---------------------------------------------------------------------------
 // 10. Concurrency
 // ---------------------------------------------------------------------------
