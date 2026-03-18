@@ -3106,7 +3106,39 @@ impl CodeGenerator {
                 }
                 None
             }
-            Expr::Binary { op, .. } => {
+            // B18 fix: Handle index access — this.field[i] → element type of array field
+            Expr::Index { object, .. } => {
+                // Try to infer the base array type, then return its element type
+                if let Some(array_type) = self.infer_expr_type(object, class) {
+                    let type_part = array_type.trim_start_matches(" -> ");
+                    // Vec<T> → T
+                    if type_part.starts_with("Vec<") && type_part.ends_with('>') {
+                        let inner = &type_part[4..type_part.len() - 1];
+                        return Some(format!(" -> {}", inner));
+                    }
+                }
+                None
+            }
+            // B18 fix: Handle identifier references — look up from method params
+            Expr::Identifier(name) => {
+                if let Some(cls) = class {
+                    // Check method params — NOT directly available here, but check class fields
+                    for member in &cls.members {
+                        if let Member::Field(field) = member {
+                            if field.name == *name {
+                                let rust_type = field
+                                    .type_ref
+                                    .as_ref()
+                                    .map(|t| t.to_rust_type())
+                                    .unwrap_or_else(|| "String".to_string());
+                                return Some(format!(" -> {}", rust_type));
+                            }
+                        }
+                    }
+                }
+                None
+            }
+            Expr::Binary { op, left, right, .. } => {
                 // Simple heuristics for binary operations
                 match op {
                     BinOp::Lt
@@ -3117,6 +3149,12 @@ impl CodeGenerator {
                     | BinOp::Ne
                     | BinOp::And
                     | BinOp::Or => Some(" -> bool".to_string()),
+                    // B18 fix: Arithmetic ops → infer from operands
+                    BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod => {
+                        // Try to infer from left operand first, then right
+                        self.infer_expr_type(left, class)
+                            .or_else(|| self.infer_expr_type(right, class))
+                    }
                     _ => None,
                 }
             }
@@ -3138,6 +3176,15 @@ impl CodeGenerator {
             }
             // String templates ($"...{expr}...") always return String
             Expr::StringTemplate { .. } => Some(" -> String".to_string()),
+            // B18 fix: Ternary expressions — infer from then/else branches
+            Expr::Ternary { then_expr, else_expr, .. } => {
+                self.infer_expr_type(then_expr, class)
+                    .or_else(|| self.infer_expr_type(else_expr, class))
+            }
+            // B18 fix: Unary not → bool
+            Expr::Unary { op, .. } if matches!(op, UnOp::Not) => {
+                Some(" -> bool".to_string())
+            }
             _ => None,
         }
     }

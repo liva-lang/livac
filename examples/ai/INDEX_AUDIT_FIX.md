@@ -135,7 +135,7 @@ Bugs que afectan 3+ proyectos o bloquean patrones fundamentales del lenguaje.
   Archivo: `codegen.rs` | Proyectos: todo-list, calculator, mini-interpreter
 - [ ] **B09** — `&mut self` transitivo no propagado — método que llama `&mut` no se marca  
   Archivo: `codegen.rs` | Proyectos: mini-interpreter
-- [ ] **B18** — Arrow method return type `=> expr` genera `-> ()` en vez de inferir  
+- [x] **B18** — Arrow method return type `=> expr` genera `-> ()` en vez de inferir  ✅ 2026-03-18
   Archivo: `codegen.rs` | Proyectos: calculator, json-parser, rest-api
 - [ ] **B14** — Enum field en clase rompe `Default` derive  
   Archivo: `codegen.rs` | Proyectos: todo-list
@@ -270,6 +270,7 @@ Features que ya están o deberían estar en el backlog del compilador por versi�
 | 2026-03-18 | B42: `find_rust_blocks()` skip comments | ✅ Done | 399 passed, 0 failed | Lexer: skip `//`, `/* */`, and string literals before scanning for `rust` keyword |
 | 2026-03-18 | B43: `find_balanced_brace()` lifetimes | ✅ Done | 399 passed, 0 failed | Lexer: proper char literal vs lifetime detection — lifetimes don't consume braces |
 | 2026-03-18 | B15: `.filter()` .copied → .cloned | ✅ Done | 400 passed, 0 failed | Codegen: default to `.cloned()` for untracked arrays — always safe (Copy implies Clone) |
+| 2026-03-18 | B18: arrow method return type | ✅ Done | 401 passed, 0 failed | Codegen: expanded `infer_expr_type` — handles Index, Identifier, arithmetic, Ternary, UnaryNot |
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 source: tests/codegen_tests.rs
-assertion_line: 47
+assertion_line: 2443
 expression: rust_code
 ---
 #![allow(unused_parens, unused_mut)]
@@ -387,23 +387,46 @@ mod liva_rt {
     
 }
 
-fn sum(a: i32, b: i32) -> i32 {
-    a + b
+#[derive(Debug, Clone, Default)]
+pub struct TokenStream {
+    pub tokens: Vec<String>,
+    pub pos: i32,
 }
 
-fn multiply(x: i32, y: i32) -> i32 {
-    x * y
-}
+impl TokenStream {
+    pub fn new() -> Self {
+        Self {
+            tokens: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            pos: 0,
+        }
+    }
 
-fn greet(name: String) -> String {
-    format!("{}{}", "Hello ", name)
+    // Generating method: getValue
+    pub fn get_value(&self) -> i32 {
+        self.pos
+    }
+
+    // Generating method: hasMore
+    pub fn has_more(&self) -> bool {
+        self.pos < (self.tokens.len() as i32)
+    }
+
+    // Generating method: doubled
+    pub fn doubled(&self) -> i32 {
+        self.pos * 2
+    }
+
+    // Generating method: label
+    pub fn label(&self) -> String {
+        format!("pos={}", self.pos)
+    }
+
 }
 
 fn main() {
-    let result1 = sum(2, 3);
-    let result2 = multiply(4, 5);
-    let message = greet("World".to_string());
-    println!("{}", result1);
-    println!("{}", result2);
-    println!("{}", message);
+    let ts = TokenStream::new();
+    println!("{}", ts.get_value());
+    println!("{}", ts.has_more());
+    println!("{}", ts.doubled());
+    println!("{}", ts.label());
 }

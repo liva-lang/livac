@@ -2403,6 +2403,47 @@ main() {
 }
 
 #[test]
+fn test_arrow_method_return_type_inferred() {
+    // B18: Arrow method `=> expr` should infer return type when no explicit annotation
+    let source = r#"
+TokenStream {
+    tokens: [string]
+    pos: number
+
+    constructor() {
+        this.tokens = ["a", "b", "c"]
+        this.pos = 0
+    }
+
+    getValue() => this.pos
+    hasMore() => this.pos < this.tokens.length
+    doubled() => this.pos * 2
+    label() => $"pos={this.pos}"
+}
+
+main() {
+    let ts = TokenStream()
+    print(ts.getValue())
+    print(ts.hasMore())
+    print(ts.doubled())
+    print(ts.label())
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    // Arrow methods without explicit type should NOT generate -> ()
+    assert!(!rust_code.contains("fn get_value(&self) -> ()"), "getValue should not return ()");
+    assert!(!rust_code.contains("fn has_more(&self) -> ()"), "hasMore should not return ()");
+    assert!(!rust_code.contains("fn doubled(&self) -> ()"), "doubled should not return ()");
+    // Should infer correct types
+    assert!(rust_code.contains("fn get_value(&self) -> i32"), "getValue should return i32");
+    assert!(rust_code.contains("fn has_more(&self) -> bool"), "hasMore should return bool");
+    assert!(rust_code.contains("fn doubled(&self) -> i32"), "doubled should return i32");
+    assert!(rust_code.contains("fn label(&self) -> String"), "label should return String");
+    assert_snapshot!("arrow_method_return_type_inferred", rust_code);
+}
+
+#[test]
 fn test_bug74_for_loop_ownership() {
     // Bug #74: for loop consumed collection, preventing reuse
     let source = r#"
