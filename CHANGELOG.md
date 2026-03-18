@@ -197,6 +197,37 @@ if err {
 - Updated VS Code extension LSP client args
 - Updated all docs, examples, scripts, CI, and website
 
+### Added - `livac init` Project Scaffolding 🏗️
+
+**Create new Liva projects with a single command. Templates hardcoded in the binary, zero dependencies.**
+
+```bash
+livac init my-project                  # Default template
+livac init my-cli --template cli       # CLI application template
+livac init my-data --template data     # Data processing template
+```
+
+#### Default Template
+- `main.liva` with hello world + string interpolation + for loop
+- `tests/main.test.liva` with basic test suite
+- `.gitignore` configured for Liva projects
+
+#### CLI Template
+- `main.liva` with `Sys.args()` parsing + match-based command dispatch
+- `config.env` with sample configuration
+- `tests/main.test.liva` with CLI function tests
+
+#### Data Template
+- `main.liva` with filter/map/sum pipeline + Config loading
+- `config.env` with sample configuration
+- `tests/main.test.liva` with data processing tests
+
+#### Validation
+- Project name: alphanumeric, hyphens, underscores only
+- Duplicate directory detection
+- Unknown template error with available list
+- **Tests**: 6 integration tests (387 total)
+
 ---
 
 ## [Unreleased] - v1.4.0-dev

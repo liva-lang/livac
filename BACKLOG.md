@@ -67,11 +67,12 @@
 
 ---
 
-## v1.5 — Rust Interop + Logging + Config + `livac init`
+## v1.5 — Rust Interop + Logging + Config + `livac init` ✅
 
 > **Foco:** `rust { }` desbloquea todo el ecosistema. Logging/Config/init hacen proyectos "reales".  
 > **Esfuerzo estimado:** ~18h (12h rust interop + 2h×3 tooling)  
-> **Impacto:** Force multiplier — de "usable" a "viable".
+> **Impacto:** Force multiplier — de "usable" a "viable".  
+> **Estado:** ✅ Completado — 387 tests totales
 
 ### `rust { }` interop — Ver plan §Línea 2 ✅
 
@@ -120,12 +121,12 @@
 - [x] Tests (7 Rust snapshot tests + 11 Liva tests)
 - [x] Documentación (docs/language-reference/stdlib/config.md + QUICK_REFERENCE)
 
-### `livac init` — scaffolding
+### `livac init` — scaffolding ✅
 
-- [ ] `livac init <name>` — crea directorio con main.liva + tests/ + .gitignore
-- [ ] `livac init <name> --template cli` — template CLI
-- [ ] `livac init <name> --template data` — template data processing
-- [ ] Tests
+- [x] `livac init <name>` — crea directorio con main.liva + tests/ + .gitignore
+- [x] `livac init <name> --template cli` — template CLI
+- [x] `livac init <name> --template data` — template data processing
+- [x] Tests (6 integration tests)
 
 ---
 

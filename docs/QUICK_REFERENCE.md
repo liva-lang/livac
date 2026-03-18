@@ -48,6 +48,9 @@ livac test --filter "name"     # Filter tests by name
 livac build --verbose file.liva  # Show generated Rust code
 livac build --output dir file.liva  # Set output directory
 livac build --json file.liva   # Output errors as JSON (IDE integration)
+livac init my-project          # Create new project (v1.5.0+)
+livac init my-app --template cli   # CLI template
+livac init my-data --template data # Data processing template
 livac --help                   # Show help
 livac --version                # Show version
 ```

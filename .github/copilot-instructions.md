@@ -3,8 +3,8 @@
 > **Proyecto:** livac - El compilador de Liva  
 > **Versión:** v1.5.0-dev (tag: v1.2.0)  
 > **Lenguaje:** Rust  
-> **Tests:** 374 passing  
-> **Próximo objetivo:** v1.5 — livac init (rust {} + Logging + Config done)  
+> **Tests:** 387 passing  
+> **Próximo objetivo:** v1.6 — Stdlib P1 (File, Dir, Date, Regex, CSV/Table)  
 > **Última actualización:** 2026-03-13
 
 ---
@@ -116,9 +116,11 @@ skills/liva-lang/
 ## 🔄 Estado Actual (v1.5.0-dev)
 
 ### Features completados
-- **CLI Subcomandos** — `build`, `run`, `check`, `fmt`, `test`, `lsp`, `update` (reemplaza flags planos)
+- **CLI Subcomandos** — `build`, `run`, `check`, `fmt`, `test`, `lsp`, `update`, `init` (reemplaza flags planos)
 - **`rust { }` Interop** — Inline Rust blocks + `use rust` with version/features + E9002 protection
 - **Logging (`Log` module)** — info/warn/error/debug + variadic args + table rendering (Map/Array/JSON) + `setLevel`
+- **Config (`Config` module)** — `.env` loading + typed getters (`get`, `getInt`, `getBool`, `getAll`)
+- **`livac init`** — Project scaffolding con templates (default, cli, data)
 - **Stdlib P0** — 38 nuevos métodos/funciones (15 String + 20 Array + 3 Math)
 - **Enum Types** — Algebraic data types con pattern matching y destructuring
 - **Error Trace Chaining** — Trazabilidad automática con función + línea
@@ -143,7 +145,7 @@ skills/liva-lang/
 
 ### Dogfooding
 - **79/79 bugs corregidos** (Dogfooding v1: 9 bugs #63-#74, v2: 8 bugs #75-#82)
-- **381+ tests** totales (186 codegen, 6 desugar, 17 semantic snapshot tests + 11 Liva e2e)
+- **387 tests** totales (186 codegen, 6 desugar, 17 semantic snapshot tests + 11 Liva e2e + 6 init)
 - **63 Liva assertion tests** (28 string + 26 array + 9 math) — cobertura completa de stdlib
 
 ---
@@ -154,8 +156,8 @@ Liva está en camino a producción. El plan completo está en `docs/plans/PLAN_P
 
 ```
 v1.4  Stdlib P0 — String (+15), Array (+20), Math (+3)       ✅ completado
-v1.5  rust { } interop + Logging + Config + livac init       ← IN PROGRESS (rust {} + Log + Config done)
-v1.6  Stdlib P1 — File, Dir, Date, Regex, CSV/Table          ← scripts reales
+v1.5  rust { } interop + Logging + Config + livac init       ✅ completado
+v1.6  Stdlib P1 — File, Dir, Date, Regex, CSV/Table          ← NEXT
 v1.7  Stdlib P2 + HTTP Server                                ← backends reales
 v1.8  DB + REPL + Linter                                     ← adopción
 v2.0  Dogfooding — API REST completa con DB                  ← validación

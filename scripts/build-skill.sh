@@ -38,59 +38,61 @@ echo "   Output: ${OUTPUT_DIR}"
 
 # Clean previous build
 rm -rf "$OUTPUT_DIR"
-mkdir -p "$OUTPUT_DIR/references/stdlib"
+mkdir -p "$OUTPUT_DIR/references"
 
 # 1. Copy SKILL.md
 cp "$PROJECT_ROOT/skills/liva-lang/SKILL.md" "$OUTPUT_DIR/SKILL.md"
 
-# 2. Copy language-reference docs as references/
+# 2. Copy all language-reference docs as references/ (preserving subdirectories)
 LANG_REF="$PROJECT_ROOT/docs/language-reference"
 REFS="$OUTPUT_DIR/references"
 
-# Core language files
-for file in \
-    variables.md \
-    types-primitives.md \
-    operators.md \
-    functions-basics.md \
-    functions-advanced.md \
-    control-flow.md \
-    pattern-matching.md \
-    classes-basics.md \
-    classes-data.md \
-    classes-interfaces.md \
-    enums.md \
-    visibility.md \
-    error-handling.md \
-    collections.md \
-    concurrency.md \
-    modules.md \
-    string-templates.md \
-    ; do
-    if [ -f "$LANG_REF/$file" ]; then
-        cp "$LANG_REF/$file" "$REFS/$file"
-    else
-        echo "   ⚠ Missing: docs/language-reference/$file"
+if [ -d "$LANG_REF" ]; then
+    find "$LANG_REF" -name "*.md" -type f | while read -r file; do
+        rel="${file#$LANG_REF/}"
+        target_dir="$REFS/$(dirname "$rel")"
+        mkdir -p "$target_dir"
+        cp "$file" "$REFS/$rel"
+    done
+else
+    echo "   ⚠ Missing: docs/language-reference/"
+fi
+
+# 3. Copy guides
+GUIDES_SRC="$PROJECT_ROOT/docs/guides"
+GUIDES_DST="$REFS/guides"
+
+if [ -d "$GUIDES_SRC" ]; then
+    mkdir -p "$GUIDES_DST"
+    find "$GUIDES_SRC" -name "*.md" -type f | while read -r file; do
+        cp "$file" "$GUIDES_DST/$(basename "$file")"
+    done
+else
+    echo "   ⚠ Missing: docs/guides/"
+fi
+
+# 4. Copy getting-started
+GETTING_STARTED_SRC="$PROJECT_ROOT/docs/getting-started"
+GETTING_STARTED_DST="$REFS/getting-started"
+
+if [ -d "$GETTING_STARTED_SRC" ]; then
+    mkdir -p "$GETTING_STARTED_DST"
+    find "$GETTING_STARTED_SRC" -name "*.md" -type f | while read -r file; do
+        cp "$file" "$GETTING_STARTED_DST/$(basename "$file")"
+    done
+else
+    echo "   ⚠ Missing: docs/getting-started/"
+fi
+
+# 5. Copy top-level doc files
+for file in QUICK_REFERENCE.md PROJECT_STRUCTURE.md ERROR_CODES.md \
+            ERROR_HANDLING_GUIDE.md TROUBLESHOOTING.md README.md; do
+    if [ -f "$PROJECT_ROOT/docs/$file" ]; then
+        cp "$PROJECT_ROOT/docs/$file" "$REFS/$file"
     fi
 done
 
-# 3. Copy stdlib docs
-STDLIB_SRC="$LANG_REF/stdlib"
-STDLIB_DST="$REFS/stdlib"
-
-for file in arrays.md strings.md io.md math.md conversions.md system.md; do
-    if [ -f "$STDLIB_SRC/$file" ]; then
-        cp "$STDLIB_SRC/$file" "$STDLIB_DST/$file"
-    else
-        echo "   ⚠ Missing: docs/language-reference/stdlib/$file"
-    fi
-done
-
-# 4. Copy guides
-cp "$PROJECT_ROOT/docs/QUICK_REFERENCE.md" "$REFS/quick-reference.md"
-cp "$PROJECT_ROOT/docs/PROJECT_STRUCTURE.md" "$REFS/project-structure.md"
-
-# 5. Count and report
+# 6. Count and report
 TOTAL_FILES=$(find "$OUTPUT_DIR" -name "*.md" | wc -l)
 TOTAL_LINES=$(find "$OUTPUT_DIR" -name "*.md" -exec cat {} + | wc -l)
 SKILL_LINES=$(wc -l < "$OUTPUT_DIR/SKILL.md")

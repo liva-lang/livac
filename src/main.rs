@@ -113,6 +113,13 @@ enum Commands {
 
     /// Update livac to the latest version
     Update,
+
+    /// Initialize a new Liva project
+    Init {
+        /// Project name or "." for current directory
+        #[arg(default_value = ".")]
+        name: String,
+    },
 }
 
 /// Internal struct passed to compile() with resolved options
@@ -212,6 +219,12 @@ async fn main() {
                 handle_compile_error(args.json, e);
             }
         }
+        Commands::Init { name } => {
+            if let Err(e) = run_init(&name) {
+                eprintln!("{} {}", "Error:".red().bold(), e);
+                std::process::exit(1);
+            }
+        }
     }
 }
 
@@ -254,6 +267,420 @@ fn run_format(input: &PathBuf, check_only: bool, verbose: bool) -> Result<(), Co
     }
 
     Ok(())
+}
+
+/// Initialize a new Liva project with scaffolding
+fn run_init(name: &str) -> Result<(), Box<dyn std::error::Error>> {
+    // Resolve "." to current directory
+    let (project_dir, display_name) = if name == "." {
+        let cwd = std::env::current_dir()?;
+        let dir_name = cwd
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("my-project")
+            .to_string();
+        (cwd, dir_name)
+    } else {
+        // Validate project name
+        if name.is_empty() {
+            return Err("Project name cannot be empty".into());
+        }
+        if name.contains(std::path::MAIN_SEPARATOR) || name.contains('/') || name.contains('\\') {
+            return Err("Project name cannot contain path separators".into());
+        }
+        if !name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+            return Err("Project name can only contain letters, numbers, hyphens, and underscores".into());
+        }
+        let dir = PathBuf::from(name);
+        if dir.exists() {
+            return Err(format!("Directory '{}' already exists", name).into());
+        }
+        (dir, name.to_string())
+    };
+
+    // Check if target files already exist (for "." mode)
+    if name == "." {
+        if project_dir.join("main.liva").exists() {
+            return Err("main.liva already exists in current directory".into());
+        }
+    }
+
+    // Create directory structure
+    std::fs::create_dir_all(project_dir.join("tests"))?;
+
+    println!(
+        "{} Creating project '{}'...",
+        "→".blue(),
+        display_name.bold()
+    );
+
+    // Write source files
+    std::fs::write(project_dir.join("main.liva"), template_main(&display_name))?;
+    std::fs::write(project_dir.join("math.liva"), template_math())?;
+    std::fs::write(project_dir.join("models.liva"), template_models())?;
+    std::fs::write(
+        project_dir.join("tests").join("main.test.liva"),
+        template_test(),
+    )?;
+    std::fs::write(project_dir.join(".gitignore"), GITIGNORE_TEMPLATE)?;
+
+    println!("{} Created project structure:", "✓".green().bold());
+    if name == "." {
+        println!("    ./ ({})", display_name);
+    } else {
+        println!("    {}/", display_name);
+    }
+    println!("    ├── main.liva");
+    println!("    ├── math.liva");
+    println!("    ├── models.liva");
+    println!("    ├── tests/");
+    println!("    │   └── main.test.liva");
+    println!("    └── .gitignore");
+    println!();
+    println!("  Get started:");
+    if name == "." {
+        println!("    {} main.liva", "livac run".cyan());
+        println!("    {} tests/main.test.liva", "livac test".cyan());
+    } else {
+        println!("    {} {}/main.liva", "livac run".cyan(), display_name);
+        println!("    {} {}/tests/main.test.liva", "livac test".cyan(), display_name);
+    }
+
+    Ok(())
+}
+
+// ── Templates ──────────────────────────────────────────────
+
+const GITIGNORE_TEMPLATE: &str = "\
+# Liva build output
+target/
+
+# Environment files with secrets
+.env
+*.env.local
+
+# OS files
+.DS_Store
+Thumbs.db
+";
+
+fn template_main(name: &str) -> String {
+    format!(
+        r#"// {name} - Liva Language Tour
+// A multi-file showcase of the language
+// Run:  livac run main.liva
+// Test: livac test tests/main.test.liva
+
+import {{ add, square, isEven, factorial, divide, describeScore, greet }} from "./math.liva"
+import {{ Point, Pet }} from "./models.liva"
+
+const VERSION = "0.1.0"
+
+// -- Enums --
+
+enum Color {{ Red, Green, Blue }}
+
+enum Shape {{
+    Circle(radius: float),
+    Rect(width: float, height: float),
+    Dot
+}}
+
+// -- Enum helpers (switch expressions) --
+
+shapeInfo(s: Shape): string {{
+    let info = switch s {{
+        Shape.Circle(r)  => $"Circle r={{r}}",
+        Shape.Rect(w, h) => $"Rect {{w}}x{{h}}",
+        Shape.Dot        => "Dot"
+    }}
+    return info
+}}
+
+colorName(c: Color): string {{
+    let result = switch c {{
+        Color.Red   => "Red",
+        Color.Green => "Green",
+        Color.Blue  => "Blue"
+    }}
+    return result
+}}
+
+// -- Main --
+
+main() {{
+    print($"Welcome to {name}! (v{{VERSION}})")
+    print("")
+
+    // -- Variables & Types --
+    print("-- Variables & Types --")
+    let count = 0
+    let pi: float = 3.14159
+    let words: [string] = ["Liva", "compiles", "to", "Rust"]
+
+    print($"pi = {{pi}}")
+    let motto = words.join(" ")
+    print($"Motto: {{motto}}")
+    print("")
+
+    // -- Functions (imported from math.liva) --
+    print("-- Functions --")
+    print($"add(2, 3)    = {{add(2, 3)}}")
+    print($"square(7)    = {{square(7)}}")
+    print($"factorial(6) = {{factorial(6)}}")
+    print(greet("World"))
+    print(greet("Liva"))
+    print("")
+
+    // -- Error Handling --
+    print("-- Error Handling --")
+
+    // Error binding: two-variable pattern
+    let result, e1 = divide(10.0, 3.0)
+    if e1 {{
+        print($"Error: {{e1}}")
+    }} else {{
+        print($"10 / 3 = {{result}}")
+    }}
+
+    // Catching a failure
+    let bad, e2 = divide(5.0, 0.0)
+    if e2 {{
+        print($"Caught: {{e2}}")
+    }}
+    print("")
+
+    // -- Control Flow --
+    print("-- Control Flow --")
+    for i in 1..=5 {{
+        count = count + 1
+    }}
+    print($"Counted to {{count}}")
+
+    for word in words {{
+        print($"  -> {{word}}")
+    }}
+    print("")
+
+    // -- Arrays (functional pipeline) --
+    print("-- Arrays --")
+    let numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    let evens = numbers.filter(n => isEven(n))
+    let doubled = evens.map(n => n * 2)
+    let total = doubled.reduce(0, (acc, n) => acc + n)
+
+    print($"Numbers: {{numbers}}")
+    print($"Evens:   {{evens}}")
+    print($"Doubled: {{doubled}}")
+    print($"Sum:     {{total}}")
+
+    let hasLarge = numbers.some(n => n > 8)
+    let allPos = numbers.every(n => n > 0)
+    print($"Has > 8: {{hasLarge}}")
+    print($"All > 0: {{allPos}}")
+    print("")
+
+    // -- Maps --
+    print("-- Maps --")
+    let scores = Map {{ "Alice": 95, "Bob": 82, "Carol": 91 }}
+    let aliceScore = scores.get("Alice") or 0
+    print($"Alice: {{aliceScore}}")
+    scores.set("Dave", 78)
+
+    let hasDave = scores.has("Dave")
+    print($"Has Dave: {{hasDave}}")
+
+    for student, score in scores {{
+        print($"  {{student}}: {{describeScore(score)}}")
+    }}
+    print("")
+
+    // -- Sets --
+    print("-- Sets --")
+    let tags = Set {{ "rust", "fast", "safe" }}
+    tags.add("compiled")
+    let hasRust = tags.has("rust")
+    let hasGo = tags.has("go")
+    print($"has rust: {{hasRust}}")
+    print($"has go:   {{hasGo}}")
+    print("")
+
+    // -- Data Classes (imported from models.liva) --
+    print("-- Data Classes --")
+    let p1 = Point(10, 20)
+    let p2 = Point(10, 20)
+    let p3 = Point(99, 1)
+    print($"p1:        {{p1}}")
+    print($"p1 == p2:  {{p1 == p2}}")
+    print($"p1 == p3:  {{p1 == p3}}")
+    print("")
+
+    // -- Enums & Pattern Matching --
+    print("-- Enums & Pattern Matching --")
+    print($"Color: {{colorName(Color.Red)}}")
+    print($"  {{shapeInfo(Shape.Circle(5.0))}}")
+    print($"  {{shapeInfo(Shape.Rect(4.0, 6.0))}}")
+    print($"  {{shapeInfo(Shape.Dot)}}")
+    print("")
+
+    // -- Classes & Interfaces (imported from models.liva) --
+    print("-- Classes & Interfaces --")
+    let pet = Pet("Luna", "cat")
+    print(pet.describe())
+    print("")
+
+    // -- Grade Report (switch with ranges) --
+    print("-- Grade Report --")
+    let testScores = [95, 82, 73, 45]
+    for score in testScores {{
+        print($"  Score {{score}}: {{describeScore(score)}}")
+    }}
+    print("")
+
+    // -- Math stdlib --
+    print("-- Math --")
+    print($"sqrt(16) = {{Math.sqrt(16.0)}}")
+    print($"pow(2,3) = {{Math.pow(2.0, 3.0)}}")
+    print($"PI       = {{Math.PI}}")
+    print($"abs(-5)  = {{Math.abs(-5.0)}}")
+    print("")
+
+    print("Tour complete!")
+}}
+"#,
+        name = name
+    )
+}
+
+fn template_math() -> String {
+    r#"// math.liva - Pure functions
+
+// -- Arrow functions (implicit return) --
+
+add(a: number, b: number): number => a + b
+square(n: number): number => n * n
+isEven(n: number): bool => n % 2 == 0
+greet(name: string): string => $"Hello, {name}!"
+
+// -- Block function (multi-line, recursion) --
+
+factorial(n: number): number {
+    if n <= 1 { return 1 }
+    return n * factorial(n - 1)
+}
+
+// -- Fallible function (fail keyword) --
+
+divide(a: float, b: float): float {
+    if b == 0.0 { fail "Division by zero" }
+    return a / b
+}
+
+// -- Pattern matching: switch with ranges --
+
+describeScore(score: number): string {
+    let label = switch score {
+        90..=100 => "A - Excellent",
+        80..=89  => "B - Good",
+        70..=79  => "C - Average",
+        _        => "F - Needs work"
+    }
+    return label
+}
+"#
+    .to_string()
+}
+
+fn template_models() -> String {
+    r#"// models.liva - Data classes, classes, interfaces
+
+// -- Data Class (auto constructor, Display, PartialEq) --
+
+Point { x: number; y: number }
+
+// -- Interface --
+
+Describable { describe(): string }
+
+// -- Class implementing interface --
+
+Pet : Describable {
+    name: string
+    kind: string
+    constructor(name: string, kind: string) {
+        this.name = name
+        this.kind = kind
+    }
+    describe(): string => $"{this.name} the {this.kind}"
+}
+"#
+    .to_string()
+}
+
+fn template_test() -> String {
+    r#"// Tests for the project
+// Run: livac test tests/main.test.liva
+
+import { describe, test, expect } from "liva/test"
+
+// -- Functions under test --
+
+add(a: number, b: number): number => a + b
+square(n: number): number => n * n
+isEven(n: number): bool => n % 2 == 0
+
+factorial(n: number): number {
+    if n <= 1 { return 1 }
+    return n * factorial(n - 1)
+}
+
+describeScore(score: number): string {
+    let label = switch score {
+        90..=100 => "A - Excellent",
+        80..=89  => "B - Good",
+        70..=79  => "C - Average",
+        _        => "F - Needs work"
+    }
+    return label
+}
+
+// -- Tests --
+
+describe("Math", () => {
+    test("add works", () => {
+        expect(add(2, 3)).toBe(5)
+        expect(add(-1, 1)).toBe(0)
+        expect(add(0, 0)).toBe(0)
+    })
+
+    test("square computes squares", () => {
+        expect(square(7)).toBe(49)
+        expect(square(0)).toBe(0)
+    })
+
+    test("isEven detects parity", () => {
+        expect(isEven(4)).toBeTruthy()
+        expect(isEven(3)).toBeFalsy()
+        expect(isEven(0)).toBeTruthy()
+    })
+
+    test("factorial recurses correctly", () => {
+        expect(factorial(0)).toBe(1)
+        expect(factorial(1)).toBe(1)
+        expect(factorial(6)).toBe(720)
+    })
+})
+
+describe("Score Grading", () => {
+    test("describeScore grades correctly", () => {
+        expect(describeScore(95)).toBe("A - Excellent")
+        expect(describeScore(82)).toBe("B - Good")
+        expect(describeScore(73)).toBe("C - Average")
+        expect(describeScore(50)).toBe("F - Needs work")
+    })
+})
+"#
+    .to_string()
 }
 
 /// Simple line-by-line diff for format check output
