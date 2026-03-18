@@ -4749,3 +4749,36 @@ main() {
     assert!(rust_code.contains("mut val"), "Error binding var should be mut when reassigned: {}", rust_code);
     assert_snapshot!("error_binding_mut_reassigned", rust_code);
 }
+
+#[test]
+fn test_transitive_mut_self() {
+    // B09: method calling &mut self method should also be &mut self
+    let source = r#"
+Counter {
+    value: int
+
+    constructor() {
+        this.value = 0
+    }
+
+    increment() {
+        this.value = this.value + 1
+    }
+
+    incrementTwice() {
+        this.increment()
+        this.increment()
+    }
+}
+
+main() {
+    let c = Counter()
+    c.incrementTwice()
+    print(c.value)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // incrementTwice calls increment which is &mut self, so incrementTwice should also be &mut self
+    assert!(rust_code.contains("fn increment_twice(&mut self)"), "Transitive &mut self should propagate: {}", rust_code);
+    assert_snapshot!("transitive_mut_self", rust_code);
+}

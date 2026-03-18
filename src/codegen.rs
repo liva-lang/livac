@@ -54,6 +54,8 @@ pub struct CodeGenerator {
     in_method: bool,
     current_class_name: Option<String>,
     current_method_is_mut: bool,
+    /// B09: Pre-computed set of methods that need &mut self (direct + transitive)
+    mut_self_methods: HashSet<String>,
     in_assignment_target: bool,
     in_fallible_function: bool,
     in_test_block: bool,
@@ -133,6 +135,7 @@ impl CodeGenerator {
             in_method: false,
             current_class_name: None,
             current_method_is_mut: false,
+            mut_self_methods: HashSet::new(),
             in_assignment_target: false,
             in_fallible_function: false,
             in_test_block: false,
@@ -694,10 +697,130 @@ impl CodeGenerator {
 
     /// Check if a method modifies self fields (requires &mut self)
     fn method_modifies_self(&self, method: &MethodDecl) -> bool {
+        // Check pre-computed transitive set first
+        if self.mut_self_methods.contains(&method.name) {
+            return true;
+        }
         if let Some(body) = &method.body {
             return self.block_modifies_self(body);
         }
         false
+    }
+
+    /// B09: Pre-compute which methods need &mut self, including transitive calls.
+    /// Phase 1: Detect direct &mut self (assignments to this.field, mutating methods on this.field)
+    /// Phase 2: Propagate — if method A calls this.B() and B is &mut self, then A is too
+    fn compute_mut_self_methods(&mut self, class: &ClassDecl) {
+        self.mut_self_methods.clear();
+
+        // Phase 1: Find directly mutating methods
+        let methods: Vec<&MethodDecl> = class
+            .members
+            .iter()
+            .filter_map(|m| {
+                if let Member::Method(method) = m {
+                    if method.name != "constructor" {
+                        return Some(method);
+                    }
+                }
+                None
+            })
+            .collect();
+
+        for method in &methods {
+            let is_setter = method.name.starts_with("set");
+            let directly_modifies = if let Some(body) = &method.body {
+                self.block_modifies_self(body)
+            } else {
+                false
+            };
+            if is_setter || directly_modifies {
+                self.mut_self_methods.insert(method.name.clone());
+            }
+        }
+
+        // Phase 2: Transitive propagation — iterate until no more changes
+        loop {
+            let mut changed = false;
+            for method in &methods {
+                if self.mut_self_methods.contains(&method.name) {
+                    continue; // already marked
+                }
+                if let Some(body) = &method.body {
+                    if self.block_calls_mut_self_method(body) {
+                        self.mut_self_methods.insert(method.name.clone());
+                        changed = true;
+                    }
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+    }
+
+    /// Check if a block calls any method on `this` that's in `mut_self_methods`
+    fn block_calls_mut_self_method(&self, block: &BlockStmt) -> bool {
+        for stmt in &block.stmts {
+            if self.stmt_calls_mut_self_method(stmt) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn stmt_calls_mut_self_method(&self, stmt: &Stmt) -> bool {
+        match stmt {
+            Stmt::Expr(expr_stmt) => self.expr_calls_mut_self_method(&expr_stmt.expr),
+            Stmt::Return(ret) => ret
+                .expr
+                .as_ref()
+                .map_or(false, |e| self.expr_calls_mut_self_method(e)),
+            Stmt::VarDecl(var) => self.expr_calls_mut_self_method(&var.init),
+            Stmt::Assign(assign) => {
+                self.expr_calls_mut_self_method(&assign.value)
+            }
+            Stmt::If(if_stmt) => {
+                let then_calls = match &if_stmt.then_branch {
+                    IfBody::Block(b) => self.block_calls_mut_self_method(b),
+                    IfBody::Stmt(s) => self.stmt_calls_mut_self_method(s),
+                };
+                let else_calls = if_stmt.else_branch.as_ref().map_or(false, |eb| match eb {
+                    IfBody::Block(b) => self.block_calls_mut_self_method(b),
+                    IfBody::Stmt(s) => self.stmt_calls_mut_self_method(s),
+                });
+                then_calls || else_calls
+            }
+            Stmt::While(w) => self.block_calls_mut_self_method(&w.body),
+            Stmt::For(f) => self.block_calls_mut_self_method(&f.body),
+            _ => false,
+        }
+    }
+
+    fn expr_calls_mut_self_method(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::MethodCall(mc) => {
+                // Check if this is this.someMethod() where someMethod is in mut_self_methods
+                if let Expr::Identifier(obj) = mc.object.as_ref() {
+                    if obj == "this" && self.mut_self_methods.contains(&mc.method) {
+                        return true;
+                    }
+                }
+                // Recurse into args
+                mc.args.iter().any(|a| self.expr_calls_mut_self_method(a))
+                    || self.expr_calls_mut_self_method(&mc.object)
+            }
+            Expr::Call(call) => {
+                call.args
+                    .iter()
+                    .any(|a| self.expr_calls_mut_self_method(a))
+            }
+            Expr::Binary { left, right, .. } => {
+                self.expr_calls_mut_self_method(left)
+                    || self.expr_calls_mut_self_method(right)
+            }
+            _ => false,
+        }
     }
 
     /// Check if a block contains assignments to self fields
@@ -2961,6 +3084,9 @@ impl CodeGenerator {
                 }
             }
         }
+        // B09: Pre-compute transitive &mut self methods before generating them
+        self.compute_mut_self_methods(class);
+
         for member in &class.members {
             if let Member::Method(method) = member {
                 if method.name != "constructor" {
