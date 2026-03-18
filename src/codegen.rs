@@ -716,13 +716,10 @@ impl CodeGenerator {
                 .map_or(false, |e| self.expr_modifies_self(e)),
             Stmt::VarDecl(var_decl) => self.expr_modifies_self(&var_decl.init),
             Stmt::Assign(assign_stmt) => {
-                // Check if left side is this.field
-                if let Expr::Member { object, .. } = &assign_stmt.target {
-                    if let Expr::Identifier(obj) = object.as_ref() {
-                        if obj == "this" || obj == "self" {
-                            return true;
-                        }
-                    }
+                // B08 fix: Check if assignment target involves this/self at any depth
+                // Catches: this.field = x, this.items[i].field = x, this.a.b.c = x
+                if self.target_involves_self(&assign_stmt.target) {
+                    return true;
                 }
                 self.expr_modifies_self(&assign_stmt.value)
             }
@@ -823,6 +820,17 @@ impl CodeGenerator {
                 Some(property.clone())
             }
             _ => None,
+        }
+    }
+
+    /// B08 fix: Recursively check if an assignment target involves `this`/`self` at any depth.
+    /// Catches: this.field, this.items[i].field, this.a.b.c, etc.
+    fn target_involves_self(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Identifier(name) => name == "this" || name == "self",
+            Expr::Member { object, .. } => self.target_involves_self(object),
+            Expr::Index { object, .. } => self.target_involves_self(object),
+            _ => false,
         }
     }
 

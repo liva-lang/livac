@@ -1721,6 +1721,39 @@ process(): number {
     assert_snapshot!("fail_string_uses_error_new", rust_code);
 }
 
+#[test]
+fn test_mut_self_deep_assignment() {
+    // B08: Methods that assign to this.items[idx].field should get &mut self
+    let source = r#"
+Task {
+    name: string
+    done: bool
+}
+
+TodoList {
+    tasks: [Task]
+
+    constructor() {
+        this.tasks = []
+    }
+
+    addTask(name: string) {
+        this.tasks.push(Task(name, false))
+    }
+
+    completeTask(idx: number) {
+        this.tasks[idx].done = true
+    }
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    // completeTask does this.tasks[idx].done = true → should be &mut self
+    assert!(rust_code.contains("fn complete_task(&mut self"), 
+        "completeTask should have &mut self because it assigns to this.tasks[idx].field");
+    assert_snapshot!("mut_self_deep_assignment", rust_code);
+}
+
 // ---------------------------------------------------------------------------
 // 10. Concurrency
 // ---------------------------------------------------------------------------
