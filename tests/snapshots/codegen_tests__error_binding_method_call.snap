@@ -1,6 +1,6 @@
 ---
 source: tests/codegen_tests.rs
-assertion_line: 2441
+assertion_line: 1628
 expression: rust_code
 ---
 #![allow(unused_parens, unused_mut)]
@@ -388,35 +388,33 @@ mod liva_rt {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct Finder {
-    _items: Vec<String>,
+pub struct Calculator {
+    pub value: i32,
 }
 
-impl Finder {
-    pub fn new() -> Self {
+impl Calculator {
+    pub fn new(initial: i32) -> Self {
         Self {
-            _items: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            value: initial,
         }
     }
 
-    // Generating method: findItem
-    pub fn find_item(&self, name: String) -> Result<String, liva_rt::Error> {
-        for item in self._items.clone() {
-            if item == name {
-                return Ok(item);
-            }
+    // Generating method: divide
+    pub fn divide(&self, divisor: i32) -> Result<i32, liva_rt::Error> {
+        if divisor == 0 {
+            return Err(liva_rt::Error::new("Division by zero", "Calculator.divide", ":11"));
         }
-        return Err(liva_rt::Error::new("not found", "Finder.findItem", ":15"));
+        return Ok(self.value / divisor);
     }
 
 }
 
 fn main() {
-    let mut f = Finder::new();
-    let (result, err) = match f.find_item("b".to_string()) { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };
+    let mut calc = Calculator::new(100);
+    let (result, err) = match calc.divide(5) { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };
     if err.is_some() {
-        println!("{}", "error");
+        println!("{}", format!("{}{}", "Error: ", err.as_ref().map(|e| e.message.as_str()).unwrap_or("")));
     } else {
-        println!("{}", "found it");
+        println!("{}", result);
     }
 }

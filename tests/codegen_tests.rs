@@ -1589,6 +1589,45 @@ main() {
     assert_snapshot!("error_binding_underscore_discard", rust_code);
 }
 
+#[test]
+fn test_error_binding_method_call() {
+    // B19: Error binding for method calls should generate match { Ok/Err } pattern
+    // Previously generated (self.method(), None) without destructuring Result
+    let source = r#"
+Calculator {
+    value: number
+
+    constructor(initial: number) {
+        this.value = initial
+    }
+
+    divide(divisor: number): number {
+        if divisor == 0 {
+            fail "Division by zero"
+        }
+        return this.value / divisor
+    }
+}
+
+main() {
+    let calc = Calculator(100)
+    let result, err = calc.divide(5)
+    if err {
+        print("Error: " + err)
+    } else {
+        print(result)
+    }
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    // Should generate match pattern, not (self.method(), None)
+    assert!(rust_code.contains("match calc.divide("), "Method call should use match pattern for error binding");
+    assert!(rust_code.contains("Ok(v)"), "Should destructure Ok variant");
+    assert!(rust_code.contains("Err(e)"), "Should destructure Err variant");
+    assert_snapshot!("error_binding_method_call", rust_code);
+}
+
 // ---------------------------------------------------------------------------
 // 10. Concurrency
 // ---------------------------------------------------------------------------

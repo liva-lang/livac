@@ -73,6 +73,7 @@ pub struct CodeGenerator {
     class_array_field_types: std::collections::HashMap<String, std::collections::HashMap<String, String>>, // className -> (fieldName -> elementType) for array fields
     var_types: std::collections::HashMap<String, String>, // var -> ClassName
     fallible_functions: std::collections::HashSet<String>, // Track which functions are fallible
+    fallible_methods: std::collections::HashSet<String>, // B19 fix: Track which class methods are fallible (method_name, not qualified)
     array_returning_functions: std::collections::HashMap<String, String>, // Track functions that return [T] (Vec) -> elem type
     string_returning_functions: std::collections::HashSet<String>, // Track functions that return string (String)
     ref_lambda_params: std::collections::HashSet<String>, // Lambda params that are &T references (need *deref in comparisons)
@@ -145,6 +146,7 @@ impl CodeGenerator {
             class_array_field_types: std::collections::HashMap::new(),
             var_types: std::collections::HashMap::new(),
             fallible_functions: std::collections::HashSet::new(),
+            fallible_methods: std::collections::HashSet::new(),
             array_returning_functions: std::collections::HashMap::new(),
             string_returning_functions: std::collections::HashSet::new(),
             ref_lambda_params: std::collections::HashSet::new(),
@@ -11265,6 +11267,10 @@ impl CodeGenerator {
                     false
                 }
             }
+            // B19 fix: Method calls can also be fallible
+            Expr::MethodCall(mc) => {
+                self.fallible_methods.contains(&mc.method)
+            }
             Expr::Ternary {
                 condition: _,
                 then_expr,
@@ -15040,6 +15046,16 @@ pub fn generate_with_ast(program: &Program, ctx: DesugarContext) -> Result<(Stri
                     generator
                         .string_returning_functions
                         .insert(func.name.clone());
+                }
+            }
+        }
+        // B19 fix: Scan class methods for fallible (contains_fail) 
+        if let TopLevel::Class(class) = item {
+            for member in &class.members {
+                if let Member::Method(method) = member {
+                    if method.contains_fail {
+                        generator.fallible_methods.insert(method.name.clone());
+                    }
                 }
             }
         }
