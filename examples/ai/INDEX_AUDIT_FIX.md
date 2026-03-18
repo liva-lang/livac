@@ -3,7 +3,7 @@
 > **Inicio:** 2026-03-18  
 > **Objetivo:** Implementar los fixes del compilador y mejoras de la skill identificados en la auditoría de 10 proyectos AI-generated  
 > **Fuente:** `examples/ai/REPORT_SUMMARY.md` (informe consolidado) + 10× `REPORT.md` por proyecto  
-> **Estado:** En progreso — 10/47 bugs corregidos
+> **Estado:** En progreso — 14/47 bugs corregidos
 
 ---
 
@@ -50,8 +50,8 @@ La auditoría de 10 proyectos AI-generated reveló **47 bugs únicos del compila
 ## Baseline de tests
 
 ```
-cargo test → 404 passed, 0 failed, 3 ignored
-Snapshots:   262 archivos en tests/snapshots/
+cargo test → 406 passed, 0 failed, 3 ignored
+Snapshots:   266 archivos en tests/snapshots/
 Ejemplos:    40 archivos .liva en examples/ (no-AI)
 ```
 
@@ -82,9 +82,9 @@ Bugs que afectan 3+ proyectos o bloquean patrones fundamentales del lenguaje.
 > Área: generación de `.clone()`, paso de argumentos, iteración en loops.  
 > Afecta: 5 de 10 proyectos. ~30% de todos los errores de la auditoría.
 
-- [ ] **B17** — Struct/Map pasado a función por valor consume ownership → necesita auto-clone  
+- [x] **B17** — Struct/Map pasado a función por valor consume ownership → necesita auto-clone  ✅ 2026-03-18
   Archivo: `codegen.rs` | Proyectos: text-search, csv-reader, json-parser, rest-api, mini-interpreter
-- [ ] **B36** — Valores movidos en iteraciones de loop → variable consumida en primera iteración  
+- [x] **B36** — Valores movidos en iteraciones de loop → variable consumida en primera iteración  ✅ 2026-03-18
   Archivo: `codegen.rs` | Proyectos: csv-reader, rest-api, mini-interpreter
 - [ ] **B35** — Array index access (`arr[i]`) como argumento mueve en vez de clonar  
   Archivo: `codegen.rs` | Proyectos: csv-reader, json-parser
@@ -94,7 +94,7 @@ Bugs que afectan 3+ proyectos o bloquean patrones fundamentales del lenguaje.
   Archivo: `codegen.rs` | Proyectos: todo-list
 - [ ] **B45** — `for item in this.collection` itera sobre copia — mutaciones perdidas  
   Archivo: `codegen.rs` | Proyectos: todo-list
-- [ ] **B47** — Array concat `arr + [value]` mueve el valor  
+- [x] **B47** — Array concat `arr + [value]` mueve el valor  ✅ 2026-03-18 (cubierto por B36)
   Archivo: `codegen.rs` | Proyectos: rest-api
 - [ ] **B34** — Error binding vars no marcadas `mut` cuando se reasignan  
   Archivo: `codegen.rs` | Proyectos: csv-reader
@@ -131,7 +131,7 @@ Bugs que afectan 3+ proyectos o bloquean patrones fundamentales del lenguaje.
 ### Métodos de Clase (`codegen.rs`)
 > Área: detección de `&mut self`, return type inference.
 
-- [ ] **B08** — `&mut self` detección incompleta — solo detecta `this.field = x` directo  
+- [x] **B08** — `&mut self` detección incompleta — solo detecta `this.field = x` directo  ✅ 2026-03-18
   Archivo: `codegen.rs` | Proyectos: todo-list, calculator, mini-interpreter
 - [ ] **B09** — `&mut self` transitivo no propagado — método que llama `&mut` no se marca  
   Archivo: `codegen.rs` | Proyectos: mini-interpreter
