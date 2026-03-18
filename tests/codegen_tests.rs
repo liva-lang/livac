@@ -4931,3 +4931,22 @@ main() {
     assert!(!rust_code.contains("print!(format!"), "Should NOT nest print!(format!(...)): {}", rust_code);
     assert_snapshot!("console_input_template", rust_code);
 }
+
+#[test]
+fn test_array_element_assignment() {
+    // B39: arr[i] = val should not generate .clone() on LHS
+    let source = r#"
+main() {
+    let arr = ["a", "b", "c"]
+    let i = 1
+    arr[i] = "X"
+    print(arr)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // Should NOT have .clone() on the LHS of assignment
+    let assign_line = rust_code.lines().find(|l| l.contains("arr[") && l.contains("= \"X\"")).unwrap_or("");
+    assert!(!assign_line.contains(".clone()"), "arr[i] = val should not clone on LHS: {}", assign_line);
+    assert!(rust_code.contains("as usize]"), "Should cast index to usize: {}", rust_code);
+    assert_snapshot!("array_element_assignment", rust_code);
+}

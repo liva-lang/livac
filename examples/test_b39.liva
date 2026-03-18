@@ -1,0 +1,7 @@
+// Test B39: Array element assignment
+main() {
+    let arr = ["a", "b", "c"]
+    let i = 1
+    arr[i] = "X"
+    print(arr)
+}
