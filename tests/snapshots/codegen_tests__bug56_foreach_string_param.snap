@@ -1,5 +1,6 @@
 ---
 source: tests/codegen_tests.rs
+assertion_line: 772
 expression: rust_code
 ---
 #![allow(unused_parens, unused_mut)]
@@ -395,5 +396,5 @@ fn print_lines(lines: Vec<String>) {
 
 fn main() {
     let items = vec!["one".to_string(), "two".to_string()];
-    print_lines(items);
+    print_lines(items.clone());
 }

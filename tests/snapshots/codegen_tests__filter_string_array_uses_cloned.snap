@@ -1,6 +1,6 @@
 ---
 source: tests/codegen_tests.rs
-assertion_line: 2761
+assertion_line: 2958
 expression: rust_code
 ---
 #![allow(unused_parens, unused_mut)]
@@ -394,6 +394,6 @@ fn get_unique_words(words: Vec<String>) -> Vec<String> {
 
 fn main() {
     let words = vec!["hello".to_string(), "hi".to_string(), "world".to_string(), "ok".to_string(), "testing".to_string()];
-    let result = get_unique_words(words);
+    let result = get_unique_words(words.clone());
     println!("{:?}", result);
 }

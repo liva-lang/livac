@@ -1,6 +1,6 @@
 ---
 source: tests/codegen_tests.rs
-assertion_line: 898
+assertion_line: 1749
 expression: rust_code
 ---
 #![allow(unused_parens, unused_mut)]
@@ -387,17 +387,14 @@ mod liva_rt {
     
 }
 
-fn double_nums(nums: Vec<i32>) -> Vec<i32> {
-    let mut result: Vec<i32> = vec![];
-    nums.iter().for_each(|&n| {
-                result.push(n * 2);
-
-    });
-    return result;
+fn process_array(items: Vec<String>) -> i32 {
+    return (items.len() as i32);
 }
 
 fn main() {
-    let nums = vec![1, 2, 3];
-    let doubled = double_nums(nums.clone());
-    println!("{:?}", doubled);
+    let items = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+    let n1 = process_array(items.clone());
+    let n2 = process_array(items.clone());
+    println!("{}", n1);
+    println!("{}", n2);
 }

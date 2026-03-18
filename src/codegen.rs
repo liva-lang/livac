@@ -7396,12 +7396,14 @@ impl CodeGenerator {
                         self.generate_expr(arg)?;
                         self.output.push_str(".to_string()");
                     } else if let Expr::Identifier(var_name) = arg {
-                        // Bug #32: Clone string variables when passing to constructors
-                        // to allow them to be used after the constructor call
+                        // B17 fix: Clone non-Copy variables when passing to constructors
                         let sanitized = self.sanitize_name(var_name);
                         let is_string_var = self.string_vars.contains(&sanitized);
                         let is_class_instance = self.class_instance_vars.contains(&sanitized);
-                        if is_string_var || is_class_instance {
+                        let is_map = self.map_vars.contains(&sanitized);
+                        let is_array = self.array_vars.contains(&sanitized);
+                        let is_json = self.json_value_vars.contains(&sanitized);
+                        if is_string_var || is_class_instance || is_map || is_array || is_json {
                             self.generate_expr(arg)?;
                             self.output.push_str(".clone()");
                         } else {
@@ -7447,11 +7449,14 @@ impl CodeGenerator {
                 self.generate_expr(arg)?;
                 self.output.push_str(".to_string()");
             } else if let Expr::Identifier(name) = arg {
-                // Clone class instances and string variables when passing to functions
-                // to avoid ownership issues (Rust moves String/struct by default)
+                // B17 fix: Clone non-Copy variables when passing to functions
+                // to avoid ownership issues (Rust moves String/struct/Vec/HashMap by default)
                 let sanitized = self.sanitize_name(name);
                 if self.class_instance_vars.contains(&sanitized)
                     || self.string_vars.contains(&sanitized)
+                    || self.map_vars.contains(&sanitized)
+                    || self.array_vars.contains(&sanitized)
+                    || self.json_value_vars.contains(&sanitized)
                 {
                     self.generate_expr(arg)?;
                     self.output.push_str(".clone()");

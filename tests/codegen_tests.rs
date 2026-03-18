@@ -1726,6 +1726,30 @@ process(): number {
 // ---------------------------------------------------------------------------
 
 #[test]
+fn test_auto_clone_map_array_args() {
+    // B17: Map/Array passed to function by value should auto-clone
+    // Previously only string_vars and class_instance_vars were cloned
+    let source = r#"
+processArray(items: [string]): number {
+    return items.length
+}
+
+main() {
+    let items = ["a", "b", "c"]
+    let n1 = processArray(items)
+    let n2 = processArray(items)
+    print(n1)
+    print(n2)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    // Array args should be cloned to prevent move
+    assert!(rust_code.contains("items.clone()"), "Array variable should be cloned when passed to function");
+    assert_snapshot!("auto_clone_map_array_args", rust_code);
+}
+
+#[test]
 fn test_feature_async_await() {
     let source = r#"
 fetchData(url: string): string {
