@@ -15017,6 +15017,23 @@ fn generate_entry_point(
                 codegen.enum_variants
                     .insert(enum_decl.name.clone(), variants_map);
             }
+            // B23 fix: Pre-populate fallible functions from imported modules
+            // Without this, cross-file error binding generates (fn(), None) instead of match { Ok/Err }
+            if let TopLevel::Function(func) = item {
+                if func.contains_fail {
+                    codegen.fallible_functions.insert(func.name.clone());
+                }
+            }
+            // B23 fix: Also pre-populate fallible methods from imported classes
+            if let TopLevel::Class(class) = item {
+                for member in &class.members {
+                    if let crate::ast::Member::Method(method) = member {
+                        if method.contains_fail {
+                            codegen.fallible_methods.insert(method.name.clone());
+                        }
+                    }
+                }
+            }
         }
     }
 
