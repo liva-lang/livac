@@ -3646,8 +3646,16 @@ impl CodeGenerator {
     }
 
     fn generate_enum(&mut self, enum_decl: &EnumDecl) -> Result<()> {
+        // B14: Check if all variants are unit variants — only then derive Default
+        // Enums with data variants can't easily derive Default
+        let all_unit = enum_decl.variants.iter().all(|v| v.fields.is_empty());
+
         // Generate Rust enum with derive macros
-        self.writeln("#[derive(Debug, Clone, PartialEq)]");
+        if all_unit && !enum_decl.variants.is_empty() {
+            self.writeln("#[derive(Debug, Clone, PartialEq, Default)]");
+        } else {
+            self.writeln("#[derive(Debug, Clone, PartialEq)]");
+        }
 
         // Type parameters
         if enum_decl.type_params.is_empty() {
@@ -3669,9 +3677,14 @@ impl CodeGenerator {
 
         self.indent();
 
-        for variant in &enum_decl.variants {
+        for (idx, variant) in enum_decl.variants.iter().enumerate() {
             self.write_indent();
             if variant.fields.is_empty() {
+                // B14: Mark first unit variant as default
+                if idx == 0 && all_unit {
+                    writeln!(self.output, "#[default]").unwrap();
+                    self.write_indent();
+                }
                 // Unit variant: Red,
                 writeln!(self.output, "{},", variant.name).unwrap();
             } else {

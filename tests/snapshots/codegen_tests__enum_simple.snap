@@ -386,8 +386,9 @@ mod liva_rt {
     
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 enum Color {
+    #[default]
     Red,
     Green,
     Blue,

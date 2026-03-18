@@ -387,36 +387,43 @@ mod liva_rt {
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
-enum Direction {
+enum Priority {
     #[default]
-    North,
-    South,
-    East,
-    West,
+    High,
+    Medium,
+    Low,
 }
 
-impl std::fmt::Display for Direction {
+impl std::fmt::Display for Priority {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Direction::North => write!(f, "North"),
-            Direction::South => write!(f, "South"),
-            Direction::East => write!(f, "East"),
-            Direction::West => write!(f, "West"),
+            Priority::High => write!(f, "High"),
+            Priority::Medium => write!(f, "Medium"),
+            Priority::Low => write!(f, "Low"),
         }
     }
 }
 
 
-fn direction_name(direction: Direction) -> String {
-    return match direction {
-        Direction::North => "Going north".to_string(),
-        Direction::South => "Going south".to_string(),
-        Direction::East => "Going east".to_string(),
-        Direction::West => "Going west".to_string(),
-    };
+#[derive(Debug, Clone, Default)]
+pub struct Item {
+    pub title: String,
+    pub priority: Priority,
+    pub done: bool,
+}
+
+impl Item {
+    pub fn new(t: String, p: Priority) -> Self {
+        Self {
+            title: t,
+            priority: p,
+            done: false,
+        }
+    }
+
 }
 
 fn main() {
-    let d = Direction::North;
-    println!("{}", direction_name(d));
+    let item = Item::new("Fix bug".to_string(), Priority::High);
+    println!("{}", item.title);
 }

@@ -4839,3 +4839,33 @@ main() {
     assert!(rust_code.contains("r#type"), "Should escape `type` keyword with r#: {}", rust_code);
     assert_snapshot!("type_as_field_name", rust_code);
 }
+
+#[test]
+fn test_enum_field_default_derive() {
+    // B14: Class with enum field should compile — enum must derive Default
+    let source = r#"
+enum Priority { High, Medium, Low }
+
+Item {
+    title: string
+    priority: Priority
+    done: bool
+
+    constructor(t: string, p: Priority) {
+        this.title = t
+        this.priority = p
+        this.done = false
+    }
+}
+
+main() {
+    let item = Item("Fix bug", Priority.High)
+    print(item.title)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // Enum should derive Default with #[default] on first variant
+    assert!(rust_code.contains("#[derive(Debug, Clone, PartialEq, Default)]"), "Enum should derive Default: {}", rust_code);
+    assert!(rust_code.contains("#[default]"), "First variant should have #[default]: {}", rust_code);
+    assert_snapshot!("enum_field_default_derive", rust_code);
+}
