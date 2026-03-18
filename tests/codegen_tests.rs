@@ -4782,3 +4782,34 @@ main() {
     assert!(rust_code.contains("fn increment_twice(&mut self)"), "Transitive &mut self should propagate: {}", rust_code);
     assert_snapshot!("transitive_mut_self", rust_code);
 }
+
+#[test]
+fn test_class_param_dot_notation() {
+    // B07: Function parameter with class type should use .field not get_field()
+    let source = r#"
+Item {
+    name: string
+    price: float
+
+    constructor(n: string, p: float) {
+        this.name = n
+        this.price = p
+    }
+}
+
+showItem(item: Item) {
+    print(item.name + " costs " + item.price)
+}
+
+main() {
+    let i = Item("Book", 9.99)
+    showItem(i)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // Check user code (after liva_rt module) for dot notation instead of get_field()
+    let user_code = rust_code.split("fn show_item").last().unwrap_or(&rust_code);
+    assert!(!user_code.contains("get_field"), "Class param should use dot notation: {}", user_code);
+    assert!(user_code.contains("item.name"), "Should access .name directly: {}", user_code);
+    assert_snapshot!("class_param_dot_notation", rust_code);
+}

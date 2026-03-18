@@ -192,10 +192,14 @@ impl CodeGenerator {
             return true;
         }
 
+        let sanitized = self.sanitize_name(var_name);
+
         // Check if the variable was assigned from a class constructor
-        self.class_instance_vars.contains(var_name) ||
+        self.class_instance_vars.contains(&sanitized)
+        // B07 fix: Also check var_types — tracks variables with known class types
+        || self.var_types.contains_key(&sanitized)
         // Temporary heuristic: single character variables are likely class instances
-        var_name.len() == 1
+        || var_name.len() == 1
     }
 
     /// Check if an expression is a JsonValue (for lambda pattern detection)
