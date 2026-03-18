@@ -4869,3 +4869,29 @@ main() {
     assert!(rust_code.contains("#[default]"), "First variant should have #[default]: {}", rust_code);
     assert_snapshot!("enum_field_default_derive", rust_code);
 }
+
+#[test]
+fn test_json_stringify_triggers_serde() {
+    // B46: JSON.stringify should trigger serde derives on the class
+    let source = r#"
+Author {
+    id: int
+    name: string
+
+    constructor(id: int, name: string) {
+        this.id = id
+        this.name = name
+    }
+}
+
+main() {
+    let author = Author(1, "Alice")
+    let json, err = JSON.stringify(author)
+    print(json)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("serde::Serialize"), "Author should derive Serialize: {}", rust_code);
+    assert!(rust_code.contains("serde::Deserialize"), "Author should derive Deserialize: {}", rust_code);
+    assert_snapshot!("json_stringify_serde", rust_code);
+}

@@ -115,6 +115,8 @@ pub struct CodeGenerator {
     enum_names: std::collections::HashSet<String>,
     enum_variants:
         std::collections::HashMap<String, std::collections::HashMap<String, Vec<String>>>, // enum_name -> (variant_name -> [field_names])
+    // --- B46: Classes that need serde derives (from JSON.stringify usage)
+    serde_classes: std::collections::HashSet<String>,
     // --- Float literal suffix context (for f32 variable declarations)
     float_literal_suffix: String, // "f64" by default, set to "f32" when generating f32-typed expressions
     // --- Error trace context
@@ -179,6 +181,7 @@ impl CodeGenerator {
             test_hooks_stack: Vec::new(),
             enum_names: std::collections::HashSet::new(),
             enum_variants: std::collections::HashMap::new(),
+            serde_classes: std::collections::HashSet::new(),
             float_literal_suffix: "f64".to_string(),
             current_function_name: String::new(),
             source_filename,
@@ -712,6 +715,149 @@ impl CodeGenerator {
     }
 
     /// B09: Pre-compute which methods need &mut self, including transitive calls.
+    /// B46: Scan all function/method bodies for JSON.stringify(arg) to identify classes needing serde derives.
+    /// Builds var→class map from constructor calls, then finds JSON.stringify(var) usage.
+    fn scan_json_stringify_classes(&mut self, program: &Program) {
+        // Collect known class names
+        let class_names: std::collections::HashSet<String> = program.items.iter().filter_map(|item| {
+            if let TopLevel::Class(cls) = item { Some(cls.name.clone()) } else { None }
+        }).collect();
+
+        // Scan all function and method bodies
+        for item in &program.items {
+            match item {
+                TopLevel::Function(func) => {
+                    if let Some(body) = &func.body {
+                        self.scan_stmts_for_stringify(&body.stmts, &class_names);
+                    }
+                }
+                TopLevel::Class(cls) => {
+                    for member in &cls.members {
+                        if let Member::Method(method) = member {
+                            if let Some(body) = &method.body {
+                                self.scan_stmts_for_stringify(&body.stmts, &class_names);
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// Scan statements for JSON.stringify calls with class-typed arguments
+    fn scan_stmts_for_stringify(&mut self, stmts: &[Stmt], class_names: &std::collections::HashSet<String>) {
+        // Build local var→class map from this scope
+        let mut var_class: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+
+        for stmt in stmts {
+            // Track constructor assignments: let x = ClassName(...)
+            if let Stmt::VarDecl(var) = stmt {
+                if let Expr::Call(call) = &var.init {
+                    if let Expr::Identifier(name) = call.callee.as_ref() {
+                        if class_names.contains(name) {
+                            for binding in &var.bindings {
+                                if let BindingPattern::Identifier(var_name) = &binding.pattern {
+                                    var_class.insert(var_name.clone(), name.clone());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Find JSON.stringify(arg) calls
+            self.scan_expr_for_stringify_in_stmt(stmt, &var_class, class_names);
+        }
+    }
+
+    fn scan_expr_for_stringify_in_stmt(&mut self, stmt: &Stmt, var_class: &std::collections::HashMap<String, String>, class_names: &std::collections::HashSet<String>) {
+        match stmt {
+            Stmt::Expr(expr_stmt) => {
+                self.scan_expr_for_stringify(&expr_stmt.expr, var_class, class_names);
+            }
+            Stmt::Return(ret_stmt) => {
+                if let Some(expr) = &ret_stmt.expr {
+                    self.scan_expr_for_stringify(expr, var_class, class_names);
+                }
+            }
+            Stmt::VarDecl(var) => {
+                self.scan_expr_for_stringify(&var.init, var_class, class_names);
+            }
+            Stmt::Assign(assign) => {
+                self.scan_expr_for_stringify(&assign.value, var_class, class_names);
+            }
+            Stmt::If(if_stmt) => {
+                self.scan_expr_for_stringify(&if_stmt.condition, var_class, class_names);
+                match &if_stmt.then_branch {
+                    IfBody::Block(block) => {
+                        for s in &block.stmts {
+                            self.scan_expr_for_stringify_in_stmt(s, var_class, class_names);
+                        }
+                    }
+                    IfBody::Stmt(s) => {
+                        self.scan_expr_for_stringify_in_stmt(s, var_class, class_names);
+                    }
+                }
+                if let Some(else_branch) = &if_stmt.else_branch {
+                    match else_branch {
+                        IfBody::Block(block) => {
+                            for s in &block.stmts {
+                                self.scan_expr_for_stringify_in_stmt(s, var_class, class_names);
+                            }
+                        }
+                        IfBody::Stmt(s) => {
+                            self.scan_expr_for_stringify_in_stmt(s, var_class, class_names);
+                        }
+                    }
+                }
+            }
+            Stmt::For(for_stmt) => {
+                for s in &for_stmt.body.stmts {
+                    self.scan_expr_for_stringify_in_stmt(s, var_class, class_names);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn scan_expr_for_stringify(&mut self, expr: &Expr, var_class: &std::collections::HashMap<String, String>, class_names: &std::collections::HashSet<String>) {
+        match expr {
+            Expr::MethodCall(mc) => {
+                if mc.method == "stringify" {
+                    if let Expr::Identifier(obj) = mc.object.as_ref() {
+                        if obj == "JSON" {
+                            // Found JSON.stringify(arg) — resolve arg's class type
+                            for arg in &mc.args {
+                                if let Expr::Identifier(var_name) = arg {
+                                    if let Some(class_name) = var_class.get(var_name) {
+                                        self.serde_classes.insert(class_name.clone());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                // Recurse into subexpressions
+                self.scan_expr_for_stringify(&mc.object, var_class, class_names);
+                for arg in &mc.args {
+                    self.scan_expr_for_stringify(arg, var_class, class_names);
+                }
+            }
+            Expr::Call(call) => {
+                self.scan_expr_for_stringify(&call.callee, var_class, class_names);
+                for arg in &call.args {
+                    self.scan_expr_for_stringify(arg, var_class, class_names);
+                }
+            }
+            Expr::Binary { left, right, .. } => {
+                self.scan_expr_for_stringify(left, var_class, class_names);
+                self.scan_expr_for_stringify(right, var_class, class_names);
+            }
+            _ => {}
+        }
+    }
+
     /// Phase 1: Detect direct &mut self (assignments to this.field, mutating methods on this.field)
     /// Phase 2: Propagate — if method A calls this.B() and B is &mut self, then A is too
     fn compute_mut_self_methods(&mut self, class: &ClassDecl) {
@@ -1386,6 +1532,9 @@ impl CodeGenerator {
                     .insert(enum_decl.name.clone(), variants_map);
             }
         }
+
+        // B46: Pre-scan for JSON.stringify usage to mark classes needing serde
+        self.scan_json_stringify_classes(program);
 
         // Always include concurrency runtime for now
         if std::env::var("LIVA_DEBUG").is_ok() {
@@ -2679,7 +2828,8 @@ impl CodeGenerator {
         let is_data = !has_constructor && has_fields;
 
         // Generate default functions for optional fields with init values
-        if class.needs_serde {
+        let needs_serde_early = class.needs_serde || self.serde_classes.contains(&class.name);
+        if needs_serde_early {
             for member in &class.members {
                 if let Member::Field(field) = member {
                     if field.is_optional && field.init.is_some() {
@@ -2731,13 +2881,14 @@ impl CodeGenerator {
             String::new()
         };
 
-        // Phase 2: Generate serde derives if class is used with JSON.parse
+        // Phase 2: Generate serde derives if class is used with JSON.parse or JSON.stringify (B46)
         // Data classes (auto-detected) also get PartialEq
-        let derives = if is_data && class.needs_serde {
+        let needs_serde = class.needs_serde || self.serde_classes.contains(&class.name);
+        let derives = if is_data && needs_serde {
             "#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]"
         } else if is_data {
             "#[derive(Debug, Clone, Default, PartialEq)]"
-        } else if class.needs_serde {
+        } else if needs_serde {
             "#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]"
         } else {
             "#[derive(Debug, Clone, Default)]"
@@ -2757,7 +2908,7 @@ impl CodeGenerator {
 
         for member in &class.members {
             if let Member::Field(field) = member {
-                self.generate_field(field, class.needs_serde, Some(&class.name))?;
+                self.generate_field(field, needs_serde, Some(&class.name))?;
             }
         }
 
