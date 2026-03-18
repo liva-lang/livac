@@ -1,0 +1,79 @@
+import { Task, Priority, priorityFromString, priorityLabel } from "./task.liva"
+
+TaskManager {
+    tasks: [Task]
+    nextId: number
+
+    constructor() {
+        this.tasks = []
+        this.nextId = 1
+    }
+
+    addTask(title: string, description: string, priorityStr: string, date: string): Task {
+        let priority = priorityFromString(priorityStr)
+        let task = Task(this.nextId, title, description, priority, date)
+        this.tasks.push(task)
+        this.nextId = this.nextId + 1
+        return task
+    }
+
+    listAll() {
+        if this.tasks.isEmpty() {
+            print("\n  No hay tareas registradas.\n")
+            return
+        }
+        print("\n━━━ Lista de Tareas ━━━")
+        for task in this.tasks {
+            print(task.display())
+            print("")
+        }
+    }
+
+    listPending() {
+        let pending = this.tasks.filter(t => t.completed == false)
+        if pending.isEmpty() {
+            print("\n  No hay tareas pendientes.\n")
+            return
+        }
+        print("\n━━━ Tareas Pendientes ━━━")
+        for task in pending {
+            print(task.display())
+            print("")
+        }
+    }
+
+    listCompleted() {
+        let done = this.tasks.filter(t => t.completed == true)
+        if done.isEmpty() {
+            print("\n  No hay tareas completadas.\n")
+            return
+        }
+        print("\n━━━ Tareas Completadas ━━━")
+        for task in done {
+            print(task.display())
+            print("")
+        }
+    }
+
+    completeTask(id: number): bool {
+        for task in this.tasks {
+            if task.id == id {
+                task.completed = true
+                return true
+            }
+        }
+        return false
+    }
+
+    deleteTask(id: number): bool {
+        let initial = this.tasks.length
+        this.tasks = this.tasks.filter(t => t.id != id)
+        return this.tasks.length < initial
+    }
+
+    count(): number => this.tasks.length
+
+    pendingCount(): number => this.tasks.filter(t => t.completed == false).length
+
+    completedCount(): number => this.tasks.filter(t => t.completed == true).length
+}

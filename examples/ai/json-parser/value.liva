@@ -1,0 +1,203 @@
+// value.liva — JSON value types (algebraic data type)
+
+enum JsonValue {
+    JString(value: string),
+    JNumber(value: float),
+    JBool(value: bool),
+    JNull,
+    JArray(items: string),
+    JObject(entries: string)
+}
+
+// ── Constructors ────────────────────────────────────────────
+
+jsonString(s: string): string => $"JString::{s}"
+
+jsonNumber(n: float): string => $"JNumber::{n}"
+
+jsonBool(b: bool): string {
+    if b {
+        return "JBool::true"
+    }
+    return "JBool::false"
+}
+
+jsonNull(): string => "JNull"
+
+jsonArray(items: [string]): string {
+    let joined = items.join("<<ITEM>>")
+    return $"JArray::{joined}"
+}
+
+jsonObject(entries: [string]): string {
+    let joined = entries.join("<<ENTRY>>")
+    return $"JObject::{joined}"
+}
+
+jsonEntry(key: string, value: string): string => $"{key}<<KV>>{value}"
+
+// ── Type checking ───────────────────────────────────────────
+
+isJString(v: string): bool => v.startsWith("JString::")
+isJNumber(v: string): bool => v.startsWith("JNumber::")
+isJBool(v: string): bool => v.startsWith("JBool::")
+isJNull(v: string): bool => v == "JNull"
+isJArray(v: string): bool => v.startsWith("JArray::")
+isJObject(v: string): bool => v.startsWith("JObject::")
+
+// ── Extraction ──────────────────────────────────────────────
+
+getJString(v: string): string {
+    return v.removePrefix("JString::")
+}
+
+getJNumber(v: string): float {
+    let raw = v.removePrefix("JNumber::")
+    let num, _ = parseFloat(raw)
+    return num
+}
+
+getJBool(v: string): bool {
+    let raw = v.removePrefix("JBool::")
+    return raw == "true"
+}
+
+getJArrayItems(v: string): [string] {
+    let raw = v.removePrefix("JArray::")
+    if raw.isEmpty() {
+        return []
+    }
+    return raw.split("<<ITEM>>")
+}
+
+getJObjectEntries(v: string): [string] {
+    let raw = v.removePrefix("JObject::")
+    if raw.isEmpty() {
+        return []
+    }
+    return raw.split("<<ENTRY>>")
+}
+
+getEntryKey(entry: string): string {
+    let parts = entry.split("<<KV>>")
+    return parts[0]
+}
+
+getEntryValue(entry: string): string {
+    let parts = entry.split("<<KV>>")
+    return parts[1]
+}
+
+// ── Serializer (stringify) ──────────────────────────────────
+
+jsonStringify(v: string): string {
+    return _stringify(v, 0, 0)
+}
+
+jsonStringifyPretty(v: string, indent: number): string {
+    return _stringify(v, indent, 0)
+}
+
+_stringify(v: string, indent: number, depth: number): string {
+    if isJNull(v) {
+        return "null"
+    }
+    if isJBool(v) {
+        if getJBool(v) {
+            return "true"
+        }
+        return "false"
+    }
+    if isJNumber(v) {
+        let n = getJNumber(v)
+        return _formatNumber(n)
+    }
+    if isJString(v) {
+        return _escapeJsonString(getJString(v))
+    }
+    if isJArray(v) {
+        return _stringifyArray(v, indent, depth)
+    }
+    if isJObject(v) {
+        return _stringifyObject(v, indent, depth)
+    }
+    return "null"
+}
+
+_formatNumber(n: float): string {
+    let s = toString(n)
+    // If it ends with .0, check if it's an integer
+    if s.endsWith(".0") {
+        return s.removeSuffix(".0")
+    }
+    return s
+}
+
+_escapeJsonString(s: string): string {
+    let result = s
+    result = result.replace("\\", "\\\\")
+    result = result.replace("\"", "\\\"")
+    result = result.replace("\n", "\\n")
+    result = result.replace("\r", "\\r")
+    result = result.replace("\t", "\\t")
+    return $"\"{result}\""
+}
+
+_stringifyArray(v: string, indent: number, depth: number): string {
+    let items = getJArrayItems(v)
+    if items.isEmpty() {
+        return "[]"
+    }
+
+    if indent == 0 {
+        let parts: [string] = []
+        for item in items {
+            parts.push(_stringify(item, 0, 0))
+        }
+        return $"[{parts.join(",")}]"
+    }
+
+    let newDepth = depth + 1
+    let innerPad = _makeIndent(indent, newDepth)
+    let outerPad = _makeIndent(indent, depth)
+    let parts: [string] = []
+    for item in items {
+        parts.push($"{innerPad}{_stringify(item, indent, newDepth)}")
+    }
+    let joined = parts.join(",\n")
+    return $"[\n{joined}\n{outerPad}]"
+}
+
+_stringifyObject(v: string, indent: number, depth: number): string {
+    let entries = getJObjectEntries(v)
+    if entries.isEmpty() {
+        return "{}"
+    }
+
+    if indent == 0 {
+        let parts: [string] = []
+        for entry in entries {
+            let key = getEntryKey(entry)
+            let val = getEntryValue(entry)
+            parts.push($"{_escapeJsonString(key)}:{_stringify(val, 0, 0)}")
+        }
+        return $"\{{parts.join(",")}\}"
+    }
+
+    let newDepth = depth + 1
+    let innerPad = _makeIndent(indent, newDepth)
+    let outerPad = _makeIndent(indent, depth)
+    let parts: [string] = []
+    for entry in entries {
+        let key = getEntryKey(entry)
+        let val = getEntryValue(entry)
+        parts.push($"{innerPad}{_escapeJsonString(key)}: {_stringify(val, indent, newDepth)}")
+    }
+    let joined = parts.join(",\n")
+    return $"\{{\n{joined}\n{outerPad}\}}"
+}
+
+_makeIndent(size: number, depth: number): string {
+    let total = size * depth
+    return " ".repeat(total)
+}

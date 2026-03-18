@@ -1,0 +1,31 @@
+// token.liva — Token types for the JSON lexer
+
+enum Token {
+    LeftBrace,
+    RightBrace,
+    LeftBracket,
+    RightBracket,
+    Colon,
+    Comma,
+    TString(value: string),
+    TNumber(value: string),
+    TBool(value: bool),
+    TNull,
+    EOF
+}
+
+tokenToString(token: Token): string {
+    return switch token {
+        Token.LeftBrace => "LeftBrace({)",
+        Token.RightBrace => "RightBrace(})",
+        Token.LeftBracket => "LeftBracket([)",
+        Token.RightBracket => "RightBracket(])",
+        Token.Colon => "Colon(:)",
+        Token.Comma => "Comma(,)",
+        Token.TString(v) => $"String(\{v\})",
+        Token.TNumber(v) => $"Number({v})",
+        Token.TBool(v) => $"Bool({v})",
+        Token.TNull => "Null",
+        Token.EOF => "EOF"
+    }
+}

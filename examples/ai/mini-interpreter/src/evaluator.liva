@@ -1,0 +1,593 @@
+// ============================================================
+// evaluator.liva — Recursive AST evaluator
+// ============================================================
+
+import { ASTNode } from "./ast.liva"
+
+// Runtime value representation using a tagged union approach
+Value {
+    tag: string       // "number", "string", "bool", "null", "function"
+    numVal: float
+    strVal: string
+    boolVal: bool
+    // Function-specific fields
+    funcParams: [string]
+    funcBody: ASTNode
+    funcEnvKeys: [string]
+    funcEnvVals: [Value]
+
+    constructor(tag: string) {
+        this.tag = tag
+        this.numVal = 0.0
+        this.strVal = ""
+        this.boolVal = false
+        this.funcParams = []
+        this.funcBody = ASTNode("Program")
+        this.funcEnvKeys = []
+        this.funcEnvVals = []
+    }
+}
+
+// Construct specific value types
+makeNumValue(n: float): Value {
+    let v = Value("number")
+    v.numVal = n
+    return v
+}
+
+makeStrValue(s: string): Value {
+    let v = Value("string")
+    v.strVal = s
+    return v
+}
+
+makeBoolValue(b: bool): Value {
+    let v = Value("bool")
+    v.boolVal = b
+    return v
+}
+
+makeNullValue(): Value {
+    return Value("null")
+}
+
+makeFuncValue(params: [string], body: ASTNode, envKeys: [string], envVals: [Value]): Value {
+    let v = Value("function")
+    v.funcParams = params
+    v.funcBody = body
+    v.funcEnvKeys = envKeys
+    v.funcEnvVals = envVals
+    return v
+}
+
+// Format a value as a string for display
+valueToString(val: Value): string {
+    if val.tag == "number" {
+        // Show integers without decimal point
+        let intPart = rust {
+            let f: f64 = val.num_val;
+            f as i64
+        }
+        let floatIntPart = rust {
+            let f: f64 = val.num_val;
+            (f as i64) as f64
+        }
+        if val.numVal == floatIntPart {
+            return toString(intPart)
+        }
+        return toString(val.numVal)
+    }
+    if val.tag == "string" { return val.strVal }
+    if val.tag == "bool" { return val.boolVal ? "true" : "false" }
+    if val.tag == "function" { return "<function>" }
+    return "null"
+}
+
+// Check if a value is truthy
+_isTruthy(val: Value): bool {
+    if val.tag == "bool" { return val.boolVal }
+    if val.tag == "number" { return val.numVal != 0.0 }
+    if val.tag == "string" { return val.strVal != "" }
+    if val.tag == "null" { return false }
+    return true
+}
+
+// ---- Environment (scope chain) ----
+// We represent the environment as parallel arrays of keys and values
+// with a parent environment for scope chaining.
+
+Environment {
+    keys: [string]
+    vals: [Value]
+    parentKeys: [string]
+    parentVals: [Value]
+    hasParent: bool
+
+    constructor() {
+        this.keys = []
+        this.vals = []
+        this.parentKeys = []
+        this.parentVals = []
+        this.hasParent = false
+    }
+}
+
+makeChildEnv(parentKeys: [string], parentVals: [Value]): Environment {
+    let env = Environment()
+    env.parentKeys = parentKeys
+    env.parentVals = parentVals
+    env.hasParent = true
+    return env
+}
+
+// Set a variable in the nearest scope that contains it, or create in current
+envSet(env: Environment, name: string, val: Value): Environment {
+    // Check current scope first
+    let i = 0
+    while i < env.keys.length {
+        if env.keys[i] == name {
+            env.vals[i] = val
+            return env
+        }
+        i = i + 1
+    }
+    // If in parent, update parent
+    if env.hasParent {
+        let pi = 0
+        while pi < env.parentKeys.length {
+            if env.parentKeys[pi] == name {
+                env.parentVals[pi] = val
+                return env
+            }
+            pi = pi + 1
+        }
+    }
+    // New variable in current scope
+    env.keys.push(name)
+    env.vals.push(val)
+    return env
+}
+
+// Define a new variable in the CURRENT scope (for let declarations)
+envDefine(env: Environment, name: string, val: Value): Environment {
+    // Check if already defined in current scope
+    let i = 0
+    while i < env.keys.length {
+        if env.keys[i] == name {
+            env.vals[i] = val
+            return env
+        }
+        i = i + 1
+    }
+    env.keys.push(name)
+    env.vals.push(val)
+    return env
+}
+
+// Get a variable, searching up the scope chain
+envGet(env: Environment, name: string): Value {
+    let i = 0
+    while i < env.keys.length {
+        if env.keys[i] == name {
+            return env.vals[i]
+        }
+        i = i + 1
+    }
+    if env.hasParent {
+        let pi = 0
+        while pi < env.parentKeys.length {
+            if env.parentKeys[pi] == name {
+                return env.parentVals[pi]
+            }
+            pi = pi + 1
+        }
+    }
+    fail $"Undefined variable '{name}'"
+}
+
+// Flatten an environment into parallel key/value arrays (for closures)
+envFlatten(env: Environment): [string] {
+    let allKeys: [string] = []
+    if env.hasParent {
+        let pi = 0
+        while pi < env.parentKeys.length {
+            allKeys.push(env.parentKeys[pi])
+            pi = pi + 1
+        }
+    }
+    let i = 0
+    while i < env.keys.length {
+        // Overwrite parent keys if shadowed
+        let found = false
+        let ki = 0
+        while ki < allKeys.length {
+            if allKeys[ki] == env.keys[i] {
+                found = true
+                break
+            }
+            ki = ki + 1
+        }
+        if not found {
+            allKeys.push(env.keys[i])
+        }
+        i = i + 1
+    }
+    return allKeys
+}
+
+envFlattenVals(env: Environment): [Value] {
+    let allVals: [Value] = []
+    let allKeys: [string] = []
+    if env.hasParent {
+        let pi = 0
+        while pi < env.parentKeys.length {
+            allKeys.push(env.parentKeys[pi])
+            allVals.push(env.parentVals[pi])
+            pi = pi + 1
+        }
+    }
+    let i = 0
+    while i < env.keys.length {
+        let found = false
+        let ki = 0
+        while ki < allKeys.length {
+            if allKeys[ki] == env.keys[i] {
+                allVals[ki] = env.vals[i]
+                found = true
+                break
+            }
+            ki = ki + 1
+        }
+        if not found {
+            allKeys.push(env.keys[i])
+            allVals.push(env.vals[i])
+        }
+        i = i + 1
+    }
+    return allVals
+}
+
+// ---- Return signal ----
+// We use a special tag to signal returns from functions
+const RETURN_SIGNAL = "__RETURN__"
+
+// ---- Main evaluation function ----
+
+EvalResult {
+    value: Value
+    env: Environment
+    isReturn: bool
+
+    constructor(value: Value, env: Environment) {
+        this.value = value
+        this.env = env
+        this.isReturn = false
+    }
+}
+
+makeReturnResult(val: Value, env: Environment): EvalResult {
+    let r = EvalResult(val, env)
+    r.isReturn = true
+    return r
+}
+
+// Evaluate an AST node recursively
+evaluate(node: ASTNode, env: Environment): EvalResult {
+    // ---- Program ----
+    if node.nodeType == "Program" {
+        let result = makeNullValue()
+        let currentEnv = env
+        let i = 0
+        while i < node.children.length {
+            let res = evaluate(node.children[i], currentEnv)
+            result = res.value
+            currentEnv = res.env
+            i = i + 1
+        }
+        return EvalResult(result, currentEnv)
+    }
+
+    // ---- Literals ----
+    if node.nodeType == "NumberLit" {
+        return EvalResult(makeNumValue(node.numValue), env)
+    }
+    if node.nodeType == "StringLit" {
+        return EvalResult(makeStrValue(node.strValue), env)
+    }
+    if node.nodeType == "BoolLit" {
+        return EvalResult(makeBoolValue(node.boolValue), env)
+    }
+
+    // ---- Identifier ----
+    if node.nodeType == "Identifier" {
+        let val, err = envGet(env, node.name)
+        if err { fail $"Undefined variable '{node.name}'" }
+        return EvalResult(val, env)
+    }
+
+    // ---- Binary operations ----
+    if node.nodeType == "BinaryOp" {
+        let leftRes = evaluate(node.children[0], env)
+        let rightRes = evaluate(node.children[1], env)
+        let left = leftRes.value
+        let right = rightRes.value
+
+        // Arithmetic
+        if node.op == "+" {
+            if left.tag == "number" and right.tag == "number" {
+                return EvalResult(makeNumValue(left.numVal + right.numVal), env)
+            }
+            // String concatenation
+            if left.tag == "string" or right.tag == "string" {
+                return EvalResult(makeStrValue(valueToString(left) + valueToString(right)), env)
+            }
+            fail $"Cannot add {left.tag} and {right.tag}"
+        }
+        if node.op == "-" {
+            if left.tag == "number" and right.tag == "number" {
+                return EvalResult(makeNumValue(left.numVal - right.numVal), env)
+            }
+            fail $"Cannot subtract {left.tag} and {right.tag}"
+        }
+        if node.op == "*" {
+            if left.tag == "number" and right.tag == "number" {
+                return EvalResult(makeNumValue(left.numVal * right.numVal), env)
+            }
+            fail $"Cannot multiply {left.tag} and {right.tag}"
+        }
+        if node.op == "/" {
+            if left.tag == "number" and right.tag == "number" {
+                if right.numVal == 0.0 { fail "Division by zero" }
+                return EvalResult(makeNumValue(left.numVal / right.numVal), env)
+            }
+            fail $"Cannot divide {left.tag} and {right.tag}"
+        }
+        if node.op == "%" {
+            if left.tag == "number" and right.tag == "number" {
+                if right.numVal == 0.0 { fail "Modulo by zero" }
+                let modResult = rust {
+                    let a: f64 = left.num_val;
+                    let b: f64 = right.num_val;
+                    a % b
+                }
+                return EvalResult(makeNumValue(modResult), env)
+            }
+            fail $"Cannot modulo {left.tag} and {right.tag}"
+        }
+
+        // Comparisons
+        if node.op == "==" {
+            let eq = _valuesEqual(left, right)
+            return EvalResult(makeBoolValue(eq), env)
+        }
+        if node.op == "!=" {
+            let eq = _valuesEqual(left, right)
+            return EvalResult(makeBoolValue(not eq), env)
+        }
+        if node.op == "<" {
+            if left.tag == "number" and right.tag == "number" {
+                return EvalResult(makeBoolValue(left.numVal < right.numVal), env)
+            }
+            fail $"Cannot compare {left.tag} and {right.tag}"
+        }
+        if node.op == "<=" {
+            if left.tag == "number" and right.tag == "number" {
+                return EvalResult(makeBoolValue(left.numVal <= right.numVal), env)
+            }
+            fail $"Cannot compare {left.tag} and {right.tag}"
+        }
+        if node.op == ">" {
+            if left.tag == "number" and right.tag == "number" {
+                return EvalResult(makeBoolValue(left.numVal > right.numVal), env)
+            }
+            fail $"Cannot compare {left.tag} and {right.tag}"
+        }
+        if node.op == ">=" {
+            if left.tag == "number" and right.tag == "number" {
+                return EvalResult(makeBoolValue(left.numVal >= right.numVal), env)
+            }
+            fail $"Cannot compare {left.tag} and {right.tag}"
+        }
+
+        // Logical
+        if node.op == "and" {
+            return EvalResult(makeBoolValue(_isTruthy(left) and _isTruthy(right)), env)
+        }
+        if node.op == "or" {
+            return EvalResult(makeBoolValue(_isTruthy(left) or _isTruthy(right)), env)
+        }
+
+        fail $"Unknown operator '{node.op}'"
+    }
+
+    // ---- Unary operations ----
+    if node.nodeType == "UnaryOp" {
+        let operandRes = evaluate(node.children[0], env)
+        let operand = operandRes.value
+
+        if node.op == "-" {
+            if operand.tag == "number" {
+                return EvalResult(makeNumValue(0.0 - operand.numVal), env)
+            }
+            fail $"Cannot negate {operand.tag}"
+        }
+        if node.op == "not" {
+            return EvalResult(makeBoolValue(not _isTruthy(operand)), env)
+        }
+
+        fail $"Unknown unary operator '{node.op}'"
+    }
+
+    // ---- Let declaration ----
+    if node.nodeType == "LetDecl" {
+        let valRes = evaluate(node.children[0], env)
+        let newEnv = envDefine(valRes.env, node.name, valRes.value)
+        return EvalResult(makeNullValue(), newEnv)
+    }
+
+    // ---- Assignment ----
+    if node.nodeType == "Assignment" {
+        let valRes = evaluate(node.children[0], env)
+        // Verify variable exists
+        let existing, err = envGet(env, node.name)
+        if err { fail $"Cannot assign to undefined variable '{node.name}'" }
+        let newEnv = envSet(valRes.env, node.name, valRes.value)
+        return EvalResult(makeNullValue(), newEnv)
+    }
+
+    // ---- If statement ----
+    if node.nodeType == "IfStmt" {
+        let condRes = evaluate(node.children[0], env)
+        if _isTruthy(condRes.value) {
+            let thenRes = evaluate(node.children[1], condRes.env)
+            if thenRes.isReturn { return thenRes }
+            return EvalResult(thenRes.value, condRes.env)
+        } else if node.children.length > 2 {
+            let elseRes = evaluate(node.children[2], condRes.env)
+            if elseRes.isReturn { return elseRes }
+            return EvalResult(elseRes.value, condRes.env)
+        }
+        return EvalResult(makeNullValue(), condRes.env)
+    }
+
+    // ---- While statement ----
+    if node.nodeType == "WhileStmt" {
+        let currentEnv = env
+        let maxIter = 1000000
+        let count = 0
+        while count < maxIter {
+            let condRes = evaluate(node.children[0], currentEnv)
+            if not _isTruthy(condRes.value) { break }
+            let bodyRes = evaluate(node.children[1], currentEnv)
+            if bodyRes.isReturn { return bodyRes }
+            currentEnv = bodyRes.env
+            count = count + 1
+        }
+        if count >= maxIter {
+            fail "Infinite loop detected (exceeded 1000000 iterations)"
+        }
+        return EvalResult(makeNullValue(), currentEnv)
+    }
+
+    // ---- Block ----
+    if node.nodeType == "Block" {
+        let blockEnv = makeChildEnv(envFlatten(env), envFlattenVals(env))
+        let result = makeNullValue()
+        let i = 0
+        while i < node.children.length {
+            let res = evaluate(node.children[i], blockEnv)
+            if res.isReturn { return res }
+            result = res.value
+            blockEnv = res.env
+            i = i + 1
+        }
+        // Propagate variable changes back to parent
+        // Update parent env with any changes from block
+        let updatedEnv = env
+        let ki = 0
+        while ki < env.keys.length {
+            let bi = 0
+            while bi < blockEnv.parentKeys.length {
+                if env.keys[ki] == blockEnv.parentKeys[bi] {
+                    updatedEnv.vals[ki] = blockEnv.parentVals[bi]
+                    break
+                }
+                bi = bi + 1
+            }
+            ki = ki + 1
+        }
+        if env.hasParent {
+            let pi = 0
+            while pi < env.parentKeys.length {
+                let bi = 0
+                while bi < blockEnv.parentKeys.length {
+                    if env.parentKeys[pi] == blockEnv.parentKeys[bi] {
+                        updatedEnv.parentVals[pi] = blockEnv.parentVals[bi]
+                        break
+                    }
+                    bi = bi + 1
+                }
+                pi = pi + 1
+            }
+        }
+        return EvalResult(result, updatedEnv)
+    }
+
+    // ---- Function declaration ----
+    if node.nodeType == "FuncDecl" {
+        let closureKeys = envFlatten(env)
+        let closureVals = envFlattenVals(env)
+        let funcVal = makeFuncValue(node.params, node.children[0], closureKeys, closureVals)
+        let newEnv = envDefine(env, node.name, funcVal)
+        return EvalResult(makeNullValue(), newEnv)
+    }
+
+    // ---- Function call ----
+    if node.nodeType == "FuncCall" {
+        let funcVal, err = envGet(env, node.name)
+        if err { fail $"Undefined function '{node.name}'" }
+        if funcVal.tag != "function" {
+            fail $"'{node.name}' is not a function"
+        }
+
+        // Evaluate arguments
+        let args: [Value] = []
+        let i = 0
+        while i < node.children.length {
+            let argRes = evaluate(node.children[i], env)
+            args.push(argRes.value)
+            i = i + 1
+        }
+
+        // Check arity
+        if args.length != funcVal.funcParams.length {
+            fail $"Function '{node.name}' expects {funcVal.funcParams.length} arguments, got {args.length}"
+        }
+
+        // Create function scope from closure + args
+        let funcEnv = makeChildEnv(funcVal.funcEnvKeys, funcVal.funcEnvVals)
+
+        // Bind parameters
+        let pi = 0
+        while pi < funcVal.funcParams.length {
+            funcEnv = envDefine(funcEnv, funcVal.funcParams[pi], args[pi])
+            pi = pi + 1
+        }
+
+        // Make the function itself available for recursion
+        funcEnv = envDefine(funcEnv, node.name, funcVal)
+
+        // Execute body
+        let bodyRes = evaluate(funcVal.funcBody, funcEnv)
+        let returnVal = bodyRes.isReturn ? bodyRes.value : bodyRes.value
+        return EvalResult(returnVal, env)
+    }
+
+    // ---- Return statement ----
+    if node.nodeType == "ReturnStmt" {
+        if node.children.length > 0 {
+            let valRes = evaluate(node.children[0], env)
+            return makeReturnResult(valRes.value, env)
+        }
+        return makeReturnResult(makeNullValue(), env)
+    }
+
+    // ---- Print statement ----
+    if node.nodeType == "PrintStmt" {
+        let valRes = evaluate(node.children[0], env)
+        print(valueToString(valRes.value))
+        return EvalResult(makeNullValue(), env)
+    }
+
+    fail $"Unknown node type: {node.nodeType}"
+}
+
+// Helper: check value equality
+_valuesEqual(a: Value, b: Value): bool {
+    if a.tag != b.tag { return false }
+    if a.tag == "number" { return a.numVal == b.numVal }
+    if a.tag == "string" { return a.strVal == b.strVal }
+    if a.tag == "bool" { return a.boolVal == b.boolVal }
+    if a.tag == "null" { return true }
+    return false
+}

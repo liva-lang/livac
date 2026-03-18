@@ -1,0 +1,184 @@
+// parser.liva — Recursive descent JSON parser
+//
+// Takes a token array from the lexer and produces a JsonValue
+// (encoded as a tagged string via value.liva).
+// Each _parse* function returns a "parse result" encoded as:
+//   "value<<PR>>nextIndex"
+
+import {
+    tokenize, isTokenLBrace, isTokenRBrace, isTokenLBracket, isTokenRBracket,
+    isTokenColon, isTokenComma, isTokenString, isTokenNumber, isTokenBool,
+    isTokenNull, isTokenEOF, getTokenStringValue, getTokenNumberValue,
+    getTokenBoolValue
+} from "./lexer.liva"
+
+import {
+    jsonString, jsonNumber, jsonBool, jsonNull,
+    jsonArray, jsonObject, jsonEntry
+} from "./value.liva"
+
+// ── Public API ──────────────────────────────────────────────
+
+// Parse a JSON string into a JsonValue (tagged string).
+// Returns the value on success; fails on invalid JSON.
+parse(input: string): string {
+    let tokens = tokenize(input)
+    let result = _parseValue(tokens, 0)
+    let value = _prValue(result)
+    return value
+}
+
+// ── Core recursive parser ───────────────────────────────────
+
+_parseValue(tokens: [string], index: number): string {
+    let token = tokens[index]
+
+    // Null
+    if isTokenNull(token) {
+        return $"{jsonNull()}<<PR>>{index + 1}"
+    }
+
+    // Boolean
+    if isTokenBool(token) {
+        let bVal = getTokenBoolValue(token)
+        return $"{jsonBool(bVal)}<<PR>>{index + 1}"
+    }
+
+    // Number
+    if isTokenNumber(token) {
+        let numStr = getTokenNumberValue(token)
+        let numVal, _ = parseFloat(numStr)
+        return $"{jsonNumber(numVal)}<<PR>>{index + 1}"
+    }
+
+    // String
+    if isTokenString(token) {
+        let strVal = getTokenStringValue(token)
+        return $"{jsonString(strVal)}<<PR>>{index + 1}"
+    }
+
+    // Array
+    if isTokenLBracket(token) {
+        return _parseArray(tokens, index)
+    }
+
+    // Object
+    if isTokenLBrace(token) {
+        return _parseObject(tokens, index)
+    }
+
+    // Unexpected token
+    fail $"Unexpected token at position {index}: {token}"
+    return $"{jsonNull()}<<PR>>{index + 1}"
+}
+
+// ── Array parsing ───────────────────────────────────────────
+
+_parseArray(tokens: [string], index: number): string {
+    let pos = index + 1  // skip '['
+    let items: [string] = []
+
+    // Empty array
+    if isTokenRBracket(tokens[pos]) {
+        return $"{jsonArray(items)}<<PR>>{pos + 1}"
+    }
+
+    // First element
+    let result = _parseValue(tokens, pos)
+    items.push(_prValue(result))
+    pos = _prIndex(result)
+
+    // Remaining elements separated by comma
+    while isTokenComma(tokens[pos]) {
+        pos = pos + 1  // skip ','
+        let elemResult = _parseValue(tokens, pos)
+        items.push(_prValue(elemResult))
+        pos = _prIndex(elemResult)
+    }
+
+    // Expect ']'
+    if not isTokenRBracket(tokens[pos]) {
+        fail $"Expected ']' at position {pos}, got: {tokens[pos]}"
+    }
+    pos = pos + 1
+
+    return $"{jsonArray(items)}<<PR>>{pos}"
+}
+
+// ── Object parsing ──────────────────────────────────────────
+
+_parseObject(tokens: [string], index: number): string {
+    let pos = index + 1  // skip '{'
+    let entries: [string] = []
+
+    // Empty object
+    if isTokenRBrace(tokens[pos]) {
+        return $"{jsonObject(entries)}<<PR>>{pos + 1}"
+    }
+
+    // First key-value pair
+    let kvResult = _parseKeyValue(tokens, pos)
+    entries.push(_prValue(kvResult))
+    pos = _prIndex(kvResult)
+
+    // Remaining key-value pairs separated by comma
+    while isTokenComma(tokens[pos]) {
+        pos = pos + 1  // skip ','
+        let nextKv = _parseKeyValue(tokens, pos)
+        entries.push(_prValue(nextKv))
+        pos = _prIndex(nextKv)
+    }
+
+    // Expect '}'
+    if not isTokenRBrace(tokens[pos]) {
+        fail $"Expected curly brace at position {pos}, got: {tokens[pos]}"
+    }
+    pos = pos + 1
+
+    return $"{jsonObject(entries)}<<PR>>{pos}"
+}
+
+_parseKeyValue(tokens: [string], index: number): string {
+    let pos = index
+
+    // Expect string key
+    if not isTokenString(tokens[pos]) {
+        fail $"Expected string key at position {pos}, got: {tokens[pos]}"
+    }
+    let key = getTokenStringValue(tokens[pos])
+    pos = pos + 1
+
+    // Expect ':'
+    if not isTokenColon(tokens[pos]) {
+        fail $"Expected ':' at position {pos}, got: {tokens[pos]}"
+    }
+    pos = pos + 1
+
+    // Parse value
+    let valResult = _parseValue(tokens, pos)
+    let val = _prValue(valResult)
+    pos = _prIndex(valResult)
+
+    let entry = jsonEntry(key, val)
+    return $"{entry}<<PR>>{pos}"
+}
+
+// ── Parse result helpers ────────────────────────────────────
+
+_prValue(result: string): string {
+    let idx = result.lastIndexOf("<<PR>>")
+    if idx == -1 {
+        return result
+    }
+    return result.substring(0, idx)
+}
+
+_prIndex(result: string): number {
+    let idx = result.lastIndexOf("<<PR>>")
+    if idx == -1 {
+        return 0
+    }
+    let numStr = result.substring(idx + 6, result.length)
+    let num, _ = parseInt(numStr)
+    return num
+}

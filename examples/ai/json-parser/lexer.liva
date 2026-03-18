@@ -1,0 +1,251 @@
+// lexer.liva — Tokenizes a JSON string into a list of tokens
+//
+// Scans the input character by character, producing Token values
+// (defined in token.liva) for each JSON syntactic element.
+
+import { Token, tokenToString } from "./token.liva"
+
+// ── Lexer state ─────────────────────────────────────────────
+// We represent the lexer state as: input string + current position.
+// Each _lex* function returns the next position after consuming a token.
+
+// Tokenize the full input and return an array of token-strings.
+// Tokens are encoded as strings using the same tagged format.
+tokenize(input: string): [string] {
+    let tokens: [string] = []
+    let pos = 0
+    let length = input.length
+
+    while pos < length {
+        let ch = input.charAt(pos)
+
+        // Skip whitespace
+        if ch == ' ' or ch == '\n' or ch == '\r' or ch == '\t' {
+            pos = pos + 1
+            continue
+        }
+
+        // Structural characters
+        if ch == '{' {
+            tokens.push("T_LBRACE")
+            pos = pos + 1
+            continue
+        }
+        if ch == '}' {
+            tokens.push("T_RBRACE")
+            pos = pos + 1
+            continue
+        }
+        if ch == '[' {
+            tokens.push("T_LBRACKET")
+            pos = pos + 1
+            continue
+        }
+        if ch == ']' {
+            tokens.push("T_RBRACKET")
+            pos = pos + 1
+            continue
+        }
+        if ch == ':' {
+            tokens.push("T_COLON")
+            pos = pos + 1
+            continue
+        }
+        if ch == ',' {
+            tokens.push("T_COMMA")
+            pos = pos + 1
+            continue
+        }
+
+        // String
+        if ch == '"' {
+            let result = _lexString(input, pos)
+            let strVal = _resultValue(result)
+            let newPos = _resultPos(result)
+            tokens.push($"T_STRING::{strVal}")
+            pos = newPos
+            continue
+        }
+
+        // Number (starts with digit or minus)
+        if _isDigit(ch) or ch == '-' {
+            let result = _lexNumber(input, pos)
+            let numVal = _resultValue(result)
+            let newPos = _resultPos(result)
+            tokens.push($"T_NUMBER::{numVal}")
+            pos = newPos
+            continue
+        }
+
+        // true
+        if ch == 't' {
+            if input.substring(pos, pos + 4) == "true" {
+                tokens.push("T_BOOL::true")
+                pos = pos + 4
+                continue
+            }
+        }
+
+        // false
+        if ch == 'f' {
+            if input.substring(pos, pos + 5) == "false" {
+                tokens.push("T_BOOL::false")
+                pos = pos + 5
+                continue
+            }
+        }
+
+        // null
+        if ch == 'n' {
+            if input.substring(pos, pos + 4) == "null" {
+                tokens.push("T_NULL")
+                pos = pos + 4
+                continue
+            }
+        }
+
+        // Unknown character — skip (error tolerance)
+        print($"[Lexer] Warning: unexpected character '{ch}' at position {pos}")
+        pos = pos + 1
+    }
+
+    tokens.push("T_EOF")
+    return tokens
+}
+
+// ── String lexing ───────────────────────────────────────────
+
+// Returns a "result" encoded as "value<<SEP>>newPos"
+_lexString(input: string, start: number): string {
+    let pos = start + 1  // skip opening quote
+    let length = input.length
+    let result = ""
+
+    while pos < length {
+        let ch = input.charAt(pos)
+
+        if ch == '"' {
+            // Closing quote
+            let endPos = pos + 1
+            return $"{result}<<SEP>>{endPos}"
+        }
+
+        if ch == '\\' {
+            // Escape sequence
+            pos = pos + 1
+            if pos >= length {
+                return $"{result}<<SEP>>{pos}"
+            }
+            let escaped = input.charAt(pos)
+            if escaped == '"' {
+                result = result + "\""
+            } else if escaped == '\\' {
+                result = result + "\\"
+            } else if escaped == '/' {
+                result = result + "/"
+            } else if escaped == 'n' {
+                result = result + "\n"
+            } else if escaped == 'r' {
+                result = result + "\r"
+            } else if escaped == 't' {
+                result = result + "\t"
+            } else if escaped == 'b' {
+                result = result + "\b"
+            } else if escaped == 'f' {
+                result = result + "\f"
+            } else {
+                // Unknown escape — keep as is
+                result = result + "\\"
+                result = result + toString(escaped)
+            }
+            pos = pos + 1
+            continue
+        }
+
+        result = result + toString(ch)
+        pos = pos + 1
+    }
+
+    // Unterminated string
+    return $"{result}<<SEP>>{pos}"
+}
+
+// ── Number lexing ───────────────────────────────────────────
+
+_lexNumber(input: string, start: number): string {
+    let pos = start
+    let length = input.length
+
+    // Optional minus
+    if pos < length and input.charAt(pos) == '-' {
+        pos = pos + 1
+    }
+
+    // Integer part
+    while pos < length and _isDigit(input.charAt(pos)) {
+        pos = pos + 1
+    }
+
+    // Fractional part
+    if pos < length and input.charAt(pos) == '.' {
+        pos = pos + 1
+        while pos < length and _isDigit(input.charAt(pos)) {
+            pos = pos + 1
+        }
+    }
+
+    // Exponent part
+    if pos < length {
+        let eCh = input.charAt(pos)
+        if eCh == 'e' or eCh == 'E' {
+            pos = pos + 1
+            if pos < length {
+                let signCh = input.charAt(pos)
+                if signCh == '+' or signCh == '-' {
+                    pos = pos + 1
+                }
+            }
+            while pos < length and _isDigit(input.charAt(pos)) {
+                pos = pos + 1
+            }
+        }
+    }
+
+    let numStr = input.substring(start, pos)
+    return $"{numStr}<<SEP>>{pos}"
+}
+
+// ── Helpers ─────────────────────────────────────────────────
+
+_isDigit(ch: char): bool {
+    return ch == '0' or ch == '1' or ch == '2' or ch == '3' or ch == '4' or ch == '5' or ch == '6' or ch == '7' or ch == '8' or ch == '9'
+}
+
+_resultValue(result: string): string {
+    let parts = result.split("<<SEP>>")
+    return parts[0]
+}
+
+_resultPos(result: string): number {
+    let parts = result.split("<<SEP>>")
+    let pos, _ = parseInt(parts[1])
+    return pos
+}
+
+// ── Token inspection helpers ────────────────────────────────
+
+isTokenLBrace(t: string): bool => t == "T_LBRACE"
+isTokenRBrace(t: string): bool => t == "T_RBRACE"
+isTokenLBracket(t: string): bool => t == "T_LBRACKET"
+isTokenRBracket(t: string): bool => t == "T_RBRACKET"
+isTokenColon(t: string): bool => t == "T_COLON"
+isTokenComma(t: string): bool => t == "T_COMMA"
+isTokenString(t: string): bool => t.startsWith("T_STRING::")
+isTokenNumber(t: string): bool => t.startsWith("T_NUMBER::")
+isTokenBool(t: string): bool => t.startsWith("T_BOOL::")
+isTokenNull(t: string): bool => t == "T_NULL"
+isTokenEOF(t: string): bool => t == "T_EOF"
+
+getTokenStringValue(t: string): string => t.removePrefix("T_STRING::")
+getTokenNumberValue(t: string): string => t.removePrefix("T_NUMBER::")
+getTokenBoolValue(t: string): bool => t.removePrefix("T_BOOL::") == "true"

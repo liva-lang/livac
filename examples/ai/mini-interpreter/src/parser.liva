@@ -1,0 +1,359 @@
+// ============================================================
+// parser.liva — Recursive descent parser
+// Converts tokens into an AST
+// ============================================================
+
+import { Token } from "./tokens.liva"
+import {
+    ASTNode, makeProgram, makeNumberLit, makeStringLit, makeBoolLit,
+    makeIdentifier, makeBinaryOp, makeUnaryOp, makeAssignment,
+    makeLetDecl, makeIfStmt, makeIfStmtNoElse, makeWhileStmt,
+    makeBlock, makeFuncDecl, makeFuncCall, makeReturnStmt,
+    makeReturnStmtEmpty, makePrintStmt
+} from "./ast.liva"
+
+// Parser state — uses index into token array
+Parser {
+    tokens: [Token]
+    pos: number
+
+    constructor(tokens: [Token]) {
+        this.tokens = tokens
+        this.pos = 0
+    }
+
+    // Get current token without consuming
+    _peek(): Token {
+        return this.tokens[this.pos]
+    }
+
+    // Get current token and advance
+    _advance(): Token {
+        let tok = this.tokens[this.pos]
+        this.pos = this.pos + 1
+        return tok
+    }
+
+    // Check if current token matches expected type
+    _check(type: string): bool {
+        return this._peek().type == type
+    }
+
+    // Consume token of expected type, or fail
+    _expect(type: string): Token {
+        let tok = this._peek()
+        if tok.type != type {
+            fail $"Expected {type} but got {tok.type} ('{tok.value}') at line {tok.line}"
+        }
+        return this._advance()
+    }
+
+    // Check if we've reached the end
+    _isAtEnd(): bool {
+        return this._peek().type == "EOF"
+    }
+
+    // ---- Top-level parsing ----
+
+    parse(): ASTNode {
+        let stmts: [ASTNode] = []
+        while not this._isAtEnd() {
+            // Skip semicolons between statements
+            while this._check("Semicolon") {
+                this._advance()
+            }
+            if this._isAtEnd() { break }
+            stmts.push(this._parseStatement())
+        }
+        return makeProgram(stmts)
+    }
+
+    // ---- Statement parsing ----
+
+    _parseStatement(): ASTNode {
+        let tok = this._peek()
+
+        if tok.type == "Let" { return this._parseLetDecl() }
+        if tok.type == "If" { return this._parseIfStmt() }
+        if tok.type == "While" { return this._parseWhileStmt() }
+        if tok.type == "Func" { return this._parseFuncDecl() }
+        if tok.type == "Return" { return this._parseReturnStmt() }
+        if tok.type == "Print" { return this._parsePrintStmt() }
+        if tok.type == "LeftBrace" { return this._parseBlock() }
+
+        // Expression statement (assignment or function call)
+        return this._parseExpressionStatement()
+    }
+
+    // let name = expr
+    _parseLetDecl(): ASTNode {
+        this._expect("Let")
+        let nameTok = this._expect("Identifier")
+        this._expect("Assign")
+        let expr = this._parseExpression()
+        // Optional semicolon
+        if this._check("Semicolon") { this._advance() }
+        return makeLetDecl(nameTok.value, expr)
+    }
+
+    // if (cond) { ... } else { ... }
+    _parseIfStmt(): ASTNode {
+        this._expect("If")
+        this._expect("LeftParen")
+        let condition = this._parseExpression()
+        this._expect("RightParen")
+        let thenBlock = this._parseBlock()
+
+        if this._check("Else") {
+            this._advance()
+            if this._check("If") {
+                // else if
+                let elseIfStmt = this._parseIfStmt()
+                let elseBlock = makeBlock([elseIfStmt])
+                return makeIfStmt(condition, thenBlock, elseBlock)
+            } else {
+                let elseBlock = this._parseBlock()
+                return makeIfStmt(condition, thenBlock, elseBlock)
+            }
+        }
+
+        return makeIfStmtNoElse(condition, thenBlock)
+    }
+
+    // while (cond) { ... }
+    _parseWhileStmt(): ASTNode {
+        this._expect("While")
+        this._expect("LeftParen")
+        let condition = this._parseExpression()
+        this._expect("RightParen")
+        let body = this._parseBlock()
+        return makeWhileStmt(condition, body)
+    }
+
+    // func name(params) { ... }
+    _parseFuncDecl(): ASTNode {
+        this._expect("Func")
+        let nameTok = this._expect("Identifier")
+        this._expect("LeftParen")
+
+        let params: [string] = []
+        if not this._check("RightParen") {
+            params.push(this._expect("Identifier").value)
+            while this._check("Comma") {
+                this._advance()
+                params.push(this._expect("Identifier").value)
+            }
+        }
+
+        this._expect("RightParen")
+        let body = this._parseBlock()
+        return makeFuncDecl(nameTok.value, params, body)
+    }
+
+    // return [expr]
+    _parseReturnStmt(): ASTNode {
+        this._expect("Return")
+        if this._check("Semicolon") or this._check("RightBrace") or this._isAtEnd() {
+            if this._check("Semicolon") { this._advance() }
+            return makeReturnStmtEmpty()
+        }
+        let expr = this._parseExpression()
+        if this._check("Semicolon") { this._advance() }
+        return makeReturnStmt(expr)
+    }
+
+    // print(expr)
+    _parsePrintStmt(): ASTNode {
+        this._expect("Print")
+        this._expect("LeftParen")
+        let expr = this._parseExpression()
+        this._expect("RightParen")
+        if this._check("Semicolon") { this._advance() }
+        return makePrintStmt(expr)
+    }
+
+    // { stmts... }
+    _parseBlock(): ASTNode {
+        this._expect("LeftBrace")
+        let stmts: [ASTNode] = []
+        while not this._check("RightBrace") and not this._isAtEnd() {
+            // Skip semicolons
+            while this._check("Semicolon") {
+                this._advance()
+            }
+            if this._check("RightBrace") { break }
+            stmts.push(this._parseStatement())
+        }
+        this._expect("RightBrace")
+        return makeBlock(stmts)
+    }
+
+    // Expression statement: assignment or expression
+    _parseExpressionStatement(): ASTNode {
+        let expr = this._parseExpression()
+
+        // Check for assignment: identifier = expr
+        if expr.nodeType == "Identifier" and this._check("Assign") {
+            this._advance()
+            let value = this._parseExpression()
+            if this._check("Semicolon") { this._advance() }
+            return makeAssignment(expr.name, value)
+        }
+
+        if this._check("Semicolon") { this._advance() }
+        return expr
+    }
+
+    // ---- Expression parsing (precedence climbing) ----
+
+    _parseExpression(): ASTNode {
+        return this._parseOr()
+    }
+
+    _parseOr(): ASTNode {
+        let left = this._parseAnd()
+        while this._check("Or") {
+            this._advance()
+            let right = this._parseAnd()
+            left = makeBinaryOp("or", left, right)
+        }
+        return left
+    }
+
+    _parseAnd(): ASTNode {
+        let left = this._parseEquality()
+        while this._check("And") {
+            this._advance()
+            let right = this._parseEquality()
+            left = makeBinaryOp("and", left, right)
+        }
+        return left
+    }
+
+    _parseEquality(): ASTNode {
+        let left = this._parseComparison()
+        while this._check("EqualEqual") or this._check("NotEqual") {
+            let opTok = this._advance()
+            let right = this._parseComparison()
+            left = makeBinaryOp(opTok.value, left, right)
+        }
+        return left
+    }
+
+    _parseComparison(): ASTNode {
+        let left = this._parseAddSub()
+        while this._check("Less") or this._check("LessEqual") or this._check("Greater") or this._check("GreaterEqual") {
+            let opTok = this._advance()
+            let right = this._parseAddSub()
+            left = makeBinaryOp(opTok.value, left, right)
+        }
+        return left
+    }
+
+    _parseAddSub(): ASTNode {
+        let left = this._parseMulDiv()
+        while this._check("Plus") or this._check("Minus") {
+            let opTok = this._advance()
+            let right = this._parseMulDiv()
+            left = makeBinaryOp(opTok.value, left, right)
+        }
+        return left
+    }
+
+    _parseMulDiv(): ASTNode {
+        let left = this._parseUnary()
+        while this._check("Star") or this._check("Slash") or this._check("Modulo") {
+            let opTok = this._advance()
+            let right = this._parseUnary()
+            left = makeBinaryOp(opTok.value, left, right)
+        }
+        return left
+    }
+
+    _parseUnary(): ASTNode {
+        if this._check("Minus") {
+            this._advance()
+            let operand = this._parseUnary()
+            return makeUnaryOp("-", operand)
+        }
+        if this._check("Not") {
+            this._advance()
+            let operand = this._parseUnary()
+            return makeUnaryOp("not", operand)
+        }
+        return this._parseCall()
+    }
+
+    // Function call: identifier(args...)
+    _parseCall(): ASTNode {
+        let expr = this._parsePrimary()
+
+        if expr.nodeType == "Identifier" and this._check("LeftParen") {
+            this._advance()
+            let args: [ASTNode] = []
+            if not this._check("RightParen") {
+                args.push(this._parseExpression())
+                while this._check("Comma") {
+                    this._advance()
+                    args.push(this._parseExpression())
+                }
+            }
+            this._expect("RightParen")
+            return makeFuncCall(expr.name, args)
+        }
+
+        return expr
+    }
+
+    _parsePrimary(): ASTNode {
+        let tok = this._peek()
+
+        // Number literal
+        if tok.type == "NumberLiteral" {
+            this._advance()
+            let numVal, err = parseFloat(tok.value)
+            if err {
+                fail $"Invalid number '{tok.value}' at line {tok.line}"
+            }
+            return makeNumberLit(numVal)
+        }
+
+        // String literal
+        if tok.type == "StringLiteral" {
+            this._advance()
+            return makeStringLit(tok.value)
+        }
+
+        // Boolean literals
+        if tok.type == "True" {
+            this._advance()
+            return makeBoolLit(true)
+        }
+        if tok.type == "False" {
+            this._advance()
+            return makeBoolLit(false)
+        }
+
+        // Identifier
+        if tok.type == "Identifier" {
+            this._advance()
+            return makeIdentifier(tok.value)
+        }
+
+        // Parenthesized expression
+        if tok.type == "LeftParen" {
+            this._advance()
+            let expr = this._parseExpression()
+            this._expect("RightParen")
+            return expr
+        }
+
+        fail $"Unexpected token '{tok.value}' ({tok.type}) at line {tok.line}"
+    }
+}
+
+// Convenience: parse a token list
+parseTokens(tokens: [Token]): ASTNode {
+    let parser = Parser(tokens)
+    return parser.parse()
+}

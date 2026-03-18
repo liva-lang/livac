@@ -1,0 +1,143 @@
+import { Token, tokenize } from "./token.liva"
+
+// Evaluador de expresiones usando recursive descent parsing
+// Gramática:
+//   expr   = term (('+' | '-') term)*
+//   term   = factor (('*' | '/') factor)*
+//   factor = NUMBER | '(' expr ')' | ('+' | '-') factor
+
+Evaluator {
+    tokens: [Token]
+    pos: number
+
+    constructor(tokens: [Token]) {
+        this.tokens = tokens
+        this.pos = 0
+    }
+
+    // Retorna el token actual sin avanzar
+    _current() => this.tokens[this.pos]
+
+    // Avanza al siguiente token
+    _advance() {
+        this.pos = this.pos + 1
+    }
+
+    // factor: número, paréntesis, o operador unario (+/-)
+    _parseFactor(): float {
+        let tok = this._current()
+
+        // Número literal
+        if tok.kind == "NUM" {
+            this._advance()
+            let val, err = parseFloat(tok.value)
+            if err { fail $"Número inválido: {tok.value}" }
+            return val
+        }
+
+        // Expresión entre paréntesis
+        if tok.kind == "LPAREN" {
+            this._advance()
+            let val, err = this._parseExpr()
+            if err { fail err }
+            if this._current().kind != "RPAREN" {
+                fail "Se esperaba ')'"
+            }
+            this._advance()
+            return val
+        }
+
+        // Menos unario: -factor
+        if tok.kind == "MINUS" {
+            this._advance()
+            let val, err = this._parseFactor()
+            if err { fail err }
+            return 0.0 - val
+        }
+
+        // Más unario: +factor
+        if tok.kind == "PLUS" {
+            this._advance()
+            let val, err = this._parseFactor()
+            if err { fail err }
+            return val
+        }
+
+        if tok.kind == "EOF" {
+            fail "Expresión incompleta"
+        }
+
+        fail $"Token inesperado: '{tok.value}'"
+    }
+
+    // term: multiplicación y división (mayor precedencia)
+    _parseTerm(): float {
+        let left, err = this._parseFactor()
+        if err { fail err }
+
+        while this._current().kind == "STAR" or this._current().kind == "SLASH" {
+            let op = this._current().kind
+            this._advance()
+
+            let right, errR = this._parseFactor()
+            if errR { fail errR }
+
+            if op == "STAR" {
+                left = left * right
+            } else {
+                if right == 0.0 {
+                    fail "División por cero"
+                }
+                left = left / right
+            }
+        }
+
+        return left
+    }
+
+    // expr: suma y resta (menor precedencia)
+    _parseExpr(): float {
+        let left, err = this._parseTerm()
+        if err { fail err }
+
+        while this._current().kind == "PLUS" or this._current().kind == "MINUS" {
+            let op = this._current().kind
+            this._advance()
+
+            let right, errR = this._parseTerm()
+            if errR { fail errR }
+
+            if op == "PLUS" {
+                left = left + right
+            } else {
+                left = left - right
+            }
+        }
+
+        return left
+    }
+
+    // Punto de entrada: parsea y evalúa toda la expresión
+    run(): float {
+        let result, err = this._parseExpr()
+        if err { fail err }
+
+        if this._current().kind != "EOF" {
+            fail $"Input inesperado después de la expresión: '{this._current().value}'"
+        }
+
+        return result
+    }
+}
+
+// Función pública: evalúa una expresión matemática en formato string
+evaluate(input: string): float {
+    let tokens, err = tokenize(input)
+    if err { fail err }
+
+    let ev = Evaluator(tokens)
+    let result, err2 = ev.run()
+    if err2 { fail err2 }
+
+    return result
+}

@@ -1,0 +1,85 @@
+// Token: representa una unidad léxica de la expresión
+Token { kind: string; value: string }
+
+// Verifica si un carácter (string de un carácter) es un dígito
+_isDigit(ch: string): bool {
+    return ch == "0" or ch == "1" or ch == "2" or ch == "3" or ch == "4" or ch == "5" or ch == "6" or ch == "7" or ch == "8" or ch == "9"
+}
+
+// Convierte una expresión string en un array de tokens
+tokenize(input: string): [Token] {
+    let chars = input.chars()
+    let tokens: [Token] = []
+    let i = 0
+
+    while i < chars.length {
+        let ch = chars[i]
+
+        // Saltar espacios en blanco
+        if ch == " " or ch == "\t" {
+            i = i + 1
+            continue
+        }
+
+        if ch == "+" {
+            tokens.push(Token("PLUS", "+"))
+            i = i + 1
+            continue
+        }
+
+        if ch == "-" {
+            tokens.push(Token("MINUS", "-"))
+            i = i + 1
+            continue
+        }
+
+        if ch == "*" {
+            tokens.push(Token("STAR", "*"))
+            i = i + 1
+            continue
+        }
+
+        if ch == "/" {
+            tokens.push(Token("SLASH", "/"))
+            i = i + 1
+            continue
+        }
+
+        if ch == "(" {
+            tokens.push(Token("LPAREN", "("))
+            i = i + 1
+            continue
+        }
+
+        if ch == ")" {
+            tokens.push(Token("RPAREN", ")"))
+            i = i + 1
+            continue
+        }
+
+        // Números: dígitos y punto decimal
+        if _isDigit(ch) or ch == "." {
+            let numStr = ""
+            let hasDot = false
+
+            while i < chars.length and (_isDigit(chars[i]) or chars[i] == ".") {
+                if chars[i] == "." {
+                    if hasDot {
+                        fail "Número inválido: doble punto decimal"
+                    }
+                    hasDot = true
+                }
+                numStr = numStr + chars[i]
+                i = i + 1
+            }
+
+            tokens.push(Token("NUM", numStr))
+            continue
+        }
+
+        fail $"Carácter inesperado: '{ch}'"
+    }
+
+    tokens.push(Token("EOF", ""))
+    return tokens
+}

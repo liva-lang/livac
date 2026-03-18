@@ -1,0 +1,61 @@
+// ============================================================
+// tokens.liva — Token types for the mini-language lexer
+// ============================================================
+
+enum TokenType {
+    // Literals
+    NumberLiteral,
+    StringLiteral,
+    Identifier,
+
+    // Keywords
+    Let,
+    If,
+    Else,
+    While,
+    Func,
+    Return,
+    Print,
+    True,
+    False,
+
+    // Operators
+    Plus,
+    Minus,
+    Star,
+    Slash,
+    Assign,
+    EqualEqual,
+    NotEqual,
+    Less,
+    LessEqual,
+    Greater,
+    GreaterEqual,
+    And,
+    Or,
+    Not,
+    Modulo,
+
+    // Delimiters
+    LeftParen,
+    RightParen,
+    LeftBrace,
+    RightBrace,
+    Comma,
+    Semicolon,
+
+    // Special
+    EOF
+}
+
+Token {
+    tokType: string
+    value: string
+    line: number
+
+    constructor(tokType: string, value: string, line: number) {
+        this.tokType = tokType
+        this.value = value
+        this.line = line
+    }
+}

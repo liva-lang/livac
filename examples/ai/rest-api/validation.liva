@@ -1,0 +1,90 @@
+// validation.liva — Input validation functions
+
+import { AuthorInput, BookInput } from "./models.liva"
+
+// Validate author input fields
+validateAuthorInput(name: String, nationality: String) {
+    if name.trim().isEmpty() {
+        fail "Author name is required"
+    }
+    if name.trim().length < 2 {
+        fail "Author name must be at least 2 characters"
+    }
+    if nationality.trim().isEmpty() {
+        fail "Nationality is required"
+    }
+    if nationality.trim().length < 2 {
+        fail "Nationality must be at least 2 characters"
+    }
+}
+
+// Validate book input fields
+validateBookInput(title: String, authorId: i32, year: i32, isbn: String) {
+    if title.trim().isEmpty() {
+        fail "Book title is required"
+    }
+    if title.trim().length < 1 {
+        fail "Book title must not be empty"
+    }
+    if authorId <= 0 {
+        fail "Valid authorId is required (must be > 0)"
+    }
+    if year < 0 or year > 2100 {
+        fail "Year must be between 0 and 2100"
+    }
+    if isbn.trim().isEmpty() {
+        fail "ISBN is required"
+    }
+    if isbn.trim().length < 10 {
+        fail "ISBN must be at least 10 characters"
+    }
+    if isbn.trim().length > 17 {
+        fail "ISBN must be at most 17 characters"
+    }
+}
+
+// Parse and validate pagination params, return (page, limit)
+parsePagination(pageStr: String, limitStr: String): (i32, i32) {
+    let page = 1
+    let limit = 10
+
+    if pageStr != "" {
+        let parsed, err = parseInt(pageStr)
+        if err {
+            fail "Invalid page parameter: must be a number"
+        }
+        page = parsed
+    }
+
+    if limitStr != "" {
+        let parsed, err = parseInt(limitStr)
+        if err {
+            fail "Invalid limit parameter: must be a number"
+        }
+        limit = parsed
+    }
+
+    if page < 1 {
+        fail "Page must be >= 1"
+    }
+    if limit < 1 or limit > 100 {
+        fail "Limit must be between 1 and 100"
+    }
+
+    return (page, limit)
+}
+
+// Validate that a string can be parsed as i32 id
+parseId(idStr: String): i32 {
+    if idStr.trim().isEmpty() {
+        fail "ID is required"
+    }
+    let id, err = parseInt(idStr)
+    if err {
+        fail $"Invalid ID: {idStr}"
+    }
+    if id <= 0 {
+        fail "ID must be positive"
+    }
+    return id
+}

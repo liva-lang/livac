@@ -1,0 +1,61 @@
+// models.liva — Data classes for the library REST API
+
+// Author data class (no constructor = auto-generated)
+Author {
+    id: i32
+    name: String
+    nationality: String
+}
+
+// Book data class with author relationship (1:N via authorId)
+Book {
+    id: i32
+    title: String
+    authorId: i32
+    year: i32
+    isbn: String
+}
+
+// Database root structure for JSON persistence
+Database {
+    authors: [Author]
+    books: [Book]
+    nextAuthorId: i32
+    nextBookId: i32
+}
+
+// Paginated response wrapper
+PaginatedAuthors {
+    data: [Author]
+    page: i32
+    limit: i32
+    total: i32
+    totalPages: i32
+}
+
+PaginatedBooks {
+    data: [Book]
+    page: i32
+    limit: i32
+    total: i32
+    totalPages: i32
+}
+
+// Input DTOs for creation/update (no id field)
+AuthorInput {
+    name: String
+    nationality: String
+}
+
+BookInput {
+    title: String
+    authorId: i32
+    year: i32
+    isbn: String
+}
+
+// Error response
+ErrorResponse {
+    error: String
+    status: i32
+}

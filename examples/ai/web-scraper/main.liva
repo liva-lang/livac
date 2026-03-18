@@ -1,0 +1,115 @@
+// Web Scraper — Downloads pages in parallel, extracts <title>, shows summary
+// Usage: livac run main.liva
+
+// Extract the content between <title> and </title> from HTML
+extractTitle(html: string): string {
+    let lower = html.toLowerCase()
+    let startTag = "<title>"
+    let endTag = "</title>"
+
+    let startIdx = lower.indexOf(startTag)
+    if startIdx == -1 {
+        return "(no title found)"
+    }
+
+    let contentStart = startIdx + startTag.length
+    let endIdx = lower.indexOf(endTag)
+    if endIdx == -1 {
+        return "(no title found)"
+    }
+
+    return html.substring(contentStart, endIdx).trim()
+}
+
+// Get current time in milliseconds since epoch
+nowMs(): number {
+    return rust {
+        use std::time::SystemTime;
+        use std::time::UNIX_EPOCH;
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as i32
+    }
+}
+
+// Fetch a single URL: returns the URL, extracted title, and elapsed ms
+fetchPage(url: string): string {
+    let start = nowMs()
+
+    let resp, err = async HTTP.get(url)
+
+    let elapsed = nowMs() - start
+
+    if err {
+        return $"{url} | ERROR: {err.message} | {elapsed}ms"
+    }
+
+    let title = extractTitle(resp.body)
+    return $"{url} | {title} | {elapsed}ms"
+}
+
+// Process a batch of URLs (up to 5 at a time)
+processBatch(urls: [string]): [string] {
+    let tasks = []
+    let results = []
+
+    for url in urls {
+        tasks.push(task async fetchPage(url))
+    }
+
+    for t in tasks {
+        let result = await t
+        results.push(result)
+    }
+
+    return results
+}
+
+main() {
+    let urls = [
+        "https://www.rust-lang.org",
+        "https://www.python.org",
+        "https://go.dev",
+        "https://www.typescriptlang.org",
+        "https://ziglang.org",
+        "https://www.scala-lang.org",
+        "https://kotlinlang.org",
+        "https://elixir-lang.org",
+        "https://www.haskell.org",
+        "https://nim-lang.org"
+    ]
+
+    print("=== Web Scraper ===")
+    print($"Fetching {urls.length} URLs (max 5 concurrent)...\n")
+
+    const MAX_CONCURRENT = 5
+    let allResults = []
+
+    // Process in chunks of MAX_CONCURRENT
+    let i = 0
+    while i < urls.length {
+        // Build batch (up to 5)
+        let batch = []
+        let j = 0
+        while j < MAX_CONCURRENT and (i + j) < urls.length {
+            batch.push(urls[i + j])
+            j = j + 1
+        }
+
+        let batchResults = processBatch(batch)
+        for r in batchResults {
+            allResults.push(r)
+        }
+
+        i = i + MAX_CONCURRENT
+    }
+
+    // Print summary
+    print("=== Results ===")
+    print("")
+    for result in allResults {
+        print(result)
+    }
+    print($"\nTotal pages fetched: {allResults.length}")
+}

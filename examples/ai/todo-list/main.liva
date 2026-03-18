@@ -1,0 +1,116 @@
+import { TaskManager } from "./manager.liva"
+
+use rust "chrono" version "0.4"
+
+currentDate(): string {
+    let date = rust {
+        use chrono::Local;
+        Local::now().format("%Y-%m-%d %H:%M").to_string()
+    }
+    return date
+}
+
+showMenu() {
+    print("\n╔══════════════════════════════════╗")
+    print("║     Lista de Tareas - Liva       ║")
+    print("╠══════════════════════════════════╣")
+    print("║  1. Agregar tarea                ║")
+    print("║  2. Listar todas las tareas      ║")
+    print("║  3. Listar tareas pendientes     ║")
+    print("║  4. Listar tareas completadas    ║")
+    print("║  5. Marcar tarea como completada ║")
+    print("║  6. Eliminar tarea               ║")
+    print("║  7. Salir                        ║")
+    print("╚══════════════════════════════════╝")
+}
+
+handleAdd(manager: TaskManager) {
+    print("\n── Nueva Tarea ──")
+    let title = console.input("  Título: ")
+    let description = console.input("  Descripción: ")
+    let priorityStr = console.input("  Prioridad (alta/media/baja): ")
+    let date = currentDate()
+    let task = manager.addTask(title, description, priorityStr, date)
+    print($"\n  ✓ Tarea #{task.id} creada exitosamente.")
+}
+
+handleComplete(manager: TaskManager) {
+    if manager.pendingCount() == 0 {
+        print("\n  No hay tareas pendientes para completar.")
+        return
+    }
+    manager.listPending()
+    let input = console.input("  ID de la tarea a completar: ")
+    let id, err = parseInt(input)
+    if err {
+        print("  ✗ ID inválido.")
+        return
+    }
+    let success = manager.completeTask(id)
+    if success {
+        print($"  ✓ Tarea #{id} marcada como completada.")
+    } else {
+        print($"  ✗ No se encontró la tarea #{id}.")
+    }
+}
+
+handleDelete(manager: TaskManager) {
+    if manager.count() == 0 {
+        print("\n  No hay tareas para eliminar.")
+        return
+    }
+    manager.listAll()
+    let input = console.input("  ID de la tarea a eliminar: ")
+    let id, err = parseInt(input)
+    if err {
+        print("  ✗ ID inválido.")
+        return
+    }
+    let confirm = console.input($"  ¿Eliminar tarea #{id}? (s/n): ")
+    if confirm.toLowerCase().trim() != "s" {
+        print("  Operación cancelada.")
+        return
+    }
+    let success = manager.deleteTask(id)
+    if success {
+        print($"  ✓ Tarea #{id} eliminada.")
+    } else {
+        print($"  ✗ No se encontró la tarea #{id}.")
+    }
+}
+
+main() {
+    let manager = TaskManager()
+
+    print("\n  Bienvenido a la Lista de Tareas")
+    print("  ─────────────────────────────────")
+
+    let running = true
+    while running {
+        showMenu()
+        let option = console.input("\n  Opción: ")
+        let trimmed = option.trim()
+
+        switch trimmed {
+            case "1":
+                handleAdd(manager)
+            case "2":
+                manager.listAll()
+            case "3":
+                manager.listPending()
+            case "4":
+                manager.listCompleted()
+            case "5":
+                handleComplete(manager)
+            case "6":
+                handleDelete(manager)
+            case "7":
+                print("\n  ¡Hasta luego! 👋\n")
+                running = false
+            default:
+                print("\n  ✗ Opción no válida. Intente de nuevo.")
+        }
+    }
+}
+
+main()

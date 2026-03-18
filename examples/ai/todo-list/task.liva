@@ -1,0 +1,56 @@
+enum Priority {
+    Alta,
+    Media,
+    Baja
+}
+
+priorityFromString(input: string): Priority {
+    let lower = input.toLowerCase().trim()
+    let result = switch lower {
+        "alta" => Priority.Alta,
+        "media" => Priority.Media,
+        "baja" => Priority.Baja,
+        _ => Priority.Media
+    }
+    return result
+}
+
+priorityLabel(p: Priority): string {
+    let label = switch p {
+        Priority.Alta => "[ALTA]",
+        Priority.Media => "[MEDIA]",
+        Priority.Baja => "[BAJA]"
+    }
+    return label
+}
+
+Task {
+    id: number
+    title: string
+    description: string
+    priority: Priority
+    createdAt: string
+    completed: bool
+
+    constructor(id: number, title: string, description: string, priority: Priority, createdAt: string) {
+        this.id = id
+        this.title = title
+        this.description = description
+        this.priority = priority
+        this.createdAt = createdAt
+        this.completed = false
+    }
+
+    statusLabel(): string {
+        if this.completed {
+            return "[x]"
+        }
+        return "[ ]"
+    }
+
+    display(): string {
+        let status = this.statusLabel()
+        let pLabel = priorityLabel(this.priority)
+        return $"  {status} #{this.id} {pLabel} {this.title}\n      Descripción: {this.description}\n      Creada: {this.createdAt}"
+    }
+}

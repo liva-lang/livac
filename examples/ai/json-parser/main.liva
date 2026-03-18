@@ -1,0 +1,213 @@
+// main.liva — JSON Parser demo
+//
+// Demonstrates the full JSON serializer/deserializer:
+//   1. Build JSON values programmatically and serialize
+//   2. Parse a JSON string and pretty-print it
+//   3. Round-trip: parse → stringify → parse
+
+import { parse } from "./parser.liva"
+import {
+    jsonString, jsonNumber, jsonBool, jsonNull,
+    jsonArray, jsonObject, jsonEntry,
+    jsonStringify, jsonStringifyPretty,
+    isJObject, isJArray, isJString, isJNumber, isJBool, isJNull,
+    getJString, getJNumber, getJBool,
+    getJArrayItems, getJObjectEntries, getEntryKey, getEntryValue
+} from "./value.liva"
+
+main() {
+    print("╔══════════════════════════════════════════════════╗")
+    print("║       JSON Parser / Serializer — Liva           ║")
+    print("╚══════════════════════════════════════════════════╝")
+    print("")
+
+    // ── 1. Build JSON from scratch ──────────────────────────
+    _demoBuild()
+
+    // ── 2. Parse JSON string ────────────────────────────────
+    _demoParse()
+
+    // ── 3. Round-trip ───────────────────────────────────────
+    _demoRoundTrip()
+
+    // ── 4. All types demo ───────────────────────────────────
+    _demoAllTypes()
+
+    print("")
+    print("✓ All demos completed successfully!")
+}
+
+// ── Demo: Build JSON programmatically ───────────────────────
+
+_demoBuild() {
+    print("── 1. Building JSON programmatically ──")
+    print("")
+
+    let address = jsonObject([
+        jsonEntry("street", jsonString("123 Main St")),
+        jsonEntry("city", jsonString("Springfield")),
+        jsonEntry("zip", jsonString("62701"))
+    ])
+
+    let hobbies = jsonArray([
+        jsonString("reading"),
+        jsonString("coding"),
+        jsonString("hiking")
+    ])
+
+    let person = jsonObject([
+        jsonEntry("name", jsonString("Alice")),
+        jsonEntry("age", jsonNumber(30.0)),
+        jsonEntry("active", jsonBool(true)),
+        jsonEntry("score", jsonNumber(95.5)),
+        jsonEntry("nickname", jsonNull()),
+        jsonEntry("address", address),
+        jsonEntry("hobbies", hobbies)
+    ])
+
+    print("Compact:")
+    print(jsonStringify(person))
+    print("")
+
+    print("Pretty (2 spaces):")
+    print(jsonStringifyPretty(person, 2))
+    print("")
+
+    print("Pretty (4 spaces):")
+    print(jsonStringifyPretty(person, 4))
+    print("")
+}
+
+// ── Demo: Parse a JSON string ───────────────────────────────
+
+_demoParse() {
+    print("── 2. Parsing a JSON string ──")
+    print("")
+
+    let input = "{\"name\":\"Bob\",\"age\":25,\"likes\":[\"music\",\"games\"],\"address\":{\"city\":\"Denver\"},\"employed\":true,\"notes\":null}"
+
+    print("Input:")
+    print(input)
+    print("")
+
+    let parsed, err = parse(input)
+    if err {
+        print($"Parse error: {err}")
+        return
+    }
+
+    print("Parsed and pretty-printed (2 spaces):")
+    print(jsonStringifyPretty(parsed, 2))
+    print("")
+}
+
+// ── Demo: Round-trip ────────────────────────────────────────
+
+_demoRoundTrip() {
+    print("── 3. Round-trip test ──")
+    print("")
+
+    let original = "{\"numbers\":[1,2.5,-3,0],\"nested\":{\"a\":{\"b\":{\"c\":true}}},\"empty_array\":[],\"empty_object\":{}}"
+
+    print("Original:")
+    print(original)
+
+    let parsed1, err1 = parse(original)
+    if err1 {
+        print($"Parse error: {err1}")
+        return
+    }
+
+    let serialized = jsonStringify(parsed1)
+    print("")
+    print("After parse → stringify:")
+    print(serialized)
+
+    let parsed2, err2 = parse(serialized)
+    if err2 {
+        print($"Re-parse error: {err2}")
+        return
+    }
+
+    let serialized2 = jsonStringify(parsed2)
+    print("")
+    print("After second round-trip:")
+    print(serialized2)
+
+    if serialized == serialized2 {
+        print("")
+        print("✓ Round-trip is stable!")
+    } else {
+        print("")
+        print("✗ Round-trip mismatch!")
+    }
+    print("")
+}
+
+// ── Demo: All JSON types ────────────────────────────────────
+
+_demoAllTypes() {
+    print("── 4. All JSON types ──")
+    print("")
+
+    let allTypes = jsonObject([
+        jsonEntry("string", jsonString("hello world")),
+        jsonEntry("integer", jsonNumber(42.0)),
+        jsonEntry("float", jsonNumber(3.14)),
+        jsonEntry("negative", jsonNumber(-17.0)),
+        jsonEntry("bool_true", jsonBool(true)),
+        jsonEntry("bool_false", jsonBool(false)),
+        jsonEntry("null_value", jsonNull()),
+        jsonEntry("array", jsonArray([
+            jsonNumber(1.0),
+            jsonString("two"),
+            jsonBool(true),
+            jsonNull()
+        ])),
+        jsonEntry("nested_object", jsonObject([
+            jsonEntry("key", jsonString("value"))
+        ]))
+    ])
+
+    print("All types (pretty, 2 spaces):")
+    print(jsonStringifyPretty(allTypes, 2))
+
+    // Inspect the parsed structure
+    print("Type checks:")
+    print($"  isJObject: {isJObject(allTypes)}")
+
+    let entries = getJObjectEntries(allTypes)
+    print($"  Number of keys: {entries.length}")
+
+    for entry in entries {
+        let k = getEntryKey(entry)
+        let v = getEntryValue(entry)
+        let typeStr = _describeType(v)
+        print($"  \"{k}\" → {typeStr}")
+    }
+    print("")
+}
+
+_describeType(v: string): string {
+    if isJString(v) {
+        return $"string(\"{getJString(v)}\")"
+    }
+    if isJNumber(v) {
+        return $"number({getJNumber(v)})"
+    }
+    if isJBool(v) {
+        return $"bool({getJBool(v)})"
+    }
+    if isJNull(v) {
+        return "null"
+    }
+    if isJArray(v) {
+        let items = getJArrayItems(v)
+        return $"array[{items.length}]"
+    }
+    if isJObject(v) {
+        let entries = getJObjectEntries(v)
+        return $"object\{{{entries.length} keys\}}"
+    }
+    return "unknown"
+}

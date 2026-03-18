@@ -1,0 +1,234 @@
+// db.liva — JSON file persistence layer
+
+import { Database, Author, Book } from "./models.liva"
+
+const DB_FILE: string = "library_data.json"
+
+// Load database from JSON file, or create empty one
+loadDb(): Database {
+    if File.exists(DB_FILE) {
+        let content, err = File.read(DB_FILE)
+        if err {
+            Log.error($"Failed to read database file: {err}")
+            return _emptyDb()
+        }
+        let db: Database, parseErr = JSON.parse(content)
+        if parseErr {
+            Log.error($"Failed to parse database JSON: {parseErr}")
+            return _emptyDb()
+        }
+        return db
+    }
+    return _emptyDb()
+}
+
+// Save database to JSON file
+saveDb(db: Database) {
+    let json = JSON.stringify(db)
+    let _, err = File.write(DB_FILE, json)
+    if err {
+        Log.error($"Failed to write database file: {err}")
+        fail "Could not persist data"
+    }
+}
+
+// Create empty database
+_emptyDb(): Database {
+    return Database([], [], 1, 1)
+}
+
+// --- Author CRUD ---
+
+getAllAuthors(db: Database): [Author] {
+    return db.authors
+}
+
+getAuthorById(db: Database, id: i32): Author {
+    for author in db.authors {
+        if author.id == id {
+            return author
+        }
+    }
+    fail $"Author with id {id} not found"
+}
+
+createAuthor(db: Database, name: String, nationality: String): (Database, Author) {
+    let author = Author(db.nextAuthorId, name, nationality)
+    let newAuthors = db.authors + [author]
+    let newDb = Database(newAuthors, db.books, db.nextAuthorId + 1, db.nextBookId)
+    return (newDb, author)
+}
+
+updateAuthor(db: Database, id: i32, name: String, nationality: String): (Database, Author) {
+    let found = false
+    let updated = Author(id, name, nationality)
+    let newAuthors: [Author] = []
+    for author in db.authors {
+        if author.id == id {
+            newAuthors = newAuthors + [updated]
+            found = true
+        } else {
+            newAuthors = newAuthors + [author]
+        }
+    }
+    if not found {
+        fail $"Author with id {id} not found"
+    }
+    let newDb = Database(newAuthors, db.books, db.nextAuthorId, db.nextBookId)
+    return (newDb, updated)
+}
+
+deleteAuthor(db: Database, id: i32): Database {
+    // Check if author has books
+    for book in db.books {
+        if book.authorId == id {
+            fail $"Cannot delete author {id}: has associated books. Delete books first."
+        }
+    }
+    let found = false
+    let newAuthors: [Author] = []
+    for author in db.authors {
+        if author.id == id {
+            found = true
+        } else {
+            newAuthors = newAuthors + [author]
+        }
+    }
+    if not found {
+        fail $"Author with id {id} not found"
+    }
+    return Database(newAuthors, db.books, db.nextAuthorId, db.nextBookId)
+}
+
+// --- Book CRUD ---
+
+getAllBooks(db: Database): [Book] {
+    return db.books
+}
+
+getBookById(db: Database, id: i32): Book {
+    for book in db.books {
+        if book.id == id {
+            return book
+        }
+    }
+    fail $"Book with id {id} not found"
+}
+
+createBook(db: Database, title: String, authorId: i32, year: i32, isbn: String): (Database, Book) {
+    // Verify author exists
+    let authorFound = false
+    for author in db.authors {
+        if author.id == authorId {
+            authorFound = true
+        }
+    }
+    if not authorFound {
+        fail $"Author with id {authorId} not found"
+    }
+    // Check ISBN uniqueness
+    for book in db.books {
+        if book.isbn == isbn {
+            fail $"Book with ISBN {isbn} already exists"
+        }
+    }
+    let book = Book(db.nextBookId, title, authorId, year, isbn)
+    let newBooks = db.books + [book]
+    let newDb = Database(db.authors, newBooks, db.nextAuthorId, db.nextBookId + 1)
+    return (newDb, book)
+}
+
+updateBook(db: Database, id: i32, title: String, authorId: i32, year: i32, isbn: String): (Database, Book) {
+    // Verify author exists
+    let authorFound = false
+    for author in db.authors {
+        if author.id == authorId {
+            authorFound = true
+        }
+    }
+    if not authorFound {
+        fail $"Author with id {authorId} not found"
+    }
+    // Check ISBN uniqueness (excluding current book)
+    for book in db.books {
+        if book.isbn == isbn and book.id != id {
+            fail $"Book with ISBN {isbn} already exists"
+        }
+    }
+    let found = false
+    let updated = Book(id, title, authorId, year, isbn)
+    let newBooks: [Book] = []
+    for book in db.books {
+        if book.id == id {
+            newBooks = newBooks + [updated]
+            found = true
+        } else {
+            newBooks = newBooks + [book]
+        }
+    }
+    if not found {
+        fail $"Book with id {id} not found"
+    }
+    let newDb = Database(db.authors, newBooks, db.nextAuthorId, db.nextBookId)
+    return (newDb, updated)
+}
+
+deleteBook(db: Database, id: i32): Database {
+    let found = false
+    let newBooks: [Book] = []
+    for book in db.books {
+        if book.id == id {
+            found = true
+        } else {
+            newBooks = newBooks + [book]
+        }
+    }
+    if not found {
+        fail $"Book with id {id} not found"
+    }
+    return Database(db.authors, newBooks, db.nextAuthorId, db.nextBookId)
+}
+
+// --- Search ---
+
+searchBooksByTitle(db: Database, query: String): [Book] {
+    let queryLower = query.toLowerCase()
+    let results: [Book] = []
+    for book in db.books {
+        if book.title.toLowerCase().contains(queryLower) {
+            results = results + [book]
+        }
+    }
+    return results
+}
+
+searchBooksByAuthor(db: Database, query: String): [Book] {
+    let queryLower = query.toLowerCase()
+    // Find matching author ids
+    let matchingAuthorIds: [i32] = []
+    for author in db.authors {
+        if author.name.toLowerCase().contains(queryLower) {
+            matchingAuthorIds = matchingAuthorIds + [author.id]
+        }
+    }
+    // Find books by those authors
+    let results: [Book] = []
+    for book in db.books {
+        for aid in matchingAuthorIds {
+            if book.authorId == aid {
+                results = results + [book]
+            }
+        }
+    }
+    return results
+}
+
+getBooksByAuthorId(db: Database, authorId: i32): [Book] {
+    let results: [Book] = []
+    for book in db.books {
+        if book.authorId == authorId {
+            results = results + [book]
+        }
+    }
+    return results
+}

@@ -1,0 +1,184 @@
+// ============================================================
+// ast.liva — Abstract Syntax Tree node types
+// ============================================================
+
+// AST node types for our mini-language
+// Using enums with data to represent the tree structure
+
+enum NodeType {
+    Program,
+    NumberLit,
+    StringLit,
+    BoolLit,
+    Identifier,
+    BinaryOp,
+    UnaryOp,
+    Assignment,
+    LetDecl,
+    IfStmt,
+    WhileStmt,
+    Block,
+    FuncDecl,
+    FuncCall,
+    ReturnStmt,
+    PrintStmt
+}
+
+// A single AST node with flexible child storage
+ASTNode {
+    nodeType: string
+    // Value fields (used by literals and identifiers)
+    strValue: string
+    numValue: number
+    boolValue: bool
+    // Operator for binary/unary ops
+    op: string
+    // Variable name for let/assignment/func declarations
+    name: string
+    // Children nodes (used by different node types)
+    children: [ASTNode]
+    // Parameter names for function declarations
+    params: [string]
+
+    constructor(nodeType: string) {
+        this.nodeType = nodeType
+        this.strValue = ""
+        this.numValue = 0
+        this.boolValue = false
+        this.op = ""
+        this.name = ""
+        this.children = []
+        this.params = []
+    }
+}
+
+// Factory functions for creating specific AST nodes
+
+makeProgram(stmts: [ASTNode]): ASTNode {
+    let node = ASTNode("Program")
+    node.children = stmts
+    return node
+}
+
+makeNumberLit(value: number): ASTNode {
+    let node = ASTNode("NumberLit")
+    node.numValue = value
+    return node
+}
+
+makeStringLit(value: string): ASTNode {
+    let node = ASTNode("StringLit")
+    node.strValue = value
+    return node
+}
+
+makeBoolLit(value: bool): ASTNode {
+    let node = ASTNode("BoolLit")
+    node.boolValue = value
+    return node
+}
+
+makeIdentifier(name: string): ASTNode {
+    let node = ASTNode("Identifier")
+    node.name = name
+    return node
+}
+
+// left op right stored in children[0], children[1]
+makeBinaryOp(op: string, left: ASTNode, right: ASTNode): ASTNode {
+    let node = ASTNode("BinaryOp")
+    node.op = op
+    node.children = [left, right]
+    return node
+}
+
+// operand stored in children[0]
+makeUnaryOp(op: string, operand: ASTNode): ASTNode {
+    let node = ASTNode("UnaryOp")
+    node.op = op
+    node.children = [operand]
+    return node
+}
+
+// name = expr; expr stored in children[0]
+makeAssignment(name: string, expr: ASTNode): ASTNode {
+    let node = ASTNode("Assignment")
+    node.name = name
+    node.children = [expr]
+    return node
+}
+
+// let name = expr; expr stored in children[0]
+makeLetDecl(name: string, expr: ASTNode): ASTNode {
+    let node = ASTNode("LetDecl")
+    node.name = name
+    node.children = [expr]
+    return node
+}
+
+// if (cond) then_block else_block
+// children[0] = condition, children[1] = then_block, children[2] = else_block (optional)
+makeIfStmt(condition: ASTNode, thenBlock: ASTNode, elseBlock: ASTNode): ASTNode {
+    let node = ASTNode("IfStmt")
+    node.children = [condition, thenBlock, elseBlock]
+    return node
+}
+
+makeIfStmtNoElse(condition: ASTNode, thenBlock: ASTNode): ASTNode {
+    let node = ASTNode("IfStmt")
+    node.children = [condition, thenBlock]
+    return node
+}
+
+// while (cond) body
+// children[0] = condition, children[1] = body
+makeWhileStmt(condition: ASTNode, body: ASTNode): ASTNode {
+    let node = ASTNode("WhileStmt")
+    node.children = [condition, body]
+    return node
+}
+
+// Block of statements
+makeBlock(stmts: [ASTNode]): ASTNode {
+    let node = ASTNode("Block")
+    node.children = stmts
+    return node
+}
+
+// func name(params) { body }
+// children[0] = body block
+makeFuncDecl(name: string, params: [string], body: ASTNode): ASTNode {
+    let node = ASTNode("FuncDecl")
+    node.name = name
+    node.params = params
+    node.children = [body]
+    return node
+}
+
+// name(args...)
+// children = argument expressions
+makeFuncCall(name: string, args: [ASTNode]): ASTNode {
+    let node = ASTNode("FuncCall")
+    node.name = name
+    node.children = args
+    return node
+}
+
+// return expr; expr stored in children[0]
+makeReturnStmt(expr: ASTNode): ASTNode {
+    let node = ASTNode("ReturnStmt")
+    node.children = [expr]
+    return node
+}
+
+makeReturnStmtEmpty(): ASTNode {
+    let node = ASTNode("ReturnStmt")
+    return node
+}
+
+// print(expr); expr stored in children[0]
+makePrintStmt(expr: ASTNode): ASTNode {
+    let node = ASTNode("PrintStmt")
+    node.children = [expr]
+    return node
+}

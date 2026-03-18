@@ -1,0 +1,236 @@
+// ============================================================
+// lexer.liva — Tokenizer for the mini-language
+// ============================================================
+
+import { Token } from "./tokens.liva"
+
+// Check if character is a digit
+_isDigit(c: string): bool => c >= "0" and c <= "9"
+
+// Check if character is alpha or underscore
+_isAlpha(c: string): bool {
+    return (c >= "a" and c <= "z") or (c >= "A" and c <= "Z") or c == "_"
+}
+
+// Check if character is alphanumeric or underscore
+_isAlphaNumeric(c: string): bool => _isAlpha(c) or _isDigit(c)
+
+// Check if character is whitespace (space or tab)
+_isWhitespace(c: string): bool => c == " " or c == "\t" or c == "\r"
+
+// Map identifier strings to keyword token types
+_keywordType(word: string): string {
+    if word == "let" { return "Let" }
+    if word == "if" { return "If" }
+    if word == "else" { return "Else" }
+    if word == "while" { return "While" }
+    if word == "func" { return "Func" }
+    if word == "return" { return "Return" }
+    if word == "print" { return "Print" }
+    if word == "true" { return "True" }
+    if word == "false" { return "False" }
+    if word == "and" { return "And" }
+    if word == "or" { return "Or" }
+    if word == "not" { return "Not" }
+    return "Identifier"
+}
+
+// Tokenize source code into a list of tokens
+tokenize(source: string): [Token] {
+    let tokens: [Token] = []
+    let pos = 0
+    let line = 1
+    let chars = source.chars()
+    let length = chars.length
+
+    while pos < length {
+        let c = chars[pos]
+
+        // Skip whitespace
+        if _isWhitespace(c) {
+            pos = pos + 1
+            continue
+        }
+
+        // Newlines
+        if c == "\n" {
+            line = line + 1
+            pos = pos + 1
+            continue
+        }
+
+        // Skip single-line comments
+        if c == "/" and pos + 1 < length and chars[pos + 1] == "/" {
+            while pos < length and chars[pos] != "\n" {
+                pos = pos + 1
+            }
+            continue
+        }
+
+        // Numbers
+        if _isDigit(c) {
+            let start = pos
+            while pos < length and _isDigit(chars[pos]) {
+                pos = pos + 1
+            }
+            // Handle decimals
+            if pos < length and chars[pos] == "." and pos + 1 < length and _isDigit(chars[pos + 1]) {
+                pos = pos + 1
+                while pos < length and _isDigit(chars[pos]) {
+                    pos = pos + 1
+                }
+            }
+            let numStr = source.substring(start, pos)
+            tokens.push(Token("NumberLiteral", numStr, line))
+            continue
+        }
+
+        // Identifiers and keywords
+        if _isAlpha(c) {
+            let start = pos
+            while pos < length and _isAlphaNumeric(chars[pos]) {
+                pos = pos + 1
+            }
+            let word = source.substring(start, pos)
+            let tokType = _keywordType(word)
+            tokens.push(Token(tokType, word, line))
+            continue
+        }
+
+        // String literals
+        if c == "\"" {
+            let start = pos
+            pos = pos + 1
+            let strContent = ""
+            while pos < length and chars[pos] != "\"" {
+                if chars[pos] == "\\" and pos + 1 < length {
+                    pos = pos + 1
+                    if chars[pos] == "n" {
+                        strContent = strContent + "\n"
+                    } else if chars[pos] == "t" {
+                        strContent = strContent + "\t"
+                    } else if chars[pos] == "\\" {
+                        strContent = strContent + "\\"
+                    } else if chars[pos] == "\"" {
+                        strContent = strContent + "\""
+                    } else {
+                        strContent = strContent + chars[pos]
+                    }
+                } else {
+                    strContent = strContent + chars[pos]
+                }
+                pos = pos + 1
+            }
+            if pos >= length {
+                fail $"Unterminated string at line {line}"
+            }
+            pos = pos + 1
+            tokens.push(Token("StringLiteral", strContent, line))
+            continue
+        }
+
+        // Two-character operators
+        if c == "=" and pos + 1 < length and chars[pos + 1] == "=" {
+            tokens.push(Token("EqualEqual", "==", line))
+            pos = pos + 2
+            continue
+        }
+        if c == "!" and pos + 1 < length and chars[pos + 1] == "=" {
+            tokens.push(Token("NotEqual", "!=", line))
+            pos = pos + 2
+            continue
+        }
+        if c == "<" and pos + 1 < length and chars[pos + 1] == "=" {
+            tokens.push(Token("LessEqual", "<=", line))
+            pos = pos + 2
+            continue
+        }
+        if c == ">" and pos + 1 < length and chars[pos + 1] == "=" {
+            tokens.push(Token("GreaterEqual", ">=", line))
+            pos = pos + 2
+            continue
+        }
+
+        // Single-character tokens
+        if c == "+" {
+            tokens.push(Token("Plus", "+", line))
+            pos = pos + 1
+            continue
+        }
+        if c == "-" {
+            tokens.push(Token("Minus", "-", line))
+            pos = pos + 1
+            continue
+        }
+        if c == "*" {
+            tokens.push(Token("Star", "*", line))
+            pos = pos + 1
+            continue
+        }
+        if c == "/" {
+            tokens.push(Token("Slash", "/", line))
+            pos = pos + 1
+            continue
+        }
+        if c == "%" {
+            tokens.push(Token("Modulo", "%", line))
+            pos = pos + 1
+            continue
+        }
+        if c == "=" {
+            tokens.push(Token("Assign", "=", line))
+            pos = pos + 1
+            continue
+        }
+        if c == "<" {
+            tokens.push(Token("Less", "<", line))
+            pos = pos + 1
+            continue
+        }
+        if c == ">" {
+            tokens.push(Token("Greater", ">", line))
+            pos = pos + 1
+            continue
+        }
+        if c == "!" {
+            tokens.push(Token("Not", "!", line))
+            pos = pos + 1
+            continue
+        }
+        if c == "(" {
+            tokens.push(Token("LeftParen", "(", line))
+            pos = pos + 1
+            continue
+        }
+        if c == ")" {
+            tokens.push(Token("RightParen", ")", line))
+            pos = pos + 1
+            continue
+        }
+        if c == "{" {
+            tokens.push(Token("LeftBrace", "{", line))
+            pos = pos + 1
+            continue
+        }
+        if c == "}" {
+            tokens.push(Token("RightBrace", "}", line))
+            pos = pos + 1
+            continue
+        }
+        if c == "," {
+            tokens.push(Token("Comma", ",", line))
+            pos = pos + 1
+            continue
+        }
+        if c == ";" {
+            tokens.push(Token("Semicolon", ";", line))
+            pos = pos + 1
+            continue
+        }
+
+        fail $"Unexpected character '{c}' at line {line}"
+    }
+
+    tokens.push(Token("EOF", "", line))
+    return tokens
+}

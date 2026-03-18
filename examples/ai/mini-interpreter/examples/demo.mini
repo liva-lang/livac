@@ -1,0 +1,140 @@
+// =============================================
+// Mini-Language Demo Script
+// Tests all supported features
+// =============================================
+
+// --- Variables ---
+let x = 10
+let y = 20
+let name = "World"
+print("=== Variables ===")
+print(x)
+print(y)
+print(name)
+
+// --- Arithmetic ---
+print("=== Arithmetic ===")
+let sum = x + y
+let diff = x - y
+let prod = x * y
+let quot = y / x
+let mod = 17 % 5
+print(sum)
+print(diff)
+print(prod)
+print(quot)
+print(mod)
+
+// --- String concatenation ---
+print("=== Strings ===")
+let greeting = "Hello, " + name + "!"
+print(greeting)
+
+// --- Booleans and comparisons ---
+print("=== Comparisons ===")
+print(10 == 10)
+print(10 != 20)
+print(5 < 10)
+print(10 >= 10)
+
+// --- Conditionals ---
+print("=== Conditionals ===")
+let age = 25
+if (age >= 18) {
+    print("Adult")
+} else {
+    print("Minor")
+}
+
+if (age >= 65) {
+    print("Senior")
+} else if (age >= 18) {
+    print("Working age")
+} else {
+    print("Youth")
+}
+
+// --- While loops ---
+print("=== While Loop ===")
+let counter = 1
+while (counter <= 5) {
+    print(counter)
+    counter = counter + 1
+}
+
+// --- Functions ---
+print("=== Functions ===")
+
+func add(a, b) {
+    return a + b
+}
+
+func factorial(n) {
+    if (n <= 1) {
+        return 1
+    }
+    return n * factorial(n - 1)
+}
+
+func fib(n) {
+    if (n <= 0) { return 0 }
+    if (n == 1) { return 1 }
+    return fib(n - 1) + fib(n - 2)
+}
+
+func greet(who) {
+    print("Hello, " + who + "!")
+}
+
+let result = add(3, 7)
+print(result)
+
+print(factorial(5))
+print(factorial(10))
+
+greet("Liva")
+
+// --- Fibonacci sequence ---
+print("=== Fibonacci ===")
+let i = 0
+while (i <= 10) {
+    print(fib(i))
+    i = i + 1
+}
+
+// --- Nested control flow ---
+print("=== FizzBuzz (1-20) ===")
+let n = 1
+while (n <= 20) {
+    if (n % 15 == 0) {
+        print("FizzBuzz")
+    } else if (n % 3 == 0) {
+        print("Fizz")
+    } else if (n % 5 == 0) {
+        print("Buzz")
+    } else {
+        print(n)
+    }
+    n = n + 1
+}
+
+// --- Higher-order-ish: functions with logic ---
+print("=== Max function ===")
+func max(a, b) {
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+print(max(42, 17))
+print(max(3, 99))
+
+// --- Negative numbers and expressions ---
+print("=== Expressions ===")
+let neg = -5
+print(neg)
+print(neg + 10)
+print((2 + 3) * (4 - 1))
+
+print("=== Done! ===")
