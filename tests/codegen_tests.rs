@@ -4672,3 +4672,55 @@ main() {
     assert!(rust_code.contains("self.priority.clone()"), "self.field as arg should clone: {}", rust_code);
     assert_snapshot!("self_field_as_arg_clones", rust_code);
 }
+
+#[test]
+fn test_for_self_field_iter_mut() {
+    // B45: for item in this.items with mutation should use .iter_mut()
+    let source = r#"
+TodoItem {
+    title: string
+    done: bool
+
+    constructor(t: string) {
+        this.title = t
+        this.done = false
+    }
+}
+
+TodoList {
+    items: [TodoItem]
+
+    constructor() {
+        this.items = []
+    }
+
+    addItem(title: string) {
+        this.items.push(TodoItem(title))
+    }
+
+    completeAll() {
+        for item in this.items {
+            item.done = true
+        }
+    }
+
+    showAll() {
+        for item in this.items {
+            print(item.title)
+        }
+    }
+}
+
+main() {
+    let list = TodoList()
+    list.addItem("Buy milk")
+    list.completeAll()
+    list.showAll()
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // completeAll() mutates loop var → should use .iter_mut()
+    // showAll() doesn't mutate → should use .clone()
+    assert!(rust_code.contains(".iter_mut()"), "Mutating for-loop should use iter_mut: {}", rust_code);
+    assert_snapshot!("for_self_field_iter", rust_code);
+}

@@ -387,35 +387,57 @@ mod liva_rt {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct Finder {
-    _items: Vec<String>,
+pub struct TodoItem {
+    pub title: String,
+    pub done: bool,
 }
 
-impl Finder {
-    pub fn new() -> Self {
+impl TodoItem {
+    pub fn new(t: String) -> Self {
         Self {
-            _items: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            title: t,
+            done: false,
         }
     }
 
-    // Generating method: findItem
-    pub fn find_item(&self, name: String) -> Result<String, liva_rt::Error> {
-        for item in self._items.clone() {
-            if item == name {
-                return Ok(item);
-            }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct TodoList {
+    pub items: Vec<TodoItem>,
+}
+
+impl TodoList {
+    pub fn new() -> Self {
+        Self {
+            items: vec![],
         }
-        return Err(liva_rt::Error::new("not found", "Finder.findItem", ":15"));
+    }
+
+    // Generating method: addItem
+    pub fn add_item(&mut self, title: String) {
+        self.items.push(TodoItem::new(title.clone()));
+    }
+
+    // Generating method: completeAll
+    pub fn complete_all(&mut self) {
+        for item in self.items.iter_mut() {
+            item.done = true;
+        }
+    }
+
+    // Generating method: showAll
+    pub fn show_all(&self) {
+        for item in self.items.clone() {
+            println!("{}", item.title.clone());
+        }
     }
 
 }
 
 fn main() {
-    let mut f = Finder::new();
-    let (result, err) = match f.find_item("b".to_string()) { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };
-    if err.is_some() {
-        println!("{}", "error");
-    } else {
-        println!("{}", "found it");
-    }
+    let mut list = TodoList::new();
+    list.add_item("Buy milk".to_string());
+    list.complete_all();
+    list.show_all();
 }

@@ -53,6 +53,7 @@ pub struct CodeGenerator {
     ctx: DesugarContext,
     in_method: bool,
     current_class_name: Option<String>,
+    current_method_is_mut: bool,
     in_assignment_target: bool,
     in_fallible_function: bool,
     in_test_block: bool,
@@ -131,6 +132,7 @@ impl CodeGenerator {
             ctx,
             in_method: false,
             current_class_name: None,
+            current_method_is_mut: false,
             in_assignment_target: false,
             in_fallible_function: false,
             in_test_block: false,
@@ -744,6 +746,8 @@ impl CodeGenerator {
             Stmt::For(for_stmt) => {
                 self.expr_modifies_self(&for_stmt.iterable)
                     || self.block_modifies_self(&for_stmt.body)
+                    // B45 fix: If iterating over this.field and body mutates loop var, that's transitive self mutation
+                    || self.for_mutates_self_transitively(for_stmt)
             }
             _ => false,
         }
@@ -832,6 +836,49 @@ impl CodeGenerator {
             Expr::Identifier(name) => name == "this" || name == "self",
             Expr::Member { object, .. } => self.target_involves_self(object),
             Expr::Index { object, .. } => self.target_involves_self(object),
+            _ => false,
+        }
+    }
+
+    /// B45 fix: Check if a for-loop transitively modifies self
+    /// Pattern: `for item in this.field { item.prop = value }`
+    /// The loop variable `item` aliases elements of `this.field`, so mutating it modifies self
+    fn for_mutates_self_transitively(&self, for_stmt: &crate::ast::ForStmt) -> bool {
+        // Check if iterable is this.<field>
+        let iterates_self_field = matches!(&for_stmt.iterable,
+            Expr::Member { object, .. } if matches!(object.as_ref(), Expr::Identifier(name) if name == "this")
+        );
+        if !iterates_self_field {
+            return false;
+        }
+        // Check if body assigns to loop_var.<anything>
+        let loop_var = &for_stmt.var;
+        self.block_assigns_to_var_field(&for_stmt.body, loop_var)
+    }
+
+    /// Check if a block contains assignments to `var_name.field = value`
+    fn block_assigns_to_var_field(&self, block: &BlockStmt, var_name: &str) -> bool {
+        for stmt in &block.stmts {
+            if let Stmt::Assign(assign) = stmt {
+                if self.target_starts_with_var(&assign.target, var_name) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Check if an assignment target starts with a specific variable name
+    fn target_starts_with_var(&self, expr: &Expr, var_name: &str) -> bool {
+        match expr {
+            Expr::Member { object, .. } => {
+                if let Expr::Identifier(name) = object.as_ref() {
+                    name == var_name
+                } else {
+                    self.target_starts_with_var(object, var_name)
+                }
+            }
+            Expr::Index { object, .. } => self.target_starts_with_var(object, var_name),
             _ => false,
         }
     }
@@ -3419,6 +3466,9 @@ impl CodeGenerator {
         self.in_method = true;
         let prev_class_name = self.current_class_name.take();
         self.current_class_name = class.map(|c| c.name.clone());
+        let prev_method_is_mut = self.current_method_is_mut;
+        let is_setter = method.name.starts_with("set");
+        self.current_method_is_mut = is_setter || self.method_modifies_self(method);
         let prev_fallible = self.in_fallible_function;
         self.in_fallible_function = method.contains_fail;
 
@@ -3454,6 +3504,7 @@ impl CodeGenerator {
         self.in_fallible_function = prev_fallible;
         self.in_method = false;
         self.current_class_name = prev_class_name;
+        self.current_method_is_mut = prev_method_is_mut;
 
         // Restore previous function name
         self.current_function_name = prev_function_name;
@@ -5350,22 +5401,26 @@ impl CodeGenerator {
 
                 // Bug #74 fix: In Liva, iterating doesn't consume collections. In Rust,
                 // `for x in vec` moves the vec. Use .clone() or .iter() to avoid this.
-                // For self.field: use & (iterate by reference in borrowed context)
-                // For variables: clone to preserve ownership for later use
+                // B45 fix: For self.field in &mut self methods where loop body mutates
+                // the loop variable, use .iter_mut() so mutations are not lost.
                 let needs_clone = match &for_stmt.iterable {
                     Expr::Identifier(_) => true,
                     _ => false,
                 };
-                let needs_ref = match &for_stmt.iterable {
+                let is_self_field = match &for_stmt.iterable {
                     Expr::Member { object, .. } => {
                         matches!(object.as_ref(), Expr::Identifier(name) if name == "this")
                     }
                     _ => false,
                 };
+                // Check if this for-loop mutates the loop variable's fields
+                let mutates_loop_var = is_self_field
+                    && self.current_method_is_mut
+                    && self.block_assigns_to_var_field(&for_stmt.body, &for_stmt.var);
                 self.generate_expr(&for_stmt.iterable)?;
-                if needs_ref {
-                    self.output.push_str(".clone()");
-                } else if needs_clone {
+                if is_self_field && mutates_loop_var {
+                    self.output.push_str(".iter_mut()");
+                } else if is_self_field || needs_clone {
                     self.output.push_str(".clone()");
                 }
                 self.output.push_str(" {\n");
