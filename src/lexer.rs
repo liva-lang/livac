@@ -299,6 +299,43 @@ fn find_rust_blocks(source: &str) -> Vec<RustBlockInfo> {
     let mut i = 0;
 
     while i + 4 <= bytes.len() {
+        // B42 fix: Skip // line comments entirely
+        if bytes[i] == b'/' && i + 1 < bytes.len() && bytes[i + 1] == b'/' {
+            i += 2;
+            while i < bytes.len() && bytes[i] != b'\n' {
+                i += 1;
+            }
+            continue;
+        }
+
+        // B42 fix: Skip /* block comments */ entirely
+        if bytes[i] == b'/' && i + 1 < bytes.len() && bytes[i + 1] == b'*' {
+            i += 2;
+            while i + 1 < bytes.len() {
+                if bytes[i] == b'*' && bytes[i + 1] == b'/' {
+                    i += 2;
+                    break;
+                }
+                i += 1;
+            }
+            continue;
+        }
+
+        // B42 fix: Skip string literals (avoid matching "rust" inside strings)
+        if bytes[i] == b'"' {
+            i += 1;
+            while i < bytes.len() {
+                if bytes[i] == b'\\' {
+                    i += 1; // skip escaped char
+                } else if bytes[i] == b'"' {
+                    break;
+                }
+                i += 1;
+            }
+            i += 1;
+            continue;
+        }
+
         // Look for "rust" as a whole word (compare bytes to avoid UTF-8 boundary issues)
         if bytes[i] == b'r' && bytes[i + 1] == b'u' && bytes[i + 2] == b's' && bytes[i + 3] == b't'
         {
@@ -373,17 +410,42 @@ fn find_balanced_brace(source: &str, open_pos: usize) -> Option<(usize, usize)> 
                 }
             }
             b'\'' => {
-                // Skip char literal / lifetime. Rust chars: 'x', '\n', '\u{XXXX}'
-                // Lifetimes: 'a, 'static — no closing quote immediately in some contexts
-                // Simple heuristic: skip to next unescaped '
-                i += 1;
-                while i < bytes.len() {
-                    if bytes[i] == b'\\' {
-                        i += 1;
-                    } else if bytes[i] == b'\'' {
-                        break;
+                // B43 fix: Properly distinguish char literals from lifetimes
+                // Char literals: 'x', '\n', '\\', '\u{XXXX}'
+                // Lifetimes: 'a, 'static — identifier after ', NO closing quote
+                if i + 1 < bytes.len() {
+                    let next = bytes[i + 1];
+                    if next == b'\\' {
+                        // Escaped char literal: '\n', '\\', '\u{...}'
+                        // Skip: ' + \ + char + '
+                        i += 2; // skip ' and \
+                        if i < bytes.len() && bytes[i] == b'u' && i + 1 < bytes.len() && bytes[i + 1] == b'{' {
+                            // Unicode escape '\u{XXXX}' — skip to closing }
+                            i += 2;
+                            while i < bytes.len() && bytes[i] != b'}' {
+                                i += 1;
+                            }
+                            // Skip } and closing '
+                            if i < bytes.len() { i += 1; } // }
+                            if i < bytes.len() && bytes[i] == b'\'' { /* closing ' handled by i += 1 below */ }
+                        } else {
+                            // Simple escape: '\n', '\t', etc. — skip escaped char + closing '
+                            i += 1; // skip the escaped char
+                            if i < bytes.len() && bytes[i] == b'\'' { /* closing ' handled by i += 1 below */ }
+                        }
+                    } else if (next.is_ascii_alphabetic() || next == b'_')
+                        && i + 2 < bytes.len()
+                        && bytes[i + 2] != b'\''
+                    {
+                        // Lifetime: 'a, 'static, '_  — next is alpha/underscore but
+                        // char after that is NOT a closing quote → it's a lifetime, not a char
+                        // Just skip the ' and let normal processing continue
+                        // (don't consume anything extra)
+                    } else if i + 2 < bytes.len() && bytes[i + 2] == b'\'' {
+                        // Char literal: 'x' — next char followed by closing quote
+                        i += 2; // skip to closing '
                     }
-                    i += 1;
+                    // else: lone ' at end of input, just skip it
                 }
             }
             b'/' if i + 1 < bytes.len() && bytes[i + 1] == b'/' => {
@@ -549,5 +611,74 @@ mod tests {
         let tokens = tokenize(source).unwrap();
 
         assert!(matches!(tokens[0].token, Token::StringTemplate(_)));
+    }
+
+    // B42: find_rust_blocks must skip `rust` inside // comments
+    #[test]
+    fn test_find_rust_blocks_skips_line_comments() {
+        let source = "// This uses rust {} interop\nlet x = 1";
+        let blocks = find_rust_blocks(source);
+        assert!(blocks.is_empty(), "Should not find rust block inside // comment");
+    }
+
+    #[test]
+    fn test_find_rust_blocks_skips_block_comments() {
+        let source = "/* rust { some code } */\nlet x = 1";
+        let blocks = find_rust_blocks(source);
+        assert!(blocks.is_empty(), "Should not find rust block inside /* */ comment");
+    }
+
+    #[test]
+    fn test_find_rust_blocks_skips_string_literals() {
+        let source = r#"let x = "rust { }"
+let y = 1"#;
+        let blocks = find_rust_blocks(source);
+        assert!(blocks.is_empty(), "Should not find rust block inside string literal");
+    }
+
+    #[test]
+    fn test_find_rust_blocks_finds_real_block_after_comment() {
+        let source = "// This uses rust interop\nrust { let x = 1; }";
+        let blocks = find_rust_blocks(source);
+        assert_eq!(blocks.len(), 1, "Should find exactly one rust block");
+        assert!(blocks[0].content.contains("let x = 1;"));
+    }
+
+    // B43: find_balanced_brace must handle lifetimes properly
+    #[test]
+    fn test_balanced_brace_with_lifetime() {
+        // Lifetime 'a should NOT be treated as char literal start
+        let source = "{ fn peek<'a>(tokens: &'a [Token]) -> &'a Token { tokens[0] } }";
+        let result = find_balanced_brace(source, 0);
+        assert!(result.is_some(), "Should find balanced brace with lifetimes");
+        let (content_end, _) = result.unwrap();
+        // The content_end should be at the final }, not consumed by lifetime confusion
+        assert_eq!(source.as_bytes()[content_end], b'}');
+    }
+
+    #[test]
+    fn test_balanced_brace_with_char_literal() {
+        // Real char literals should still work
+        let source = "{ let ch = 'x'; let b = '{'; }";
+        let result = find_balanced_brace(source, 0);
+        assert!(result.is_some(), "Should find balanced brace with char literals");
+    }
+
+    #[test]
+    fn test_balanced_brace_with_escaped_char() {
+        let source = r"{ let ch = '\n'; let b = '\\'; }";
+        let result = find_balanced_brace(source, 0);
+        assert!(result.is_some(), "Should find balanced brace with escaped chars");
+    }
+
+    #[test]
+    fn test_balanced_brace_lifetime_does_not_consume_braces() {
+        // Critical: lifetime 'a followed by braces should not consume them
+        let source = "{ fn f<'a>(x: &'a str) -> &'a str { x } let y = 1; }";
+        let result = find_balanced_brace(source, 0);
+        assert!(result.is_some());
+        let (content_end, brace_end) = result.unwrap();
+        // Should match the outermost closing }
+        assert_eq!(brace_end, source.len(), "Should close at outermost brace, got content_end={content_end}");
     }
 }

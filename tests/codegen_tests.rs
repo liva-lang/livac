@@ -3973,6 +3973,39 @@ main() {
 }
 
 #[test]
+fn test_v15_rust_block_comment_with_rust_word() {
+    // B42: Comments containing "rust {}" should NOT create phantom rust blocks
+    let source = r#"
+main() {
+    // This uses rust {} interop for struct construction
+    let x = 42
+    print(x)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_rust_block_comment_with_rust_word", rust_code);
+}
+
+#[test]
+fn test_v15_rust_block_with_lifetimes() {
+    // B43: Lifetimes like 'a should NOT confuse the brace balancer
+    let source = r#"
+main() {
+    let val = rust {
+        fn longest<'a>(x: &'a str, y: &'a str) -> &'a str {
+            if x.len() > y.len() { x } else { y }
+        }
+        let result = longest("hello", "world!");
+        result.len() as i32
+    }
+    print(val)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("v15_rust_block_with_lifetimes", rust_code);
+}
+
+#[test]
 fn test_v15_use_rust_combined_features() {
     let source = r#"
 use rust "tokio" version "1" features ["rt-multi-thread", "macros"]

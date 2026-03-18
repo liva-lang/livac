@@ -145,10 +145,10 @@ Bugs que afectan 3+ proyectos o bloquean patrones fundamentales del lenguaje.
 ### `rust {}` Interop (`lexer.rs`)
 > Área: detección de bloques rust y balance de braces.
 
-- [ ] **B42** — `find_rust_blocks()` matchea `rust` keyword dentro de `//` comments  
-  Archivo: `lexer.rs` L296-340 | Proyectos: mini-interpreter
-- [ ] **B43** — `find_balanced_brace()` confunde lifetimes/apostrophes con char literals  
-  Archivo: `lexer.rs` L346-413 | Proyectos: mini-interpreter
+- [x] **B42** — `find_rust_blocks()` matchea `rust` keyword dentro de `//` comments  ✅ 2026-03-18
+  Archivo: `lexer.rs` | Proyectos: mini-interpreter
+- [x] **B43** — `find_balanced_brace()` confunde lifetimes/apostrophes con char literals  ✅ 2026-03-18
+  Archivo: `lexer.rs` | Proyectos: mini-interpreter
 
 ---
 
@@ -267,6 +267,8 @@ Features que ya están o deberían estar en el backlog del compilador por versi�
 | Fecha | Tarea | Estado | Tests | Notas |
 |-------|-------|--------|-------|-------|
 | 2026-03-18 | B01: `_` en error binding | ✅ Done | 389 passed, 0 failed | Parser: `Token::Underscore` → `BindingPattern::Identifier("_")`, Semantic: skip declare for `_` |
+| 2026-03-18 | B42: `find_rust_blocks()` skip comments | ✅ Done | 399 passed, 0 failed | Lexer: skip `//`, `/* */`, and string literals before scanning for `rust` keyword |
+| 2026-03-18 | B43: `find_balanced_brace()` lifetimes | ✅ Done | 399 passed, 0 failed | Lexer: proper char literal vs lifetime detection — lifetimes don't consume braces |
 
 ---
 
