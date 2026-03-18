@@ -2932,6 +2932,11 @@ impl SemanticAnalyzer {
     ) -> Result<()> {
         match pattern {
             BindingPattern::Identifier(name) => {
+                // Wildcard `_` — skip declaration, it's a discard
+                if name == "_" {
+                    return Ok(());
+                }
+
                 // Simple identifier binding - existing behavior
                 if self.declare_symbol(name, declared_type.clone()) {
                     let error = self.error_with_span(

@@ -1569,6 +1569,26 @@ main() {
     assert_snapshot!("feature_try_catch", rust_code);
 }
 
+#[test]
+fn test_error_binding_underscore_discard() {
+    let source = r#"
+divide(a: number, b: number): number {
+    if b == 0 {
+        fail "Division by zero"
+    }
+    return a / b
+}
+
+main() {
+    let result, _ = divide(10, 2)
+    print(result)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("error_binding_underscore_discard", rust_code);
+}
+
 // ---------------------------------------------------------------------------
 // 10. Concurrency
 // ---------------------------------------------------------------------------

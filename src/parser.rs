@@ -1207,6 +1207,9 @@ impl Parser {
         } else if self.check(&Token::LParen) {
             // Tuple destructuring: (x, y, z)
             self.parse_tuple_pattern()?
+        } else if self.match_token(&Token::Underscore) {
+            // Wildcard/discard binding: let val, _ = fn()
+            BindingPattern::Identifier("_".to_string())
         } else {
             // Simple identifier
             let name = self.parse_identifier()?;
