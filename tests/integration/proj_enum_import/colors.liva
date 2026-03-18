@@ -1,0 +1,13 @@
+enum Color {
+  Red
+  Green
+  Blue
+}
+
+toLabel(color: Color): String {
+  return switch color {
+    Color.Red => "rojo"
+    Color.Green => "verde"
+    Color.Blue => "azul"
+  }
+}

@@ -1,0 +1,7 @@
+import { Color, toLabel } from "./colors.liva"
+
+main() {
+  let c = Color.Red
+  let label = toLabel(c)
+  print("Color: " + label)
+}

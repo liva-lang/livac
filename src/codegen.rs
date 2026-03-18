@@ -1175,9 +1175,7 @@ impl CodeGenerator {
             }
         }
 
-        // Build enum metadata maps
-        self.enum_names.clear();
-        self.enum_variants.clear();
+        // Build enum metadata maps (merge with pre-loaded imported enums)
         for item in &program.items {
             if let TopLevel::Enum(enum_decl) = item {
                 self.enum_names.insert(enum_decl.name.clone());
@@ -14657,7 +14655,7 @@ pub fn generate_multifile_project(
     }
 
     // Generate main.rs (entry point)
-    let main_code = generate_entry_point(entry_module, &mod_declarations, &ctx)?;
+    let main_code = generate_entry_point(entry_module, &mod_declarations, &ctx, modules)?;
     files.insert(PathBuf::from("src/main.rs"), main_code);
 
     Ok(files)
@@ -14749,10 +14747,25 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext) ->
                 module_body.push_str(&code);
                 module_body.push('\n');
             }
+            TopLevel::Enum(enum_decl) => {
+                let is_public = !enum_decl.name.starts_with('_');
+
+                codegen.output.clear();
+                codegen.generate_top_level(item)?;
+                let code = codegen.output.clone();
+
+                if is_public {
+                    // Add pub to enum definition and its Display impl
+                    let code = code.replacen("enum ", "pub enum ", 1);
+                    module_body.push_str(&code);
+                } else {
+                    module_body.push_str(&code);
+                }
+                module_body.push('\n');
+            }
             TopLevel::UseRust(_)
             | TopLevel::Test(_)
-            | TopLevel::ExprStmt(_)
-            | TopLevel::Enum(_) => {
+            | TopLevel::ExprStmt(_) => {
                 // Reset codegen output for this item
                 codegen.output.clear();
                 codegen.generate_top_level(item)?;
@@ -14879,8 +14892,27 @@ fn generate_entry_point(
     entry_module: &crate::module::Module,
     mod_declarations: &[String],
     ctx: &DesugarContext,
+    all_modules: &[&crate::module::Module],
 ) -> Result<String> {
     let mut codegen = CodeGenerator::new(ctx.clone());
+
+    // Pre-populate enum metadata from all imported modules so the entry module
+    // can reference imported enums (e.g., Color.Red) correctly
+    for module in all_modules {
+        for item in &module.ast.items {
+            if let TopLevel::Enum(enum_decl) = item {
+                codegen.enum_names.insert(enum_decl.name.clone());
+                let mut variants_map = std::collections::HashMap::new();
+                for variant in &enum_decl.variants {
+                    let field_names: Vec<String> =
+                        variant.fields.iter().map(|f| f.name.clone()).collect();
+                    variants_map.insert(variant.name.clone(), field_names);
+                }
+                codegen.enum_variants
+                    .insert(enum_decl.name.clone(), variants_map);
+            }
+        }
+    }
 
     // Suppress common codegen warnings (must be at top of main.rs)
     codegen.writeln("#![allow(unused_parens, unused_mut)]");

@@ -111,6 +111,13 @@ impl Module {
                         public_symbols.insert(const_decl.name.clone());
                     }
                 }
+                TopLevel::Enum(enum_decl) => {
+                    if enum_decl.name.starts_with('_') {
+                        private_symbols.insert(enum_decl.name.clone());
+                    } else {
+                        public_symbols.insert(enum_decl.name.clone());
+                    }
+                }
                 _ => {
                     // Type, UseRust, Test - ignore for now
                 }
