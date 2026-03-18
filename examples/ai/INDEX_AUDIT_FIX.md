@@ -3,7 +3,7 @@
 > **Inicio:** 2026-03-18  
 > **Objetivo:** Implementar los fixes del compilador y mejoras de la skill identificados en la auditoría de 10 proyectos AI-generated  
 > **Fuente:** `examples/ai/REPORT_SUMMARY.md` (informe consolidado) + 10× `REPORT.md` por proyecto  
-> **Estado:** Pendiente
+> **Estado:** En progreso — 10/47 bugs corregidos
 
 ---
 
@@ -50,8 +50,8 @@ La auditoría de 10 proyectos AI-generated reveló **47 bugs únicos del compila
 ## Baseline de tests
 
 ```
-cargo test → 388 passed, 0 failed, 3 ignored
-Snapshots:   252 archivos en tests/snapshots/
+cargo test → 404 passed, 0 failed, 3 ignored
+Snapshots:   262 archivos en tests/snapshots/
 Ejemplos:    40 archivos .liva en examples/ (no-AI)
 ```
 
@@ -103,15 +103,15 @@ Bugs que afectan 3+ proyectos o bloquean patrones fundamentales del lenguaje.
 > Área: generación de `match Result { Ok/Err }` y operador `?`.  
 > Afecta: 3+ proyectos. Patrón fundamental del lenguaje.
 
-- [ ] **B19** — Error binding para method calls roto — `(self.method(), None)` en vez de destructurar Result  
+- [x] **B19** — Error binding para method calls roto — `(self.method(), None)` en vez de destructurar Result  ✅ 2026-03-18
   Archivo: `codegen.rs` | Proyectos: calculator, json-parser
-- [ ] **B22** — `or fail` codegen no funcional — ni `?` ni `.map_err()` generado  
+- [x] **B22** — `or fail` codegen no funcional — ni `?` ni `.map_err()` generado  ✅ 2026-03-18
   Archivo: `codegen.rs` | Proyectos: calculator, json-parser
-- [ ] **B23** — Cross-file error binding roto — imports generan `(fn(), None)`  
+- [x] **B23** — Cross-file error binding roto — imports generan `(fn(), None)`  ✅ 2026-03-18
   Archivo: `codegen.rs` | Proyectos: calculator, rest-api
-- [ ] **B20** — `fail "msg"` genera Error::chain con variable de error fuera de scope  
+- [x] **B20** — `fail "msg"` genera Error::chain con variable de error fuera de scope  ✅ 2026-03-18
   Archivo: `codegen.rs` | Proyectos: calculator
-- [ ] **B38** — Error variable scope leak entre ramas if/else  
+- [x] **B38** — Error variable scope leak entre ramas if/else  ✅ 2026-03-18 (parcial — fail scope corregido, latent codegen OK)
   Archivo: `codegen.rs` | Proyectos: mini-interpreter
 - [x] **B01** — `_` no aceptado en error binding (`let val, _ = fn()`)  ✅ 2026-03-18
   Archivo: `parser.rs` + `semantic.rs` | Proyectos: csv-reader, json-parser, rest-api
@@ -271,6 +271,11 @@ Features que ya están o deberían estar en el backlog del compilador por versi�
 | 2026-03-18 | B43: `find_balanced_brace()` lifetimes | ✅ Done | 399 passed, 0 failed | Lexer: proper char literal vs lifetime detection — lifetimes don't consume braces |
 | 2026-03-18 | B15: `.filter()` .copied → .cloned | ✅ Done | 400 passed, 0 failed | Codegen: default to `.cloned()` for untracked arrays — always safe (Copy implies Clone) |
 | 2026-03-18 | B18: arrow method return type | ✅ Done | 401 passed, 0 failed | Codegen: expanded `infer_expr_type` — handles Index, Identifier, arithmetic, Ternary, UnaryNot |
+| 2026-03-18 | B19: error binding method calls | ✅ Done | 402 passed, 0 failed | Codegen: added `fallible_methods` HashSet, extended `is_fallible_expr` for `Expr::MethodCall` |
+| 2026-03-18 | B22: or fail method calls | ✅ Done | 403 passed, 0 failed | Fixed by B19 — `is_fallible_expr` now recognizes method calls, `or fail` path works |
+| 2026-03-18 | B20: fail scope tracking | ✅ Done | 404 passed, 0 failed | Codegen: `error_binding_scope_stack` tracks scope via indent/dedent, `fail "msg"` uses Error::new when err out of scope |
+| 2026-03-18 | B23: cross-file error binding | ✅ Done | 404 passed, 0 failed | Codegen: `generate_entry_point()` pre-populates `fallible_functions`/`fallible_methods` from imported modules |
+| 2026-03-18 | B38: error var scope leak | ✅ Partial | 404 passed, 0 failed | `fail` scope fixed via B20. Latent in other codegen sites but Rust scoping handles it correctly |
 
 ---
 
