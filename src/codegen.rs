@@ -5794,7 +5794,29 @@ impl CodeGenerator {
                     self.output.push_str("{ let mut __v = ");
                     self.generate_expr(left)?;
                     self.output.push_str(".clone(); __v.extend(");
-                    self.generate_expr(right)?;
+                    // B36 fix: Clone elements in array literals to prevent move
+                    // In loops, the variable may be needed in subsequent iterations
+                    if let Expr::ArrayLiteral(elements) = right.as_ref() {
+                        self.output.push_str("vec![");
+                        for (i, elem) in elements.iter().enumerate() {
+                            if i > 0 { self.output.push_str(", "); }
+                            self.generate_expr(elem)?;
+                            // Clone non-Copy identifiers (structs, strings, arrays, etc.)
+                            if let Expr::Identifier(name) = elem {
+                                let sanitized = self.sanitize_name(name);
+                                if self.class_instance_vars.contains(&sanitized)
+                                    || self.string_vars.contains(&sanitized)
+                                    || self.array_vars.contains(&sanitized)
+                                    || self.map_vars.contains(&sanitized)
+                                {
+                                    self.output.push_str(".clone()");
+                                }
+                            }
+                        }
+                        self.output.push(']');
+                    } else {
+                        self.generate_expr(right)?;
+                    }
                     self.output.push_str("); __v }");
                 } else if matches!(op, BinOp::Add)
                     && (self.expr_is_stringy(left) || self.expr_is_stringy(right))
