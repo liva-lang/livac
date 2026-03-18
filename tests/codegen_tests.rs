@@ -1628,6 +1628,43 @@ main() {
     assert_snapshot!("error_binding_method_call", rust_code);
 }
 
+#[test]
+fn test_or_fail_method_call() {
+    // B22: `or fail` codegen should generate match { Ok/Err } for method calls
+    // Previously the method call was not recognized as fallible, so `or fail` was ignored
+    let source = r#"
+Validator {
+    validate(input: string): string {
+        if input == "" {
+            fail "Input cannot be empty"
+        }
+        return input
+    }
+}
+
+process(input: string): string {
+    let v = Validator()
+    let result = v.validate(input) or fail "Validation failed"
+    return result
+}
+
+main() {
+    let data, err = process("hello")
+    if err {
+        print("Error: " + err)
+    } else {
+        print(data)
+    }
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    // or fail should generate match with Error::chain
+    assert!(rust_code.contains("Error::chain"), "or fail should generate Error::chain for method calls");
+    assert!(rust_code.contains("Validation failed"), "Error message should be in the generated code");
+    assert_snapshot!("or_fail_method_call", rust_code);
+}
+
 // ---------------------------------------------------------------------------
 // 10. Concurrency
 // ---------------------------------------------------------------------------
