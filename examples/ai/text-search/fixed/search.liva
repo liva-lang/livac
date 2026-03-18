@@ -1,0 +1,259 @@
+// ============================================================
+// Text Search Engine - Inverted Index
+// ============================================================
+// Indexes all .txt files in a directory and supports
+// single-word, AND, and OR queries with frequency ranking.
+// ============================================================
+
+// ----------------------------------------------------------
+// Helpers
+// ----------------------------------------------------------
+
+// Remove common punctuation and normalise to lowercase
+cleanWord(word: string): string {
+    let w = word.toLowerCase().trim()
+    w = w.replace(".", "")
+    w = w.replace(",", "")
+    w = w.replace("!", "")
+    w = w.replace("?", "")
+    w = w.replace(":", "")
+    w = w.replace(";", "")
+    w = w.replace("(", "")
+    w = w.replace(")", "")
+    w = w.replace("\"", "")
+    w = w.replace("'", "")
+    w = w.replace("[", "")
+    w = w.replace("]", "")
+    return w.trim()
+}
+
+// Compute frequency from file list -> returns sorted "000003|file.txt" strings
+computeFrequency(files: [string]): [string] {
+    let seen: Map<string, bool> = Map {}
+    let results: [string] = []
+
+    for file in files {
+        if seen.has(file) { continue }
+        seen.set($"{file}", true)
+
+        let count = files.filter(f => f == file).length
+        let padded = toString(count).padStart(6, "0")
+        results.push($"{padded}|{file}")
+    }
+
+    return results.sort().reversed()
+}
+
+// Intersect two file-name arrays (keeps only files in both)
+intersectFiles(a: [string], b: [string]): [string] {
+    let uniqueA = a.distinct()
+    let result: [string] = []
+    for item in uniqueA {
+        if b.includes(item) {
+            result.push($"{item}")
+        }
+    }
+    return result
+}
+
+// Display search results
+displayResults(results: [string], query: string) {
+    if results.isEmpty() {
+        print($"\n  No results found for: \"{query}\"")
+        return
+    }
+
+    print($"\n  Results for \"{query}\" (sorted by frequency):")
+    let separator = "-".repeat(46)
+    print($"  {separator}")
+
+    let rank = 1
+    for entry in results {
+        let parts = entry.split("|")
+        let countStr = parts[0]
+        let file = parts[1]
+
+        let displayCount, parseErr = parseInt(countStr)
+
+        let rankStr = toString(rank).padStart(2, " ")
+        print($"    {rankStr}. {file}  --  {displayCount} occurrence(s)")
+        rank = rank + 1
+    }
+
+    print($"  {separator}")
+}
+
+// ----------------------------------------------------------
+// Search Engine (class-based to avoid Map ownership moves)
+// ----------------------------------------------------------
+
+SearchEngine {
+    index: Map<string, string>
+
+    constructor() {
+        this.index = Map {}
+    }
+
+    // Build an inverted index from every .txt in dirPath
+    build(dirPath: string) {
+        let entries, err = Dir.list(dirPath)
+        if err {
+            console.error($"Error listing directory: {err}")
+            return
+        }
+
+        let txtFiles = entries.filter(f => f.endsWith(".txt"))
+
+        if txtFiles.isEmpty() {
+            print("No .txt files found in the directory.")
+            return
+        }
+
+        print($"Indexing {txtFiles.length} file(s)...")
+
+        for file in txtFiles {
+            let filePath = $"{dirPath}/{file}"
+            let content, readErr = File.read(filePath)
+            if readErr {
+                console.error($"  Error reading {file}: {readErr}")
+                continue
+            }
+
+            let normalised = content.replace("\n", " ").replace("\r", " ").replace("\t", " ")
+            let rawWords = normalised.split(" ")
+
+            for raw in rawWords {
+                let word = cleanWord(raw)
+                if word.isEmpty() { continue }
+
+                if this.index.has(word) {
+                    let existing = this.index.get(word) or ""
+                    this.index.set($"{word}", $"{existing}|{file}")
+                } else {
+                    this.index.set($"{word}", $"{file}")
+                }
+            }
+
+            print($"  Indexed: {file}")
+        }
+    }
+
+    // Look up a single word and return the raw file list (with duplicates)
+    searchWord(word: string): [string] {
+        let cleaned = cleanWord(word)
+        if this.index.has(cleaned) == false {
+            return []
+        }
+        let raw = this.index.get(cleaned) or ""
+        return raw.split("|")
+    }
+
+    totalWords(): number => this.index.keys().length
+
+    // Execute a search query (single word / AND / OR)
+    executeSearch(query: string) {
+
+        // -- AND search --
+        if query.contains(" AND ") {
+            let terms = query.split(" AND ")
+            let termsList = terms.map(t => cleanWord(t))
+
+            let andLabel = termsList.join(" AND ")
+            print($"\n  AND search: {andLabel}")
+
+            let resultDistinct = this.searchWord(termsList[0]).distinct()
+
+            for i in 1..termsList.length {
+                let termFiles = this.searchWord(termsList[i])
+                resultDistinct = intersectFiles(resultDistinct, termFiles)
+            }
+
+            let freqResults: [string] = []
+            for file in resultDistinct {
+                let totalCount = 0
+                for term in termsList {
+                    let termFiles = this.searchWord(term)
+                    let matchCount = 0
+                    for tf in termFiles {
+                        if tf == file {
+                            matchCount = matchCount + 1
+                        }
+                    }
+                    totalCount = totalCount + matchCount
+                }
+                let padded = toString(totalCount).padStart(6, "0")
+                freqResults.push($"{padded}|{file}")
+            }
+
+            displayResults(freqResults.sort().reversed(), query)
+            return
+        }
+
+        // -- OR search --
+        if query.contains(" OR ") {
+            let terms = query.split(" OR ")
+            let termsList = terms.map(t => cleanWord(t))
+
+            let orLabel = termsList.join(" OR ")
+            print($"\n  OR search: {orLabel}")
+
+            let allFiles: [string] = []
+            for term in termsList {
+                let termFiles = this.searchWord(term)
+                allFiles = allFiles + termFiles
+            }
+
+            let freqResults = computeFrequency(allFiles)
+            displayResults(freqResults, query)
+            return
+        }
+
+        // -- Single word search --
+        let files = this.searchWord(query)
+        let freqResults = computeFrequency(files)
+        displayResults(freqResults, query)
+    }
+}
+
+// ----------------------------------------------------------
+// Main
+// ----------------------------------------------------------
+
+main() {
+    let args = Sys.args()
+    let dataDir = "data"
+    if args.length > 1 {
+        dataDir = args[1]
+    }
+
+    print("=============================================")
+    print("        Text Search Engine  (Liva)           ")
+    print("=============================================")
+    print("")
+
+    let engine = SearchEngine()
+    engine.build(dataDir)
+
+    let totalWords = engine.totalWords()
+    print($"\nIndex built: {totalWords} unique words indexed.\n")
+
+    if totalWords == 0 {
+        print("Nothing to search. Add .txt files to the data/ directory.")
+        Sys.exit(0)
+    }
+
+    print("Enter a query (word, 'w1 AND w2', or 'w1 OR w2'). Type 'quit' to exit.\n")
+
+    while true {
+        let query = console.input("search> ")
+
+        if query.trim().isEmpty() { continue }
+        if query.trim().toLowerCase() == "quit" { break }
+        if query.trim().toLowerCase() == "exit" { break }
+
+        engine.executeSearch(query.trim())
+        print("")
+    }
+
+    print("\nGoodbye!")
+}

@@ -1,0 +1,1590 @@
+// ============================================================
+// main.liva — FIXED single-file Mini-language interpreter
+// ============================================================
+// Usage: livac run main.liva -- <script.mini>
+//
+// This is a FIXED version that works around known codegen bugs:
+//   1. Struct field mutation  → interop factory functions
+//   2. get_field bug          → interop for field access on results
+//   3. &mut self transitive   → parser as interop block, no class
+//   4. ident_err scope leak   → or fail instead of error binding
+//   5. Array element assign   → interop for array mutation
+//   6. Move/ownership bug     → interop .clone() instead of helpers
+//   7. `type` reserved        → use tokType, nodeType, tag
+
+// ============================================================
+// 1. Token class
+// ============================================================
+
+Token {
+    tokType: string
+    value: string
+    line: number
+
+    constructor(tokType: string, value: string, line: number) {
+        this.tokType = tokType
+        this.value = value
+        this.line = line
+    }
+}
+
+// ============================================================
+// 2. Token field access helpers (workaround: get_field bug)
+// ============================================================
+
+_tokType(t: Token): string {
+    return rust { t.tok_type.clone() }
+}
+
+_tokValue(t: Token): string {
+    return rust { t.value.clone() }
+}
+
+_tokLine(t: Token): number {
+    return rust { t.line }
+}
+
+// ============================================================
+// 3. Lexer functions
+// ============================================================
+
+_isDigit(c: string): bool {
+    return rust {
+        let ch = c.chars().next().unwrap_or('\0');
+        ch >= '0' && ch <= '9'
+    }
+}
+
+_isAlpha(c: string): bool {
+    return rust {
+        let ch = c.chars().next().unwrap_or('\0');
+        (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch == '_'
+    }
+}
+
+_isAlphaNumeric(c: string): bool => _isAlpha(c) or _isDigit(c)
+
+_isWhitespace(c: string): bool => c == " " or c == "\t" or c == "\r"
+
+_charAtOffset(chars: [string], pos: number, offset: number): string {
+    return rust {
+        let idx = (pos + offset) as usize;
+        if idx < chars.len() { chars[idx].clone() } else { String::new() }
+    }
+}
+
+_keywordType(word: string): string {
+    if word == "let" { return "Let" }
+    if word == "if" { return "If" }
+    if word == "else" { return "Else" }
+    if word == "while" { return "While" }
+    if word == "func" { return "Func" }
+    if word == "return" { return "Return" }
+    if word == "print" { return "Print" }
+    if word == "true" { return "True" }
+    if word == "false" { return "False" }
+    if word == "and" { return "And" }
+    if word == "or" { return "Or" }
+    if word == "not" { return "Not" }
+    return "Identifier"
+}
+
+tokenize(source: string): [Token] {
+    let tokens: [Token] = []
+    let pos = 0
+    let line = 1
+    let chars = source.chars()
+    let length = chars.length
+
+    while pos < length {
+        let c = chars[pos]
+
+        if _isWhitespace(c) {
+            pos = pos + 1
+            continue
+        }
+
+        if c == "\n" {
+            line = line + 1
+            pos = pos + 1
+            continue
+        }
+
+        // Single-line comments
+        if c == "/" and pos + 1 < length {
+            let nextC = rust { chars[(pos + 1) as usize].clone() }
+            if nextC == "/" {
+                while pos < length and chars[pos] != "\n" {
+                    pos = pos + 1
+                }
+                continue
+            }
+        }
+
+        // Numbers
+        if _isDigit(c) {
+            let start = pos
+            while pos < length and _isDigit(chars[pos]) {
+                pos = pos + 1
+            }
+            if pos < length and chars[pos] == "." and pos + 1 < length {
+                let nextDigit = rust { chars[(pos + 1) as usize].clone() }
+                if _isDigit(nextDigit) {
+                    pos = pos + 1
+                    while pos < length and _isDigit(chars[pos]) {
+                        pos = pos + 1
+                    }
+                }
+            }
+            let numStr = source.substring(start, pos)
+            tokens.push(Token("NumberLiteral", numStr, line))
+            continue
+        }
+
+        // Identifiers and keywords
+        if _isAlpha(c) {
+            let start = pos
+            while pos < length and _isAlphaNumeric(chars[pos]) {
+                pos = pos + 1
+            }
+            let word = source.substring(start, pos)
+            let tt = _keywordType(word)
+            tokens.push(Token(tt, word, line))
+            continue
+        }
+
+        // String literals
+        if c == "\"" {
+            pos = pos + 1
+            let strContent = ""
+            while pos < length and chars[pos] != "\"" {
+                if chars[pos] == "\\" and pos + 1 < length {
+                    pos = pos + 1
+                    if chars[pos] == "n" {
+                        strContent = strContent + "\n"
+                    } else if chars[pos] == "t" {
+                        strContent = strContent + "\t"
+                    } else if chars[pos] == "\\" {
+                        strContent = strContent + "\\"
+                    } else if chars[pos] == "\"" {
+                        strContent = strContent + "\""
+                    } else {
+                        strContent = strContent + chars[pos]
+                    }
+                } else {
+                    strContent = strContent + chars[pos]
+                }
+                pos = pos + 1
+            }
+            if pos >= length {
+                fail $"Unterminated string at line {line}"
+            }
+            pos = pos + 1
+            tokens.push(Token("StringLiteral", strContent, line))
+            continue
+        }
+
+        // Two-character operators
+        if c == "=" and pos + 1 < length {
+            let nc = rust { chars[(pos + 1) as usize].clone() }
+            if nc == "=" {
+                tokens.push(Token("EqualEqual", "==", line))
+                pos = pos + 2
+                continue
+            }
+        }
+        if c == "!" and pos + 1 < length {
+            let nc = rust { chars[(pos + 1) as usize].clone() }
+            if nc == "=" {
+                tokens.push(Token("NotEqual", "!=", line))
+                pos = pos + 2
+                continue
+            }
+        }
+        if c == "<" and pos + 1 < length {
+            let nc = rust { chars[(pos + 1) as usize].clone() }
+            if nc == "=" {
+                tokens.push(Token("LessEqual", "<=", line))
+                pos = pos + 2
+                continue
+            }
+        }
+        if c == ">" and pos + 1 < length {
+            let nc = rust { chars[(pos + 1) as usize].clone() }
+            if nc == "=" {
+                tokens.push(Token("GreaterEqual", ">=", line))
+                pos = pos + 2
+                continue
+            }
+        }
+
+        // Single-character tokens
+        if c == "+" {
+            tokens.push(Token("Plus", "+", line))
+            pos = pos + 1
+            continue
+        }
+        if c == "-" {
+            tokens.push(Token("Minus", "-", line))
+            pos = pos + 1
+            continue
+        }
+        if c == "*" {
+            tokens.push(Token("Star", "*", line))
+            pos = pos + 1
+            continue
+        }
+        if c == "/" {
+            tokens.push(Token("Slash", "/", line))
+            pos = pos + 1
+            continue
+        }
+        if c == "%" {
+            tokens.push(Token("Modulo", "%", line))
+            pos = pos + 1
+            continue
+        }
+        if c == "=" {
+            tokens.push(Token("Assign", "=", line))
+            pos = pos + 1
+            continue
+        }
+        if c == "<" {
+            tokens.push(Token("Less", "<", line))
+            pos = pos + 1
+            continue
+        }
+        if c == ">" {
+            tokens.push(Token("Greater", ">", line))
+            pos = pos + 1
+            continue
+        }
+        if c == "!" {
+            tokens.push(Token("Not", "!", line))
+            pos = pos + 1
+            continue
+        }
+        if c == "(" {
+            tokens.push(Token("LeftParen", "(", line))
+            pos = pos + 1
+            continue
+        }
+        if c == ")" {
+            tokens.push(Token("RightParen", ")", line))
+            pos = pos + 1
+            continue
+        }
+        if c == "{" {
+            tokens.push(Token("LeftBrace", "{", line))
+            pos = pos + 1
+            continue
+        }
+        if c == "}" {
+            tokens.push(Token("RightBrace", "}", line))
+            pos = pos + 1
+            continue
+        }
+        if c == "," {
+            tokens.push(Token("Comma", ",", line))
+            pos = pos + 1
+            continue
+        }
+        if c == ";" {
+            tokens.push(Token("Semicolon", ";", line))
+            pos = pos + 1
+            continue
+        }
+
+        fail $"Unexpected character '{c}' at line {line}"
+    }
+
+    tokens.push(Token("EOF", "", line))
+    return tokens
+}
+
+// ============================================================
+// 4. ASTNode class
+// ============================================================
+
+ASTNode {
+    nodeType: string
+    strValue: string
+    numValue: float
+    boolValue: bool
+    op: string
+    name: string
+    children: [ASTNode]
+    params: [string]
+
+    constructor(nodeType: string) {
+        this.nodeType = nodeType
+        this.strValue = ""
+        this.numValue = 0.0
+        this.boolValue = false
+        this.op = ""
+        this.name = ""
+        this.children = []
+        this.params = []
+    }
+}
+
+// ============================================================
+// 5. ASTNode factory functions (all use interop struct literals)
+// ============================================================
+
+makeProgram(stmts: [ASTNode]): ASTNode {
+    return rust {
+        ASTNode { node_type: "Program".to_string(), str_value: String::new(), num_value: 0.0, bool_value: false, op: String::new(), name: String::new(), children: stmts, params: vec![] }
+    }
+}
+
+makeNumberLit(value: float): ASTNode {
+    return rust {
+        ASTNode { node_type: "NumberLit".to_string(), str_value: String::new(), num_value: value, bool_value: false, op: String::new(), name: String::new(), children: vec![], params: vec![] }
+    }
+}
+
+makeStringLit(value: string): ASTNode {
+    return rust {
+        ASTNode { node_type: "StringLit".to_string(), str_value: value, num_value: 0.0, bool_value: false, op: String::new(), name: String::new(), children: vec![], params: vec![] }
+    }
+}
+
+makeBoolLit(value: bool): ASTNode {
+    return rust {
+        ASTNode { node_type: "BoolLit".to_string(), str_value: String::new(), num_value: 0.0, bool_value: value, op: String::new(), name: String::new(), children: vec![], params: vec![] }
+    }
+}
+
+makeIdentifier(idName: string): ASTNode {
+    return rust {
+        ASTNode { node_type: "Identifier".to_string(), str_value: String::new(), num_value: 0.0, bool_value: false, op: String::new(), name: id_name, children: vec![], params: vec![] }
+    }
+}
+
+makeBinaryOp(opStr: string, left: ASTNode, right: ASTNode): ASTNode {
+    return rust {
+        ASTNode { node_type: "BinaryOp".to_string(), str_value: String::new(), num_value: 0.0, bool_value: false, op: op_str, name: String::new(), children: vec![left, right], params: vec![] }
+    }
+}
+
+makeUnaryOp(opStr: string, operand: ASTNode): ASTNode {
+    return rust {
+        ASTNode { node_type: "UnaryOp".to_string(), str_value: String::new(), num_value: 0.0, bool_value: false, op: op_str, name: String::new(), children: vec![operand], params: vec![] }
+    }
+}
+
+makeAssignment(varName: string, expr: ASTNode): ASTNode {
+    return rust {
+        ASTNode { node_type: "Assignment".to_string(), str_value: String::new(), num_value: 0.0, bool_value: false, op: String::new(), name: var_name, children: vec![expr], params: vec![] }
+    }
+}
+
+makeLetDecl(varName: string, expr: ASTNode): ASTNode {
+    return rust {
+        ASTNode { node_type: "LetDecl".to_string(), str_value: String::new(), num_value: 0.0, bool_value: false, op: String::new(), name: var_name, children: vec![expr], params: vec![] }
+    }
+}
+
+makeIfStmt(condition: ASTNode, thenBlock: ASTNode, elseBlock: ASTNode): ASTNode {
+    return rust {
+        ASTNode { node_type: "IfStmt".to_string(), str_value: String::new(), num_value: 0.0, bool_value: false, op: String::new(), name: String::new(), children: vec![condition, then_block, else_block], params: vec![] }
+    }
+}
+
+makeIfStmtNoElse(condition: ASTNode, thenBlock: ASTNode): ASTNode {
+    return rust {
+        ASTNode { node_type: "IfStmt".to_string(), str_value: String::new(), num_value: 0.0, bool_value: false, op: String::new(), name: String::new(), children: vec![condition, then_block], params: vec![] }
+    }
+}
+
+makeWhileStmt(condition: ASTNode, body: ASTNode): ASTNode {
+    return rust {
+        ASTNode { node_type: "WhileStmt".to_string(), str_value: String::new(), num_value: 0.0, bool_value: false, op: String::new(), name: String::new(), children: vec![condition, body], params: vec![] }
+    }
+}
+
+makeBlock(stmts: [ASTNode]): ASTNode {
+    return rust {
+        ASTNode { node_type: "Block".to_string(), str_value: String::new(), num_value: 0.0, bool_value: false, op: String::new(), name: String::new(), children: stmts, params: vec![] }
+    }
+}
+
+makeFuncDecl(funcName: string, funcParams: [string], body: ASTNode): ASTNode {
+    return rust {
+        ASTNode { node_type: "FuncDecl".to_string(), str_value: String::new(), num_value: 0.0, bool_value: false, op: String::new(), name: func_name, children: vec![body], params: func_params }
+    }
+}
+
+makeFuncCall(funcName: string, args: [ASTNode]): ASTNode {
+    return rust {
+        ASTNode { node_type: "FuncCall".to_string(), str_value: String::new(), num_value: 0.0, bool_value: false, op: String::new(), name: func_name, children: args, params: vec![] }
+    }
+}
+
+makeReturnStmt(expr: ASTNode): ASTNode {
+    return rust {
+        ASTNode { node_type: "ReturnStmt".to_string(), str_value: String::new(), num_value: 0.0, bool_value: false, op: String::new(), name: String::new(), children: vec![expr], params: vec![] }
+    }
+}
+
+makeReturnStmtEmpty(): ASTNode {
+    return rust {
+        ASTNode { node_type: "ReturnStmt".to_string(), str_value: String::new(), num_value: 0.0, bool_value: false, op: String::new(), name: String::new(), children: vec![], params: vec![] }
+    }
+}
+
+makePrintStmt(expr: ASTNode): ASTNode {
+    return rust {
+        ASTNode { node_type: "PrintStmt".to_string(), str_value: String::new(), num_value: 0.0, bool_value: false, op: String::new(), name: String::new(), children: vec![expr], params: vec![] }
+    }
+}
+
+// ============================================================
+// 6. parseTokens — entire parser in a single interop block
+// ============================================================
+
+parseTokens(tokens: [Token]): ASTNode {
+    return rust {
+        let mut pos: usize = 0;
+        let tokens_ref = &tokens;
+
+        fn peek(tokens: &[Token], pos: usize) -> Token {
+            tokens[pos].clone()
+        }
+
+        fn advance(tokens: &[Token], pos: &mut usize) -> Token {
+            let t = tokens[*pos].clone();
+            *pos += 1;
+            t
+        }
+
+        fn check(tokens: &[Token], pos: usize, expected: &str) -> bool {
+            pos < tokens.len() && tokens[pos].tok_type == expected
+        }
+
+        fn expect(tokens: &[Token], pos: &mut usize, expected: &str) -> Token {
+            if *pos >= tokens.len() || tokens[*pos].tok_type != expected {
+                let got_type = if *pos < tokens.len() { tokens[*pos].tok_type.clone() } else { "EOF".to_string() };
+                let got_val = if *pos < tokens.len() { tokens[*pos].value.clone() } else { String::new() };
+                let got_line = if *pos < tokens.len() { tokens[*pos].line } else { 0 };
+                panic!("Expected {} but got {} [{}] at line {}", expected, got_type, got_val, got_line);
+            }
+            advance(tokens, pos)
+        }
+
+        fn is_at_end(tokens: &[Token], pos: usize) -> bool {
+            pos >= tokens.len() || tokens[pos].tok_type == "EOF"
+        }
+
+        fn make_node(node_type: &str) -> ASTNode {
+            ASTNode {
+                node_type: node_type.to_string(),
+                str_value: String::new(),
+                num_value: 0.0,
+                bool_value: false,
+                op: String::new(),
+                name: String::new(),
+                children: vec![],
+                params: vec![],
+            }
+        }
+
+        // Forward declarations via recursive calls
+        fn parse_expression(tokens: &[Token], pos: &mut usize) -> ASTNode {
+            parse_or(tokens, pos)
+        }
+
+        fn parse_or(tokens: &[Token], pos: &mut usize) -> ASTNode {
+            let mut left = parse_and(tokens, pos);
+            while !is_at_end(tokens, *pos) && check(tokens, *pos, "Or") {
+                advance(tokens, pos);
+                let right = parse_and(tokens, pos);
+                left = ASTNode {
+                    node_type: "BinaryOp".to_string(), str_value: String::new(), num_value: 0.0,
+                    bool_value: false, op: "or".to_string(), name: String::new(),
+                    children: vec![left, right], params: vec![],
+                };
+            }
+            left
+        }
+
+        fn parse_and(tokens: &[Token], pos: &mut usize) -> ASTNode {
+            let mut left = parse_equality(tokens, pos);
+            while !is_at_end(tokens, *pos) && check(tokens, *pos, "And") {
+                advance(tokens, pos);
+                let right = parse_equality(tokens, pos);
+                left = ASTNode {
+                    node_type: "BinaryOp".to_string(), str_value: String::new(), num_value: 0.0,
+                    bool_value: false, op: "and".to_string(), name: String::new(),
+                    children: vec![left, right], params: vec![],
+                };
+            }
+            left
+        }
+
+        fn parse_equality(tokens: &[Token], pos: &mut usize) -> ASTNode {
+            let mut left = parse_comparison(tokens, pos);
+            while !is_at_end(tokens, *pos) {
+                let tt = tokens[*pos].tok_type.as_str();
+                if tt == "EqualEqual" || tt == "NotEqual" {
+                    let op_val = tokens[*pos].value.clone();
+                    advance(tokens, pos);
+                    let right = parse_comparison(tokens, pos);
+                    left = ASTNode {
+                        node_type: "BinaryOp".to_string(), str_value: String::new(), num_value: 0.0,
+                        bool_value: false, op: op_val, name: String::new(),
+                        children: vec![left, right], params: vec![],
+                    };
+                } else {
+                    break;
+                }
+            }
+            left
+        }
+
+        fn parse_comparison(tokens: &[Token], pos: &mut usize) -> ASTNode {
+            let mut left = parse_add_sub(tokens, pos);
+            while !is_at_end(tokens, *pos) {
+                let tt = tokens[*pos].tok_type.as_str();
+                if tt == "Less" || tt == "LessEqual" || tt == "Greater" || tt == "GreaterEqual" {
+                    let op_val = tokens[*pos].value.clone();
+                    advance(tokens, pos);
+                    let right = parse_add_sub(tokens, pos);
+                    left = ASTNode {
+                        node_type: "BinaryOp".to_string(), str_value: String::new(), num_value: 0.0,
+                        bool_value: false, op: op_val, name: String::new(),
+                        children: vec![left, right], params: vec![],
+                    };
+                } else {
+                    break;
+                }
+            }
+            left
+        }
+
+        fn parse_add_sub(tokens: &[Token], pos: &mut usize) -> ASTNode {
+            let mut left = parse_mul_div(tokens, pos);
+            while !is_at_end(tokens, *pos) {
+                let tt = tokens[*pos].tok_type.as_str();
+                if tt == "Plus" || tt == "Minus" {
+                    let op_val = tokens[*pos].value.clone();
+                    advance(tokens, pos);
+                    let right = parse_mul_div(tokens, pos);
+                    left = ASTNode {
+                        node_type: "BinaryOp".to_string(), str_value: String::new(), num_value: 0.0,
+                        bool_value: false, op: op_val, name: String::new(),
+                        children: vec![left, right], params: vec![],
+                    };
+                } else {
+                    break;
+                }
+            }
+            left
+        }
+
+        fn parse_mul_div(tokens: &[Token], pos: &mut usize) -> ASTNode {
+            let mut left = parse_unary(tokens, pos);
+            while !is_at_end(tokens, *pos) {
+                let tt = tokens[*pos].tok_type.as_str();
+                if tt == "Star" || tt == "Slash" || tt == "Modulo" {
+                    let op_val = tokens[*pos].value.clone();
+                    advance(tokens, pos);
+                    let right = parse_unary(tokens, pos);
+                    left = ASTNode {
+                        node_type: "BinaryOp".to_string(), str_value: String::new(), num_value: 0.0,
+                        bool_value: false, op: op_val, name: String::new(),
+                        children: vec![left, right], params: vec![],
+                    };
+                } else {
+                    break;
+                }
+            }
+            left
+        }
+
+        fn parse_unary(tokens: &[Token], pos: &mut usize) -> ASTNode {
+            if !is_at_end(tokens, *pos) {
+                let tt = tokens[*pos].tok_type.as_str();
+                if tt == "Minus" {
+                    advance(tokens, pos);
+                    let operand = parse_unary(tokens, pos);
+                    return ASTNode {
+                        node_type: "UnaryOp".to_string(), str_value: String::new(), num_value: 0.0,
+                        bool_value: false, op: "-".to_string(), name: String::new(),
+                        children: vec![operand], params: vec![],
+                    };
+                }
+                if tt == "Not" {
+                    advance(tokens, pos);
+                    let operand = parse_unary(tokens, pos);
+                    return ASTNode {
+                        node_type: "UnaryOp".to_string(), str_value: String::new(), num_value: 0.0,
+                        bool_value: false, op: "not".to_string(), name: String::new(),
+                        children: vec![operand], params: vec![],
+                    };
+                }
+            }
+            parse_call(tokens, pos)
+        }
+
+        fn parse_call(tokens: &[Token], pos: &mut usize) -> ASTNode {
+            let node = parse_primary(tokens, pos);
+            // Check if this is a function call: Identifier followed by LeftParen
+            if node.node_type == "Identifier" && !is_at_end(tokens, *pos) && check(tokens, *pos, "LeftParen") {
+                let func_name = node.name.clone();
+                advance(tokens, pos); // consume (
+                let mut args: Vec<ASTNode> = vec![];
+                if !check(tokens, *pos, "RightParen") {
+                    args.push(parse_expression(tokens, pos));
+                    while !is_at_end(tokens, *pos) && check(tokens, *pos, "Comma") {
+                        advance(tokens, pos); // consume ,
+                        args.push(parse_expression(tokens, pos));
+                    }
+                }
+                expect(tokens, pos, "RightParen");
+                return ASTNode {
+                    node_type: "FuncCall".to_string(), str_value: String::new(), num_value: 0.0,
+                    bool_value: false, op: String::new(), name: func_name,
+                    children: args, params: vec![],
+                };
+            }
+            node
+        }
+
+        fn parse_primary(tokens: &[Token], pos: &mut usize) -> ASTNode {
+            if is_at_end(tokens, *pos) {
+                panic!("Unexpected end of input");
+            }
+            let tt = tokens[*pos].tok_type.clone();
+
+            if tt == "NumberLiteral" {
+                let tok = advance(tokens, pos);
+                let num_val = tok.value.parse::<f64>().unwrap_or(0.0);
+                return ASTNode {
+                    node_type: "NumberLit".to_string(), str_value: String::new(), num_value: num_val,
+                    bool_value: false, op: String::new(), name: String::new(),
+                    children: vec![], params: vec![],
+                };
+            }
+
+            if tt == "StringLiteral" {
+                let tok = advance(tokens, pos);
+                return ASTNode {
+                    node_type: "StringLit".to_string(), str_value: tok.value.clone(), num_value: 0.0,
+                    bool_value: false, op: String::new(), name: String::new(),
+                    children: vec![], params: vec![],
+                };
+            }
+
+            if tt == "True" {
+                advance(tokens, pos);
+                return ASTNode {
+                    node_type: "BoolLit".to_string(), str_value: String::new(), num_value: 0.0,
+                    bool_value: true, op: String::new(), name: String::new(),
+                    children: vec![], params: vec![],
+                };
+            }
+
+            if tt == "False" {
+                advance(tokens, pos);
+                return ASTNode {
+                    node_type: "BoolLit".to_string(), str_value: String::new(), num_value: 0.0,
+                    bool_value: false, op: String::new(), name: String::new(),
+                    children: vec![], params: vec![],
+                };
+            }
+
+            if tt == "Identifier" {
+                let tok = advance(tokens, pos);
+                return ASTNode {
+                    node_type: "Identifier".to_string(), str_value: String::new(), num_value: 0.0,
+                    bool_value: false, op: String::new(), name: tok.value.clone(),
+                    children: vec![], params: vec![],
+                };
+            }
+
+            if tt == "LeftParen" {
+                advance(tokens, pos); // consume (
+                let expr = parse_expression(tokens, pos);
+                expect(tokens, pos, "RightParen");
+                return expr;
+            }
+
+            let tok = &tokens[*pos];
+            panic!("Unexpected token {} [{}] at line {}", tok.tok_type, tok.value, tok.line);
+        }
+
+        fn parse_block(tokens: &[Token], pos: &mut usize) -> ASTNode {
+            expect(tokens, pos, "LeftBrace");
+            let mut stmts: Vec<ASTNode> = vec![];
+            while !is_at_end(tokens, *pos) && !check(tokens, *pos, "RightBrace") {
+                stmts.push(parse_statement(tokens, pos));
+            }
+            expect(tokens, pos, "RightBrace");
+            ASTNode {
+                node_type: "Block".to_string(), str_value: String::new(), num_value: 0.0,
+                bool_value: false, op: String::new(), name: String::new(),
+                children: stmts, params: vec![],
+            }
+        }
+
+        fn parse_let_decl(tokens: &[Token], pos: &mut usize) -> ASTNode {
+            advance(tokens, pos);
+            let name_tok = expect(tokens, pos, "Identifier");
+            expect(tokens, pos, "Assign");
+            let expr = parse_expression(tokens, pos);
+            ASTNode {
+                node_type: "LetDecl".to_string(), str_value: String::new(), num_value: 0.0,
+                bool_value: false, op: String::new(), name: name_tok.value.clone(),
+                children: vec![expr], params: vec![],
+            }
+        }
+
+        fn parse_if_stmt(tokens: &[Token], pos: &mut usize) -> ASTNode {
+            advance(tokens, pos);
+            expect(tokens, pos, "LeftParen");
+            let condition = parse_expression(tokens, pos);
+            expect(tokens, pos, "RightParen");
+            let then_block = parse_block(tokens, pos);
+
+            if !is_at_end(tokens, *pos) && check(tokens, *pos, "Else") {
+                advance(tokens, pos);
+                if !is_at_end(tokens, *pos) && check(tokens, *pos, "If") {
+                    // else if
+                    let else_if = parse_if_stmt(tokens, pos);
+                    return ASTNode {
+                        node_type: "IfStmt".to_string(), str_value: String::new(), num_value: 0.0,
+                        bool_value: false, op: String::new(), name: String::new(),
+                        children: vec![condition, then_block, else_if], params: vec![],
+                    };
+                } else {
+                    // else block
+                    let else_block = parse_block(tokens, pos);
+                    return ASTNode {
+                        node_type: "IfStmt".to_string(), str_value: String::new(), num_value: 0.0,
+                        bool_value: false, op: String::new(), name: String::new(),
+                        children: vec![condition, then_block, else_block], params: vec![],
+                    };
+                }
+            }
+            ASTNode {
+                node_type: "IfStmt".to_string(), str_value: String::new(), num_value: 0.0,
+                bool_value: false, op: String::new(), name: String::new(),
+                children: vec![condition, then_block], params: vec![],
+            }
+        }
+
+        fn parse_while_stmt(tokens: &[Token], pos: &mut usize) -> ASTNode {
+            advance(tokens, pos);
+            expect(tokens, pos, "LeftParen");
+            let condition = parse_expression(tokens, pos);
+            expect(tokens, pos, "RightParen");
+            let body = parse_block(tokens, pos);
+            ASTNode {
+                node_type: "WhileStmt".to_string(), str_value: String::new(), num_value: 0.0,
+                bool_value: false, op: String::new(), name: String::new(),
+                children: vec![condition, body], params: vec![],
+            }
+        }
+
+        fn parse_func_decl(tokens: &[Token], pos: &mut usize) -> ASTNode {
+            advance(tokens, pos);
+            let name_tok = expect(tokens, pos, "Identifier");
+            expect(tokens, pos, "LeftParen");
+            let mut params: Vec<String> = vec![];
+            if !check(tokens, *pos, "RightParen") {
+                let p = expect(tokens, pos, "Identifier");
+                params.push(p.value.clone());
+                while !is_at_end(tokens, *pos) && check(tokens, *pos, "Comma") {
+                    advance(tokens, pos); // consume ,
+                    let p2 = expect(tokens, pos, "Identifier");
+                    params.push(p2.value.clone());
+                }
+            }
+            expect(tokens, pos, "RightParen");
+            let body = parse_block(tokens, pos);
+            ASTNode {
+                node_type: "FuncDecl".to_string(), str_value: String::new(), num_value: 0.0,
+                bool_value: false, op: String::new(), name: name_tok.value.clone(),
+                children: vec![body], params: params,
+            }
+        }
+
+        fn parse_return_stmt(tokens: &[Token], pos: &mut usize) -> ASTNode {
+            advance(tokens, pos);
+            // If next token is RightBrace or EOF or statement-starting keyword, return empty
+            if is_at_end(tokens, *pos) || check(tokens, *pos, "RightBrace") {
+                return ASTNode {
+                    node_type: "ReturnStmt".to_string(), str_value: String::new(), num_value: 0.0,
+                    bool_value: false, op: String::new(), name: String::new(),
+                    children: vec![], params: vec![],
+                };
+            }
+            let expr = parse_expression(tokens, pos);
+            ASTNode {
+                node_type: "ReturnStmt".to_string(), str_value: String::new(), num_value: 0.0,
+                bool_value: false, op: String::new(), name: String::new(),
+                children: vec![expr], params: vec![],
+            }
+        }
+
+        fn parse_print_stmt(tokens: &[Token], pos: &mut usize) -> ASTNode {
+            advance(tokens, pos);
+            expect(tokens, pos, "LeftParen");
+            let expr = parse_expression(tokens, pos);
+            expect(tokens, pos, "RightParen");
+            ASTNode {
+                node_type: "PrintStmt".to_string(), str_value: String::new(), num_value: 0.0,
+                bool_value: false, op: String::new(), name: String::new(),
+                children: vec![expr], params: vec![],
+            }
+        }
+
+        fn parse_expression_statement(tokens: &[Token], pos: &mut usize) -> ASTNode {
+            let expr = parse_expression(tokens, pos);
+            // Check for assignment: if expr is Identifier and next is Assign
+            if expr.node_type == "Identifier" && !is_at_end(tokens, *pos) && check(tokens, *pos, "Assign") {
+                let var_name = expr.name.clone();
+                advance(tokens, pos); // consume =
+                let value_expr = parse_expression(tokens, pos);
+                return ASTNode {
+                    node_type: "Assignment".to_string(), str_value: String::new(), num_value: 0.0,
+                    bool_value: false, op: String::new(), name: var_name,
+                    children: vec![value_expr], params: vec![],
+                };
+            }
+            expr
+        }
+
+        fn parse_statement(tokens: &[Token], pos: &mut usize) -> ASTNode {
+            if is_at_end(tokens, *pos) {
+                panic!("Unexpected end of input in parse_statement");
+            }
+            // Skip semicolons
+            while !is_at_end(tokens, *pos) && check(tokens, *pos, "Semicolon") {
+                advance(tokens, pos);
+            }
+            if is_at_end(tokens, *pos) {
+                return make_node("Program"); // empty node
+            }
+            let tt = tokens[*pos].tok_type.as_str();
+            match tt {
+                "Let" => parse_let_decl(tokens, pos),
+                "If" => parse_if_stmt(tokens, pos),
+                "While" => parse_while_stmt(tokens, pos),
+                "Func" => parse_func_decl(tokens, pos),
+                "Return" => parse_return_stmt(tokens, pos),
+                "Print" => parse_print_stmt(tokens, pos),
+                "LeftBrace" => parse_block(tokens, pos),
+                _ => parse_expression_statement(tokens, pos),
+            }
+        }
+
+        fn parse_program(tokens: &[Token], pos: &mut usize) -> ASTNode {
+            let mut stmts: Vec<ASTNode> = vec![];
+            while !is_at_end(tokens, *pos) {
+                // Skip stray semicolons at top level
+                if check(tokens, *pos, "Semicolon") {
+                    advance(tokens, pos);
+                    continue;
+                }
+                stmts.push(parse_statement(tokens, pos));
+            }
+            ASTNode {
+                node_type: "Program".to_string(), str_value: String::new(), num_value: 0.0,
+                bool_value: false, op: String::new(), name: String::new(),
+                children: stmts, params: vec![],
+            }
+        }
+
+        parse_program(tokens_ref, &mut pos)
+    }
+}
+
+// ============================================================
+// 7. Value class
+// ============================================================
+
+Value {
+    tag: string
+    numVal: float
+    strVal: string
+    boolVal: bool
+    funcParams: [string]
+    funcBody: ASTNode
+    funcEnvKeys: [string]
+    funcEnvVals: [Value]
+
+    constructor(tag: string) {
+        this.tag = tag
+        this.numVal = 0.0
+        this.strVal = ""
+        this.boolVal = false
+        this.funcParams = []
+        this.funcBody = ASTNode("Program")
+        this.funcEnvKeys = []
+        this.funcEnvVals = []
+    }
+}
+
+// ============================================================
+// 8. Value factory functions (all use interop struct literals)
+// ============================================================
+
+makeNumValue(n: float): Value {
+    return rust {
+        Value {
+            tag: "number".to_string(), num_val: n, str_val: String::new(), bool_val: false,
+            func_params: vec![], func_body: ASTNode::new("Program".to_string()),
+            func_env_keys: vec![], func_env_vals: vec![],
+        }
+    }
+}
+
+makeStrValue(s: string): Value {
+    return rust {
+        Value {
+            tag: "string".to_string(), num_val: 0.0, str_val: s, bool_val: false,
+            func_params: vec![], func_body: ASTNode::new("Program".to_string()),
+            func_env_keys: vec![], func_env_vals: vec![],
+        }
+    }
+}
+
+makeBoolValue(b: bool): Value {
+    return rust {
+        Value {
+            tag: "bool".to_string(), num_val: 0.0, str_val: String::new(), bool_val: b,
+            func_params: vec![], func_body: ASTNode::new("Program".to_string()),
+            func_env_keys: vec![], func_env_vals: vec![],
+        }
+    }
+}
+
+makeNullValue(): Value {
+    return Value("null")
+}
+
+makeFuncValue(params: [string], body: ASTNode, envKeys: [string], envVals: [Value]): Value {
+    return rust {
+        Value {
+            tag: "function".to_string(), num_val: 0.0, str_val: String::new(), bool_val: false,
+            func_params: params, func_body: body,
+            func_env_keys: env_keys, func_env_vals: env_vals,
+        }
+    }
+}
+
+// ============================================================
+// 9. valueToString, _isTruthy
+// ============================================================
+
+valueToString(val: Value): string {
+    if val.tag == "number" {
+        let intPart = rust {
+            let f: f64 = val.num_val;
+            f as i64
+        }
+        let floatIntPart = rust {
+            let f: f64 = val.num_val;
+            (f as i64) as f64
+        }
+        if val.numVal == floatIntPart {
+            return toString(intPart)
+        }
+        return toString(val.numVal)
+    }
+    if val.tag == "string" { return val.strVal }
+    if val.tag == "bool" {
+        if val.boolVal { return "true" }
+        return "false"
+    }
+    if val.tag == "function" { return "<function>" }
+    return "null"
+}
+
+_isTruthy(val: Value): bool {
+    if val.tag == "bool" { return val.boolVal }
+    if val.tag == "number" { return val.numVal != 0.0 }
+    if val.tag == "string" { return val.strVal != "" }
+    if val.tag == "null" { return false }
+    return true
+}
+
+// ============================================================
+// 10. Environment class
+// ============================================================
+
+Environment {
+    keys: [string]
+    vals: [Value]
+    parentKeys: [string]
+    parentVals: [Value]
+    hasParent: bool
+
+    constructor() {
+        this.keys = []
+        this.vals = []
+        this.parentKeys = []
+        this.parentVals = []
+        this.hasParent = false
+    }
+}
+
+// ============================================================
+// 11. Environment functions (all use interop blocks)
+// ============================================================
+
+makeChildEnv(pKeys: [string], pVals: [Value]): Environment {
+    return rust {
+        Environment {
+            keys: vec![],
+            vals: vec![],
+            parent_keys: p_keys,
+            parent_vals: p_vals,
+            has_parent: true,
+        }
+    }
+}
+
+envSet(env: Environment, name: string, val: Value): Environment {
+    return rust {
+        let mut e = env;
+        for i in 0..e.keys.len() {
+            if e.keys[i] == name {
+                e.vals[i] = val.clone();
+                return e;
+            }
+        }
+        if e.has_parent {
+            for i in 0..e.parent_keys.len() {
+                if e.parent_keys[i] == name {
+                    e.parent_vals[i] = val.clone();
+                    return e;
+                }
+            }
+        }
+        e.keys.push(name);
+        e.vals.push(val);
+        e
+    }
+}
+
+envDefine(env: Environment, name: string, val: Value): Environment {
+    return rust {
+        let mut e = env;
+        for i in 0..e.keys.len() {
+            if e.keys[i] == name {
+                e.vals[i] = val.clone();
+                return e;
+            }
+        }
+        e.keys.push(name);
+        e.vals.push(val);
+        e
+    }
+}
+
+envGet(env: Environment, name: string): Value {
+    let result = rust {
+        let mut found: Option<Value> = None;
+        for i in 0..env.keys.len() {
+            if env.keys[i] == name {
+                found = Some(env.vals[i].clone());
+                break;
+            }
+        }
+        if found.is_none() && env.has_parent {
+            for i in 0..env.parent_keys.len() {
+                if env.parent_keys[i] == name {
+                    found = Some(env.parent_vals[i].clone());
+                    break;
+                }
+            }
+        }
+        found
+    }
+    let hasResult = rust { result.is_some() }
+    if not hasResult { fail $"Undefined variable '{name}'" }
+    return rust { result.unwrap() }
+}
+
+envFlatten(env: Environment): [string] {
+    return rust {
+        let mut all_keys: Vec<String> = vec![];
+        if env.has_parent {
+            for k in &env.parent_keys {
+                all_keys.push(k.clone());
+            }
+        }
+        for k in &env.keys {
+            if !all_keys.contains(k) {
+                all_keys.push(k.clone());
+            }
+        }
+        all_keys
+    }
+}
+
+envFlattenVals(env: Environment): [Value] {
+    return rust {
+        let mut all_keys: Vec<String> = vec![];
+        let mut all_vals: Vec<Value> = vec![];
+        if env.has_parent {
+            for i in 0..env.parent_keys.len() {
+                all_keys.push(env.parent_keys[i].clone());
+                all_vals.push(env.parent_vals[i].clone());
+            }
+        }
+        for i in 0..env.keys.len() {
+            if let Some(pos) = all_keys.iter().position(|k| k == &env.keys[i]) {
+                all_vals[pos] = env.vals[i].clone();
+            } else {
+                all_keys.push(env.keys[i].clone());
+                all_vals.push(env.vals[i].clone());
+            }
+        }
+        all_vals
+    }
+}
+
+// ============================================================
+// 12. EvalResult class
+// ============================================================
+
+EvalResult {
+    value: Value
+    env: Environment
+    isReturn: bool
+
+    constructor(value: Value, env: Environment) {
+        this.value = value
+        this.env = env
+        this.isReturn = false
+    }
+}
+
+// ============================================================
+// 13. makeReturnResult (interop block)
+// ============================================================
+
+makeReturnResult(val: Value, env: Environment): EvalResult {
+    return rust {
+        EvalResult {
+            value: val,
+            env: env,
+            is_return: true,
+        }
+    }
+}
+
+// ============================================================
+// 14. evaluate function
+// ============================================================
+
+evaluate(node: ASTNode, env: Environment): EvalResult {
+    // ---- Program ----
+    if node.nodeType == "Program" {
+        let result = makeNullValue()
+        let currentEnv = env
+        let i = 0
+        while i < node.children.length {
+            let res = evaluate(node.children[i], currentEnv) or fail "eval"
+            result = rust { res.value.clone() }
+            currentEnv = rust { res.env.clone() }
+            i = i + 1
+        }
+        return EvalResult(result, currentEnv)
+    }
+
+    // ---- Literals ----
+    if node.nodeType == "NumberLit" {
+        return EvalResult(makeNumValue(node.numValue), env)
+    }
+    if node.nodeType == "StringLit" {
+        return EvalResult(makeStrValue(node.strValue), env)
+    }
+    if node.nodeType == "BoolLit" {
+        return EvalResult(makeBoolValue(node.boolValue), env)
+    }
+
+    // ---- Identifier ----
+    if node.nodeType == "Identifier" {
+        let varName = rust { node.name.clone() }
+        let val = envGet(env, node.name) or fail $"Undefined variable: {varName}"
+        return EvalResult(val, env)
+    }
+
+    // ---- Binary operations ----
+    if node.nodeType == "BinaryOp" {
+        let leftRes = evaluate(node.children[0], env) or fail "eval"
+        let leftVal = rust { left_res.value.clone() }
+        let leftEnv = rust { left_res.env.clone() }
+        let rightRes = evaluate(node.children[1], leftEnv) or fail "eval"
+        let left = leftVal
+        let right = rust { right_res.value.clone() }
+
+        if node.op == "+" {
+            if left.tag == "number" and right.tag == "number" {
+                return EvalResult(makeNumValue(left.numVal + right.numVal), env)
+            }
+            if left.tag == "string" or right.tag == "string" {
+                return EvalResult(makeStrValue(valueToString(left) + valueToString(right)), env)
+            }
+            fail $"Cannot add {left.tag} and {right.tag}"
+        }
+        if node.op == "-" {
+            if left.tag == "number" and right.tag == "number" {
+                return EvalResult(makeNumValue(left.numVal - right.numVal), env)
+            }
+            fail $"Cannot subtract {left.tag} and {right.tag}"
+        }
+        if node.op == "*" {
+            if left.tag == "number" and right.tag == "number" {
+                return EvalResult(makeNumValue(left.numVal * right.numVal), env)
+            }
+            fail $"Cannot multiply {left.tag} and {right.tag}"
+        }
+        if node.op == "/" {
+            if left.tag == "number" and right.tag == "number" {
+                if right.numVal == 0.0 { fail "Division by zero" }
+                return EvalResult(makeNumValue(left.numVal / right.numVal), env)
+            }
+            fail $"Cannot divide {left.tag} and {right.tag}"
+        }
+        if node.op == "%" {
+            if left.tag == "number" and right.tag == "number" {
+                if right.numVal == 0.0 { fail "Modulo by zero" }
+                let modResult = rust {
+                    let a: f64 = left.num_val;
+                    let b: f64 = right.num_val;
+                    a % b
+                }
+                return EvalResult(makeNumValue(modResult), env)
+            }
+            fail $"Cannot modulo {left.tag} and {right.tag}"
+        }
+
+        // Comparisons
+        if node.op == "==" {
+            let eq = _valuesEqual(left, right)
+            return EvalResult(makeBoolValue(eq), env)
+        }
+        if node.op == "!=" {
+            let eq = _valuesEqual(left, right)
+            return EvalResult(makeBoolValue(not eq), env)
+        }
+        if node.op == "<" {
+            if left.tag == "number" and right.tag == "number" {
+                return EvalResult(makeBoolValue(left.numVal < right.numVal), env)
+            }
+            fail $"Cannot compare {left.tag} and {right.tag}"
+        }
+        if node.op == "<=" {
+            if left.tag == "number" and right.tag == "number" {
+                return EvalResult(makeBoolValue(left.numVal <= right.numVal), env)
+            }
+            fail $"Cannot compare {left.tag} and {right.tag}"
+        }
+        if node.op == ">" {
+            if left.tag == "number" and right.tag == "number" {
+                return EvalResult(makeBoolValue(left.numVal > right.numVal), env)
+            }
+            fail $"Cannot compare {left.tag} and {right.tag}"
+        }
+        if node.op == ">=" {
+            if left.tag == "number" and right.tag == "number" {
+                return EvalResult(makeBoolValue(left.numVal >= right.numVal), env)
+            }
+            fail $"Cannot compare {left.tag} and {right.tag}"
+        }
+
+        // Logical
+        if node.op == "and" {
+            return EvalResult(makeBoolValue(_isTruthy(left) and _isTruthy(right)), env)
+        }
+        if node.op == "or" {
+            return EvalResult(makeBoolValue(_isTruthy(left) or _isTruthy(right)), env)
+        }
+
+        fail $"Unknown operator '{node.op}'"
+    }
+
+    // ---- Unary operations ----
+    if node.nodeType == "UnaryOp" {
+        let operandRes = evaluate(node.children[0], env) or fail "eval"
+        let operand = rust { operand_res.value.clone() }
+
+        if node.op == "-" {
+            if operand.tag == "number" {
+                return EvalResult(makeNumValue(0.0 - operand.numVal), env)
+            }
+            fail $"Cannot negate {operand.tag}"
+        }
+        if node.op == "not" {
+            return EvalResult(makeBoolValue(not _isTruthy(operand)), env)
+        }
+
+        fail $"Unknown unary operator '{node.op}'"
+    }
+
+    // ---- Let declaration ----
+    if node.nodeType == "LetDecl" {
+        let valRes = evaluate(node.children[0], env) or fail "eval"
+        let resVal = rust { val_res.value.clone() }
+        let resEnv = rust { val_res.env.clone() }
+        let newEnv = envDefine(resEnv, node.name, resVal)
+        return EvalResult(makeNullValue(), newEnv)
+    }
+
+    // ---- Assignment ----
+    if node.nodeType == "Assignment" {
+        let valRes = evaluate(node.children[0], env) or fail "eval"
+        let resVal = rust { val_res.value.clone() }
+        let resEnv = rust { val_res.env.clone() }
+        // Verify variable exists
+        let assignName = rust { node.name.clone() }
+        let assignNameErr = rust { node.name.clone() }
+        let existing = envGet(env, assignName) or fail $"Cannot assign to undefined variable: {assignNameErr}"
+        let newEnv = envSet(resEnv, node.name, resVal)
+        return EvalResult(makeNullValue(), newEnv)
+    }
+
+    // ---- If statement ----
+    if node.nodeType == "IfStmt" {
+        let condRes = evaluate(node.children[0], env) or fail "eval"
+        let condVal = rust { cond_res.value.clone() }
+        let condEnv = rust { cond_res.env.clone() }
+        if _isTruthy(condVal) {
+            let thenEnv = rust { cond_env.clone() }
+            let thenRes = evaluate(node.children[1], thenEnv) or fail "eval"
+            let thenIsReturn = rust { then_res.is_return }
+            if thenIsReturn { return thenRes }
+            let thenVal = rust { then_res.value.clone() }
+            return EvalResult(thenVal, condEnv)
+        } else if node.children.length > 2 {
+            let elseEnv = rust { cond_env.clone() }
+            let elseRes = evaluate(node.children[2], elseEnv) or fail "eval"
+            let elseIsReturn = rust { else_res.is_return }
+            if elseIsReturn { return elseRes }
+            let elseVal = rust { else_res.value.clone() }
+            return EvalResult(elseVal, condEnv)
+        }
+        return EvalResult(makeNullValue(), condEnv)
+    }
+
+    // ---- While statement ----
+    if node.nodeType == "WhileStmt" {
+        let currentEnv = env
+        let maxIter = 1000000
+        let count = 0
+        while count < maxIter {
+            let loopEnv = rust { current_env.clone() }
+            let condRes = evaluate(node.children[0], loopEnv) or fail "eval"
+            let condVal = rust { cond_res.value.clone() }
+            if not _isTruthy(condVal) { break }
+            let bodyEnv = rust { current_env.clone() }
+            let bodyRes = evaluate(node.children[1], bodyEnv) or fail "eval"
+            let bodyIsReturn = rust { body_res.is_return }
+            if bodyIsReturn { return bodyRes }
+            currentEnv = rust { body_res.env.clone() }
+            count = count + 1
+        }
+        if count >= maxIter {
+            fail "Infinite loop detected (exceeded 1000000 iterations)"
+        }
+        return EvalResult(makeNullValue(), currentEnv)
+    }
+
+    // ---- Block ----
+    if node.nodeType == "Block" {
+        let flatKeys = envFlatten(env)
+        let flatVals = envFlattenVals(env)
+        let blockEnv = makeChildEnv(flatKeys, flatVals)
+        let result = makeNullValue()
+        let i = 0
+        while i < node.children.length {
+            let res = evaluate(node.children[i], blockEnv) or fail "eval"
+            let resIsReturn = rust { res.is_return }
+            if resIsReturn { return res }
+            result = rust { res.value.clone() }
+            blockEnv = rust { res.env.clone() }
+            i = i + 1
+        }
+        // Propagate variable changes back to parent env
+        let updatedEnv = rust {
+            let mut updated = env.clone();
+            // Update current scope keys from block's parent scope
+            for ki in 0..updated.keys.len() {
+                for bi in 0..block_env.parent_keys.len() {
+                    if updated.keys[ki] == block_env.parent_keys[bi] {
+                        updated.vals[ki] = block_env.parent_vals[bi].clone();
+                        break;
+                    }
+                }
+            }
+            // Update parent scope keys too
+            if updated.has_parent {
+                for pi in 0..updated.parent_keys.len() {
+                    for bi in 0..block_env.parent_keys.len() {
+                        if updated.parent_keys[pi] == block_env.parent_keys[bi] {
+                            updated.parent_vals[pi] = block_env.parent_vals[bi].clone();
+                            break;
+                        }
+                    }
+                }
+            }
+            updated
+        }
+        return EvalResult(result, updatedEnv)
+    }
+
+    // ---- Function declaration ----
+    if node.nodeType == "FuncDecl" {
+        let closureKeys = envFlatten(env)
+        let closureVals = envFlattenVals(env)
+        let funcVal = makeFuncValue(node.params, node.children[0], closureKeys, closureVals)
+        let newEnv = envDefine(env, node.name, funcVal)
+        return EvalResult(makeNullValue(), newEnv)
+    }
+
+    // ---- Function call ----
+    if node.nodeType == "FuncCall" {
+        let callName = rust { node.name.clone() }
+        let callNameErr = rust { node.name.clone() }
+        let callNameBind = rust { node.name.clone() }
+        let callNameArity = rust { node.name.clone() }
+        let callNameRecur = rust { node.name.clone() }
+        let funcVal = envGet(env, callName) or fail $"Undefined function: {callNameErr}"
+        if funcVal.tag != "function" {
+            fail $"Not a function: {callNameBind}"
+        }
+
+        // Clone function components before any moves
+        let fParams = rust { func_val.func_params.clone() }
+        let fBody = rust { func_val.func_body.clone() }
+        let fEnvKeys = rust { func_val.func_env_keys.clone() }
+        let fEnvVals = rust { func_val.func_env_vals.clone() }
+
+        // Evaluate arguments
+        let args: [Value] = []
+        let i = 0
+        while i < node.children.length {
+            let argRes = evaluate(node.children[i], env) or fail "eval"
+            let argVal = rust { arg_res.value.clone() }
+            args.push(argVal)
+            i = i + 1
+        }
+
+        // Check arity
+        if args.length != fParams.length {
+            fail $"Function {callNameArity} expects {fParams.length} arguments, got {args.length}"
+        }
+
+        // Create function scope from closure + args
+        let funcEnv = makeChildEnv(fEnvKeys, fEnvVals)
+
+        // Bind parameters
+        let pi = 0
+        while pi < fParams.length {
+            let paramName = rust { f_params[pi as usize].clone() }
+            let argClone = rust { args[pi as usize].clone() }
+            funcEnv = envDefine(funcEnv, paramName, argClone)
+            pi = pi + 1
+        }
+
+        // Make the function itself available for recursion
+        funcEnv = envDefine(funcEnv, callNameRecur, funcVal)
+
+        // Execute body
+        let bodyRes = evaluate(fBody, funcEnv) or fail "eval"
+        let returnVal = rust { body_res.value.clone() }
+        return EvalResult(returnVal, env)
+    }
+
+    // ---- Return statement ----
+    if node.nodeType == "ReturnStmt" {
+        if node.children.length > 0 {
+            let valRes = evaluate(node.children[0], env) or fail "eval"
+            let retVal = rust { val_res.value.clone() }
+            return makeReturnResult(retVal, env)
+        }
+        return makeReturnResult(makeNullValue(), env)
+    }
+
+    // ---- Print statement ----
+    if node.nodeType == "PrintStmt" {
+        let valRes = evaluate(node.children[0], env) or fail "eval"
+        let printVal = rust { val_res.value.clone() }
+        print(valueToString(printVal))
+        return EvalResult(makeNullValue(), env)
+    }
+
+    fail $"Unknown node type: {node.nodeType}"
+}
+
+// ============================================================
+// 15. _valuesEqual
+// ============================================================
+
+_valuesEqual(a: Value, b: Value): bool {
+    if a.tag != b.tag { return false }
+    if a.tag == "number" { return a.numVal == b.numVal }
+    if a.tag == "string" { return a.strVal == b.strVal }
+    if a.tag == "bool" { return a.boolVal == b.boolVal }
+    if a.tag == "null" { return true }
+    return false
+}
+
+// ============================================================
+// 16. main()
+// ============================================================
+
+main() {
+    let args = Sys.args()
+
+    if args.length < 2 {
+        print("Mini-Language Interpreter v1.0 (FIXED)")
+        print("Usage: mini-interpreter <script.mini>")
+        print("")
+        print("Supported features:")
+        print("  - Variables:     let x = 10")
+        print("  - Arithmetic:   +, -, *, /, %")
+        print("  - Comparisons:  ==, !=, <, <=, >, >=")
+        print("  - Logic:        and, or, not")
+        print("  - Conditionals: if (cond) { ... } else { ... }")
+        print("  - Loops:        while (cond) { ... }")
+        print("  - Functions:    func name(params) { ... }")
+        print("  - Print:        print(expr)")
+        print("  - Comments:     // single line")
+        Sys.exit(1)
+    }
+
+    let filename = args[1]
+    let source, readErr = File.read(filename)
+    if readErr {
+        print($"Error: Could not read file: {filename}")
+        print($"  {readErr}")
+        Sys.exit(1)
+    }
+
+    let tokens, lexErr = tokenize(source)
+    if lexErr {
+        print($"Lexer Error: {lexErr}")
+        Sys.exit(1)
+    }
+
+    let ast, parseErr = parseTokens(tokens)
+    if parseErr {
+        print($"Parser Error: {parseErr}")
+        Sys.exit(1)
+    }
+
+    let env = Environment()
+    let result, evalErr = evaluate(ast, env)
+    if evalErr {
+        print($"Runtime Error: {evalErr}")
+        Sys.exit(1)
+    }
+}

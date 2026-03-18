@@ -1,0 +1,99 @@
+// Web Scraper — Downloads pages in parallel, extracts <title>, shows summary
+// Usage: livac run main.liva
+
+// Extract the content between <title> and </title> from HTML
+extractTitle(html: string): string {
+    let lower = html.toLowerCase()
+    let startTag = "<title>"
+    let endTag = "</title>"
+
+    let startIdx = lower.indexOf(startTag)
+    if startIdx == -1 {
+        return "(no title found)"
+    }
+
+    let contentStart = startIdx + startTag.length
+    let endIdx = lower.indexOf(endTag)
+    if endIdx == -1 {
+        return "(no title found)"
+    }
+
+    return html.substring(contentStart, endIdx).trim()
+}
+
+// Get current time in milliseconds since epoch
+nowMs(): number {
+    return rust {
+        use std::time::SystemTime;
+        use std::time::UNIX_EPOCH;
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as i32
+    }
+}
+
+// Fetch a single URL: returns the URL, extracted title, and elapsed ms
+fetchPage(url: string): string {
+    let start = nowMs()
+
+    let resp, err = HTTP.get(url)
+
+    let elapsed = nowMs() - start
+
+    if err {
+        return $"{url} | ERROR: {err} | {elapsed}ms"
+    }
+
+    let title = extractTitle(resp.body)
+    return $"{url} | {title} | {elapsed}ms"
+}
+
+main() {
+    let urls = [
+        "https://www.rust-lang.org",
+        "https://www.python.org",
+        "https://go.dev",
+        "https://www.typescriptlang.org",
+        "https://ziglang.org",
+        "https://www.scala-lang.org",
+        "https://kotlinlang.org",
+        "https://elixir-lang.org",
+        "https://www.haskell.org",
+        "https://nim-lang.org"
+    ]
+
+    print("=== Web Scraper ===")
+    print($"Fetching {urls.length} URLs (max 5 concurrent)...\n")
+
+    const MAX_CONCURRENT = 5
+    let allResults: [string] = []
+
+    // Process in chunks of MAX_CONCURRENT
+    let i = 0
+    while i < urls.length {
+        // Build batch (up to 5)
+        let batch: [string] = []
+        let j = 0
+        while j < MAX_CONCURRENT and (i + j) < urls.length {
+            batch.push(urls[i + j])
+            j = j + 1
+        }
+
+        // Fetch each URL in batch (sequential — parallel task arrays not yet supported)
+        for url in batch {
+            let result = fetchPage(url)
+            allResults.push(result)
+        }
+
+        i = i + MAX_CONCURRENT
+    }
+
+    // Print summary
+    print("=== Results ===")
+    print("")
+    for result in allResults {
+        print(result)
+    }
+    print($"\nTotal pages fetched: {allResults.length}")
+}

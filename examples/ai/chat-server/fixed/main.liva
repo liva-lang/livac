@@ -1,0 +1,198 @@
+// Chat Server TCP multi-cliente en Liva
+// Usa tokio (crate interno) para networking async
+
+use rust "tokio" features ["net", "io-util", "sync", "rt-multi-thread", "macros"]
+
+main() {
+    print("=== Liva Chat Server ===")
+    print("Iniciando servidor en 127.0.0.1:8080...")
+
+    rust {
+        use tokio::net::TcpListener;
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+        use std::collections::HashMap;
+        use std::sync::Arc;
+        use tokio::sync::Mutex;
+
+        type Clients = Arc<Mutex<HashMap<String, tokio::sync::mpsc::UnboundedSender<String>>>>;
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async move {
+            let clients: Clients = Arc::new(Mutex::new(HashMap::new()));
+
+            let listener = TcpListener::bind("127.0.0.1:8080").await.unwrap();
+            println!("[servidor] Escuchando en 127.0.0.1:8080");
+
+            loop {
+                let (socket, addr) = listener.accept().await.unwrap();
+                let clients = clients.clone();
+                println!("[servidor] Nueva conexión desde {}", addr);
+
+                tokio::spawn(async move {
+                    let (reader, mut writer) = socket.into_split();
+                    let mut buf_reader = BufReader::new(reader);
+
+                    // Pedir nickname
+                    let _ = writer.write_all(b"Bienvenido al chat! Escribe tu nickname: ").await;
+
+                    let mut nickname = String::new();
+                    match buf_reader.read_line(&mut nickname).await {
+                        Ok(0) | Err(_) => {
+                            println!("[servidor] Conexión cerrada antes de elegir nickname ({})", addr);
+                            return;
+                        }
+                        _ => {}
+                    }
+                    let nickname = nickname.trim().to_string();
+
+                    if nickname.is_empty() {
+                        let _ = writer.write_all(b"Nickname no puede estar vacio. Desconectando.\n").await;
+                        return;
+                    }
+
+                    // Verificar si el nickname ya existe
+                    {
+                        let existing = clients.lock().await;
+                        if existing.contains_key(&nickname) {
+                            let _ = writer.write_all(
+                                format!("El nickname '{}' ya esta en uso. Desconectando.\n", nickname).as_bytes()
+                            ).await;
+                            return;
+                        }
+                    }
+
+                    // Crear canal para este cliente
+                    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+
+                    // Registrar cliente
+                    {
+                        let mut map = clients.lock().await;
+                        map.insert(nickname.clone(), tx.clone());
+
+                        // Notificar a todos los demás
+                        let join_msg = format!("[servidor] {} se ha unido al chat ({} usuarios conectados)\n", nickname, map.len());
+                        for (name, sender) in map.iter() {
+                            if *name != nickname {
+                                let _ = sender.send(join_msg.clone());
+                            }
+                        }
+                    }
+
+                    let _ = writer.write_all(
+                        format!("Hola, {}! Escribe mensajes o usa /msg <nombre> <mensaje> para DM. /list para ver usuarios. /quit para salir.\n", nickname).as_bytes()
+                    ).await;
+
+                    // Tarea para enviar mensajes al cliente
+                    let write_handle = tokio::spawn(async move {
+                        while let Some(msg) = rx.recv().await {
+                            if writer.write_all(msg.as_bytes()).await.is_err() {
+                                break;
+                            }
+                        }
+                    });
+
+                    // Leer mensajes del cliente
+                    let mut line = String::new();
+                    loop {
+                        line.clear();
+                        match buf_reader.read_line(&mut line).await {
+                            Ok(0) => break,  // Conexión cerrada
+                            Err(_) => break,
+                            Ok(_) => {}
+                        }
+
+                        let trimmed = line.trim().to_string();
+                        if trimmed.is_empty() {
+                            continue;
+                        }
+
+                        // Comando /quit
+                        if trimmed == "/quit" {
+                            break;
+                        }
+
+                        // Comando /list - listar usuarios conectados
+                        if trimmed == "/list" {
+                            let map = clients.lock().await;
+                            let mut user_list = String::from("--- Usuarios conectados ---\n");
+                            for name in map.keys() {
+                                if *name == nickname {
+                                    user_list.push_str(&format!("  {} (tu)\n", name));
+                                } else {
+                                    user_list.push_str(&format!("  {}\n", name));
+                                }
+                            }
+                            user_list.push_str(&format!("--- Total: {} ---\n", map.len()));
+                            let _ = tx.send(user_list);
+                            continue;
+                        }
+
+                        // Comando /msg - mensaje directo
+                        if trimmed.starts_with("/msg ") {
+                            let rest = &trimmed[5..];
+                            if let Some(space_pos) = rest.find(' ') {
+                                let target = &rest[..space_pos];
+                                let dm_text = &rest[space_pos + 1..];
+
+                                if target == nickname {
+                                    let _ = tx.send("[servidor] No puedes enviarte un DM a ti mismo.\n".to_string());
+                                    continue;
+                                }
+
+                                let map = clients.lock().await;
+                                if let Some(target_tx) = map.get(target) {
+                                    let dm_msg = format!("[DM de {}] {}\n", nickname, dm_text);
+                                    let _ = target_tx.send(dm_msg);
+                                    let confirm = format!("[DM para {}] {}\n", target, dm_text);
+                                    let _ = tx.send(confirm);
+                                } else {
+                                    let _ = tx.send(format!("[servidor] Usuario '{}' no encontrado.\n", target));
+                                }
+                            } else {
+                                let _ = tx.send("[servidor] Uso: /msg <nombre> <mensaje>\n".to_string());
+                            }
+                            continue;
+                        }
+
+                        // Comando /help
+                        if trimmed == "/help" {
+                            let help_text = concat!(
+                                "--- Comandos disponibles ---\n",
+                                "  /msg <nombre> <mensaje>  - Mensaje directo\n",
+                                "  /list                    - Ver usuarios conectados\n",
+                                "  /quit                    - Salir del chat\n",
+                                "  /help                    - Mostrar esta ayuda\n",
+                                "  (cualquier otro texto)   - Mensaje a todos\n",
+                                "----------------------------\n"
+                            );
+                            let _ = tx.send(help_text.to_string());
+                            continue;
+                        }
+
+                        // Broadcast a todos los demás
+                        let broadcast_msg = format!("[{}] {}\n", nickname, trimmed);
+                        let map = clients.lock().await;
+                        for (name, sender) in map.iter() {
+                            if *name != nickname {
+                                let _ = sender.send(broadcast_msg.clone());
+                            }
+                        }
+                    }
+
+                    // Desconexión: eliminar cliente y notificar
+                    {
+                        let mut map = clients.lock().await;
+                        map.remove(&nickname);
+                        let leave_msg = format!("[servidor] {} ha salido del chat ({} usuarios conectados)\n", nickname, map.len());
+                        println!("{}", leave_msg.trim());
+                        for (_name, sender) in map.iter() {
+                            let _ = sender.send(leave_msg.clone());
+                        }
+                    }
+
+                    write_handle.abort();
+                });
+            }
+        });
+    }
+}

@@ -1,0 +1,320 @@
+// ─────────────────────────────────────────────────────────────
+// CSV Employee Manager
+// Lee un archivo CSV de empleados, filtra por departamento,
+// ordena por salario y exporta resultados a un nuevo CSV.
+// Incluye estadísticas: promedio salarial y conteo por depto.
+// ─────────────────────────────────────────────────────────────
+
+// ── Parseo del CSV ──────────────────────────────────────────
+
+parseCSV(content: string): [[string]] {
+    let lines = content.split("\n")
+    let employees: [[string]] = []
+
+    for i in 1..lines.length {
+        let line = lines[i].trim()
+        if not line.isEmpty() {
+            let fields = line.split(",")
+            if fields.length >= 4 {
+                let record = [
+                    fields[0].trim(),
+                    fields[1].trim(),
+                    fields[2].trim(),
+                    fields[3].trim()
+                ]
+                employees.push(record)
+            }
+        }
+    }
+
+    return employees
+}
+
+// ── Mostrar empleados ───────────────────────────────────────
+
+printEmployees(employees: [[string]]) {
+    print("")
+    print("  Nombre                  Edad  Departamento    Salario")
+    print("  ───────────────────────────────────────────────────────")
+    for emp in employees {
+        let name = emp[0].padEnd(24, " ")
+        let age = emp[1].padStart(4, " ")
+        let dept = emp[2].padEnd(15, " ")
+        let salary = emp[3].padStart(8, " ")
+        print($"  {name} {age}  {dept} ${salary}")
+    }
+    let total = employees.length
+    print($"\n  Total: {total} empleado(s)")
+}
+
+// ── Filtrar por departamento ────────────────────────────────
+// BUG workaround: .filter() on [[string]] generates .copied() which
+// fails because Vec<String> doesn't implement Copy.
+
+filterByDepartment(employees: [[string]], dept: string): [[string]] {
+    let deptLower = dept.toLowerCase()
+    let result: [[string]] = []
+    for emp in employees {
+        if emp[2].toLowerCase() == deptLower {
+            result.push(emp)
+        }
+    }
+    return result
+}
+
+// ── Obtener departamentos únicos ────────────────────────────
+
+getUniqueDepartments(employees: [[string]]): [string] {
+    let depts: [string] = []
+    for emp in employees {
+        // BUG workaround: plain let x = arr[i] moves value from vec.
+        // Using .trim() forces codegen to use .get().cloned().
+        let dept = emp[2].trim()
+        if not depts.includes(dept) {
+            depts.push(dept)
+        }
+    }
+    return depts.sort()
+}
+
+// ── Ordenar por salario (selección) ────────────────────────
+// BUG workaround: multiple codegen issues here:
+// - error binding vars not declared mut when reassigned
+// - array index access moves values out of Vec
+// Using rust {} block for the core sort logic.
+
+sortBySalary(employees: [[string]], ascending: bool): [[string]] {
+    let result: [[string]] = rust {
+        let mut data: Vec<Vec<String>> = Vec::new();
+        for emp in employees.clone() {
+            data.push(emp.clone());
+        }
+
+        data.sort_by(|a, b| {
+            let sal_a: f64 = a[3].parse().unwrap_or(0.0);
+            let sal_b: f64 = b[3].parse().unwrap_or(0.0);
+            if ascending {
+                sal_a.partial_cmp(&sal_b).unwrap_or(std::cmp::Ordering::Equal)
+            } else {
+                sal_b.partial_cmp(&sal_a).unwrap_or(std::cmp::Ordering::Equal)
+            }
+        });
+
+        data
+    }
+    return result
+}
+
+// ── Estadísticas ────────────────────────────────────────────
+// BUG workaround: f64 / employees.length generates f64 / i32.
+// Using float counter to avoid mixed-type division.
+
+showStats(employees: [[string]]) {
+    if employees.isEmpty() {
+        print("\n  No hay empleados para calcular estadísticas.")
+        return
+    }
+
+    // Promedio salarial general
+    let totalSalary = 0.0
+    let empCount = 0.0
+    for emp in employees {
+        let sal, err1 = parseFloat(emp[3])
+        totalSalary = totalSalary + sal
+        empCount = empCount + 1.0
+    }
+    let avgSalary = totalSalary / empCount
+
+    // Salario mín y máx
+    let minSalParsed, err2 = parseFloat(employees[0][3])
+    let minSal = minSalParsed
+    let maxSal = minSal
+    let minName = employees[0][0].trim()
+    let maxName = employees[0][0].trim()
+
+    for emp in employees {
+        let sal, err3 = parseFloat(emp[3])
+        if sal < minSal {
+            minSal = sal
+            minName = emp[0].trim()
+        }
+        if sal > maxSal {
+            maxSal = sal
+            maxName = emp[0].trim()
+        }
+    }
+
+    print("\n  ═══════════════════════════════════════════")
+    print("           ESTADÍSTICAS DE EMPLEADOS")
+    print("  ═══════════════════════════════════════════")
+    let totalCount = employees.length
+    print($"\n  Total empleados:     {totalCount}")
+    print($"  Salario promedio:    ${avgSalary}")
+    print($"  Salario mínimo:      ${minSal}  ({minName})")
+    print($"  Salario máximo:      ${maxSal}  ({maxName})")
+
+    // Conteo y promedio por departamento
+    let empForDepts: [[string]] = []
+    for e in employees { empForDepts.push(e) }
+    let depts = getUniqueDepartments(empForDepts)
+
+    print("\n  ─── Por departamento ─────────────────────")
+    for dept in depts {
+        let empForFilter: [[string]] = []
+        for e in employees { empForFilter.push(e) }
+        let deptEmployees = filterByDepartment(empForFilter, dept)
+        let deptTotal = 0.0
+        let deptCount = 0.0
+        for emp in deptEmployees {
+            let sal, err4 = parseFloat(emp[3])
+            deptTotal = deptTotal + sal
+            deptCount = deptCount + 1.0
+        }
+        let deptAvg = deptTotal / deptCount
+        let deptName = dept.padEnd(15, " ")
+        let deptCountInt = deptEmployees.length
+        print($"  {deptName} → {deptCountInt} empleado(s), promedio: ${deptAvg}")
+    }
+    print("")
+}
+
+// ── Exportar a CSV ──────────────────────────────────────────
+// BUG workaround: single-var File.write binding generates tuple.
+// Using proper two-var error binding.
+
+exportCSV(employees: [[string]], filename: string) {
+    let lines: [string] = ["nombre,edad,departamento,salario"]
+    for emp in employees {
+        lines.push($"{emp[0]},{emp[1]},{emp[2]},{emp[3]}")
+    }
+    let content = lines.join("\n")
+    let ok, writeErr = File.write(filename, content)
+    if writeErr {
+        console.error($"Error al escribir {filename}: {writeErr}")
+    } else {
+        let count = employees.length
+        print($"\n  ✓ Exportado a '{filename}' ({count} registros)")
+    }
+}
+
+// ── Menú principal ──────────────────────────────────────────
+
+showMenu() {
+    print("\n  ╔═══════════════════════════════════════╗")
+    print("  ║     CSV EMPLOYEE MANAGER - LIVA       ║")
+    print("  ╠═══════════════════════════════════════╣")
+    print("  ║  1. Mostrar todos los empleados       ║")
+    print("  ║  2. Filtrar por departamento           ║")
+    print("  ║  3. Ordenar por salario (ascendente)   ║")
+    print("  ║  4. Ordenar por salario (descendente)  ║")
+    print("  ║  5. Mostrar estadísticas               ║")
+    print("  ║  6. Exportar resultados a CSV          ║")
+    print("  ║  7. Salir                              ║")
+    print("  ╚═══════════════════════════════════════╝")
+}
+
+// ── Programa principal ──────────────────────────────────────
+// BUG workaround: values passed to functions inside while loop cause
+// "use of moved value". Using inline for-in copy pattern since
+// for-in generates .clone() on the source, preserving the original.
+
+main() {
+    let args = Sys.args()
+    let filename = "employees.csv"
+    if args.length > 1 {
+        filename = args[1]
+    }
+
+    // Leer archivo CSV
+    let content, readErr = File.read(filename)
+    if readErr {
+        console.error($"Error al leer '{filename}': {readErr}")
+        console.error("Uso: csv-reader [archivo.csv]")
+        Sys.exit(1)
+    }
+
+    let allEmployees = parseCSV(content)
+    if allEmployees.isEmpty() {
+        console.error("El archivo CSV no contiene datos de empleados.")
+        Sys.exit(1)
+    }
+
+    let empCount = allEmployees.length
+    print($"\n  Cargados {empCount} empleados desde '{filename}'")
+
+    let currentData: [[string]] = []
+    for e in allEmployees { currentData.push(e) }
+    let running = true
+
+    while running {
+        showMenu()
+        let option = console.input("\n  Seleccione una opción: ")
+
+        switch option.trim() {
+            case "1":
+                print("\n  ── Todos los empleados ──")
+                currentData = []
+                for e in allEmployees { currentData.push(e) }
+                let view1: [[string]] = []
+                for e in currentData { view1.push(e) }
+                printEmployees(view1)
+
+            case "2":
+                let aeForDepts: [[string]] = []
+                for e in allEmployees { aeForDepts.push(e) }
+                let depts = getUniqueDepartments(aeForDepts)
+                let deptList = depts.join(", ")
+                print($"\n  Departamentos disponibles: {deptList}")
+                let dept = console.input("  Ingrese departamento: ")
+                let aeForFilter: [[string]] = []
+                for e in allEmployees { aeForFilter.push(e) }
+                currentData = filterByDepartment(aeForFilter, dept.trim())
+                if currentData.isEmpty() {
+                    let deptTrimmed = dept.trim()
+                    print($"\n  No se encontraron empleados en '{deptTrimmed}'")
+                } else {
+                    let deptTrimmed = dept.trim()
+                    print($"\n  ── Empleados en {deptTrimmed} ──")
+                    let view2: [[string]] = []
+                    for e in currentData { view2.push(e) }
+                    printEmployees(view2)
+                }
+
+            case "3":
+                let cdSort1: [[string]] = []
+                for e in currentData { cdSort1.push(e) }
+                currentData = sortBySalary(cdSort1, true)
+                print("\n  ── Ordenados por salario (menor a mayor) ──")
+                let view3: [[string]] = []
+                for e in currentData { view3.push(e) }
+                printEmployees(view3)
+
+            case "4":
+                let cdSort2: [[string]] = []
+                for e in currentData { cdSort2.push(e) }
+                currentData = sortBySalary(cdSort2, false)
+                print("\n  ── Ordenados por salario (mayor a menor) ──")
+                let view4: [[string]] = []
+                for e in currentData { view4.push(e) }
+                printEmployees(view4)
+
+            case "5":
+                let cdStats: [[string]] = []
+                for e in currentData { cdStats.push(e) }
+                showStats(cdStats)
+
+            case "6":
+                let outFile = console.input("  Nombre del archivo de salida (ej: resultado.csv): ")
+                let cdExport: [[string]] = []
+                for e in currentData { cdExport.push(e) }
+                exportCSV(cdExport, outFile.trim())
+
+            case "7":
+                print("\n  ¡Hasta luego!\n")
+                running = false
+
+            default:
+                print("\n  ⚠ Opción no válida. Intente de nuevo.")
+        }
+    }
+}

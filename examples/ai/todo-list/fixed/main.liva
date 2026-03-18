@@ -1,0 +1,244 @@
+// Todo List — Fixed version (merged single-file)
+// Original: 3 files (task.liva, manager.liva, main.liva) — 251 lines
+// Workarounds applied — see REPORT.md for detailed error analysis
+
+use rust "chrono" version "0.4"
+
+currentDate(): string {
+    let date = rust {
+        chrono::Local::now().format("%Y-%m-%d %H:%M").to_string()
+    }
+    return date
+}
+
+normalizePriority(input: string): string {
+    let lower = input.toLowerCase().trim()
+    if lower == "alta" {
+        return "alta"
+    }
+    if lower == "baja" {
+        return "baja"
+    }
+    return "media"
+}
+
+priorityLabel(priority: string): string {
+    if priority == "alta" {
+        return "[ALTA]"
+    }
+    if priority == "baja" {
+        return "[BAJA]"
+    }
+    return "[MEDIA]"
+}
+
+TodoItem {
+    id: number
+    title: string
+    description: string
+    priority: string
+    createdAt: string
+    completed: bool
+
+    constructor(id: number, title: string, description: string, priority: string, createdAt: string) {
+        this.id = id
+        this.title = title
+        this.description = description
+        this.priority = priority
+        this.createdAt = createdAt
+        this.completed = false
+    }
+
+    statusLabel(): string {
+        if this.completed {
+            return "[x]"
+        }
+        return "[ ]"
+    }
+
+    display(): string {
+        let status = this.statusLabel()
+        let pLabel = "[MEDIA]"
+        if this.priority == "alta" {
+            pLabel = "[ALTA]"
+        }
+        if this.priority == "baja" {
+            pLabel = "[BAJA]"
+        }
+        let tid = this.id
+        let ttitle = this.title
+        let tdesc = this.description
+        let tdate = this.createdAt
+        return $"  {status} #{tid} {pLabel} {ttitle}\n      Desc: {tdesc}\n      Creada: {tdate}"
+    }
+}
+
+TaskManager {
+    items: [TodoItem]
+    nextId: number
+
+    constructor() {
+        this.items = []
+        this.nextId = 1
+    }
+
+    addItem(title: string, description: string, priorityStr: string, date: string): number {
+        let priority = normalizePriority(priorityStr)
+        let item = TodoItem(this.nextId, title, description, priority, date)
+        this.items.push(item)
+        this.nextId = this.nextId + 1
+        return this.nextId - 1
+    }
+
+    listAll() {
+        if this.items.isEmpty() {
+            print("\n  No hay tareas registradas.\n")
+            return
+        }
+        print("\n━━━ Lista de Tareas ━━━")
+        for t in this.items {
+            print(t.display())
+            print("")
+        }
+    }
+
+    listPending() {
+        let pending = this.items.filter(t => t.completed == false)
+        if pending.isEmpty() {
+            print("\n  No hay tareas pendientes.\n")
+            return
+        }
+        print("\n━━━ Tareas Pendientes ━━━")
+        for t in pending {
+            print(t.display())
+            print("")
+        }
+    }
+
+    listCompleted() {
+        let done = this.items.filter(t => t.completed == true)
+        if done.isEmpty() {
+            print("\n  No hay tareas completadas.\n")
+            return
+        }
+        print("\n━━━ Tareas Completadas ━━━")
+        for t in done {
+            print(t.display())
+            print("")
+        }
+    }
+
+    completeItem(id: number): bool {
+        let idx = this.items.findIndex(t => t.id == id)
+        if idx < 0 {
+            return false
+        }
+        this.items[idx].completed = true
+        // Dummy assignment to trigger &mut self detection in codegen
+        this.nextId = this.nextId
+        return true
+    }
+
+    deleteItem(id: number): bool {
+        let initial = this.items.length
+        this.items = this.items.filter(t => t.id != id)
+        return this.items.length < initial
+    }
+
+    totalCount(): number => this.items.length
+
+    pendingCount(): number => this.items.filter(t => t.completed == false).length
+
+    completedCount(): number => this.items.filter(t => t.completed == true).length
+}
+
+showMenu() {
+    print("\n==============================")
+    print("     Lista de Tareas - Liva    ")
+    print("==============================")
+    print("  1. Agregar tarea")
+    print("  2. Listar todas las tareas")
+    print("  3. Listar tareas pendientes")
+    print("  4. Listar tareas completadas")
+    print("  5. Marcar tarea como completada")
+    print("  6. Eliminar tarea")
+    print("  7. Salir")
+    print("==============================")
+}
+
+main() {
+    let manager = TaskManager()
+
+    print("\n  Bienvenido a la Lista de Tareas")
+    print("  --------------------------------")
+
+    let running = true
+    while running {
+        showMenu()
+        let option = console.input("\n  Opcion: ")
+        let trimmed = option.trim()
+
+        switch trimmed {
+            case "1":
+                print("\n-- Nueva Tarea --")
+                let title = console.input("  Titulo: ")
+                let description = console.input("  Descripcion: ")
+                let priorityStr = console.input("  Prioridad (alta/media/baja): ")
+                let date = currentDate()
+                let id = manager.addItem(title, description, priorityStr, date)
+                print($"\n  Tarea #{id} creada exitosamente.")
+            case "2":
+                manager.listAll()
+            case "3":
+                manager.listPending()
+            case "4":
+                manager.listCompleted()
+            case "5":
+                if manager.pendingCount() == 0 {
+                    print("\n  No hay tareas pendientes para completar.")
+                } else {
+                    manager.listPending()
+                    let input = console.input("  ID de la tarea a completar: ")
+                    let id, err = parseInt(input)
+                    if err {
+                        print("  ID invalido.")
+                    } else {
+                        let success = manager.completeItem(id)
+                        if success {
+                            print($"  Tarea #{id} marcada como completada.")
+                        } else {
+                            print($"  No se encontro la tarea #{id}.")
+                        }
+                    }
+                }
+            case "6":
+                if manager.totalCount() == 0 {
+                    print("\n  No hay tareas para eliminar.")
+                } else {
+                    manager.listAll()
+                    let input = console.input("  ID de la tarea a eliminar: ")
+                    let id, err = parseInt(input)
+                    if err {
+                        print("  ID invalido.")
+                    } else {
+                        let confirm = console.input("  Confirmar eliminacion? (s/n): ")
+                        if confirm.toLowerCase().trim() == "s" {
+                            let success = manager.deleteItem(id)
+                            if success {
+                                print($"  Tarea #{id} eliminada.")
+                            } else {
+                                print($"  No se encontro la tarea #{id}.")
+                            }
+                        } else {
+                            print("  Operacion cancelada.")
+                        }
+                    }
+                }
+            case "7":
+                print("\n  Hasta luego!\n")
+                running = false
+            default:
+                print("\n  Opcion no valida. Intente de nuevo.")
+        }
+    }
+}

@@ -1084,11 +1084,13 @@ impl CodeGenerator {
 
     fn generate_program(&mut self, program: &Program) -> Result<()> {
         // Generate use statements for Rust crates
+        // Rust identifiers cannot contain hyphens, so convert them to underscores
         for dep in &self.ctx.rust_crates {
+            let rust_name = dep.name.replace('-', "_");
             if let Some(alias_name) = &dep.alias {
-                writeln!(self.output, "use {} as {};", dep.name, alias_name).unwrap();
+                writeln!(self.output, "use {} as {};", rust_name, alias_name).unwrap();
             } else {
-                writeln!(self.output, "use {};", dep.name).unwrap();
+                writeln!(self.output, "use {};", rust_name).unwrap();
             }
         }
 
@@ -12218,10 +12220,11 @@ impl<'a> IrCodeGenerator<'a> {
         writeln!(self.output, "use liva_rt;").unwrap();
 
         for (crate_name, alias) in emitted {
+            let rust_name = crate_name.replace('-', "_");
             if let Some(alias_name) = alias {
-                writeln!(self.output, "use {} as {};", crate_name, alias_name).unwrap();
+                writeln!(self.output, "use {} as {};", rust_name, alias_name).unwrap();
             } else {
-                writeln!(self.output, "use {};", crate_name).unwrap();
+                writeln!(self.output, "use {};", rust_name).unwrap();
             }
         }
 

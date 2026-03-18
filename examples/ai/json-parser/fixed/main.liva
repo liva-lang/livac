@@ -1,0 +1,860 @@
+// json-parser — Single-file version (merged from 5 files)
+//
+// Merged to work around codegen bugs with multi-file error binding.
+// Original had: token.liva, value.liva, lexer.liva, parser.liva, main.liva
+
+// Helper to concatenate two strings — workaround for codegen {:?} bug
+// when template strings interpolate reassigned mutable variables
+_strCat(a: string, b: string): string {
+    return $"{a}{b}"
+}
+
+// ══════════════════════════════════════════════════════════════
+// Token types (from token.liva)
+// ══════════════════════════════════════════════════════════════
+
+enum Token {
+    LeftBrace,
+    RightBrace,
+    LeftBracket,
+    RightBracket,
+    Colon,
+    Comma,
+    TString(value: string),
+    TNumber(value: string),
+    TBool(value: bool),
+    TNull,
+    EOF
+}
+
+// ══════════════════════════════════════════════════════════════
+// JSON value constructors (from value.liva)
+// ══════════════════════════════════════════════════════════════
+
+_jsonString(s: string): string {
+    return $"JString::{s}"
+}
+
+_jsonNumber(n: float): string {
+    return $"JNumber::{n}"
+}
+
+_jsonBool(b: bool): string {
+    if b {
+        return "JBool::true"
+    }
+    return "JBool::false"
+}
+
+_jsonNull(): string {
+    return "JNull"
+}
+
+_jsonArray(items: [string]): string {
+    let parts: [string] = []
+    for item in items {
+        let itemLen = item.length
+        parts.push($"{itemLen}:{item}")
+    }
+    let joined = parts.join("")
+    return $"JArray::{joined}"
+}
+
+_jsonObject(entries: [string]): string {
+    let parts: [string] = []
+    for entry in entries {
+        let entryLen = entry.length
+        parts.push($"{entryLen}:{entry}")
+    }
+    let joined = parts.join("")
+    return $"JObject::{joined}"
+}
+
+_jsonEntry(key: string, value: string): string {
+    return $"{key}<<KV>>{value}"
+}
+
+// ── Type checking ───────────────────────────────────────────
+
+_isJString(v: string): bool => v.startsWith("JString::")
+_isJNumber(v: string): bool => v.startsWith("JNumber::")
+_isJBool(v: string): bool => v.startsWith("JBool::")
+_isJNull(v: string): bool => v == "JNull"
+_isJArray(v: string): bool => v.startsWith("JArray::")
+_isJObject(v: string): bool => v.startsWith("JObject::")
+
+// ── Extraction ──────────────────────────────────────────────
+
+_getJString(v: string): string {
+    return v.removePrefix("JString::")
+}
+
+_getJNumber(v: string): float {
+    let raw = v.removePrefix("JNumber::")
+    let num, err = parseFloat(raw)
+    if err {
+        return 0.0
+    }
+    return num
+}
+
+_getJBool(v: string): bool {
+    let raw = v.removePrefix("JBool::")
+    return raw == "true"
+}
+
+_getJArrayItems(v: string): [string] {
+    let raw = v.removePrefix("JArray::")
+    if raw.isEmpty() {
+        return []
+    }
+    return _parseLengthPrefixed(raw)
+}
+
+_getJObjectEntries(v: string): [string] {
+    let raw = v.removePrefix("JObject::")
+    if raw.isEmpty() {
+        return []
+    }
+    return _parseLengthPrefixed(raw)
+}
+
+_getEntryKey(entry: string): string {
+    // key is always a plain string before the first <<KV>>
+    let idx = entry.indexOf("<<KV>>")
+    if idx < 0 {
+        return entry
+    }
+    return entry.substring(0, idx)
+}
+
+_getEntryValue(entry: string): string {
+    // value is everything after the first <<KV>>
+    let idx = entry.indexOf("<<KV>>")
+    if idx < 0 {
+        return ""
+    }
+    return entry.substring(idx + 6, entry.length)
+}
+
+// Parse length-prefixed encoding: "5:hello4:test" → ["hello", "test"]
+_parseLengthPrefixed(raw: string): [string] {
+    let result: [string] = []
+    let remaining = raw
+    
+    while remaining.length > 0 {
+        // Find the colon separating length from content
+        let colonIdx = remaining.indexOf(":")
+        if colonIdx < 0 {
+            break
+        }
+        let lenStr = remaining.substring(0, colonIdx)
+        let itemLen, err = parseInt(lenStr)
+        if err {
+            break
+        }
+        let start = colonIdx + 1
+        let end = start + itemLen
+        if end > remaining.length {
+            break
+        }
+        let item = remaining.substring(start, end)
+        result.push(item)
+        remaining = remaining.substring(end, remaining.length)
+    }
+    return result
+}
+
+// ══════════════════════════════════════════════════════════════
+// Serializer (stringify) from value.liva
+// ══════════════════════════════════════════════════════════════
+
+_jsonStringify(v: string): string {
+    return _stringify(v, 0, 0)
+}
+
+_jsonStringifyPretty(v: string, indent: number): string {
+    return _stringify(v, indent, 0)
+}
+
+_stringify(v: string, indent: number, depth: number): string {
+    if _isJNull(v) {
+        return "null"
+    }
+    if _isJBool(v) {
+        if _getJBool(v) {
+            return "true"
+        }
+        return "false"
+    }
+    if _isJNumber(v) {
+        let n = _getJNumber(v)
+        return _formatNumber(n)
+    }
+    if _isJString(v) {
+        return _escapeJsonString(_getJString(v))
+    }
+    if _isJArray(v) {
+        return _stringifyArray(v, indent, depth)
+    }
+    if _isJObject(v) {
+        return _stringifyObject(v, indent, depth)
+    }
+    return "null"
+}
+
+_formatNumber(n: float): string {
+    let s = toString(n)
+    if s.endsWith(".0") {
+        return s.removeSuffix(".0")
+    }
+    return s
+}
+
+_escapeJsonString(s: string): string {
+    let result = s
+    result = result.replace("\\", "\\\\")
+    result = result.replace("\"", "\\\"")
+    result = result.replace("\n", "\\n")
+    result = result.replace("\r", "\\r")
+    result = result.replace("\t", "\\t")
+    let q = "\""
+    return _strCat(_strCat(q, result), q)
+}
+
+_stringifyArray(v: string, indent: number, depth: number): string {
+    let items = _getJArrayItems(v)
+    if items.isEmpty() {
+        return "[]"
+    }
+
+    if indent == 0 {
+        let parts: [string] = []
+        for item in items {
+            parts.push(_stringify(item, 0, 0))
+        }
+        let body = parts.join(",")
+        return $"[{body}]"
+    }
+
+    let newDepth = depth + 1
+    let innerPad = _makeIndent(indent, newDepth)
+    let outerPad = _makeIndent(indent, depth)
+    let parts: [string] = []
+    for item in items {
+        parts.push($"{innerPad}{_stringify(item, indent, newDepth)}")
+    }
+    let joined = parts.join(",\n")
+    return $"[\n{joined}\n{outerPad}]"
+}
+
+_stringifyObject(v: string, indent: number, depth: number): string {
+    let entries = _getJObjectEntries(v)
+    if entries.isEmpty() {
+        return "{}"
+    }
+
+    if indent == 0 {
+        let parts: [string] = []
+        for entry in entries {
+            let key = _getEntryKey(entry)
+            let val = _getEntryValue(entry)
+            parts.push($"{_escapeJsonString(key)}:{_stringify(val, 0, 0)}")
+        }
+        let compactBody = parts.join(",")
+        return $"\{{compactBody}}}"
+    }
+
+    let newDepth = depth + 1
+    let innerPad = _makeIndent(indent, newDepth)
+    let outerPad = _makeIndent(indent, depth)
+    let parts: [string] = []
+    for entry in entries {
+        let key = _getEntryKey(entry)
+        let val = _getEntryValue(entry)
+        parts.push($"{innerPad}{_escapeJsonString(key)}: {_stringify(val, indent, newDepth)}")
+    }
+    let joined = parts.join(",\n")
+    return $"\{\n{joined}\n{outerPad}}}"
+}
+
+_makeIndent(size: number, depth: number): string {
+    let total = size * depth
+    return " ".repeat(total)
+}
+
+// ══════════════════════════════════════════════════════════════
+// Lexer (from lexer.liva) — uses substring instead of charAt
+// ══════════════════════════════════════════════════════════════
+
+_tokenize(input: string): [string] {
+    let tokens: [string] = []
+    let pos = 0
+    let length = input.length
+
+    while pos < length {
+        let ch = input.substring(pos, pos + 1)
+
+        // Skip whitespace
+        if ch == " " or ch == "\n" or ch == "\r" or ch == "\t" {
+            pos = pos + 1
+            continue
+        }
+
+        // Structural characters
+        if ch == "{" {
+            tokens.push("T_LBRACE")
+            pos = pos + 1
+            continue
+        }
+        if ch == "}" {
+            tokens.push("T_RBRACE")
+            pos = pos + 1
+            continue
+        }
+        if ch == "[" {
+            tokens.push("T_LBRACKET")
+            pos = pos + 1
+            continue
+        }
+        if ch == "]" {
+            tokens.push("T_RBRACKET")
+            pos = pos + 1
+            continue
+        }
+        if ch == ":" {
+            tokens.push("T_COLON")
+            pos = pos + 1
+            continue
+        }
+        if ch == "," {
+            tokens.push("T_COMMA")
+            pos = pos + 1
+            continue
+        }
+
+        // String
+        if ch == "\"" {
+            let result = _lexString(input, pos)
+            let strVal = _resultValue(result)
+            let newPos = _resultPos(result)
+            tokens.push($"T_STRING::{strVal}")
+            pos = newPos
+            continue
+        }
+
+        // Number (starts with digit or minus)
+        if _isDigit(ch) or ch == "-" {
+            let result = _lexNumber(input, pos)
+            let numVal = _resultValue(result)
+            let newPos = _resultPos(result)
+            tokens.push($"T_NUMBER::{numVal}")
+            pos = newPos
+            continue
+        }
+
+        // true
+        if ch == "t" {
+            if pos + 4 <= length {
+                if input.substring(pos, pos + 4) == "true" {
+                    tokens.push("T_BOOL::true")
+                    pos = pos + 4
+                    continue
+                }
+            }
+        }
+
+        // false
+        if ch == "f" {
+            if pos + 5 <= length {
+                if input.substring(pos, pos + 5) == "false" {
+                    tokens.push("T_BOOL::false")
+                    pos = pos + 5
+                    continue
+                }
+            }
+        }
+
+        // null
+        if ch == "n" {
+            if pos + 4 <= length {
+                if input.substring(pos, pos + 4) == "null" {
+                    tokens.push("T_NULL")
+                    pos = pos + 4
+                    continue
+                }
+            }
+        }
+
+        // Unknown character — skip
+        pos = pos + 1
+    }
+
+    tokens.push("T_EOF")
+    return tokens
+}
+
+_lexString(input: string, start: number): string {
+    let pos = start + 1
+    let length = input.length
+    let result = ""
+
+    while pos < length {
+        let ch = input.substring(pos, pos + 1)
+
+        if ch == "\"" {
+            let endPos = pos + 1
+            let sep = "<<SEP>>"
+            return _strCat(_strCat(result, sep), toString(endPos))
+        }
+
+        if ch == "\\" {
+            pos = pos + 1
+            if pos >= length {
+                let sep = "<<SEP>>"
+                return _strCat(_strCat(result, sep), toString(pos))
+            }
+            let escaped = input.substring(pos, pos + 1)
+            if escaped == "\"" {
+                result = _strCat(result, "\"")
+            } else if escaped == "\\" {
+                result = _strCat(result, "\\")
+            } else if escaped == "/" {
+                result = _strCat(result, "/")
+            } else if escaped == "n" {
+                result = _strCat(result, "\n")
+            } else if escaped == "r" {
+                result = _strCat(result, "\r")
+            } else if escaped == "t" {
+                result = _strCat(result, "\t")
+            } else {
+                result = _strCat(_strCat(result, "\\"), escaped)
+            }
+            pos = pos + 1
+            continue
+        }
+
+        result = _strCat(result, ch)
+        pos = pos + 1
+    }
+
+    let sep = "<<SEP>>"
+    return _strCat(_strCat(result, sep), toString(pos))
+}
+
+_lexNumber(input: string, start: number): string {
+    let pos = start
+    let length = input.length
+
+    if pos < length and input.substring(pos, pos + 1) == "-" {
+        pos = pos + 1
+    }
+
+    while pos < length and _isDigit(input.substring(pos, pos + 1)) {
+        pos = pos + 1
+    }
+
+    if pos < length and input.substring(pos, pos + 1) == "." {
+        pos = pos + 1
+        while pos < length and _isDigit(input.substring(pos, pos + 1)) {
+            pos = pos + 1
+        }
+    }
+
+    if pos < length {
+        let eCh = input.substring(pos, pos + 1)
+        if eCh == "e" or eCh == "E" {
+            pos = pos + 1
+            if pos < length {
+                let signCh = input.substring(pos, pos + 1)
+                if signCh == "+" or signCh == "-" {
+                    pos = pos + 1
+                }
+            }
+            while pos < length and _isDigit(input.substring(pos, pos + 1)) {
+                pos = pos + 1
+            }
+        }
+    }
+
+    let numStr = input.substring(start, pos)
+    return $"{numStr}<<SEP>>{pos}"
+}
+
+_isDigit(ch: string): bool {
+    return ch == "0" or ch == "1" or ch == "2" or ch == "3" or ch == "4" or ch == "5" or ch == "6" or ch == "7" or ch == "8" or ch == "9"
+}
+
+_resultValue(result: string): string {
+    let parts = result.split("<<SEP>>")
+    return parts[0]
+}
+
+_resultPos(result: string): number {
+    let parts = result.split("<<SEP>>")
+    let pos, err = parseInt(parts[1])
+    if err {
+        return 0
+    }
+    return pos
+}
+
+_isTokenLBrace(t: string): bool => t == "T_LBRACE"
+_isTokenRBrace(t: string): bool => t == "T_RBRACE"
+_isTokenLBracket(t: string): bool => t == "T_LBRACKET"
+_isTokenRBracket(t: string): bool => t == "T_RBRACKET"
+_isTokenColon(t: string): bool => t == "T_COLON"
+_isTokenComma(t: string): bool => t == "T_COMMA"
+_isTokenString(t: string): bool => t.startsWith("T_STRING::")
+_isTokenNumber(t: string): bool => t.startsWith("T_NUMBER::")
+_isTokenBool(t: string): bool => t.startsWith("T_BOOL::")
+_isTokenNull(t: string): bool => t == "T_NULL"
+_isTokenEOF(t: string): bool => t == "T_EOF"
+
+_getTokenStringValue(t: string): string => t.removePrefix("T_STRING::")
+_getTokenNumberValue(t: string): string => t.removePrefix("T_NUMBER::")
+_getTokenBoolValue(t: string): bool {
+    let raw = t.removePrefix("T_BOOL::")
+    return raw == "true"
+}
+
+// ══════════════════════════════════════════════════════════════
+// Parser (from parser.liva) — class-based to avoid ownership moves
+// ══════════════════════════════════════════════════════════════
+
+JsonParser {
+    tokens: [string]
+
+    constructor(tokens: [string]) {
+        this.tokens = tokens
+    }
+
+    parseValue(index: number): string {
+        let token = this.tokens[index]
+
+        if _isTokenNull(token) {
+            return $"{_jsonNull()}<<PR>>{index + 1}"
+        }
+        let token2 = this.tokens[index]
+        if _isTokenBool(token2) {
+            let tok = this.tokens[index]
+            let bVal = _getTokenBoolValue(tok)
+            return $"{_jsonBool(bVal)}<<PR>>{index + 1}"
+        }
+        let token3 = this.tokens[index]
+        if _isTokenNumber(token3) {
+            let tok = this.tokens[index]
+            let numStr = _getTokenNumberValue(tok)
+            let numVal, err = parseFloat(numStr)
+            if err {
+                return $"{_jsonNumber(0.0)}<<PR>>{index + 1}"
+            }
+            return $"{_jsonNumber(numVal)}<<PR>>{index + 1}"
+        }
+        let token4 = this.tokens[index]
+        if _isTokenString(token4) {
+            let tok = this.tokens[index]
+            let strVal = _getTokenStringValue(tok)
+            return $"{_jsonString(strVal)}<<PR>>{index + 1}"
+        }
+        let token5 = this.tokens[index]
+        if _isTokenLBracket(token5) {
+            return this.parseArray(index)
+        }
+        let token6 = this.tokens[index]
+        if _isTokenLBrace(token6) {
+            return this.parseObject(index)
+        }
+
+        return $"{_jsonNull()}<<PR>>{index + 1}"
+    }
+
+    parseArray(index: number): string {
+        let pos = index + 1
+        let items: [string] = []
+
+        let firstTok = this.tokens[pos]
+        if _isTokenRBracket(firstTok) {
+            return $"{_jsonArray(items)}<<PR>>{pos + 1}"
+        }
+
+        let resultArr: [string] = [this.parseValue(pos)]
+        let resultVal = _prValue(resultArr[0])
+        let resultIdx = _prIndex(resultArr[0])
+        items.push(resultVal)
+        pos = resultIdx
+
+        while true {
+            let loopTok = this.tokens[pos]
+            if not _isTokenComma(loopTok) {
+                break
+            }
+            pos = pos + 1
+            let elemArr: [string] = [this.parseValue(pos)]
+            let elemVal = _prValue(elemArr[0])
+            let elemIdx = _prIndex(elemArr[0])
+            items.push(elemVal)
+            pos = elemIdx
+        }
+
+        pos = pos + 1
+        return $"{_jsonArray(items)}<<PR>>{pos}"
+    }
+
+    parseObject(index: number): string {
+        let pos = index + 1
+        let entries: [string] = []
+
+        let firstTok = this.tokens[pos]
+        if _isTokenRBrace(firstTok) {
+            return $"{_jsonObject(entries)}<<PR>>{pos + 1}"
+        }
+
+        let kvArr: [string] = [this.parseKeyValue(pos)]
+        let kvVal = _prValue(kvArr[0])
+        let kvIdx = _prIndex(kvArr[0])
+        entries.push(kvVal)
+        pos = kvIdx
+
+        while true {
+            let loopTok = this.tokens[pos]
+            if not _isTokenComma(loopTok) {
+                break
+            }
+            pos = pos + 1
+            let nkArr: [string] = [this.parseKeyValue(pos)]
+            let nkVal = _prValue(nkArr[0])
+            let nkIdx = _prIndex(nkArr[0])
+            entries.push(nkVal)
+            pos = nkIdx
+        }
+
+        pos = pos + 1
+        return $"{_jsonObject(entries)}<<PR>>{pos}"
+    }
+
+    parseKeyValue(index: number): string {
+        let pos = index
+
+        let tok = this.tokens[pos]
+        let key = _getTokenStringValue(tok)
+        pos = pos + 1
+
+        // Skip ':'
+        pos = pos + 1
+
+        let vrArr: [string] = [this.parseValue(pos)]
+        let val = _prValue(vrArr[0])
+        pos = _prIndex(vrArr[0])
+
+        let entry = _jsonEntry(key, val)
+        return $"{entry}<<PR>>{pos}"
+    }
+}
+
+_parse(input: string): string {
+    let tokens = _tokenize(input)
+    let parser = JsonParser(tokens)
+    let result = parser.parseValue(0)
+    let value = _prValue(result)
+    return value
+}
+
+_prValue(result: string): string {
+    let idx = result.lastIndexOf("<<PR>>")
+    if idx == -1 {
+        return result
+    }
+    return result.substring(0, idx)
+}
+
+_prIndex(result: string): number {
+    let idx = result.lastIndexOf("<<PR>>")
+    if idx == -1 {
+        return 0
+    }
+    let numStr = result.substring(idx + 6, result.length)
+    let num, err = parseInt(numStr)
+    if err {
+        return 0
+    }
+    return num
+}
+
+// ══════════════════════════════════════════════════════════════
+// Main — demo program
+// ══════════════════════════════════════════════════════════════
+
+main() {
+    print("╔══════════════════════════════════════════════════╗")
+    print("║       JSON Parser / Serializer — Liva           ║")
+    print("╚══════════════════════════════════════════════════╝")
+    print("")
+
+    _demoBuild()
+    _demoParse()
+    _demoRoundTrip()
+    _demoAllTypes()
+
+    print("")
+    print("✓ All demos completed successfully!")
+}
+
+_demoBuild() {
+    print("── 1. Building JSON programmatically ──")
+    print("")
+
+    let address = _jsonObject([
+        _jsonEntry("street", _jsonString("123 Main St")),
+        _jsonEntry("city", _jsonString("Springfield")),
+        _jsonEntry("zip", _jsonString("62701"))
+    ])
+
+    let hobbies = _jsonArray([
+        _jsonString("reading"),
+        _jsonString("coding"),
+        _jsonString("hiking")
+    ])
+
+    let person = _jsonObject([
+        _jsonEntry("name", _jsonString("Alice")),
+        _jsonEntry("age", _jsonNumber(30.0)),
+        _jsonEntry("active", _jsonBool(true)),
+        _jsonEntry("score", _jsonNumber(95.5)),
+        _jsonEntry("nickname", _jsonNull()),
+        _jsonEntry("address", address),
+        _jsonEntry("hobbies", hobbies)
+    ])
+
+    print("Compact:")
+    print(_jsonStringify(person))
+    print("")
+
+    print("Pretty (2 spaces):")
+    print(_jsonStringifyPretty(person, 2))
+    print("")
+
+    print("Pretty (4 spaces):")
+    print(_jsonStringifyPretty(person, 4))
+    print("")
+}
+
+_demoParse() {
+    print("── 2. Parsing a JSON string ──")
+    print("")
+
+    let input = "{\"name\":\"Bob\",\"age\":25,\"likes\":[\"music\",\"games\"],\"address\":{\"city\":\"Denver\"},\"employed\":true,\"notes\":null}"
+
+    print("Input:")
+    print(input)
+    print("")
+
+    let parsed = _parse(input)
+
+    print("Parsed and pretty-printed (2 spaces):")
+    print(_jsonStringifyPretty(parsed, 2))
+    print("")
+}
+
+_demoRoundTrip() {
+    print("── 3. Round-trip test ──")
+    print("")
+
+    let original = "{\"numbers\":[1,2.5,-3,0],\"nested\":{\"a\":{\"b\":{\"c\":true}}},\"empty_array\":[],\"empty_object\":{}}"
+
+    print("Original:")
+    print(original)
+
+    let parsed1 = _parse(original)
+    let serialized = _jsonStringify(parsed1)
+    print("")
+    print("After parse → stringify:")
+    print(serialized)
+
+    let parsed2 = _parse(serialized)
+    let serialized2 = _jsonStringify(parsed2)
+    print("")
+    print("After second round-trip:")
+    print(serialized2)
+
+    if serialized == serialized2 {
+        print("")
+        print("✓ Round-trip is stable!")
+    } else {
+        print("")
+        print("✗ Round-trip mismatch!")
+    }
+    print("")
+}
+
+_demoAllTypes() {
+    print("── 4. All JSON types ──")
+    print("")
+
+    let allTypes = _jsonObject([
+        _jsonEntry("string", _jsonString("hello world")),
+        _jsonEntry("integer", _jsonNumber(42.0)),
+        _jsonEntry("float", _jsonNumber(3.14)),
+        _jsonEntry("negative", _jsonNumber(-17.0)),
+        _jsonEntry("bool_true", _jsonBool(true)),
+        _jsonEntry("bool_false", _jsonBool(false)),
+        _jsonEntry("null_value", _jsonNull()),
+        _jsonEntry("array", _jsonArray([
+            _jsonNumber(1.0),
+            _jsonString("two"),
+            _jsonBool(true),
+            _jsonNull()
+        ])),
+        _jsonEntry("nested_object", _jsonObject([
+            _jsonEntry("key", _jsonString("value"))
+        ]))
+    ])
+
+    print("All types (pretty, 2 spaces):")
+    print(_jsonStringifyPretty(allTypes, 2))
+
+    print("Type checks:")
+    let isObj = _isJObject(allTypes)
+    print($"  isJObject: {isObj}")
+
+    let entries = _getJObjectEntries(allTypes)
+    let numKeys = entries.length
+    print($"  Number of keys: {numKeys}")
+
+    for entry in entries {
+        let k = _getEntryKey(entry)
+        let v = _getEntryValue(entry)
+        let typeStr = _describeType(v)
+        print($"  \"{k}\" → {typeStr}")
+    }
+    print("")
+}
+
+_describeType(v: string): string {
+    if _isJString(v) {
+        let s = _getJString(v)
+        return $"string(\"{s}\")"
+    }
+    if _isJNumber(v) {
+        let n = _getJNumber(v)
+        return $"number({n})"
+    }
+    if _isJBool(v) {
+        let b = _getJBool(v)
+        return $"bool({b})"
+    }
+    if _isJNull(v) {
+        return "null"
+    }
+    if _isJArray(v) {
+        let items = _getJArrayItems(v)
+        let count = items.length
+        return $"array[{count}]"
+    }
+    if _isJObject(v) {
+        let ents = _getJObjectEntries(v)
+        let numKeys = ents.length
+        return $"object({numKeys} keys)"
+    }
+    return "unknown"
+}

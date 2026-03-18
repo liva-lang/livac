@@ -1,0 +1,249 @@
+// Calculadora interactiva en Liva — versión single-file
+// Tokenizer + Recursive Descent Parser + REPL
+//
+// Merged to single file. Parser uses rust { } block to work around
+// codegen bugs with method error binding and array ownership in recursive calls.
+
+// === TOKENIZER ===
+
+Token { kind: string; value: string }
+
+_isDigit(ch: string): bool {
+    return ch == "0" or ch == "1" or ch == "2" or ch == "3" or ch == "4" or ch == "5" or ch == "6" or ch == "7" or ch == "8" or ch == "9"
+}
+
+tokenize(input: string): [Token] {
+    let chars = input.chars()
+    let tokens: [Token] = []
+    let i = 0
+
+    while i < chars.length {
+        let ch = chars[i]
+
+        if ch == " " or ch == "\t" {
+            i = i + 1
+            continue
+        }
+
+        if ch == "+" {
+            tokens.push(Token("PLUS", "+"))
+            i = i + 1
+            continue
+        }
+
+        if ch == "-" {
+            tokens.push(Token("MINUS", "-"))
+            i = i + 1
+            continue
+        }
+
+        if ch == "*" {
+            tokens.push(Token("STAR", "*"))
+            i = i + 1
+            continue
+        }
+
+        if ch == "/" {
+            tokens.push(Token("SLASH", "/"))
+            i = i + 1
+            continue
+        }
+
+        if ch == "(" {
+            tokens.push(Token("LPAREN", "("))
+            i = i + 1
+            continue
+        }
+
+        if ch == ")" {
+            tokens.push(Token("RPAREN", ")"))
+            i = i + 1
+            continue
+        }
+
+        if _isDigit(ch) or ch == "." {
+            let numStr = ""
+            let hasDot = false
+
+            while i < chars.length and (_isDigit(chars[i]) or chars[i] == ".") {
+                if chars[i] == "." {
+                    if hasDot {
+                        fail "Número inválido: doble punto decimal"
+                    }
+                    hasDot = true
+                }
+                numStr = numStr + chars[i]
+                i = i + 1
+            }
+
+            tokens.push(Token("NUM", numStr))
+            continue
+        }
+
+        fail $"Carácter inesperado: '{ch}'"
+    }
+
+    tokens.push(Token("EOF", ""))
+    return tokens
+}
+
+// === EVALUATOR ===
+// Uses rust { } for the recursive descent parser to avoid codegen issues
+// with method error binding, array ownership, and mutable shared state.
+
+evaluate(input: string): float {
+    let tokens, tokErr = tokenize(input)
+    if tokErr { fail $"Error: {tokErr}" }
+
+    let result = rust {
+        // Recursive descent parser implementation
+        struct Parser {
+            tokens: Vec<Token>,
+            pos: usize,
+        }
+
+        impl Parser {
+            fn current_kind(&self) -> &str {
+                &self.tokens[self.pos].kind
+            }
+
+            fn current_value(&self) -> &str {
+                &self.tokens[self.pos].value
+            }
+
+            fn advance(&mut self) {
+                self.pos += 1;
+            }
+
+            // factor: number | '(' expr ')' | unary +/- factor
+            fn parse_factor(&mut self) -> Result<f64, String> {
+                let kind = self.current_kind().to_string();
+                let value = self.current_value().to_string();
+
+                if kind == "NUM" {
+                    self.advance();
+                    value.parse::<f64>()
+                        .map_err(|_| format!("Número inválido: {}", value))
+                } else if kind == "LPAREN" {
+                    self.advance();
+                    let val = self.parse_expr()?;
+                    if self.current_kind() != "RPAREN" {
+                        return Err("Se esperaba ')'".to_string());
+                    }
+                    self.advance();
+                    Ok(val)
+                } else if kind == "MINUS" {
+                    self.advance();
+                    let val = self.parse_factor()?;
+                    Ok(-val)
+                } else if kind == "PLUS" {
+                    self.advance();
+                    self.parse_factor()
+                } else if kind == "EOF" {
+                    Err("Expresión incompleta".to_string())
+                } else {
+                    Err(format!("Token inesperado: '{}'", value))
+                }
+            }
+
+            // term: factor (('*' | '/') factor)*
+            fn parse_term(&mut self) -> Result<f64, String> {
+                let mut left = self.parse_factor()?;
+                while self.current_kind() == "STAR" || self.current_kind() == "SLASH" {
+                    let is_mul = self.current_kind() == "STAR";
+                    self.advance();
+                    let right = self.parse_factor()?;
+                    if is_mul {
+                        left *= right;
+                    } else {
+                        if right == 0.0 {
+                            return Err("División por cero".to_string());
+                        }
+                        left /= right;
+                    }
+                }
+                Ok(left)
+            }
+
+            // expr: term (('+' | '-') term)*
+            fn parse_expr(&mut self) -> Result<f64, String> {
+                let mut left = self.parse_term()?;
+                while self.current_kind() == "PLUS" || self.current_kind() == "MINUS" {
+                    let is_add = self.current_kind() == "PLUS";
+                    self.advance();
+                    let right = self.parse_term()?;
+                    if is_add {
+                        left += right;
+                    } else {
+                        left -= right;
+                    }
+                }
+                Ok(left)
+            }
+        }
+
+        let mut parser = Parser { tokens: tokens, pos: 0 };
+        match parser.parse_expr() {
+            Ok(val) => {
+                if parser.current_kind() != "EOF" {
+                    let msg = format!("Input inesperado después de la expresión: '{}'",
+                        parser.current_value());
+                    return Err(liva_rt::Error::new(msg, "evaluate", "main.liva"));
+                }
+                val
+            },
+            Err(e) => {
+                return Err(liva_rt::Error::new(e, "evaluate", "main.liva"));
+            }
+        }
+    }
+
+    return result
+}
+
+// === MAIN ===
+
+main() {
+    print("╔═══════════════════════════════════════╗")
+    print("║       Calculadora Liva v1.0           ║")
+    print("╠═══════════════════════════════════════╣")
+    print("║  Operaciones: + - * / ( )             ║")
+    print("║  Ejemplos: 2 + 3, (4 + 5) * 2, -7/3  ║")
+    print("║  Escribe 'salir' para terminar        ║")
+    print("╚═══════════════════════════════════════╝")
+    print("")
+
+    let running = true
+    while running {
+        let input = console.input("calc> ")
+        let trimmed = input.trim()
+
+        if trimmed == "salir" or trimmed == "exit" or trimmed == "quit" {
+            print("¡Hasta luego!")
+            running = false
+            continue
+        }
+
+        if trimmed == "help" or trimmed == "ayuda" {
+            print("  Operadores: + (suma), - (resta), * (multiplicación), / (división)")
+            print("  Paréntesis: ( ) para agrupar operaciones")
+            print("  Ejemplos:")
+            print("    2 + 3           => 5")
+            print("    (10 - 2) * 4    => 32")
+            print("    -3.5 + 1.2      => -2.3")
+            print("    100 / (2 + 3)   => 20")
+            continue
+        }
+
+        if trimmed.isEmpty() {
+            continue
+        }
+
+        let result, err = evaluate(trimmed)
+        if err {
+            print($"  Error: {err}")
+        } else {
+            print($"  = {result}")
+        }
+    }
+}

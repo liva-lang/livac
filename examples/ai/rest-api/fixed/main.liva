@@ -1,0 +1,934 @@
+// REST API — Library Management (merged single-file)
+// Uses actix-web via rust { } interop for HTTP server
+// Liva handles data types, CRUD logic, validation, and persistence
+// Rust handles HTTP routing, request/response, and server setup
+
+use rust "actix-web" version "4" features ["macros"]
+use rust "actix-rt" version "2"
+use rust "serde" version "1" features ["derive"]
+use rust "serde_json" features ["preserve_order"]
+
+// =============================================
+// Data Classes
+// =============================================
+
+Author {
+    id: i32
+    name: String
+    nationality: String
+}
+
+Book {
+    id: i32
+    title: String
+    authorId: i32
+    year: i32
+    isbn: String
+}
+
+Database {
+    authors: [Author]
+    books: [Book]
+    nextAuthorId: i32
+    nextBookId: i32
+}
+
+PaginatedAuthors {
+    data: [Author]
+    page: i32
+    limit: i32
+    total: i32
+    totalPages: i32
+}
+
+PaginatedBooks {
+    data: [Book]
+    page: i32
+    limit: i32
+    total: i32
+    totalPages: i32
+}
+
+AuthorInput {
+    name: String
+    nationality: String
+}
+
+BookInput {
+    title: String
+    authorId: i32
+    year: i32
+    isbn: String
+}
+
+// Force serde derives for all types used in HTTP JSON serialization.
+// These JSON.parse calls trigger the compiler to generate
+// Serialize/Deserialize derives on these data classes.
+_registerJsonTypes() {
+    let pa: PaginatedAuthors, e1 = JSON.parse("{}")
+    let pb: PaginatedBooks, e2 = JSON.parse("{}")
+    let ai: AuthorInput, e3 = JSON.parse("{}")
+    let bi: BookInput, e4 = JSON.parse("{}")
+}
+
+// =============================================
+// Database Layer
+// =============================================
+
+_dbFile(): string {
+    let name = "library_data.json"
+    return name
+}
+
+_emptyDb(): Database {
+    return Database([], [], 1, 1)
+}
+
+loadDb(): Database {
+    let path = _dbFile()
+    if File.exists(path) {
+        let content, err = File.read(path)
+        if err {
+            Log.error($"Failed to read database file: {err}")
+            return _emptyDb()
+        }
+        let db: Database, parseErr = JSON.parse(content)
+        if parseErr {
+            Log.error($"Failed to parse database JSON: {parseErr}")
+            return _emptyDb()
+        }
+        return db
+    }
+    return _emptyDb()
+}
+
+saveDb(db: Database) {
+    let path = _dbFile()
+    let json = JSON.stringify(db)
+    let writeOk, err = File.write(path, json)
+    if err {
+        Log.error($"Failed to write database file: {err}")
+        fail "Could not persist data"
+    }
+}
+
+// =============================================
+// Author CRUD
+// =============================================
+
+getAllAuthors(db: Database): [Author] {
+    return db.authors
+}
+
+getAuthorById(db: Database, id: i32): Author {
+    for author in db.authors {
+        if author.id == id {
+            return author
+        }
+    }
+    fail $"Author with id {id} not found"
+}
+
+createAuthor(db: Database, name: String, nationality: String): (Database, Author) {
+    let id = db.nextAuthorId
+    // Create author for array and separately for return (avoids ownership move)
+    let newAuthors = db.authors + [Author(id, name, nationality)]
+    let newDb = Database(newAuthors, db.books, db.nextAuthorId + 1, db.nextBookId)
+    let author = Author(id, name, nationality)
+    return (newDb, author)
+}
+
+updateAuthor(db: Database, id: i32, name: String, nationality: String): (Database, Author) {
+    let found = false
+    let newAuthors: [Author] = []
+    for author in db.authors {
+        if author.id == id {
+            // Use inline constructor to avoid move issues
+            newAuthors = newAuthors + [Author(id, name, nationality)]
+            found = true
+        } else {
+            newAuthors = newAuthors + [author]
+        }
+    }
+    if not found {
+        fail $"Author with id {id} not found"
+    }
+    let newDb = Database(newAuthors, db.books, db.nextAuthorId, db.nextBookId)
+    // Create updated author for return
+    let updated = Author(id, name, nationality)
+    return (newDb, updated)
+}
+
+deleteAuthor(db: Database, id: i32): Database {
+    // Single pass over books: check for associated books AND rebuild array
+    let hasAssociatedBooks = false
+    let existingBooks: [Book] = []
+    for book in db.books {
+        if book.authorId == id {
+            hasAssociatedBooks = true
+        }
+        existingBooks = existingBooks + [book]
+    }
+    if hasAssociatedBooks {
+        fail $"Cannot delete author {id}: has associated books. Delete books first."
+    }
+    let found = false
+    let newAuthors: [Author] = []
+    for author in db.authors {
+        if author.id == id {
+            found = true
+        } else {
+            newAuthors = newAuthors + [author]
+        }
+    }
+    if not found {
+        fail $"Author with id {id} not found"
+    }
+    return Database(newAuthors, existingBooks, db.nextAuthorId, db.nextBookId)
+}
+
+// =============================================
+// Book CRUD
+// =============================================
+
+getAllBooks(db: Database): [Book] {
+    return db.books
+}
+
+getBookById(db: Database, id: i32): Book {
+    for book in db.books {
+        if book.id == id {
+            return book
+        }
+    }
+    fail $"Book with id {id} not found"
+}
+
+createBook(db: Database, title: String, authorId: i32, year: i32, isbn: String): (Database, Book) {
+    // Single pass over authors: check existence AND rebuild
+    let authorFound = false
+    let authors: [Author] = []
+    for author in db.authors {
+        if author.id == authorId {
+            authorFound = true
+        }
+        authors = authors + [author]
+    }
+    if not authorFound {
+        fail $"Author with id {authorId} not found"
+    }
+    // Single pass over books: check ISBN AND rebuild
+    let existingBooks: [Book] = []
+    for book in db.books {
+        if book.isbn == isbn {
+            fail $"Book with ISBN {isbn} already exists"
+        }
+        existingBooks = existingBooks + [book]
+    }
+    let bookId = db.nextBookId
+    let newBooks = existingBooks + [Book(bookId, title, authorId, year, isbn)]
+    let newDb = Database(authors, newBooks, db.nextAuthorId, db.nextBookId + 1)
+    // Recreate for return (avoids ownership move)
+    let newBook = Book(bookId, title, authorId, year, isbn)
+    return (newDb, newBook)
+}
+
+updateBook(db: Database, id: i32, title: String, authorId: i32, year: i32, isbn: String): (Database, Book) {
+    // Single pass over authors: check existence AND rebuild
+    let authorFound = false
+    let authors: [Author] = []
+    for author in db.authors {
+        if author.id == authorId {
+            authorFound = true
+        }
+        authors = authors + [author]
+    }
+    if not authorFound {
+        fail $"Author with id {authorId} not found"
+    }
+    // Single pass over books: check ISBN uniqueness AND rebuild with update
+    let found = false
+    let newBooks: [Book] = []
+    for book in db.books {
+        if book.isbn == isbn and book.id != id {
+            fail $"Book with ISBN {isbn} already exists"
+        }
+        if book.id == id {
+            newBooks = newBooks + [Book(id, title, authorId, year, isbn)]
+            found = true
+        } else {
+            newBooks = newBooks + [book]
+        }
+    }
+    if not found {
+        fail $"Book with id {id} not found"
+    }
+    let newDb = Database(authors, newBooks, db.nextAuthorId, db.nextBookId)
+    let updated = Book(id, title, authorId, year, isbn)
+    return (newDb, updated)
+}
+
+deleteBook(db: Database, id: i32): Database {
+    let found = false
+    let newBooks: [Book] = []
+    // Single pass: filter book AND rebuild remaining
+    for book in db.books {
+        if book.id == id {
+            found = true
+        } else {
+            newBooks = newBooks + [book]
+        }
+    }
+    if not found {
+        fail $"Book with id {id} not found"
+    }
+    // Rebuild authors (db.authors consumed separately)
+    let authors: [Author] = []
+    for author in db.authors {
+        authors = authors + [author]
+    }
+    return Database(authors, newBooks, db.nextAuthorId, db.nextBookId)
+}
+
+// =============================================
+// Search
+// =============================================
+
+searchBooksByTitle(db: Database, query: String): [Book] {
+    let queryLower = query.toLowerCase()
+    let results: [Book] = []
+    for book in db.books {
+        if book.title.toLowerCase().contains(queryLower) {
+            results = results + [book]
+        }
+    }
+    return results
+}
+
+searchBooksByAuthor(db: Database, query: String): [Book] {
+    let queryLower = query.toLowerCase()
+    let matchingAuthorIds: [i32] = []
+    for author in db.authors {
+        if author.name.toLowerCase().contains(queryLower) {
+            matchingAuthorIds = matchingAuthorIds + [author.id]
+        }
+    }
+    // Avoid nested loop move issues: check matched flag, then move
+    let results: [Book] = []
+    for book in db.books {
+        let matched = false
+        for aid in matchingAuthorIds {
+            if book.authorId == aid {
+                matched = true
+            }
+        }
+        if matched {
+            results = results + [book]
+        }
+    }
+    return results
+}
+
+getBooksByAuthorId(db: Database, authorId: i32): [Book] {
+    let results: [Book] = []
+    for book in db.books {
+        if book.authorId == authorId {
+            results = results + [book]
+        }
+    }
+    return results
+}
+
+// =============================================
+// Validation
+// =============================================
+
+validateAuthorInput(name: String, nationality: String) {
+    if name.trim().isEmpty() {
+        fail "Author name is required"
+    }
+    if name.trim().length < 2 {
+        fail "Author name must be at least 2 characters"
+    }
+    if nationality.trim().isEmpty() {
+        fail "Nationality is required"
+    }
+    if nationality.trim().length < 2 {
+        fail "Nationality must be at least 2 characters"
+    }
+}
+
+validateBookInput(title: String, authorId: i32, year: i32, isbn: String) {
+    if title.trim().isEmpty() {
+        fail "Book title is required"
+    }
+    if authorId <= 0 {
+        fail "Valid authorId is required (must be > 0)"
+    }
+    if year < 0 or year > 2100 {
+        fail "Year must be between 0 and 2100"
+    }
+    if isbn.trim().isEmpty() {
+        fail "ISBN is required"
+    }
+    if isbn.trim().length < 10 {
+        fail "ISBN must be at least 10 characters"
+    }
+    if isbn.trim().length > 17 {
+        fail "ISBN must be at most 17 characters"
+    }
+}
+
+// =============================================
+// Pagination Helpers
+// =============================================
+
+_paginateAuthors(authors: [Author], page: i32, limit: i32): PaginatedAuthors {
+    let total = authors.length
+    let totalPages = (total + limit - 1) / limit
+    let start = (page - 1) * limit
+    let result: [Author] = []
+    let idx = 0
+    for author in authors {
+        if idx >= start and idx < start + limit {
+            result = result + [author]
+        }
+        idx = idx + 1
+    }
+    return PaginatedAuthors(result, page, limit, total, totalPages)
+}
+
+_paginateBooks(books: [Book], page: i32, limit: i32): PaginatedBooks {
+    let total = books.length
+    let totalPages = (total + limit - 1) / limit
+    let start = (page - 1) * limit
+    let result: [Book] = []
+    let idx = 0
+    for book in books {
+        if idx >= start and idx < start + limit {
+            result = result + [book]
+        }
+        idx = idx + 1
+    }
+    return PaginatedBooks(result, page, limit, total, totalPages)
+}
+
+// =============================================
+// Main: HTTP Server (actix-web via rust interop)
+// =============================================
+
+main() {
+    Log.info("Starting Library REST API server...")
+
+    rust {
+        use actix_web::{web, App, HttpServer, HttpRequest, HttpResponse};
+        use std::sync::Mutex;
+
+        // Shared app state holding the database
+        struct AppState {
+            db: Mutex<Database>,
+        }
+
+        // === AUTHOR HANDLERS ===
+
+        // GET /api/authors?page=1&limit=10
+        async fn list_authors(
+            data: web::Data<AppState>,
+            req: HttpRequest,
+        ) -> HttpResponse {
+            let db = data.db.lock().unwrap().clone();
+            let query = web::Query::<std::collections::HashMap<String, String>>::from_query(
+                req.query_string()
+            );
+            let (page_str, limit_str) = match &query {
+                Ok(q) => (
+                    q.get("page").cloned().unwrap_or_default(),
+                    q.get("limit").cloned().unwrap_or_default(),
+                ),
+                Err(_) => (String::new(), String::new()),
+            };
+
+            let page: i32 = page_str.parse().unwrap_or(1);
+            let limit: i32 = limit_str.parse().unwrap_or(10);
+            if page < 1 || limit < 1 || limit > 100 {
+                return HttpResponse::BadRequest().json(
+                    serde_json::json!({"error": "Invalid pagination parameters", "status": 400})
+                );
+            }
+
+            let authors = get_all_authors(db);
+            let paginated = _paginate_authors(authors, page, limit);
+            HttpResponse::Ok().json(paginated)
+        }
+
+        // GET /api/authors/{id}
+        async fn get_author(
+            data: web::Data<AppState>,
+            path: web::Path<String>,
+        ) -> HttpResponse {
+            let db = data.db.lock().unwrap().clone();
+            let id_str = path.into_inner();
+            let id: i32 = match id_str.parse() {
+                Ok(v) => v,
+                Err(_) => return HttpResponse::BadRequest().json(
+                    serde_json::json!({"error": "Invalid author ID", "status": 400})
+                ),
+            };
+
+            match get_author_by_id(db, id) {
+                Ok(author) => HttpResponse::Ok().json(author),
+                Err(e) => HttpResponse::NotFound().json(
+                    serde_json::json!({"error": e.message, "status": 404})
+                ),
+            }
+        }
+
+        // POST /api/authors
+        async fn create_author_handler(
+            data: web::Data<AppState>,
+            body: web::Json<AuthorInput>,
+        ) -> HttpResponse {
+            let input = body.into_inner();
+            if let Err(e) = validate_author_input(input.name.clone(), input.nationality.clone()) {
+                return HttpResponse::BadRequest().json(
+                    serde_json::json!({"error": e.message, "status": 400})
+                );
+            }
+
+            let mut db = data.db.lock().unwrap();
+            // create_author is non-fallible, returns (Database, Author) directly
+            let (new_db, author) = create_author(
+                db.clone(), input.name.clone(), input.nationality.clone()
+            );
+            *db = new_db.clone();
+            drop(db);
+
+            if let Err(_) = save_db(new_db) {
+                return HttpResponse::InternalServerError().json(
+                    serde_json::json!({"error": "Failed to persist data", "status": 500})
+                );
+            }
+            HttpResponse::Created().json(author)
+        }
+
+        // PUT /api/authors/{id}
+        async fn update_author_handler(
+            data: web::Data<AppState>,
+            path: web::Path<String>,
+            body: web::Json<AuthorInput>,
+        ) -> HttpResponse {
+            let id_str = path.into_inner();
+            let id: i32 = match id_str.parse() {
+                Ok(v) => v,
+                Err(_) => return HttpResponse::BadRequest().json(
+                    serde_json::json!({"error": "Invalid author ID", "status": 400})
+                ),
+            };
+
+            let input = body.into_inner();
+            if let Err(e) = validate_author_input(input.name.clone(), input.nationality.clone()) {
+                return HttpResponse::BadRequest().json(
+                    serde_json::json!({"error": e.message, "status": 400})
+                );
+            }
+
+            let mut db = data.db.lock().unwrap();
+            match update_author(db.clone(), id, input.name.clone(), input.nationality.clone()) {
+                Ok((new_db, author)) => {
+                    *db = new_db.clone();
+                    drop(db);
+                    if let Err(_) = save_db(new_db) {
+                        return HttpResponse::InternalServerError().json(
+                            serde_json::json!({"error": "Failed to persist data", "status": 500})
+                        );
+                    }
+                    HttpResponse::Ok().json(author)
+                }
+                Err(e) => HttpResponse::NotFound().json(
+                    serde_json::json!({"error": e.message, "status": 404})
+                ),
+            }
+        }
+
+        // DELETE /api/authors/{id}
+        async fn delete_author_handler(
+            data: web::Data<AppState>,
+            path: web::Path<String>,
+        ) -> HttpResponse {
+            let id_str = path.into_inner();
+            let id: i32 = match id_str.parse() {
+                Ok(v) => v,
+                Err(_) => return HttpResponse::BadRequest().json(
+                    serde_json::json!({"error": "Invalid author ID", "status": 400})
+                ),
+            };
+
+            let mut db = data.db.lock().unwrap();
+            match delete_author(db.clone(), id) {
+                Ok(new_db) => {
+                    *db = new_db.clone();
+                    drop(db);
+                    if let Err(_) = save_db(new_db) {
+                        return HttpResponse::InternalServerError().json(
+                            serde_json::json!({"error": "Failed to persist data", "status": 500})
+                        );
+                    }
+                    HttpResponse::NoContent().finish()
+                }
+                Err(e) => {
+                    if e.message.contains("not found") {
+                        HttpResponse::NotFound().json(
+                            serde_json::json!({"error": e.message, "status": 404})
+                        )
+                    } else {
+                        HttpResponse::Conflict().json(
+                            serde_json::json!({"error": e.message, "status": 409})
+                        )
+                    }
+                }
+            }
+        }
+
+        // GET /api/authors/{id}/books
+        async fn get_author_books(
+            data: web::Data<AppState>,
+            path: web::Path<String>,
+            req: HttpRequest,
+        ) -> HttpResponse {
+            let db = data.db.lock().unwrap().clone();
+            let id_str = path.into_inner();
+            let id: i32 = match id_str.parse() {
+                Ok(v) => v,
+                Err(_) => return HttpResponse::BadRequest().json(
+                    serde_json::json!({"error": "Invalid author ID", "status": 400})
+                ),
+            };
+
+            // Check author exists (fallible)
+            if let Err(e) = get_author_by_id(db.clone(), id) {
+                return HttpResponse::NotFound().json(
+                    serde_json::json!({"error": e.message, "status": 404})
+                );
+            }
+
+            let query = web::Query::<std::collections::HashMap<String, String>>::from_query(
+                req.query_string()
+            );
+            let (page_str, limit_str) = match &query {
+                Ok(q) => (
+                    q.get("page").cloned().unwrap_or_default(),
+                    q.get("limit").cloned().unwrap_or_default(),
+                ),
+                Err(_) => (String::new(), String::new()),
+            };
+            let page: i32 = page_str.parse().unwrap_or(1);
+            let limit: i32 = limit_str.parse().unwrap_or(10);
+
+            let books = get_books_by_author_id(db, id);
+            let paginated = _paginate_books(books, page, limit);
+            HttpResponse::Ok().json(paginated)
+        }
+
+        // === BOOK HANDLERS ===
+
+        // GET /api/books?page=1&limit=10&title=...&author=...
+        async fn list_books(
+            data: web::Data<AppState>,
+            req: HttpRequest,
+        ) -> HttpResponse {
+            let db = data.db.lock().unwrap().clone();
+            let query = web::Query::<std::collections::HashMap<String, String>>::from_query(
+                req.query_string()
+            );
+            let (page_str, limit_str, title_q, author_q) = match &query {
+                Ok(q) => (
+                    q.get("page").cloned().unwrap_or_default(),
+                    q.get("limit").cloned().unwrap_or_default(),
+                    q.get("title").cloned().unwrap_or_default(),
+                    q.get("author").cloned().unwrap_or_default(),
+                ),
+                Err(_) => (String::new(), String::new(), String::new(), String::new()),
+            };
+
+            let page: i32 = page_str.parse().unwrap_or(1);
+            let limit: i32 = limit_str.parse().unwrap_or(10);
+            if page < 1 || limit < 1 || limit > 100 {
+                return HttpResponse::BadRequest().json(
+                    serde_json::json!({"error": "Invalid pagination parameters", "status": 400})
+                );
+            }
+
+            let books = if !title_q.is_empty() {
+                search_books_by_title(db.clone(), title_q)
+            } else if !author_q.is_empty() {
+                search_books_by_author(db.clone(), author_q)
+            } else {
+                get_all_books(db.clone())
+            };
+
+            let paginated = _paginate_books(books, page, limit);
+            HttpResponse::Ok().json(paginated)
+        }
+
+        // GET /api/books/{id}
+        async fn get_book(
+            data: web::Data<AppState>,
+            path: web::Path<String>,
+        ) -> HttpResponse {
+            let db = data.db.lock().unwrap().clone();
+            let id_str = path.into_inner();
+            let id: i32 = match id_str.parse() {
+                Ok(v) => v,
+                Err(_) => return HttpResponse::BadRequest().json(
+                    serde_json::json!({"error": "Invalid book ID", "status": 400})
+                ),
+            };
+
+            match get_book_by_id(db, id) {
+                Ok(book) => HttpResponse::Ok().json(book),
+                Err(e) => HttpResponse::NotFound().json(
+                    serde_json::json!({"error": e.message, "status": 404})
+                ),
+            }
+        }
+
+        // POST /api/books
+        async fn create_book_handler(
+            data: web::Data<AppState>,
+            body: web::Json<BookInput>,
+        ) -> HttpResponse {
+            let input = body.into_inner();
+            if let Err(e) = validate_book_input(
+                input.title.clone(), input.author_id, input.year, input.isbn.clone()
+            ) {
+                return HttpResponse::BadRequest().json(
+                    serde_json::json!({"error": e.message, "status": 400})
+                );
+            }
+
+            let mut db = data.db.lock().unwrap();
+            // create_book is fallible (checks author exists + ISBN uniqueness)
+            match create_book(
+                db.clone(), input.title.clone(), input.author_id,
+                input.year, input.isbn.clone()
+            ) {
+                Ok((new_db, book)) => {
+                    *db = new_db.clone();
+                    drop(db);
+                    if let Err(_) = save_db(new_db) {
+                        return HttpResponse::InternalServerError().json(
+                            serde_json::json!({"error": "Failed to persist data", "status": 500})
+                        );
+                    }
+                    HttpResponse::Created().json(book)
+                }
+                Err(e) => {
+                    if e.message.contains("not found") {
+                        HttpResponse::BadRequest().json(
+                            serde_json::json!({"error": e.message, "status": 400})
+                        )
+                    } else if e.message.contains("already exists") {
+                        HttpResponse::Conflict().json(
+                            serde_json::json!({"error": e.message, "status": 409})
+                        )
+                    } else {
+                        HttpResponse::InternalServerError().json(
+                            serde_json::json!({"error": e.message, "status": 500})
+                        )
+                    }
+                }
+            }
+        }
+
+        // PUT /api/books/{id}
+        async fn update_book_handler(
+            data: web::Data<AppState>,
+            path: web::Path<String>,
+            body: web::Json<BookInput>,
+        ) -> HttpResponse {
+            let id_str = path.into_inner();
+            let id: i32 = match id_str.parse() {
+                Ok(v) => v,
+                Err(_) => return HttpResponse::BadRequest().json(
+                    serde_json::json!({"error": "Invalid book ID", "status": 400})
+                ),
+            };
+
+            let input = body.into_inner();
+            if let Err(e) = validate_book_input(
+                input.title.clone(), input.author_id, input.year, input.isbn.clone()
+            ) {
+                return HttpResponse::BadRequest().json(
+                    serde_json::json!({"error": e.message, "status": 400})
+                );
+            }
+
+            let mut db = data.db.lock().unwrap();
+            match update_book(
+                db.clone(), id, input.title.clone(), input.author_id,
+                input.year, input.isbn.clone()
+            ) {
+                Ok((new_db, book)) => {
+                    *db = new_db.clone();
+                    drop(db);
+                    if let Err(_) = save_db(new_db) {
+                        return HttpResponse::InternalServerError().json(
+                            serde_json::json!({"error": "Failed to persist data", "status": 500})
+                        );
+                    }
+                    HttpResponse::Ok().json(book)
+                }
+                Err(e) => {
+                    if e.message.contains("not found") {
+                        HttpResponse::NotFound().json(
+                            serde_json::json!({"error": e.message, "status": 404})
+                        )
+                    } else if e.message.contains("already exists") {
+                        HttpResponse::Conflict().json(
+                            serde_json::json!({"error": e.message, "status": 409})
+                        )
+                    } else {
+                        HttpResponse::InternalServerError().json(
+                            serde_json::json!({"error": e.message, "status": 500})
+                        )
+                    }
+                }
+            }
+        }
+
+        // DELETE /api/books/{id}
+        async fn delete_book_handler(
+            data: web::Data<AppState>,
+            path: web::Path<String>,
+        ) -> HttpResponse {
+            let id_str = path.into_inner();
+            let id: i32 = match id_str.parse() {
+                Ok(v) => v,
+                Err(_) => return HttpResponse::BadRequest().json(
+                    serde_json::json!({"error": "Invalid book ID", "status": 400})
+                ),
+            };
+
+            let mut db = data.db.lock().unwrap();
+            match delete_book(db.clone(), id) {
+                Ok(new_db) => {
+                    *db = new_db.clone();
+                    drop(db);
+                    if let Err(_) = save_db(new_db) {
+                        return HttpResponse::InternalServerError().json(
+                            serde_json::json!({"error": "Failed to persist data", "status": 500})
+                        );
+                    }
+                    HttpResponse::NoContent().finish()
+                }
+                Err(e) => HttpResponse::NotFound().json(
+                    serde_json::json!({"error": e.message, "status": 404})
+                ),
+            }
+        }
+
+        // === SEARCH ENDPOINT ===
+
+        // GET /api/search/books?title=...&author=...
+        async fn search_books(
+            data: web::Data<AppState>,
+            req: HttpRequest,
+        ) -> HttpResponse {
+            let db = data.db.lock().unwrap().clone();
+            let query = web::Query::<std::collections::HashMap<String, String>>::from_query(
+                req.query_string()
+            );
+            let (title_q, author_q, page_str, limit_str) = match &query {
+                Ok(q) => (
+                    q.get("title").cloned().unwrap_or_default(),
+                    q.get("author").cloned().unwrap_or_default(),
+                    q.get("page").cloned().unwrap_or_default(),
+                    q.get("limit").cloned().unwrap_or_default(),
+                ),
+                Err(_) => (String::new(), String::new(), String::new(), String::new()),
+            };
+
+            if title_q.is_empty() && author_q.is_empty() {
+                return HttpResponse::BadRequest().json(
+                    serde_json::json!({"error": "Provide 'title' or 'author' query parameter", "status": 400})
+                );
+            }
+
+            let page: i32 = page_str.parse().unwrap_or(1);
+            let limit: i32 = limit_str.parse().unwrap_or(10);
+
+            let books = if !title_q.is_empty() {
+                search_books_by_title(db.clone(), title_q)
+            } else {
+                search_books_by_author(db.clone(), author_q)
+            };
+
+            let paginated = _paginate_books(books, page, limit);
+            HttpResponse::Ok().json(paginated)
+        }
+
+        // === SERVER SETUP ===
+
+        let initial_db = load_db();
+
+        let app_data = web::Data::new(AppState {
+            db: Mutex::new(initial_db),
+        });
+
+        println!("===========================================");
+        println!("  Library REST API — http://127.0.0.1:8080");
+        println!("===========================================");
+        println!("");
+        println!("Endpoints:");
+        println!("  AUTHORS");
+        println!("    GET    /api/authors          — List (paginated)");
+        println!("    GET    /api/authors/:id       — Get by ID");
+        println!("    POST   /api/authors           — Create");
+        println!("    PUT    /api/authors/:id        — Update");
+        println!("    DELETE /api/authors/:id        — Delete");
+        println!("    GET    /api/authors/:id/books  — Author's books");
+        println!("");
+        println!("  BOOKS");
+        println!("    GET    /api/books             — List (paginated, ?title=, ?author=)");
+        println!("    GET    /api/books/:id          — Get by ID");
+        println!("    POST   /api/books              — Create");
+        println!("    PUT    /api/books/:id           — Update");
+        println!("    DELETE /api/books/:id           — Delete");
+        println!("");
+        println!("  SEARCH");
+        println!("    GET    /api/search/books?title=...  — Search by title");
+        println!("    GET    /api/search/books?author=... — Search by author");
+        println!("");
+        println!("Pagination: ?page=1&limit=10");
+        println!("===========================================");
+
+        // Use actix_rt to run async server from sync main()
+        let system = actix_rt::System::new();
+        system.block_on(async {
+            HttpServer::new(move || {
+                App::new()
+                    // Authors
+                    .route("/api/authors", web::get().to(list_authors))
+                    .route("/api/authors", web::post().to(create_author_handler))
+                    .route("/api/authors/{id}", web::get().to(get_author))
+                    .route("/api/authors/{id}", web::put().to(update_author_handler))
+                    .route("/api/authors/{id}", web::delete().to(delete_author_handler))
+                    .route("/api/authors/{id}/books", web::get().to(get_author_books))
+                    // Books
+                    .route("/api/books", web::get().to(list_books))
+                    .route("/api/books", web::post().to(create_book_handler))
+                    .route("/api/books/{id}", web::get().to(get_book))
+                    .route("/api/books/{id}", web::put().to(update_book_handler))
+                    .route("/api/books/{id}", web::delete().to(delete_book_handler))
+                    // Search
+                    .route("/api/search/books", web::get().to(search_books))
+                    .app_data(app_data.clone())
+            })
+            .bind("127.0.0.1:8080")
+            .expect("Failed to bind to 127.0.0.1:8080")
+            .run()
+            .await
+            .expect("Server error");
+        });
+    }
+}
