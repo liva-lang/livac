@@ -6447,6 +6447,7 @@ impl CodeGenerator {
                         if let Some(elem_type) = self.typed_array_vars.get(&sanitized) {
                             // Clone for string and class instance types (not number/bool)
                             elem_type == "string" || self.class_fields.contains_key(elem_type)
+                                || elem_type.contains("[]")
                         } else {
                             false
                         }
@@ -7439,6 +7440,22 @@ impl CodeGenerator {
                         } else {
                             self.generate_expr(arg)?;
                         }
+                    } else if let Expr::Index { object, .. } = arg {
+                        // B35 fix: Clone array index access when passing to constructors
+                        self.generate_expr(arg)?;
+                        if let Expr::Identifier(var_name) = object.as_ref() {
+                            let sanitized = self.sanitize_name(var_name);
+                            if self.array_vars.contains(&sanitized)
+                                || self.class_instance_vars.contains(&sanitized)
+                                || self.string_vars.contains(&sanitized)
+                                || self.map_vars.contains(&sanitized)
+                                || self.json_value_vars.contains(&sanitized)
+                            {
+                                if !self.output.ends_with(".clone()") {
+                                    self.output.push_str(".clone()");
+                                }
+                            }
+                        }
                     } else {
                         self.generate_expr(arg)?;
                     }
@@ -7492,6 +7509,24 @@ impl CodeGenerator {
                     self.output.push_str(".clone()");
                 } else {
                     self.generate_expr(arg)?;
+                }
+            } else if let Expr::Index { object, .. } = arg {
+                // B35 fix: Clone array index access when passing to functions
+                // arr[i] returns a reference in Rust — need .clone() for non-Copy types
+                self.generate_expr(arg)?;
+                if let Expr::Identifier(var_name) = object.as_ref() {
+                    let sanitized = self.sanitize_name(var_name);
+                    if self.array_vars.contains(&sanitized)
+                        || self.class_instance_vars.contains(&sanitized)
+                        || self.string_vars.contains(&sanitized)
+                        || self.map_vars.contains(&sanitized)
+                        || self.json_value_vars.contains(&sanitized)
+                    {
+                        // Only add .clone() if not already added by generate_expr
+                        if !self.output.ends_with(".clone()") {
+                            self.output.push_str(".clone()");
+                        }
+                    }
                 }
             } else {
                 self.generate_expr(arg)?;

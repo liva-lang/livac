@@ -4596,3 +4596,23 @@ main() {
     let rust_code = compile_and_generate(source);
     assert_snapshot!("v15_config_load_and_use", rust_code);
 }
+
+#[test]
+fn test_array_index_as_arg_clones() {
+    // B35: arr[i] as function argument should clone for non-Copy types
+    let source = r#"
+process(item: string) {
+    print(item)
+}
+
+main() {
+    let items = ["hello", "world"]
+    process(items[0])
+    process(items[1])
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // Should contain .clone() for string array index access
+    assert!(rust_code.contains(".clone()"), "Array index access as arg should clone: {}", rust_code);
+    assert_snapshot!("array_index_as_arg_clones", rust_code);
+}
