@@ -7469,6 +7469,10 @@ impl CodeGenerator {
                                 }
                             }
                         }
+                    } else if self.expr_is_self_field(arg) {
+                        // B44 fix: Clone non-Copy self fields when passing to constructors
+                        self.generate_expr(arg)?;
+                        self.output.push_str(".clone()");
                     } else {
                         self.generate_expr(arg)?;
                     }
@@ -7541,6 +7545,11 @@ impl CodeGenerator {
                         }
                     }
                 }
+            } else if self.expr_is_self_field(arg) {
+                // B44 fix: Clone non-Copy self fields when passing to functions
+                // In &self methods, self.field can't be moved — needs .clone()
+                self.generate_expr(arg)?;
+                self.output.push_str(".clone()");
             } else {
                 self.generate_expr(arg)?;
             }

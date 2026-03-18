@@ -4641,3 +4641,34 @@ main() {
     assert!(rust_code.contains(".clone()"), "this.tokens[i] should clone: {}", rust_code);
     assert_snapshot!("self_array_index_clones", rust_code);
 }
+
+#[test]
+fn test_self_field_as_arg_clones() {
+    // B44: this.field passed as function argument should clone in &self methods
+    let source = r#"
+format_priority(p: string): string {
+    return "Priority: " + p
+}
+
+Task {
+    title: string
+    priority: string
+
+    constructor(t: string, p: string) {
+        this.title = t
+        this.priority = p
+    }
+
+    label() => format_priority(this.priority)
+}
+
+main() {
+    let t = Task("Fix bug", "high")
+    print(t.label())
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // The label() method is &self, so this.priority needs .clone() when passed as arg
+    assert!(rust_code.contains("self.priority.clone()"), "self.field as arg should clone: {}", rust_code);
+    assert_snapshot!("self_field_as_arg_clones", rust_code);
+}
