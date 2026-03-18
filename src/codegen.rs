@@ -2613,13 +2613,29 @@ impl CodeGenerator {
             TopLevel::ConstDecl(const_decl) => {
                 write!(self.output, "const {}: ", const_decl.name.to_uppercase()).unwrap();
                 let type_str = if let Some(type_ref) = &const_decl.type_ref {
-                    type_ref.to_rust_type()
+                    let rust_type = type_ref.to_rust_type();
+                    // B31: const string can't use String (heap-allocated), must use &str
+                    if rust_type == "String" {
+                        "&str".to_string()
+                    } else {
+                        rust_type
+                    }
                 } else {
                     self.infer_const_type(&const_decl.init)
                 };
                 self.output.push_str(&type_str);
                 self.output.push_str(" = ");
-                self.generate_expr(&const_decl.init)?;
+                // B31: For const string, don't add .to_string()
+                let is_const_str = type_str == "&str";
+                if is_const_str {
+                    if let Expr::Literal(Literal::String(s)) = &const_decl.init {
+                        write!(self.output, "\"{}\"", s).unwrap();
+                    } else {
+                        self.generate_expr(&const_decl.init)?;
+                    }
+                } else {
+                    self.generate_expr(&const_decl.init)?;
+                }
                 self.output.push_str(";\n");
                 Ok(())
             }
@@ -5542,13 +5558,30 @@ impl CodeGenerator {
                 self.write_indent();
                 write!(self.output, "const {}: ", const_decl.name.to_uppercase()).unwrap();
                 let type_str = if let Some(type_ref) = &const_decl.type_ref {
-                    type_ref.to_rust_type()
+                    let rust_type = type_ref.to_rust_type();
+                    // B31: const string can't use String (heap-allocated), must use &str
+                    if rust_type == "String" {
+                        "&str".to_string()
+                    } else {
+                        rust_type
+                    }
                 } else {
                     self.infer_const_type(&const_decl.init)
                 };
                 self.output.push_str(&type_str);
                 self.output.push_str(" = ");
-                self.generate_expr(&const_decl.init)?;
+                // B31: For const string, don't add .to_string() — just use the literal directly
+                let is_const_str = type_str == "&str";
+                if is_const_str {
+                    // Generate string literal without .to_string() conversion
+                    if let Expr::Literal(Literal::String(s)) = &const_decl.init {
+                        write!(self.output, "\"{}\"", s).unwrap();
+                    } else {
+                        self.generate_expr(&const_decl.init)?;
+                    }
+                } else {
+                    self.generate_expr(&const_decl.init)?;
+                }
                 self.output.push_str(";\n");
             }
             Stmt::Assign(assign) => {

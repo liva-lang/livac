@@ -4895,3 +4895,22 @@ main() {
     assert!(rust_code.contains("serde::Deserialize"), "Author should derive Deserialize: {}", rust_code);
     assert_snapshot!("json_stringify_serde", rust_code);
 }
+
+#[test]
+fn test_const_string_type() {
+    // B31: const string should generate &str, not String
+    let source = r#"
+const DB_FILE: string = "data/db.json"
+
+main() {
+    print(DB_FILE)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("const DB_FILE: &str"), "Should use &str for const string: {}", rust_code);
+    assert!(!rust_code.contains("const DB_FILE: String"), "Should NOT use String for const: {}", rust_code);
+    // Verify the const line specifically doesn't have .to_string()
+    let const_line = rust_code.lines().find(|l| l.contains("const DB_FILE")).unwrap_or("");
+    assert!(!const_line.contains(".to_string()"), "Const should not have .to_string(): {}", const_line);
+    assert_snapshot!("const_string_type", rust_code);
+}
