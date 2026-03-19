@@ -4950,3 +4950,26 @@ main() {
     assert!(rust_code.contains("as usize]"), "Should cast index to usize: {}", rust_code);
     assert_snapshot!("array_element_assignment", rust_code);
 }
+
+#[test]
+fn test_single_var_fallible_binding() {
+    // B33: let writeErr = File.write(path, content) should extract only the error string
+    let source = r#"
+main() {
+    let path = "test.txt"
+    let content = "hello"
+    let writeErr = File.write(path, content)
+    if writeErr {
+        console.error($"Error: {writeErr}")
+    }
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // Should extract the error string (.1), not assign the raw tuple
+    assert!(rust_code.contains(".1"), "Should extract error string with .1: {}", rust_code);
+    // The variable should be a plain string, not a tuple — check the let line specifically
+    let main_code = rust_code.split("fn main()").last().unwrap_or("");
+    let let_line = main_code.lines().find(|l| l.contains("let write_err")).unwrap_or("");
+    assert!(!let_line.contains(": (Option<"), "Should not expose tuple type to variable: {}", let_line);
+    assert_snapshot!("single_var_fallible_binding", rust_code);
+}

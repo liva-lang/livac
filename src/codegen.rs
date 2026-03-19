@@ -5260,6 +5260,41 @@ impl CodeGenerator {
                     } else {
                         // Non-Task normal binding (original behavior)
 
+                        // B33 fix: Single-var binding for fallible/builtin-conversion calls
+                        // e.g., let writeErr = File.write(path, content)
+                        // Should extract only the error string (.1), not the raw tuple
+                        // Exclude JSON.parse/stringify and parseInt/parseFloat which have their own handlers
+                        let is_single_builtin_tuple = self.is_builtin_conversion_call(&var.init)
+                            && !self.is_json_parse_call(&var.init)
+                            && !self.is_json_stringify_call(&var.init);
+                        let is_single_fallible = self.is_fallible_expr(&var.init);
+                        if is_single_builtin_tuple || is_single_fallible {
+                            // Track as string error var for `if err` sugar
+                            self.string_error_vars.insert(var_name.clone());
+                            self.string_vars.insert(var_name.clone());
+
+                            let needs_mut = self.mutated_vars.contains(&var_name);
+                            if needs_mut {
+                                write!(self.output, "let mut {}", var_name).unwrap();
+                            } else {
+                                write!(self.output, "let {}", var_name).unwrap();
+                            }
+                            self.output.push_str(" = ");
+
+                            if is_single_builtin_tuple {
+                                // Builtin tuple-returning calls: extract error string with .1
+                                self.generate_expr(&var.init)?;
+                                self.output.push_str(".1");
+                            } else {
+                                // User-defined fallible calls: match to extract error
+                                self.output.push_str("match ");
+                                self.generate_expr(&var.init)?;
+                                self.output.push_str(" { Ok(_) => String::new(), Err(e) => e.to_string() }");
+                            }
+                            self.output.push_str(";\n");
+                            return Ok(());
+                        }
+
                         // Check if initializing with a string literal or string expression - mark variable as string
                         if let Expr::Literal(Literal::String(_)) = &var.init {
                             if let Some(name) = binding.name() {
