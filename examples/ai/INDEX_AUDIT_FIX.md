@@ -3,7 +3,7 @@
 > **Inicio:** 2026-03-18  
 > **Objetivo:** Implementar los fixes del compilador y mejoras de la skill identificados en la auditoría de 10 proyectos AI-generated  
 > **Fuente:** `examples/ai/REPORT_SUMMARY.md` (informe consolidado) + 10× `REPORT.md` por proyecto  
-> **Estado:** En progreso — 44/47 bugs corregidos (solo B02 pendiente)
+> **Estado:** Completado — 47/47 bugs corregidos ✅
 
 ---
 
@@ -50,7 +50,7 @@ La auditoría de 10 proyectos AI-generated reveló **47 bugs únicos del compila
 ## Baseline de tests
 
 ```
-cargo test → 433 passed, 0 failed, 3 ignored
+cargo test → 439 passed, 0 failed, 3 ignored
 Snapshots:   300+ archivos en tests/snapshots/
 Ejemplos:    40 archivos .liva en examples/ (no-AI)
 ```
@@ -158,7 +158,7 @@ Bugs que afectan 1-2 proyectos o patrones menos frecuentes.
 
 ### Strings y Templates (`codegen.rs`)
 
-- [ ] **B02** — Strings dentro de template interpolation (`$"{fn("arg")}"`) rompe parsing  
+- [x] **B02** — Strings dentro de template interpolation (`$"{fn("arg")}"`) rompe parsing  ✅
   Proyectos: text-search, csv-reader, json-parser
 - [x] **B25** — `charAt()` retorna String en vez de char — comparaciones `ch == '"'` fallan  ✅
   Proyectos: json-parser
@@ -218,13 +218,13 @@ Bugs que afectan 1-2 proyectos o patrones menos frecuentes.
 
 ## 🟢 Mejoras de la Skill (`skills/liva-lang/SKILL.md`)
 
-- [ ] **S1** — Destacar keywords reservadas (incluir keywords de Rust: `type`, `match`, `mod`, etc.)
-- [ ] **S2** — Documentar `main()` auto-detect prominentemente (no necesita llamada explícita)
-- [ ] **S3** — Corregir `console.prompt()` → `console.input()` si aparece en la skill
-- [ ] **S4** — Documentar `Sys.args()` behavior (args[0] = programa)
-- [ ] **S5** — Añadir sección de `rust {}` interop: snake_case transform, Result types, cómo Liva vars se ven desde Rust
-- [ ] **S6** — Documentar que `number` no es un tipo válido — usar `int` o `float`
-- [ ] **S7** — Documentar que errores son `string`, no objetos con `.message`
+- [x] **S1** — Destacar keywords reservadas (incluir keywords de Rust: `type`, `match`, `mod`, etc.)  ✅
+- [x] **S2** — Documentar `main()` auto-detect prominentemente (no necesita llamada explícita)  ✅
+- [x] **S3** — Corregir `console.prompt()` → `console.input()` si aparece en la skill  ✅ (ya correcta)
+- [x] **S4** — Documentar `Sys.args()` behavior (args[0] = programa)  ✅
+- [x] **S5** — Añadir sección de `rust {}` interop: snake_case transform, Result types, cómo Liva vars se ven desde Rust  ✅
+- [x] **S6** — Documentar que `number` no es un tipo válido — usar `int` o `float`  ✅ (nota: number=i32, aclarado no usar para floats)
+- [x] **S7** — Documentar que errores son `string`, no objetos con `.message`  ✅
 
 ---
 

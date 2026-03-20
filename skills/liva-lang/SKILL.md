@@ -12,6 +12,8 @@ description: >
 
 Liva compiles to Rust. It has Python/TypeScript-like syntax with Rust performance. The compiler (`livac`) generates idiomatic Rust code compiled to native binaries. No `fn`/`def`/`class` keywords. No semicolons. No `+=`/`++`.
 
+**`main()` is auto-detected** — just define `main() { ... }` at top level. No need to call it. The compiler finds it and uses it as the entry point.
+
 ## CLI
 
 ```bash
@@ -36,6 +38,8 @@ let nums: [number] = [1, 2, 3]  // Array
 ```
 
 Primitives: `number` (i32), `float` (f64), `bool`, `string`, `char`. Rust types available: `i8`–`i128`, `u8`–`u128`, `f32`, `f64`.
+
+> **Note:** `number` = integer (i32). For decimal/float values, use `float` (f64). Do NOT use `number` for floating-point math — it will truncate. There is no generic "number" type that covers both.
 
 ### Destructuring
 
@@ -157,6 +161,10 @@ divide(a: number, b: number): number {
 // Error binding (REQUIRED for fallible calls)
 let result, err = divide(10, 0)
 if err { print($"Error: {err}") }    // Always use `if err {`, NOT `if err != ""`
+
+// IMPORTANT: `err` is a plain string, NOT an object.
+// Do NOT access `err.message` — just use `err` directly.
+// `print(err)` shows the error trace with function names and lines.
 
 // Shorthand: or fail (propagate)
 let data = File.read("f.txt") or fail "Cannot read"
@@ -296,7 +304,9 @@ let entries, err = Dir.list("/path")   // [string] sorted
 Dir.isDir("/path")                     // bool, no error binding
 
 // System
-Sys.args() / Sys.env("HOME") / Sys.exit(1)
+Sys.args()                               // [string] — args[0] = program name, args[1..] = user args
+Sys.env("HOME")                           // Get env variable
+Sys.exit(1)                               // Exit with code
 
 // Logging (stderr, timestamped)
 Log.info("msg", arg1, arg2)            // Variadic args, concatenated with spaces
@@ -343,6 +353,13 @@ let hash = rust {
 // No semantic validation of rust block content — errors come from rustc
 ```
 
+### Rust Interop Details
+
+- **Snake_case transform**: Liva identifiers like `myValue` become `my_value` in Rust. Use `my_value` inside `rust { }` blocks to reference Liva variables.
+- **Result types**: Fallible Liva functions generate `Result<T, String>`. Inside `rust { }`, return `Ok(value)` or `Err("message".to_string())`.
+- **Liva vars in Rust blocks**: Variables defined in Liva are accessible in `rust { }` blocks by their snake_case name. String vars are `String` type, numbers are `i32`, floats are `f64`.
+- **Hyphenated crate names**: `use rust "my-crate"` automatically converts to `my_crate` in Rust imports.
+
 ## Testing
 
 ```liva
@@ -377,12 +394,16 @@ describe("Math", () => {
 
 ### Reserved Keywords (cannot use as identifiers)
 
+These are reserved in Liva and will cause parse errors if used as variable/function names:
+
 ```
 let const import from as if else while for in switch case default return
 break continue fail throw try catch async par parallel task await move seq
 vec parvec with ordered chunk threads enum type use rust test true false null
 and or not safe fast static dynamic auto detect schedule reduction prefetch simdWidth
 ```
+
+Additionally, avoid Rust reserved words as field/method names: `type`, `match`, `mod`, `self`, `super`, `crate`, `impl`, `trait`, `pub`, `fn`, `struct`, `where`, `loop`, `ref`, `mut`, `dyn`, `abstract`, `yield`. The compiler escapes some of these (e.g., `type` → `r#type`), but it's best to use alternatives (e.g., `kind` instead of `type`).
 
 ## References
 
