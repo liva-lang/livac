@@ -10101,14 +10101,15 @@ impl CodeGenerator {
                 return Ok(());
             }
             "charAt" => {
-                // charAt(index) -> str.chars().nth((index) as usize).map(|c| c.to_string()).unwrap_or_default()
+                // B25 fix: charAt(index) -> char (not String) so char comparisons work
+                // str.chars().nth((index) as usize).unwrap_or('\0')
                 self.generate_expr(&method_call.object)?;
                 self.output.push_str(".chars().nth((");
                 if !method_call.args.is_empty() {
                     self.generate_expr(&method_call.args[0])?;
                     self.output.push_str(") as usize");
                 }
-                self.output.push_str(").map(|c| c.to_string()).unwrap_or_default()");
+                self.output.push_str(").unwrap_or('\\0')");
                 return Ok(());
             }
             "indexOf" => {
@@ -11991,7 +11992,6 @@ impl CodeGenerator {
                         | "replace"
                         | "substring"
                         | "join"
-                        | "charAt"
                 )
             }
             // Detect string-returning function calls like toString(x) or user-defined string functions

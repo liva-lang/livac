@@ -387,10 +387,10 @@ mod liva_rt {
 }
 
 fn get_initials(name: String) -> String {
-    let first = name.chars().nth((0) as usize).map(|c| c.to_string()).unwrap_or_default();
+    let first = name.chars().nth((0) as usize).unwrap_or('\0');
     let space_idx = name.find(" ").map(|i| i as i32).unwrap_or(-1);
     if space_idx > 0 {
-        let second = name.chars().nth((space_idx + 1) as usize).map(|c| c.to_string()).unwrap_or_default();
+        let second = name.chars().nth((space_idx + 1) as usize).unwrap_or('\0');
         return format!("{}{}", first.to_string(), second.to_string());
     }
     return first.to_string();

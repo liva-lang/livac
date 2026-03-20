@@ -4994,3 +4994,24 @@ main() {
     assert!(!main_code.contains("(v, String::new())"), "Should NOT generate tuple form: {}", main_code);
     assert_snapshot!("parse_int_or_default", rust_code);
 }
+
+#[test]
+fn test_char_at_returns_char() {
+    // B25: charAt should return char, not String, so char comparisons work
+    let source = r#"
+main() {
+    let text = "hello"
+    let ch = text.charAt(0)
+    if ch == 'h' {
+        print("found h")
+    }
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    let main_code = rust_code.split("fn main()").last().unwrap_or("");
+    // Should use unwrap_or('\0') not .map(|c| c.to_string()).unwrap_or_default()
+    assert!(main_code.contains("unwrap_or('\\0')"), "Should return char with unwrap_or: {}", main_code);
+    let ch_line = main_code.lines().find(|l| l.contains("let ch") || l.contains("charAt")).unwrap_or("");
+    assert!(!ch_line.contains("c.to_string()"), "charAt should NOT convert to String: {}", ch_line);
+    assert_snapshot!("char_at_returns_char", rust_code);
+}

@@ -387,23 +387,9 @@ mod liva_rt {
 }
 
 fn main() {
-    let mut text = "Hello, World!".to_string();
-    let upper = text.to_uppercase();
-    let lower = text.to_lowercase();
-    let trimmed = "  spaced  ".trim().to_string();
-    let parts = "a,b,c".split(",").map(|s| s.to_string()).collect::<Vec<String>>();
-    let replaced = text.replace("World", "Liva");
-    let starts = text.starts_with("Hello");
-    let ends = text.ends_with("!");
-    let sub = text[(0) as usize..(5) as usize].to_string();
+    let mut text = "hello".to_string();
     let ch = text.chars().nth((0) as usize).unwrap_or('\0');
-    let idx = text.find("World").map(|i| i as i32).unwrap_or(-1);
-    let len = (text.len() as i32);
-    println!("{}", upper);
-    println!("{}", lower);
-    println!("{}", trimmed);
-    println!("{}", replaced);
-    println!("{}", starts);
-    println!("{}", sub);
-    println!("{}", len);
+    if ch == 'h' {
+        println!("{}", "found h");
+    }
 }
