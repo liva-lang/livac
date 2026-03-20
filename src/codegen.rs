@@ -69,6 +69,7 @@ pub struct CodeGenerator {
     set_vars: std::collections::HashSet<String>, // Track which variables are Set<T>
     json_value_vars: std::collections::HashSet<String>, // Track which variables are JsonValue
     string_vars: std::collections::HashSet<String>, // Track which variables are strings
+    float_vars: std::collections::HashSet<String>, // Track which variables are floats (B32)
     native_vec_string_vars: std::collections::HashSet<String>, // Track Vec<String> from Sys.args() - use direct indexing
     mutated_vars: std::collections::HashSet<String>, // Track variables that are assigned after declaration (need mut)
     // --- Class/type metadata (for field resolution)
@@ -149,6 +150,7 @@ impl CodeGenerator {
             set_vars: std::collections::HashSet::new(),
             json_value_vars: std::collections::HashSet::new(),
             string_vars: std::collections::HashSet::new(),
+            float_vars: std::collections::HashSet::new(),
             native_vec_string_vars: std::collections::HashSet::new(),
             mutated_vars: std::collections::HashSet::new(),
             class_fields: std::collections::HashMap::new(),
@@ -5335,6 +5337,20 @@ impl CodeGenerator {
                         if let Expr::Literal(Literal::String(_)) = &var.init {
                             if let Some(name) = binding.name() {
                                 self.string_vars.insert(self.sanitize_name(name));
+                            }
+                        }
+                        // B32: Track float variables for mixed-type arithmetic detection
+                        if let Expr::Literal(Literal::Float(_)) = &var.init {
+                            if let Some(name) = binding.name() {
+                                self.float_vars.insert(self.sanitize_name(name));
+                            }
+                        }
+                        // Also mark as float if type annotation says float/f64/f32
+                        if binding.type_ref.as_ref().map_or(false, |t| {
+                            matches!(t, TypeRef::Simple(name) if name == "float" || name == "f64" || name == "f32")
+                        }) {
+                            if let Some(name) = binding.name() {
+                                self.float_vars.insert(self.sanitize_name(name));
                             }
                         }
                         // Also mark as string if initialized with a string concatenation
@@ -11794,6 +11810,43 @@ impl CodeGenerator {
                 self.generate_expr(right)?;
                 if right_needs_as_str {
                     self.output.push_str(".as_str()");
+                }
+                return Ok(());
+            }
+        }
+
+        // B32 fix: Mixed float/int arithmetic — auto-cast .length to f64 when other side is float
+        // Rust doesn't allow f64 / i32 — both sides must be same type
+        if matches!(op, BinOp::Div | BinOp::Mul | BinOp::Add | BinOp::Sub) {
+            let left_is_float = match left {
+                Expr::Literal(Literal::Float(_)) => true,
+                Expr::Identifier(name) => self.float_vars.contains(name),
+                _ => false,
+            };
+            let right_is_float = match right {
+                Expr::Literal(Literal::Float(_)) => true,
+                Expr::Identifier(name) => self.float_vars.contains(name),
+                _ => false,
+            };
+            let left_is_length = matches!(left, Expr::Member { property, .. } if property == "length");
+            let right_is_length = matches!(right, Expr::Member { property, .. } if property == "length");
+
+            if (left_is_float && right_is_length) || (right_is_float && left_is_length) {
+                // Generate with f64 cast on the .length side
+                if left_is_length {
+                    self.output.push('(');
+                    self.generate_expr(left)?;
+                    self.output.push_str(" as f64)");
+                } else {
+                    self.generate_expr(left)?;
+                }
+                write!(self.output, " {} ", op).unwrap();
+                if right_is_length {
+                    self.output.push('(');
+                    self.generate_expr(right)?;
+                    self.output.push_str(" as f64)");
+                } else {
+                    self.generate_expr(right)?;
                 }
                 return Ok(());
             }

@@ -5154,3 +5154,21 @@ main() {
     assert!(!rust_code.contains("pos + 1 as usize"), "Should NOT have bare 'pos + 1 as usize': {}", rust_code);
     assert_snapshot!("cast_priority_index", rust_code);
 }
+
+#[test]
+fn test_float_div_length_auto_cast() {
+    // B32: f64 / .length should auto-cast .length to f64
+    let source = r#"
+main() {
+    let total = 10.5
+    let items = ["a", "b", "c"]
+    let avg = total / items.length
+    print(avg)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    let main_code = rust_code.split("fn main()").last().unwrap_or("");
+    // Should cast .length to f64 for division with float
+    assert!(main_code.contains("as f64"), "Should cast .length to f64: {}", main_code);
+    assert_snapshot!("float_div_length", rust_code);
+}
