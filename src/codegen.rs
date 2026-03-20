@@ -4849,6 +4849,32 @@ impl CodeGenerator {
                         self.output.push_str(".unwrap_or(");
                         self.generate_expr(default_val)?;
                         self.output.push_str(");\n");
+                    } else if let Expr::Call(call) = &var.init {
+                        // B16 fix: parseInt/parseFloat with or default
+                        // Generate: let var = match arg.parse::<T>() { Ok(v) => v, Err(_) => default };
+                        if let Expr::Identifier(name) = call.callee.as_ref() {
+                            if name == "parseInt" && !call.args.is_empty() {
+                                write!(self.output, "let {} = match ", var_name).unwrap();
+                                self.generate_expr(&call.args[0])?;
+                                self.output.push_str(".parse::<i32>() { Ok(v) => v, Err(_) => ");
+                                self.generate_expr(default_val)?;
+                                self.output.push_str(" };\n");
+                            } else if name == "parseFloat" && !call.args.is_empty() {
+                                write!(self.output, "let {} = match ", var_name).unwrap();
+                                self.generate_expr(&call.args[0])?;
+                                self.output.push_str(".parse::<f64>() { Ok(v) => v, Err(_) => ");
+                                self.generate_expr(default_val)?;
+                                self.output.push_str(" };\n");
+                            } else {
+                                write!(self.output, "let {} = ", var_name).unwrap();
+                                self.generate_expr(&var.init)?;
+                                self.output.push_str(";\n");
+                            }
+                        } else {
+                            write!(self.output, "let {} = ", var_name).unwrap();
+                            self.generate_expr(&var.init)?;
+                            self.output.push_str(";\n");
+                        }
                     } else {
                         write!(self.output, "let {} = ", var_name).unwrap();
                         self.generate_expr(&var.init)?;
@@ -5264,9 +5290,11 @@ impl CodeGenerator {
                         // e.g., let writeErr = File.write(path, content)
                         // Should extract only the error string (.1), not the raw tuple
                         // Exclude JSON.parse/stringify and parseInt/parseFloat which have their own handlers
+                        let is_parse_int_float = matches!(&var.init, Expr::Call(call) if matches!(call.callee.as_ref(), Expr::Identifier(n) if n == "parseInt" || n == "parseFloat"));
                         let is_single_builtin_tuple = self.is_builtin_conversion_call(&var.init)
                             && !self.is_json_parse_call(&var.init)
-                            && !self.is_json_stringify_call(&var.init);
+                            && !self.is_json_stringify_call(&var.init)
+                            && !is_parse_int_float;
                         let is_single_fallible = self.is_fallible_expr(&var.init);
                         if is_single_builtin_tuple || is_single_fallible {
                             // Track as string error var for `if err` sugar

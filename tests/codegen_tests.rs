@@ -4973,3 +4973,24 @@ main() {
     assert!(!let_line.contains(": (Option<"), "Should not expose tuple type to variable: {}", let_line);
     assert_snapshot!("single_var_fallible_binding", rust_code);
 }
+
+#[test]
+fn test_parse_int_or_default() {
+    // B16: parseInt(x) or 0 should generate match parse with direct value, not tuple
+    let source = r#"
+main() {
+    let input = "42"
+    let num = parseInt(input) or 0
+    print(num)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // Should extract the value directly, not a tuple
+    let main_code = rust_code.split("fn main()").last().unwrap_or("");
+    assert!(main_code.contains("parse::<i32>()"), "Should use parse::<i32>(): {}", main_code);
+    assert!(main_code.contains("Ok(v) => v"), "Should extract value directly with Ok(v) => v: {}", main_code);
+    assert!(main_code.contains("Err(_) => 0"), "Should use user's default value: {}", main_code);
+    // Should NOT contain tuple form
+    assert!(!main_code.contains("(v, String::new())"), "Should NOT generate tuple form: {}", main_code);
+    assert_snapshot!("parse_int_or_default", rust_code);
+}

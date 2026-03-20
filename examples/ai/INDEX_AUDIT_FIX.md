@@ -3,7 +3,7 @@
 > **Inicio:** 2026-03-18  
 > **Objetivo:** Implementar los fixes del compilador y mejoras de la skill identificados en la auditoría de 10 proyectos AI-generated  
 > **Fuente:** `examples/ai/REPORT_SUMMARY.md` (informe consolidado) + 10× `REPORT.md` por proyecto  
-> **Estado:** En progreso — 21/47 bugs corregidos
+> **Estado:** En progreso — 29/47 bugs corregidos
 
 ---
 
@@ -50,8 +50,8 @@ La auditoría de 10 proyectos AI-generated reveló **47 bugs únicos del compila
 ## Baseline de tests
 
 ```
-cargo test → 413 passed, 0 failed, 3 ignored
-Snapshots:   274 archivos en tests/snapshots/
+cargo test → 420 passed, 0 failed, 3 ignored
+Snapshots:   284 archivos en tests/snapshots/
 Ejemplos:    40 archivos .liva en examples/ (no-AI)
 ```
 
@@ -137,9 +137,9 @@ Bugs que afectan 3+ proyectos o bloquean patrones fundamentales del lenguaje.
   Archivo: `codegen.rs` | Proyectos: mini-interpreter
 - [x] **B18** — Arrow method return type `=> expr` genera `-> ()` en vez de inferir  ✅ 2026-03-18
   Archivo: `codegen.rs` | Proyectos: calculator, json-parser, rest-api
-- [ ] **B14** — Enum field en clase rompe `Default` derive  
+- [x] **B14** — Enum field en clase rompe `Default` derive  ✅
   Archivo: `codegen.rs` | Proyectos: todo-list
-- [ ] **B46** — serde derives no triggereados por `JSON.stringify` (solo `JSON.parse`)  
+- [x] **B46** — serde derives no triggereados por `JSON.stringify` (solo `JSON.parse`)  ✅
   Archivo: `codegen.rs` | Proyectos: rest-api
 
 ### `rust {}` Interop (`lexer.rs`)
@@ -173,7 +173,7 @@ Bugs que afectan 1-2 proyectos o patrones menos frecuentes.
 
 - [x] **B15** — `.filter()` genera `.copied()` en vez de `.cloned()` para non-Copy types  ✅ 2026-03-18
   Proyectos: text-search, csv-reader
-- [ ] **B39** — Array element assignment (`arr[i] = val`) genera LHS inválido  
+- [x] **B39** — Array element assignment (`arr[i] = val`) genera LHS inválido  ✅
   Proyectos: mini-interpreter
 - [ ] **B16** — `parseInt(x) or default` genera tuple en vez de unwrap  
   Proyectos: text-search
@@ -195,7 +195,7 @@ Bugs que afectan 1-2 proyectos o patrones menos frecuentes.
   Proyectos: mini-interpreter
 - [ ] **B32** — `f64 / i32` sin cast automático  
   Proyectos: csv-reader
-- [ ] **B31** — `const X: string` genera `const X: String` — `&str` vs `String`  
+- [x] **B31** — `const X: string` genera `const X: String` — `&str` vs `String`  ✅
   Proyectos: rest-api
 
 ### Enum (`codegen.rs`)
@@ -207,11 +207,11 @@ Bugs que afectan 1-2 proyectos o patrones menos frecuentes.
 
 ### Misc
 
-- [ ] **B11** — `console.input` con template string — `print!(format!(...))` anidado  
+- [x] **B11** — `console.input` con template string — `print!(format!(...))` anidado  ✅
   Proyectos: todo-list
-- [ ] **B33** — Single-var binding para fallible genera tuple  
+- [x] **B33** — Single-var binding para fallible genera tuple  ✅
   Proyectos: csv-reader
-- [ ] **B37** — `type` como nombre de campo — keyword reservada en Rust  
+- [x] **B37** — `type` como nombre de campo — keyword reservada en Rust  ✅
   Proyectos: mini-interpreter
 
 ---
