@@ -5042,3 +5042,20 @@ main() {
     assert!(main_code.contains("'\\\\'"), "Should contain backslash char literal: {}", main_code);
     assert_snapshot!("char_escape_sequences", rust_code);
 }
+
+#[test]
+fn test_string_concat_not_extend() {
+    // B28: result = result + "x" should use format!, not .extend()
+    let source = r#"
+main() {
+    let result = ""
+    result = result + "hello"
+    print(result)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    let main_code = rust_code.split("fn main()").last().unwrap_or("");
+    assert!(!main_code.contains(".extend("), "Should NOT use .extend() for string concat: {}", main_code);
+    assert!(main_code.contains("format!"), "Should use format! for string concat: {}", main_code);
+    assert_snapshot!("string_concat_not_extend", rust_code);
+}

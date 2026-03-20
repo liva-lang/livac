@@ -6255,7 +6255,10 @@ impl CodeGenerator {
                 }
             }
             Expr::Binary { op, left, right } => {
-                if matches!(op, BinOp::Add) && self.expr_is_array(left, right) {
+                if matches!(op, BinOp::Add) && self.expr_is_array(left, right)
+                    // B28 fix: string concat takes priority over array concat
+                    && !self.expr_is_stringy(left) && !self.expr_is_stringy(right)
+                {
                     // Array concatenation: arr + [element] or arr + otherArr
                     // Generate: { let mut __v = left.clone(); __v.extend(right); __v }
                     self.output.push_str("{ let mut __v = ");
