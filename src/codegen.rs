@@ -11771,6 +11771,34 @@ impl CodeGenerator {
             }
         }
 
+        // B40 fix: String ordering comparisons (>, <, >=, <=) need both sides as &str
+        // because PartialOrd<&str> is NOT implemented for String (unlike PartialEq)
+        if matches!(op, BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge) {
+            let left_is_string = self.expr_is_stringy(left)
+                || matches!(left, Expr::Literal(Literal::String(_)))
+                || matches!(left, Expr::Identifier(name) if self.string_vars.contains(name));
+            let right_is_string = self.expr_is_stringy(right)
+                || matches!(right, Expr::Literal(Literal::String(_)))
+                || matches!(right, Expr::Identifier(name) if self.string_vars.contains(name));
+
+            if left_is_string || right_is_string {
+                // Generate: left.as_str() >= "literal" or left.as_str() >= right.as_str()
+                let left_needs_as_str = matches!(left, Expr::Identifier(_));
+                let right_needs_as_str = matches!(right, Expr::Identifier(_));
+
+                self.generate_expr(left)?;
+                if left_needs_as_str {
+                    self.output.push_str(".as_str()");
+                }
+                write!(self.output, " {} ", op).unwrap();
+                self.generate_expr(right)?;
+                if right_needs_as_str {
+                    self.output.push_str(".as_str()");
+                }
+                return Ok(());
+            }
+        }
+
         // Original logic for other binary operations
         // Only add parentheses when necessary for precedence
         let left_needs_parens = self.expr_needs_parens_for_binop(left, op);

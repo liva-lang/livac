@@ -5119,3 +5119,20 @@ main() {
     assert!(main_code.contains("manager.count()"), "Should call method directly: {}", main_code);
     assert_snapshot!("class_count_method", rust_code);
 }
+
+#[test]
+fn test_string_ordering_comparison() {
+    // B40: String >= &str needs .as_str() because PartialOrd<&str> not impl for String
+    let source = r#"
+isDigit(c: string): bool => c >= "0" and c <= "9"
+
+main() {
+    let result = isDigit("5")
+    print(result)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // Should have .as_str() on the string variable for ordering comparison
+    assert!(rust_code.contains(".as_str()"), "Should use .as_str() for String ordering comparison: {}", rust_code);
+    assert_snapshot!("string_ordering_comparison", rust_code);
+}
