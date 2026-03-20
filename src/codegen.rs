@@ -15342,6 +15342,21 @@ pub fn generate_multifile_project(
 fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext) -> Result<String> {
     let mut codegen = CodeGenerator::new(ctx.clone());
 
+    // B06 fix: Pre-populate enum metadata so enum variants are recognized as
+    // expressions (e.g., Priority.Alta) instead of falling through to get_field()
+    for item in &module.ast.items {
+        if let TopLevel::Enum(enum_decl) = item {
+            codegen.enum_names.insert(enum_decl.name.clone());
+            let mut variants_map = std::collections::HashMap::new();
+            for variant in &enum_decl.variants {
+                let field_names: Vec<String> =
+                    variant.fields.iter().map(|f| f.name.clone()).collect();
+                variants_map.insert(variant.name.clone(), field_names);
+            }
+            codegen.enum_variants.insert(enum_decl.name.clone(), variants_map);
+        }
+    }
+
     // First, collect use statements from imports
     let mut use_statements = String::new();
     for import_decl in &module.imports {
