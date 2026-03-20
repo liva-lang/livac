@@ -8821,6 +8821,21 @@ impl CodeGenerator {
             return Ok(());
         }
 
+        // B10 fix: When object is a class instance with a user-defined count() method,
+        // skip the array built-in count(fn) pipeline and generate a plain method call
+        if method_call.method == "count" && object_is_class_instance {
+            self.generate_expr(&method_call.object)?;
+            self.output.push_str(".count(");
+            for (i, arg) in method_call.args.iter().enumerate() {
+                if i > 0 {
+                    self.output.push_str(", ");
+                }
+                self.generate_expr(arg)?;
+            }
+            self.output.push(')');
+            return Ok(());
+        }
+
         // Check if this is a method on HTTP Response (e.g., response.json())
         if let Expr::Identifier(var_name) = method_call.object.as_ref() {
             if self.rust_struct_vars.contains(var_name) && method_call.method == "json" {

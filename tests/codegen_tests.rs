@@ -5095,3 +5095,27 @@ main() {
     assert!(!rust_code.contains("get_field(\"body\")"), "Should use .body not get_field: {}", rust_code);
     assert_snapshot!("async_http_resp_body", rust_code);
 }
+
+#[test]
+fn test_class_count_method_not_array_builtin() {
+    // B10: .count() on class instance should call user method, not array built-in
+    let source = r#"
+TaskManager {
+    tasks: [string]
+
+    count(): int => this.tasks.length
+}
+
+main() {
+    let manager = TaskManager(["a", "b"])
+    let n = manager.count()
+    print(n)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // Should NOT have .iter().filter().count() (array pipeline)
+    let main_code = rust_code.split("fn main()").last().unwrap_or("");
+    assert!(!main_code.contains(".iter()"), "Should NOT use .iter() for class .count(): {}", main_code);
+    assert!(main_code.contains("manager.count()"), "Should call method directly: {}", main_code);
+    assert_snapshot!("class_count_method", rust_code);
+}
