@@ -7156,9 +7156,10 @@ impl CodeGenerator {
                             Expr::ArrayLiteral(_) | Expr::ObjectLiteral(_) | Expr::Tuple(_) => {
                                 self.output.push_str("{:?}");
                             }
-                            // Everything else uses Debug
+                            // B29 fix: Default to Display for all other expression types
+                            // (Unary, Cast, Lambda, etc.) — {:?} adds unwanted quotes on strings
                             _ => {
-                                self.output.push_str("{:?}");
+                                self.output.push_str("{}");
                             }
                         },
                     }

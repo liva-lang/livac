@@ -5059,3 +5059,21 @@ main() {
     assert!(main_code.contains("format!"), "Should use format! for string concat: {}", main_code);
     assert_snapshot!("string_concat_not_extend", rust_code);
 }
+
+#[test]
+fn test_template_mutable_var_display_format() {
+    // B29: Mutable vars in template strings should use {} (Display), not {:?} (Debug)
+    let source = r#"
+main() {
+    let result = ""
+    result = "hello world"
+    print($"result: {result}")
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    let main_code = rust_code.split("fn main()").last().unwrap_or("");
+    // Should NOT have {:?} for the result variable — that adds unwanted quotes
+    assert!(!main_code.contains("{:?}"), "Mutable string var should use Display, not Debug: {}", main_code);
+    assert!(main_code.contains("\"result: {}\""), "Should use {{}} format for string var: {}", main_code);
+    assert_snapshot!("template_mutable_var_display", rust_code);
+}
