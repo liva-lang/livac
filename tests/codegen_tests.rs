@@ -5172,3 +5172,31 @@ main() {
     assert!(main_code.contains("as f64"), "Should cast .length to f64: {}", main_code);
     assert_snapshot!("float_div_length", rust_code);
 }
+
+#[test]
+fn test_enum_destructuring_field_name_mapping() {
+    // B27: Enum destructuring with different binding names should use field_name: binding
+    let source = r#"
+enum Token {
+    TString(value: string)
+    TNumber(value: string)
+}
+
+show(t: Token): string {
+    return switch t {
+        Token.TString(v) => $"str({v})"
+        Token.TNumber(n) => $"num({n})"
+    }
+}
+
+main() {
+    let t = Token.TString("hello")
+    print(show(t))
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // When binding name differs from field name, should use field: binding syntax
+    assert!(rust_code.contains("value: v") || rust_code.contains("value: n"),
+        "Should map field name to binding name: {}", rust_code);
+    assert_snapshot!("enum_destructuring_field_mapping", rust_code);
+}

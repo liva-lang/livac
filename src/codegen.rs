@@ -12589,6 +12589,9 @@ struct IrCodeGenerator<'a> {
     #[allow(dead_code)]
     error_binding_vars: HashSet<String>,
     rust_block_uses: Vec<String>,
+    // B27: Enum variant field names for destructuring
+    #[allow(dead_code)]
+    enum_variants: std::collections::HashMap<String, std::collections::HashMap<String, Vec<String>>>,
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -12620,6 +12623,7 @@ impl<'a> IrCodeGenerator<'a> {
             in_test_block: false,
             error_binding_vars: HashSet::new(),
             rust_block_uses: Vec::new(),
+            enum_variants: std::collections::HashMap::new(),
         }
     }
 
@@ -14606,11 +14610,29 @@ impl<'a> IrCodeGenerator<'a> {
                 write!(self.output, "{}::{}", enum_name, variant_name).unwrap();
                 if !bindings.is_empty() {
                     self.output.push_str(" { ");
+                    // B27 fix: Look up field names for this variant
+                    let field_names = self
+                        .enum_variants
+                        .get(enum_name)
+                        .and_then(|v| v.get(variant_name))
+                        .cloned()
+                        .unwrap_or_default();
                     for (i, binding) in bindings.iter().enumerate() {
                         if i > 0 {
                             self.output.push_str(", ");
                         }
-                        self.output.push_str(&self.sanitize_name(binding));
+                        if i < field_names.len() && field_names[i] != *binding {
+                            // Field name differs from binding: field_name: binding
+                            write!(
+                                self.output,
+                                "{}: {}",
+                                self.sanitize_name(&field_names[i]),
+                                self.sanitize_name(binding)
+                            )
+                            .unwrap();
+                        } else {
+                            self.output.push_str(&self.sanitize_name(binding));
+                        }
                     }
                     self.output.push_str(" }");
                 }
