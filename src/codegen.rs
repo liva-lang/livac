@@ -15389,7 +15389,9 @@ fn ast_expr_has_async(expr: &Expr) -> bool {
             .iter()
             .any(|(k, v)| ast_expr_has_async(k) || ast_expr_has_async(v)),
         Expr::SetLiteral(elements) => elements.iter().any(ast_expr_has_async),
-        Expr::Literal(_) | Expr::Identifier(_) | Expr::MethodRef { .. } | Expr::RustBlock { .. } => false,
+        Expr::Literal(_) | Expr::Identifier(_) | Expr::MethodRef { .. } => false,
+        // B24 fix: check rust { } blocks for .await
+        Expr::RustBlock { code } => code.contains(".await"),
     }
 }
 

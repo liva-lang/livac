@@ -755,6 +755,8 @@ impl SemanticAnalyzer {
                 StringTemplatePart::Expr(e) => self.expr_contains_async(e),
                 _ => false,
             }),
+            // B24 fix: check rust { } blocks for .await
+            Expr::RustBlock { code } => code.contains(".await"),
             _ => false,
         }
     }

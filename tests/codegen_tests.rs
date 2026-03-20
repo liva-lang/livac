@@ -5200,3 +5200,23 @@ main() {
         "Should map field name to binding name: {}", rust_code);
     assert_snapshot!("enum_destructuring_field_mapping", rust_code);
 }
+
+#[test]
+fn test_main_async_when_rust_block_has_await() {
+    // B24: main() should be async when rust { } block contains .await
+    let source = r#"
+use rust "tokio" features ["full"]
+
+main() {
+    rust {
+        let result = some_async_fn().await;
+        println!("{}", result);
+    }
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // main should be marked async with #[tokio::main]
+    assert!(rust_code.contains("async fn main()"), "main should be async: {}", rust_code);
+    assert!(rust_code.contains("#[tokio::main]"), "Should have tokio::main attribute: {}", rust_code);
+    assert_snapshot!("main_async_rust_block_await", rust_code);
+}
