@@ -289,6 +289,162 @@ impl TokenWithSpan {
     }
 }
 
+/// Information about a `$"..."` template string found during pre-processing.
+/// B02: Template strings with nested quotes inside `{...}` interpolation
+/// (e.g., `$"{fn("arg")}"`) require pre-scanning because the logos regex
+/// cannot track brace depth.
+#[derive(Debug)]
+struct TemplateStringInfo {
+    /// Byte offset where the `$"` starts
+    start: usize,
+    /// Byte offset right after the closing `"` (exclusive)
+    end: usize,
+    /// The content between `$"` and the final `"` (i.e., what goes into StringTemplate)
+    content: String,
+}
+
+/// Scan source for `$"..."` template strings, tracking brace depth so that
+/// `"` chars inside `{...}` interpolation do not prematurely close the template.
+/// Only templates that contain quotes inside interpolation braces actually NEED
+/// this, but we process all of them for uniformity.
+fn find_template_strings(source: &str) -> Vec<TemplateStringInfo> {
+    let bytes = source.as_bytes();
+    let mut templates = Vec::new();
+    let mut i = 0;
+
+    while i + 1 < bytes.len() {
+        // Skip // line comments
+        if bytes[i] == b'/' && i + 1 < bytes.len() && bytes[i + 1] == b'/' {
+            i += 2;
+            while i < bytes.len() && bytes[i] != b'\n' {
+                i += 1;
+            }
+            continue;
+        }
+
+        // Skip /* block comments */
+        if bytes[i] == b'/' && i + 1 < bytes.len() && bytes[i + 1] == b'*' {
+            i += 2;
+            while i + 1 < bytes.len() {
+                if bytes[i] == b'*' && bytes[i + 1] == b'/' {
+                    i += 2;
+                    break;
+                }
+                i += 1;
+            }
+            continue;
+        }
+
+        // Skip regular string literals (non-template)
+        if bytes[i] == b'"' && (i == 0 || bytes[i - 1] != b'$') {
+            i += 1;
+            while i < bytes.len() {
+                if bytes[i] == b'\\' {
+                    i += 1; // skip escaped char
+                } else if bytes[i] == b'"' {
+                    break;
+                }
+                i += 1;
+            }
+            i += 1;
+            continue;
+        }
+
+        // Skip single-quote strings
+        if bytes[i] == b'\'' && (i == 0 || !bytes[i - 1].is_ascii_alphanumeric()) {
+            // Could be char literal or single-quote string — skip to matching '
+            i += 1;
+            while i < bytes.len() {
+                if bytes[i] == b'\\' {
+                    i += 1;
+                } else if bytes[i] == b'\'' {
+                    break;
+                }
+                i += 1;
+            }
+            i += 1;
+            continue;
+        }
+
+        // Detect $" — start of template string
+        if bytes[i] == b'$' && i + 1 < bytes.len() && bytes[i + 1] == b'"' {
+            let start = i;
+            i += 2; // skip $"
+
+            let mut brace_depth: usize = 0;
+            let mut found_end = false;
+
+            while i < bytes.len() {
+                if brace_depth > 0 {
+                    // Inside {…} interpolation — quotes don't close the template
+                    match bytes[i] {
+                        b'{' => brace_depth += 1,
+                        b'}' => brace_depth -= 1,
+                        b'"' => {
+                            // String literal inside interpolation — skip it
+                            i += 1;
+                            while i < bytes.len() {
+                                if bytes[i] == b'\\' {
+                                    i += 1;
+                                } else if bytes[i] == b'"' {
+                                    break;
+                                }
+                                i += 1;
+                            }
+                            // i is now at the closing " of the inner string
+                        }
+                        b'\'' => {
+                            // Single-quote string inside interpolation — skip it
+                            i += 1;
+                            while i < bytes.len() {
+                                if bytes[i] == b'\\' {
+                                    i += 1;
+                                } else if bytes[i] == b'\'' {
+                                    break;
+                                }
+                                i += 1;
+                            }
+                        }
+                        _ => {}
+                    }
+                } else {
+                    // At template level (not inside braces)
+                    match bytes[i] {
+                        b'{' => brace_depth += 1,
+                        b'"' => {
+                            // This is the real closing quote
+                            let content = source[start + 2..i].to_string();
+                            templates.push(TemplateStringInfo {
+                                start,
+                                end: i + 1,
+                                content,
+                            });
+                            i += 1;
+                            found_end = true;
+                            break;
+                        }
+                        b'\\' => {
+                            i += 1; // skip escaped char
+                        }
+                        _ => {}
+                    }
+                }
+                i += 1;
+            }
+
+            if !found_end {
+                // Unterminated template — let logos handle the error
+                i = start + 1;
+            }
+            continue;
+        }
+
+        i += 1;
+    }
+
+    templates
+}
+
 /// Information about a `rust { ... }` block found during pre-processing.
 #[derive(Debug)]
 struct RustBlockInfo {
@@ -489,18 +645,27 @@ fn find_balanced_brace(source: &str, open_pos: usize) -> Option<(usize, usize)> 
 }
 
 pub fn tokenize(source: &str) -> Result<Vec<TokenWithSpan>> {
-    // Phase 1: Find rust { } blocks and extract their content
+    // Phase 1a: Find rust { } blocks and extract their content
     let rust_blocks = find_rust_blocks(source);
 
-    // Phase 2: Replace rust block interiors with spaces so logos doesn't choke
-    // on Rust-specific syntax like &, ->, #[...], etc.
-    let tokenize_source = if rust_blocks.is_empty() {
+    // Phase 1b: B02 — Find $"..." template strings with brace-depth tracking
+    let template_strings = find_template_strings(source);
+
+    // Phase 2: Replace rust block and template string interiors with spaces
+    // so logos doesn't choke on Rust-specific syntax or nested-quote templates
+    let tokenize_source = if rust_blocks.is_empty() && template_strings.is_empty() {
         source.to_string()
     } else {
         let mut bytes = source.as_bytes().to_vec();
         for block in &rust_blocks {
             // Replace content between { and } (exclusive) with spaces
             for b in bytes[block.content_start..block.content_end].iter_mut() {
+                *b = b' ';
+            }
+        }
+        for tmpl in &template_strings {
+            // Replace the entire $"..." with spaces — we'll synthesize the token later
+            for b in bytes[tmpl.start..tmpl.end].iter_mut() {
                 *b = b' ';
             }
         }
@@ -546,7 +711,42 @@ pub fn tokenize(source: &str) -> Result<Vec<TokenWithSpan>> {
         }
     }
 
-    // Phase 4: Post-process — replace Token::Rust + Token::LBrace + Token::RBrace patterns
+    // Phase 4: Post-process — replace patterns that correspond to extracted
+    // rust blocks and template strings with their proper tokens.
+
+    // B02: Inject synthesized StringTemplate tokens for pre-scanned template strings
+    if !template_strings.is_empty() {
+        // Insert template tokens at the right position based on byte offset.
+        // Template string regions were blanked out, so no logos tokens were emitted for them.
+        // We need to insert StringTemplate tokens at the correct position in the stream.
+        let mut synth_tokens = Vec::new();
+        for tmpl in &template_strings {
+            synth_tokens.push(TokenWithSpan::new(
+                Token::StringTemplate(tmpl.content.clone()),
+                Span {
+                    start: tmpl.start,
+                    end: tmpl.end,
+                },
+            ));
+        }
+        // Merge: tokens are sorted by start position; insert synth tokens in order
+        let mut merged = Vec::with_capacity(tokens.len() + synth_tokens.len());
+        let mut si = 0;
+        for tok in tokens.iter() {
+            while si < synth_tokens.len() && synth_tokens[si].span.start < tok.span.start {
+                merged.push(synth_tokens[si].clone());
+                si += 1;
+            }
+            merged.push(tok.clone());
+        }
+        while si < synth_tokens.len() {
+            merged.push(synth_tokens[si].clone());
+            si += 1;
+        }
+        tokens = merged;
+    }
+
+    // Phase 5: Replace Token::Rust + Token::LBrace + Token::RBrace patterns
     // that correspond to extracted rust blocks with Token::RustBlock(content)
     if rust_blocks.is_empty() {
         return Ok(tokens);
@@ -693,5 +893,50 @@ let y = 1"#;
         let (content_end, brace_end) = result.unwrap();
         // Should match the outermost closing }
         assert_eq!(brace_end, source.len(), "Should close at outermost brace, got content_end={content_end}");
+    }
+
+    // B02: Template strings with nested quotes inside interpolation
+    #[test]
+    fn test_find_template_strings_simple() {
+        let source = r#"$"Hello {name}""#;
+        let templates = find_template_strings(source);
+        assert_eq!(templates.len(), 1);
+        assert_eq!(templates[0].content, "Hello {name}");
+    }
+
+    #[test]
+    fn test_find_template_strings_nested_quotes() {
+        // B02: The core failing case — fn("arg") inside template interpolation
+        let source = r#"$"result: {fn("arg")}""#;
+        let templates = find_template_strings(source);
+        assert_eq!(templates.len(), 1, "Should find exactly one template string");
+        assert_eq!(templates[0].content, r#"result: {fn("arg")}"#);
+    }
+
+    #[test]
+    fn test_find_template_strings_multiple_nested_quotes() {
+        let source = r#"$"{replace("hello", "world")} done""#;
+        let templates = find_template_strings(source);
+        assert_eq!(templates.len(), 1);
+        assert_eq!(templates[0].content, r#"{replace("hello", "world")} done"#);
+    }
+
+    #[test]
+    fn test_tokenize_template_nested_quotes() {
+        // B02: Full tokenization of template with nested quotes
+        let source = r#"let x = $"result: {fn("arg")}""#;
+        let tokens = tokenize(source).unwrap();
+        // Should have: Let, Ident("x"), Assign, StringTemplate("result: {fn(\"arg\")}")
+        assert_eq!(tokens.len(), 4, "Tokens: {:?}", tokens.iter().map(|t| &t.token).collect::<Vec<_>>());
+        assert!(matches!(&tokens[3].token, Token::StringTemplate(s) if s == r#"result: {fn("arg")}"#),
+            "Expected StringTemplate with nested quotes, got {:?}", tokens[3].token);
+    }
+
+    #[test]
+    fn test_find_template_strings_no_false_positive_regular_string() {
+        // Regular strings should NOT be captured
+        let source = r#"let x = "hello world""#;
+        let templates = find_template_strings(source);
+        assert!(templates.is_empty(), "Regular strings should not be captured");
     }
 }

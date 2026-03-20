@@ -3,7 +3,7 @@
 > **Inicio:** 2026-03-18  
 > **Objetivo:** Implementar los fixes del compilador y mejoras de la skill identificados en la auditoría de 10 proyectos AI-generated  
 > **Fuente:** `examples/ai/REPORT_SUMMARY.md` (informe consolidado) + 10× `REPORT.md` por proyecto  
-> **Estado:** En progreso — 29/47 bugs corregidos
+> **Estado:** En progreso — 44/47 bugs corregidos (solo B02 pendiente)
 
 ---
 
@@ -50,8 +50,8 @@ La auditoría de 10 proyectos AI-generated reveló **47 bugs únicos del compila
 ## Baseline de tests
 
 ```
-cargo test → 420 passed, 0 failed, 3 ignored
-Snapshots:   284 archivos en tests/snapshots/
+cargo test → 433 passed, 0 failed, 3 ignored
+Snapshots:   300+ archivos en tests/snapshots/
 Ejemplos:    40 archivos .liva en examples/ (no-AI)
 ```
 
@@ -121,11 +121,11 @@ Bugs que afectan 3+ proyectos o bloquean patrones fundamentales del lenguaje.
 
 - [x] **B07** — `get_field()` heuristic — locals/params caen al path JSON en vez de `.field`  ✅ 2026-03-19
   Archivo: `codegen.rs` | Proyectos: todo-list, json-parser, mini-interpreter
-- [ ] **B06** — `enum_names` no populado en `generate_module_code()`  
+- [x] **B06** — `enum_names` no populado en `generate_module_code()`  ✅
   Archivo: `codegen.rs` | Proyectos: todo-list
-- [ ] **B05** — `resp.body` con async genera `get_field("body")`  
+- [x] **B05** — `resp.body` con async genera `get_field("body")`  ✅
   Archivo: `codegen.rs` | Proyectos: web-scraper
-- [ ] **B10** — `.count()` colisión nombre de método de usuario con array built-in  
+- [x] **B10** — `.count()` colisión nombre de método de usuario con array built-in  ✅
   Archivo: `codegen.rs` | Proyectos: todo-list
 
 ### Métodos de Clase (`codegen.rs`)
@@ -160,13 +160,13 @@ Bugs que afectan 1-2 proyectos o patrones menos frecuentes.
 
 - [ ] **B02** — Strings dentro de template interpolation (`$"{fn("arg")}"`) rompe parsing  
   Proyectos: text-search, csv-reader, json-parser
-- [ ] **B25** — `charAt()` retorna String en vez de char — comparaciones `ch == '"'` fallan  
+- [x] **B25** — `charAt()` retorna String en vez de char — comparaciones `ch == '"'` fallan  ✅
   Proyectos: json-parser
-- [ ] **B26** — Char escape sequences truncados (`'\n'` → `'\\'`)  
+- [x] **B26** — Char escape sequences truncados (`'\n'` → `'\\'`)  ✅
   Proyectos: json-parser
-- [ ] **B28** — String `+` genera `.extend()` (iterator) en vez de `push_str`  
+- [x] **B28** — String `+` genera `.extend()` (iterator) en vez de `push_str`  ✅
   Proyectos: json-parser
-- [ ] **B29** — Template `{:?}` para vars mutables — Debug format añade quotes  
+- [x] **B29** — Template `{:?}` para vars mutables — Debug format añade quotes  ✅
   Proyectos: json-parser
 
 ### Arrays y Collections (`codegen.rs`)
@@ -175,34 +175,34 @@ Bugs que afectan 1-2 proyectos o patrones menos frecuentes.
   Proyectos: text-search, csv-reader
 - [x] **B39** — Array element assignment (`arr[i] = val`) genera LHS inválido  ✅
   Proyectos: mini-interpreter
-- [ ] **B16** — `parseInt(x) or default` genera tuple en vez de unwrap  
+- [x] **B16** — `parseInt(x) or default` genera tuple en vez de unwrap  ✅
   Proyectos: text-search
 
 ### Async (`codegen.rs`)
 
-- [ ] **B24** — `main()` no async cuando `rust {}` contiene `.await`  
+- [x] **B24** — `main()` no async cuando `rust {}` contiene `.await`  ✅
   Proyectos: chat-server, rest-api
-- [ ] **B03** — `async HTTP.get()` rompe error binding  
+- [x] **B03** — `async HTTP.get()` rompe error binding  ✅
   Proyectos: web-scraper
-- [ ] **B04** — `spawn_async` sin inner `.await` para user functions  
+- [x] **B04** — `spawn_async` sin inner `.await` para user functions  ✅
   Proyectos: web-scraper
 
 ### Tipos y Conversiones (`codegen.rs`)
 
-- [ ] **B40** — `String >= &str` comparación — no existe PartialOrd  
+- [x] **B40** — `String >= &str` comparación — no existe PartialOrd  ✅
   Proyectos: mini-interpreter
-- [ ] **B41** — Cast priority `pos + 1 as usize` → `pos + (1 as usize)` = `i32 + usize`  
+- [x] **B41** — Cast priority `pos + 1 as usize` → `pos + (1 as usize)` = `i32 + usize`  ✅
   Proyectos: mini-interpreter
-- [ ] **B32** — `f64 / i32` sin cast automático  
+- [x] **B32** — `f64 / i32` sin cast automático  ✅
   Proyectos: csv-reader
 - [x] **B31** — `const X: string` genera `const X: String` — `&str` vs `String`  ✅
   Proyectos: rest-api
 
 ### Enum (`codegen.rs`)
 
-- [ ] **B27** — Enum destructuring field name mapping incorrecto  
+- [x] **B27** — Enum destructuring field name mapping incorrecto  ✅
   Proyectos: json-parser
-- [ ] **B30** — Hyphen en `use rust` crate names no se convierte a `_` (**YA CORREGIDO** en auditoría)  
+- [x] **B30** — Hyphen en `use rust` crate names no se convierte a `_` (**YA CORREGIDO** en auditoría)  ✅
   Proyectos: rest-api
 
 ### Misc

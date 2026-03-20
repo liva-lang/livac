@@ -5245,3 +5245,23 @@ main() {
         "User async fn should have .await inside spawn: {}", rust_code);
     assert_snapshot!("spawn_async_user_fn_await", rust_code);
 }
+
+#[test]
+fn test_template_string_nested_quotes() {
+    // B02: Template strings with function calls containing string args
+    // $"{fn("arg")}" should parse correctly — the inner "arg" should not close the template
+    let source = r#"
+transform(text: string): string {
+    return text
+}
+
+main() {
+    let result = $"output: {transform("hello")}"
+    print(result)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // Should compile successfully and contain the function call
+    assert!(rust_code.contains("transform("), "Should contain the function call: {}", rust_code);
+    assert_snapshot!("template_nested_quotes", rust_code);
+}
