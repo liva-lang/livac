@@ -394,7 +394,7 @@ async fn fetch_data(url: String) -> String {
     if err.is_some() {
         return "error".to_string();
     }
-    return response.get_field("body").unwrap_or_default();
+    return response.body;
 }
 
 #[tokio::main]

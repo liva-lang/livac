@@ -5077,3 +5077,21 @@ main() {
     assert!(main_code.contains("\"result: {}\""), "Should use {{}} format for string var: {}", main_code);
     assert_snapshot!("template_mutable_var_display", rust_code);
 }
+
+#[test]
+fn test_async_http_resp_body_dot_notation() {
+    // B05: async HTTP.get response should use .body dot notation, not get_field("body")
+    let source = r#"
+main() {
+    let resp, err = async HTTP.get("https://example.com")
+    if err {
+        print($"Error: {err}")
+    }
+    print(resp.body)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // resp.body should NOT use get_field
+    assert!(!rust_code.contains("get_field(\"body\")"), "Should use .body not get_field: {}", rust_code);
+    assert_snapshot!("async_http_resp_body", rust_code);
+}

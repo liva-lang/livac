@@ -5001,6 +5001,14 @@ impl CodeGenerator {
 
                         // Register as pending task with error binding
                         let is_http = self.is_http_call(&var.init);
+
+                        // B05 fix: Pre-register HTTP response vars so member access
+                        // (resp.body) uses struct dot notation instead of get_field()
+                        if is_http && binding_names.len() >= 2 {
+                            self.rust_struct_vars.insert(binding_names[0].clone());
+                            self.string_error_vars.insert(binding_names[1].clone());
+                        }
+
                         self.pending_tasks.insert(
                             binding_names[0].clone(),
                             TaskInfo {
