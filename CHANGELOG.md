@@ -5,7 +5,7 @@ All notable changes to the Liva compiler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v1.5.0-dev
+## [1.5.0] - 2026-03-20
 
 ### Added - `rust { }` Interop 🦀
 
@@ -227,6 +227,87 @@ livac init my-data --template data     # Data processing template
 - Duplicate directory detection
 - Unknown template error with available list
 - **Tests**: 6 integration tests (387 total)
+
+### Fixed - AI Audit Bug Fixes (47 bugs) 🐛
+
+**Complete audit of 10 AI-generated projects revealed and fixed 47 compiler bugs.**
+
+#### Ownership & Move Semantics (8 fixes)
+- B17: Auto-clone for struct/map passed to functions by value
+- B36: Values moved in loop iterations — variable consumed on first iteration
+- B35: Array index access as argument now clones instead of moving
+- B21: `self.tokens[idx]` moves Token from Vec — now uses `.clone()`
+- B44: `.clone()` added for non-Copy fields of `&self`
+- B45: `for item in this.collection` iterates over copy — mutations preserved
+- B47: Array concat `arr + [value]` no longer moves the value
+- B34: Error binding vars now marked `mut` when reassigned
+
+#### Error Binding & `or fail` (6 fixes)
+- B01: `_` accepted in error binding (`let val, _ = fn()`)
+- B19: Error binding for method calls — `fallible_methods` tracking
+- B22: `or fail` works with method calls
+- B20: `fail "msg"` scope tracking — Error::new when error var out of scope
+- B23: Cross-file error binding — imports pre-populate fallible functions
+- B38: Error variable scope leak between if/else branches
+
+#### Field Access (4 fixes)
+- B07: `get_field()` heuristic — locals/params use `.field` instead of JSON path
+- B06: `enum_names` populated in `generate_module_code()`
+- B05: `resp.body` with async generates dot notation instead of `get_field("body")`
+- B10: `.count()` no longer collides with array built-in when called on class instances
+
+#### Class Methods (5 fixes)
+- B08: `&mut self` detection expanded beyond direct `this.field = x`
+- B09: `&mut self` transitive propagation — methods calling `&mut` methods are marked
+- B18: Arrow method return type `=> expr` infers correctly instead of `-> ()`
+- B14: Enum field in class no longer breaks `Default` derive
+- B46: serde derives triggered by `JSON.stringify` (not just `JSON.parse`)
+
+#### Rust Interop (2 fixes)
+- B42: `find_rust_blocks()` skips `rust` keyword inside `//` comments
+- B43: `find_balanced_brace()` handles lifetimes/apostrophes vs char literals
+
+#### Strings & Templates (5 fixes)
+- B02: Template strings with nested quotes in interpolation (`$"{fn("arg")}"`)
+- B25: `charAt()` returns char-compatible type for comparisons
+- B26: Char escape sequences preserved (`'\n'` → `'\n'`, not `'\\'`)
+- B28: String `+` generates `push_str` instead of `.extend()` (iterator)
+- B29: Template `{}` (Display) for mutable vars instead of `{:?}` (Debug)
+
+#### Arrays & Collections (3 fixes)
+- B15: `.filter()` generates `.cloned()` instead of `.copied()` for non-Copy types
+- B39: Array element assignment (`arr[i] = val`) generates valid LHS
+- B16: `parseInt(x) or default` unwraps instead of generating tuple
+
+#### Async (3 fixes)
+- B24: `main()` marked async when `rust {}` contains `.await`
+- B03: `async HTTP.get()` error binding uses String (not Option)
+- B04: `spawn_async` adds `.await` for user-defined async functions
+
+#### Types & Conversions (4 fixes)
+- B40: `String >= &str` comparison — adds `.as_str()` for ordering operators
+- B41: Cast priority `(pos + 1) as usize` — wraps expressions in parentheses
+- B32: `f64 / i32` auto-cast — `float_vars` tracking with `as f64` for `.length`
+- B31: `const X: string` generates `&str` instead of `String`
+
+#### Misc (7 fixes)
+- B11: `console.input` with template string — no nested `print!(format!(...))`
+- B33: Single-var binding for fallible generates unwrap instead of tuple
+- B37: `type` as field name — Rust reserved keyword escaped as `r#type`
+- B27: Enum destructuring field name mapping in IR codegen
+- B30: Hyphen in `use rust` crate names converted to `_`
+
+**Test suite**: 388 → 439 tests (+51 regression tests)
+
+### Improved - AI Skill (7 improvements) 📝
+
+- S1: Reserved keywords section expanded with Rust keywords warning
+- S2: `main()` auto-detect documented prominently
+- S3: `console.input()` verified correct (no `console.prompt`)
+- S4: `Sys.args()` behavior documented — args[0] = program name
+- S5: Rust interop details — snake_case, Result types, var access, hyphenated crates
+- S6: `number` = integer (i32) clarification — not for float math
+- S7: Errors are plain strings, not objects with `.message`
 
 ---
 
