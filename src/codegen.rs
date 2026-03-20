@@ -6767,10 +6767,10 @@ impl CodeGenerator {
                     if self.string_vars.contains(&sanitized) {
                         // String indexing - use .chars().nth(i)
                         self.generate_expr(object)?;
-                        self.output.push_str(".chars().nth(");
+                        self.output.push_str(".chars().nth((");
                         self.generate_expr(index)?;
                         self.output
-                            .push_str(" as usize).map(|c| c.to_string()).unwrap_or_default()");
+                            .push_str(") as usize).map(|c| c.to_string()).unwrap_or_default()");
                         return Ok(());
                     }
                 }
@@ -6825,19 +6825,19 @@ impl CodeGenerator {
                                     self.output.push_str(").unwrap_or_default()");
                                 } else {
                                     // Assume numeric index for array access
-                                    self.output.push_str(".get(");
+                                    self.output.push_str(".get((");
                                     self.generate_expr(index)?;
                                     self.output
-                                        .push_str(" as usize).cloned().unwrap_or_default()");
+                                        .push_str(") as usize).cloned().unwrap_or_default()");
                                 }
                                 return Ok(());
                             }
                             _ => {
                                 // Try JsonValue array access with expression
-                                self.output.push_str(".get(");
+                                self.output.push_str(".get((");
                                 self.generate_expr(index)?;
                                 self.output
-                                    .push_str(" as usize).cloned().unwrap_or_default()");
+                                    .push_str(") as usize).cloned().unwrap_or_default()");
                                 return Ok(());
                             }
                         }
@@ -6865,10 +6865,10 @@ impl CodeGenerator {
                             return Ok(());
                         }
                         _ => {
-                            self.output.push_str(".get(");
+                            self.output.push_str(".get((");
                             self.generate_expr(index)?;
                             self.output
-                                .push_str(" as usize).cloned().unwrap_or_default()");
+                                .push_str(") as usize).cloned().unwrap_or_default()");
                             return Ok(());
                         }
                     }

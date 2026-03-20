@@ -5136,3 +5136,21 @@ main() {
     assert!(rust_code.contains(".as_str()"), "Should use .as_str() for String ordering comparison: {}", rust_code);
     assert_snapshot!("string_ordering_comparison", rust_code);
 }
+
+#[test]
+fn test_cast_priority_index_arithmetic() {
+    // B41: arr[pos + 1] should generate (pos + 1) as usize, not pos + 1 as usize
+    let source = r#"
+main() {
+    let text = "hello"
+    let pos = 2
+    let ch = text[pos + 1]
+    print(ch)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // Should wrap the arithmetic expression in parens before `as usize`
+    assert!(rust_code.contains("(pos + 1) as usize"), "Should wrap expr in parens: {}", rust_code);
+    assert!(!rust_code.contains("pos + 1 as usize"), "Should NOT have bare 'pos + 1 as usize': {}", rust_code);
+    assert_snapshot!("cast_priority_index", rust_code);
+}
