@@ -1,5 +1,5 @@
 ---
-source: tests/codegen_ir_tests.rs
+source: tests/codegen_tests.rs
 expression: rust_code
 ---
 #![allow(unused_parens, unused_mut)]
@@ -388,15 +388,17 @@ mod liva_rt {
     
 }
 
-fn fetch() -> f64 {
-    let response_task = liva_rt::spawn_async(async move { get_data() });
-    let mut response = response_task.await.unwrap();
-    return response;
+async fn fetch_data(url: String) -> String {
+    let (resp, err) = { let (opt, err) = liva_rt::liva_http_get(url.to_string()).await; (opt.unwrap_or_default(), err) };
+    if !err.is_empty() {
+        return "".to_string();
+    }
+    return resp.body;
 }
 
-fn main() {
-    let value_task = liva_rt::spawn_async(async move { fetch().await });
-    liva_rt::fire_async(async move { fetch(); });
-    let mut value = value_task.await.unwrap();
-    println!("{}", value);
+#[tokio::main]
+async fn main() {
+    let t_task = liva_rt::spawn_async(async move { fetch_data("https://example.com".to_string()) });
+    let result = t_task.await.unwrap();
+    println!("{}", result);
 }

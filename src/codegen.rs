@@ -11477,6 +11477,13 @@ impl CodeGenerator {
                 }
             }
             self.output.push(')');
+            // B04 fix: add .await for user-defined async functions inside spawn_async
+            // Without .await, the function returns a Future<T> instead of T
+            if let Expr::Identifier(name) = &*call.callee {
+                if self.async_functions.contains(name) {
+                    self.output.push_str(".await");
+                }
+            }
         }
 
         self.output.push_str(" })");

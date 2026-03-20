@@ -5220,3 +5220,28 @@ main() {
     assert!(rust_code.contains("#[tokio::main]"), "Should have tokio::main attribute: {}", rust_code);
     assert_snapshot!("main_async_rust_block_await", rust_code);
 }
+
+#[test]
+fn test_spawn_async_user_function_has_await() {
+    // B04: task async userFn(arg) should generate .await inside spawn_async
+    let source = r#"
+fetchData(url: string): string {
+    let resp, err = HTTP.get(url)
+    if err {
+        return ""
+    }
+    return resp.body
+}
+
+main() {
+    let t = task async fetchData("https://example.com")
+    let result = await t
+    print(result)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // Should have .await inside spawn_async for the user function
+    assert!(rust_code.contains("fetch_data(") && rust_code.contains(".await"),
+        "User async fn should have .await inside spawn: {}", rust_code);
+    assert_snapshot!("spawn_async_user_fn_await", rust_code);
+}
