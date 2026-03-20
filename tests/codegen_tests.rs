@@ -5015,3 +5015,30 @@ main() {
     assert!(!ch_line.contains("c.to_string()"), "charAt should NOT convert to String: {}", ch_line);
     assert_snapshot!("char_at_returns_char", rust_code);
 }
+
+#[test]
+fn test_char_escape_sequences() {
+    // B26: char escape sequences like '\n', '\t', '\r' should be preserved, not truncated to '\\'
+    let source = r#"
+main() {
+    let text = "hello world"
+    let ch = text.charAt(0)
+    if ch == '\n' {
+        print("newline")
+    }
+    if ch == '\t' {
+        print("tab")
+    }
+    if ch == '\\' {
+        print("backslash")
+    }
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    let main_code = rust_code.split("fn main()").last().unwrap_or("");
+    // Each escape should generate its correct Rust char literal
+    assert!(main_code.contains("'\\n'"), "Should contain newline char literal: {}", main_code);
+    assert!(main_code.contains("'\\t'"), "Should contain tab char literal: {}", main_code);
+    assert!(main_code.contains("'\\\\'"), "Should contain backslash char literal: {}", main_code);
+    assert_snapshot!("char_escape_sequences", rust_code);
+}

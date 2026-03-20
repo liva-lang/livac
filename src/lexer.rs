@@ -222,7 +222,20 @@ pub enum Token {
     #[regex(r"'([^'\\]|\\.)+'", |lex| {
         let s = lex.slice();
         let content = &s[1..s.len()-1];
-        content.chars().next()
+        // B26 fix: interpret escape sequences instead of taking first char blindly
+        if content.starts_with('\\') && content.len() >= 2 {
+            match content.chars().nth(1) {
+                Some('n') => Some('\n'),
+                Some('t') => Some('\t'),
+                Some('r') => Some('\r'),
+                Some('\\') => Some('\\'),
+                Some('\'') => Some('\''),
+                Some('0') => Some('\0'),
+                _ => content.chars().next(),
+            }
+        } else {
+            content.chars().next()
+        }
     })]
     CharLiteral(char),
 
