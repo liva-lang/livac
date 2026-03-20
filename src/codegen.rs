@@ -4950,9 +4950,17 @@ impl CodeGenerator {
                     } else if binding_names.len() == 2 && (is_task || is_await_task) {
                         // Task error bindings: match { Ok(v) => (v, None), Err(e) => (Default, Some(e)) }
                         // value is T (direct), err is Option<Error>
-                        self.error_binding_vars.insert(binding_names[1].clone());
-                        if let Some(scope) = self.error_binding_scope_stack.last_mut() {
-                            scope.push(binding_names[1].clone());
+                        // B03 fix: HTTP tasks return String error, not Option<Error>
+                        let inner_is_http = self.is_http_call(&var.init);
+                        if inner_is_http {
+                            // HTTP tasks: err is String (from tuple), not Option
+                            self.string_error_vars.insert(binding_names[1].clone());
+                            self.rust_struct_vars.insert(binding_names[0].clone());
+                        } else {
+                            self.error_binding_vars.insert(binding_names[1].clone());
+                            if let Some(scope) = self.error_binding_scope_stack.last_mut() {
+                                scope.push(binding_names[1].clone());
+                            }
                         }
                         // Do NOT add to option_value_vars - value is direct, not Option
                     } else if binding_names.len() == 2 && (returns_tuple || is_typed_json_parse) {
@@ -5003,13 +5011,6 @@ impl CodeGenerator {
 
                         // Register as pending task with error binding
                         let is_http = self.is_http_call(&var.init);
-
-                        // B05 fix: Pre-register HTTP response vars so member access
-                        // (resp.body) uses struct dot notation instead of get_field()
-                        if is_http && binding_names.len() >= 2 {
-                            self.rust_struct_vars.insert(binding_names[0].clone());
-                            self.string_error_vars.insert(binding_names[1].clone());
-                        }
 
                         self.pending_tasks.insert(
                             binding_names[0].clone(),

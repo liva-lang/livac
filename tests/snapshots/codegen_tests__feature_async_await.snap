@@ -391,7 +391,7 @@ mod liva_rt {
 async fn fetch_data(url: String) -> String {
     let response_task = liva_rt::spawn_async(async move { liva_rt::liva_http_get(url.to_string()).await });
     let (response, err) = { let (opt, err) = response_task.await.unwrap(); (opt.unwrap_or_default(), err) };
-    if err.is_some() {
+    if err != "" {
         return "error".to_string();
     }
     return response.body;
