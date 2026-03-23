@@ -342,6 +342,25 @@ let text = CSV.stringify(rows)                      // [[string]] → CSV string
 let hdrs = CSV.headers(table)                       // → [string] header names
 let col = CSV.column(table, "name")                 // → [string] column values
 
+// Random (crates rand + uuid auto-injected)
+let n = Random.nextInt(1, 100)                      // int in [min, max]
+let f = Random.nextFloat(0.0, 1.0)                  // float in [min, max] (args optional)
+let pick = Random.choice(["a", "b", "c"])           // Random element
+let mixed = Random.shuffle([1, 2, 3])               // Shuffled copy
+let id = Random.uuid()                              // UUID v4 string
+
+// Crypto (crates sha2, md-5, base64 auto-injected)
+let hash = Crypto.sha256("hello")                    // Hex SHA-256
+let md = Crypto.md5("hello")                         // Hex MD5
+let enc = Crypto.base64Encode("hello")               // Base64 encode
+let dec, err = Crypto.base64Decode(enc)              // Fallible decode
+
+// Process (std::process, no external crates)
+let output, err = Process.exec("ls -la")             // Run cmd, capture stdout
+let pid, err = Process.spawn("sleep 10")             // Background process
+let myPid = Process.pid()                            // Current PID
+Process.exit(0)                                      // Exit with code
+
 // System
 Sys.args()                               // [string] — args[0] = program name, args[1..] = user args
 Sys.env("HOME")                           // Get env variable

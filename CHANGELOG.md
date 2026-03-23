@@ -141,6 +141,48 @@ let tsv, err = CSV.read("data.tsv", "\t")
 - **Tests**: 2 new snapshot tests (total: 237 codegen)
 - **Docs**: `docs/language-reference/stdlib/csv.md` — complete documentation
 
+### Added - Random, Crypto, Process Modules 🔧
+
+**3 new stdlib modules — 13 functions total for randomness, hashing, and process control.**
+
+#### Random — 5 functions (crates `rand` + `uuid` auto-injected)
+
+```liva
+let n = Random.nextInt(1, 100)         // Random integer in [min, max]
+let f = Random.nextFloat(0.0, 1.0)     // Random float in [min, max] (args optional)
+let pick = Random.choice(["a", "b", "c"])  // Random element
+let mixed = Random.shuffle([1, 2, 3])  // Shuffled copy
+let id = Random.uuid()                 // UUID v4 string
+```
+
+#### Crypto — 4 functions (crates `sha2`, `md-5`, `base64` auto-injected)
+
+```liva
+let hash = Crypto.sha256("hello")       // Hex-encoded SHA-256
+let md = Crypto.md5("hello")            // Hex-encoded MD5
+let encoded = Crypto.base64Encode("hello")  // Base64 string
+let decoded, err = Crypto.base64Decode(encoded)  // Fallible
+```
+
+#### Process — 4 functions (no external crates, uses `std::process`)
+
+```liva
+let output, err = Process.exec("ls -la")   // Run command, capture stdout
+let pid, err = Process.spawn("sleep 10")   // Spawn background process
+let myPid = Process.pid()                  // Current process PID
+Process.exit(0)                            // Exit with code
+```
+
+#### Compiler Changes
+
+- **Codegen**: `generate_random_function_call()` with 5 methods (nextInt, nextFloat, choice, shuffle, uuid)
+- **Codegen**: `generate_crypto_function_call()` with 4 methods (sha256, md5, base64Encode, base64Decode)
+- **Codegen**: `generate_process_function_call()` with 4 methods (exec, spawn, pid, exit)
+- **Desugaring**: `has_random` flag for `rand`/`uuid` crate auto-injection
+- **Desugaring**: `has_crypto` flag for `sha2`/`md-5`/`base64` crate auto-injection
+- **Codegen**: `is_file_call()` extended for `Process.exec`, `Process.spawn`, `Crypto.base64Decode`
+- **Tests**: 3 new snapshot tests (1 per module)
+
 ## [1.5.0] - 2026-03-20
 
 ### Added - `rust { }` Interop 🦀

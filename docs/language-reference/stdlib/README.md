@@ -1,7 +1,7 @@
 # Liva Standard Library
 
 > **Status:** ✅ Complete (v1.6.0-dev) - 100+ functions implemented! 🎉  
-> **Completion:** Arrays ✅ (31) | Strings ✅ (28) | Math ✅ (14) | Config ✅ (5) | File ✅ (11) | Dir ✅ (7) | Regex ✅ (5) | Date ✅ (14) | CSV ✅ (8) | Conversions ✅ | I/O ✅ | System ✅ | Logging ✅
+> **Completion:** Arrays ✅ (31) | Strings ✅ (28) | Math ✅ (14) | Config ✅ (5) | File ✅ (11) | Dir ✅ (7) | Regex ✅ (5) | Date ✅ (14) | CSV ✅ (8) | Random ✅ (5) | Crypto ✅ (4) | Process ✅ (4) | Conversions ✅ | I/O ✅ | System ✅ | Logging ✅
 
 The Liva Standard Library provides built-in functions and methods for common programming tasks.
 
@@ -174,6 +174,37 @@ Read, write, and manipulate CSV data with Table support.
 **Pure:** `CSV.parse(text)`, `CSV.stringify(rows)`
 **Table ops:** `CSV.headers(table)`, `CSV.column(table, colName)`
 **Table type:** `[Map<string, string>]` — use standard array methods for filter/sort/group
+
+### ✅ Random
+Random number generation, array shuffling, and UUID creation.
+
+**Status:** Complete (v1.7) — 5 functions, crates `rand` + `uuid` auto-injected
+
+- `Random.nextInt(min, max)` → `int` — random integer in range
+- `Random.nextFloat([min, max])` → `float` — random float (args optional)
+- `Random.choice(arr)` → `T` — random element from array
+- `Random.shuffle(arr)` → `[T]` — shuffled copy of array
+- `Random.uuid()` → `string` — UUID v4
+
+### ✅ Crypto
+Hashing and encoding utilities.
+
+**Status:** Complete (v1.7) — 4 functions, crates `sha2`, `md-5`, `base64` auto-injected
+
+- `Crypto.sha256(input)` → `string` — hex-encoded SHA-256 hash
+- `Crypto.md5(input)` → `string` — hex-encoded MD5 hash
+- `Crypto.base64Encode(input)` → `string` — Base64 encode
+- `Crypto.base64Decode(input)` → `string, error` — Base64 decode (fallible)
+
+### ✅ Process
+Process execution and control.
+
+**Status:** Complete (v1.7) — 4 functions, no external crates (`std::process`)
+
+- `Process.exec(cmd)` → `string, error` — execute command, capture stdout (fallible)
+- `Process.spawn(cmd)` → `int, error` — spawn background process, return PID (fallible)
+- `Process.pid()` → `int` — current process PID
+- `Process.exit(code)` — exit with status code
 
 ---
 

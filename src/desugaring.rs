@@ -23,6 +23,7 @@ pub struct DesugarContext {
     pub has_config: bool,                  // true if Config.* is used
     pub has_regex: bool,                   // true if Regex.* is used
     pub has_date: bool,                    // true if Date.* is used
+    pub has_crypto: bool,                  // true if Crypto.* is used (sha2, md5, base64 crates)
     pub async_functions: BTreeSet<String>, // Functions that are async (BTreeSet for deterministic order)
     #[serde(skip)]
     pub source_filename: String,           // Source filename for error traces
@@ -40,6 +41,7 @@ impl DesugarContext {
             has_config: false,
             has_regex: false,
             has_date: false,
+            has_crypto: false,
             async_functions: BTreeSet::new(),
             source_filename: String::new(),
         }
@@ -215,6 +217,12 @@ fn check_expr_concurrency(expr: &Expr, ctx: &mut DesugarContext) {
                 }
                 if name == "Date" {
                     ctx.has_date = true;
+                }
+                if name == "Random" {
+                    ctx.has_random = true;
+                }
+                if name == "Crypto" {
+                    ctx.has_crypto = true;
                 }
             }
 

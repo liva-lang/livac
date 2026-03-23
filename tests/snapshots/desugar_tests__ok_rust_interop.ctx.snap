@@ -34,5 +34,6 @@ expression: json
   "has_config": false,
   "has_regex": false,
   "has_date": false,
+  "has_crypto": false,
   "async_functions": []
 }

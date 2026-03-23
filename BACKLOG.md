@@ -218,29 +218,30 @@
 > **Foco:** Completar stdlib + poder servir HTTP.  
 > **Esfuerzo estimado:** ~16h
 
-### Random — módulo nuevo
+### Random — módulo nuevo ✅
 
-- [ ] `Random.int(min, max)` → `int`
-- [ ] `Random.float()` → `float`
-- [ ] `Random.choice(arr)` → `T`
-- [ ] `Random.shuffle(arr)` → `[T]`
-- [ ] `Random.uuid()` → `string`
-- [ ] Tests
+- [x] `Random.nextInt(min, max)` → `int`
+- [x] `Random.nextFloat([min, max])` → `float`
+- [x] `Random.choice(arr)` → `T`
+- [x] `Random.shuffle(arr)` → `[T]`
+- [x] `Random.uuid()` → `string`
+- [x] Tests
 
-### Crypto — módulo nuevo (crate `sha2`/`hmac` auto-inyectado)
+### Crypto — módulo nuevo (crates `sha2`/`md-5`/`base64` auto-inyectados) ✅
 
-- [ ] `Crypto.sha256(data)` → `string`
-- [ ] `Crypto.md5(data)` → `string`
-- [ ] `Crypto.hmac(key, data)` → `string`
-- [ ] `Crypto.randomBytes(n)` → `string` (hex)
-- [ ] Tests
+- [x] `Crypto.sha256(data)` → `string`
+- [x] `Crypto.md5(data)` → `string`
+- [x] `Crypto.base64Encode(data)` → `string`
+- [x] `Crypto.base64Decode(data)` → `string, error`
+- [x] Tests
 
-### Process — módulo nuevo
+### Process — módulo nuevo ✅
 
-- [ ] `Process.exec(cmd, args?)` → `string, error`
-- [ ] `Process.spawn(cmd, args?)` → `int, error` (PID)
-- [ ] `Process.exit(code)`
-- [ ] Tests
+- [x] `Process.exec(cmd)` → `string, error`
+- [x] `Process.spawn(cmd)` → `int, error` (PID)
+- [x] `Process.pid()` → `int`
+- [x] `Process.exit(code)`
+- [x] Tests
 
 ### HTTP Server — Ver plan §Línea 4
 

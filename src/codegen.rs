@@ -317,6 +317,12 @@ impl CodeGenerator {
                     if obj == "CSV" {
                         return matches!(mc.method.as_str(), "read" | "write" | "readTable" | "writeTable");
                     }
+                    if obj == "Process" {
+                        return matches!(mc.method.as_str(), "exec" | "spawn");
+                    }
+                    if obj == "Crypto" {
+                        return matches!(mc.method.as_str(), "base64Decode");
+                    }
                 }
                 false
             }
@@ -8633,6 +8639,21 @@ impl CodeGenerator {
                 return self.generate_csv_function_call(method_call);
             }
 
+            // Check if this is a Random function call (Random.nextInt, etc.)
+            if name == "Random" {
+                return self.generate_random_function_call(method_call);
+            }
+
+            // Check if this is a Crypto function call (Crypto.sha256, etc.)
+            if name == "Crypto" {
+                return self.generate_crypto_function_call(method_call);
+            }
+
+            // Check if this is a Process function call (Process.exec, etc.)
+            if name == "Process" {
+                return self.generate_process_function_call(method_call);
+            }
+
             // Bug #40: Check if this is a module alias call (import * as alias from "...")
             // Generate module::function() instead of alias.function()
             if let Some(module_name) = self.module_aliases.get(name).cloned() {
@@ -12249,6 +12270,230 @@ impl CodeGenerator {
                     "E3000",
                     &format!("Unknown CSV function: {}", method_call.method),
                     "Available: read, write, readTable, writeTable, parse, stringify, headers, column",
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn generate_random_function_call(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
+        match method_call.method.as_str() {
+            "nextInt" => {
+                // Random.nextInt(min, max) → i64
+                if method_call.args.len() != 2 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Random.nextInt requires exactly 2 arguments",
+                        "Usage: Random.nextInt(min, max)",
+                    )));
+                }
+                self.output.push_str("{ use rand::Rng; rand::thread_rng().gen_range(");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str("..=");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str(") }");
+            }
+            "nextFloat" => {
+                // Random.nextFloat(min, max) → f64, or Random.nextFloat() → 0.0..1.0
+                if method_call.args.is_empty() {
+                    self.output.push_str("rand::random::<f64>()");
+                } else if method_call.args.len() == 2 {
+                    self.output.push_str("{ use rand::Rng; let __min: f64 = ");
+                    self.generate_expr(&method_call.args[0])?;
+                    self.output.push_str(" as f64; let __max: f64 = ");
+                    self.generate_expr(&method_call.args[1])?;
+                    self.output.push_str(" as f64; rand::thread_rng().gen_range(__min..__max) }");
+                } else {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Random.nextFloat requires 0 or 2 arguments",
+                        "Usage: Random.nextFloat() or Random.nextFloat(min, max)",
+                    )));
+                }
+            }
+            "choice" => {
+                // Random.choice(array) → Option<T> element
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Random.choice requires exactly 1 argument",
+                        "Usage: Random.choice(array)",
+                    )));
+                }
+                self.output.push_str("{ use rand::Rng; let __arr = &");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str("; if __arr.is_empty() { panic!(\"Random.choice: empty array\") } else { __arr[rand::thread_rng().gen_range(0..__arr.len())].clone() } }");
+            }
+            "shuffle" => {
+                // Random.shuffle(array) → new shuffled array
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Random.shuffle requires exactly 1 argument",
+                        "Usage: Random.shuffle(array)",
+                    )));
+                }
+                self.output.push_str("{ use rand::seq::SliceRandom; let mut __v = ");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(".clone(); __v.shuffle(&mut rand::thread_rng()); __v }");
+            }
+            "uuid" => {
+                // Random.uuid() → String (UUID v4)
+                if !method_call.args.is_empty() {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Random.uuid takes no arguments",
+                        "Usage: Random.uuid()",
+                    )));
+                }
+                self.output.push_str("uuid::Uuid::new_v4().to_string()");
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3000",
+                    &format!("Unknown Random function: {}", method_call.method),
+                    "Available: nextInt(min, max), nextFloat([min, max]), choice(arr), shuffle(arr), uuid()",
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn generate_crypto_function_call(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
+        match method_call.method.as_str() {
+            "sha256" => {
+                // Crypto.sha256(input) → String (hex)
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Crypto.sha256 requires exactly 1 argument",
+                        "Usage: Crypto.sha256(input)",
+                    )));
+                }
+                self.output.push_str("{ use sha2::Digest; let mut hasher = sha2::Sha256::new(); hasher.update(");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(".as_bytes()); format!(\"{:x}\", hasher.finalize()) }");
+            }
+            "md5" => {
+                // Crypto.md5(input) → String (hex)
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Crypto.md5 requires exactly 1 argument",
+                        "Usage: Crypto.md5(input)",
+                    )));
+                }
+                self.output.push_str("{ use md5::Digest; let mut hasher = md5::Md5::new(); hasher.update(");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(".as_bytes()); format!(\"{:x}\", hasher.finalize()) }");
+            }
+            "base64Encode" => {
+                // Crypto.base64Encode(input) → String
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Crypto.base64Encode requires exactly 1 argument",
+                        "Usage: Crypto.base64Encode(input)",
+                    )));
+                }
+                self.output.push_str("{ use base64::Engine; base64::engine::general_purpose::STANDARD.encode(");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(".as_bytes()) }");
+            }
+            "base64Decode" => {
+                // Crypto.base64Decode(input) → (Option<String>, String) — fallible
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Crypto.base64Decode requires exactly 1 argument",
+                        "Usage: Crypto.base64Decode(input)",
+                    )));
+                }
+                self.output.push_str("{ use base64::Engine; match base64::engine::general_purpose::STANDARD.decode(");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(".as_bytes()) { Ok(bytes) => match String::from_utf8(bytes) { Ok(s) => (Some(s), String::new()), Err(e) => (None, format!(\"Crypto.base64Decode UTF-8 error: {}\", e)) }, Err(e) => (None, format!(\"Crypto.base64Decode error: {}\", e)) } }");
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3000",
+                    &format!("Unknown Crypto function: {}", method_call.method),
+                    "Available: sha256(input), md5(input), base64Encode(input), base64Decode(input)",
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn generate_process_function_call(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
+        match method_call.method.as_str() {
+            "exec" => {
+                // Process.exec(cmd) → (Option<String>, String) — fallible
+                // Runs command via shell and captures output
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Process.exec requires exactly 1 argument",
+                        "Usage: Process.exec(command)",
+                    )));
+                }
+                self.output.push_str("{ let __cmd = &");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str("; match std::process::Command::new(\"sh\").arg(\"-c\").arg(__cmd).output() { Ok(output) => { if output.status.success() { (Some(String::from_utf8_lossy(&output.stdout).trim().to_string()), String::new()) } else { let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string(); (None, if stderr.is_empty() { format!(\"Process.exec failed with exit code: {}\", output.status) } else { stderr }) } }, Err(e) => (None, format!(\"Process.exec error: {}\", e)) } }");
+            }
+            "spawn" => {
+                // Process.spawn(cmd) → (Option<i64>, String) — fallible, returns PID
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Process.spawn requires exactly 1 argument",
+                        "Usage: Process.spawn(command)",
+                    )));
+                }
+                self.output.push_str("{ let __cmd = &");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str("; match std::process::Command::new(\"sh\").arg(\"-c\").arg(__cmd).spawn() { Ok(child) => (Some(child.id() as i64), String::new()), Err(e) => (None, format!(\"Process.spawn error: {}\", e)) } }");
+            }
+            "pid" => {
+                // Process.pid() → i64 (current process PID)
+                if !method_call.args.is_empty() {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Process.pid takes no arguments",
+                        "Usage: Process.pid()",
+                    )));
+                }
+                self.output.push_str("(std::process::id() as i64)");
+            }
+            "exit" => {
+                // Process.exit(code) — terminates process
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Process.exit requires exactly 1 argument",
+                        "Usage: Process.exit(code)",
+                    )));
+                }
+                self.output.push_str("std::process::exit(");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(" as i32)");
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3000",
+                    &format!("Unknown Process function: {}", method_call.method),
+                    "Available: exec(cmd), spawn(cmd), pid(), exit(code)",
                 )));
             }
         }
@@ -16773,6 +17018,7 @@ pub fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
 
     if ctx.has_random {
         cargo_toml.push_str("rand = \"0.8\"\n");
+        cargo_toml.push_str("uuid = { version = \"1\", features = [\"v4\"] }\n");
     }
 
     if ctx.has_logging || ctx.has_date {
@@ -16783,6 +17029,12 @@ pub fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
         cargo_toml.push_str("regex = \"1\"\n");
     }
 
+    if ctx.has_crypto {
+        cargo_toml.push_str("sha2 = \"0.10\"\n");
+        cargo_toml.push_str("md-5 = \"0.10\"\n");
+        cargo_toml.push_str("base64 = \"0.22\"\n");
+    }
+
     // Add user-specified crates (with version and features support)
     for dep in &ctx.rust_crates {
         let crate_name = &dep.name;
@@ -16790,7 +17042,9 @@ pub fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
         if crate_name == "tokio" || crate_name == "serde" || crate_name == "serde_json"
             || crate_name == "reqwest" || crate_name == "rayon" || crate_name == "rand"
             || (crate_name == "chrono" && (ctx.has_logging || ctx.has_date))
-            || (crate_name == "regex" && ctx.has_regex) {
+            || (crate_name == "regex" && ctx.has_regex)
+            || ((crate_name == "sha2" || crate_name == "md-5" || crate_name == "base64") && ctx.has_crypto)
+            || (crate_name == "uuid" && ctx.has_random) {
             // For internal crates, only merge additional features
             if !dep.features.is_empty() {
                 // Already handled: user can add features to internal crates
@@ -16830,6 +17084,7 @@ mod tests {
             has_config: false,
             has_regex: false,
             has_date: false,
+            has_crypto: false,
             async_functions: std::collections::BTreeSet::new(),
             source_filename: String::new(),
         });

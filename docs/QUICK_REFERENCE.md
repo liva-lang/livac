@@ -1465,6 +1465,48 @@ let ok, err = CSV.writeTable("result.csv", table)
 let filtered = table.filter(row => row.get("region") == "Europa")
 ```
 
+### Random *(v1.7.0)*
+
+```liva
+// Random numbers
+let n = Random.nextInt(1, 100)                     // int in [min, max]
+let f = Random.nextFloat(0.0, 1.0)                 // float in [min, max]
+let f2 = Random.nextFloat()                        // float in [0.0, 1.0)
+
+// Random selection
+let pick = Random.choice(["a", "b", "c"])          // Random element
+let mixed = Random.shuffle([1, 2, 3, 4, 5])        // Shuffled copy
+
+// UUID
+let id = Random.uuid()                             // "550e8400-e29b-..."
+```
+
+### Crypto *(v1.7.0)*
+
+```liva
+// Hashing
+let hash = Crypto.sha256("hello world")             // Hex-encoded SHA-256
+let md = Crypto.md5("hello world")                  // Hex-encoded MD5
+
+// Base64
+let encoded = Crypto.base64Encode("hello")          // "aGVsbG8="
+let decoded, err = Crypto.base64Decode(encoded)     // Fallible
+```
+
+### Process *(v1.7.0)*
+
+```liva
+// Execute command and capture output
+let output, err = Process.exec("ls -la")            // string, error
+
+// Spawn background process
+let pid, err = Process.spawn("sleep 10")            // int, error
+
+// Process info
+let myPid = Process.pid()                          // Current PID
+Process.exit(0)                                    // Exit with code
+```
+
 ### Configuration *(v1.5.0)*
 
 ```liva

@@ -5577,3 +5577,92 @@ main() {
     assert!(rust_code.contains("headers"), "Should contain headers extraction: {}", rust_code);
     assert_snapshot!("csv_read_table_and_write", rust_code);
 }
+
+// ==================== Random Module Tests ====================
+
+#[test]
+fn test_random_functions() {
+    let source = r#"
+main() {
+    let n = Random.nextInt(1, 100)
+    print(n)
+
+    let f = Random.nextFloat()
+    print(f)
+
+    let f2 = Random.nextFloat(0.5, 1.5)
+    print(f2)
+
+    let items = [1, 2, 3, 4, 5]
+    let pick = Random.choice(items)
+    print(pick)
+
+    let shuffled = Random.shuffle(items)
+    print(shuffled)
+
+    let id = Random.uuid()
+    print(id)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("gen_range"), "Should contain gen_range: {}", rust_code);
+    assert!(rust_code.contains("Uuid::new_v4"), "Should contain uuid: {}", rust_code);
+    assert!(rust_code.contains("shuffle"), "Should contain shuffle: {}", rust_code);
+    assert_snapshot!("random_functions", rust_code);
+}
+
+// ==================== Crypto Module Tests ====================
+
+#[test]
+fn test_crypto_functions() {
+    let source = r#"
+main() {
+    let hash = Crypto.sha256("hello")
+    print(hash)
+
+    let md = Crypto.md5("hello")
+    print(md)
+
+    let encoded = Crypto.base64Encode("hello world")
+    print(encoded)
+
+    let decoded, err = Crypto.base64Decode(encoded)
+    if err == "" {
+        print(decoded)
+    }
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("sha2::Sha256"), "Should contain SHA256: {}", rust_code);
+    assert!(rust_code.contains("md5::Md5"), "Should contain MD5: {}", rust_code);
+    assert!(rust_code.contains("base64"), "Should contain base64: {}", rust_code);
+    assert_snapshot!("crypto_functions", rust_code);
+}
+
+// ==================== Process Module Tests ====================
+
+#[test]
+fn test_process_functions() {
+    let source = r#"
+main() {
+    let output, err = Process.exec("echo hello")
+    if err == "" {
+        print(output)
+    }
+
+    let pid = Process.pid()
+    print(pid)
+
+    let childPid, err2 = Process.spawn("sleep 1")
+    print(childPid)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("Command::new"), "Should contain Command: {}", rust_code);
+    assert!(rust_code.contains("process::id()"), "Should contain pid: {}", rust_code);
+    assert!(rust_code.contains(".spawn()"), "Should contain spawn: {}", rust_code);
+    assert_snapshot!("process_functions", rust_code);
+}

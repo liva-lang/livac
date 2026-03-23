@@ -249,7 +249,7 @@ print($"Total ventas: {total}")
 CSV.writeTable("resultado.csv", filtrado)
 ```
 
-### P2 — Random (módulo NUEVO, `Math.random()` se mantiene)
+### P2 — Random (módulo NUEVO, `Math.random()` se mantiene) ✅
 
 Se crea `generate_random_function_call()`. Crate `rand` ya está disponible:
 
@@ -261,9 +261,9 @@ Se crea `generate_random_function_call()`. Crate `rand` ya está disponible:
 | `Random.shuffle(array)` | Mezclar array → `[T]` |
 | `Random.uuid()` | UUID v4 → `string` (requiere crate `uuid`) |
 
-### P2 — Crypto (módulo NUEVO)
+### P2 — Crypto (módulo NUEVO) ✅
 
-Requiere crates `sha2`, `base64` auto-inyectados. Se crea `generate_crypto_function_call()`:
+Requiere crates `sha2`, `md-5`, `base64` auto-inyectados. Se crea `generate_crypto_function_call()`:
 
 | Función | Descripción |
 |---------|-------------|
@@ -272,7 +272,7 @@ Requiere crates `sha2`, `base64` auto-inyectados. Se crea `generate_crypto_funct
 | `Crypto.base64Encode(input)` | Codificar → `string` |
 | `Crypto.base64Decode(input)` | Decodificar (fallible) → `string` |
 
-### P2 — Process (módulo NUEVO)
+### P2 — Process (módulo NUEVO) ✅
 
 Se crea `generate_process_function_call()`. Sin crates extra (usa `std::process`):
 
