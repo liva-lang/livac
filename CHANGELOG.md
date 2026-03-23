@@ -5,6 +5,19 @@ All notable changes to the Liva compiler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-dev] - 2026-03-23
+
+### Added
+- **Recursive enums (auto-boxing)** — Enum variants can reference their own enum type
+  - Auto-detection: fields whose type matches the enum name are automatically boxed
+  - Codegen: recursive fields emit `Box<T>` in enum definition
+  - Construction: `Box::new()` auto-wrapping at variant construction sites
+  - Pattern matching: auto-dereference (`let binding = *binding;`) in match arms
+  - Array fields (`[T]`) don't need boxing — `Vec<T>` already provides indirection
+  - Pre-scan phase populates `boxed_enum_fields` metadata for all program items
+  - Works in both `generate_method_call_expr` and `generate_normal_call` paths
+  - 5 new tests (4 snapshot + 1 assertion), 499 tests total
+
 ## [1.9.0-dev] - 2026-03-23
 
 ### Added

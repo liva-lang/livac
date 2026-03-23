@@ -490,6 +490,41 @@ findItem(id: number): SearchResult {
 }
 ```
 
+### Recursive Enums (v2.0+)
+
+Enums can reference themselves — the compiler auto-boxes recursive fields:
+
+```liva
+// AST / tree pattern
+enum Expr {
+    Num(value: number),
+    Add(left: Expr, right: Expr),
+    Mul(left: Expr, right: Expr)
+}
+
+// Linked list
+enum List {
+    Cons(head: number, tail: List),
+    Nil
+}
+
+// Construction — Box::new() auto-generated
+let expr = Expr.Add(Expr.Num(1), Expr.Mul(Expr.Num(2), Expr.Num(3)))
+let list = List.Cons(1, List.Cons(2, List.Cons(3, List.Nil)))
+
+// Pattern matching — auto-dereferenced
+eval(e: Expr): number {
+    return switch e {
+        Expr.Num(v) => v
+        Expr.Add(l, r) => eval(l) + eval(r)
+        Expr.Mul(l, r) => eval(l) * eval(r)
+    }
+}
+```
+
+> **Note:** Array fields like `children: [Tree]` don't need boxing — `Vec<T>` already provides heap indirection.
+```
+
 ---
 
 ## Interfaces

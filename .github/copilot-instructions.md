@@ -115,7 +115,7 @@ skills/liva-lang/
 
 ---
 
-## 🔄 Estado Actual (v1.9.0-dev)
+## 🔄 Estado Actual (v2.0.0-dev)
 
 ### Features completados
 - **CLI Subcomandos** — `build`, `run`, `check`, `fmt`, `test`, `lsp`, `update`, `init`, `lint` (reemplaza flags planos)
@@ -124,7 +124,7 @@ skills/liva-lang/
 - **Config (`Config` module)** — `.env` loading + typed getters (`get`, `getInt`, `getBool`, `getAll`)
 - **`livac init`** — Project scaffolding con templates (default, cli, data)
 - **Stdlib P0** — 38 nuevos métodos/funciones (15 String + 20 Array + 3 Math)
-- **Enum Types** — Algebraic data types con pattern matching y destructuring
+- **Enum Types** — Algebraic data types con pattern matching, destructuring, y **recursive auto-boxing**
 - **Error Trace Chaining** — Trazabilidad automática con función + línea
 - **`or <value>`** — Default value para fallibles: `divide(10, 0) or 42`
 - **Map<K,V> / Set<T>** — Colecciones completas con literales, métodos, iteración
@@ -148,7 +148,7 @@ skills/liva-lang/
 
 ### Dogfooding
 - **86/86 bugs corregidos** (Dogfooding v1: 9 bugs #63-#74, v2: 8 bugs #75-#82, v3: 7 bugs #83-#89)
-- **482+ tests** totales (243 codegen, 6 desugar, 17 semantic snapshot tests + 11 Liva e2e + 6 init + 24 linter + doctests)
+- **494+ tests** totales (254 codegen, 6 desugar, 17 semantic snapshot tests + 11 Liva e2e + 6 init + 24 linter + doctests)
 - **63 Liva assertion tests** (28 string + 26 array + 9 math) — cobertura completa de stdlib
 - **File (11 funciones):** read, write, append, exists, delete, copy, move, size, extension, readLines, writeLines
 - **Dir (7 funciones):** list, isDir, exists, create, delete, listRecursive, walk
@@ -175,7 +175,7 @@ v1.6  Stdlib P1 — File, Dir, Date, Regex, CSV/Table          ✅ completado
 v1.7  Stdlib P2 + HTTP Server                                ✅ completado
 v1.8  DB + Linter                                             ✅ completado (REPL ⏸️ aplazado)
 v1.9  Dogfooding — API REST completa con DB                  ✅ completado (7 bugs)
-v2.0  Enums recursivos + Self-hosting parcial                ← cambio mayor
+v2.0  Enums recursivos + Self-hosting parcial                🔧 en progreso
 ```
 
 **Documentos clave:**

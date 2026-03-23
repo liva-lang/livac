@@ -337,12 +337,13 @@
 - [x] Tests: 6 tests (5 snapshot + 1 formatter)
 - [x] Docs: QUICK_REFERENCE, CHANGELOG
 
-### Enums recursivos (auto-boxing)
+### Enums recursivos (auto-boxing) ✅
 
-- [ ] Detectar campos recursivos en enums (`left: Expr` dentro de `enum Expr`)
-- [ ] Auto-generar `Box<T>` en codegen para campos recursivos
-- [ ] Soporte en arrays de tipos recursivos (`args: [Expr]`)
-- [ ] Tests + docs
+- [x] Detectar campos recursivos en enums (`left: Expr` dentro de `enum Expr`)
+- [x] Auto-generar `Box<T>` en codegen para campos recursivos
+- [x] Soporte en arrays de tipos recursivos (`args: [Expr]`) — no necesita boxing (Vec ya provee indirección)
+- [x] Tests (4 snapshot + 1 assertion)
+- [x] Docs (QUICK_REFERENCE, CHANGELOG)
 
 ### Self-hosting (parcial)
 
@@ -363,6 +364,7 @@
 - [ ] YAML/TOML parsing — módulos nuevos (crates serde_yaml/toml)
 - [ ] `livac bench` — benchmarking built-in
 - [ ] REPL — `livac repl` (aplazado desde v1.8)
+- [ ] Lazy iterators — fusionar cadenas `filter().map().take()` sin `collect()` intermedios en codegen (optimización de rendimiento para arrays grandes)
 
 ---
 

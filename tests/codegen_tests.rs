@@ -5201,6 +5201,138 @@ main() {
     assert_snapshot!("enum_destructuring_field_mapping", rust_code);
 }
 
+// ---------------------------------------------------------------------------
+// Recursive Enums (Auto-Boxing) — v2.0
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_enum_recursive_basic() {
+    // Basic recursive enum: binary tree / AST pattern
+    let source = r#"
+enum Expr {
+    Num(value: number),
+    Add(left: Expr, right: Expr)
+}
+
+main() {
+    let e = Expr.Add(Expr.Num(1), Expr.Num(2))
+    print(e)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // Recursive fields should be auto-boxed
+    assert!(rust_code.contains("Box<Expr>"), "Recursive fields should use Box<T>: {}", rust_code);
+    // Construction should wrap in Box::new()
+    assert!(rust_code.contains("Box::new("), "Construction should use Box::new(): {}", rust_code);
+    assert_snapshot!("enum_recursive_basic", rust_code);
+}
+
+#[test]
+fn test_enum_recursive_switch() {
+    // Recursive enum with pattern matching (eval function)
+    let source = r#"
+enum Expr {
+    Num(value: number),
+    Add(left: Expr, right: Expr),
+    Mul(left: Expr, right: Expr)
+}
+
+eval(e: Expr): number {
+    return switch e {
+        Expr.Num(v) => v
+        Expr.Add(l, r) => eval(l) + eval(r)
+        Expr.Mul(l, r) => eval(l) * eval(r)
+    }
+}
+
+main() {
+    let expr = Expr.Add(Expr.Num(1), Expr.Mul(Expr.Num(2), Expr.Num(3)))
+    print(eval(expr))
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // Auto-boxing in definition
+    assert!(rust_code.contains("Box<Expr>"), "Should auto-box recursive fields: {}", rust_code);
+    // Auto-dereference in match arms
+    assert!(rust_code.contains("let l = *l;"), "Should auto-deref boxed bindings: {}", rust_code);
+    assert_snapshot!("enum_recursive_switch", rust_code);
+}
+
+#[test]
+fn test_enum_recursive_linked_list() {
+    // Linked list pattern: one recursive field, one non-recursive
+    let source = r#"
+enum List {
+    Cons(head: number, tail: List),
+    Nil
+}
+
+main() {
+    let list = List.Cons(1, List.Cons(2, List.Cons(3, List.Nil)))
+    print(list)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // Only the recursive field (tail) should be boxed, not head
+    assert!(rust_code.contains("tail: Box<List>"), "tail should be Box<List>: {}", rust_code);
+    assert!(!rust_code.contains("head: Box"), "head should NOT be boxed: {}", rust_code);
+    assert_snapshot!("enum_recursive_linked_list", rust_code);
+}
+
+#[test]
+fn test_enum_recursive_with_array() {
+    // Enum with both recursive field and array of recursive type
+    // Array field should NOT be boxed (Vec already provides indirection)
+    let source = r#"
+enum Tree {
+    Leaf(value: number),
+    Node(children: [Tree])
+}
+
+main() {
+    let t = Tree.Node([Tree.Leaf(1), Tree.Leaf(2)])
+    print(t)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // Array of recursive type should use Vec<Tree>, NOT Vec<Box<Tree>>
+    assert!(rust_code.contains("Vec<Tree>"), "Array field should be Vec<Tree>: {}", rust_code);
+    assert!(!rust_code.contains("Vec<Box<"), "Vec should NOT box elements: {}", rust_code);
+    assert_snapshot!("enum_recursive_array_field", rust_code);
+}
+
+#[test]
+fn test_enum_non_recursive_unchanged() {
+    // Non-recursive enums should be completely unchanged
+    let source = r#"
+enum Color {
+    Red,
+    Green,
+    Blue
+}
+
+enum Shape {
+    Circle(radius: number),
+    Rect(w: number, h: number)
+}
+
+main() {
+    let c = Color.Red
+    let s = Shape.Circle(5)
+    print(c)
+    print(s)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // Enum definitions should NOT contain any Box (check after runtime module ends)
+    let after_runtime = rust_code.split("enum Color").collect::<Vec<_>>();
+    assert!(after_runtime.len() > 1, "Should contain enum Color definition");
+    let enum_section = after_runtime[1];
+    assert!(!enum_section.contains("Box<Color>"), "Non-recursive enums should not be boxed: {}", enum_section);
+    assert!(!enum_section.contains("Box<Shape>"), "Non-recursive enums should not be boxed: {}", enum_section);
+    assert!(!enum_section.contains("Box::new"), "Non-recursive enums should not use Box::new: {}", enum_section);
+}
+
 #[test]
 fn test_main_async_when_rust_block_has_await() {
     // B24: main() should be async when rust { } block contains .await

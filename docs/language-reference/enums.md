@@ -9,6 +9,7 @@ Complete reference for enum types (algebraic data types) in Liva.
 - [Construction](#construction)
 - [Pattern Matching](#pattern-matching)
 - [As Function Parameters and Return Types](#as-function-parameters-and-return-types)
+- [Recursive Enums](#recursive-enums)
 - [Generated Rust Code](#generated-rust-code)
 - [Best Practices](#best-practices)
 
@@ -165,6 +166,74 @@ main() {
     print(message)
 }
 ```
+
+---
+
+## Recursive Enums
+
+*(v2.0+)*
+
+Enum variants can reference their own enum type. The compiler automatically wraps recursive fields in `Box<T>` (auto-boxing) — no manual annotation needed.
+
+### Tree / AST Pattern
+
+```liva
+enum Expr {
+    Num(value: number),
+    Add(left: Expr, right: Expr),
+    Mul(left: Expr, right: Expr)
+}
+
+// Construction — Box::new() is auto-generated
+let expr = Expr.Add(Expr.Num(1), Expr.Mul(Expr.Num(2), Expr.Num(3)))
+```
+
+### Linked List Pattern
+
+```liva
+enum List {
+    Cons(head: number, tail: List),
+    Nil
+}
+
+let list = List.Cons(1, List.Cons(2, List.Cons(3, List.Nil)))
+```
+
+Only the recursive field (`tail: List`) is boxed. Non-recursive fields (`head: number`) remain unboxed.
+
+### Pattern Matching
+
+Pattern matching works transparently — the compiler auto-dereferences boxed bindings:
+
+```liva
+eval(e: Expr): number {
+    return switch e {
+        Expr.Num(v) => v
+        Expr.Add(l, r) => eval(l) + eval(r)
+        Expr.Mul(l, r) => eval(l) * eval(r)
+    }
+}
+```
+
+### Array Fields
+
+Array fields like `children: [Tree]` do **not** need boxing — `Vec<T>` already provides heap indirection:
+
+```liva
+enum Tree {
+    Leaf(value: number),
+    Node(children: [Tree])    // Vec<Tree> — no Box needed
+}
+```
+
+### How It Works
+
+| Liva | Generated Rust |
+|------|---------------|
+| `left: Expr` (in `enum Expr`) | `left: Box<Expr>` |
+| `Expr.Add(a, b)` | `Expr::Add { left: Box::new(a), right: Box::new(b) }` |
+| `Expr.Add(l, r) => eval(l)` | `Expr::Add { left: l, right: r } => { let l = *l; let r = *r; eval(l) }` |
+| `children: [Expr]` | `children: Vec<Expr>` (no boxing) |
 
 ---
 

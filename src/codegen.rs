@@ -122,6 +122,9 @@ pub struct CodeGenerator {
     enum_names: std::collections::HashSet<String>,
     enum_variants:
         std::collections::HashMap<String, std::collections::HashMap<String, Vec<String>>>, // enum_name -> (variant_name -> [field_names])
+    /// Recursive enum fields that are auto-boxed: enum_name -> (variant_name -> set of boxed field names)
+    boxed_enum_fields:
+        std::collections::HashMap<String, std::collections::HashMap<String, std::collections::HashSet<String>>>,
     // --- B46: Classes that need serde derives (from JSON.stringify usage)
     serde_classes: std::collections::HashSet<String>,
     // --- Float literal suffix context (for f32 variable declarations)
@@ -197,6 +200,7 @@ impl CodeGenerator {
             test_hooks_stack: Vec::new(),
             enum_names: std::collections::HashSet::new(),
             enum_variants: std::collections::HashMap::new(),
+            boxed_enum_fields: std::collections::HashMap::new(),
             serde_classes: std::collections::HashSet::new(),
             float_literal_suffix: "f64".to_string(),
             current_function_name: String::new(),
@@ -1570,6 +1574,26 @@ impl CodeGenerator {
                 }
                 self.enum_variants
                     .insert(enum_decl.name.clone(), variants_map);
+
+                // Pre-detect recursive fields for auto-boxing
+                let mut boxed_fields_for_enum: std::collections::HashMap<
+                    String,
+                    std::collections::HashSet<String>,
+                > = std::collections::HashMap::new();
+                for variant in &enum_decl.variants {
+                    for field in &variant.fields {
+                        if Self::is_recursive_field(&field.type_ref, &enum_decl.name) {
+                            boxed_fields_for_enum
+                                .entry(variant.name.clone())
+                                .or_default()
+                                .insert(field.name.clone());
+                        }
+                    }
+                }
+                if !boxed_fields_for_enum.is_empty() {
+                    self.boxed_enum_fields
+                        .insert(enum_decl.name.clone(), boxed_fields_for_enum);
+                }
             }
         }
 
@@ -3852,10 +3876,34 @@ impl CodeGenerator {
         Ok(())
     }
 
+    /// Check if a TypeRef refers to the given enum name (direct recursion).
+    /// Returns true for: Simple("Expr") when enum_name is "Expr".
+    fn is_recursive_field(type_ref: &TypeRef, enum_name: &str) -> bool {
+        matches!(type_ref, TypeRef::Simple(name) if name == enum_name)
+    }
+
     fn generate_enum(&mut self, enum_decl: &EnumDecl) -> Result<()> {
         // B14: Check if all variants are unit variants — only then derive Default
         // Enums with data variants can't easily derive Default
         let all_unit = enum_decl.variants.iter().all(|v| v.fields.is_empty());
+
+        // Pre-scan: detect recursive fields that need auto-boxing
+        let mut boxed_fields_for_enum: std::collections::HashMap<String, std::collections::HashSet<String>> =
+            std::collections::HashMap::new();
+        for variant in &enum_decl.variants {
+            for field in &variant.fields {
+                if Self::is_recursive_field(&field.type_ref, &enum_decl.name) {
+                    boxed_fields_for_enum
+                        .entry(variant.name.clone())
+                        .or_default()
+                        .insert(field.name.clone());
+                }
+            }
+        }
+        if !boxed_fields_for_enum.is_empty() {
+            self.boxed_enum_fields
+                .insert(enum_decl.name.clone(), boxed_fields_for_enum);
+        }
 
         // Generate Rust enum with derive macros
         if all_unit && !enum_decl.variants.is_empty() {
@@ -3901,11 +3949,17 @@ impl CodeGenerator {
                     if i > 0 {
                         self.output.push_str(", ");
                     }
+                    // Auto-boxing: recursive fields get wrapped in Box<T>
+                    let rust_type = if Self::is_recursive_field(&field.type_ref, &enum_decl.name) {
+                        format!("Box<{}>", field.type_ref.to_rust_type())
+                    } else {
+                        field.type_ref.to_rust_type()
+                    };
                     write!(
                         self.output,
                         "{}: {}",
                         self.sanitize_name(&field.name),
-                        field.type_ref.to_rust_type()
+                        rust_type
                     )
                     .unwrap();
                 }
@@ -7813,29 +7867,66 @@ impl CodeGenerator {
 
             self.output.push_str(" => ");
 
-            // Generate body
-            match &arm.body {
-                SwitchBody::Expr(expr) => {
-                    // Add .to_string() for string literal arms so match returns String
-                    if matches!(&**expr, Expr::Literal(Literal::String(_))) {
-                        self.generate_expr(expr)?;
-                        self.output.push_str(".to_string()");
-                    } else {
-                        self.generate_expr(expr)?;
-                    }
-                }
-                SwitchBody::Block(stmts) => {
-                    self.output.push('{');
-                    self.indent();
-                    for stmt in stmts {
-                        self.output.push('\n');
-                        self.write_indent();
-                        self.generate_stmt(stmt)?;
-                    }
-                    self.dedent();
+            // Check if this pattern has boxed enum bindings that need auto-dereference
+            let boxed_bindings = self.get_boxed_pattern_bindings(&arm.pattern);
+
+            if !boxed_bindings.is_empty() {
+                // Wrap body in a block with auto-dereference let statements
+                self.output.push('{');
+                self.indent();
+                for binding in &boxed_bindings {
                     self.output.push('\n');
                     self.write_indent();
-                    self.output.push('}');
+                    write!(self.output, "let {} = *{};", binding, binding).unwrap();
+                }
+                match &arm.body {
+                    SwitchBody::Expr(expr) => {
+                        self.output.push('\n');
+                        self.write_indent();
+                        if matches!(&**expr, Expr::Literal(Literal::String(_))) {
+                            self.generate_expr(expr)?;
+                            self.output.push_str(".to_string()");
+                        } else {
+                            self.generate_expr(expr)?;
+                        }
+                    }
+                    SwitchBody::Block(stmts) => {
+                        for stmt in stmts {
+                            self.output.push('\n');
+                            self.write_indent();
+                            self.generate_stmt(stmt)?;
+                        }
+                    }
+                }
+                self.dedent();
+                self.output.push('\n');
+                self.write_indent();
+                self.output.push('}');
+            } else {
+                // Generate body normally
+                match &arm.body {
+                    SwitchBody::Expr(expr) => {
+                        // Add .to_string() for string literal arms so match returns String
+                        if matches!(&**expr, Expr::Literal(Literal::String(_))) {
+                            self.generate_expr(expr)?;
+                            self.output.push_str(".to_string()");
+                        } else {
+                            self.generate_expr(expr)?;
+                        }
+                    }
+                    SwitchBody::Block(stmts) => {
+                        self.output.push('{');
+                        self.indent();
+                        for stmt in stmts {
+                            self.output.push('\n');
+                            self.write_indent();
+                            self.generate_stmt(stmt)?;
+                        }
+                        self.dedent();
+                        self.output.push('\n');
+                        self.write_indent();
+                        self.output.push('}');
+                    }
                 }
             }
 
@@ -7848,6 +7939,38 @@ impl CodeGenerator {
         self.output.push('}');
 
         Ok(())
+    }
+
+    /// Get the list of binding names in a pattern that correspond to boxed (recursive) enum fields.
+    /// These bindings need auto-dereference (`let binding = *binding;`) in the match arm body.
+    fn get_boxed_pattern_bindings(&self, pattern: &Pattern) -> Vec<String> {
+        if let Pattern::EnumVariant {
+            enum_name,
+            variant_name,
+            bindings,
+        } = pattern
+        {
+            if let Some(variant_map) = self.boxed_enum_fields.get(enum_name) {
+                if let Some(boxed_field_names) = variant_map.get(variant_name) {
+                    // Get the ordered field names for this variant
+                    let field_names = self
+                        .enum_variants
+                        .get(enum_name)
+                        .and_then(|v| v.get(variant_name))
+                        .cloned()
+                        .unwrap_or_default();
+
+                    let mut result = Vec::new();
+                    for (i, binding) in bindings.iter().enumerate() {
+                        if i < field_names.len() && boxed_field_names.contains(&field_names[i]) {
+                            result.push(self.sanitize_name(binding));
+                        }
+                    }
+                    return result;
+                }
+            }
+        }
+        Vec::new()
     }
 
     /// Detect if this is a union type switch by checking for Typed patterns
@@ -8025,6 +8148,14 @@ impl CodeGenerator {
             if let Expr::Identifier(enum_name) = object.as_ref() {
                 if let Some(variants) = self.enum_variants.get(enum_name).cloned() {
                     if let Some(field_names) = variants.get(property) {
+                        // Check if this variant has any boxed (recursive) fields
+                        let boxed_fields = self
+                            .boxed_enum_fields
+                            .get(enum_name)
+                            .and_then(|v| v.get(property.as_str()))
+                            .cloned()
+                            .unwrap_or_default();
+
                         write!(self.output, "{}::{}", enum_name, property).unwrap();
                         if !field_names.is_empty() {
                             self.output.push_str(" { ");
@@ -8036,7 +8167,14 @@ impl CodeGenerator {
                                 }
                                 write!(self.output, "{}: ", self.sanitize_name(field_name))
                                     .unwrap();
-                                self.generate_expr(arg)?;
+                                // Auto-boxing: recursive fields get wrapped in Box::new()
+                                if boxed_fields.contains(field_name) {
+                                    self.output.push_str("Box::new(");
+                                    self.generate_expr(arg)?;
+                                    self.output.push(')');
+                                } else {
+                                    self.generate_expr(arg)?;
+                                }
                             }
                             self.output.push_str(" }");
                         }
@@ -8844,6 +8982,14 @@ impl CodeGenerator {
             // Enum variant construction: Shape.Circle(5.0) → Shape::Circle { radius: 5.0 }
             if let Some(variants) = self.enum_variants.get(name).cloned() {
                 if let Some(field_names) = variants.get(&method_call.method) {
+                    // Check if this variant has any boxed (recursive) fields
+                    let boxed_fields = self
+                        .boxed_enum_fields
+                        .get(name)
+                        .and_then(|v| v.get(&method_call.method))
+                        .cloned()
+                        .unwrap_or_default();
+
                     write!(self.output, "{}::{}", name, method_call.method).unwrap();
                     if !field_names.is_empty() {
                         self.output.push_str(" { ");
@@ -8854,7 +9000,14 @@ impl CodeGenerator {
                                 self.output.push_str(", ");
                             }
                             write!(self.output, "{}: ", self.sanitize_name(field_name)).unwrap();
-                            self.generate_expr(arg)?;
+                            // Auto-boxing: recursive fields get wrapped in Box::new()
+                            if boxed_fields.contains(field_name) {
+                                self.output.push_str("Box::new(");
+                                self.generate_expr(arg)?;
+                                self.output.push(')');
+                            } else {
+                                self.generate_expr(arg)?;
+                            }
                         }
                         self.output.push_str(" }");
                     }

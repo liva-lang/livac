@@ -1,0 +1,34 @@
+// Recursive Enums — Auto-Boxing Demo
+// Liva v2.0: recursive fields are auto-boxed with Box<T>
+
+enum Expr {
+    Num(value: number),
+    Add(left: Expr, right: Expr),
+    Mul(left: Expr, right: Expr)
+}
+
+eval(e: Expr): number {
+    return switch e {
+        Expr.Num(v) => v
+        Expr.Add(l, r) => eval(l) + eval(r)
+        Expr.Mul(l, r) => eval(l) * eval(r)
+    }
+}
+
+show(e: Expr): string {
+    return switch e {
+        Expr.Num(v) => $"{v}"
+        Expr.Add(l, r) => $"({show(l)} + {show(r)})"
+        Expr.Mul(l, r) => $"({show(l)} * {show(r)})"
+    }
+}
+
+main() {
+    // (1 + (2 * 3)) = 7
+    let expr = Expr.Add(Expr.Num(1), Expr.Mul(Expr.Num(2), Expr.Num(3)))
+    let s = show(expr)
+    
+    let expr2 = Expr.Add(Expr.Num(1), Expr.Mul(Expr.Num(2), Expr.Num(3)))
+    let v = eval(expr2)
+    print($"{s} = {v}")
+}
