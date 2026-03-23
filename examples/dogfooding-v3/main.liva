@@ -1,0 +1,190 @@
+// ═══════════════════════════════════════════════════════════════
+// TODO API — Dogfooding v1.9
+// A complete REST API for task management using HTTP Server + SQLite
+// Ejecutar: livac run examples/dogfooding-v3/main.liva
+// ═══════════════════════════════════════════════════════════════
+
+main() {
+    // ─── Database setup ──────────────────────────────────────
+    let db, err = DB.open("todos.db")
+    if err {
+        print("Failed to open database: " + err)
+        Sys.exit(1)
+    }
+
+    let _, err2 = DB.exec(db, "CREATE TABLE IF NOT EXISTS tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, description TEXT DEFAULT '', done INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime('now')))")
+    if err2 {
+        print("Failed to create table: " + err2)
+        Sys.exit(1)
+    }
+
+    print("Database ready")
+
+    // ─── HTTP Server ─────────────────────────────────────────
+    let app = Server.create()
+
+    // GET /health — health check
+    app.get("/health", (req) => {
+        Response.json({ status: "ok", service: "todo-api" })
+    })
+
+    // GET /tasks — list all tasks
+    app.get("/tasks", (req) => {
+        let rows, qerr = DB.query(db, "SELECT * FROM tasks ORDER BY id DESC")
+        if qerr {
+            return Response.json({ "error": "Failed to query tasks" })
+        }
+        Response.json(rows)
+    })
+
+    // GET /tasks/:id — get a single task
+    app.get("/tasks/:id", (req) => {
+        let id = req.params.get("id")
+        let rows, qerr = DB.query(db, "SELECT * FROM tasks WHERE id = ?", [id])
+        if qerr {
+            return Response.json({ "error": "Failed to query task" })
+        }
+
+        if rows.length == 0 {
+            return Response.json({ "error": "Task not found" })
+        }
+
+        let row = rows[0]
+        Response.json(row)
+    })
+
+    // POST /tasks — create a new task
+    app.post("/tasks", (req) => {
+        let body = req.body
+        // Parse title and description from body (simple JSON-like)
+        // Expected: { "title": "Buy milk", "description": "2% milk" }
+        let title = extractJsonField(body, "title")
+        let description = extractJsonField(body, "description")
+
+        if title == "" {
+            return Response.json({ "error": "Title is required" })
+        }
+
+        let _, ierr = DB.exec(db, "INSERT INTO tasks (title, description) VALUES (?, ?)", [title, description])
+        if ierr {
+            return Response.json({ "error": "Failed to create task" })
+        }
+
+        // Get the last inserted task
+        let rows, qerr = DB.query(db, "SELECT * FROM tasks ORDER BY id DESC LIMIT 1")
+        if qerr {
+            return Response.json({ "error": "Failed to retrieve created task" })
+        }
+
+        let row = rows[0]
+        Response.json(row)
+    })
+
+    // PUT /tasks/:id — update a task
+    app.put("/tasks/:id", (req) => {
+        let id = req.params.get("id")
+        let body = req.body
+
+        // Check task exists
+        let existing, qerr = DB.query(db, "SELECT * FROM tasks WHERE id = ?", [id])
+        if qerr {
+            return Response.json({ "error": "Failed to query task" })
+        }
+        if existing.length == 0 {
+            return Response.json({ "error": "Task not found" })
+        }
+
+        let title = extractJsonField(body, "title")
+        let description = extractJsonField(body, "description")
+        let doneStr = extractJsonField(body, "done")
+
+        // Use existing values as defaults
+        let currentRow = existing[0]
+        if title == "" {
+            title = currentRow.get("title")
+        }
+        if description == "" {
+            description = currentRow.get("description")
+        }
+        let done = currentRow.get("done")
+        if doneStr != "" {
+            done = doneStr
+        }
+
+        let _, uerr = DB.exec(db, "UPDATE tasks SET title = ?, description = ?, done = ? WHERE id = ?", [title, description, done, id])
+        if uerr {
+            return Response.json({ "error": "Failed to update task" })
+        }
+
+        // Return updated task
+        let rows, qerr2 = DB.query(db, "SELECT * FROM tasks WHERE id = ?", [id])
+        let row = rows[0]
+        Response.json(row)
+    })
+
+    // DELETE /tasks/:id — delete a task
+    app.delete("/tasks/:id", (req) => {
+        let id = req.params.get("id")
+
+        // Check task exists
+        let existing, qerr = DB.query(db, "SELECT * FROM tasks WHERE id = ?", [id])
+        if qerr {
+            return Response.json({ "error": "Failed to query task" })
+        }
+        if existing.length == 0 {
+            return Response.json({ "error": "Task not found" })
+        }
+
+        let _, derr = DB.exec(db, "DELETE FROM tasks WHERE id = ?", [id])
+        if derr {
+            return Response.json({ "error": "Failed to delete task" })
+        }
+
+        Response.json({ "message": "Task deleted", "id": id })
+    })
+
+    // ─── Start server ────────────────────────────────────────
+    print("TODO API running on http://localhost:3000")
+    print("Endpoints:")
+    print("  GET    /health     — Health check")
+    print("  GET    /tasks      — List all tasks")
+    print("  GET    /tasks/:id  — Get task by ID")
+    print("  POST   /tasks      — Create task")
+    print("  PUT    /tasks/:id  — Update task")
+    print("  DELETE /tasks/:id  — Delete task")
+    app.listen(3000)
+}
+
+// ─── Helper: extract a field value from a JSON string ────────
+// Simple parser: finds "key": "value" or "key": number
+extractJsonField(json: string, field: string): string {
+    let search = "\"" + field + "\":"
+    let idx = json.indexOf(search)
+    if idx < 0 {
+        return ""
+    }
+
+    let afterKey = json.substring(idx + search.length, json.length)
+    let trimmed = afterKey.trim()
+
+    // String value: "value"
+    if trimmed.startsWith("\"") {
+        let inner = trimmed.substring(1, trimmed.length)
+        let end = inner.indexOf("\"")
+        if end < 0 {
+            return ""
+        }
+        return inner.substring(0, end)
+    }
+
+    // Boolean/number value: true, false, 123
+    let end = trimmed.indexOf(",")
+    let end2 = trimmed.indexOf("}")
+    if end < 0 || (end2 >= 0 && end2 < end) {
+        end = end2
+    }
+    if end < 0 {
+        return trimmed
+    }
+    return trimmed.substring(0, end).trim()
+}

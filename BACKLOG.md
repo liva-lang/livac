@@ -295,24 +295,25 @@
 
 ---
 
-## v1.9 — Dogfooding: API REST real
+## v1.9 — Dogfooding: API REST real ✅
 
 > **Foco:** Validación real construyendo un proyecto completo.  
-> **Esfuerzo estimado:** ~12h
+> **Estado:** ✅ Completado — 7 bugs encontrados y corregidos, 482 tests totales  
+> **Esfuerzo real:** ~8h
 
-- [ ] Definir proyecto de dogfooding (TODO API con DB + HTTP Server)
-- [ ] Implementar proyecto completo en Liva
-  - [ ] POST /tasks — crear tarea
-  - [ ] GET /tasks — listar tareas
-  - [ ] GET /tasks/:id — detalle
-  - [ ] PUT /tasks/:id — actualizar
-  - [ ] DELETE /tasks/:id — eliminar
-  - [ ] GET /health — health check
-  - [ ] SQLite como almacenamiento
-- [ ] Documentar bugs encontrados en BUGS.md
-- [ ] Corregir todos los bugs
-- [ ] Escribir regression tests
-- [ ] Post-mortem: qué falta, qué mejorar
+- [x] Definir proyecto de dogfooding (TODO API con DB + HTTP Server)
+- [x] Implementar proyecto completo en Liva
+  - [x] POST /tasks — crear tarea
+  - [x] GET /tasks — listar tareas
+  - [x] GET /tasks/:id — detalle
+  - [x] PUT /tasks/:id — actualizar
+  - [x] DELETE /tasks/:id — eliminar
+  - [x] GET /health — health check
+  - [x] SQLite como almacenamiento
+- [x] Documentar bugs encontrados en BUGS.md (B83-B89)
+- [x] Corregir todos los bugs (7/7)
+- [x] Escribir regression tests (3 snapshots actualizados)
+- [x] Post-mortem: qué falta, qué mejorar
 
 ---
 

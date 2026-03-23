@@ -1,10 +1,10 @@
 # 🔧 Liva Compiler Context
 
 > **Proyecto:** livac - El compilador de Liva  
-> **Versión:** v1.8.0-dev (tag: v1.2.0)  
+> **Versión:** v1.9.0-dev (tag: v1.2.0)  
 > **Lenguaje:** Rust  
 > **Tests:** 482 passing  
-> **Próximo objetivo:** v1.9 — Dogfooding API REST  
+> **Próximo objetivo:** v2.0 — Enums recursivos + Self-hosting parcial  
 > **Última actualización:** 2026-03-23
 
 ---
@@ -115,7 +115,7 @@ skills/liva-lang/
 
 ---
 
-## 🔄 Estado Actual (v1.5.0-dev)
+## 🔄 Estado Actual (v1.9.0-dev)
 
 ### Features completados
 - **CLI Subcomandos** — `build`, `run`, `check`, `fmt`, `test`, `lsp`, `update`, `init`, `lint` (reemplaza flags planos)
@@ -146,8 +146,8 @@ skills/liva-lang/
 - **Math (14):** sqrt, pow, abs, floor, ceil, round, min, max, random, PI, E, clamp, sign, log
 
 ### Dogfooding
-- **79/79 bugs corregidos** (Dogfooding v1: 9 bugs #63-#74, v2: 8 bugs #75-#82)
-- **456+ tests** totales (238 codegen, 6 desugar, 17 semantic snapshot tests + 11 Liva e2e + 6 init + 24 linter + doctests)
+- **86/86 bugs corregidos** (Dogfooding v1: 9 bugs #63-#74, v2: 8 bugs #75-#82, v3: 7 bugs #83-#89)
+- **482+ tests** totales (243 codegen, 6 desugar, 17 semantic snapshot tests + 11 Liva e2e + 6 init + 24 linter + doctests)
 - **63 Liva assertion tests** (28 string + 26 array + 9 math) — cobertura completa de stdlib
 - **File (11 funciones):** read, write, append, exists, delete, copy, move, size, extension, readLines, writeLines
 - **Dir (7 funciones):** list, isDir, exists, create, delete, listRecursive, walk
@@ -173,7 +173,7 @@ v1.5  rust { } interop + Logging + Config + livac init       ✅ completado
 v1.6  Stdlib P1 — File, Dir, Date, Regex, CSV/Table          ✅ completado
 v1.7  Stdlib P2 + HTTP Server                                ✅ completado
 v1.8  DB + Linter                                             ✅ completado (REPL ⏸️ aplazado)
-v1.9  Dogfooding — API REST completa con DB                  ← validación
+v1.9  Dogfooding — API REST completa con DB                  ✅ completado (7 bugs)
 v2.0  Enums recursivos + Self-hosting parcial                ← cambio mayor
 ```
 

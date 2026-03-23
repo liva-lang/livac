@@ -5,6 +5,61 @@ All notable changes to the Liva compiler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0-dev] - 2026-03-23
+
+### Dogfooding v3 — TODO API REST 🐕
+
+**Complete REST API built in Liva (~195 lines) validating HTTP Server + SQLite + JSON.stringify end-to-end.**
+
+```liva
+// Full CRUD API for task management
+main() {
+    let db, err = DB.open("todos.db")
+    let app = Server.create()
+    
+    app.get("/tasks", (req) => {
+        let rows, qerr = DB.query(db, "SELECT * FROM tasks")
+        Response.json(JSON.stringify(rows))
+    })
+    
+    app.post("/tasks", (req) => {
+        let title = extractJsonField(req.body, "title")
+        DB.exec(db, "INSERT INTO tasks (title) VALUES (?)", [title])
+        // ...
+    })
+    
+    app.listen(3000)
+}
+```
+
+#### Endpoints Tested
+- `GET /health` — Health check
+- `POST /tasks` — Create task (with title + description)
+- `GET /tasks` — List all tasks (JSON array via JSON.stringify)
+- `GET /tasks/:id` — Get single task
+- `PUT /tasks/:id` — Update task (partial update with defaults)
+- `DELETE /tasks/:id` — Delete task
+
+#### Bugs Fixed (7 total)
+- **B83**: `Map.get()` returned `Option<String>` instead of `String` — added `.unwrap_or_default()`
+- **B84**: DB Connection not thread-safe for async handlers — wrapped in `Arc<Mutex<>>`
+- **B85**: `rows[0]` moved HashMap out of Vec — added `.clone()` for map_array_vars
+- **B86**: DB params consumed String variables — new `generate_db_params_vec()` helper
+- **B87**: `req.body` assigned vars not tracked as strings — added string_vars tracking
+- **B88**: axum 0.8 uses `{param}` not `:param` — convert in route path generation
+- **B89**: `indexOf` two-arg not supported — Liva source workaround
+
+#### Compiler Changes
+- **Codegen**: `suppress_map_get_unwrap` flag for `or default`/`or "value"` paths
+- **Codegen**: DB.open wrapped in `Arc<Mutex<>>`, DB.exec/query use `.lock().unwrap()`
+- **Codegen**: `generate_db_params_vec()` helper — per-element `.to_string()`
+- **Codegen**: Route paths convert `:param` → `{param}` for axum 0.8
+- **Codegen**: `map_array_vars` tracked for Vec index cloning
+- **Codegen**: `req.body` assignments tracked in `string_vars`
+- **Codegen**: `rows[0]` from `map_array_vars` tracked as `map_vars`
+- **Tests**: 482 total (3 snapshots updated)
+- **Example**: `examples/dogfooding-v3/main.liva`
+
 ## [1.8.0-dev] - 2026-03-23
 
 ### Added - DB Module (SQLite) 🗄️

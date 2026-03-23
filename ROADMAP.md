@@ -1,8 +1,8 @@
 # 🗺️ Liva Language Roadmap
 
-> **Current Version:** v1.8.0-dev (tag: v1.2.0)  
-> **Status:** Stdlib P0, P1, P2 complete, HTTP Server, DB (SQLite), `rust { }` interop, Logging, Config, CLI subcommands, 458+ tests  
-> **Completed:** Phases 1-13, Sessions 14-18, Dogfooding v2, Stdlib P0, rust {}, Log, Config, File/Dir extended, Regex, Date, CSV, Random, Crypto, Process, HTTP Server, DB  
+> **Current Version:** v1.9.0-dev (tag: v1.2.0)  
+> **Status:** Stdlib P0, P1, P2 complete, HTTP Server, DB (SQLite), `rust { }` interop, Logging, Config, CLI subcommands, Dogfooding v3 complete, 482+ tests  
+> **Completed:** Phases 1-13, Sessions 14-18, Dogfooding v1-v3, Stdlib P0, rust {}, Log, Config, File/Dir extended, Regex, Date, CSV, Random, Crypto, Process, HTTP Server, DB, Linter  
 > **Last Updated:** 2026-03-23
 
 ---
@@ -2910,6 +2910,25 @@ app.listen(3000)
 
 ---
 
+## 🐕 v1.9 — Dogfooding v3: TODO API REST ✅ COMPLETED
+
+Complete REST API for task management (~195 lines) validating HTTP Server + SQLite + JSON.stringify end-to-end.
+
+**Endpoints:** GET /health, POST /tasks, GET /tasks, GET /tasks/:id, PUT /tasks/:id, DELETE /tasks/:id
+
+**Bugs found & fixed (7):**
+- B83: Map.get() → Option<String> — added `.unwrap_or_default()`
+- B84: DB Connection thread safety — `Arc<Mutex<>>`
+- B85: Vec indexing moves HashMap — `.clone()` for map_array_vars
+- B86: DB params ownership — `generate_db_params_vec()` helper
+- B87: req.body string tracking — added to `string_vars`
+- B88: axum 0.8 path syntax — `:param` → `{param}`
+- B89: indexOf two-arg — Liva source workaround
+
+**Result:** 482 tests, 0 failures. All endpoints tested with curl.
+
+---
+
 | Version | Focus | Status | ETA |
 |---------|-------|--------|-----|
 | **v0.6.1** | Consolidation & Quality | ✅ Completed | 2025-10-20 |
@@ -2931,7 +2950,9 @@ app.listen(3000)
 | **v1.5.0** | `rust { }` interop, Logging, Config, `livac init` | ✅ Completed | 2026-03-10 |
 | **v1.6.0** | Stdlib P1 — File, Dir, Date, Regex, CSV | ✅ Completed | 2026-03-18 |
 | **v1.7.0** | Stdlib P2 (Random/Crypto/Process) + HTTP Server (axum 0.8) | ✅ Completed | 2026-03-23 |
-**Total effort completed:** ~120+ hours of focused development 🎉
+| **v1.8.0** | DB (SQLite) + Linter (W001-W004) | ✅ Completed | 2026-03-23 |
+| **v1.9.0** | Dogfooding v3 — TODO API REST (7 bugs fixed) | ✅ Completed | 2026-03-23 |
+**Total effort completed:** ~130+ hours of focused development 🎉
 
 ---
 

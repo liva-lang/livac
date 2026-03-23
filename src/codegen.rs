@@ -88,6 +88,7 @@ pub struct CodeGenerator {
     string_returning_functions: std::collections::HashSet<String>, // Track functions that return string (String)
     ref_lambda_params: std::collections::HashSet<String>, // Lambda params that are &T references (need *deref in comparisons)
     suppress_option_unwrap: bool, // When true, Option-returning methods (find/first/last/min/max) don't add .unwrap()
+    suppress_map_get_unwrap: bool, // When true, Map.get() doesn't add .unwrap_or_default() (used in `or` path)
     // --- Type aliases (for expansion during codegen)
     type_aliases: std::collections::HashMap<String, (Vec<TypeParameter>, TypeRef)>,
     // --- Union types (for enum generation)
@@ -173,6 +174,7 @@ impl CodeGenerator {
             string_returning_functions: std::collections::HashSet::new(),
             ref_lambda_params: std::collections::HashSet::new(),
             suppress_option_unwrap: false,
+            suppress_map_get_unwrap: false,
             type_aliases: std::collections::HashMap::new(),
             union_types: std::collections::HashSet::new(),
             pending_tasks: std::collections::HashMap::new(),
@@ -4848,8 +4850,10 @@ impl CodeGenerator {
                         self.json_value_vars.insert(var_name);
                     } else if self.is_map_get_call(&var.init) {
                         // Map.get with or default: let var = map.get(&key).cloned().unwrap_or(default);
+                        self.suppress_map_get_unwrap = true;
                         write!(self.output, "let {} = ", var_name).unwrap();
                         self.generate_expr(&var.init)?;
+                        self.suppress_map_get_unwrap = false;
                         self.output.push_str(".unwrap_or(");
                         // String literals need .to_string() for HashMap<String, String>
                         if matches!(default_val.as_ref(), Expr::Literal(Literal::String(_))) {
@@ -5206,9 +5210,10 @@ impl CodeGenerator {
                                 if is_db_open {
                                     // DB.open returns (Option<Connection>, String) — Connection has no Default
                                     // Use in-memory fallback so the variable is always valid (check err to detect failure)
+                                    // Bug #81 fix: Wrap in Arc<Mutex<>> so DB connection can be shared across async handlers
                                     self.output.push_str(") = { let (opt, err) = ");
                                     self.generate_expr(&var.init)?;
-                                    self.output.push_str("; (opt.unwrap_or_else(|| rusqlite::Connection::open_in_memory().unwrap()), err) };\n");
+                                    self.output.push_str("; (std::sync::Arc::new(std::sync::Mutex::new(opt.unwrap_or_else(|| rusqlite::Connection::open_in_memory().unwrap()))), err) };\n");
                                 } else if is_date_parse {
                                     self.output.push_str(") = { let (opt, err) = ");
                                     self.generate_expr(&var.init)?;
@@ -5440,6 +5445,19 @@ impl CodeGenerator {
                                 self.string_vars.insert(self.sanitize_name(name));
                             }
                         }
+                        // Bug #84 fix: Track variables assigned from req.body as string_vars
+                        // so they get .clone() when passed to functions
+                        else if let Expr::Member { object: member_obj, property: member_prop } = &var.init {
+                            if let Some(ref req_param_name) = self.server_request_param {
+                                if let Expr::Identifier(name) = member_obj.as_ref() {
+                                    if name == req_param_name && member_prop == "body" {
+                                        if let Some(name) = binding.name() {
+                                            self.string_vars.insert(self.sanitize_name(name));
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         // B32: Track float variables for mixed-type arithmetic detection
                         if let Expr::Literal(Literal::Float(_)) = &var.init {
                             if let Some(name) = binding.name() {
@@ -5658,6 +5676,16 @@ impl CodeGenerator {
                             if self.is_json_value_expr(object) {
                                 if let Some(name) = binding.name() {
                                     self.json_value_vars.insert(name.to_string());
+                                }
+                            }
+                            // Bug #80 fix: Track variables indexed from map_array_vars as map_vars
+                            // e.g., let row = rows[0] where rows is Vec<HashMap<String,String>>
+                            if let Expr::Identifier(obj_name) = object.as_ref() {
+                                let sanitized_obj = self.sanitize_name(obj_name);
+                                if self.map_array_vars.contains(&sanitized_obj) {
+                                    if let Some(name) = binding.name() {
+                                        self.map_vars.insert(self.sanitize_name(name));
+                                    }
                                 }
                             }
                         }
@@ -7130,7 +7158,10 @@ impl CodeGenerator {
                 // Check if this is a non-Copy array element - need .clone()
                 let needs_clone = if let Expr::Identifier(var_name) = object.as_ref() {
                     let sanitized = self.sanitize_name(var_name);
-                    if self.array_vars.contains(&sanitized) {
+                    // Bug #82 fix: map_array_vars (from DB.query) contain HashMap — always need .clone()
+                    if self.map_array_vars.contains(&sanitized) {
+                        true
+                    } else if self.array_vars.contains(&sanitized) {
                         if let Some(elem_type) = self.typed_array_vars.get(&sanitized) {
                             // Clone for string and class instance types (not number/bool)
                             elem_type == "string" || self.class_fields.contains_key(elem_type)
@@ -10123,8 +10154,9 @@ impl CodeGenerator {
     ) -> Result<()> {
         match method_call.method.as_str() {
             "get" => {
-                // map.get(key) → map.get(&key).cloned()
-                // Returns Option<V>, used with `or` for default value
+                // map.get(key) → map.get(&key).cloned().unwrap_or_default()
+                // Returns String (empty string if key not found)
+                // When suppress_map_get_unwrap is true (used with `or`), omits unwrap_or_default()
                 self.generate_expr(&method_call.object)?;
                 self.output.push_str(".get(&");
                 if let Some(arg) = method_call.args.first() {
@@ -10136,6 +10168,9 @@ impl CodeGenerator {
                     }
                 }
                 self.output.push_str(").cloned()");
+                if !self.suppress_map_get_unwrap {
+                    self.output.push_str(".unwrap_or_default()");
+                }
             }
             "set" => {
                 // map.set(key, value) → map.insert(key.clone(), value)
@@ -12468,11 +12503,35 @@ impl CodeGenerator {
 
                 let has_params = path_str.as_ref().map_or(false, |p| p.contains(':'));
 
+                // Bug #81 fix: Clone Arc<Mutex<Connection>> db vars before each route handler
+                // so each async closure gets its own Arc clone
+                if !self.db_vars.is_empty() {
+                    self.output.push_str("{ ");
+                    for db_var in self.db_vars.iter() {
+                        write!(self.output, "let {} = {}.clone(); ", db_var, db_var).unwrap();
+                    }
+                }
+
                 // Generate: var = var.route("path", axum::routing::METHOD(|...| async move { ... }))
                 write!(self.output, "{} = {}.route(", var_name, var_name).unwrap();
 
-                // Generate path — convert :param to :param (axum uses same syntax)
-                self.generate_expr(&method_call.args[0])?;
+                // Generate path — Bug #85 fix: convert :param to {param} for axum 0.8+ syntax
+                if let Some(ref path) = path_str {
+                    // Convert :param segments to {param} for axum 0.8
+                    let converted = path.split('/')
+                        .map(|segment| {
+                            if let Some(stripped) = segment.strip_prefix(':') {
+                                format!("{{{}}}", stripped)
+                            } else {
+                                segment.to_string()
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                        .join("/");
+                    write!(self.output, "\"{}\"", converted).unwrap();
+                } else {
+                    self.generate_expr(&method_call.args[0])?;
+                }
                 write!(self.output, ", axum::routing::{}(", http_method).unwrap();
 
                 // Generate the handler closure
@@ -12509,6 +12568,10 @@ impl CodeGenerator {
                     self.current_function_name = saved_req_param;
 
                     self.output.push_str("}))");
+                    // Close the db clone scope block
+                    if !self.db_vars.is_empty() {
+                        self.output.push_str(" }");
+                    }
                 } else {
                     return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
                         "E3000",
@@ -12600,7 +12663,8 @@ impl CodeGenerator {
         match method_call.method.as_str() {
             "json" => {
                 // Response.json(data) or Response.json(data, status: 201)
-                // → (StatusCode::OK, axum::Json(serde_json::json!(...)))
+                // Express-like: accepts Map literal, Map var, [Map] var, or string
+                // → (StatusCode::OK, axum::Json(...))
                 if method_call.args.is_empty() || method_call.args.len() > 2 {
                     return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
                         "E3000",
@@ -12623,9 +12687,77 @@ impl CodeGenerator {
                 } else {
                     self.output.push_str("axum::http::StatusCode::OK");
                 }
-                self.output.push_str(", axum::Json(serde_json::json!(");
-                self.generate_expr(&method_call.args[0])?;
-                self.output.push_str(")))");
+                self.output.push_str(", axum::Json(");
+
+                let arg = &method_call.args[0];
+
+                match arg {
+                    // Map literal: Response.json({ "key": "value" })
+                    // → serde_json::json!({"key": "value"})
+                    Expr::MapLiteral(entries) => {
+                        self.output.push_str("serde_json::json!({");
+                        for (i, (key, value)) in entries.iter().enumerate() {
+                            if i > 0 {
+                                self.output.push_str(", ");
+                            }
+                            self.generate_expr(key)?;
+                            self.output.push_str(": ");
+                            self.generate_expr(value)?;
+                        }
+                        self.output.push_str("})");
+                    }
+                    // Object literal: Response.json({ status: "ok" })
+                    // → serde_json::json!({"status": "ok"})
+                    Expr::ObjectLiteral(fields) => {
+                        self.output.push_str("serde_json::json!({");
+                        for (i, (key, value)) in fields.iter().enumerate() {
+                            if i > 0 {
+                                self.output.push_str(", ");
+                            }
+                            write!(self.output, "\"{}\"", key).unwrap();
+                            self.output.push_str(": ");
+                            self.generate_expr(value)?;
+                        }
+                        self.output.push_str("})");
+                    }
+                    // Variable: check if it's a Map, [Map], or string
+                    Expr::Identifier(name) => {
+                        let sname = self.sanitize_name(name);
+                        if self.map_vars.contains(&sname) || self.map_array_vars.contains(&sname) {
+                            // Map or [Map] → serialize directly via Serialize trait
+                            // → serde_json::to_value(&var).unwrap_or_default()
+                            self.output.push_str("serde_json::to_value(&");
+                            self.output.push_str(&sname);
+                            self.output.push_str(").unwrap_or_default()");
+                        } else if self.string_vars.contains(&sname) {
+                            // String (likely from JSON.stringify) → parse back to Value
+                            // → serde_json::from_str::<serde_json::Value>(&var).unwrap_or_default()
+                            self.output.push_str("serde_json::from_str::<serde_json::Value>(&");
+                            self.output.push_str(&sname);
+                            self.output.push_str(").unwrap_or_default()");
+                        } else {
+                            // Unknown var → try serde_json::to_value (generic fallback)
+                            self.output.push_str("serde_json::to_value(&");
+                            self.output.push_str(&sname);
+                            self.output.push_str(").unwrap_or_default()");
+                        }
+                    }
+                    // String literal: Response.json("raw string")
+                    // → serde_json::json!("raw string") — backwards compatible
+                    Expr::Literal(Literal::String(_)) => {
+                        self.output.push_str("serde_json::json!(");
+                        self.generate_expr(arg)?;
+                        self.output.push_str(")");
+                    }
+                    // Anything else: wrap with serde_json::json!()
+                    _ => {
+                        self.output.push_str("serde_json::json!(");
+                        self.generate_expr(arg)?;
+                        self.output.push_str(")");
+                    }
+                }
+
+                self.output.push_str("))");
             }
             "text" => {
                 // Response.text(text) or Response.text(text, status)
@@ -12712,17 +12844,17 @@ impl CodeGenerator {
                 self.generate_expr(&method_call.args[1])?;
                 self.output.push_str("; ");
                 if method_call.args.len() == 3 {
-                    // With params
+                    // With params — Bug #83 fix: use .to_string() per element to avoid moving variables
                     self.output.push_str("let __params: Vec<String> = ");
-                    self.generate_expr(&method_call.args[2])?;
-                    self.output.push_str(".iter().map(|s| s.to_string()).collect(); let __param_refs: Vec<&dyn rusqlite::types::ToSql> = __params.iter().map(|s| s as &dyn rusqlite::types::ToSql).collect(); match ");
+                    self.generate_db_params_vec(&method_call.args[2])?;
+                    self.output.push_str("; let __param_refs: Vec<&dyn rusqlite::types::ToSql> = __params.iter().map(|s| s as &dyn rusqlite::types::ToSql).collect(); match ");
                     self.generate_expr(&method_call.args[0])?;
-                    self.output.push_str(".execute(&__sql, __param_refs.as_slice()) { Ok(_) => (Some(String::new()), String::new()), Err(e) => (None, format!(\"DB.exec error: {}\", e)) } }");
+                    self.output.push_str(".lock().unwrap().execute(&__sql, __param_refs.as_slice()) { Ok(_) => (Some(String::new()), String::new()), Err(e) => (None, format!(\"DB.exec error: {}\", e)) } }");
                 } else {
                     // No params
                     self.output.push_str("match ");
                     self.generate_expr(&method_call.args[0])?;
-                    self.output.push_str(".execute_batch(&__sql) { Ok(_) => (Some(String::new()), String::new()), Err(e) => (None, format!(\"DB.exec error: {}\", e)) } }");
+                    self.output.push_str(".lock().unwrap().execute_batch(&__sql) { Ok(_) => (Some(String::new()), String::new()), Err(e) => (None, format!(\"DB.exec error: {}\", e)) } }");
                 }
             }
             "query" => {
@@ -12739,17 +12871,17 @@ impl CodeGenerator {
                 self.output.push_str("; ");
 
                 if method_call.args.len() == 3 {
-                    // With params
+                    // With params — Bug #83 fix: use .to_string() per element to avoid moving variables
                     self.output.push_str("let __params: Vec<String> = ");
-                    self.generate_expr(&method_call.args[2])?;
-                    self.output.push_str(".iter().map(|s| s.to_string()).collect(); let __param_refs: Vec<&dyn rusqlite::types::ToSql> = __params.iter().map(|s| s as &dyn rusqlite::types::ToSql).collect(); match ");
+                    self.generate_db_params_vec(&method_call.args[2])?;
+                    self.output.push_str("; let __param_refs: Vec<&dyn rusqlite::types::ToSql> = __params.iter().map(|s| s as &dyn rusqlite::types::ToSql).collect(); match ");
                     self.generate_expr(&method_call.args[0])?;
-                    self.output.push_str(".prepare(&__sql) { Ok(mut stmt) => { match stmt.query_map(__param_refs.as_slice(), |row| { let count = row.as_ref().column_count(); let mut map = std::collections::HashMap::<String, String>::new(); for i in 0..count { let col_name = row.as_ref().column_name(i).unwrap_or(\"\").to_string(); let val: String = row.get::<_, rusqlite::types::Value>(i).map(|v| match v { rusqlite::types::Value::Null => String::new(), rusqlite::types::Value::Integer(n) => n.to_string(), rusqlite::types::Value::Real(f) => f.to_string(), rusqlite::types::Value::Text(s) => s, rusqlite::types::Value::Blob(b) => format!(\"{:?}\", b), }).unwrap_or_default(); map.insert(col_name, val); } Ok(map) }) { Ok(rows) => { let result: Vec<std::collections::HashMap<String, String>> = rows.filter_map(|r| r.ok()).collect(); (Some(result), String::new()) }, Err(e) => (None, format!(\"DB.query error: {}\", e)) } }, Err(e) => (None, format!(\"DB.query error: {}\", e)) } }");
+                    self.output.push_str(".lock().unwrap().prepare(&__sql) { Ok(mut stmt) => { match stmt.query_map(__param_refs.as_slice(), |row| { let count = row.as_ref().column_count(); let mut map = std::collections::HashMap::<String, String>::new(); for i in 0..count { let col_name = row.as_ref().column_name(i).unwrap_or(\"\").to_string(); let val: String = row.get::<_, rusqlite::types::Value>(i).map(|v| match v { rusqlite::types::Value::Null => String::new(), rusqlite::types::Value::Integer(n) => n.to_string(), rusqlite::types::Value::Real(f) => f.to_string(), rusqlite::types::Value::Text(s) => s, rusqlite::types::Value::Blob(b) => format!(\"{:?}\", b), }).unwrap_or_default(); map.insert(col_name, val); } Ok(map) }) { Ok(rows) => { let result: Vec<std::collections::HashMap<String, String>> = rows.filter_map(|r| r.ok()).collect(); (Some(result), String::new()) }, Err(e) => (None, format!(\"DB.query error: {}\", e)) } }, Err(e) => (None, format!(\"DB.query error: {}\", e)) } }");
                 } else {
                     // No params
                     self.output.push_str("match ");
                     self.generate_expr(&method_call.args[0])?;
-                    self.output.push_str(".prepare(&__sql) { Ok(mut stmt) => { match stmt.query_map([], |row| { let count = row.as_ref().column_count(); let mut map = std::collections::HashMap::<String, String>::new(); for i in 0..count { let col_name = row.as_ref().column_name(i).unwrap_or(\"\").to_string(); let val: String = row.get::<_, rusqlite::types::Value>(i).map(|v| match v { rusqlite::types::Value::Null => String::new(), rusqlite::types::Value::Integer(n) => n.to_string(), rusqlite::types::Value::Real(f) => f.to_string(), rusqlite::types::Value::Text(s) => s, rusqlite::types::Value::Blob(b) => format!(\"{:?}\", b), }).unwrap_or_default(); map.insert(col_name, val); } Ok(map) }) { Ok(rows) => { let result: Vec<std::collections::HashMap<String, String>> = rows.filter_map(|r| r.ok()).collect(); (Some(result), String::new()) }, Err(e) => (None, format!(\"DB.query error: {}\", e)) } }, Err(e) => (None, format!(\"DB.query error: {}\", e)) } }");
+                    self.output.push_str(".lock().unwrap().prepare(&__sql) { Ok(mut stmt) => { match stmt.query_map([], |row| { let count = row.as_ref().column_count(); let mut map = std::collections::HashMap::<String, String>::new(); for i in 0..count { let col_name = row.as_ref().column_name(i).unwrap_or(\"\").to_string(); let val: String = row.get::<_, rusqlite::types::Value>(i).map(|v| match v { rusqlite::types::Value::Null => String::new(), rusqlite::types::Value::Integer(n) => n.to_string(), rusqlite::types::Value::Real(f) => f.to_string(), rusqlite::types::Value::Text(s) => s, rusqlite::types::Value::Blob(b) => format!(\"{:?}\", b), }).unwrap_or_default(); map.insert(col_name, val); } Ok(map) }) { Ok(rows) => { let result: Vec<std::collections::HashMap<String, String>> = rows.filter_map(|r| r.ok()).collect(); (Some(result), String::new()) }, Err(e) => (None, format!(\"DB.query error: {}\", e)) } }, Err(e) => (None, format!(\"DB.query error: {}\", e)) } }");
                 }
             }
             "close" => {
@@ -12774,6 +12906,27 @@ impl CodeGenerator {
             }
         }
 
+        Ok(())
+    }
+
+    /// Bug #83 fix: Generate DB params vec with .to_string() per element instead of moving variables
+    /// Generates: vec![a.to_string(), b.to_string()] instead of vec![a, b].iter().map(|s| s.to_string()).collect()
+    fn generate_db_params_vec(&mut self, expr: &Expr) -> Result<()> {
+        if let Expr::ArrayLiteral(elements) = expr {
+            self.output.push_str("vec![");
+            for (i, elem) in elements.iter().enumerate() {
+                if i > 0 {
+                    self.output.push_str(", ");
+                }
+                self.generate_expr(elem)?;
+                self.output.push_str(".to_string()");
+            }
+            self.output.push(']');
+        } else {
+            // Fallback: if not an array literal, use the old approach
+            self.generate_expr(expr)?;
+            self.output.push_str(".iter().map(|s| s.to_string()).collect()");
+        }
         Ok(())
     }
 
@@ -13239,7 +13392,9 @@ impl CodeGenerator {
         // Bug #76 fix: map.get(key) or default → map.get(&key).cloned().unwrap_or(default)
         // When `or` is used with a Map.get expression, it's not boolean OR but Option unwrap
         if matches!(op, BinOp::Or) && self.is_map_get_call(left) {
+            self.suppress_map_get_unwrap = true;
             self.generate_expr(left)?;
+            self.suppress_map_get_unwrap = false;
             self.output.push_str(".unwrap_or(");
             if matches!(right, Expr::Literal(Literal::String(_))) {
                 self.generate_expr(right)?;

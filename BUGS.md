@@ -561,3 +561,63 @@ Most bugs were in the Rust code generation phase, particularly around:
 12. String indexOf detection on class fields
 13. Generic type bounds (Clone, Display)
 14. Parallel iterator reference handling
+
+## Found During Dogfooding v3 — TODO API REST (Session v1.9)
+
+7 codegen bugs found via a complete REST API (HTTP Server + SQLite + JSON.stringify) ~195 lines.
+
+### Bug #83: Map.get() generates Option<String> instead of String ✅ FIXED
+**Severity**: High
+**Location**: `codegen.rs` — `generate_map_method_call()`
+**Description**: `row.get("name")` generated `HashMap::get().cloned()` → `Option<String>`, but Liva expects plain `String`.
+**Fix**: Appended `.unwrap_or_default()` after `.cloned()`. Added `suppress_map_get_unwrap` flag for `or default`/`or "value"` paths.
+
+### Bug #84: DB Connection not thread-safe for async HTTP handlers ✅ FIXED
+**Severity**: Critical
+**Location**: `codegen.rs` — DB.open codegen
+**Description**: `rusqlite::Connection` is not `Clone+Send+Sync`, can't be moved into multiple async route handler closures.
+**Fix**: Wrapped `DB.open` result in `Arc<Mutex<>>`. Added `.lock().unwrap()` to `DB.exec`/`DB.query`. Added `db.clone()` before each route handler closure.
+
+### Bug #85: Vec indexing moves HashMap out of Vec ✅ FIXED
+**Severity**: Medium
+**Location**: `codegen.rs` — index expression clone logic
+**Description**: `let row = rows[0]` moves `HashMap` out of `Vec`, but Rust doesn't allow moving out of indexed content.
+**Fix**: Added `map_array_vars` check to `needs_clone` logic, generating `.clone()` for array indexing on map array vars.
+
+### Bug #86: DB params consume String variables ✅ FIXED
+**Severity**: Medium
+**Location**: `codegen.rs` — DB.exec/DB.query params generation
+**Description**: `DB.exec(db, sql, [title, description])` generated `vec![title, description].iter().map(|s| s.to_string()).collect()` which consumed the original variables before `.iter()`.
+**Fix**: Created `generate_db_params_vec()` helper that generates `vec![a.to_string(), b.to_string()]` directly.
+
+### Bug #87: req.body assigned variables not tracked as strings ✅ FIXED
+**Severity**: Medium
+**Location**: `codegen.rs` — VarDecl string tracking
+**Description**: Variables assigned from `req.body` weren't tracked in `string_vars`, so they weren't cloned when passed to functions.
+**Fix**: Added `req.body` detection in VarDecl to register result as `string_vars`.
+
+### Bug #88: axum 0.8 route params use {param} not :param ✅ FIXED
+**Severity**: High 
+**Location**: `codegen.rs` — route path generation
+**Description**: Runtime panic — axum 0.8 uses `/{param}` syntax, not `/:param`. Routes with params failed at startup.
+**Fix**: Convert `:param` to `{param}` in route path generation.
+
+### Bug #89: extractJsonField indexOf two-arg not supported ✅ FIXED (Liva source fix)
+**Severity**: Low
+**Location**: User code (`examples/dogfooding-v3/main.liva`)
+**Description**: `indexOf("\"", 1)` — second argument was silently ignored.
+**Fix**: Rewrote to use `substring(1).indexOf("\"")` instead.
+
+### Session v1.9 Summary
+- **Bugs found**: 7 (all fixed)
+- **Regression tests**: 3 snapshot tests updated
+- **Test total**: 482 tests, 0 failures
+- **Program**: ~195 lines TODO API REST — full CRUD with HTTP Server + SQLite + JSON.stringify
+- **All 6 endpoints tested successfully with curl**
+
+Key areas of codegen bugs:
+1. Option<T> unwrapping for Map.get()
+2. Thread safety for DB connections in async handlers (Arc<Mutex>)
+3. Rust ownership/move semantics for Vec indexing and DB params
+4. Variable tracking for req.body assignments
+5. Runtime compatibility with axum 0.8 path syntax

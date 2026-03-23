@@ -2572,6 +2572,15 @@ impl Parser {
         }
 
         if self.match_token(&Token::LBrace) {
+            // Check if this is an inline Map literal: { "key": value, ... }
+            // Disambiguate from object literal (which uses identifier keys)
+            if matches!(self.peek(), Some(Token::StringLiteral(_)))
+                && matches!(self.peek_token(1), Some(Token::Colon))
+            {
+                let entries = self.parse_map_entries()?;
+                self.expect(Token::RBrace)?;
+                return Ok(Expr::MapLiteral(entries));
+            }
             return self.parse_object_literal();
         }
 
