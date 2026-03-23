@@ -549,6 +549,9 @@ impl Linter {
             Stmt::Block(b) => {
                 self.collect_var_usages_block(b, used);
             }
+            Stmt::Defer(defer_stmt) => {
+                self.collect_var_usages_stmt(&defer_stmt.body, used);
+            }
             Stmt::Break | Stmt::Continue => {}
         }
     }
@@ -900,6 +903,12 @@ impl Linter {
                 Stmt::Block(b) => {
                     self.check_unreachable_block(b, start_line);
                 }
+                Stmt::Defer(defer_stmt) => {
+                    // defer is NOT a terminator, but recurse into its body
+                    if let Stmt::Block(b) = defer_stmt.body.as_ref() {
+                        self.check_unreachable_block(b, start_line);
+                    }
+                }
                 _ => {}
             }
         }
@@ -1033,6 +1042,9 @@ impl Linter {
             Stmt::TryCatch(tc) => {
                 self.check_always_tf_block(&tc.try_block, start_line);
                 self.check_always_tf_block(&tc.catch_block, start_line);
+            }
+            Stmt::Defer(defer_stmt) => {
+                self.check_always_tf_stmt(&defer_stmt.body, start_line);
             }
             _ => {}
         }

@@ -66,6 +66,8 @@ pub enum Token {
     Await,
     #[token("fail")]
     Fail,
+    #[token("defer")]
+    Defer,
     #[token("move")]
     Move,
     #[token("seq")]

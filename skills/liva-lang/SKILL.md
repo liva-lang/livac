@@ -176,6 +176,26 @@ let port = parsePort("abc") or 3000
 // Use err.message for plain text without trace
 ```
 
+## Defer
+
+```liva
+// defer registers cleanup that runs when scope exits (LIFO order)
+defer DB.close(db)           // Single expression
+defer print("goodbye")       // Runs at end of scope, no matter what
+
+// Block form
+defer {
+    print("cleaning up")
+    File.close(handle)
+}
+
+// Multiple defers: last registered = first to run (stack/LIFO)
+defer print("3rd")
+defer print("2nd")
+defer print("1st")
+// Output: 1st, 2nd, 3rd
+```
+
 ## Concurrency
 
 ```liva
@@ -461,6 +481,7 @@ describe("Math", () => {
 10. **`_` prefix = private** — `_helper()`, `_password: string`
 11. **Multi-file projects** — split by responsibility for >50 lines (see references/)
 12. **`or fail`** — prefer over verbose error binding for propagation
+13. **`defer` for cleanup** — `defer DB.close(db)` right after opening; never forget cleanup
 
 ### Reserved Keywords (cannot use as identifiers)
 
@@ -468,7 +489,7 @@ These are reserved in Liva and will cause parse errors if used as variable/funct
 
 ```
 let const import from as if else while for in switch case default return
-break continue fail throw try catch async par parallel task await move seq
+break continue fail throw try catch async par parallel task await move seq defer
 vec parvec with ordered chunk threads enum type use rust test true false null
 and or not safe fast static dynamic auto detect schedule reduction prefetch simdWidth
 ```

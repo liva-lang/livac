@@ -180,6 +180,9 @@ fn check_stmt_concurrency(stmt: &Stmt, ctx: &mut DesugarContext) {
                 check_expr_concurrency(expr, ctx);
             }
         }
+        Stmt::Defer(defer_stmt) => {
+            check_stmt_concurrency(&defer_stmt.body, ctx);
+        }
         Stmt::Expr(expr_stmt) => check_expr_concurrency(&expr_stmt.expr, ctx),
         Stmt::Block(block) => check_block_concurrency_block(block, ctx),
         _ => {}

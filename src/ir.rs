@@ -104,6 +104,7 @@ pub enum Stmt {
         body: Block,
     },
     Block(Block),
+    Defer(Block),
     TryCatch {
         try_block: Block,
         error_var: String,

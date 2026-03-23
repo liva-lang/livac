@@ -1,0 +1,8 @@
+// Test: defer statement — cleanup runs at end of scope
+main() {
+    print("1: start")
+    defer print("4: deferred cleanup (runs last)")
+    print("2: doing work")
+    defer print("3: second defer (runs before first defer)")
+    print("work complete")
+}

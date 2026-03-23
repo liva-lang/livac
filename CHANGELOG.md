@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.9.0-dev] - 2026-03-23
 
+### Added
+- **`defer` statement** — Register cleanup actions that execute when the scope exits (LIFO order)
+  - Single expression: `defer DB.close(db)` 
+  - Block form: `defer { print("cleanup"); File.close(f) }`
+  - LIFO execution: last `defer` registered runs first (like Go/Swift)
+  - Works with `return`, `fail`, and normal scope exit
+  - Full compiler pipeline: Lexer → Parser → Semantic → IR → Lowering → Codegen → Formatter → Linter
+  - CodeGen: Rust scope-guard pattern using `Drop` trait
+  - 6 new tests (5 snapshot + 1 formatter)
+
 ### Dogfooding v3 — TODO API REST 🐕
 
 **Complete REST API built in Liva (~195 lines) validating HTTP Server + SQLite + JSON.stringify end-to-end.**

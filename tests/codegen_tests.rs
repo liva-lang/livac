@@ -5798,3 +5798,120 @@ main() {
     assert!(rust_code.contains("query_map"), "Should contain query_map: {}", rust_code);
     assert_snapshot!("db_query_with_params", rust_code);
 }
+
+// ============================================================
+// Defer statement tests
+// ============================================================
+
+#[test]
+fn test_defer_basic() {
+    let source = r#"
+main() {
+    print("start")
+    defer print("cleanup")
+    print("work")
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("_DeferGuard"), "Should contain _DeferGuard struct: {}", rust_code);
+    assert!(rust_code.contains("_defer_0"), "Should contain _defer_0 variable: {}", rust_code);
+    assert!(rust_code.contains("FnOnce()"), "Should contain FnOnce() trait bound: {}", rust_code);
+    assert_snapshot!("defer_basic", rust_code);
+}
+
+#[test]
+fn test_defer_with_db_close() {
+    let source = r#"
+main() {
+    let db, err = DB.open("app.db")
+    if err != "" {
+        fail err
+    }
+    defer DB.close(db)
+
+    DB.exec(db, "CREATE TABLE IF NOT EXISTS users (name TEXT)")
+    print("done")
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("_defer_0"), "Should contain defer guard: {}", rust_code);
+    assert_snapshot!("defer_db_close", rust_code);
+}
+
+#[test]
+fn test_defer_multiple() {
+    let source = r#"
+main() {
+    print("opening resources")
+    defer print("cleanup 1")
+    defer print("cleanup 2")
+    defer print("cleanup 3")
+    print("work done")
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("_defer_0"), "Should have first defer: {}", rust_code);
+    assert!(rust_code.contains("_defer_1"), "Should have second defer: {}", rust_code);
+    assert!(rust_code.contains("_defer_2"), "Should have third defer: {}", rust_code);
+    assert_snapshot!("defer_multiple", rust_code);
+}
+
+#[test]
+fn test_defer_block() {
+    let source = r#"
+main() {
+    let x = 10
+    defer {
+        print("cleaning up")
+        print("goodbye")
+    }
+    print(x)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("_DeferGuard"), "Should contain _DeferGuard: {}", rust_code);
+    assert_snapshot!("defer_block", rust_code);
+}
+
+#[test]
+fn test_defer_in_function() {
+    let source = r#"
+processFile(path: string) {
+    print($"Processing {path}")
+    defer print($"Done with {path}")
+    print("working...")
+}
+
+main() {
+    processFile("data.txt")
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("defer_in_function", rust_code);
+}
+
+#[test]
+fn test_defer_formatter() {
+    let source = r#"
+main() {
+    defer print("cleanup")
+    defer {
+        print("multi")
+        print("line")
+    }
+    print("work")
+}
+"#;
+
+    let tokens = tokenize(source).unwrap();
+    let program = parse(tokens, source).unwrap();
+    let options = livac::formatter::FormatOptions::default();
+    let formatted = livac::formatter::format_source(source, &options).unwrap();
+    assert!(formatted.contains("defer print(\"cleanup\")"), "Single-line defer should be formatted");
+    assert!(formatted.contains("defer {"), "Block defer should be formatted");
+}

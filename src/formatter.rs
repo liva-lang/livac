@@ -637,6 +637,29 @@ impl Formatter {
             Stmt::Continue => {
                 self.write_line("continue");
             }
+            Stmt::Defer(defer_stmt) => {
+                match defer_stmt.body.as_ref() {
+                    Stmt::Block(block) => {
+                        self.write_line("defer {");
+                        self.indent_level += 1;
+                        self.format_block(block);
+                        self.indent_level -= 1;
+                        self.write_line("}");
+                    }
+                    Stmt::Expr(expr_stmt) => {
+                        let e = self.format_expr(&expr_stmt.expr);
+                        self.write_line(&format!("defer {}", e));
+                    }
+                    other => {
+                        // Fallback: wrap in block
+                        self.write_line("defer {");
+                        self.indent_level += 1;
+                        self.format_stmt(other);
+                        self.indent_level -= 1;
+                        self.write_line("}");
+                    }
+                }
+            }
             Stmt::Expr(expr_stmt) => {
                 let e = self.format_expr(&expr_stmt.expr);
                 // If the expression has embedded newlines (multiline call), handle it
@@ -1483,6 +1506,13 @@ impl Formatter {
             Stmt::Continue => "continue".to_string(),
             Stmt::Expr(es) => self.format_expr(&es.expr),
             Stmt::Fail(f) => format!("fail {}", self.format_expr(&f.expr)),
+            Stmt::Defer(defer_stmt) => {
+                if let Stmt::Expr(expr_stmt) = defer_stmt.body.as_ref() {
+                    format!("defer {}", self.format_expr(&expr_stmt.expr))
+                } else {
+                    "defer { ... }".to_string()
+                }
+            }
             _ => "/* ... */".to_string(),
         }
     }

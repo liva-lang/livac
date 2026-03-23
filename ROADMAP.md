@@ -1,8 +1,8 @@
 # 🗺️ Liva Language Roadmap
 
 > **Current Version:** v1.9.0-dev (tag: v1.2.0)  
-> **Status:** Stdlib P0, P1, P2 complete, HTTP Server, DB (SQLite), `rust { }` interop, Logging, Config, CLI subcommands, Dogfooding v3 complete, 482+ tests  
-> **Completed:** Phases 1-13, Sessions 14-18, Dogfooding v1-v3, Stdlib P0, rust {}, Log, Config, File/Dir extended, Regex, Date, CSV, Random, Crypto, Process, HTTP Server, DB, Linter  
+> **Status:** Stdlib P0, P1, P2 complete, HTTP Server, DB (SQLite), `rust { }` interop, Logging, Config, CLI subcommands, Dogfooding v3 complete, `defer` statement, 488+ tests  
+> **Completed:** Phases 1-13, Sessions 14-18, Dogfooding v1-v3, Stdlib P0, rust {}, Log, Config, File/Dir extended, Regex, Date, CSV, Random, Crypto, Process, HTTP Server, DB, Linter, defer  
 > **Last Updated:** 2026-03-23
 
 ---

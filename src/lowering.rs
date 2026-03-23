@@ -219,6 +219,13 @@ fn lower_stmt(stmt: &ast::Stmt) -> ir::Stmt {
             body: lower_block(&for_stmt.body),
         },
         ast::Stmt::Block(block) => ir::Stmt::Block(lower_block(block)),
+        ast::Stmt::Defer(defer_stmt) => {
+            // Lower the defer body into an IR block
+            let body_stmt = lower_stmt(&defer_stmt.body);
+            ir::Stmt::Defer(ir::Block {
+                statements: vec![body_stmt],
+            })
+        }
         ast::Stmt::TryCatch(try_catch) => ir::Stmt::TryCatch {
             try_block: lower_block(&try_catch.try_block),
             error_var: try_catch.catch_var.clone(),
@@ -919,6 +926,7 @@ fn contains_fail_in_stmt(stmt: &ast::Stmt) -> bool {
         }
         ast::Stmt::Throw(throw) => contains_fail_in_expr(&throw.expr),
         ast::Stmt::Expr(expr_stmt) => contains_fail_in_expr(&expr_stmt.expr),
+        ast::Stmt::Defer(defer_stmt) => contains_fail_in_stmt(&defer_stmt.body),
         _ => false,
     }
 }

@@ -1370,6 +1370,9 @@ impl Parser {
         } else if self.match_token(&Token::Throw) {
             let value = self.parse_expression()?;
             Ok(Stmt::Throw(ThrowStmt { expr: value }))
+        } else if self.match_token(&Token::Defer) {
+            let body = self.parse_defer_body()?;
+            Ok(Stmt::Defer(DeferStmt { body: Box::new(body) }))
         } else {
             // Parse assignment statement: target = value
             let target = self.parse_expression()?;
@@ -1380,6 +1383,24 @@ impl Parser {
                 // Expression statement
                 Ok(Stmt::Expr(ExprStmt { expr: target }))
             }
+        }
+    }
+
+    /// Parse the body of a `defer` statement.
+    /// Supports two forms:
+    /// - `defer <expression>` — single expression (e.g., `defer DB.close(db)`)
+    /// - `defer { ... }` — block of statements
+    fn parse_defer_body(&mut self) -> Result<Stmt> {
+        if self.check(&Token::LBrace) {
+            // Block form: defer { stmt1; stmt2; ... }
+            self.advance(); // consume `{`
+            let block = self.parse_block_stmt()?;
+            self.expect(Token::RBrace)?;
+            Ok(Stmt::Block(block))
+        } else {
+            // Expression form: defer expr
+            let expr = self.parse_expression()?;
+            Ok(Stmt::Expr(ExprStmt { expr }))
         }
     }
 
@@ -1489,6 +1510,11 @@ impl Parser {
             let fail_line = fail_span.map(|s| s.start_position(&self.source_map).0 as u32).unwrap_or(0);
             let value = self.parse_expression()?;
             return Ok(Stmt::Fail(FailStmt { expr: value, line: fail_line }));
+        }
+
+        if self.match_token(&Token::Defer) {
+            let body = self.parse_defer_body()?;
+            return Ok(Stmt::Defer(DeferStmt { body: Box::new(body) }));
         }
 
         if self.match_token(&Token::Try) {

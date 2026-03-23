@@ -3,7 +3,7 @@
 > **Proyecto:** livac - El compilador de Liva  
 > **Versión:** v1.9.0-dev (tag: v1.2.0)  
 > **Lenguaje:** Rust  
-> **Tests:** 482 passing  
+> **Tests:** 488 passing  
 > **Próximo objetivo:** v2.0 — Enums recursivos + Self-hosting parcial  
 > **Última actualización:** 2026-03-23
 
@@ -131,6 +131,7 @@ skills/liva-lang/
 - **Code Formatter** (`fmt`, `fmt --check`)
 - **Test Framework** — Jest-like API con describe/test/expect + lifecycle hooks + async
 - **`or fail`** — Propagación simplificada de errores
+- **`defer`** — Cleanup automático al salir del scope (LIFO, como Go/Swift)
 - **`=>` one-liners** — if/for/while de una expresión
 - **Point-free references** — `items.forEach(print)` sin lambda
 - **Method refs `::`** — `names.map(fmt::format)`

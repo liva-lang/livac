@@ -298,6 +298,7 @@ pub enum Stmt {
     Throw(ThrowStmt),
     Fail(FailStmt),
     Return(ReturnStmt),
+    Defer(DeferStmt),
     Break,
     Continue,
     Expr(ExprStmt),
@@ -615,6 +616,11 @@ pub struct FailStmt {
     /// Source line number (1-based) for error trace
     #[serde(default)]
     pub line: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct DeferStmt {
+    pub body: Box<Stmt>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

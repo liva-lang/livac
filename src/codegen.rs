@@ -131,6 +131,8 @@ pub struct CodeGenerator {
     source_filename: String,        // Source filename for error traces
     /// Hoisted `use` statements extracted from `rust { }` blocks (emitted at top of file)
     rust_block_uses: Vec<String>,
+    /// Counter for generating unique defer guard variable names
+    defer_counter: usize,
 }
 
 impl CodeGenerator {
@@ -200,6 +202,7 @@ impl CodeGenerator {
             current_function_name: String::new(),
             source_filename,
             rust_block_uses: Vec::new(),
+            defer_counter: 0,
         }
     }
 
@@ -975,6 +978,7 @@ impl CodeGenerator {
             }
             Stmt::While(w) => self.block_calls_mut_self_method(&w.body),
             Stmt::For(f) => self.block_calls_mut_self_method(&f.body),
+            Stmt::Defer(defer_stmt) => self.stmt_calls_mut_self_method(&defer_stmt.body),
             _ => false,
         }
     }
@@ -1054,6 +1058,7 @@ impl CodeGenerator {
                     // B45 fix: If iterating over this.field and body mutates loop var, that's transitive self mutation
                     || self.for_mutates_self_transitively(for_stmt)
             }
+            Stmt::Defer(defer_stmt) => self.stmt_modifies_self(&defer_stmt.body),
             _ => false,
         }
     }
@@ -1258,6 +1263,9 @@ impl CodeGenerator {
             }
             Stmt::Block(block) => {
                 self.collect_mutated_vars_in_block(block, mutated);
+            }
+            Stmt::Defer(defer_stmt) => {
+                self.collect_mutated_vars_in_stmt(&defer_stmt.body, mutated);
             }
             Stmt::Expr(expr_stmt) => {
                 self.collect_mutated_vars_in_expr(&expr_stmt.expr, mutated);
@@ -6231,6 +6239,35 @@ impl CodeGenerator {
                 self.generate_block_inner(block)?;
                 self.dedent();
                 self.writeln("}");
+            }
+            Stmt::Defer(defer_stmt) => {
+                // Generate a Rust scope guard using Drop trait.
+                // `defer expr` → creates a guard variable that executes expr when dropped.
+                let idx = self.defer_counter;
+                self.defer_counter += 1;
+                self.write_indent();
+                writeln!(self.output, "let _defer_{} = {{", idx).unwrap();
+                self.indent();
+                self.write_indent();
+                self.output.push_str("struct _DeferGuard<F: FnOnce()>(Option<F>);\n");
+                self.write_indent();
+                self.output.push_str("impl<F: FnOnce()> Drop for _DeferGuard<F> {\n");
+                self.indent();
+                self.write_indent();
+                self.output.push_str("fn drop(&mut self) { if let Some(f) = self.0.take() { f(); } }\n");
+                self.dedent();
+                self.write_indent();
+                self.output.push_str("}\n");
+                self.write_indent();
+                self.output.push_str("_DeferGuard(Some(|| {\n");
+                self.indent();
+                self.generate_stmt(&defer_stmt.body)?;
+                self.dedent();
+                self.write_indent();
+                self.output.push_str("}))\n");
+                self.dedent();
+                self.write_indent();
+                self.output.push_str("};\n");
             }
             Stmt::Fail(fail_stmt) => {
                 self.write_indent();
@@ -14365,6 +14402,8 @@ struct IrCodeGenerator<'a> {
     // B27: Enum variant field names for destructuring
     #[allow(dead_code)]
     enum_variants: std::collections::HashMap<String, std::collections::HashMap<String, Vec<String>>>,
+    /// Counter for generating unique defer guard variable names
+    defer_counter: usize,
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -14397,6 +14436,7 @@ impl<'a> IrCodeGenerator<'a> {
             error_binding_vars: HashSet::new(),
             rust_block_uses: Vec::new(),
             enum_variants: std::collections::HashMap::new(),
+            defer_counter: 0,
         }
     }
 
@@ -15480,6 +15520,35 @@ impl<'a> IrCodeGenerator<'a> {
                 self.write_indent();
                 self.output.push_str("}\n");
             }
+            ir::Stmt::Defer(block) => {
+                let idx = self.defer_counter;
+                self.defer_counter += 1;
+                self.write_indent();
+                writeln!(self.output, "let _defer_{} = {{", idx).unwrap();
+                self.indent();
+                self.write_indent();
+                self.output.push_str("struct _DeferGuard<F: FnOnce()>(Option<F>);\n");
+                self.write_indent();
+                self.output.push_str("impl<F: FnOnce()> Drop for _DeferGuard<F> {\n");
+                self.indent();
+                self.write_indent();
+                self.output.push_str("fn drop(&mut self) { if let Some(f) = self.0.take() { f(); } }\n");
+                self.dedent();
+                self.write_indent();
+                self.output.push_str("}\n");
+                self.write_indent();
+                self.output.push_str("_DeferGuard(Some(|| {\n");
+                self.indent();
+                for stmt in &block.statements {
+                    self.generate_stmt(stmt)?;
+                }
+                self.dedent();
+                self.write_indent();
+                self.output.push_str("}))\n");
+                self.dedent();
+                self.write_indent();
+                self.output.push_str("};\n");
+            }
             _ => {
                 return Err(CompilerError::CodegenError(
                     "Unsupported statement in IR generator".into(),
@@ -16474,6 +16543,10 @@ impl<'a> IrCodeGenerator<'a> {
                 self.output.push(';');
                 Ok(())
             }
+            Stmt::Defer(_) => {
+                // defer inside switch blocks is unusual — just skip
+                Ok(())
+            }
             _ => Err(CompilerError::CodegenError(
                 "Complex statements in switch blocks not yet fully supported".into(),
             )),
@@ -16639,6 +16712,7 @@ fn stmt_has_unsupported(stmt: &ir::Stmt) -> bool {
             expr_has_unsupported(iterable) || block_has_unsupported(body)
         }
         ir::Stmt::Block(block) => block_has_unsupported(block),
+        ir::Stmt::Defer(block) => block_has_unsupported(block),
         ir::Stmt::Let { value, .. } => expr_has_unsupported(value),
         ir::Stmt::Const { value, .. } => expr_has_unsupported(value),
         ir::Stmt::Assign { target, value } => {
@@ -16792,6 +16866,7 @@ fn stmt_has_async_concurrency(stmt: &ir::Stmt) -> bool {
             expr_has_async_concurrency(iterable) || block_has_async_concurrency(body)
         }
         ir::Stmt::Block(block) => block_has_async_concurrency(block),
+        ir::Stmt::Defer(block) => block_has_async_concurrency(block),
         ir::Stmt::TryCatch {
             try_block,
             catch_block,
@@ -16860,6 +16935,7 @@ fn stmt_has_parallel_concurrency(stmt: &ir::Stmt) -> bool {
                 || block_has_parallel_concurrency(body)
         }
         ir::Stmt::Block(block) => block_has_parallel_concurrency(block),
+        ir::Stmt::Defer(block) => block_has_parallel_concurrency(block),
         ir::Stmt::TryCatch {
             try_block,
             catch_block,
@@ -17077,6 +17153,7 @@ fn ast_stmt_has_async(stmt: &Stmt) -> bool {
             ast_expr_has_async(&f.iterable) || f.body.stmts.iter().any(ast_stmt_has_async)
         }
         Stmt::Block(block) => block.stmts.iter().any(ast_stmt_has_async),
+        Stmt::Defer(defer_stmt) => ast_stmt_has_async(&defer_stmt.body),
         Stmt::TryCatch(tc) => {
             tc.try_block.stmts.iter().any(ast_stmt_has_async)
                 || tc.catch_block.stmts.iter().any(ast_stmt_has_async)

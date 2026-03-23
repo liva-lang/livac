@@ -322,6 +322,21 @@
 > **Foco:** Desbloquear estructuras de datos tipo árbol y preparar auto-compilación.  
 > **Cambio de lenguaje importante — justifica major version.**
 
+### `defer` statement ✅
+
+- [x] Lexer: nuevo token `Defer`
+- [x] AST: `DeferStmt { body: Box<Stmt> }` + variante `Stmt::Defer`
+- [x] Parser: `defer <expr>` y `defer { ... }` — dos formas
+- [x] Desugaring: recursión en body para concurrency detection
+- [x] IR: variante `ir::Stmt::Defer(Block)`
+- [x] Lowering: `ast::Stmt::Defer` → `ir::Stmt::Defer`
+- [x] Codegen: Rust `_DeferGuard` pattern con `Drop` trait (scope guard)
+- [x] Formatter: soporte inline (`defer expr`) y block (`defer { ... }`)
+- [x] Semantic: validación del body, propagación de async/fail/await
+- [x] Linter: recursión en body para W001-W004
+- [x] Tests: 6 tests (5 snapshot + 1 formatter)
+- [x] Docs: QUICK_REFERENCE, CHANGELOG
+
 ### Enums recursivos (auto-boxing)
 
 - [ ] Detectar campos recursivos en enums (`left: Expr` dentro de `enum Expr`)

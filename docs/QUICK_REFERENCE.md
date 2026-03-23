@@ -21,6 +21,7 @@
 - [Interfaces](#interfaces)
 - [Visibility](#visibility)
 - [Error Handling](#error-handling)
+- [Defer](#defer)
 - [Concurrency](#concurrency)
 - [Collections (Arrays)](#collections-arrays)
 - [Strings](#strings)
@@ -666,6 +667,65 @@ let result = err ? 42 : result
 ```
 
 > **Note:** Only works when the left side is a function/method call. For logical OR between booleans, use `a or b` as usual.
+
+---
+
+## Defer
+
+The `defer` statement registers cleanup actions that execute **when the enclosing scope exits** — regardless of whether it exits normally, via `return`, or via `fail`. Defers execute in **LIFO order** (last-in, first-out), like a stack.
+
+### Basic Usage
+
+```liva
+main() {
+    print("start")
+    defer print("cleanup — runs last")
+    print("work")
+}
+// Output: start, work, cleanup — runs last
+```
+
+### Resource Cleanup (DB, Files)
+
+```liva
+main() {
+    let db, err = DB.open("app.db")
+    if err != "" => fail err
+    defer DB.close(db)   // ← Guaranteed to run, no matter what happens below
+
+    DB.exec(db, "INSERT INTO users VALUES (?)", ["Alice"]) or fail
+    let users = DB.query(db, "SELECT * FROM users") or fail
+
+    print(users)
+    // DB.close(db) runs automatically here
+}
+```
+
+### Multiple Defers (LIFO)
+
+```liva
+main() {
+    defer print("3rd — first registered, last to run")
+    defer print("2nd")
+    defer print("1st — last registered, first to run")
+}
+// Output: 1st, 2nd, 3rd
+```
+
+### Block Form
+
+```liva
+processFile(path: string) {
+    let file = File.read(path) or fail
+    defer {
+        print($"Cleaning up {path}")
+        // Multiple cleanup statements
+    }
+    // ... work with file ...
+}
+```
+
+> **Note:** `defer` is similar to Go's `defer` and Swift's `defer`. The deferred action runs at the end of the **current scope** (function/block), not at the end of the line.
 
 ---
 
