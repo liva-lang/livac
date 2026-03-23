@@ -1396,6 +1396,25 @@ for i in 0..entries.length {
 }
 ```
 
+### Regex *(v1.6.0)*
+
+```liva
+// Test: returns bool
+let isEmail = Regex.test("^[\\w.+-]+@[\\w.-]+\\.[a-zA-Z]{2,}$", email)
+
+// Match: returns (string, error) — first match
+let found, err = Regex.match("\\d+", "Order #42")
+
+// FindAll: returns [string]
+let numbers = Regex.findAll("\\d+", "a1b22c333")   // ["1", "22", "333"]
+
+// Replace: returns string (replaces all)
+let clean = Regex.replace("\\s+", text, " ")
+
+// Split: returns [string]
+let parts = Regex.split("[,;]", "a,b;c")            // ["a", "b", "c"]
+```
+
 ### Configuration *(v1.5.0)*
 
 ```liva

@@ -5379,3 +5379,54 @@ main() {
     assert!(rust_code.contains("walk_dir"), "Should contain walk_dir: {}", rust_code);
     assert_snapshot!("dir_list_recursive_and_walk", rust_code);
 }
+
+// ---------------------------------------------------------------------------
+// v1.6: Regex module (test, match, findAll, replace, split)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_regex_test_and_match() {
+    let source = r#"
+main() {
+    // Regex.test - returns bool
+    let isEmail = Regex.test("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", "user@example.com")
+    print($"Is email: {isEmail}")
+
+    // Regex.match - returns (string, error) — first match
+    let found, err = Regex.match("\\d+", "Order #42 has 3 items")
+    if err == "" {
+        print($"First number: {found}")
+    }
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("regex::Regex::new"), "Should use regex crate: {}", rust_code);
+    assert!(rust_code.contains("is_match"), "Should contain is_match: {}", rust_code);
+    assert_snapshot!("regex_test_and_match", rust_code);
+}
+
+#[test]
+fn test_regex_findall_replace_split() {
+    let source = r#"
+main() {
+    // Regex.findAll - returns [string]
+    let numbers = Regex.findAll("\\d+", "a1b22c333")
+    print($"Found {numbers.length} numbers")
+
+    // Regex.replace - returns string
+    let cleaned = Regex.replace("\\s+", "  hello   world  ", " ")
+    print(cleaned)
+
+    // Regex.split - returns [string]
+    let parts = Regex.split("[,;]", "a,b;c,d")
+    print($"Parts: {parts.length}")
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("find_iter"), "Should contain find_iter: {}", rust_code);
+    assert!(rust_code.contains("replace_all"), "Should contain replace_all: {}", rust_code);
+    assert!(rust_code.contains("re.split"), "Should contain re.split: {}", rust_code);
+    assert_snapshot!("regex_findall_replace_split", rust_code);
+}

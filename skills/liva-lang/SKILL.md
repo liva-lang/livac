@@ -313,6 +313,13 @@ let ok, err = Dir.delete("./tmp")     // rm -rf (recursive)
 let files, err = Dir.listRecursive("./src")  // All files, relative paths
 let files, err = Dir.walk("./docs")          // Alias for listRecursive
 
+// Regex (crate `regex` auto-injected)
+Regex.test("\\d+", text)                   // bool
+let found, err = Regex.match("\\d+", text) // (string, error) — first match
+Regex.findAll("\\d+", "a1b22")             // ["1", "22"] — all matches
+Regex.replace("\\s+", text, " ")           // string — replace all
+Regex.split("[,;]", "a,b;c")              // ["a", "b", "c"]
+
 // System
 Sys.args()                               // [string] — args[0] = program name, args[1..] = user args
 Sys.env("HOME")                           // Get env variable

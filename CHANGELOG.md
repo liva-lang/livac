@@ -50,6 +50,27 @@ let files, err = Dir.walk("./docs")                  // Alias for listRecursive
 - **Tests**: 4 new snapshot tests (total: 232 codegen tests)
 - **Docs**: Updated `file-io.md`, `QUICK_REFERENCE.md`, stdlib README
 
+### Added - Regex Module 🔍
+
+**5 regex functions with crate `regex` auto-injected — no `use rust` needed.**
+
+```liva
+let isEmail = Regex.test("^[\\w.+-]+@[\\w.-]+\\.[a-zA-Z]{2,}$", email)
+let found, err = Regex.match("\\d+", "Order #42")
+let numbers = Regex.findAll("\\d+", "a1b22c333")
+let clean = Regex.replace("\\s+", text, " ")
+let parts = Regex.split("[,;]", "a,b;c")
+```
+
+#### Compiler Changes
+
+- **Desugaring**: `has_regex` flag in `DesugarContext` for crate auto-injection
+- **Codegen**: `generate_regex_function_call()` with 5 methods (test, match, findAll, replace, split)
+- **Codegen**: `is_file_call()` extended for `Regex.match` (returns tuple)
+- **Codegen**: `regex = "1"` auto-added to Cargo.toml when `Regex.*` is used
+- **Parser**: Allow `test` keyword as method name in `parse_method_name()`
+- **Tests**: 2 new snapshot tests (total: 232 codegen, 6 desugar)
+
 ## [1.5.0] - 2026-03-20
 
 ### Added - `rust { }` Interop 🦀

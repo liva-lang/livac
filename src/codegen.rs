@@ -306,6 +306,9 @@ impl CodeGenerator {
                     if obj == "Config" {
                         return matches!(mc.method.as_str(), "get" | "getInt" | "getBool" | "load");
                     }
+                    if obj == "Regex" {
+                        return matches!(mc.method.as_str(), "match");
+                    }
                 }
                 false
             }
@@ -8494,6 +8497,11 @@ impl CodeGenerator {
                 return self.generate_config_function_call(method_call);
             }
 
+            // Check if this is a Regex function call (Regex.test, Regex.match, etc.)
+            if name == "Regex" {
+                return self.generate_regex_function_call(method_call);
+            }
+
             // Bug #40: Check if this is a module alias call (import * as alias from "...")
             // Generate module::function() instead of alias.function()
             if let Some(module_name) = self.module_aliases.get(name).cloned() {
@@ -11550,6 +11558,113 @@ impl CodeGenerator {
                     "E3000",
                     &format!("Unknown Config function: {}", method_call.method),
                     "Available Config functions: load, get, getInt, getBool, getAll",
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn generate_regex_function_call(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
+        // Regex functions: test, match, findAll, replace, split
+        // All use the `regex` crate (auto-injected when Regex.* is used)
+        match method_call.method.as_str() {
+            "test" => {
+                // Regex.test(pattern, text) → bool
+                if method_call.args.len() != 2 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Regex.test requires exactly 2 arguments",
+                        "Usage: Regex.test(pattern, text)",
+                    )));
+                }
+
+                self.output.push_str("regex::Regex::new(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(").map(|re| re.is_match(&");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str(")).unwrap_or(false)");
+            }
+            "match" => {
+                // Regex.match(pattern, text) → (Option<String>, String)
+                // Returns first match or error
+                if method_call.args.len() != 2 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Regex.match requires exactly 2 arguments",
+                        "Usage: Regex.match(pattern, text)",
+                    )));
+                }
+
+                self.output.push_str("match regex::Regex::new(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(") { Ok(re) => match re.find(&");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str(") { Some(m) => (Some(m.as_str().to_string()), String::new()), None => (None, String::new()) }, Err(e) => (None, format!(\"Regex error: {}\", e)) }");
+            }
+            "findAll" => {
+                // Regex.findAll(pattern, text) → [string]
+                // Returns all matches (empty array if no matches or invalid pattern)
+                if method_call.args.len() != 2 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Regex.findAll requires exactly 2 arguments",
+                        "Usage: Regex.findAll(pattern, text)",
+                    )));
+                }
+
+                self.output.push_str("regex::Regex::new(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(").map(|re| re.find_iter(&");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str(").map(|m| m.as_str().to_string()).collect::<Vec<String>>()).unwrap_or_default()");
+            }
+            "replace" => {
+                // Regex.replace(pattern, text, replacement) → string
+                if method_call.args.len() != 3 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Regex.replace requires exactly 3 arguments",
+                        "Usage: Regex.replace(pattern, text, replacement)",
+                    )));
+                }
+
+                self.output.push_str("regex::Regex::new(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(").map(|re| re.replace_all(&");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str(", ");
+                self.generate_expr(&method_call.args[2])?;
+                self.output.push_str(".as_str()).to_string()).unwrap_or_else(|_| ");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str(".to_string())");
+            }
+            "split" => {
+                // Regex.split(pattern, text) → [string]
+                if method_call.args.len() != 2 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Regex.split requires exactly 2 arguments",
+                        "Usage: Regex.split(pattern, text)",
+                    )));
+                }
+
+                self.output.push_str("regex::Regex::new(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(").map(|re| re.split(&");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str(").map(|s| s.to_string()).collect::<Vec<String>>()).unwrap_or_else(|_| vec![");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str(".to_string()])");
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3000",
+                    &format!("Unknown Regex function: {}", method_call.method),
+                    "Available Regex functions: test, match, findAll, replace, split",
                 )));
             }
         }
@@ -16080,13 +16195,18 @@ pub fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
         cargo_toml.push_str("chrono = \"0.4\"\n");
     }
 
+    if ctx.has_regex {
+        cargo_toml.push_str("regex = \"1\"\n");
+    }
+
     // Add user-specified crates (with version and features support)
     for dep in &ctx.rust_crates {
         let crate_name = &dep.name;
         // Skip internal crates that are already added above
         if crate_name == "tokio" || crate_name == "serde" || crate_name == "serde_json"
             || crate_name == "reqwest" || crate_name == "rayon" || crate_name == "rand"
-            || (crate_name == "chrono" && ctx.has_logging) {
+            || (crate_name == "chrono" && ctx.has_logging)
+            || (crate_name == "regex" && ctx.has_regex) {
             // For internal crates, only merge additional features
             if !dep.features.is_empty() {
                 // Already handled: user can add features to internal crates
@@ -16124,6 +16244,7 @@ mod tests {
             has_rust_blocks: false,
             has_logging: false,
             has_config: false,
+            has_regex: false,
             async_functions: std::collections::BTreeSet::new(),
             source_filename: String::new(),
         });

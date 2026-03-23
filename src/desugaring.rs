@@ -21,6 +21,7 @@ pub struct DesugarContext {
     pub has_rust_blocks: bool,             // true if any `rust { }` block is used
     pub has_logging: bool,                 // true if Log.* is used
     pub has_config: bool,                  // true if Config.* is used
+    pub has_regex: bool,                   // true if Regex.* is used
     pub async_functions: BTreeSet<String>, // Functions that are async (BTreeSet for deterministic order)
     #[serde(skip)]
     pub source_filename: String,           // Source filename for error traces
@@ -36,6 +37,7 @@ impl DesugarContext {
             has_rust_blocks: false,
             has_logging: false,
             has_config: false,
+            has_regex: false,
             async_functions: BTreeSet::new(),
             source_filename: String::new(),
         }
@@ -205,6 +207,9 @@ fn check_expr_concurrency(expr: &Expr, ctx: &mut DesugarContext) {
                 }
                 if name == "Config" {
                     ctx.has_config = true;
+                }
+                if name == "Regex" {
+                    ctx.has_regex = true;
                 }
             }
 

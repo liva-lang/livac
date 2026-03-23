@@ -1,7 +1,7 @@
 # Liva Standard Library
 
-> **Status:** ✅ Complete (v1.6.0-dev) - 95+ functions implemented! 🎉  
-> **Completion:** Arrays ✅ (31) | Strings ✅ (28) | Math ✅ (14) | Config ✅ (5) | File ✅ (11) | Dir ✅ (7) | Conversions ✅ | I/O ✅ | System ✅ | Logging ✅
+> **Status:** ✅ Complete (v1.6.0-dev) - 100+ functions implemented! 🎉  
+> **Completion:** Arrays ✅ (31) | Strings ✅ (28) | Math ✅ (14) | Config ✅ (5) | File ✅ (11) | Dir ✅ (7) | Regex ✅ (5) | Conversions ✅ | I/O ✅ | System ✅ | Logging ✅
 
 The Liva Standard Library provides built-in functions and methods for common programming tasks.
 
@@ -140,6 +140,17 @@ File and directory operations with error binding pattern.
 **Dir (v1.6 — new):**
 - `Dir.exists(path)`, `Dir.create(path)`, `Dir.delete(path)` ✅
 - `Dir.listRecursive(path)` / `Dir.walk(path)` ✅
+
+### ✅ [Regex](./regex.md)
+Regular expression matching, searching, replacing, and splitting.
+
+**Status:** Complete (v1.6) — 5 functions + crate `regex` auto-injected
+
+- `Regex.test(pattern, text)` — Boolean match test ✅
+- `Regex.match(pattern, text)` — First match with error binding ✅
+- `Regex.findAll(pattern, text)` — All matches as `[string]` ✅
+- `Regex.replace(pattern, text, replacement)` — Replace all occurrences ✅
+- `Regex.split(pattern, text)` — Split by pattern ✅
 
 ---
 

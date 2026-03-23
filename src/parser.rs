@@ -2912,6 +2912,7 @@ impl Parser {
             Some(Token::Null) => Ok("null".to_string()),
             Some(Token::Not) => Ok("not".to_string()),
             Some(Token::Move) => Ok("move".to_string()),
+            Some(Token::Test) => Ok("test".to_string()),
             _ => Err(self.error("Expected method name".into())),
         }
     }

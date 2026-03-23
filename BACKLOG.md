@@ -185,14 +185,17 @@
 
 - [ ] Tests
 
-### Regex — módulo nuevo (crate `regex` auto-inyectado)
+### Regex — módulo nuevo (crate `regex` auto-inyectado) ✅
 
-- [ ] `Regex.match(pattern, str)` → `bool`
-- [ ] `Regex.find(pattern, str)` → `string, error`
-- [ ] `Regex.findAll(pattern, str)` → `[string]`
-- [ ] `Regex.replace(pattern, str, replacement)` → `string`
-- [ ] `Regex.split(pattern, str)` → `[string]`
-- [ ] Tests
+- [x] `Regex.test(pattern, str)` → `bool`
+- [x] `Regex.match(pattern, str)` → `string, error`
+- [x] `Regex.findAll(pattern, str)` → `[string]`
+- [x] `Regex.replace(pattern, str, replacement)` → `string`
+- [x] `Regex.split(pattern, str)` → `[string]`
+- [x] Crate `regex` auto-inyectado via `has_regex` flag
+- [x] Parser: permitir `test` como nombre de método
+- [x] Tests (2 snapshot tests)
+- [x] Docs (`docs/language-reference/stdlib/regex.md`)
 
 ### CSV — módulo nuevo
 

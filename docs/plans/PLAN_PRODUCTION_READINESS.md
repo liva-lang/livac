@@ -192,7 +192,9 @@ if nextWeek > now {
 print($"Hoy es {now}")  // → "Hoy es 2026-03-11T10:30:00"
 ```
 
-### P1 — Regex (módulo NUEVO)
+### P1 — Regex (módulo NUEVO) ✅
+
+> **Completado:** v1.6.0-dev — 5 funciones, crate `regex` auto-inyectado, parser fix para `test` keyword.
 
 Requiere crate `regex` auto-inyectado. Se crea `generate_regex_function_call()`:
 

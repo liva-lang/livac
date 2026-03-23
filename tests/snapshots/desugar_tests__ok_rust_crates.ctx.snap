@@ -29,5 +29,6 @@ expression: json
   "has_rust_blocks": false,
   "has_logging": false,
   "has_config": false,
+  "has_regex": false,
   "async_functions": []
 }
