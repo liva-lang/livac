@@ -1441,6 +1441,30 @@ if nextWeek > now { print("Future!") }
 print($"Today is {now}")                           // "Today is 2026-03-11T..."
 ```
 
+### CSV *(v1.6.0)*
+
+```liva
+// Read/write raw CSV
+let data, err = CSV.read("data.csv")               // [[string]], error
+let ok, err = CSV.write("out.csv", data)            // bool, error
+
+// Custom separator (TSV)
+let tsv, err = CSV.read("data.tsv", "\t")
+
+// Parse/stringify (pure, no I/O)
+let rows = CSV.parse("a,b\n1,2")                   // [[string]]
+let csv = CSV.stringify(rows)                       // string
+
+// Table = [Map<string, string>] (first row as headers)
+let table, err = CSV.readTable("ventas.csv")
+let headers = CSV.headers(table)                    // ["col1", "col2", ...]
+let col = CSV.column(table, "ventas")              // [string]
+let ok, err = CSV.writeTable("result.csv", table)
+
+// Table ops via standard array methods
+let filtered = table.filter(row => row.get("region") == "Europa")
+```
+
 ### Configuration *(v1.5.0)*
 
 ```liva

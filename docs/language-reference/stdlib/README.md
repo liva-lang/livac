@@ -1,7 +1,7 @@
 # Liva Standard Library
 
 > **Status:** ✅ Complete (v1.6.0-dev) - 100+ functions implemented! 🎉  
-> **Completion:** Arrays ✅ (31) | Strings ✅ (28) | Math ✅ (14) | Config ✅ (5) | File ✅ (11) | Dir ✅ (7) | Regex ✅ (5) | Date ✅ (14) | Conversions ✅ | I/O ✅ | System ✅ | Logging ✅
+> **Completion:** Arrays ✅ (31) | Strings ✅ (28) | Math ✅ (14) | Config ✅ (5) | File ✅ (11) | Dir ✅ (7) | Regex ✅ (5) | Date ✅ (14) | CSV ✅ (8) | Conversions ✅ | I/O ✅ | System ✅ | Logging ✅
 
 The Liva Standard Library provides built-in functions and methods for common programming tasks.
 
@@ -164,6 +164,16 @@ First-class date/time type with constructors, properties, methods, and compariso
 **Interpolation:** `$"{date}"` auto-formats as ISO 8601
 
 Crate `chrono` auto-injected when `Date.*` is used.
+
+### ✅ [CSV](./csv.md)
+Read, write, and manipulate CSV data with Table support.
+
+**Status:** Complete (v1.6) — 8 functions, pure Rust `std` (no external crates)
+
+**I/O (fallible):** `CSV.read(path)`, `CSV.read(path, sep)`, `CSV.write(path, data)`, `CSV.readTable(path)`, `CSV.writeTable(path, table)`
+**Pure:** `CSV.parse(text)`, `CSV.stringify(rows)`
+**Table ops:** `CSV.headers(table)`, `CSV.column(table, colName)`
+**Table type:** `[Map<string, string>]` — use standard array methods for filter/sort/group
 
 ---
 

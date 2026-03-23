@@ -109,6 +109,38 @@ if nextWeek > now { print($"Future: {nextWeek}") }
 - **Tests**: 3 new snapshot tests (total: 236 codegen, 6 desugar)
 - **Docs**: `docs/language-reference/stdlib/date.md` — complete documentation
 
+### Added - CSV Module 📊
+
+**8 CSV functions with Table support — pure Rust `std`, no external crates.**
+
+```liva
+// Read/write raw CSV
+let data, err = CSV.read("data.csv")
+let ok, err = CSV.write("output.csv", data)
+
+// Read/write with headers (Table = [Map<string, string>])
+let table, err = CSV.readTable("ventas.csv")
+let headers = CSV.headers(table)           // ["producto", "region", "ventas"]
+let names = CSV.column(table, "name")     // Extract column values
+CSV.writeTable("result.csv", table)
+
+// Pure parsing (no I/O)
+let rows = CSV.parse("a,b\n1,2")
+let csv = CSV.stringify(rows)
+
+// Custom separator (TSV)
+let tsv, err = CSV.read("data.tsv", "\t")
+```
+
+#### Compiler Changes
+
+- **Codegen**: `generate_csv_function_call()` with 8 methods (read, write, readTable, writeTable, parse, stringify, headers, column)
+- **Codegen**: Inline CSV parser handles quoted fields, escaped quotes, custom separators
+- **Codegen**: `is_file_call()` extended for `CSV.read`, `CSV.write`, `CSV.readTable`, `CSV.writeTable`
+- **Codegen**: Track `CSV.read` and `CSV.readTable` results as array variables
+- **Tests**: 2 new snapshot tests (total: 237 codegen)
+- **Docs**: `docs/language-reference/stdlib/csv.md` — complete documentation
+
 ## [1.5.0] - 2026-03-20
 
 ### Added - `rust { }` Interop 🦀

@@ -5519,3 +5519,61 @@ main() {
     assert!(rust_code.contains("NaiveDate::from_ymd_opt(1970"), "Should have epoch default: {}", rust_code);
     assert_snapshot!("date_parse_fallible", rust_code);
 }
+
+// ==================== CSV Module Tests ====================
+
+#[test]
+fn test_csv_read_and_parse() {
+    let source = r#"
+main() {
+    // CSV.read (fallible)
+    let data, err = CSV.read("data.csv")
+    if err == "" {
+        print(data.length)
+    }
+
+    // CSV.parse (pure)
+    let text = "name,age\nAlice,30\nBob,25"
+    let rows = CSV.parse(text)
+    print(rows.length)
+
+    // CSV.stringify (pure)
+    let csv = CSV.stringify(rows)
+    print(csv)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("read_to_string"), "Should contain read_to_string: {}", rust_code);
+    assert!(rust_code.contains("in_quotes"), "Should contain CSV parser: {}", rust_code);
+    assert_snapshot!("csv_read_and_parse", rust_code);
+}
+
+#[test]
+fn test_csv_read_table_and_write() {
+    let source = r#"
+main() {
+    // CSV.readTable (fallible)
+    let table, err = CSV.readTable("ventas.csv")
+    if err == "" {
+        // CSV.headers
+        let headers = CSV.headers(table)
+        print(headers)
+
+        // CSV.column
+        let names = CSV.column(table, "name")
+        print(names)
+    }
+
+    // CSV.write (fallible)
+    let data = [["name", "age"], ["Alice", "30"]]
+    let ok, writeErr = CSV.write("output.csv", data)
+    print(ok)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("HashMap"), "Should contain HashMap for Table: {}", rust_code);
+    assert!(rust_code.contains("headers"), "Should contain headers extraction: {}", rust_code);
+    assert_snapshot!("csv_read_table_and_write", rust_code);
+}

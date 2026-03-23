@@ -332,6 +332,16 @@ let age = now.diff(birthday, "years")              // → int
 now.toString()                                     // → "2026-03-23T14:30:00"
 if nextWeek > now { print($"Future: {nextWeek}") } // Comparisons + interpolation
 
+// CSV (pure Rust std, no external crates) — Table = [Map<string, string>]
+let rows, err = CSV.read("data.csv")               // [[string]] — raw rows
+let table, err = CSV.readTable("data.csv")          // [Map<string, string>] — first row as headers
+CSV.write("out.csv", rows)                          // Write [[string]] to file
+CSV.writeTable("out.csv", table)                    // Write table with headers
+let parsed = CSV.parse(csvText)                     // String → [[string]]
+let text = CSV.stringify(rows)                      // [[string]] → CSV string
+let hdrs = CSV.headers(table)                       // → [string] header names
+let col = CSV.column(table, "name")                 // → [string] column values
+
 // System
 Sys.args()                               // [string] — args[0] = program name, args[1..] = user args
 Sys.env("HOME")                           // Get env variable

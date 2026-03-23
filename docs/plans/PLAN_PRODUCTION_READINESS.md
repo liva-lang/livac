@@ -208,7 +208,7 @@ Requiere crate `regex` auto-inyectado. Se crea `generate_regex_function_call()`:
 | `Regex.replace(pattern, text, repl)` | Reemplazar → `string` |
 | `Regex.split(pattern, text)` | Dividir por patrón → `[string]` |
 
-### P1 — CSV (módulo NUEVO)
+### P1 — CSV (módulo NUEVO) ✅
 
 Sin crates extra para CSV básico (split por comas + manejo de comillas con `std`). Se crea `generate_csv_function_call()`:
 

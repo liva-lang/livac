@@ -314,6 +314,9 @@ impl CodeGenerator {
                     if obj == "Date" {
                         return matches!(mc.method.as_str(), "parse");
                     }
+                    if obj == "CSV" {
+                        return matches!(mc.method.as_str(), "read" | "write" | "readTable" | "writeTable");
+                    }
                 }
                 false
             }
@@ -5225,6 +5228,24 @@ impl CodeGenerator {
                                                 }
                                             }
                                         }
+                                        // Track CSV.read() result as array variable (Vec<Vec<String>>)
+                                        if obj == "CSV" && mc.method == "read" {
+                                            if let Some(first_binding) = var.bindings.first() {
+                                                if let Some(name) = first_binding.name() {
+                                                    let sanitized = self.sanitize_name(name);
+                                                    self.array_vars.insert(sanitized);
+                                                }
+                                            }
+                                        }
+                                        // Track CSV.readTable() result as array variable (Vec<HashMap<String,String>>)
+                                        if obj == "CSV" && mc.method == "readTable" {
+                                            if let Some(first_binding) = var.bindings.first() {
+                                                if let Some(name) = first_binding.name() {
+                                                    let sanitized = self.sanitize_name(name);
+                                                    self.array_vars.insert(sanitized);
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             } else if let Some(task_name) = self.is_await_http_task(&var.init) {
@@ -8607,6 +8628,11 @@ impl CodeGenerator {
                 return self.generate_date_function_call(method_call);
             }
 
+            // Check if this is a CSV function call (CSV.read, CSV.write, etc.)
+            if name == "CSV" {
+                return self.generate_csv_function_call(method_call);
+            }
+
             // Bug #40: Check if this is a module alias call (import * as alias from "...")
             // Generate module::function() instead of alias.function()
             if let Some(module_name) = self.module_aliases.get(name).cloned() {
@@ -11970,6 +11996,259 @@ impl CodeGenerator {
                     "E3000",
                     &format!("Unknown Date method: {}", method_call.method),
                     "Available: format(pattern), add(n, unit), diff(other, unit), toString()",
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn generate_csv_function_call(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
+        match method_call.method.as_str() {
+            "read" => {
+                // CSV.read(path) or CSV.read(path, separator: "\t")
+                // Returns (Option<Vec<Vec<String>>>, String) — fallible
+                if method_call.args.is_empty() || method_call.args.len() > 2 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "CSV.read requires 1-2 arguments",
+                        "Usage: CSV.read(path) or CSV.read(path, separator)",
+                    )));
+                }
+                // Determine separator — default ','
+                let sep = if method_call.args.len() == 2 {
+                    // Second arg is separator string
+                    "custom"
+                } else {
+                    "comma"
+                };
+                self.output.push_str("{\n");
+                // Generate inline CSV parser as a closure
+                self.output.push_str("let __liva_sep: char = ");
+                if sep == "custom" {
+                    self.generate_expr(&method_call.args[1])?;
+                    self.output.push_str(".chars().next().unwrap_or(',');\n");
+                } else {
+                    self.output.push_str("',';\n");
+                }
+                self.output.push_str("match std::fs::read_to_string(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(") {\n");
+                self.output.push_str("Ok(content) => {\n");
+                self.output.push_str("let rows: Vec<Vec<String>> = content.lines().filter(|l| !l.is_empty()).map(|line| {\n");
+                self.output.push_str("let mut fields = Vec::new();\n");
+                self.output.push_str("let mut current = String::new();\n");
+                self.output.push_str("let mut in_quotes = false;\n");
+                self.output.push_str("let mut chars = line.chars().peekable();\n");
+                self.output.push_str("while let Some(c) = chars.next() {\n");
+                self.output.push_str("if in_quotes {\n");
+                self.output.push_str("if c == '\"' { if chars.peek() == Some(&'\"') { current.push('\"'); chars.next(); } else { in_quotes = false; } } else { current.push(c); }\n");
+                self.output.push_str("} else if c == '\"' { in_quotes = true;\n");
+                self.output.push_str("} else if c == __liva_sep { fields.push(current.trim().to_string()); current = String::new();\n");
+                self.output.push_str("} else { current.push(c); }\n");
+                self.output.push_str("}\n");
+                self.output.push_str("fields.push(current.trim().to_string());\n");
+                self.output.push_str("fields\n");
+                self.output.push_str("}).collect();\n");
+                self.output.push_str("(Some(rows), String::new())\n");
+                self.output.push_str("},\n");
+                self.output.push_str("Err(e) => (None, format!(\"CSV.read error: {}\", e))\n");
+                self.output.push_str("}\n");
+                self.output.push_str("}");
+            }
+            "write" => {
+                // CSV.write(path, data) — data is Vec<Vec<String>>
+                // Returns (Option<bool>, String) — fallible
+                if method_call.args.len() != 2 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "CSV.write requires exactly 2 arguments",
+                        "Usage: CSV.write(path, data)",
+                    )));
+                }
+                self.output.push_str("{\n");
+                self.output.push_str("let __csv_content: String = ");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str(".iter().map(|row| {\n");
+                self.output.push_str("row.iter().map(|field| {\n");
+                self.output.push_str("if field.contains(',') || field.contains('\"') || field.contains('\\n') {\n");
+                self.output.push_str("format!(\"\\\"{}\\\"\" , field.replace('\"', \"\\\"\\\"\"))\n");
+                self.output.push_str("} else { field.clone() }\n");
+                self.output.push_str("}).collect::<Vec<_>>().join(\",\")\n");
+                self.output.push_str("}).collect::<Vec<_>>().join(\"\\n\");\n");
+                self.output.push_str("match std::fs::write(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(", &__csv_content) { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"CSV.write error: {}\", e)) }\n");
+                self.output.push_str("}");
+            }
+            "readTable" => {
+                // CSV.readTable(path) — reads CSV with first row as headers
+                // Returns (Option<Vec<std::collections::HashMap<String,String>>>, String) — fallible
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "CSV.readTable requires exactly 1 argument",
+                        "Usage: CSV.readTable(path)",
+                    )));
+                }
+                self.output.push_str("{\n");
+                self.output.push_str("match std::fs::read_to_string(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(") {\n");
+                self.output.push_str("Ok(content) => {\n");
+                // Inline CSV parser
+                self.output.push_str("let __rows: Vec<Vec<String>> = content.lines().filter(|l| !l.is_empty()).map(|line| {\n");
+                self.output.push_str("let mut fields = Vec::new();\n");
+                self.output.push_str("let mut current = String::new();\n");
+                self.output.push_str("let mut in_quotes = false;\n");
+                self.output.push_str("let mut chars = line.chars().peekable();\n");
+                self.output.push_str("while let Some(c) = chars.next() {\n");
+                self.output.push_str("if in_quotes {\n");
+                self.output.push_str("if c == '\"' { if chars.peek() == Some(&'\"') { current.push('\"'); chars.next(); } else { in_quotes = false; } } else { current.push(c); }\n");
+                self.output.push_str("} else if c == '\"' { in_quotes = true;\n");
+                self.output.push_str("} else if c == ',' { fields.push(current.trim().to_string()); current = String::new();\n");
+                self.output.push_str("} else { current.push(c); }\n");
+                self.output.push_str("}\n");
+                self.output.push_str("fields.push(current.trim().to_string());\n");
+                self.output.push_str("fields\n");
+                self.output.push_str("}).collect();\n");
+                // First row = headers, rest = data rows as HashMap
+                self.output.push_str("if __rows.is_empty() { (Some(Vec::new()), String::new()) } else {\n");
+                self.output.push_str("let headers = &__rows[0];\n");
+                self.output.push_str("let table: Vec<std::collections::HashMap<String, String>> = __rows[1..].iter().map(|row| {\n");
+                self.output.push_str("let mut map = std::collections::HashMap::new();\n");
+                self.output.push_str("for (i, header) in headers.iter().enumerate() {\n");
+                self.output.push_str("map.insert(header.clone(), row.get(i).cloned().unwrap_or_default());\n");
+                self.output.push_str("}\n");
+                self.output.push_str("map\n");
+                self.output.push_str("}).collect();\n");
+                self.output.push_str("(Some(table), String::new())\n");
+                self.output.push_str("}\n");
+                self.output.push_str("},\n");
+                self.output.push_str("Err(e) => (None, format!(\"CSV.readTable error: {}\", e))\n");
+                self.output.push_str("}\n");
+                self.output.push_str("}");
+            }
+            "writeTable" => {
+                // CSV.writeTable(path, table) — table is Vec<HashMap<String,String>>
+                // Returns (Option<bool>, String) — fallible
+                if method_call.args.len() != 2 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "CSV.writeTable requires exactly 2 arguments",
+                        "Usage: CSV.writeTable(path, table)",
+                    )));
+                }
+                self.output.push_str("{\n");
+                self.output.push_str("let __table = &");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str(";\n");
+                // Collect headers from the first row's keys (sorted for determinism)
+                self.output.push_str("if __table.is_empty() { match std::fs::write(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(", \"\") { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"CSV.writeTable error: {}\", e)) } } else {\n");
+                self.output.push_str("let mut __headers: Vec<String> = __table[0].keys().cloned().collect();\n");
+                self.output.push_str("__headers.sort();\n");
+                self.output.push_str("let mut __csv_lines: Vec<String> = vec![__headers.iter().map(|h| {\n");
+                self.output.push_str("if h.contains(',') || h.contains('\"') || h.contains('\\n') { format!(\"\\\"{}\\\"\" , h.replace('\"', \"\\\"\\\"\")) } else { h.clone() }\n");
+                self.output.push_str("}).collect::<Vec<_>>().join(\",\")];\n");
+                self.output.push_str("for row in __table.iter() {\n");
+                self.output.push_str("__csv_lines.push(__headers.iter().map(|h| {\n");
+                self.output.push_str("let val = row.get(h).cloned().unwrap_or_default();\n");
+                self.output.push_str("if val.contains(',') || val.contains('\"') || val.contains('\\n') { format!(\"\\\"{}\\\"\" , val.replace('\"', \"\\\"\\\"\")) } else { val }\n");
+                self.output.push_str("}).collect::<Vec<_>>().join(\",\"));\n");
+                self.output.push_str("}\n");
+                self.output.push_str("let __csv_content = __csv_lines.join(\"\\n\");\n");
+                self.output.push_str("match std::fs::write(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(", &__csv_content) { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"CSV.writeTable error: {}\", e)) }\n");
+                self.output.push_str("}\n");
+                self.output.push_str("}");
+            }
+            "parse" => {
+                // CSV.parse(text) → Vec<Vec<String>> — pure, no error binding
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "CSV.parse requires exactly 1 argument",
+                        "Usage: CSV.parse(text)",
+                    )));
+                }
+                self.output.push_str("{\n");
+                self.output.push_str("let __text: &str = &");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(";\n");
+                self.output.push_str("__text.lines().filter(|l| !l.is_empty()).map(|line| {\n");
+                self.output.push_str("let mut fields = Vec::new();\n");
+                self.output.push_str("let mut current = String::new();\n");
+                self.output.push_str("let mut in_quotes = false;\n");
+                self.output.push_str("let mut chars = line.chars().peekable();\n");
+                self.output.push_str("while let Some(c) = chars.next() {\n");
+                self.output.push_str("if in_quotes {\n");
+                self.output.push_str("if c == '\"' { if chars.peek() == Some(&'\"') { current.push('\"'); chars.next(); } else { in_quotes = false; } } else { current.push(c); }\n");
+                self.output.push_str("} else if c == '\"' { in_quotes = true;\n");
+                self.output.push_str("} else if c == ',' { fields.push(current.trim().to_string()); current = String::new();\n");
+                self.output.push_str("} else { current.push(c); }\n");
+                self.output.push_str("}\n");
+                self.output.push_str("fields.push(current.trim().to_string());\n");
+                self.output.push_str("fields\n");
+                self.output.push_str("}).collect::<Vec<Vec<String>>>()\n");
+                self.output.push_str("}");
+            }
+            "stringify" => {
+                // CSV.stringify(rows) → String — pure, no error binding
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "CSV.stringify requires exactly 1 argument",
+                        "Usage: CSV.stringify(rows)",
+                    )));
+                }
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(".iter().map(|row| {\n");
+                self.output.push_str("row.iter().map(|field| {\n");
+                self.output.push_str("if field.contains(',') || field.contains('\"') || field.contains('\\n') {\n");
+                self.output.push_str("format!(\"\\\"{}\\\"\" , field.replace('\"', \"\\\"\\\"\"))\n");
+                self.output.push_str("} else { field.clone() }\n");
+                self.output.push_str("}).collect::<Vec<_>>().join(\",\")\n");
+                self.output.push_str("}).collect::<Vec<_>>().join(\"\\n\")");
+            }
+            "headers" => {
+                // CSV.headers(table) → Vec<String> — gets sorted keys from first row
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "CSV.headers requires exactly 1 argument",
+                        "Usage: CSV.headers(table)",
+                    )));
+                }
+                self.output.push_str("{ let __t = &");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str("; if __t.is_empty() { Vec::<String>::new() } else { let mut __h: Vec<String> = __t[0].keys().cloned().collect(); __h.sort(); __h } }");
+            }
+            "column" => {
+                // CSV.column(table, colName) → Vec<String> — extract a column from table
+                if method_call.args.len() != 2 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "CSV.column requires exactly 2 arguments",
+                        "Usage: CSV.column(table, columnName)",
+                    )));
+                }
+                self.output.push_str("{ let __col_name = &");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str("; ");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(".iter().map(|row| row.get(__col_name.as_str()).cloned().unwrap_or_default()).collect::<Vec<String>>() }");
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3000",
+                    &format!("Unknown CSV function: {}", method_call.method),
+                    "Available: read, write, readTable, writeTable, parse, stringify, headers, column",
                 )));
             }
         }

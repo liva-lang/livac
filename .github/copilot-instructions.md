@@ -3,9 +3,9 @@
 > **Proyecto:** livac - El compilador de Liva  
 > **Versión:** v1.5.0-dev (tag: v1.2.0)  
 > **Lenguaje:** Rust  
-> **Tests:** 387 passing  
-> **Próximo objetivo:** v1.6 — Stdlib P1 (File, Dir, Date, Regex, CSV/Table)  
-> **Última actualización:** 2026-03-13
+> **Tests:** 389 passing  
+> **Próximo objetivo:** v1.7 — Stdlib P2 + HTTP Server  
+> **Última actualización:** 2026-03-23
 
 ---
 
@@ -145,12 +145,13 @@ skills/liva-lang/
 
 ### Dogfooding
 - **79/79 bugs corregidos** (Dogfooding v1: 9 bugs #63-#74, v2: 8 bugs #75-#82)
-- **387+ tests** totales (236 codegen, 6 desugar, 17 semantic snapshot tests + 11 Liva e2e + 6 init + doctests)
+- **389+ tests** totales (237 codegen, 6 desugar, 17 semantic snapshot tests + 11 Liva e2e + 6 init + doctests)
 - **63 Liva assertion tests** (28 string + 26 array + 9 math) — cobertura completa de stdlib
 - **File (11 funciones):** read, write, append, exists, delete, copy, move, size, extension, readLines, writeLines
 - **Dir (7 funciones):** list, isDir, exists, create, delete, listRecursive, walk
 - **Regex (5 funciones):** test, match, findAll, replace, split (crate `regex` auto-inyectado)
 - **Date (14 funciones):** now, new, parse, timestamp + .year/.month/.day/.hour/.minute/.second + format, add, diff, toString (crate `chrono` auto-inyectado)
+- **CSV (8 funciones):** read, write, readTable, writeTable, parse, stringify, headers, column (Table = `[Map<string, string>]`, std puro)
 
 ---
 
@@ -161,7 +162,7 @@ Liva está en camino a producción. El plan completo está en `docs/plans/PLAN_P
 ```
 v1.4  Stdlib P0 — String (+15), Array (+20), Math (+3)       ✅ completado
 v1.5  rust { } interop + Logging + Config + livac init       ✅ completado
-v1.6  Stdlib P1 — File, Dir, Date, Regex, CSV/Table          ← IN PROGRESS (File/Dir ✅, Regex ✅, Date ✅)
+v1.6  Stdlib P1 — File, Dir, Date, Regex, CSV/Table          ✅ completado
 v1.7  Stdlib P2 + HTTP Server                                ← backends reales
 v1.8  DB + REPL + Linter                                     ← adopción
 v2.0  Dogfooding — API REST completa con DB                  ← validación

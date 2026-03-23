@@ -200,13 +200,16 @@
 
 ### CSV — módulo nuevo
 
-- [ ] `CSV.read(path)` → `[[string]], error`
-- [ ] `CSV.write(path, data)` → `error?`
-- [ ] `CSV.parse(str)` → `[[string]]`
-- [ ] `CSV.stringify(data)` → `string`
-- [ ] `CSV.readTable(path)` → `Table, error` (con headers)
-- [ ] `Table.filter(fn)`, `Table.sortBy(col)`, `Table.groupBy(col)`, `Table.column(name)`
-- [ ] Tests
+- [x] `CSV.read(path)` → `[[string]], error`
+- [x] `CSV.write(path, data)` → `bool, error`
+- [x] `CSV.parse(str)` → `[[string]]`
+- [x] `CSV.stringify(data)` → `string`
+- [x] `CSV.readTable(path)` → `Table, error` (con headers)
+- [x] `CSV.writeTable(path, table)` → `bool, error`
+- [x] `CSV.headers(table)` → `[string]`
+- [x] `CSV.column(table, colName)` → `[string]`
+- [x] Table operations via standard array methods (`filter`, `sortBy`, `groupBy`)
+- [x] Tests (2 snapshot tests)
 
 ---
 
