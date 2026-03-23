@@ -3,8 +3,8 @@
 > **Proyecto:** livac - El compilador de Liva  
 > **Versión:** v1.8.0-dev (tag: v1.2.0)  
 > **Lenguaje:** Rust  
-> **Tests:** 458 passing  
-> **Próximo objetivo:** v1.8 — Linter  
+> **Tests:** 482 passing  
+> **Próximo objetivo:** v2.0 — Dogfooding API REST  
 > **Última actualización:** 2026-03-23
 
 ---
@@ -35,6 +35,7 @@ src/
 ├── ir.rs             # Representación intermedia
 ├── lowering.rs       # AST → IR
 ├── codegen.rs        # IR → Código Rust (~490KB, ~14500 líneas)
+├── linter.rs         # Linter (W001-W004) — static analysis warnings
 ├── formatter.rs      # Code formatter (--fmt)
 ├── module.rs         # Sistema de módulos e imports
 ├── traits.rs         # Sistema de traits/interfaces
@@ -65,10 +66,11 @@ cargo test
 # Compilar y ejecutar
 livac run archivo.liva
 
-# Verificar sintaxis / formatear / tests
+# Verificar sintaxis / formatear / tests / lint
 livac check archivo.liva
 livac fmt archivo.liva
 livac test archivo.test.liva
+livac lint archivo.liva
 
 # LSP
 livac lsp
@@ -116,7 +118,7 @@ skills/liva-lang/
 ## 🔄 Estado Actual (v1.5.0-dev)
 
 ### Features completados
-- **CLI Subcomandos** — `build`, `run`, `check`, `fmt`, `test`, `lsp`, `update`, `init` (reemplaza flags planos)
+- **CLI Subcomandos** — `build`, `run`, `check`, `fmt`, `test`, `lsp`, `update`, `init`, `lint` (reemplaza flags planos)
 - **`rust { }` Interop** — Inline Rust blocks + `use rust` with version/features + E9002 protection
 - **Logging (`Log` module)** — info/warn/error/debug + variadic args + table rendering (Map/Array/JSON) + `setLevel`
 - **Config (`Config` module)** — `.env` loading + typed getters (`get`, `getInt`, `getBool`, `getAll`)
@@ -145,7 +147,7 @@ skills/liva-lang/
 
 ### Dogfooding
 - **79/79 bugs corregidos** (Dogfooding v1: 9 bugs #63-#74, v2: 8 bugs #75-#82)
-- **456+ tests** totales (238 codegen, 6 desugar, 17 semantic snapshot tests + 11 Liva e2e + 6 init + doctests)
+- **456+ tests** totales (238 codegen, 6 desugar, 17 semantic snapshot tests + 11 Liva e2e + 6 init + 24 linter + doctests)
 - **63 Liva assertion tests** (28 string + 26 array + 9 math) — cobertura completa de stdlib
 - **File (11 funciones):** read, write, append, exists, delete, copy, move, size, extension, readLines, writeLines
 - **Dir (7 funciones):** list, isDir, exists, create, delete, listRecursive, walk
@@ -156,6 +158,8 @@ skills/liva-lang/
 - **Crypto (4 funciones):** sha256, md5, base64Encode, base64Decode (crates `sha2` + `md-5` + `base64` auto-inyectados)
 - **Process (4 funciones):** run, output, spawn, exit (`std::process`)
 - **HTTP Server (6 funciones):** Server.create, app.get/post/put/delete, app.listen + req.params/body + Response.text/json/status (crate `axum` 0.8 + `tokio` auto-inyectados)
+- **DB (4 funciones):** DB.open, DB.exec, DB.query, DB.close (crate `rusqlite` 0.32 bundled auto-inyectado)
+- **Linter (4 warnings):** W001 unused var, W002 unused import, W003 unreachable code, W004 always true/false — `livac lint <file> [--json]`
 
 ---
 
@@ -167,8 +171,8 @@ Liva está en camino a producción. El plan completo está en `docs/plans/PLAN_P
 v1.4  Stdlib P0 — String (+15), Array (+20), Math (+3)       ✅ completado
 v1.5  rust { } interop + Logging + Config + livac init       ✅ completado
 v1.6  Stdlib P1 — File, Dir, Date, Regex, CSV/Table          ✅ completado
-v1.7  Stdlib P2 + HTTP Server                                ← backends reales
-v1.8  DB + REPL + Linter                                     ← adopción
+v1.7  Stdlib P2 + HTTP Server                                ✅ completado
+v1.8  DB + Linter                                             ✅ completado (REPL ⏸️ aplazado)
 v2.0  Dogfooding — API REST completa con DB                  ← validación
 ```
 

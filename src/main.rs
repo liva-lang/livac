@@ -111,6 +111,16 @@ enum Commands {
     /// Start Language Server Protocol mode
     Lsp,
 
+    /// Lint a Liva file for warnings (unused variables, unreachable code, etc.)
+    Lint {
+        /// Input Liva file
+        input: PathBuf,
+
+        /// Output warnings in JSON format for IDE integration
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Update livac to the latest version
     Update,
 
@@ -225,7 +235,69 @@ async fn main() {
                 std::process::exit(1);
             }
         }
+        Commands::Lint { input, json } => {
+            let exit_code = run_lint(&input, json);
+            std::process::exit(exit_code);
+        }
     }
+}
+
+fn run_lint(input: &PathBuf, json: bool) -> i32 {
+    use livac::linter;
+
+    let source = match std::fs::read_to_string(input) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("{} Failed to read file: {}", "Error:".red().bold(), e);
+            return 1;
+        }
+    };
+
+    let filename = input.to_str().unwrap_or("unknown");
+
+    // Parse the file (lexer + parser)
+    let tokens = match livac::lexer::tokenize(&source) {
+        Ok(t) => t,
+        Err(e) => {
+            if json {
+                if let Some(json_str) = e.to_json() {
+                    println!("{}", json_str);
+                }
+            } else {
+                eprintln!("{} {}", "Error:".red().bold(), e);
+            }
+            return 1;
+        }
+    };
+
+    let ast = match livac::parser::parse(tokens, &source) {
+        Ok(a) => a,
+        Err(e) => {
+            if json {
+                if let Some(json_str) = e.to_json() {
+                    println!("{}", json_str);
+                }
+            } else {
+                eprintln!("{} {}", "Error:".red().bold(), e);
+            }
+            return 1;
+        }
+    };
+
+    // Run linter
+    let warnings = linter::lint(&ast, filename, &source);
+
+    if json {
+        println!("{}", linter::format_warnings_json(&warnings));
+    } else {
+        if warnings.is_empty() {
+            println!("{} {} — no warnings", "✓".green().bold(), input.display());
+        } else {
+            eprint!("{}", linter::format_warnings(&warnings));
+        }
+    }
+
+    0
 }
 
 fn run_format(input: &PathBuf, check_only: bool, verbose: bool) -> Result<(), CompilerError> {

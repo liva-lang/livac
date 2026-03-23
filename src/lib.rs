@@ -40,6 +40,7 @@ pub mod formatter;
 pub mod hints;
 pub mod ir;
 pub mod lexer;
+pub mod linter;
 pub mod liva_rt;
 pub mod lowering;
 pub mod lsp;

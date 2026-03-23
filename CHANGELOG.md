@@ -47,6 +47,36 @@ DB.close(db)
 - **Docs**: `db.md`, stdlib README updated
 - **Example**: `examples/db-demo/main.liva`
 
+### Added - Linter (Static Analysis) 🔍
+
+**4 warning rules detecting code smells without blocking compilation.**
+
+```bash
+# CLI usage
+livac lint main.liva        # Human-readable output
+livac lint main.liva --json  # JSON for IDE integration
+```
+
+```
+warning [W001]: Unused variable
+  --> main.liva:5
+      5 |     let y = 10
+   = Variable 'y' is declared but never used
+   help: Prefix with underscore to suppress: _y
+```
+
+#### Warning Codes
+- **W001**: Variable declared but never used (`_` prefix suppresses)
+- **W002**: Import declared but never used
+- **W003**: Unreachable code after `return`/`fail`/`break`/`continue`
+- **W004**: Comparison always true/false (self-comparison, literal comparisons)
+
+#### Compiler Changes
+- **New module**: `linter.rs` — AST-based static analysis
+- **New CLI subcommand**: `livac lint <file> [--json]`
+- **Tests**: 24 new linter tests (482 total)
+- **Docs**: `docs/language-reference/linter.md`
+
 ## [1.6.0-dev] - 2026-03-23
 
 ### Added - File & Dir Extended Operations 📁

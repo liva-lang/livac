@@ -283,14 +283,15 @@
 - [ ] Historial con readline
 - [ ] Tests
 
-### Linter / Warnings
+### Linter / Warnings ✅
 
-- [ ] W001: Variable declarada pero no usada
-- [ ] W002: Import no usado
-- [ ] W003: Código inalcanzable después de `return`/`fail`
-- [ ] W004: Comparación siempre true/false
-- [ ] Flag `--lint` o integrado en compilación normal
-- [ ] Tests
+- [x] W001: Variable declarada pero no usada
+- [x] W002: Import no usado
+- [x] W003: Código inalcanzable después de `return`/`fail`/`break`/`continue`
+- [x] W004: Comparación siempre true/false
+- [x] Subcommand `livac lint <file>` con `--json`
+- [x] Tests (24 tests)
+- [x] Docs: `docs/language-reference/linter.md`
 
 ---
 
