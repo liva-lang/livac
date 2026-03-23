@@ -71,6 +71,44 @@ let parts = Regex.split("[,;]", "a,b;c")
 - **Parser**: Allow `test` keyword as method name in `parse_method_name()`
 - **Tests**: 2 new snapshot tests (total: 232 codegen, 6 desugar)
 
+### Added - Date Module 📅
+
+**First-class Date type with 4 constructors, 6 properties, 4 methods — uses `chrono` crate (auto-injected).**
+
+```liva
+let now = Date.now()                               // Current date/time
+let birthday = Date.new(1990, 6, 15)               // Specific date (midnight)
+let parsed, err = Date.parse("2026-03-11", "YYYY-MM-DD")  // Fallible parse
+let ts = Date.timestamp()                          // Unix epoch ms
+
+// Properties
+print(now.year)   // 2026
+print(now.month)  // 3
+
+// Methods
+let formatted = now.format("DD/MM/YYYY")           // "23/03/2026"
+let nextWeek = now.add(7, "days")                  // Date arithmetic
+let age = now.diff(birthday, "years")              // 35
+let iso = now.toString()                           // "2026-03-23T14:30:00"
+
+// Comparisons + Interpolation
+if nextWeek > now { print($"Future: {nextWeek}") }
+```
+
+#### Compiler Changes
+
+- **AST**: `TypeRef::Simple("Date")` → `chrono::NaiveDateTime`
+- **Desugaring**: `has_date` flag in `DesugarContext` for crate auto-injection
+- **Codegen**: `generate_date_function_call()` with 4 constructors (now, new, parse, timestamp)
+- **Codegen**: `generate_date_method_call()` with 4 methods (format, add, diff, toString)
+- **Codegen**: Date property access via `chrono::Datelike`/`chrono::Timelike` traits (year, month, day, hour, minute, second)
+- **Codegen**: `is_file_call()` extended for `Date.parse` (returns tuple), special epoch default
+- **Codegen**: `chrono = "0.4"` auto-added when `Date.*` or `Log.*` is used
+- **Codegen**: Date interpolation in `$"..."` auto-formats as ISO 8601
+- **Codegen**: `date_vars` tracking for property/method dispatch on Date variables
+- **Tests**: 3 new snapshot tests (total: 236 codegen, 6 desugar)
+- **Docs**: `docs/language-reference/stdlib/date.md` — complete documentation
+
 ## [1.5.0] - 2026-03-20
 
 ### Added - `rust { }` Interop 🦀

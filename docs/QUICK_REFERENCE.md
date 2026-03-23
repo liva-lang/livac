@@ -1415,6 +1415,32 @@ let clean = Regex.replace("\\s+", text, " ")
 let parts = Regex.split("[,;]", "a,b;c")            // ["a", "b", "c"]
 ```
 
+### Date *(v1.6.0)*
+
+```liva
+// Constructors
+let now = Date.now()                               // Current date/time
+let birthday = Date.new(1990, 6, 15)               // Specific date
+let parsed, err = Date.parse("2026-03-11", "YYYY-MM-DD")  // Fallible
+let ts = Date.timestamp()                          // Unix epoch ms (int)
+
+// Properties: .year, .month, .day, .hour, .minute, .second
+print(now.year)    // 2026
+print(now.month)   // 3
+
+// Methods
+let formatted = now.format("DD/MM/YYYY")           // "11/03/2026"
+let nextWeek = now.add(7, "days")                  // Date arithmetic
+let age = now.diff(birthday, "years")              // Approximate years
+let iso = now.toString()                           // ISO 8601
+
+// Comparisons
+if nextWeek > now { print("Future!") }
+
+// Interpolation (auto ISO 8601)
+print($"Today is {now}")                           // "Today is 2026-03-11T..."
+```
+
 ### Configuration *(v1.5.0)*
 
 ```liva

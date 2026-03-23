@@ -1,7 +1,7 @@
 # Liva Standard Library
 
 > **Status:** ✅ Complete (v1.6.0-dev) - 100+ functions implemented! 🎉  
-> **Completion:** Arrays ✅ (31) | Strings ✅ (28) | Math ✅ (14) | Config ✅ (5) | File ✅ (11) | Dir ✅ (7) | Regex ✅ (5) | Conversions ✅ | I/O ✅ | System ✅ | Logging ✅
+> **Completion:** Arrays ✅ (31) | Strings ✅ (28) | Math ✅ (14) | Config ✅ (5) | File ✅ (11) | Dir ✅ (7) | Regex ✅ (5) | Date ✅ (14) | Conversions ✅ | I/O ✅ | System ✅ | Logging ✅
 
 The Liva Standard Library provides built-in functions and methods for common programming tasks.
 
@@ -151,6 +151,19 @@ Regular expression matching, searching, replacing, and splitting.
 - `Regex.findAll(pattern, text)` — All matches as `[string]` ✅
 - `Regex.replace(pattern, text, replacement)` — Replace all occurrences ✅
 - `Regex.split(pattern, text)` — Split by pattern ✅
+
+### ✅ [Date](./date.md)
+First-class date/time type with constructors, properties, methods, and comparisons.
+
+**Status:** Complete (v1.6) — 4 constructors + 6 properties + 4 methods + comparisons + interpolation
+
+**Constructors:** `Date.now()`, `Date.new(y,m,d)`, `Date.parse(str, pattern)`, `Date.timestamp()`
+**Properties:** `.year`, `.month`, `.day`, `.hour`, `.minute`, `.second` → `int`
+**Methods:** `d.format(pattern)`, `d.add(n, unit)`, `d.diff(other, unit)`, `d.toString()`
+**Comparisons:** `>`, `<`, `>=`, `<=`, `==`, `!=`
+**Interpolation:** `$"{date}"` auto-formats as ISO 8601
+
+Crate `chrono` auto-injected when `Date.*` is used.
 
 ---
 

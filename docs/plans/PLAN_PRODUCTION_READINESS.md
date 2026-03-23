@@ -134,7 +134,9 @@ Se añaden ramas al `match` en `generate_dir_function_call()`:
 | `Dir.exists(path)` | Comprobar si directorio existe (no-fail) | `Path::exists() && Path::is_dir()` |
 | `Dir.listRecursive(path)` | Alias de walk | Recursivo manual → `[string]` |
 
-### P1 — Date (tipo NUEVO, first-class)
+### P1 — Date (tipo NUEVO, first-class) ✅
+
+> **Completado:** v1.6.0-dev — 4 constructores + 6 propiedades + 4 métodos + comparaciones + interpolación. Crate `chrono` auto-inyectado via `has_date` flag.
 
 Tipo `Date` first-class con propiedades y métodos. Internamente es un wrapper sobre `chrono::NaiveDateTime` (crate auto-inyectado). Se necesita:
 - Nuevo tipo en `ast.rs` / `semantic.rs`

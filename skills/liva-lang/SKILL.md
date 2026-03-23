@@ -320,6 +320,18 @@ Regex.findAll("\\d+", "a1b22")             // ["1", "22"] — all matches
 Regex.replace("\\s+", text, " ")           // string — replace all
 Regex.split("[,;]", "a,b;c")              // ["a", "b", "c"]
 
+// Date (crate `chrono` auto-injected)
+let now = Date.now()                               // Current date/time
+let birthday = Date.new(1990, 6, 15)               // Specific date
+let parsed, err = Date.parse("2026-03-11", "YYYY-MM-DD")
+let ts = Date.timestamp()                          // Unix epoch ms (int)
+now.year / now.month / now.day / now.hour          // Properties → int
+now.format("DD/MM/YYYY")                           // → string
+let nextWeek = now.add(7, "days")                  // → Date
+let age = now.diff(birthday, "years")              // → int
+now.toString()                                     // → "2026-03-23T14:30:00"
+if nextWeek > now { print($"Future: {nextWeek}") } // Comparisons + interpolation
+
 // System
 Sys.args()                               // [string] — args[0] = program name, args[1..] = user args
 Sys.env("HOME")                           // Get env variable

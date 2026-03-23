@@ -5430,3 +5430,92 @@ main() {
     assert!(rust_code.contains("re.split"), "Should contain re.split: {}", rust_code);
     assert_snapshot!("regex_findall_replace_split", rust_code);
 }
+
+// ---------------------------------------------------------------------------
+// v1.6: Date module (constructors, properties, methods, comparisons)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_date_constructors_and_properties() {
+    let source = r#"
+main() {
+    // Date.now() - current date/time
+    let now = Date.now()
+    print($"Year: {now.year}")
+    print($"Month: {now.month}")
+    print($"Day: {now.day}")
+    print($"Hour: {now.hour}")
+
+    // Date.new(y, m, d) - specific date
+    let birthday = Date.new(1990, 6, 15)
+    print($"Birthday year: {birthday.year}")
+
+    // Date.timestamp() - unix epoch millis
+    let ts = Date.timestamp()
+    print($"Timestamp: {ts}")
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("chrono::Local::now().naive_local()"), "Should use chrono: {}", rust_code);
+    assert!(rust_code.contains("chrono::NaiveDate::from_ymd_opt"), "Should use from_ymd_opt: {}", rust_code);
+    assert!(rust_code.contains("chrono::Datelike::year"), "Should access year: {}", rust_code);
+    assert_snapshot!("date_constructors_and_properties", rust_code);
+}
+
+#[test]
+fn test_date_methods_and_comparisons() {
+    let source = r#"
+main() {
+    let now = Date.now()
+    let birthday = Date.new(1990, 6, 15)
+
+    // d.format(pattern)
+    let formatted = now.format("DD/MM/YYYY")
+    print(formatted)
+
+    // d.add(n, unit)
+    let nextWeek = now.add(7, "days")
+
+    // d.diff(other, unit)
+    let age = now.diff(birthday, "years")
+    print($"Age: {age}")
+
+    // d.toString()
+    let iso = now.toString()
+    print(iso)
+
+    // Comparisons
+    if nextWeek > now {
+        print("Future is ahead")
+    }
+
+    // Interpolation
+    print($"Today is {now}")
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("format"), "Should contain format: {}", rust_code);
+    assert!(rust_code.contains("signed_duration_since"), "Should contain diff: {}", rust_code);
+    assert!(rust_code.contains("Duration"), "Should contain Duration: {}", rust_code);
+    assert_snapshot!("date_methods_and_comparisons", rust_code);
+}
+
+#[test]
+fn test_date_parse_fallible() {
+    let source = r#"
+main() {
+    let parsed, err = Date.parse("2026-03-11", "YYYY-MM-DD")
+    if err == "" {
+        print($"Parsed: {parsed}")
+        print($"Year: {parsed.year}")
+    }
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("parse_from_str"), "Should contain parse_from_str: {}", rust_code);
+    assert!(rust_code.contains("NaiveDate::from_ymd_opt(1970"), "Should have epoch default: {}", rust_code);
+    assert_snapshot!("date_parse_fallible", rust_code);
+}

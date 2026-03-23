@@ -242,6 +242,7 @@ impl TypeRef {
                 "char" => "char".to_string(),
                 "void" => "()".to_string(),
                 "array" => "Vec<serde_json::Value>".to_string(),
+                "Date" => "chrono::NaiveDateTime".to_string(),
                 _ => name.clone(),
             },
             TypeRef::Generic { base, args } => {

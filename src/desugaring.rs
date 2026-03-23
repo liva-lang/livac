@@ -22,6 +22,7 @@ pub struct DesugarContext {
     pub has_logging: bool,                 // true if Log.* is used
     pub has_config: bool,                  // true if Config.* is used
     pub has_regex: bool,                   // true if Regex.* is used
+    pub has_date: bool,                    // true if Date.* is used
     pub async_functions: BTreeSet<String>, // Functions that are async (BTreeSet for deterministic order)
     #[serde(skip)]
     pub source_filename: String,           // Source filename for error traces
@@ -38,6 +39,7 @@ impl DesugarContext {
             has_logging: false,
             has_config: false,
             has_regex: false,
+            has_date: false,
             async_functions: BTreeSet::new(),
             source_filename: String::new(),
         }
@@ -210,6 +212,9 @@ fn check_expr_concurrency(expr: &Expr, ctx: &mut DesugarContext) {
                 }
                 if name == "Regex" {
                     ctx.has_regex = true;
+                }
+                if name == "Date" {
+                    ctx.has_date = true;
                 }
             }
 

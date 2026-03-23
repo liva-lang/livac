@@ -33,5 +33,6 @@ expression: json
   "has_logging": false,
   "has_config": false,
   "has_regex": false,
+  "has_date": false,
   "async_functions": []
 }

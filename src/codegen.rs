@@ -70,6 +70,7 @@ pub struct CodeGenerator {
     json_value_vars: std::collections::HashSet<String>, // Track which variables are JsonValue
     string_vars: std::collections::HashSet<String>, // Track which variables are strings
     float_vars: std::collections::HashSet<String>, // Track which variables are floats (B32)
+    date_vars: std::collections::HashSet<String>, // Track which variables are Date (chrono::NaiveDateTime)
     native_vec_string_vars: std::collections::HashSet<String>, // Track Vec<String> from Sys.args() - use direct indexing
     mutated_vars: std::collections::HashSet<String>, // Track variables that are assigned after declaration (need mut)
     // --- Class/type metadata (for field resolution)
@@ -151,6 +152,7 @@ impl CodeGenerator {
             json_value_vars: std::collections::HashSet::new(),
             string_vars: std::collections::HashSet::new(),
             float_vars: std::collections::HashSet::new(),
+            date_vars: std::collections::HashSet::new(),
             native_vec_string_vars: std::collections::HashSet::new(),
             mutated_vars: std::collections::HashSet::new(),
             class_fields: std::collections::HashMap::new(),
@@ -308,6 +310,9 @@ impl CodeGenerator {
                     }
                     if obj == "Regex" {
                         return matches!(mc.method.as_str(), "match");
+                    }
+                    if obj == "Date" {
+                        return matches!(mc.method.as_str(), "parse");
                     }
                 }
                 false
@@ -5162,13 +5167,25 @@ impl CodeGenerator {
                                     }
                                 }
                             } else if self.is_file_call(&var.init) {
-                                // File call - returns (Option<T>, String)
+                                // File/Dir/Config/Regex/Date call - returns (Option<T>, String)
                                 // let content, err = File.read(path)
                                 // Generate: let (content, err) = { let (opt, err) = expr; (opt.unwrap_or_default(), err) };
-                                self.output.push_str(") = { let (opt, err) = ");
-                                self.generate_expr(&var.init)?;
-                                self.output
-                                    .push_str("; (opt.unwrap_or_default(), err) };\n");
+                                // Special case for Date.parse: NaiveDateTime has no Default, use epoch
+                                let is_date_parse = if let Expr::MethodCall(mc) = &var.init {
+                                    if let Expr::Identifier(obj) = mc.object.as_ref() {
+                                        obj == "Date" && mc.method == "parse"
+                                    } else { false }
+                                } else { false };
+
+                                if is_date_parse {
+                                    self.output.push_str(") = { let (opt, err) = ");
+                                    self.generate_expr(&var.init)?;
+                                    self.output.push_str("; (opt.unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap()), err) };\n");
+                                } else {
+                                    self.output.push_str(") = { let (opt, err) = ");
+                                    self.generate_expr(&var.init)?;
+                                    self.output.push_str("; (opt.unwrap_or_default(), err) };\n");
+                                }
                                 // Track the error variable as string_error_vars (for `if err` sugar)
                                 if var.bindings.len() >= 2 {
                                     if let Some(name) = var.bindings[1].name() {
@@ -5196,6 +5213,15 @@ impl CodeGenerator {
                                                 if let Some(name) = first_binding.name() {
                                                     let sanitized = self.sanitize_name(name);
                                                     self.map_vars.insert(sanitized);
+                                                }
+                                            }
+                                        }
+                                        // Track Date.parse() result as date variable
+                                        if obj == "Date" && mc.method == "parse" {
+                                            if let Some(first_binding) = var.bindings.first() {
+                                                if let Some(name) = first_binding.name() {
+                                                    let sanitized = self.sanitize_name(name);
+                                                    self.date_vars.insert(sanitized);
                                                 }
                                             }
                                         }
@@ -5499,6 +5525,21 @@ impl CodeGenerator {
                                     self.array_vars.insert(name.to_string());
                                 }
                             }
+                            // Date.now() / Date.new() returns chrono::NaiveDateTime
+                            if let Expr::Identifier(obj_name) = method_call.object.as_ref() {
+                                if obj_name == "Date" && matches!(method_call.method.as_str(), "now" | "new") {
+                                    if let Some(name) = binding.name() {
+                                        self.date_vars.insert(name.to_string());
+                                    }
+                                }
+                                // d.add() on a Date variable also returns Date
+                                let sanitized_obj = self.sanitize_name(obj_name);
+                                if self.date_vars.contains(&sanitized_obj) && method_call.method == "add" {
+                                    if let Some(name) = binding.name() {
+                                        self.date_vars.insert(name.to_string());
+                                    }
+                                }
+                            }
                         }
                         // Mark instances created via constructor call: let x = ClassName(...)
                         else if let Expr::Call(call) = &var.init {
@@ -5554,6 +5595,11 @@ impl CodeGenerator {
                             // Track string type for .length -> .len() conversion
                             if matches!(type_ref, TypeRef::Simple(name) if name == "string") {
                                 self.string_vars.insert(var_name.clone());
+                            }
+
+                            // Track Date type for property/method access generation
+                            if matches!(type_ref, TypeRef::Simple(name) if name == "Date") {
+                                self.date_vars.insert(var_name.clone());
                             }
 
                             // Bug #35 fix: Track array types for proper forEach/map lambda patterns
@@ -6450,6 +6496,50 @@ impl CodeGenerator {
                         write!(self.output, "{}::{}", name, property).unwrap();
                         return Ok(());
                     }
+
+                    // Date property access: d.year, d.month, d.day, d.hour, d.minute, d.second
+                    let sanitized_name = self.sanitize_name(name);
+                    if self.date_vars.contains(&sanitized_name) {
+                        match property.as_str() {
+                            "year" => {
+                                self.output.push_str("(chrono::Datelike::year(&");
+                                self.generate_expr(object)?;
+                                self.output.push_str(") as i32)");
+                                return Ok(());
+                            }
+                            "month" => {
+                                self.output.push_str("(chrono::Datelike::month(&");
+                                self.generate_expr(object)?;
+                                self.output.push_str(") as i32)");
+                                return Ok(());
+                            }
+                            "day" => {
+                                self.output.push_str("(chrono::Datelike::day(&");
+                                self.generate_expr(object)?;
+                                self.output.push_str(") as i32)");
+                                return Ok(());
+                            }
+                            "hour" => {
+                                self.output.push_str("(chrono::Timelike::hour(&");
+                                self.generate_expr(object)?;
+                                self.output.push_str(") as i32)");
+                                return Ok(());
+                            }
+                            "minute" => {
+                                self.output.push_str("(chrono::Timelike::minute(&");
+                                self.generate_expr(object)?;
+                                self.output.push_str(") as i32)");
+                                return Ok(());
+                            }
+                            "second" => {
+                                self.output.push_str("(chrono::Timelike::second(&");
+                                self.generate_expr(object)?;
+                                self.output.push_str(") as i32)");
+                                return Ok(());
+                            }
+                            _ => {} // Fall through
+                        }
+                    }
                 }
 
                 // Phase 3.5: Special handling for error.message
@@ -7232,6 +7322,16 @@ impl CodeGenerator {
                                 write!(
                                     self.output,
                                     "{}.as_ref().map(|v| v.to_string()).unwrap_or_default()",
+                                    sanitized
+                                )
+                                .unwrap();
+                                continue;
+                            }
+                            // Date variables: auto-format as ISO 8601 string
+                            if self.date_vars.contains(&sanitized) {
+                                write!(
+                                    self.output,
+                                    "{}.format(\"%Y-%m-%dT%H:%M:%S\")",
                                     sanitized
                                 )
                                 .unwrap();
@@ -8502,6 +8602,11 @@ impl CodeGenerator {
                 return self.generate_regex_function_call(method_call);
             }
 
+            // Check if this is a Date constructor call (Date.now, Date.new, etc.)
+            if name == "Date" {
+                return self.generate_date_function_call(method_call);
+            }
+
             // Bug #40: Check if this is a module alias call (import * as alias from "...")
             // Generate module::function() instead of alias.function()
             if let Some(module_name) = self.module_aliases.get(name).cloned() {
@@ -8526,6 +8631,25 @@ impl CodeGenerator {
                         self.output.push_str(" }");
                     }
                     return Ok(());
+                }
+            }
+        }
+
+        // Check if this is a Date instance method call (format, add, diff, toString)
+        {
+            let is_date_var = if let Expr::Identifier(name) = method_call.object.as_ref() {
+                self.date_vars.contains(&self.sanitize_name(name))
+            } else {
+                false
+            };
+
+            if is_date_var {
+                let is_date_method = matches!(
+                    method_call.method.as_str(),
+                    "format" | "add" | "diff" | "toString"
+                );
+                if is_date_method {
+                    return self.generate_date_method_call(method_call);
                 }
             }
         }
@@ -11665,6 +11789,187 @@ impl CodeGenerator {
                     "E3000",
                     &format!("Unknown Regex function: {}", method_call.method),
                     "Available Regex functions: test, match, findAll, replace, split",
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn generate_date_function_call(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
+        match method_call.method.as_str() {
+            "now" => {
+                // Date.now() → chrono::Local::now().naive_local()
+                if !method_call.args.is_empty() {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Date.now takes no arguments",
+                        "Usage: Date.now()",
+                    )));
+                }
+                self.output.push_str("chrono::Local::now().naive_local()");
+            }
+            "new" => {
+                // Date.new(year, month, day) → NaiveDate::from_ymd_opt(y,m,d).unwrap().and_hms_opt(0,0,0).unwrap()
+                // Date.new(year, month, day, hour, minute, second) → full datetime
+                if method_call.args.len() != 3 && method_call.args.len() != 6 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Date.new requires 3 or 6 arguments",
+                        "Usage: Date.new(year, month, day) or Date.new(year, month, day, hour, minute, second)",
+                    )));
+                }
+                self.output.push_str("chrono::NaiveDate::from_ymd_opt(");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(", ");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str(" as u32, ");
+                self.generate_expr(&method_call.args[2])?;
+                self.output.push_str(" as u32).unwrap().and_hms_opt(");
+                if method_call.args.len() == 6 {
+                    self.generate_expr(&method_call.args[3])?;
+                    self.output.push_str(" as u32, ");
+                    self.generate_expr(&method_call.args[4])?;
+                    self.output.push_str(" as u32, ");
+                    self.generate_expr(&method_call.args[5])?;
+                    self.output.push_str(" as u32");
+                } else {
+                    self.output.push_str("0, 0, 0");
+                }
+                self.output.push_str(").unwrap()");
+            }
+            "parse" => {
+                // Date.parse(str, pattern) → (Option<NaiveDateTime>, String)
+                if method_call.args.len() != 2 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Date.parse requires exactly 2 arguments",
+                        "Usage: Date.parse(\"2026-03-11\", \"%Y-%m-%d\")",
+                    )));
+                }
+                // Convert Liva-style patterns to chrono strftime patterns
+                self.output.push_str("{ let __liva_pattern = ");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str(".replace(\"YYYY\", \"%Y\").replace(\"MM\", \"%m\").replace(\"DD\", \"%d\").replace(\"HH\", \"%H\").replace(\"mm\", \"%M\").replace(\"ss\", \"%S\"); ");
+                self.output.push_str("match chrono::NaiveDateTime::parse_from_str(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(", &__liva_pattern) { Ok(dt) => (Some(dt), String::new()), Err(_) => match chrono::NaiveDate::parse_from_str(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(", &__liva_pattern) { Ok(d) => (Some(d.and_hms_opt(0, 0, 0).unwrap()), String::new()), Err(e) => (None, format!(\"Date parse error: {}\", e)) } } }");
+            }
+            "timestamp" => {
+                // Date.timestamp() → chrono::Local::now().timestamp_millis() as i32
+                if !method_call.args.is_empty() {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Date.timestamp takes no arguments",
+                        "Usage: Date.timestamp()",
+                    )));
+                }
+                self.output.push_str("(chrono::Local::now().timestamp_millis() as i32)");
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3000",
+                    &format!("Unknown Date function: {}", method_call.method),
+                    "Available: Date.now(), Date.new(y,m,d), Date.parse(str, pattern), Date.timestamp()",
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn generate_date_method_call(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
+        match method_call.method.as_str() {
+            "format" => {
+                // d.format(pattern) → d.format(chrono_pattern).to_string()
+                // Convert Liva-style patterns (YYYY, MM, DD, HH, mm, ss) to chrono strftime (%Y, %m, %d, %H, %M, %S)
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Date.format requires exactly 1 argument",
+                        "Usage: d.format(\"DD/MM/YYYY\")",
+                    )));
+                }
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".format(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(".replace(\"YYYY\", \"%Y\").replace(\"MM\", \"%m\").replace(\"DD\", \"%d\").replace(\"HH\", \"%H\").replace(\"mm\", \"%M\").replace(\"ss\", \"%S\")).to_string()");
+            }
+            "add" => {
+                // d.add(n, unit) → d + chrono::Duration::xxx(n)
+                // units: "days", "hours", "minutes", "seconds", "weeks"
+                if method_call.args.len() != 2 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Date.add requires exactly 2 arguments",
+                        "Usage: d.add(7, \"days\")",
+                    )));
+                }
+                // Generate: d + chrono::Duration::days(n as i64) (etc.)
+                self.output.push_str("{ let __liva_unit = ");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str("; let __liva_n = ");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(" as i64; let __liva_dur = match __liva_unit.as_str() { ");
+                self.output.push_str("\"days\" => chrono::Duration::days(__liva_n), ");
+                self.output.push_str("\"hours\" => chrono::Duration::hours(__liva_n), ");
+                self.output.push_str("\"minutes\" => chrono::Duration::minutes(__liva_n), ");
+                self.output.push_str("\"seconds\" => chrono::Duration::seconds(__liva_n), ");
+                self.output.push_str("\"weeks\" => chrono::Duration::weeks(__liva_n), ");
+                self.output.push_str("_ => chrono::Duration::days(__liva_n), }; ");
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(" + __liva_dur }");
+            }
+            "diff" => {
+                // d.diff(other, unit) → difference in specified unit
+                if method_call.args.len() != 2 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Date.diff requires exactly 2 arguments",
+                        "Usage: d.diff(other, \"days\")",
+                    )));
+                }
+                self.output.push_str("{ let __liva_diff = ");
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".signed_duration_since(");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str("); let __liva_unit = ");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str("; (match __liva_unit.as_str() { ");
+                self.output.push_str("\"days\" => __liva_diff.num_days(), ");
+                self.output.push_str("\"hours\" => __liva_diff.num_hours(), ");
+                self.output.push_str("\"minutes\" => __liva_diff.num_minutes(), ");
+                self.output.push_str("\"seconds\" => __liva_diff.num_seconds(), ");
+                self.output.push_str("\"weeks\" => __liva_diff.num_weeks(), ");
+                self.output.push_str("\"years\" => __liva_diff.num_days() / 365, ");
+                self.output.push_str("\"months\" => __liva_diff.num_days() / 30, ");
+                self.output.push_str("_ => __liva_diff.num_days(), }) as i32 }");
+            }
+            "toString" => {
+                // d.toString() → d.format("%Y-%m-%dT%H:%M:%S").to_string()
+                if !method_call.args.is_empty() {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Date.toString takes no arguments",
+                        "Usage: d.toString()",
+                    )));
+                }
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".format(\"%Y-%m-%dT%H:%M:%S\").to_string()");
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3000",
+                    &format!("Unknown Date method: {}", method_call.method),
+                    "Available: format(pattern), add(n, unit), diff(other, unit), toString()",
                 )));
             }
         }
@@ -16191,7 +16496,7 @@ pub fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
         cargo_toml.push_str("rand = \"0.8\"\n");
     }
 
-    if ctx.has_logging {
+    if ctx.has_logging || ctx.has_date {
         cargo_toml.push_str("chrono = \"0.4\"\n");
     }
 
@@ -16205,7 +16510,7 @@ pub fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
         // Skip internal crates that are already added above
         if crate_name == "tokio" || crate_name == "serde" || crate_name == "serde_json"
             || crate_name == "reqwest" || crate_name == "rayon" || crate_name == "rand"
-            || (crate_name == "chrono" && ctx.has_logging)
+            || (crate_name == "chrono" && (ctx.has_logging || ctx.has_date))
             || (crate_name == "regex" && ctx.has_regex) {
             // For internal crates, only merge additional features
             if !dep.features.is_empty() {
@@ -16245,6 +16550,7 @@ mod tests {
             has_logging: false,
             has_config: false,
             has_regex: false,
+            has_date: false,
             async_functions: std::collections::BTreeSet::new(),
             source_filename: String::new(),
         });

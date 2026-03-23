@@ -156,34 +156,35 @@
 - [x] Tests (4 snapshot tests)
 - [x] Docs (`docs/language-reference/file-io.md` actualizado)
 
-### Date — tipo nuevo (first-class)
+### Date — tipo nuevo (first-class) ✅
 
 **Tipo en compilador:**
-- [ ] Añadir tipo `Date` en `ast.rs` (Type::Date)
-- [ ] Soporte en `semantic.rs` (type checking, comparaciones)
-- [ ] `generate_date_function_call()` para constructores estáticos
-- [ ] `generate_date_method_call()` para métodos de instancia
-- [ ] Soporte en interpolación de strings (`$"{date}"` → `.toString()`)
+- [x] Tipo `Date` en `ast.rs` → `chrono::NaiveDateTime`
+- [x] `has_date` flag en `DesugarContext` + crate `chrono` auto-inyectado
+- [x] `generate_date_function_call()` para constructores estáticos
+- [x] `generate_date_method_call()` para métodos de instancia
+- [x] Soporte en interpolación de strings (`$"{date}"` → `.format("%Y-%m-%dT%H:%M:%S")`)
 
 **Constructores estáticos:**
-- [ ] `Date.now()` → `Date`
-- [ ] `Date.new(year, month, day)` → `Date`
-- [ ] `Date.parse(str, pattern)` → `Date, error`
-- [ ] `Date.timestamp()` → `int` (unix epoch ms)
+- [x] `Date.now()` → `Date`
+- [x] `Date.new(year, month, day)` → `Date` (también acepta 6 args: year, month, day, hour, minute, second)
+- [x] `Date.parse(str, pattern)` → `Date, error`
+- [x] `Date.timestamp()` → `int` (unix epoch ms)
 
 **Propiedades:** `.year`, `.month`, `.day`, `.hour`, `.minute`, `.second`
-- [ ] Acceso a propiedades de instancia → `int`
+- [x] Acceso a propiedades de instancia → `int`
 
 **Métodos de instancia:**
-- [ ] `d.format(pattern)` → `string`
-- [ ] `d.add(n, unit)` → `Date`
-- [ ] `d.diff(other, unit)` → `int`
-- [ ] `d.toString()` → `string` (ISO 8601)
+- [x] `d.format(pattern)` → `string`
+- [x] `d.add(n, unit)` → `Date`
+- [x] `d.diff(other, unit)` → `int`
+- [x] `d.toString()` → `string` (ISO 8601)
 
 **Operadores:** `>`, `<`, `>=`, `<=`, `==`, `!=`
-- [ ] Comparación entre dos `Date`
+- [x] Comparación entre dos `Date` (nativo — `NaiveDateTime` implementa `PartialOrd`)
 
-- [ ] Tests
+- [x] Tests (3 snapshot tests)
+- [x] Docs (`docs/language-reference/stdlib/date.md`)
 
 ### Regex — módulo nuevo (crate `regex` auto-inyectado) ✅
 
