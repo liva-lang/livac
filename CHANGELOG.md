@@ -183,6 +183,19 @@ Process.exit(0)                            // Exit with code
 - **Codegen**: `is_file_call()` extended for `Process.exec`, `Process.spawn`, `Crypto.base64Decode`
 - **Tests**: 3 new snapshot tests (1 per module)
 
+### HTTP Server (v1.7)
+- `Server.create()` — creates an axum Router instance
+- `app.get/post/put/delete(path, handler)` — route registration with lambda handlers
+- `app.listen(port)` — starts HTTP server on specified port
+- `req.params.get("key")` — path parameter extraction (`:param` syntax)
+- `req.body` — request body access for POST/PUT handlers
+- `Response.text(content)` — plain text response (200 OK)
+- `Response.json(data)` — JSON response (200 OK)
+- `Response.status(code)` — status-only response
+- Auto-injected `axum = "0.8"` dependency
+- Async main inference when `Server` is used
+- 3 snapshot tests, server.md + response.md docs, http-server example
+
 ## [1.5.0] - 2026-03-20
 
 ### Added - `rust { }` Interop 🦀

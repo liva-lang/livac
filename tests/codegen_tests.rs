@@ -5666,3 +5666,78 @@ main() {
     assert!(rust_code.contains(".spawn()"), "Should contain spawn: {}", rust_code);
     assert_snapshot!("process_functions", rust_code);
 }
+
+// ==================== HTTP Server Tests ====================
+
+#[test]
+fn test_http_server_basic() {
+    let source = r#"
+main() {
+    let app = Server.create()
+    app.get("/hello", (req) => {
+        Response.text("Hello, World!")
+    })
+    app.listen(3000)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("axum::Router::new()"), "Should contain Router::new: {}", rust_code);
+    assert!(rust_code.contains("axum::routing::get"), "Should contain routing::get: {}", rust_code);
+    assert!(rust_code.contains("TcpListener::bind"), "Should contain TcpListener: {}", rust_code);
+    assert!(rust_code.contains("#[tokio::main]"), "Should contain tokio::main: {}", rust_code);
+    assert_snapshot!("http_server_basic", rust_code);
+}
+
+#[test]
+fn test_http_server_routes() {
+    let source = r#"
+main() {
+    let app = Server.create()
+
+    app.get("/", (req) => {
+        Response.json("{ \"message\": \"Hello\" }")
+    })
+
+    app.post("/data", (req) => {
+        let body = req.body
+        Response.text(body)
+    })
+
+    app.put("/update", (req) => {
+        Response.status(200)
+    })
+
+    app.delete("/remove", (req) => {
+        Response.status(204)
+    })
+
+    app.listen(8080)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("axum::routing::post"), "Should contain routing::post: {}", rust_code);
+    assert!(rust_code.contains("axum::routing::put"), "Should contain routing::put: {}", rust_code);
+    assert!(rust_code.contains("axum::routing::delete"), "Should contain routing::delete: {}", rust_code);
+    assert_snapshot!("http_server_routes", rust_code);
+}
+
+#[test]
+fn test_http_server_params() {
+    let source = r#"
+main() {
+    let app = Server.create()
+    app.get("/users/:id", (req) => {
+        let id = req.params.get("id")
+        Response.text(id)
+    })
+    app.listen(3000)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("Path(__params)"), "Should contain Path extractor: {}", rust_code);
+    assert!(rust_code.contains("__params.get"), "Should contain params.get: {}", rust_code);
+    assert_snapshot!("http_server_params", rust_code);
+}

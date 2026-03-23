@@ -20,6 +20,7 @@ expression: json
   "has_regex": false,
   "has_date": false,
   "has_crypto": false,
+  "has_server": false,
   "async_functions": [
     "fetch",
     "main"

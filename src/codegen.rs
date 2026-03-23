@@ -71,6 +71,8 @@ pub struct CodeGenerator {
     string_vars: std::collections::HashSet<String>, // Track which variables are strings
     float_vars: std::collections::HashSet<String>, // Track which variables are floats (B32)
     date_vars: std::collections::HashSet<String>, // Track which variables are Date (chrono::NaiveDateTime)
+    server_vars: std::collections::HashSet<String>, // Track which variables are HTTP Server (axum::Router)
+    server_request_param: Option<String>, // Inside server handler, name of the request param (for req.params → __params)
     native_vec_string_vars: std::collections::HashSet<String>, // Track Vec<String> from Sys.args() - use direct indexing
     mutated_vars: std::collections::HashSet<String>, // Track variables that are assigned after declaration (need mut)
     // --- Class/type metadata (for field resolution)
@@ -153,6 +155,8 @@ impl CodeGenerator {
             string_vars: std::collections::HashSet::new(),
             float_vars: std::collections::HashSet::new(),
             date_vars: std::collections::HashSet::new(),
+            server_vars: std::collections::HashSet::new(),
+            server_request_param: None,
             native_vec_string_vars: std::collections::HashSet::new(),
             mutated_vars: std::collections::HashSet::new(),
             class_fields: std::collections::HashMap::new(),
@@ -5559,6 +5563,13 @@ impl CodeGenerator {
                                         self.date_vars.insert(name.to_string());
                                     }
                                 }
+                                // Server.create() returns axum::Router
+                                if obj_name == "Server" && method_call.method == "create" {
+                                    if let Some(name) = binding.name() {
+                                        self.server_vars.insert(name.to_string());
+                                        self.mutated_vars.insert(name.to_string());
+                                    }
+                                }
                                 // d.add() on a Date variable also returns Date
                                 let sanitized_obj = self.sanitize_name(obj_name);
                                 if self.date_vars.contains(&sanitized_obj) && method_call.method == "add" {
@@ -6502,6 +6513,25 @@ impl CodeGenerator {
                 self.generate_call_expr(call)?;
             }
             Expr::Member { object, property } => {
+                // Server request parameter interception: req.params → __params, req.body → body
+                if let Some(ref req_param_name) = self.server_request_param {
+                    if let Expr::Identifier(name) = object.as_ref() {
+                        if name == req_param_name {
+                            match property.as_str() {
+                                "params" => {
+                                    self.output.push_str("__params");
+                                    return Ok(());
+                                }
+                                "body" => {
+                                    self.output.push_str("body.clone()");
+                                    return Ok(());
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+
                 // Math constants: Math.PI, Math.E
                 if let Expr::Identifier(name) = object.as_ref() {
                     if name == "Math" {
@@ -8563,6 +8593,26 @@ impl CodeGenerator {
     ) -> Result<()> {
         use crate::ast::ArrayAdapter;
 
+        // Server request param interception: req.params.get("key") → __params.get(&key).cloned().unwrap_or_default()
+        if self.server_request_param.is_some() {
+            if method_call.method == "get" {
+                if let Expr::Member { object, property } = method_call.object.as_ref() {
+                    if property == "params" {
+                        if let Expr::Identifier(name) = object.as_ref() {
+                            if Some(name.as_str()) == self.server_request_param.as_deref() {
+                                self.output.push_str("__params.get(&");
+                                if let Some(arg) = method_call.args.first() {
+                                    self.generate_expr(arg)?;
+                                }
+                                self.output.push_str(".to_string()).cloned().unwrap_or_default()");
+                                return Ok(());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // ─── liva/test: expect(x).toBe(y) chain ─────────────────────
         if let Some(result) = self.try_generate_expect_chain(method_call)? {
             self.output.push_str(&result);
@@ -8654,6 +8704,16 @@ impl CodeGenerator {
                 return self.generate_process_function_call(method_call);
             }
 
+            // Check if this is a Server function call (Server.create, etc.)
+            if name == "Server" {
+                return self.generate_server_function_call(method_call);
+            }
+
+            // Check if this is a Response constructor (Response.json, Response.text, etc.)
+            if name == "Response" {
+                return self.generate_response_function_call(method_call);
+            }
+
             // Bug #40: Check if this is a module alias call (import * as alias from "...")
             // Generate module::function() instead of alias.function()
             if let Some(module_name) = self.module_aliases.get(name).cloned() {
@@ -8697,6 +8757,25 @@ impl CodeGenerator {
                 );
                 if is_date_method {
                     return self.generate_date_method_call(method_call);
+                }
+            }
+        }
+
+        // Check if this is a Server instance method call (get, post, put, delete, listen, use)
+        {
+            let is_server_var = if let Expr::Identifier(name) = method_call.object.as_ref() {
+                self.server_vars.contains(&self.sanitize_name(name))
+            } else {
+                false
+            };
+
+            if is_server_var {
+                let is_server_method = matches!(
+                    method_call.method.as_str(),
+                    "get" | "post" | "put" | "delete" | "listen" | "use"
+                );
+                if is_server_method {
+                    return self.generate_server_method_call(method_call);
                 }
             }
         }
@@ -12270,6 +12349,278 @@ impl CodeGenerator {
                     "E3000",
                     &format!("Unknown CSV function: {}", method_call.method),
                     "Available: read, write, readTable, writeTable, parse, stringify, headers, column",
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn generate_server_function_call(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
+        match method_call.method.as_str() {
+            "create" => {
+                // Server.create() → axum::Router::new()
+                if !method_call.args.is_empty() {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Server.create takes no arguments",
+                        "Usage: let app = Server.create()",
+                    )));
+                }
+                self.output.push_str("axum::Router::new()");
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3000",
+                    &format!("Unknown Server function: {}", method_call.method),
+                    "Available: create()",
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn generate_server_method_call(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
+        match method_call.method.as_str() {
+            "get" | "post" | "put" | "delete" => {
+                // app.get("/path", handler) → app = app.route("/path", axum::routing::get(handler))
+                if method_call.args.len() != 2 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        &format!("Server.{} requires exactly 2 arguments", method_call.method),
+                        &format!("Usage: app.{}(path, handler)", method_call.method),
+                    )));
+                }
+
+                let http_method = method_call.method.as_str();
+                let var_name = if let Expr::Identifier(name) = method_call.object.as_ref() {
+                    self.sanitize_name(name)
+                } else {
+                    "app".to_string()
+                };
+
+                // Determine if path has params (contains :)
+                let path_str = if let Expr::Literal(Literal::String(s)) = &method_call.args[0] {
+                    Some(s.clone())
+                } else {
+                    None
+                };
+
+                let has_params = path_str.as_ref().map_or(false, |p| p.contains(':'));
+
+                // Generate: var = var.route("path", axum::routing::METHOD(|...| async move { ... }))
+                write!(self.output, "{} = {}.route(", var_name, var_name).unwrap();
+
+                // Generate path — convert :param to :param (axum uses same syntax)
+                self.generate_expr(&method_call.args[0])?;
+                write!(self.output, ", axum::routing::{}(", http_method).unwrap();
+
+                // Generate the handler closure
+                if let Expr::Lambda(lambda) = &method_call.args[1] {
+                    // Generate axum handler
+                    if has_params && (http_method == "post" || http_method == "put") {
+                        // With path params AND body
+                        self.output.push_str("|axum::extract::Path(__params): axum::extract::Path<std::collections::HashMap<String, String>>, body: String| async move {\n");
+                    } else if has_params {
+                        // With path params only
+                        self.output.push_str("|axum::extract::Path(__params): axum::extract::Path<std::collections::HashMap<String, String>>| async move {\n");
+                    } else if http_method == "post" || http_method == "put" {
+                        // With body only
+                        self.output.push_str("|body: String| async move {\n");
+                    } else {
+                        // No extractors
+                        self.output.push_str("|| async move {\n");
+                    }
+
+                    // Generate handler body — need to translate req.params, req.body, Response.*
+                    // Save the lambda param name as the "req" alias
+                    let req_param = if !lambda.params.is_empty() {
+                        lambda.params[0].name().unwrap_or("_req").to_string()
+                    } else {
+                        "_req".to_string()
+                    };
+
+                    // Push req param context for the handler body
+                    let saved_req_param = self.current_function_name.clone();
+                    // We'll store the req param name for resolution during body generation
+                    // Use a temporary approach: generate body statements manually
+                    self.generate_server_handler_body(&lambda.body, &req_param, has_params, http_method == "post" || http_method == "put")?;
+
+                    self.current_function_name = saved_req_param;
+
+                    self.output.push_str("}))");
+                } else {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Server route handler must be a lambda/function",
+                        &format!("Usage: app.{}(path, (req) => {{ ... }})", http_method),
+                    )));
+                }
+            }
+            "listen" => {
+                // app.listen(port) → start axum server
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Server.listen requires exactly 1 argument",
+                        "Usage: app.listen(port)",
+                    )));
+                }
+
+                let var_name = if let Expr::Identifier(name) = method_call.object.as_ref() {
+                    self.sanitize_name(name)
+                } else {
+                    "app".to_string()
+                };
+
+                write!(self.output, "{{ let __addr = format!(\"0.0.0.0:{{}}\", ", ).unwrap();
+                self.generate_expr(&method_call.args[0])?;
+                write!(self.output, "); let __listener = tokio::net::TcpListener::bind(&__addr).await.unwrap(); axum::serve(__listener, {}).await.unwrap(); }}", var_name).unwrap();
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3000",
+                    &format!("Unknown server method: {}", method_call.method),
+                    "Available: get(path, handler), post(path, handler), put(path, handler), delete(path, handler), listen(port)",
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn generate_server_handler_body(
+        &mut self,
+        body: &LambdaBody,
+        req_param: &str,
+        _has_params: bool,
+        _has_body: bool,
+    ) -> Result<()> {
+        // Set the request param so that Member access (req.params, req.body)
+        // gets intercepted during normal codegen
+        let saved = self.server_request_param.take();
+        self.server_request_param = Some(req_param.to_string());
+
+        match body {
+            LambdaBody::Block(block) => {
+                let len = block.stmts.len();
+                for (i, stmt) in block.stmts.iter().enumerate() {
+                    let is_last = i == len - 1;
+                    self.indent_level += 1;
+                    if is_last {
+                        // Last statement: generate as expression (no trailing semicolon)
+                        // so it becomes the return value of the async handler
+                        if let Stmt::Expr(expr_stmt) = stmt {
+                            self.write_indent();
+                            self.generate_expr(&expr_stmt.expr)?;
+                            self.output.push('\n');
+                        } else {
+                            self.generate_stmt(stmt)?;
+                        }
+                    } else {
+                        self.generate_stmt(stmt)?;
+                    }
+                    self.indent_level -= 1;
+                }
+            }
+            LambdaBody::Expr(expr) => {
+                self.generate_expr(expr)?;
+                self.output.push('\n');
+            }
+        }
+
+        self.server_request_param = saved;
+        Ok(())
+    }
+
+    fn generate_response_function_call(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
+        match method_call.method.as_str() {
+            "json" => {
+                // Response.json(data) or Response.json(data, status: 201)
+                // → (StatusCode::OK, axum::Json(serde_json::json!(...)))
+                if method_call.args.is_empty() || method_call.args.len() > 2 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Response.json requires 1-2 arguments",
+                        "Usage: Response.json(data) or Response.json(data, statusCode)",
+                    )));
+                }
+
+                let status = if method_call.args.len() == 2 {
+                    "custom"
+                } else {
+                    "ok"
+                };
+
+                self.output.push_str("(");
+                if status == "custom" {
+                    self.output.push_str("axum::http::StatusCode::from_u16(");
+                    self.generate_expr(&method_call.args[1])?;
+                    self.output.push_str(" as u16).unwrap_or(axum::http::StatusCode::OK)");
+                } else {
+                    self.output.push_str("axum::http::StatusCode::OK");
+                }
+                self.output.push_str(", axum::Json(serde_json::json!(");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(")))");
+            }
+            "text" => {
+                // Response.text(text) or Response.text(text, status)
+                // → (StatusCode::OK, text.to_string())
+                if method_call.args.is_empty() || method_call.args.len() > 2 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Response.text requires 1-2 arguments",
+                        "Usage: Response.text(text) or Response.text(text, statusCode)",
+                    )));
+                }
+
+                let status = if method_call.args.len() == 2 {
+                    "custom"
+                } else {
+                    "ok"
+                };
+
+                self.output.push_str("(");
+                if status == "custom" {
+                    self.output.push_str("axum::http::StatusCode::from_u16(");
+                    self.generate_expr(&method_call.args[1])?;
+                    self.output.push_str(" as u16).unwrap_or(axum::http::StatusCode::OK)");
+                } else {
+                    self.output.push_str("axum::http::StatusCode::OK");
+                }
+                self.output.push_str(", ");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(".to_string())");
+            }
+            "status" => {
+                // Response.status(code) → StatusCode only (for empty responses)
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Response.status requires exactly 1 argument",
+                        "Usage: Response.status(code)",
+                    )));
+                }
+                self.output.push_str("axum::http::StatusCode::from_u16(");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(" as u16).unwrap_or(axum::http::StatusCode::INTERNAL_SERVER_ERROR)");
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3000",
+                    &format!("Unknown Response function: {}", method_call.method),
+                    "Available: json(data[, status]), text(msg[, status]), status(code)",
                 )));
             }
         }
@@ -17035,6 +17386,10 @@ pub fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
         cargo_toml.push_str("base64 = \"0.22\"\n");
     }
 
+    if ctx.has_server {
+        cargo_toml.push_str("axum = \"0.8\"\n");
+    }
+
     // Add user-specified crates (with version and features support)
     for dep in &ctx.rust_crates {
         let crate_name = &dep.name;
@@ -17044,7 +17399,8 @@ pub fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
             || (crate_name == "chrono" && (ctx.has_logging || ctx.has_date))
             || (crate_name == "regex" && ctx.has_regex)
             || ((crate_name == "sha2" || crate_name == "md-5" || crate_name == "base64") && ctx.has_crypto)
-            || (crate_name == "uuid" && ctx.has_random) {
+            || (crate_name == "uuid" && ctx.has_random)
+            || (crate_name == "axum" && ctx.has_server) {
             // For internal crates, only merge additional features
             if !dep.features.is_empty() {
                 // Already handled: user can add features to internal crates
@@ -17085,6 +17441,7 @@ mod tests {
             has_regex: false,
             has_date: false,
             has_crypto: false,
+            has_server: false,
             async_functions: std::collections::BTreeSet::new(),
             source_filename: String::new(),
         });

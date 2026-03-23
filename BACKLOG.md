@@ -243,15 +243,17 @@
 - [x] `Process.exit(code)`
 - [x] Tests
 
-### HTTP Server — Ver plan §Línea 4
+### HTTP Server — Ver plan §Línea 4 ✅
 
-- [ ] `Router()` — crear router
-- [ ] `app.get(path, handler)`, `app.post(...)`, `app.put(...)`, `app.delete(...)`
-- [ ] `app.listen(port)` — arrancar servidor
-- [ ] `Request` type: params, query, body, headers
-- [ ] `Response` type: json(), text(), status()
-- [ ] Codegen: genera código con tokio + hyper/axum
-- [ ] Tests
+- [x] `Server.create()` — crear router (axum::Router::new())
+- [x] `app.get(path, handler)`, `app.post(...)`, `app.put(...)`, `app.delete(...)` — route registration con axum
+- [x] `app.listen(port)` — arrancar servidor (tokio::net::TcpListener + axum::serve)
+- [x] `Request` type: `req.params.get("key")` path params, `req.body` body access
+- [x] `Response` type: `Response.text(s)`, `Response.json(s)`, `Response.status(code)`
+- [x] Codegen: genera código con axum (auto-injected `axum = "0.8"`, async main inference)
+- [x] Tests (test_http_server_basic, test_http_server_routes, test_http_server_params)
+- [x] Docs: `server.md`, `response.md`
+- [x] Example: `examples/http-server/main.liva`
 
 ---
 

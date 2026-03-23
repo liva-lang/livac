@@ -3,7 +3,7 @@
 > **Proyecto:** livac - El compilador de Liva  
 > **Versión:** v1.5.0-dev (tag: v1.2.0)  
 > **Lenguaje:** Rust  
-> **Tests:** 453 passing  
+> **Tests:** 456 passing  
 > **Próximo objetivo:** v1.7 — Stdlib P2 + HTTP Server  
 > **Última actualización:** 2026-03-23
 
@@ -145,7 +145,7 @@ skills/liva-lang/
 
 ### Dogfooding
 - **79/79 bugs corregidos** (Dogfooding v1: 9 bugs #63-#74, v2: 8 bugs #75-#82)
-- **453+ tests** totales (238 codegen, 6 desugar, 17 semantic snapshot tests + 11 Liva e2e + 6 init + doctests)
+- **456+ tests** totales (238 codegen, 6 desugar, 17 semantic snapshot tests + 11 Liva e2e + 6 init + doctests)
 - **63 Liva assertion tests** (28 string + 26 array + 9 math) — cobertura completa de stdlib
 - **File (11 funciones):** read, write, append, exists, delete, copy, move, size, extension, readLines, writeLines
 - **Dir (7 funciones):** list, isDir, exists, create, delete, listRecursive, walk
@@ -155,6 +155,7 @@ skills/liva-lang/
 - **Random (5 funciones):** int, float, bool, choice, uuid (crates `rand` + `uuid` auto-inyectados)
 - **Crypto (4 funciones):** sha256, md5, base64Encode, base64Decode (crates `sha2` + `md-5` + `base64` auto-inyectados)
 - **Process (4 funciones):** run, output, spawn, exit (`std::process`)
+- **HTTP Server (6 funciones):** Server.create, app.get/post/put/delete, app.listen + req.params/body + Response.text/json/status (crate `axum` 0.8 + `tokio` auto-inyectados)
 
 ---
 

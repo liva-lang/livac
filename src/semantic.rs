@@ -740,6 +740,10 @@ impl SemanticAnalyzer {
                     {
                         return true;
                     }
+                    // Server.create() requires async main for tokio
+                    if obj_name == "Server" {
+                        return true;
+                    }
                 }
                 // Check args for async expressions
                 method_call

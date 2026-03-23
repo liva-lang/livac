@@ -1,8 +1,8 @@
 # 🗺️ Liva Language Roadmap
 
-> **Current Version:** v1.6.0-dev (tag: v1.2.0)  
-> **Status:** Stdlib P0, P1, P2 partial (Random/Crypto/Process) complete, `rust { }` interop, Logging, Config, CLI subcommands, 453+ tests  
-> **Completed:** Phases 1-13, Sessions 14-18, Dogfooding v2, Stdlib P0, rust {}, Log, Config, File/Dir extended, Regex, Date, CSV, Random, Crypto, Process  
+> **Current Version:** v1.7.0-dev (tag: v1.2.0)  
+> **Status:** Stdlib P0, P1, P2 (Random/Crypto/Process) complete, HTTP Server (axum 0.8), `rust { }` interop, Logging, Config, CLI subcommands, 456+ tests  
+> **Completed:** Phases 1-13, Sessions 14-18, Dogfooding v2, Stdlib P0, rust {}, Log, Config, File/Dir extended, Regex, Date, CSV, Random, Crypto, Process, HTTP Server  
 > **Last Updated:** 2026-03-23
 
 ---
@@ -2845,6 +2845,71 @@ describe("HTTP Client", () => {
 
 ---
 
+## 🌐 v1.7 — Stdlib P2 + HTTP Server ✅ COMPLETED
+
+> **Focus:** Complete Stdlib P2 (Random, Crypto, Process) + HTTP Server framework  
+> **Completed:** 2026-03-23
+
+### Stdlib P2: Random ✅
+
+- [x] `Random.nextInt(min, max)` → `int`
+- [x] `Random.nextFloat([min, max])` → `float`
+- [x] `Random.choice(arr)` → `T`
+- [x] `Random.shuffle(arr)` → `[T]`
+- [x] `Random.uuid()` → `string`
+- [x] Tests
+
+### Stdlib P2: Crypto ✅
+
+- [x] `Crypto.sha256(data)` → `string`
+- [x] `Crypto.md5(data)` → `string`
+- [x] `Crypto.base64Encode(data)` → `string`
+- [x] `Crypto.base64Decode(data)` → `string, error`
+- [x] Tests (crates `sha2`/`md-5`/`base64` auto-injected)
+
+### Stdlib P2: Process ✅
+
+- [x] `Process.exec(cmd)` → `string, error`
+- [x] `Process.spawn(cmd)` → `int, error` (PID)
+- [x] `Process.pid()` → `int`
+- [x] `Process.exit(code)`
+- [x] Tests
+
+### HTTP Server (axum 0.8) ✅
+
+- [x] `Server.create()` — create router (`axum::Router::new()`)
+- [x] `app.get(path, handler)`, `app.post(...)`, `app.put(...)`, `app.delete(...)` — route registration with axum
+- [x] `app.listen(port)` — start server (`tokio::net::TcpListener` + `axum::serve`)
+- [x] `Request` type: `req.params.get("key")` path params, `req.body` body access
+- [x] `Response` type: `Response.text(s)`, `Response.json(s)`, `Response.status(code)` helpers
+- [x] Codegen generates axum-based Rust code (`axum = "0.8"` auto-injected, async main inference)
+- [x] Tests: `test_http_server_basic`, `test_http_server_routes`, `test_http_server_params`
+- [x] Docs: `server.md`, `response.md`
+- [x] Example: `examples/http-server/main.liva`
+
+```liva
+// HTTP Server example
+let app = Server.create()
+
+app.get("/hello", fn(req) {
+    return Response.text("Hello World!")
+})
+
+app.post("/users", fn(req) {
+    let body = req.body
+    return Response.json(body)
+})
+
+app.get("/users/:id", fn(req) {
+    let id = req.params.get("id")
+    return Response.text("User " + id)
+})
+
+app.listen(3000)
+```
+
+---
+
 | Version | Focus | Status | ETA |
 |---------|-------|--------|-----|
 | **v0.6.1** | Consolidation & Quality | ✅ Completed | 2025-10-20 |
@@ -2861,8 +2926,12 @@ describe("HTTP Client", () => {
 | **v1.0.2** | Code Formatter (CLI + LSP) | ✅ Completed | 2026-02-06 |
 | **v1.1.0** | Syntax Sugar & Ergonomics | ✅ Completed | 2026-02-11 |
 | **v1.2.0** | Test Framework (`liva/test`) + Enum Types + Release | ✅ Completed | 2026-02-12 |
-| **v1.3.0-dev** | Map<K,V>, Set<T>, Error Trace, `or <value>`, keyword removals | 🔄 In Progress | — |
-**Total effort completed:** ~100+ hours of focused development 🎉
+| **v1.3.0-dev** | Map<K,V>, Set<T>, Error Trace, `or <value>`, keyword removals | ✅ Completed | 2026-02-15 |
+| **v1.4.0** | Stdlib P0 — String/Array/Math extended | ✅ Completed | 2026-03-01 |
+| **v1.5.0** | `rust { }` interop, Logging, Config, `livac init` | ✅ Completed | 2026-03-10 |
+| **v1.6.0** | Stdlib P1 — File, Dir, Date, Regex, CSV | ✅ Completed | 2026-03-18 |
+| **v1.7.0** | Stdlib P2 (Random/Crypto/Process) + HTTP Server (axum 0.8) | ✅ Completed | 2026-03-23 |
+**Total effort completed:** ~120+ hours of focused development 🎉
 
 ---
 

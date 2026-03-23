@@ -1561,6 +1561,26 @@ let resp, err = async HTTP.post("https://api.example.com/users", body)
 // Also: HTTP.put(), HTTP.delete()
 ```
 
+### HTTP Server *(v1.7.0)*
+
+```liva
+let app = Server.create()              // Create router (axum)
+app.get("/path", (req) => { ... })     // GET route  
+app.post("/path", (req) => { ... })    // POST route
+app.put("/path", (req) => { ... })     // PUT route
+app.delete("/path", (req) => { ... })  // DELETE route
+app.listen(3000)                       // Start server
+
+// Route params
+app.get("/users/:id", (req) => {
+    let id = req.params.get("id")      // Path parameter
+    let body = req.body                // Request body (POST/PUT)
+    Response.text("Hello")             // Text response
+    Response.json("{ ... }")           // JSON response
+    Response.status(204)               // Status-only response
+})
+```
+
 ---
 
 ## Complete Example

@@ -1,0 +1,47 @@
+// HTTP Server — REST API Example
+// Ejecutar: livac run examples/http-server/main.liva
+// Probar:   curl http://localhost:3000/
+//           curl http://localhost:3000/users/42
+//           curl -X POST http://localhost:3000/users -d '{"name":"Alice"}'
+//           curl -X DELETE http://localhost:3000/users/42
+
+main() {
+    let app = Server.create()
+
+    // GET / → Welcome message
+    app.get("/", (req) => {
+        Response.json("{ \"message\": \"Welcome to Liva HTTP Server!\" }")
+    })
+
+    // GET /health → Health check
+    app.get("/health", (req) => {
+        Response.json("{ \"status\": \"ok\" }")
+    })
+
+    // GET /users/:id → Get user by ID
+    app.get("/users/:id", (req) => {
+        let id = req.params.get("id")
+        Response.json("{ \"id\": \"" + id + "\", \"name\": \"User " + id + "\" }")
+    })
+
+    // POST /users → Create user
+    app.post("/users", (req) => {
+        let body = req.body
+        Response.text("Created: " + body)
+    })
+
+    // PUT /users/:id → Update user
+    app.put("/users/:id", (req) => {
+        let id = req.params.get("id")
+        let body = req.body
+        Response.text("Updated user " + id + ": " + body)
+    })
+
+    // DELETE /users/:id → Delete user
+    app.delete("/users/:id", (req) => {
+        Response.status(204)
+    })
+
+    print("Server starting on http://localhost:3000")
+    app.listen(3000)
+}

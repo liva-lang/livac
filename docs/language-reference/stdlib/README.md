@@ -1,7 +1,7 @@
 # Liva Standard Library
 
-> **Status:** ✅ Complete (v1.6.0-dev) - 100+ functions implemented! 🎉  
-> **Completion:** Arrays ✅ (31) | Strings ✅ (28) | Math ✅ (14) | Config ✅ (5) | File ✅ (11) | Dir ✅ (7) | Regex ✅ (5) | Date ✅ (14) | CSV ✅ (8) | Random ✅ (5) | Crypto ✅ (4) | Process ✅ (4) | Conversions ✅ | I/O ✅ | System ✅ | Logging ✅
+> **Status:** ✅ Complete (v1.7.0-dev) - 110+ functions implemented! 🎉  
+> **Completion:** Arrays ✅ (31) | Strings ✅ (28) | Math ✅ (14) | Config ✅ (5) | File ✅ (11) | Dir ✅ (7) | Regex ✅ (5) | Date ✅ (14) | CSV ✅ (8) | Random ✅ (5) | Crypto ✅ (4) | Process ✅ (4) | Server ✅ (3) | Response ✅ (3) | Conversions ✅ | I/O ✅ | System ✅ | Logging ✅
 
 The Liva Standard Library provides built-in functions and methods for common programming tasks.
 
@@ -205,6 +205,24 @@ Process execution and control.
 - `Process.spawn(cmd)` → `int, error` — spawn background process, return PID (fallible)
 - `Process.pid()` → `int` — current process PID
 - `Process.exit(code)` — exit with status code
+
+### ✅ [Server](./server.md)
+HTTP server creation and routing via axum.
+
+**Status:** Complete (v1.7) — 3 functions, crate `axum` + `tokio` auto-injected
+
+- `Server.create()` → `App` — create a new HTTP server app
+- `app.get(path, handler)` / `app.post(...)` / `app.put(...)` / `app.delete(...)` — register route handlers
+- `app.listen(port)` — start listening on the given port
+
+### ✅ [Response](./response.md)
+HTTP response helpers for route handlers.
+
+**Status:** Complete (v1.7) — 3 functions
+
+- `Response.text(s)` → `Response` — plain text response
+- `Response.json(s)` → `Response` — JSON response with `application/json` content type
+- `Response.status(code)` → `Response` — set HTTP status code
 
 ---
 
