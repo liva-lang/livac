@@ -4,13 +4,13 @@
 main() {
     // Open (or create) a SQLite database
     let db, err = DB.open("demo.db")
-    if err != "" {
+    if err {
         print("Failed to open DB: " + err)
     }
 
     // Create a table
     let _, err2 = DB.exec(db, "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT)")
-    if err2 != "" {
+    if err2 {
         print("Create table error: " + err2)
     }
 
@@ -20,7 +20,7 @@ main() {
 
     // Query all rows
     let rows, err5 = DB.query(db, "SELECT * FROM users")
-    if err5 != "" {
+    if err5 {
         print("Query error: " + err5)
     }
 

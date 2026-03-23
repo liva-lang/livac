@@ -16,7 +16,7 @@ Opens (or creates) a SQLite database file. **Fallible** — returns error if the
 
 ```liva
 let db, err = DB.open("myapp.db")
-if err != "" {
+if err {
     print("Cannot open database: " + err)
 }
 ```
@@ -97,7 +97,7 @@ let name = row.get("name") or "unknown"
 main() {
     // Open database
     let db, err = DB.open("demo.db")
-    if err != "" {
+    if err {
         print("Failed to open DB: " + err)
     }
 
@@ -133,7 +133,7 @@ All DB operations except `close` are fallible. Use the two-binding pattern:
 
 ```liva
 let result, err = DB.exec(db, "INSERT ...")
-if err != "" {
+if err {
     print("Error: " + err)
 }
 ```

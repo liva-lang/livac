@@ -1626,12 +1626,12 @@ Package {
 // Load packages from file
 loadPackages(path: string): [Package] {
     let content, err = File.read(path)
-    if err != "" {
+    if err {
         fail $"Cannot read file: {err}"
     }
     
     let packages: [Package], parseErr = JSON.parse(content)
-    if parseErr != "" {
+    if parseErr {
         fail $"Invalid JSON: {parseErr}"
     }
     
@@ -1647,7 +1647,7 @@ main() {
     // Load and process packages
     let packages, err = loadPackages("packages.json")
     
-    if err != "" {
+    if err {
         console.error($"Error: {err}")
         return
     }
