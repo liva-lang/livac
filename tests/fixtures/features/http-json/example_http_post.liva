@@ -11,7 +11,7 @@ main() {
     print("Sending POST request to httpbin.org...")
     let response, err = async HTTP.post("https://httpbin.org/post", userData)
     
-    if err != "" {
+    if err {
         print($"Error: {err}")
     } else {
         print($"Status: {response.status} {response.statusText}")

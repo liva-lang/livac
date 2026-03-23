@@ -47,7 +47,7 @@ main() {
     
     let res, err = async HTTP.get("https://jsonplaceholder.typicode.com/users")
 
-    if err != "" {
+    if err {
         console.log($"HTTP Error: {err}")
     } else if res.status != 200 {
         console.log($"Failed to fetch users. Status: {res.status}")
@@ -55,7 +55,7 @@ main() {
         // ✨ NEW: Using response.json() instead of JSON.parse(res.body)
         let users: [User], parseErr = res.json()
         
-        if parseErr != "" {
+        if parseErr {
             console.log($"Parse error: {parseErr}")
         } else {
             console.log($"Fetched {users.len()} users:")

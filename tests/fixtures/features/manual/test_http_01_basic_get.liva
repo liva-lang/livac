@@ -6,7 +6,7 @@ main() {
     
     let response, err = async HTTP.get("https://jsonplaceholder.typicode.com/posts/1")
     
-    if err != "" {
+    if err {
         console.error($"❌ Request failed: {err}")
         return
     }

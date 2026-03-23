@@ -22,7 +22,7 @@ Liva provides a built-in HTTP client with 4 methods: GET, POST, PUT, DELETE. All
 main() {
     let response, err = async HTTP.get("https://api.example.com/users")
     
-    if err != "" {
+    if err {
         console.error($"Request failed: {err}")
         return
     }
@@ -30,7 +30,7 @@ main() {
     print($"Status: {response.status}")
     
     let users, jsonErr = response.json()
-    if jsonErr != "" {
+    if jsonErr {
         console.error($"JSON parsing failed: {jsonErr}")
         return
     }
@@ -50,7 +50,7 @@ All HTTP methods share the same return type: `(Option<Response>, string)` — th
 ```liva
 let response, err = async HTTP.get("https://httpbin.org/get")
 
-if err != "" {
+if err {
     console.error($"Error: {err}")
 } else {
     print($"Status: {response.status}")
@@ -72,7 +72,7 @@ ApiResponse {
 
 main() {
     let response, err = async HTTP.get("https://httpbin.org/get")
-    if err != "" { return }
+    if err { return }
     
     let data: ApiResponse, jsonErr = response.json()
     if jsonErr == "" {
@@ -94,7 +94,7 @@ let response, err = async HTTP.post(
     userData
 )
 
-if err != "" {
+if err {
     console.error($"Failed to create user: {err}")
 } else {
     print($"User created! Status: {response.status}")
@@ -134,7 +134,7 @@ Parse response body as JSON. Returns `(JsonValue, string)` — parsed data and e
 
 ```liva
 let response, httpErr = async HTTP.get("https://api.example.com/posts")
-if httpErr != "" { return }
+if httpErr { return }
 
 // Untyped parsing (returns JsonValue)
 let posts, jsonErr = response.json()
@@ -154,10 +154,10 @@ User {
 
 main() {
     let response, err = async HTTP.get("https://api.example.com/users")
-    if err != "" { return }
+    if err { return }
     
     let users: [User], jsonErr = response.json()
-    if jsonErr != "" { return }
+    if jsonErr { return }
     
     users.forEach(user => {
         print($"User {user.id}: {user.name} <{user.email}>")
@@ -186,7 +186,7 @@ HTTP operations use Liva's error binding pattern. Common error types:
 ```liva
 let response, err = async HTTP.get(url)
 
-if err != "" {
+if err {
     if err.contains("timeout") {
         print("Request timed out - server too slow")
     } else if err.contains("DNS") {
@@ -293,13 +293,13 @@ Post {
 
 main() {
     let response, err = async HTTP.get("https://jsonplaceholder.typicode.com/posts")
-    if err != "" || response.status != 200 {
+    if err || response.status != 200 {
         console.error("Failed to fetch posts")
         return
     }
     
     let posts: [Post], jsonErr = response.json()
-    if jsonErr != "" { return }
+    if jsonErr { return }
     
     print($"Fetched {posts.length} posts")
     posts.forEach(post => {
@@ -343,7 +343,7 @@ main() {
 **Always check errors before using response:**
 ```liva
 let response, err = async HTTP.get(url)
-if err != "" {
+if err {
     console.error($"Error: {err}")
     return
 }

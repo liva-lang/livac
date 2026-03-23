@@ -204,7 +204,7 @@ divide(a, b) => b == 0 ? fail "Division by zero" : a / b
 
 // Error binding
 let result, err = divide(10, 2)
-if err != "" { print($"Error: {err}") }
+if err { print($"Error: {err}") }
 
 // Ignore error
 let result, _ = divide(10, 2)

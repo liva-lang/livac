@@ -4,7 +4,7 @@ main() {
     
     let response, err = async HTTP.get("https://httpbin.org/get")
     
-    if err != "" {
+    if err {
         print($"Error: {err}")
     } else {
         print($"Status: {response.status}")

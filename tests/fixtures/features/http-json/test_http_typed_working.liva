@@ -8,14 +8,14 @@ Post {
 main() {
   let res, err = async HTTP.get("https://jsonplaceholder.typicode.com/posts")
   
-  if err != "" {
+  if err {
     console.log($"HTTP Error: {err}")
   } else if res.status != 200 {
     console.log($"Failed. Status: {res.status}")
   } else {
     let posts: [Post], parseErr = JSON.parse(res.body)
     
-    if parseErr != "" {
+    if parseErr {
       console.log($"Parse error: {parseErr}")
     } else {
       console.log($"Success! Parsed {posts.len()} posts")

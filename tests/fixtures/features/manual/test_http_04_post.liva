@@ -11,7 +11,7 @@ main() {
         userId: 1
     })
     
-    if stringifyErr != "" {
+    if stringifyErr {
         console.error($"JSON stringify error: {stringifyErr}")
     }
     
@@ -22,7 +22,7 @@ main() {
     // Send POST request
     let response, err = async HTTP.post("https://jsonplaceholder.typicode.com/posts", newPost)
     
-    if err != "" {
+    if err {
         console.error($"HTTP Error: {err}")
     }
     
@@ -31,7 +31,7 @@ main() {
     // Parse response
     let createdPost, jsonErr = JSON.parse(response.body)
     
-    if jsonErr != "" {
+    if jsonErr {
         console.error($"JSON parse error: {jsonErr}")
     }
     

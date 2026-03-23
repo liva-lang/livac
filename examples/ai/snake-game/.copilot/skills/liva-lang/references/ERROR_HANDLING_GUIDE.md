@@ -282,7 +282,7 @@ divide(10, 0)
 ```liva
 // ✅ Handle the error
 let result, err = divide(10, 0)
-if err != "" {
+if err {
   print($"Error: {err}")
 } else {
   print(result)

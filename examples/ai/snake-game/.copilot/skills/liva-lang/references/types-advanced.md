@@ -280,7 +280,7 @@ divide(a: number, b: number) => b == 0 ? fail "Division by zero" : a / b
 // Error binding captures both result and error
 let result, err = divide(10, 2)
 
-if err != "" {
+if err {
   print($"Error: {err}")
 } else {
   print($"Result: {result}")

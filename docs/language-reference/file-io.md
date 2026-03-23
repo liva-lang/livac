@@ -398,7 +398,7 @@ File.writeLines(path: string, lines: [string]): (bool?, Error?)
 let lines = ["name,age,city", "Alice,30,NYC", "Bob,25,LAX"]
 let ok, err = File.writeLines("output.csv", lines)
 
-if err != "" {
+if err {
     print($"Write error: {err}")
 }
 ```
@@ -545,7 +545,7 @@ Dir.create(path: string): (bool?, Error?)
 ```liva
 let ok, err = Dir.create("./output/reports/2026")
 
-if err != "" {
+if err {
     print($"Create failed: {err}")
 } else {
     print("Directory created (including parents)")
@@ -583,7 +583,7 @@ Dir.delete(path: string): (bool?, Error?)
 ```liva
 let ok, err = Dir.delete("./temp")
 
-if err != "" {
+if err {
     print($"Delete failed: {err}")
 } else {
     print("Temp directory removed")

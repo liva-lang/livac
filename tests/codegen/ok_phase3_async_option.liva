@@ -9,7 +9,7 @@ asyncFetch(id: number): string {
 main() {
   // Async with error binding
   let user1, err1 = async asyncFetch(123)
-  if err1 != "" {  // Compiles to err1.is_some()
+  if err1 {  // Compiles to err1.is_some()
     print($"Async Error 1: {err1}")
   } else {
     print($"Async User 1: {user1}")
@@ -17,7 +17,7 @@ main() {
 
   // Async with error
   let user2, err2 = async asyncFetch(-1)
-  if err2 != "" {  // Compiles to err2.is_some()
+  if err2 {  // Compiles to err2.is_some()
     print($"Async Error 2: {err2}")
   } else {
     print($"Async User 2: {user2}")

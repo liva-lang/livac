@@ -8,7 +8,7 @@ main() {
     
     let response, err = async HTTP.delete("https://jsonplaceholder.typicode.com/posts/1")
     
-    if err != "" {
+    if err {
         console.error($"HTTP Error: {err}")
     }
     

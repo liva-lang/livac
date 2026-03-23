@@ -7,7 +7,7 @@ main() {
   console.log("Fetching posts from API...")
   let res, err = async HTTP.get("https://jsonplaceholder.typicode.com/posts?_limit=5")
   
-  if err != "" {
+  if err {
     console.log($"❌ HTTP Error: {err}")
   } else {
     console.log($"✓ HTTP Status: {res.status}")
@@ -15,7 +15,7 @@ main() {
     
     let posts: [Post], parseErr = JSON.parse(res.body)
     
-    if parseErr != "" {
+    if parseErr {
       console.log($"❌ Parse error: {parseErr}")
     } else {
       console.log($"✓ Successfully parsed {posts.len()} posts!")

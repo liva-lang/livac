@@ -365,7 +365,7 @@ for par item in numbers {
    
    // ✅ Correct - handle error
    let result, err = divide(10, 0)
-   if err != "" {
+   if err {
      print($"Error: {err}")
    } else {
      print(result)

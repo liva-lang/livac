@@ -16,7 +16,7 @@ main() {
     
     let response, err = HTTP.get(userUrl)
     
-    if err != "" {
+    if err {
         print("Error fetching user: " + err)
     } else {
         print("Status: " + response.status)
@@ -26,7 +26,7 @@ main() {
             print("Rate limited! Try again later or use authentication.")
         } else if response.status == 200 {
             let data, parseErr = JSON.parse(response.body)
-            if parseErr != "" {
+            if parseErr {
                 print("Parse error: " + parseErr)
             } else {
                 print("")
@@ -51,14 +51,14 @@ main() {
     
     let reposResponse, reposErr = HTTP.get(reposUrl)
     
-    if reposErr != "" {
+    if reposErr {
         print("Error fetching repos: " + reposErr)
     } else {
         if reposResponse.status == 403 {
             print("Rate limited!")
         } else if reposResponse.status == 200 {
             let repos, parseErr2 = JSON.parse(reposResponse.body)
-            if parseErr2 != "" {
+            if parseErr2 {
                 print("Parse error: " + parseErr2)
             } else {
                 print("")

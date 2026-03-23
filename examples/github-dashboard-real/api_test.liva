@@ -14,14 +14,14 @@ main() {
     
     let response, err = HTTP.get(userUrl)
     
-    if err != "" {
+    if err {
         print("Error: " + err)
     } else {
         print("Status: " + response.status)
         
         if response.status == 200 {
             let user, parseErr = JSON.parse(response.body)
-            if parseErr != "" {
+            if parseErr {
                 print("Parse error: " + parseErr)
             } else {
                 print("User: " + user["name"])
@@ -39,12 +39,12 @@ main() {
     
     let postsResponse, postsErr = HTTP.get(postsUrl)
     
-    if postsErr != "" {
+    if postsErr {
         print("Error: " + postsErr)
     } else {
         if postsResponse.status == 200 {
             let posts, parseErr2 = JSON.parse(postsResponse.body)
-            if parseErr2 != "" {
+            if parseErr2 {
                 print("Parse error: " + parseErr2)
             } else {
                 print("Found posts:")
@@ -66,13 +66,13 @@ main() {
     
     let createResponse, createErr = HTTP.post(createUrl, body)
     
-    if createErr != "" {
+    if createErr {
         print("Error: " + createErr)
     } else {
         print("Status: " + createResponse.status)
         if createResponse.status == 201 {
             let created, parseErr3 = JSON.parse(createResponse.body)
-            if parseErr3 != "" {
+            if parseErr3 {
                 print("Parse error: " + parseErr3)
             } else {
                 print("Created post with ID: " + created["id"])

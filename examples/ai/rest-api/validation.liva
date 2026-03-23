@@ -48,7 +48,7 @@ parsePagination(pageStr: String, limitStr: String): (i32, i32) {
     let page = 1
     let limit = 10
 
-    if pageStr != "" {
+    if pageStr {
         let parsed, err = parseInt(pageStr)
         if err {
             fail "Invalid page parameter: must be a number"
@@ -56,7 +56,7 @@ parsePagination(pageStr: String, limitStr: String): (i32, i32) {
         page = parsed
     }
 
-    if limitStr != "" {
+    if limitStr {
         let parsed, err = parseInt(limitStr)
         if err {
             fail "Invalid limit parameter: must be a number"

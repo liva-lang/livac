@@ -10,7 +10,7 @@ main() {
     // Error binding con parallel - caso de error
     let result, err = par compute(-5)
     
-    if err != "" {
+    if err {
         print($"Error: {err}")
     } else {
         print($"Result: {result}")
@@ -19,7 +19,7 @@ main() {
     // Error binding con parallel - caso de éxito
     let result2, err2 = par compute(5)
     
-    if err2 != "" {
+    if err2 {
         print($"Error: {err2}")
     } else {
         print($"Result: {result2}")

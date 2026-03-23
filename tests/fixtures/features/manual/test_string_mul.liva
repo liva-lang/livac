@@ -13,7 +13,7 @@ main() {
   console.log($"Entrada: {input}")
   
   let num, err = parseInt(input)
-  if err != "" {
+  if err {
     console.error($"Error: {err}")
   } else {
     console.log($"El número multiplicado por 3 es: {num * 3}")

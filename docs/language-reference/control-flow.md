@@ -366,7 +366,7 @@ try {
 
 // Error binding (fallibility system - preferred)
 let result, err = divide(10, 0)
-if err != "" {
+if err {
   print($"Error: {err}")
 }
 ```
@@ -502,7 +502,7 @@ processOrder(order) {
 ```liva
 // ✅ Good: Error binding
 let result, err = divide(a, b)
-if err != "" {
+if err {
   print($"Error: {err}")
   return
 }

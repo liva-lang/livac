@@ -2586,11 +2586,11 @@ See `examples/destructuring_demo.liva` for complete examples.
 **Example Usage - Basic:**
 ```liva
 let response, err = HTTP.get("https://api.github.com/users/octocat")
-if err != "" { return }
+if err { return }
 
 // Parse JSON directly from response (like fetch API)
 let json, parseErr = response.json()
-if parseErr != "" { return }
+if parseErr { return }
 
 console.log($"User data: {json}")
 ```
@@ -2604,11 +2604,11 @@ User {
 }
 
 let response, err = HTTP.get("https://api.example.com/users/1")
-if err != "" { return }
+if err { return }
 
 // Automatic deserialization to User class
 let user: User, jsonErr = response.json()
-if jsonErr != "" { return }
+if jsonErr { return }
 
 console.log($"User: {user.name} at {user.company}")
 ```
@@ -2984,7 +2984,7 @@ main() {
 main() {
   let res, err = async HTTP.get("https://api.example.com/posts?_limit=5")
 
-  if err != "" {
+  if err {
     console.log($"Error: {err}")
   } else {
     if res.status == 200 {
@@ -3142,7 +3142,7 @@ main() {
 ```liva
 // Simple GET request
 let response, err = async HTTP.get("https://api.example.com/data")
-if err != "" {
+if err {
     console.error($"Error: {err}")
 } else {
     print($"Status: {response.status}")

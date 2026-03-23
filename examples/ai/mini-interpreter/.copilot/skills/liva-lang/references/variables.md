@@ -223,7 +223,7 @@ Special syntax for functions that can fail:
 ```liva
 // Error binding syntax
 let result, err = divide(10, 2)
-if err != "" {
+if err {
   print($"Error: {err}")
 } else {
   print($"Result: {result}")
@@ -231,7 +231,7 @@ if err != "" {
 
 // With async/parallel
 let data, error = async fetchUserData(userId)
-if error != "" {
+if error {
   print($"Failed to fetch: {error}")
 }
 ```
@@ -330,7 +330,7 @@ divide(a: number, b: number) => b == 0 ? fail "Division by zero" : a / b
 main() {
   let result, err = divide(10, 2)
   
-  if err != "" {
+  if err {
     print($"Error: {err}")
   } else {
     print($"Result: {result}")
@@ -435,7 +435,7 @@ let name = "Alice"
 ```liva
 // ✅ Good: Always check errors for fallible calls
 let result, err = divide(a, b)
-if err != "" {
+if err {
   print($"Error: {err}")
   return
 }
@@ -501,7 +501,7 @@ const MAX: number = 100
 
 // Error binding
 let result, err = divide(10, 2)
-if err != "" {
+if err {
   print($"Error: {err}")
 }
 

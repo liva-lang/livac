@@ -12,19 +12,19 @@ main() {
     let comments, err3 = async HTTP.get("https://jsonplaceholder.typicode.com/comments?_limit=3")
     
     // Check results (tasks execute in parallel when accessed)
-    if err1 != "" {
+    if err1 {
         console.error($"Posts error: {err1}")
     } else {
         print($"Posts: Status {posts.status}, Body length: {posts.body.length}")
     }
     
-    if err2 != "" {
+    if err2 {
         console.error($"Users error: {err2}")
     } else {
         print($"Users: Status {users.status}, Body length: {users.body.length}")
     }
     
-    if err3 != "" {
+    if err3 {
         console.error($"Comments error: {err3}")
     } else {
         print($"Comments: Status {comments.status}, Body length: {comments.body.length}")

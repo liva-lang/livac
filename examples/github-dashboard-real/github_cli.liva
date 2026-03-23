@@ -86,7 +86,7 @@ showUser(username: string) {
     let url = "https://api.github.com/users/" + username
     let response, err = HTTP.get(url)
     
-    if err != "" {
+    if err {
         console.error("Error: " + err)
         Sys.exit(1)
     }
@@ -107,7 +107,7 @@ showUser(username: string) {
     }
     
     let user, parseErr = JSON.parse(response.body)
-    if parseErr != "" {
+    if parseErr {
         console.error("Parse error: " + parseErr)
         Sys.exit(1)
     }
@@ -133,7 +133,7 @@ showRepos(username: string) {
     let url = "https://api.github.com/users/" + username + "/repos?per_page=10&sort=stars"
     let response, err = HTTP.get(url)
     
-    if err != "" {
+    if err {
         console.error("Error: " + err)
         Sys.exit(1)
     }
@@ -154,7 +154,7 @@ showRepos(username: string) {
     }
     
     let repos, parseErr = JSON.parse(response.body)
-    if parseErr != "" {
+    if parseErr {
         console.error("Parse error: " + parseErr)
         Sys.exit(1)
     }
@@ -188,7 +188,7 @@ showIssues(repoPath: string) {
     let url = "https://api.github.com/repos/" + repoPath + "/issues?state=open&per_page=10"
     let response, err = HTTP.get(url)
     
-    if err != "" {
+    if err {
         console.error("Error: " + err)
         Sys.exit(1)
     }
@@ -209,7 +209,7 @@ showIssues(repoPath: string) {
     }
     
     let issues, parseErr = JSON.parse(response.body)
-    if parseErr != "" {
+    if parseErr {
         console.error("Parse error: " + parseErr)
         Sys.exit(1)
     }
@@ -247,7 +247,7 @@ searchRepos(query: string) {
     
     let response, err = HTTP.get(url)
     
-    if err != "" {
+    if err {
         console.error("Error: " + err)
         Sys.exit(1)
     }
@@ -263,7 +263,7 @@ searchRepos(query: string) {
     }
     
     let result, parseErr = JSON.parse(response.body)
-    if parseErr != "" {
+    if parseErr {
         console.error("Parse error: " + parseErr)
         Sys.exit(1)
     }

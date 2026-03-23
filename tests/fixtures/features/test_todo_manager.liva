@@ -7,11 +7,11 @@ main() {
     // Read tasks from file (or create empty array)
     let content, readErr = File.read("todos.json")
     
-    if readErr != "" {
+    if readErr {
         print("No existing todos file, starting fresh")
         let emptyTasks = "[]"
         let result, writeErr = File.write("todos.json", emptyTasks)
-        if writeErr != "" {
+        if writeErr {
             print("Error creating todos file: " + writeErr)
         }
     } else {

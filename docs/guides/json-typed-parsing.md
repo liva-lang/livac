@@ -188,7 +188,7 @@ Comment {
 async fn fetchPosts() {
     let res, err = async HTTP.get("https://jsonplaceholder.typicode.com/posts?_limit=5")
     
-    if err != "" {
+    if err {
         print($"HTTP error: {err}")
         return
     }
@@ -196,7 +196,7 @@ async fn fetchPosts() {
     // Parse directly into typed array! ✨
     let posts: [Post], parseErr = JSON.parse(res.body)
     
-    if parseErr != "" {
+    if parseErr {
         print($"Parse error: {parseErr}")
         return
     }
@@ -261,7 +261,7 @@ if err == "" {
 fn processJson(jsonString: string) {
     let data: [i32], err = JSON.parse(jsonString)
     
-    if err != "" {
+    if err {
         print($"Error: {err}")
         return
     }
@@ -351,13 +351,13 @@ let (data, err): (Vec<i32>, String) = match serde_json::from_str::<Vec<i32>>(&js
 async fn fetchAndProcess() {
     let res, httpErr = async HTTP.get("https://api.example.com/data")
     
-    if httpErr != "" {
+    if httpErr {
         return
     }
     
     let data: [i32], jsonErr = JSON.parse(res.body)
     
-    if jsonErr != "" {
+    if jsonErr {
         return
     }
     
@@ -371,7 +371,7 @@ async fn fetchAndProcess() {
 fn loadConfig(configJson: string) {
     let config: Config, err = JSON.parse(configJson)
     
-    if err != "" {
+    if err {
         // Use default config
         config = Config {
             host: "localhost",
@@ -389,7 +389,7 @@ fn loadConfig(configJson: string) {
 fn transformData(inputJson: string) {
     let data: [i32], err = JSON.parse(inputJson)
     
-    if err != "" {
+    if err {
         return ""
     }
     

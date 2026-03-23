@@ -4,13 +4,13 @@ main() {
     
     print("Test 1: Invalid URL")
     let resp1, err1 = async HTTP.get("invalid-url")
-    if err1 != "" {
+    if err1 {
         print("Error caught correctly for invalid URL")
     }
     
     print("Test 2: Non-existent domain")
     let resp2, err2 = async HTTP.get("https://this-domain-does-not-exist-12345.com")
-    if err2 != "" {
+    if err2 {
         print("Error caught correctly for non-existent domain")
     }
     

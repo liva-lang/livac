@@ -397,12 +397,12 @@ User {
 fetchUser(id: int): ApiResult<User> {
     let response, err = async HTTP.get($"https://api.example.com/users/{id}")
     
-    if err != "" {
+    if err {
         return (null, err)
     }
     
     let user: User, jsonErr = JSON.parse(response.body)
-    if jsonErr != "" {
+    if jsonErr {
         return (null, jsonErr)
     }
     
@@ -412,7 +412,7 @@ fetchUser(id: int): ApiResult<User> {
 main() {
     let user, error = fetchUser(1)
     
-    if error != "" {
+    if error {
         console.error($"Error: {error}")
     } else {
         print($"User: {user.name}")

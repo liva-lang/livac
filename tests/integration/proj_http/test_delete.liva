@@ -4,7 +4,7 @@ main() {
     
     let response, err = async HTTP.delete("https://httpbin.org/delete")
     
-    if err != "" {
+    if err {
         print($"Error: {err}")
     } else {
         print($"Status: {response.status}")

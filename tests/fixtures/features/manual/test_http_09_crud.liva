@@ -9,7 +9,7 @@ main() {
     let newPost = "{ \"title\": \"Liva Test\", \"body\": \"Testing CRUD\", \"userId\": 1 }"
     let createResp, createErr = async HTTP.post("https://jsonplaceholder.typicode.com/posts", newPost)
     
-    if createErr != "" {
+    if createErr {
         console.error($"Create failed: {createErr}")
     }
     
@@ -22,7 +22,7 @@ main() {
     print("Step 2: READ - Fetching post 1...")
     let readResp, readErr = async HTTP.get("https://jsonplaceholder.typicode.com/posts/1")
     
-    if readErr != "" {
+    if readErr {
         console.error($"Read failed: {readErr}")
     }
     
@@ -36,7 +36,7 @@ main() {
     let updateData = "{ \"title\": \"Updated\", \"body\": \"Modified\", \"userId\": 1 }"
     let updateResp, updateErr = async HTTP.put("https://jsonplaceholder.typicode.com/posts/1", updateData)
     
-    if updateErr != "" {
+    if updateErr {
         console.error($"Update failed: {updateErr}")
     }
     
@@ -46,7 +46,7 @@ main() {
     print("Step 4: DELETE - Deleting post 1...")
     let deleteResp, deleteErr = async HTTP.delete("https://jsonplaceholder.typicode.com/posts/1")
     
-    if deleteErr != "" {
+    if deleteErr {
         console.error($"Delete failed: {deleteErr}")
     }
     

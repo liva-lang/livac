@@ -323,7 +323,7 @@ if err == "" {
 }
 
 let invalid, parseErr = parseInt("abc")
-if parseErr != "" {
+if parseErr {
     print($"Error: {parseErr}")  // "Error: Invalid integer format"
 }
 

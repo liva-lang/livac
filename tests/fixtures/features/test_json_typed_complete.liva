@@ -80,7 +80,7 @@ main() {
     console.log("Test 1: Basic types")
     let basicJson = "{\"int8\": 127, \"int16\": 32767, \"int32\": 2147483647, \"int64\": 9223372036854775807, \"uint8\": 255, \"uint16\": 65535, \"uint32\": 4294967295, \"uint64\": 18446744073709551615, \"float32\": 3.14, \"float64\": 2.718281828, \"text\": \"hello\", \"flag\": true}"
     let basic: BasicTypes, err1 = JSON.parse(basicJson)
-    if err1 != "" {
+    if err1 {
         console.log($"❌ Error: {err1}")
     } else {
         console.log($"✅ Parsed basic types: int32={basic.int32}, float32={basic.float32}, text={basic.text}")
@@ -91,7 +91,7 @@ main() {
     console.log("Test 2: Optional fields - all present")
     let optJson1 = "{\"id\": 1, \"name\": \"Alice\", \"email\": \"alice@example.com\", \"age\": 30, \"verified\": true}"
     let opt1: OptionalFields, err2 = JSON.parse(optJson1)
-    if err2 != "" {
+    if err2 {
         console.log($"❌ Error: {err2}")
     } else {
         console.log($"✅ All fields present: id={opt1.id}, name={opt1.name}")
@@ -102,7 +102,7 @@ main() {
     console.log("Test 3: Optional fields - some missing")
     let optJson2 = "{\"id\": 2, \"name\": \"Bob\"}"
     let opt2: OptionalFields, err3 = JSON.parse(optJson2)
-    if err3 != "" {
+    if err3 {
         console.log($"❌ Error: {err3}")
     } else {
         console.log($"✅ Some fields missing: id={opt2.id}, name={opt2.name} (optional fields are None)")
@@ -113,7 +113,7 @@ main() {
     console.log("Test 4: Optional fields - null values")
     let optJson3 = "{\"id\": 3, \"name\": \"Carol\", \"email\": null, \"age\": 25, \"verified\": null}"
     let opt3: OptionalFields, err4 = JSON.parse(optJson3)
-    if err4 != "" {
+    if err4 {
         console.log($"❌ Error: {err4}")
     } else {
         console.log($"✅ Null values handled: id={opt3.id}, name={opt3.name}")
@@ -124,7 +124,7 @@ main() {
     console.log("Test 5: Default values - empty JSON")
     let defJson1 = "{}"
     let def1: DefaultValues, err5 = JSON.parse(defJson1)
-    if err5 != "" {
+    if err5 {
         console.log($"❌ Error: {err5}")
     } else {
         console.log("✅ All defaults used successfully")
@@ -135,7 +135,7 @@ main() {
     console.log("Test 6: Default values - partial override")
     let defJson2 = "{\"port\": 3000, \"debug\": true}"
     let def2: DefaultValues, err6 = JSON.parse(defJson2)
-    if err6 != "" {
+    if err6 {
         console.log($"❌ Error: {err6}")
     } else {
         console.log("✅ Partial override successful")
@@ -146,7 +146,7 @@ main() {
     console.log("Test 7: Optional with defaults - field missing")
     let optDefJson1 = "{\"id\": 1, \"name\": \"Dave\"}"
     let optDef1: OptionalWithDefaults, err7 = JSON.parse(optDefJson1)
-    if err7 != "" {
+    if err7 {
         console.log($"❌ Error: {err7}")
     } else {
         console.log("✅ Missing optional fields use defaults")
@@ -157,7 +157,7 @@ main() {
     console.log("Test 8: Optional with defaults - null overrides default")
     let optDefJson2 = "{\"id\": 2, \"name\": \"Eve\", \"role\": null, \"active\": null}"
     let optDef2: OptionalWithDefaults, err8 = JSON.parse(optDefJson2)
-    if err8 != "" {
+    if err8 {
         console.log($"❌ Error: {err8}")
     } else {
         console.log("✅ Null overrides defaults")
@@ -168,7 +168,7 @@ main() {
     console.log("Test 9: Nested classes - full")
     let nestedJson = "{\"id\": 1, \"name\": \"Alice\", \"username\": \"alice123\", \"email\": \"alice@example.com\", \"address\": {\"street\": \"123 Main St\", \"city\": \"NYC\", \"zipcode\": \"10001\", \"geo\": {\"lat\": \"40.7128\", \"lng\": \"-74.0060\"}}, \"company\": {\"name\": \"ACME Corp\", \"catchPhrase\": \"Innovation\"}, \"verified\": true}"
     let user1: User, err9 = JSON.parse(nestedJson)
-    if err9 != "" {
+    if err9 {
         console.log($"❌ Error: {err9}")
     } else {
         console.log($"✅ Nested classes parsed successfully")
@@ -180,7 +180,7 @@ main() {
     console.log("Test 10: Nested classes - optional missing")
     let nestedJson2 = "{\"id\": 2, \"name\": \"Bob\", \"email\": \"bob@example.com\"}"
     let user2: User, err10 = JSON.parse(nestedJson2)
-    if err10 != "" {
+    if err10 {
         console.log($"❌ Error: {err10}")
     } else {
         console.log($"✅ Optional nested missing: {user2.name}, email={user2.email}")
@@ -191,7 +191,7 @@ main() {
     console.log("Test 11: Array of classes")
     let arrayJson = "[{\"id\": 1, \"name\": \"Alice\", \"email\": \"alice@example.com\"}, {\"id\": 2, \"name\": \"Bob\", \"email\": \"bob@example.com\", \"username\": \"bobby\"}, {\"id\": 3, \"name\": \"Carol\", \"email\": \"carol@example.com\"}]"
     let users: [User], err11 = JSON.parse(arrayJson)
-    if err11 != "" {
+    if err11 {
         console.log($"❌ Error: {err11}")
     } else {
         console.log($"✅ Array of {users.len()} users parsed successfully")

@@ -59,7 +59,7 @@ fetchData(url: string): string {
 main() {
   let data, err = async fetchData("https://api.example.com")
   
-  if err != "" {
+  if err {
     print($"Error: {err}")
   } else {
     print($"Success: {data}")
@@ -112,7 +112,7 @@ processData(data: number): number {
 main() {
   let result, err = par processData(50)
   
-  if err != "" {
+  if err {
     print($"Error: {err}")
   } else {
     print($"Processed: {result}")
@@ -185,7 +185,7 @@ main() {
   
   let result, err = await calcTask
   
-  if err != "" {
+  if err {
     print($"Task failed: {err}")
   } else {
     print($"Task succeeded: {result}")
@@ -429,7 +429,7 @@ main() {
   // Always handle errors for critical operations
   let data, err = async fetchCriticalData()
   
-  if err != "" {
+  if err {
     print($"Critical error: {err}")
     return
   }
@@ -566,7 +566,7 @@ fetchWithRetry(url: string, maxRetries: number): string {
 main() {
   let data, err = fetchWithRetry("https://api.example.com", 3)
   
-  if err != "" {
+  if err {
     print($"Failed: {err}")
   } else {
     print($"Success: {data}")

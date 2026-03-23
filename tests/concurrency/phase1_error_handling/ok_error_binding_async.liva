@@ -20,7 +20,7 @@ main() {
     // Error binding con async - caso de error
     let user, err = async getUser(0)
     
-    if err != "" {
+    if err {
         print($"Error: {err}")
     } else {
         print($"User: {user.name}")
@@ -29,7 +29,7 @@ main() {
     // Error binding con async - caso de éxito
     let user2, err2 = async getUser(42)
     
-    if err2 != "" {
+    if err2 {
         print($"Error: {err2}")
     } else {
         print($"User: {user2.name}, ID: {user2.id}")

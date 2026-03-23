@@ -5,7 +5,7 @@ main() {
     
     let response, err = async HTTP.get("https://httpbin.org/get")
     
-    if err != "" {
+    if err {
         console.error($"❌ HTTP GET failed: {err}")
     } else {
         print($"✓ HTTP GET succeeded!")

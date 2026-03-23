@@ -173,7 +173,7 @@ main() {
 let debug = Sys.env("DEBUG")
 let logLevel = Sys.env("LOG_LEVEL")
 
-if debug != "" {
+if debug {
     print("Debug mode enabled")
 }
 

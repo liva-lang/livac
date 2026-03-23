@@ -116,7 +116,7 @@ main() {
   // Error binding syntax
   let result, err = divide(10, 2)
   
-  if err != "" {
+  if err {
     print($"Error: {err}")
   } else {
     print($"Result: {result}")

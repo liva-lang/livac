@@ -5,7 +5,7 @@ main() {
     let jsonBody = "{\"name\": \"Liva\", \"version\": \"0.9.6\"}"
     let response, err = async HTTP.post("https://httpbin.org/post", jsonBody)
     
-    if err != "" {
+    if err {
         print($"Error: {err}")
     } else {
         print($"Status: {response.status}")

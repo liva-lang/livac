@@ -1,7 +1,7 @@
 main() {
   let res, err = async HTTP.get("https://jsonplaceholder.typicode.com/posts?_limit=5")
 
-  if err != "" {
+  if err {
     console.log($"Error: {err}")
   } else {
     if res.status == 200 {

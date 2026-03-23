@@ -6,7 +6,7 @@ main() {
     // Test 1: GET
     print("1. GET...")
     let resp1, err1 = async HTTP.get("https://httpbin.org/get")
-    if err1 != "" {
+    if err1 {
         console.error($"✗ Failed: {err1}")
     } else {
         print($"✓ Status: {resp1.status}")
@@ -15,7 +15,7 @@ main() {
     // Test 2: DELETE  
     print("\n2. DELETE...")
     let resp2, err2 = async HTTP.delete("https://httpbin.org/delete")
-    if err2 != "" {
+    if err2 {
         console.error($"✗ Failed: {err2}")
     } else {
         print($"✓ Status: {resp2.status}")

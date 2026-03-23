@@ -106,7 +106,7 @@ print($"The number is: {str}")
 ```liva
 let input = "123"
 let num, err = parseInt(input)
-if err != "" {
+if err {
     print($"Failed to parse '{input}': {err}")
     return
 }

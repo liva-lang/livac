@@ -234,7 +234,7 @@ main() {
   // Error binding
   let result, err = divide(10, 2)
   
-  if err != "" {
+  if err {
     print($"Error: {err}")
   } else {
     print($"Result: {result}")
@@ -308,7 +308,7 @@ main() {
   print($"   Age 25: {result1}")
   
   let result2, err2 = validateAge(-5)
-  if err2 != "" {
+  if err2 {
     print($"   Age -5: Error - {err2}")
   }
   

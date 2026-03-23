@@ -175,7 +175,7 @@ if err => print($"Error: {err}")
 
 // ❌ Verbose
 let result, err = divide(10, 0)
-if err != "" { print($"Error: {err}") }
+if err { print($"Error: {err}") }
 ```
 
 ---
@@ -867,7 +867,7 @@ Mapping values from enum/string?
 |----------|-------|-----|
 | `if x { doThing() }` | `if x => doThing()` | `=>` for single statements |
 | `items.forEach(x => print(x))` | `items.forEach(print)` | Point-free is cleaner |
-| `if err != "" { ... }` | `if err { ... }` | Truthy check is idiomatic |
+| `if err { ... }` | `if err { ... }` | Truthy check is idiomatic |
 | `x = x + 1; y = y + 1` | Semicolons anywhere | Liva has no semicolons (newlines) |
 | `let result, _ = f()` silently | Handle or `or fail`/`or default` | Don't swallow errors |
 | Everything in `main()` | Extract into functions | Readability, testability |

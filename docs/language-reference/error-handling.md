@@ -10,7 +10,7 @@ divide(a: number, b: number) => b == 0 ? fail "Division by zero" : a / b
 main() {
   let result, err = divide(10, 2)
 
-  if err != "" {
+  if err {
     print($"Error: {err}")
   } else {
     print($"Result: {result}")  // "Result: 5"
@@ -23,7 +23,7 @@ Error case:
 ```liva
 main() {
   let result, err = divide(10, 0)
-  if err != "" {
+  if err {
     print($"Error: {err}")  // "Division by zero"
   }
 }
@@ -50,7 +50,7 @@ validateUser(username: string, password: string): string {
 
 main() {
   let result, err = validateUser("john", "pass")
-  if err != "" {
+  if err {
     print($"Validation failed: {err}")  // "Password too short"
   }
 }
@@ -102,7 +102,7 @@ fetchData(url: string): string {
 
 main() {
   let data, err = async fetchData("https://api.example.com")
-  if err != "" {
+  if err {
     print($"Async error: {err}")
   }
 }
@@ -118,7 +118,7 @@ processData(n: number): number {
 
 main() {
   let result, err = par processData(10)
-  if err != "" {
+  if err {
     print($"Parallel error: {err}")
   }
 }
@@ -132,10 +132,10 @@ main() {
   let task2 = task par processData(-5)
 
   let data, err1 = await task1
-  if err1 != "" { print($"Task 1 error: {err1}") }
+  if err1 { print($"Task 1 error: {err1}") }
 
   let result, err2 = await task2
-  if err2 != "" { print($"Task 2 error: {err2}") }
+  if err2 { print($"Task 2 error: {err2}") }
 }
 ```
 
@@ -146,10 +146,10 @@ main() {
 ```liva
 processUser(id: number): string {
   let user, err = fetchUser(id)
-  if err != "" fail $"Failed to fetch: {err}"
+  if err fail $"Failed to fetch: {err}"
 
   let processed, err2 = transformUser(user)
-  if err2 != "" fail $"Failed to transform: {err2}"
+  if err2 fail $"Failed to transform: {err2}"
 
   return processed
 }
@@ -160,13 +160,13 @@ processUser(id: number): string {
 ```liva
 pipeline(data: string): string {
   let step1, err1 = validate(data)
-  if err1 != "" fail $"Step 1: {err1}"
+  if err1 fail $"Step 1: {err1}"
 
   let step2, err2 = transform(step1)
-  if err2 != "" fail $"Step 2: {err2}"
+  if err2 fail $"Step 2: {err2}"
 
   let step3, err3 = save(step2)
-  if err3 != "" fail $"Step 3: {err3}"
+  if err3 fail $"Step 3: {err3}"
 
   return "Pipeline success"
 }
@@ -186,7 +186,7 @@ Equivalent to:
 
 ```liva
 let response, err = HTTP.get(url)
-if err != "" { fail "Connection error" }
+if err { fail "Connection error" }
 ```
 
 ### Chained Pipeline
@@ -217,7 +217,7 @@ let port = parsePort(input) or default 8080
 ```liva
 // ✅ Good
 let data, err = fetchData(url)
-if err != "" {
+if err {
   print($"Error: {err}")
   return
 }
@@ -250,13 +250,13 @@ readFile(path: string): string {
 // Mid-level: Add context
 loadConfig(path: string): Config {
   let content, err = readFile(path)
-  if err != "" fail $"Failed to load config: {err}"
+  if err fail $"Failed to load config: {err}"
 }
 
 // High-level: Handle gracefully
 main() {
   let config, err = loadConfig("config.toml")
-  if err != "" {
+  if err {
     print($"Warning: {err}, using defaults")
     config = getDefaultConfig()
   }
@@ -269,10 +269,10 @@ main() {
 ```liva
 registerUser(email: string, password: string): string {
   let validEmail, err1 = validateEmail(email)
-  if err1 != "" fail err1
+  if err1 fail err1
 
   let validPassword, err2 = validatePassword(password)
-  if err2 != "" fail err2
+  if err2 fail err2
 
   return "User registered"
 }
@@ -319,13 +319,13 @@ main() {
   let errors = []
 
   let user1, err1 = await task1
-  if err1 != "" errors.push($"User 1: {err1}")
+  if err1 errors.push($"User 1: {err1}")
 
   let user2, err2 = await task2
-  if err2 != "" errors.push($"User 2: {err2}")
+  if err2 errors.push($"User 2: {err2}")
 
   let user3, err3 = await task3
-  if err3 != "" errors.push($"User 3: {err3}")
+  if err3 errors.push($"User 3: {err3}")
 
   if errors.length > 0 {
     print($"Errors occurred: {errors}")
@@ -355,7 +355,7 @@ main() {
 
   // ✅ Correct
   let result, err = divide(10.0, 2.0)
-  if err != "" {
+  if err {
     print($"Error: {err}")
   }
 }

@@ -11,7 +11,7 @@ main() {
     print("Sending PUT request to httpbin.org...")
     let response, err = async HTTP.put("https://httpbin.org/put", updateData)
     
-    if err != "" {
+    if err {
         print($"Error: {err}")
     } else {
         print($"Status: {response.status} {response.statusText}")

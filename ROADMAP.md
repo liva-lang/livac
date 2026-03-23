@@ -1173,7 +1173,7 @@ formatAndCompare<T: Comparable + Display>(a: T, b: T) { ... }
 ```liva
 // GET request
 let response, err = async HTTP.get("https://api.example.com/data")
-if err != "" {
+if err {
     console.error($"Error: {err}")
 } else {
     print($"Status: {response.status}")
@@ -2177,7 +2177,7 @@ New `src/formatter.rs` module (~1500 lines) providing:
 **Before (still valid):**
 ```liva
 let response, err = HTTP.get(url)
-if err != "" { fail "Connection error" }
+if err { fail "Connection error" }
 ```
 
 **After (new alternative):**

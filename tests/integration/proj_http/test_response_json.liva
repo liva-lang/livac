@@ -6,7 +6,7 @@ main() {
     print("Test 1: Parsing valid JSON from HTTP response...")
     let response1, err1 = async HTTP.get("https://jsonplaceholder.typicode.com/posts/1")
     
-    if err1 != "" {
+    if err1 {
         fail $"HTTP request failed: {err1}"
     } else {
         if response1.status != 200 {
@@ -14,7 +14,7 @@ main() {
         } else {
             let data, jsonErr = response1.json()
             
-            if jsonErr != "" {
+            if jsonErr {
                 fail $"JSON parsing failed: {jsonErr}"
             } else {
                 // Verify we got valid data
@@ -29,7 +29,7 @@ main() {
     print("Test 2: Handling invalid JSON...")
     let response2, err2 = async HTTP.get("https://httpbin.org/html")
     
-    if err2 != "" {
+    if err2 {
         fail $"HTTP request failed: {err2}"
     } else {
         let data2, jsonErr2 = response2.json()

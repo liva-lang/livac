@@ -7,7 +7,7 @@ main() {
     // Fetch a single post
     let response, err = async HTTP.get("https://jsonplaceholder.typicode.com/posts/1")
     
-    if err != "" {
+    if err {
         console.error($"❌ HTTP Error: {err}")
         return
     }
@@ -17,7 +17,7 @@ main() {
     // Parse the JSON response
     let post, jsonErr = JSON.parse(response.body)
     
-    if jsonErr != "" {
+    if jsonErr {
         console.error($"❌ JSON parsing failed: {jsonErr}")
         return
     }

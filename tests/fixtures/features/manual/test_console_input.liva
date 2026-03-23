@@ -49,10 +49,10 @@ main() {
     console.log($"  {num1} + {num2} = {sum}")
     console.log($"  {num1} * {num2} = {product}")
   } else {
-    if err1 != "" {
+    if err1 {
       console.error($"Error en primer número: {err1}")
     }
-    if err2 != "" {
+    if err2 {
       console.error($"Error en segundo número: {err2}")
     }
   }

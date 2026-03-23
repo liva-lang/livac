@@ -12,7 +12,7 @@ main() {
     
     let response, err = async HTTP.put("https://jsonplaceholder.typicode.com/posts/1", updateData)
     
-    if err != "" {
+    if err {
         console.error($"HTTP Error: {err}")
     }
     
@@ -21,7 +21,7 @@ main() {
     if response.status == 200 {
         let updated, jsonErr = JSON.parse(response.body)
         
-        if jsonErr != "" {
+        if jsonErr {
             console.error($"JSON parse error: {jsonErr}")
         }
         

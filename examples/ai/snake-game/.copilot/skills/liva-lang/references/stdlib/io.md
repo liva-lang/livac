@@ -72,7 +72,7 @@ let ageStr = console.prompt("Age: ")
 
 // Error handling with proper streams
 let result, err = doSomething()
-if err != "" {
+if err {
     console.error($"Failed: {err}")    // → stderr
     return
 }

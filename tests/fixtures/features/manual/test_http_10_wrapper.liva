@@ -12,7 +12,7 @@ class PostsAPI {
         let url = $"{this.baseUrl}/posts?_limit={limit}"
         let response, err = async HTTP.get(url)
         
-        if err != "" {
+        if err {
             console.error($"Failed to fetch posts: {err}")
         }
         
@@ -23,7 +23,7 @@ class PostsAPI {
         let url = $"{this.baseUrl}/posts/{id}"
         let response, err = async HTTP.get(url)
         
-        if err != "" {
+        if err {
             console.error($"Failed to fetch post {id}: {err}")
         }
         
@@ -34,7 +34,7 @@ class PostsAPI {
         let data = $"{{ \"title\": \"{title}\", \"body\": \"{body}\", \"userId\": {userId} }}"
         let response, err = async HTTP.post($"{this.baseUrl}/posts", data)
         
-        if err != "" {
+        if err {
             console.error($"Failed to create post: {err}")
         }
         
