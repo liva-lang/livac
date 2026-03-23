@@ -25,6 +25,7 @@ pub struct DesugarContext {
     pub has_date: bool,                    // true if Date.* is used
     pub has_crypto: bool,                  // true if Crypto.* is used (sha2, md5, base64 crates)
     pub has_server: bool,                  // true if Server.create() is used (axum crate)
+    pub has_db: bool,                      // true if DB.* is used (rusqlite crate)
     pub async_functions: BTreeSet<String>, // Functions that are async (BTreeSet for deterministic order)
     #[serde(skip)]
     pub source_filename: String,           // Source filename for error traces
@@ -44,6 +45,7 @@ impl DesugarContext {
             has_date: false,
             has_crypto: false,
             has_server: false,
+            has_db: false,
             async_functions: BTreeSet::new(),
             source_filename: String::new(),
         }
@@ -229,6 +231,9 @@ fn check_expr_concurrency(expr: &Expr, ctx: &mut DesugarContext) {
                 if name == "Server" {
                     ctx.has_server = true;
                     ctx.has_async = true;
+                }
+                if name == "DB" {
+                    ctx.has_db = true;
                 }
             }
 

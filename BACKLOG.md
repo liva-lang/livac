@@ -264,13 +264,17 @@
 
 ### DB — módulo nuevo (crate `rusqlite` auto-inyectado)
 
-- [ ] `DB.open(path)` → `DB, error`
-- [ ] `DB.exec(db, sql, params?)` → `error?`
-- [ ] `DB.query(db, sql, params?)` → `[Map<string, string>], error`
-- [ ] `DB.close(db)`
-- [ ] Tests
+- [x] `DB.open(path)` → `connection, error`
+- [x] `DB.exec(db, sql, params?)` → `_, error`
+- [x] `DB.query(db, sql, params?)` → `[Map<string, string>], error`
+- [x] `DB.close(db)`
+- [x] Tests (2 snapshot tests)
+- [x] Docs: `db.md`
+- [x] Example: `examples/db-demo/main.liva`
 
-### REPL — `livac repl`
+### REPL — `livac repl` ⏸️ APLAZADO
+
+> **Nota:** Dejado fuera de v1.8 por ahora. Se retomará en una versión futura si hay demanda.
 
 - [ ] Loop read-eval-print básico
 - [ ] Mantener estado entre líneas (variables persisten)

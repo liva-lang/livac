@@ -5741,3 +5741,60 @@ main() {
     assert!(rust_code.contains("__params.get"), "Should contain params.get: {}", rust_code);
     assert_snapshot!("http_server_params", rust_code);
 }
+
+// ==================== DB Module Tests ====================
+
+#[test]
+fn test_db_open_exec_query() {
+    let source = r#"
+main() {
+    let db, err = DB.open("test.db")
+    if err != "" {
+        print("Error: " + err)
+    }
+
+    let _, err2 = DB.exec(db, "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT)")
+    let _, err3 = DB.exec(db, "INSERT INTO users (name) VALUES (?)", ["Alice"])
+
+    let rows, err4 = DB.query(db, "SELECT * FROM users")
+    for row in rows {
+        print(row.get("name"))
+    }
+
+    DB.close(db)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("rusqlite::Connection::open"), "Should contain Connection::open: {}", rust_code);
+    assert!(rust_code.contains(".execute_batch"), "Should contain execute_batch: {}", rust_code);
+    assert!(rust_code.contains(".execute("), "Should contain execute with params: {}", rust_code);
+    assert!(rust_code.contains(".prepare("), "Should contain prepare for query: {}", rust_code);
+    assert!(rust_code.contains("drop("), "Should contain drop for close: {}", rust_code);
+    assert_snapshot!("db_open_exec_query", rust_code);
+}
+
+#[test]
+fn test_db_query_with_params() {
+    let source = r#"
+main() {
+    let db, err = DB.open("app.db")
+    if err != "" {
+        print(err)
+    }
+
+    let rows, err2 = DB.query(db, "SELECT * FROM users WHERE name = ?", ["Alice"])
+    for row in rows {
+        print(row.get("name"))
+    }
+
+    DB.close(db)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("rusqlite::Connection::open"), "Should contain Connection::open: {}", rust_code);
+    assert!(rust_code.contains("__param_refs"), "Should contain param_refs: {}", rust_code);
+    assert!(rust_code.contains("query_map"), "Should contain query_map: {}", rust_code);
+    assert_snapshot!("db_query_with_params", rust_code);
+}

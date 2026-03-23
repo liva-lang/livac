@@ -1,0 +1,42 @@
+// DB Demo — SQLite database operations
+// Ejecutar: livac run examples/db-demo/main.liva
+
+main() {
+    // Open (or create) a SQLite database
+    let db, err = DB.open("demo.db")
+    if err != "" {
+        print("Failed to open DB: " + err)
+    }
+
+    // Create a table
+    let _, err2 = DB.exec(db, "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT)")
+    if err2 != "" {
+        print("Create table error: " + err2)
+    }
+
+    // Insert data with params
+    let _, err3 = DB.exec(db, "INSERT INTO users (name, email) VALUES (?, ?)", ["Alice", "alice@example.com"])
+    let _, err4 = DB.exec(db, "INSERT INTO users (name, email) VALUES (?, ?)", ["Bob", "bob@example.com"])
+
+    // Query all rows
+    let rows, err5 = DB.query(db, "SELECT * FROM users")
+    if err5 != "" {
+        print("Query error: " + err5)
+    }
+
+    print("=== All Users ===")
+    for row in rows {
+        print("ID: " + row.get("id") + " | Name: " + row.get("name") + " | Email: " + row.get("email"))
+    }
+
+    // Query with params
+    let results, err6 = DB.query(db, "SELECT * FROM users WHERE name = ?", ["Alice"])
+    print("\n=== Search: Alice ===")
+    for row in results {
+        print("Found: " + row.get("name") + " (" + row.get("email") + ")")
+    }
+
+    // Close the connection
+    DB.close(db)
+    print("\nDone!")
+}

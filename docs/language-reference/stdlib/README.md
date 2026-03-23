@@ -1,7 +1,7 @@
 # Liva Standard Library
 
-> **Status:** ✅ Complete (v1.7.0-dev) - 110+ functions implemented! 🎉  
-> **Completion:** Arrays ✅ (31) | Strings ✅ (28) | Math ✅ (14) | Config ✅ (5) | File ✅ (11) | Dir ✅ (7) | Regex ✅ (5) | Date ✅ (14) | CSV ✅ (8) | Random ✅ (5) | Crypto ✅ (4) | Process ✅ (4) | Server ✅ (3) | Response ✅ (3) | Conversions ✅ | I/O ✅ | System ✅ | Logging ✅
+> **Status:** ✅ Complete (v1.8.0-dev) - 115+ functions implemented! 🎉  
+> **Completion:** Arrays ✅ (31) | Strings ✅ (28) | Math ✅ (14) | Config ✅ (5) | File ✅ (11) | Dir ✅ (7) | Regex ✅ (5) | Date ✅ (14) | CSV ✅ (8) | Random ✅ (5) | Crypto ✅ (4) | Process ✅ (4) | Server ✅ (3) | Response ✅ (3) | DB ✅ (4) | Conversions ✅ | I/O ✅ | System ✅ | Logging ✅
 
 The Liva Standard Library provides built-in functions and methods for common programming tasks.
 
@@ -205,6 +205,16 @@ Process execution and control.
 - `Process.spawn(cmd)` → `int, error` — spawn background process, return PID (fallible)
 - `Process.pid()` → `int` — current process PID
 - `Process.exit(code)` — exit with status code
+
+### ✅ [DB](./db.md)
+SQLite database operations for persistent storage.
+
+**Status:** Complete (v1.8) — 4 functions, crate `rusqlite` (bundled) auto-injected
+
+- `DB.open(path)` → `connection, error` — open/create SQLite database (fallible)
+- `DB.exec(db, sql[, params])` → `_, error` — execute SQL (CREATE/INSERT/UPDATE/DELETE) (fallible)
+- `DB.query(db, sql[, params])` → `rows, error` — query rows as `[Map<string, string>]` (fallible)
+- `DB.close(db)` — close the connection
 
 ### ✅ [Server](./server.md)
 HTTP server creation and routing via axum.

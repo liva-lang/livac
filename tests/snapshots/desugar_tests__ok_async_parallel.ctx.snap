@@ -21,6 +21,7 @@ expression: json
   "has_date": false,
   "has_crypto": false,
   "has_server": false,
+  "has_db": false,
   "async_functions": [
     "fetch",
     "main"

@@ -1581,6 +1581,29 @@ app.get("/users/:id", (req) => {
 })
 ```
 
+### Database (SQLite) *(v1.8.0)*
+
+```liva
+// Open database (creates file if needed)
+let db, err = DB.open("myapp.db")
+
+// Execute SQL (CREATE, INSERT, UPDATE, DELETE)
+let _, err2 = DB.exec(db, "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT)")
+let _, err3 = DB.exec(db, "INSERT INTO users (name) VALUES (?)", ["Alice"])
+
+// Query rows → [Map<string, string>]
+let rows, err4 = DB.query(db, "SELECT * FROM users")
+for row in rows {
+    print("Name: " + row.get("name"))
+}
+
+// Query with params
+let results, err5 = DB.query(db, "SELECT * FROM users WHERE name = ?", ["Alice"])
+
+// Close connection
+DB.close(db)
+```
+
 ---
 
 ## Complete Example

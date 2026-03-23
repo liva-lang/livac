@@ -1,10 +1,10 @@
 # 🔧 Liva Compiler Context
 
 > **Proyecto:** livac - El compilador de Liva  
-> **Versión:** v1.5.0-dev (tag: v1.2.0)  
+> **Versión:** v1.8.0-dev (tag: v1.2.0)  
 > **Lenguaje:** Rust  
-> **Tests:** 456 passing  
-> **Próximo objetivo:** v1.7 — Stdlib P2 + HTTP Server  
+> **Tests:** 458 passing  
+> **Próximo objetivo:** v1.8 — Linter  
 > **Última actualización:** 2026-03-23
 
 ---

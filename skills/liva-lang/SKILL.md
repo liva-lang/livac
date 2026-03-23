@@ -382,6 +382,18 @@ let json = JSON.stringify(obj)
 let resp, err = async HTTP.get(url)
 let resp, err = async HTTP.post(url, body)        // Also: .put(), .delete()
 resp.status / resp.body / resp.json()
+
+// DB — SQLite (crate rusqlite bundled, auto-injected)
+let db, err = DB.open("myapp.db")                    // Open/create database
+let _, err2 = DB.exec(db, "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT)")
+let _, err3 = DB.exec(db, "INSERT INTO users (name) VALUES (?)", ["Alice"])  // Parameterized
+let rows, err4 = DB.query(db, "SELECT * FROM users")  // → [Map<string, string>]
+let results, err5 = DB.query(db, "SELECT * FROM users WHERE name = ?", ["Alice"])
+for row in rows {
+    print("Name: " + row.get("name"))                // Auto-unwraps in string context
+    let name = row.get("name") or "unknown"          // Explicit default
+}
+DB.close(db)                                          // Close connection
 ```
 
 ## Rust Interop *(v1.5.0)*
@@ -494,6 +506,7 @@ For detailed documentation on each topic, read the corresponding file in `refere
 - `references/stdlib/math.md` — Math constants and functions
 - `references/stdlib/conversions.md` — parseInt, parseFloat, toString
 - `references/stdlib/system.md` — Sys.args, Sys.env, Sys.exit, HTTP client, JSON
+- `references/stdlib/db.md` — DB.open, DB.exec, DB.query, DB.close (SQLite)
 
 ### Guides
 - `references/quick-reference.md` — Complete quick reference card (all syntax in one file)

@@ -73,6 +73,8 @@ pub struct CodeGenerator {
     date_vars: std::collections::HashSet<String>, // Track which variables are Date (chrono::NaiveDateTime)
     server_vars: std::collections::HashSet<String>, // Track which variables are HTTP Server (axum::Router)
     server_request_param: Option<String>, // Inside server handler, name of the request param (for req.params → __params)
+    db_vars: std::collections::HashSet<String>, // Track which variables are DB connections (rusqlite::Connection)
+    map_array_vars: std::collections::HashSet<String>, // Track Vec<HashMap<String,String>> vars (from DB.query, CSV.readTable)
     native_vec_string_vars: std::collections::HashSet<String>, // Track Vec<String> from Sys.args() - use direct indexing
     mutated_vars: std::collections::HashSet<String>, // Track variables that are assigned after declaration (need mut)
     // --- Class/type metadata (for field resolution)
@@ -157,6 +159,8 @@ impl CodeGenerator {
             date_vars: std::collections::HashSet::new(),
             server_vars: std::collections::HashSet::new(),
             server_request_param: None,
+            db_vars: std::collections::HashSet::new(),
+            map_array_vars: std::collections::HashSet::new(),
             native_vec_string_vars: std::collections::HashSet::new(),
             mutated_vars: std::collections::HashSet::new(),
             class_fields: std::collections::HashMap::new(),
@@ -326,6 +330,9 @@ impl CodeGenerator {
                     }
                     if obj == "Crypto" {
                         return matches!(mc.method.as_str(), "base64Decode");
+                    }
+                    if obj == "DB" {
+                        return matches!(mc.method.as_str(), "open" | "exec" | "query");
                     }
                 }
                 false
@@ -5190,7 +5197,19 @@ impl CodeGenerator {
                                     } else { false }
                                 } else { false };
 
-                                if is_date_parse {
+                                let is_db_open = if let Expr::MethodCall(mc) = &var.init {
+                                    if let Expr::Identifier(obj) = mc.object.as_ref() {
+                                        obj == "DB" && mc.method == "open"
+                                    } else { false }
+                                } else { false };
+
+                                if is_db_open {
+                                    // DB.open returns (Option<Connection>, String) — Connection has no Default
+                                    // Use in-memory fallback so the variable is always valid (check err to detect failure)
+                                    self.output.push_str(") = { let (opt, err) = ");
+                                    self.generate_expr(&var.init)?;
+                                    self.output.push_str("; (opt.unwrap_or_else(|| rusqlite::Connection::open_in_memory().unwrap()), err) };\n");
+                                } else if is_date_parse {
                                     self.output.push_str(") = { let (opt, err) = ");
                                     self.generate_expr(&var.init)?;
                                     self.output.push_str("; (opt.unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap()), err) };\n");
@@ -5253,6 +5272,25 @@ impl CodeGenerator {
                                                 if let Some(name) = first_binding.name() {
                                                     let sanitized = self.sanitize_name(name);
                                                     self.array_vars.insert(sanitized);
+                                                }
+                                            }
+                                        }
+                                        // Track DB.open() result as db connection variable
+                                        if obj == "DB" && mc.method == "open" {
+                                            if let Some(first_binding) = var.bindings.first() {
+                                                if let Some(name) = first_binding.name() {
+                                                    let sanitized = self.sanitize_name(name);
+                                                    self.db_vars.insert(sanitized);
+                                                }
+                                            }
+                                        }
+                                        // Track DB.query() result as array variable (Vec<HashMap<String,String>>)
+                                        if obj == "DB" && mc.method == "query" {
+                                            if let Some(first_binding) = var.bindings.first() {
+                                                if let Some(name) = first_binding.name() {
+                                                    let sanitized = self.sanitize_name(name);
+                                                    self.array_vars.insert(sanitized.clone());
+                                                    self.map_array_vars.insert(sanitized);
                                                 }
                                             }
                                         }
@@ -5570,6 +5608,12 @@ impl CodeGenerator {
                                         self.mutated_vars.insert(name.to_string());
                                     }
                                 }
+                                // DB.open() returns rusqlite::Connection (tracked for DB.exec/query/close)
+                                if obj_name == "DB" && method_call.method == "open" {
+                                    if let Some(name) = binding.name() {
+                                        self.db_vars.insert(name.to_string());
+                                    }
+                                }
                                 // d.add() on a Date variable also returns Date
                                 let sanitized_obj = self.sanitize_name(obj_name);
                                 if self.date_vars.contains(&sanitized_obj) && method_call.method == "add" {
@@ -5876,6 +5920,10 @@ impl CodeGenerator {
                         && !self.typed_array_vars.contains_key(&sanitized_iterable)
                     {
                         self.string_vars.insert(var_name.clone());
+                    }
+                    // DB.query() results: Vec<HashMap<String,String>> — loop var is a HashMap
+                    if self.map_array_vars.contains(&sanitized_iterable) {
+                        self.map_vars.insert(var_name.clone());
                     }
                 }
                 // Also handle `for item in obj.field` where obj is a class instance
@@ -8712,6 +8760,11 @@ impl CodeGenerator {
             // Check if this is a Response constructor (Response.json, Response.text, etc.)
             if name == "Response" {
                 return self.generate_response_function_call(method_call);
+            }
+
+            // Check if this is a DB function call (DB.open, DB.exec, etc.)
+            if name == "DB" {
+                return self.generate_db_function_call(method_call);
             }
 
             // Bug #40: Check if this is a module alias call (import * as alias from "...")
@@ -12628,6 +12681,102 @@ impl CodeGenerator {
         Ok(())
     }
 
+    fn generate_db_function_call(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
+        match method_call.method.as_str() {
+            "open" => {
+                // DB.open(path) → (Option<Connection>, String) — fallible
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "DB.open requires exactly 1 argument",
+                        "Usage: let db, err = DB.open(path)",
+                    )));
+                }
+                self.output.push_str("{ let __path = ");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str("; match rusqlite::Connection::open(&__path) { Ok(conn) => (Some(conn), String::new()), Err(e) => (None, format!(\"DB.open error: {}\", e)) } }");
+            }
+            "exec" => {
+                // DB.exec(db, sql) or DB.exec(db, sql, params) → (Option<String>, String) — fallible
+                if method_call.args.len() < 2 || method_call.args.len() > 3 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "DB.exec requires 2-3 arguments",
+                        "Usage: DB.exec(db, sql) or DB.exec(db, sql, params)",
+                    )));
+                }
+                self.output.push_str("{ let __sql = ");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str("; ");
+                if method_call.args.len() == 3 {
+                    // With params
+                    self.output.push_str("let __params: Vec<String> = ");
+                    self.generate_expr(&method_call.args[2])?;
+                    self.output.push_str(".iter().map(|s| s.to_string()).collect(); let __param_refs: Vec<&dyn rusqlite::types::ToSql> = __params.iter().map(|s| s as &dyn rusqlite::types::ToSql).collect(); match ");
+                    self.generate_expr(&method_call.args[0])?;
+                    self.output.push_str(".execute(&__sql, __param_refs.as_slice()) { Ok(_) => (Some(String::new()), String::new()), Err(e) => (None, format!(\"DB.exec error: {}\", e)) } }");
+                } else {
+                    // No params
+                    self.output.push_str("match ");
+                    self.generate_expr(&method_call.args[0])?;
+                    self.output.push_str(".execute_batch(&__sql) { Ok(_) => (Some(String::new()), String::new()), Err(e) => (None, format!(\"DB.exec error: {}\", e)) } }");
+                }
+            }
+            "query" => {
+                // DB.query(db, sql) or DB.query(db, sql, params) → (Option<Vec<HashMap>>, String) — fallible
+                if method_call.args.len() < 2 || method_call.args.len() > 3 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "DB.query requires 2-3 arguments",
+                        "Usage: DB.query(db, sql) or DB.query(db, sql, params)",
+                    )));
+                }
+                self.output.push_str("{ let __sql = ");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str("; ");
+
+                if method_call.args.len() == 3 {
+                    // With params
+                    self.output.push_str("let __params: Vec<String> = ");
+                    self.generate_expr(&method_call.args[2])?;
+                    self.output.push_str(".iter().map(|s| s.to_string()).collect(); let __param_refs: Vec<&dyn rusqlite::types::ToSql> = __params.iter().map(|s| s as &dyn rusqlite::types::ToSql).collect(); match ");
+                    self.generate_expr(&method_call.args[0])?;
+                    self.output.push_str(".prepare(&__sql) { Ok(mut stmt) => { match stmt.query_map(__param_refs.as_slice(), |row| { let count = row.as_ref().column_count(); let mut map = std::collections::HashMap::<String, String>::new(); for i in 0..count { let col_name = row.as_ref().column_name(i).unwrap_or(\"\").to_string(); let val: String = row.get::<_, rusqlite::types::Value>(i).map(|v| match v { rusqlite::types::Value::Null => String::new(), rusqlite::types::Value::Integer(n) => n.to_string(), rusqlite::types::Value::Real(f) => f.to_string(), rusqlite::types::Value::Text(s) => s, rusqlite::types::Value::Blob(b) => format!(\"{:?}\", b), }).unwrap_or_default(); map.insert(col_name, val); } Ok(map) }) { Ok(rows) => { let result: Vec<std::collections::HashMap<String, String>> = rows.filter_map(|r| r.ok()).collect(); (Some(result), String::new()) }, Err(e) => (None, format!(\"DB.query error: {}\", e)) } }, Err(e) => (None, format!(\"DB.query error: {}\", e)) } }");
+                } else {
+                    // No params
+                    self.output.push_str("match ");
+                    self.generate_expr(&method_call.args[0])?;
+                    self.output.push_str(".prepare(&__sql) { Ok(mut stmt) => { match stmt.query_map([], |row| { let count = row.as_ref().column_count(); let mut map = std::collections::HashMap::<String, String>::new(); for i in 0..count { let col_name = row.as_ref().column_name(i).unwrap_or(\"\").to_string(); let val: String = row.get::<_, rusqlite::types::Value>(i).map(|v| match v { rusqlite::types::Value::Null => String::new(), rusqlite::types::Value::Integer(n) => n.to_string(), rusqlite::types::Value::Real(f) => f.to_string(), rusqlite::types::Value::Text(s) => s, rusqlite::types::Value::Blob(b) => format!(\"{:?}\", b), }).unwrap_or_default(); map.insert(col_name, val); } Ok(map) }) { Ok(rows) => { let result: Vec<std::collections::HashMap<String, String>> = rows.filter_map(|r| r.ok()).collect(); (Some(result), String::new()) }, Err(e) => (None, format!(\"DB.query error: {}\", e)) } }, Err(e) => (None, format!(\"DB.query error: {}\", e)) } }");
+                }
+            }
+            "close" => {
+                // DB.close(db) → drop the connection (no-op, Rust drops automatically)
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "DB.close requires exactly 1 argument",
+                        "Usage: DB.close(db)",
+                    )));
+                }
+                self.output.push_str("drop(");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push(')');
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3000",
+                    &format!("Unknown DB function: {}", method_call.method),
+                    "Available: open(path), exec(db, sql[, params]), query(db, sql[, params]), close(db)",
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
     fn generate_random_function_call(
         &mut self,
         method_call: &crate::ast::MethodCallExpr,
@@ -13570,6 +13719,21 @@ impl CodeGenerator {
 
     /// Generate an expression with special handling for error binding variables in string context
     fn generate_expr_for_string_concat(&mut self, expr: &Expr) -> Result<()> {
+        // Handle map.get() calls in string concatenation → unwrap Option<String> to String
+        if let Expr::MethodCall(mc) = expr {
+            if mc.method == "get" {
+                let is_map = if let Expr::Identifier(name) = mc.object.as_ref() {
+                    self.map_vars.contains(&self.sanitize_name(name))
+                } else {
+                    false
+                };
+                if is_map {
+                    self.generate_map_method_call(mc)?;
+                    self.output.push_str(".unwrap_or_default()");
+                    return Ok(());
+                }
+            }
+        }
         // Check if this is an error binding variable
         if let Expr::Identifier(name) = expr {
             let sanitized = self.sanitize_name(name);
@@ -17390,6 +17554,10 @@ pub fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
         cargo_toml.push_str("axum = \"0.8\"\n");
     }
 
+    if ctx.has_db {
+        cargo_toml.push_str("rusqlite = { version = \"0.32\", features = [\"bundled\"] }\n");
+    }
+
     // Add user-specified crates (with version and features support)
     for dep in &ctx.rust_crates {
         let crate_name = &dep.name;
@@ -17400,7 +17568,8 @@ pub fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
             || (crate_name == "regex" && ctx.has_regex)
             || ((crate_name == "sha2" || crate_name == "md-5" || crate_name == "base64") && ctx.has_crypto)
             || (crate_name == "uuid" && ctx.has_random)
-            || (crate_name == "axum" && ctx.has_server) {
+            || (crate_name == "axum" && ctx.has_server)
+            || (crate_name == "rusqlite" && ctx.has_db) {
             // For internal crates, only merge additional features
             if !dep.features.is_empty() {
                 // Already handled: user can add features to internal crates
@@ -17442,6 +17611,7 @@ mod tests {
             has_date: false,
             has_crypto: false,
             has_server: false,
+            has_db: false,
             async_functions: std::collections::BTreeSet::new(),
             source_filename: String::new(),
         });

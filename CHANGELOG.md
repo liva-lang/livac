@@ -5,6 +5,48 @@ All notable changes to the Liva compiler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0-dev] - 2026-03-23
+
+### Added - DB Module (SQLite) 🗄️
+
+**4 database functions with crate `rusqlite` (bundled) auto-injected — embedded SQLite with zero external dependencies.**
+
+```liva
+// Open database
+let db, err = DB.open("myapp.db")
+
+// Create tables and insert data
+let _, err2 = DB.exec(db, "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT)")
+let _, err3 = DB.exec(db, "INSERT INTO users (name) VALUES (?)", ["Alice"])
+
+// Query rows → [Map<string, string>]
+let rows, err4 = DB.query(db, "SELECT * FROM users")
+for row in rows {
+    print("Name: " + row.get("name"))
+}
+
+// Close connection
+DB.close(db)
+```
+
+#### Functions
+- `DB.open(path)` → `connection, error` — open/create SQLite database (fallible)
+- `DB.exec(db, sql[, params])` → `_, error` — execute SQL statements (fallible)
+- `DB.query(db, sql[, params])` → `rows, error` — query returning `[Map<string, string>]` (fallible)
+- `DB.close(db)` — close connection
+
+#### Compiler Changes
+- **Desugaring**: `has_db` flag detects `DB.*` usage
+- **Codegen**: `generate_db_function_call()` — 4 methods (open, exec, query, close)
+- **Codegen**: `rusqlite = { version = "0.32", features = ["bundled"] }` auto-injected into Cargo.toml
+- **Codegen**: `db_vars` tracking for `rusqlite::Connection` variables
+- **Codegen**: `map_array_vars` tracking for query results (`Vec<HashMap<String,String>>`)
+- **Codegen**: Auto-unwrap `row.get()` in string concatenation context
+- **Codegen**: Special `DB.open` fallback (Connection has no Default → uses `open_in_memory`)
+- **Tests**: 2 new snapshot tests (458 total)
+- **Docs**: `db.md`, stdlib README updated
+- **Example**: `examples/db-demo/main.liva`
+
 ## [1.6.0-dev] - 2026-03-23
 
 ### Added - File & Dir Extended Operations 📁
