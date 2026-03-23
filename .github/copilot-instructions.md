@@ -145,8 +145,10 @@ skills/liva-lang/
 
 ### Dogfooding
 - **79/79 bugs corregidos** (Dogfooding v1: 9 bugs #63-#74, v2: 8 bugs #75-#82)
-- **387 tests** totales (186 codegen, 6 desugar, 17 semantic snapshot tests + 11 Liva e2e + 6 init)
+- **387+ tests** totales (228 codegen, 6 desugar, 17 semantic snapshot tests + 11 Liva e2e + 6 init + doctests)
 - **63 Liva assertion tests** (28 string + 26 array + 9 math) — cobertura completa de stdlib
+- **File (11 funciones):** read, write, append, exists, delete, copy, move, size, extension, readLines, writeLines
+- **Dir (7 funciones):** list, isDir, exists, create, delete, listRecursive, walk
 
 ---
 
@@ -157,7 +159,7 @@ Liva está en camino a producción. El plan completo está en `docs/plans/PLAN_P
 ```
 v1.4  Stdlib P0 — String (+15), Array (+20), Math (+3)       ✅ completado
 v1.5  rust { } interop + Logging + Config + livac init       ✅ completado
-v1.6  Stdlib P1 — File, Dir, Date, Regex, CSV/Table          ← NEXT
+v1.6  Stdlib P1 — File, Dir, Date, Regex, CSV/Table          ← IN PROGRESS (File/Dir ✅)
 v1.7  Stdlib P2 + HTTP Server                                ← backends reales
 v1.8  DB + REPL + Linter                                     ← adopción
 v2.0  Dogfooding — API REST completa con DB                  ← validación

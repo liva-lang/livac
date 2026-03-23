@@ -1,6 +1,6 @@
 # File & Directory I/O Operations
 
-> **Version**: 1.3.0  
+> **Version**: 1.6.0  
 > **Status**: Stable
 
 ## Overview
@@ -188,8 +188,229 @@ if err {
 
 **Warning:**
 - This operation is **irreversible**
-- Does not work on directories (use OS-specific commands)
+- Does not work on directories (use `Dir.delete()`)
 - No confirmation prompt - file is deleted immediately
+
+---
+
+### File.copy() *(v1.6.0)*
+
+Copies a file from one location to another.
+
+**Signature:**
+```liva
+File.copy(src: string, dest: string): (bool?, Error?)
+```
+
+**Parameters:**
+- `src`: Path to the source file
+- `dest`: Path to the destination file
+
+**Returns:**
+- Success: `(Some(true), None)`
+- Failure: `(Some(false), Some(Error))` if copy fails
+
+**Example:**
+```liva
+let ok, err = File.copy("data.csv", "data_backup.csv")
+
+if err {
+    print($"Copy failed: {err}")
+} else {
+    print("Backup created successfully")
+}
+```
+
+**Behavior:**
+- Overwrites the destination if it already exists
+- Preserves file permissions on Unix
+- Does not copy directories (use `Dir.create()` + recursive copy)
+
+**Error Scenarios:**
+- Source doesn't exist: `"File copy error: No such file or directory (os error 2)"`
+- Permission denied: `"File copy error: Permission denied (os error 13)"`
+
+---
+
+### File.move() *(v1.6.0)*
+
+Moves or renames a file.
+
+**Signature:**
+```liva
+File.move(src: string, dest: string): (bool?, Error?)
+```
+
+**Parameters:**
+- `src`: Current path of the file
+- `dest`: New path for the file
+
+**Returns:**
+- Success: `(Some(true), None)`
+- Failure: `(Some(false), Some(Error))` if move fails
+
+**Example:**
+```liva
+let ok, err = File.move("draft.txt", "final.txt")
+
+if err {
+    print($"Move failed: {err}")
+}
+```
+
+**Behavior:**
+- Works as rename when source and dest are in the same directory
+- Overwrites the destination if it already exists
+- May fail across different filesystems/mount points
+
+**Error Scenarios:**
+- Source doesn't exist: `"File move error: No such file or directory (os error 2)"`
+- Cross-device move: `"File move error: Invalid cross-device link (os error 18)"`
+
+---
+
+### File.size() *(v1.6.0)*
+
+Returns the size of a file in bytes.
+
+**Signature:**
+```liva
+File.size(path: string): (int?, Error?)
+```
+
+**Parameters:**
+- `path`: Path to the file
+
+**Returns:**
+- Success: `(Some(bytes), None)` where `bytes` is the file size as an integer
+- Failure: `(None, Some(Error))` if metadata can't be read
+
+**Example:**
+```liva
+let bytes, err = File.size("data.bin")
+
+if err == "" {
+    print($"File size: {bytes} bytes")
+    if bytes > 1048576 {
+        print("File is larger than 1MB")
+    }
+}
+```
+
+**Error Scenarios:**
+- File doesn't exist: `"File size error: No such file or directory (os error 2)"`
+- Permission denied: `"File size error: Permission denied (os error 13)"`
+
+---
+
+### File.extension() *(v1.6.0)*
+
+Returns the file extension (without the dot).
+
+**Signature:**
+```liva
+File.extension(path: string): string
+```
+
+**Parameters:**
+- `path`: Path to the file
+
+**Returns:**
+- The extension as a string (e.g., `"txt"`, `"json"`, `"rs"`)
+- Empty string `""` if the file has no extension
+
+**Example:**
+```liva
+let ext = File.extension("photo.jpg")
+print($"Extension: {ext}")  // "Extension: jpg"
+
+let noExt = File.extension("Makefile")
+print($"Extension: '{noExt}'")  // "Extension: ''"
+
+let dotfile = File.extension(".gitignore")
+print($"Extension: '{dotfile}'")  // "Extension: 'gitignore'"
+```
+
+**Note:**
+- Like `File.exists()`, this does **not** use error binding (never fails)
+- Returns the last extension only: `"archive.tar.gz"` → `"gz"`
+- Does not include the leading dot
+
+---
+
+### File.readLines() *(v1.6.0)*
+
+Reads a file and returns its contents as an array of lines.
+
+**Signature:**
+```liva
+File.readLines(path: string): ([string]?, Error?)
+```
+
+**Parameters:**
+- `path`: Path to the file
+
+**Returns:**
+- Success: `(Some(lines), None)` where `lines` is an array of strings (one per line)
+- Failure: `(None, Some(Error))` if file can't be read
+
+**Example:**
+```liva
+let lines, err = File.readLines("data.txt")
+
+if err == "" {
+    print($"Read {lines.length} lines")
+    for line in lines {
+        print(line)
+    }
+}
+```
+
+**Behavior:**
+- Splits on `\n` (handles both `\n` and `\r\n`)
+- Empty file returns an array with one empty string `[""]`
+- Trailing newline does not produce an extra empty element
+
+**Error Scenarios:**
+- Same as `File.read()` (file not found, permission denied, etc.)
+
+---
+
+### File.writeLines() *(v1.6.0)*
+
+Writes an array of strings to a file, one per line.
+
+**Signature:**
+```liva
+File.writeLines(path: string, lines: [string]): (bool?, Error?)
+```
+
+**Parameters:**
+- `path`: Path to the file
+- `lines`: Array of strings to write
+
+**Returns:**
+- Success: `(Some(true), None)`
+- Failure: `(Some(false), Some(Error))` if write fails
+
+**Example:**
+```liva
+let lines = ["name,age,city", "Alice,30,NYC", "Bob,25,LAX"]
+let ok, err = File.writeLines("output.csv", lines)
+
+if err != "" {
+    print($"Write error: {err}")
+}
+```
+
+**Behavior:**
+- Joins lines with `\n` separator
+- Creates the file if it doesn't exist
+- Overwrites existing content
+- No trailing newline after the last line
+
+**Error Scenarios:**
+- Same as `File.write()` (permission denied, disk full, etc.)
 
 ---
 
@@ -273,9 +494,174 @@ if Dir.isDir("./src") {
 
 ---
 
+### Dir.exists() *(v1.6.0)*
+
+Checks whether a path exists **and is a directory**.
+
+**Signature:**
+```liva
+Dir.exists(path: string): bool
+```
+
+**Parameters:**
+- `path`: Path to check
+
+**Returns:**
+- `true` if the path exists and is a directory
+- `false` if the path doesn't exist or is a regular file
+
+**Example:**
+```liva
+if Dir.exists("./output") {
+    print("Output directory exists")
+} else {
+    let ok, err = Dir.create("./output")
+}
+```
+
+**Notes:**
+- Unlike `File.exists()` (which returns `true` for both files and dirs), `Dir.exists()` only returns `true` for directories
+- Does not use error binding
+
+---
+
+### Dir.create() *(v1.6.0)*
+
+Creates a directory (and any missing parent directories).
+
+**Signature:**
+```liva
+Dir.create(path: string): (bool?, Error?)
+```
+
+**Parameters:**
+- `path`: Path to the directory to create
+
+**Returns:**
+- Success: `(Some(true), None)`
+- Failure: `(Some(false), Some(Error))` if creation fails
+
+**Example:**
+```liva
+let ok, err = Dir.create("./output/reports/2026")
+
+if err != "" {
+    print($"Create failed: {err}")
+} else {
+    print("Directory created (including parents)")
+}
+```
+
+**Behavior:**
+- Creates all intermediate directories (like `mkdir -p`)
+- Succeeds silently if the directory already exists
+- Fails if a file exists at the given path
+
+**Error Scenarios:**
+- Permission denied: `"Dir.create error: Permission denied (os error 13)"`
+- Path is a file: `"Dir.create error: File exists (os error 17)"`
+
+---
+
+### Dir.delete() *(v1.6.0)*
+
+Deletes a directory and all its contents recursively.
+
+**Signature:**
+```liva
+Dir.delete(path: string): (bool?, Error?)
+```
+
+**Parameters:**
+- `path`: Path to the directory to delete
+
+**Returns:**
+- Success: `(Some(true), None)`
+- Failure: `(Some(false), Some(Error))` if deletion fails
+
+**Example:**
+```liva
+let ok, err = Dir.delete("./temp")
+
+if err != "" {
+    print($"Delete failed: {err}")
+} else {
+    print("Temp directory removed")
+}
+```
+
+**Warning:**
+- This operation is **irreversible** and removes all contents recursively
+- Equivalent to `rm -rf` on Unix
+
+**Error Scenarios:**
+- Directory doesn't exist: `"Dir.delete error: No such file or directory (os error 2)"`
+- Permission denied: `"Dir.delete error: Permission denied (os error 13)"`
+
+---
+
+### Dir.listRecursive() / Dir.walk() *(v1.6.0)*
+
+Lists all files and directories recursively under a given path.
+
+**Signature:**
+```liva
+Dir.listRecursive(path: string): ([string]?, Error?)
+Dir.walk(path: string): ([string]?, Error?)
+```
+
+**Parameters:**
+- `path`: Root path to traverse
+
+**Returns:**
+- Success: `(Some(paths), None)` where `paths` is a sorted array of relative paths
+- Failure: `(None, Some(Error))` if traversal fails
+
+**Example:**
+```liva
+let files, err = Dir.listRecursive("./src")
+
+if err == "" {
+    print($"Found {files.length} entries")
+    for f in files {
+        print(f)
+    }
+}
+// Output:
+// Found 5 entries
+// main.liva
+// utils/helpers.liva
+// utils/math.liva
+// tests/test_main.liva
+// tests/test_utils.liva
+```
+
+**Behavior:**
+- Returns relative paths from the given root
+- Includes both files and subdirectories
+- Results are sorted alphabetically
+- `Dir.walk()` is an alias for `Dir.listRecursive()` — identical behavior
+
+**Error Scenarios:**
+- Directory doesn't exist: `"Dir.listRecursive error: No such file or directory (os error 2)"`
+- Permission denied inside tree: `"Dir.listRecursive error: Permission denied (os error 13)"`
+
+---
+
 ### Directory Traversal Pattern
 
 ```liva
+// Simple: using Dir.listRecursive (v1.6+)
+let files, err = Dir.listRecursive("./src")
+if err == "" {
+    for f in files {
+        if File.extension(f) == "liva" {
+            print($"Liva source: {f}")
+        }
+    }
+}
+
+// Manual: using Dir.list + Dir.isDir for custom logic
 searchDir(query: string, dirPath: string) {
     let entries, err = Dir.list(dirPath)
     if err {
@@ -289,7 +675,6 @@ searchDir(query: string, dirPath: string) {
         if Dir.isDir(fullPath) {
             searchDir(query, fullPath)
         } else {
-            // Process file
             let content, readErr = File.read(fullPath)
             if !readErr {
                 if content.contains(query) {
@@ -417,6 +802,18 @@ All File operations are implemented using Rust's standard library:
 - **`File.append()`** → `std::fs::OpenOptions::new().create(true).append(true).open().write_all()`
 - **`File.exists()`** → `std::path::Path::new().exists()`
 - **`File.delete()`** → `std::fs::remove_file()`
+- **`File.copy()`** → `std::fs::copy()` *(v1.6)*
+- **`File.move()`** → `std::fs::rename()` *(v1.6)*
+- **`File.size()`** → `std::fs::metadata().len()` *(v1.6)*
+- **`File.extension()`** → `std::path::Path::new().extension()` *(v1.6)*
+- **`File.readLines()`** → `std::fs::read_to_string().lines().collect()` *(v1.6)*
+- **`File.writeLines()`** → `std::fs::write(lines.join("\n"))` *(v1.6)*
+- **`Dir.list()`** → `std::fs::read_dir()`
+- **`Dir.isDir()`** → `std::path::Path::new().is_dir()`
+- **`Dir.exists()`** → `Path::exists() && Path::is_dir()` *(v1.6)*
+- **`Dir.create()`** → `std::fs::create_dir_all()` *(v1.6)*
+- **`Dir.delete()`** → `std::fs::remove_dir_all()` *(v1.6)*
+- **`Dir.listRecursive()` / `Dir.walk()`** → recursive `std::fs::read_dir()` *(v1.6)*
 
 ### Error Binding Integration
 
@@ -448,29 +845,25 @@ println!("{}", format!("{}{}", "Content: ", content.as_ref().map(|v| v.to_string
 
 ## Limitations
 
-1. **No Directory Operations**
-   - Cannot create, list, or remove directories
-   - `File.exists()` returns `true` for directories but other operations fail
-
-2. **No Metadata Access**
-   - Cannot read file size, permissions, timestamps
-   - Cannot set file attributes
-
-3. **Synchronous Only**
+1. **Synchronous Only**
    - All operations block until completion
    - No async/await for file I/O (yet)
 
-4. **No Streaming**
+2. **No Streaming**
    - Entire file is read/written at once
    - Not suitable for very large files (>100MB)
 
-5. **UTF-8 Only**
+3. **UTF-8 Only**
    - Files are treated as UTF-8 text
    - Binary files not supported
 
-6. **No Path Manipulation**
+4. **No Path Manipulation**
    - Cannot join paths, resolve relatives, normalize
    - Use string concatenation for path building
+
+5. **No File Permissions/Timestamps**
+   - Cannot read or set file permissions
+   - Cannot read modification timestamps
 
 ---
 
@@ -544,7 +937,20 @@ if File.exists("important.db") {
 
 ## Version History
 
-### v1.3.0 (Current)
+### v1.6.0 (Current)
+- ✨ Added `File.copy()` — Copy files
+- ✨ Added `File.move()` — Move/rename files
+- ✨ Added `File.size()` — Get file size in bytes
+- ✨ Added `File.extension()` — Get file extension
+- ✨ Added `File.readLines()` — Read file as array of lines
+- ✨ Added `File.writeLines()` — Write array of lines to file
+- ✨ Added `Dir.exists()` — Check if path is a directory
+- ✨ Added `Dir.create()` — Create directory (recursive)
+- ✨ Added `Dir.delete()` — Delete directory (recursive)
+- ✨ Added `Dir.listRecursive()` / `Dir.walk()` — List files recursively
+- 🔧 Parser: Allow `move` keyword as method name for `File.move()`
+
+### v1.3.0
 - ✨ Added `Dir.list()` — List directory entries with error binding
 - ✨ Added `Dir.isDir()` — Check if path is a directory
 - ✅ Directory traversal support for recursive file operations
@@ -553,7 +959,7 @@ if File.exists("important.db") {
 - ✨ Initial implementation of File I/O operations
 - ✅ All 5 File operations: `read`, `write`, `append`, `exists`, `delete`
 - ✅ Error binding integration
-- ✅ Comprehensive test coverage (27 test cases)
+- ✅ Comprehensive test coverage
 
 ---
 

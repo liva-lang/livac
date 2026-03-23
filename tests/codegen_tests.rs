@@ -5265,3 +5265,117 @@ main() {
     assert!(rust_code.contains("transform("), "Should contain the function call: {}", rust_code);
     assert_snapshot!("template_nested_quotes", rust_code);
 }
+
+// ---------------------------------------------------------------------------
+// v1.6: File extended operations (copy, move, size, extension, readLines, writeLines)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_file_copy_move_size_extension() {
+    let source = r#"
+main() {
+    // File.copy - returns (bool, error)
+    let ok, copyErr = File.copy("src.txt", "dest.txt")
+    if copyErr != "" {
+        print($"Copy error: {copyErr}")
+    }
+
+    // File.move - returns (bool, error)
+    let moved, moveErr = File.move("old.txt", "new.txt")
+
+    // File.size - returns (int, error)
+    let bytes, sizeErr = File.size("data.bin")
+    if sizeErr == "" {
+        print($"File size: {bytes} bytes")
+    }
+
+    // File.extension - returns string (no error binding)
+    let ext = File.extension("photo.jpg")
+    print($"Extension: {ext}")
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("std::fs::copy"), "Should contain fs::copy: {}", rust_code);
+    assert!(rust_code.contains("std::fs::rename"), "Should contain fs::rename: {}", rust_code);
+    assert!(rust_code.contains("std::fs::metadata"), "Should contain fs::metadata: {}", rust_code);
+    assert!(rust_code.contains(".extension()"), "Should contain .extension(): {}", rust_code);
+    assert_snapshot!("file_copy_move_size_extension", rust_code);
+}
+
+#[test]
+fn test_file_readlines_writelines() {
+    let source = r#"
+main() {
+    // File.readLines - returns ([string], error)
+    let lines, err = File.readLines("data.txt")
+    if err == "" {
+        print($"Read {lines.length} lines")
+    }
+
+    // File.writeLines - returns (bool, error)
+    let ok, writeErr = File.writeLines("output.txt", ["line1", "line2", "line3"])
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("lines()"), "Should contain lines(): {}", rust_code);
+    assert!(rust_code.contains("join(\"\\n\")"), "Should contain join newline: {}", rust_code);
+    assert_snapshot!("file_readlines_writelines", rust_code);
+}
+
+// ---------------------------------------------------------------------------
+// v1.6: Dir extended operations (exists, create, delete, listRecursive/walk)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_dir_exists_create_delete() {
+    let source = r#"
+main() {
+    // Dir.exists - returns bool (no error binding)
+    if Dir.exists("./output") {
+        print("Output dir exists")
+    }
+
+    // Dir.create - returns (bool, error)
+    let ok, createErr = Dir.create("./output/subdir")
+    if createErr != "" {
+        print($"Create error: {createErr}")
+    }
+
+    // Dir.delete - returns (bool, error)
+    let deleted, delErr = Dir.delete("./temp")
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("is_dir()"), "Should contain is_dir(): {}", rust_code);
+    assert!(rust_code.contains("create_dir_all"), "Should contain create_dir_all: {}", rust_code);
+    assert!(rust_code.contains("remove_dir_all"), "Should contain remove_dir_all: {}", rust_code);
+    assert_snapshot!("dir_exists_create_delete", rust_code);
+}
+
+#[test]
+fn test_dir_list_recursive_and_walk() {
+    let source = r#"
+main() {
+    // Dir.listRecursive - returns ([string], error)
+    let allFiles, err = Dir.listRecursive("./src")
+    if err == "" {
+        print($"Found {allFiles.length} files recursively")
+    }
+
+    // Dir.walk (alias for listRecursive)
+    let walked, walkErr = Dir.walk("./docs")
+    if walkErr == "" {
+        for f in walked {
+            print(f)
+        }
+    }
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("walk_dir"), "Should contain walk_dir: {}", rust_code);
+    assert_snapshot!("dir_list_recursive_and_walk", rust_code);
+}

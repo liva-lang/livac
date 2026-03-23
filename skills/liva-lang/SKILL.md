@@ -294,14 +294,24 @@ let num, err = parseInt("42")
 let val, err = parseFloat("3.14")
 let str = toString(42)
 
-// File I/O (error binding except File.exists)
+// File I/O (error binding except File.exists and File.extension)
 let content, err = File.read("file.txt")
 File.write("out.txt", "data") / File.append("log.txt", "line\n") / File.delete("tmp")
 File.exists("file.txt")                // bool, no error binding
+File.copy("src", "dst") / File.move("old", "new")   // (bool, error)
+let bytes, err = File.size("f.txt")    // (int, error)
+let ext = File.extension("f.jpg")      // "jpg" — string, no error binding
+let lines, err = File.readLines("f.txt")   // ([string], error)
+File.writeLines("f.txt", ["a", "b"])       // (bool, error)
 
 // Directory
 let entries, err = Dir.list("/path")   // [string] sorted
 Dir.isDir("/path")                     // bool, no error binding
+Dir.exists("/path")                    // bool — true only if dir
+let ok, err = Dir.create("./a/b/c")   // mkdir -p (recursive)
+let ok, err = Dir.delete("./tmp")     // rm -rf (recursive)
+let files, err = Dir.listRecursive("./src")  // All files, relative paths
+let files, err = Dir.walk("./docs")          // Alias for listRecursive
 
 // System
 Sys.args()                               // [string] — args[0] = program name, args[1..] = user args

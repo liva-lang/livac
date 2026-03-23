@@ -1,7 +1,7 @@
 # Liva Standard Library
 
-> **Status:** ✅ Complete (v1.5.0) - 78+ functions implemented! 🎉  
-> **Completion:** Arrays ✅ (31) | Strings ✅ (28) | Math ✅ (14) | Config ✅ (5) | Conversions ✅ | I/O ✅ | System ✅ | Logging ✅
+> **Status:** ✅ Complete (v1.6.0-dev) - 95+ functions implemented! 🎉  
+> **Completion:** Arrays ✅ (31) | Strings ✅ (28) | Math ✅ (14) | Config ✅ (5) | File ✅ (11) | Dir ✅ (7) | Conversions ✅ | I/O ✅ | System ✅ | Logging ✅
 
 The Liva Standard Library provides built-in functions and methods for common programming tasks.
 
@@ -119,6 +119,27 @@ Environment configuration loading from `.env` files with typed getters.
 - `Config.getBool(config, key)` - Get boolean value ✅
 - `Config.getAll(config)` - Get all entries as sorted map ✅
 - No external crates — uses only `std::fs` and `std::collections` ✅
+
+### ✅ [File & Dir I/O](../file-io.md)
+File and directory operations with error binding pattern.
+
+**Status:** Complete (v1.6) — 11 File + 7 Dir = 18 functions
+
+**File (v0.9+):**
+- `File.read(path)`, `File.write(path, content)`, `File.append(path, content)` ✅
+- `File.exists(path)`, `File.delete(path)` ✅
+
+**File (v1.6 — new):**
+- `File.copy(src, dest)`, `File.move(src, dest)` ✅
+- `File.size(path)`, `File.extension(path)` ✅
+- `File.readLines(path)`, `File.writeLines(path, lines)` ✅
+
+**Dir (v1.3+):**
+- `Dir.list(path)`, `Dir.isDir(path)` ✅
+
+**Dir (v1.6 — new):**
+- `Dir.exists(path)`, `Dir.create(path)`, `Dir.delete(path)` ✅
+- `Dir.listRecursive(path)` / `Dir.walk(path)` ✅
 
 ---
 

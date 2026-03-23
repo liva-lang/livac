@@ -3,7 +3,7 @@
 > **Objetivo:** Llevar Liva a producción real  
 > **Plan de diseño:** `docs/plans/PLAN_PRODUCTION_READINESS.md`  
 > **Prioridad:** Orden por versión = orden de implementación  
-> **Última actualización:** 2026-03-12
+> **Última actualización:** 2026-03-23
 
 ---
 
@@ -136,19 +136,25 @@
 > **Esfuerzo estimado:** ~16h  
 > **Impacto:** Scripts reales, posicionamiento vs Python.
 
-### File — ampliar `generate_file_function_call()`
+### File — ampliar `generate_file_function_call()` ✅
 
-- [ ] `File.exists(path)` → `bool`
-- [ ] `File.copy(src, dest)` → `error?`
-- [ ] `File.move(src, dest)` → `error?`
-- [ ] `File.size(path)` → `int, error`
-- [ ] `File.extension(path)` → `string`
+- [x] `File.copy(src, dest)` → `error?`
+- [x] `File.move(src, dest)` → `error?`
+- [x] `File.size(path)` → `int, error`
+- [x] `File.extension(path)` → `string`
+- [x] `File.readLines(path)` → `[string], error`
+- [x] `File.writeLines(path, lines)` → `error?`
+- [x] Parser: permitir `move` como nombre de método
 
-### Dir — ampliar `generate_dir_function_call()`
+### Dir — ampliar `generate_dir_function_call()` ✅
 
-- [ ] `Dir.exists(path)` → `bool`
-- [ ] `Dir.list(path)` → `[string], error`
-- [ ] `Dir.listRecursive(path)` → `[string], error`
+- [x] `Dir.exists(path)` → `bool`
+- [x] `Dir.create(path)` → `error?`
+- [x] `Dir.delete(path)` → `error?`
+- [x] `Dir.listRecursive(path)` → `[string], error`
+- [x] `Dir.walk(path)` → `[string], error` (alias de listRecursive)
+- [x] Tests (4 snapshot tests)
+- [x] Docs (`docs/language-reference/file-io.md` actualizado)
 
 ### Date — tipo nuevo (first-class)
 

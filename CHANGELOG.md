@@ -5,6 +5,51 @@ All notable changes to the Liva compiler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0-dev] - 2026-03-23
+
+### Added - File & Dir Extended Operations 📁
+
+**11 File functions + 7 Dir functions — complete filesystem toolkit for scripts and data processing.**
+
+#### File — New Functions (6)
+
+```liva
+// Copy, move, rename files
+let ok, err = File.copy("src.txt", "backup.txt")
+let ok, err = File.move("draft.txt", "final.txt")
+
+// File metadata
+let bytes, err = File.size("data.bin")        // Size in bytes
+let ext = File.extension("photo.jpg")         // "jpg" (no error binding)
+
+// Line-oriented I/O
+let lines, err = File.readLines("data.csv")   // Returns [string]
+let ok, err = File.writeLines("out.txt", ["line1", "line2"])
+```
+
+#### Dir — New Functions (5)
+
+```liva
+// Check, create, delete directories
+let exists = Dir.exists("./output")                  // true only for dirs
+let ok, err = Dir.create("./output/reports/2026")    // mkdir -p
+let ok, err = Dir.delete("./temp")                   // rm -rf (recursive)
+
+// Recursive listing
+let files, err = Dir.listRecursive("./src")          // All files, relative paths
+let files, err = Dir.walk("./docs")                  // Alias for listRecursive
+```
+
+#### Compiler Changes
+
+- **Codegen**: 6 new `File.*` methods in `generate_file_function_call()` (copy, move, size, extension, readLines, writeLines)
+- **Codegen**: 5 new `Dir.*` methods in `generate_dir_function_call()` (exists, create, delete, listRecursive, walk)
+- **Codegen**: Updated `is_file_call()` to recognize all new fallible methods
+- **Codegen**: Track `Dir.listRecursive`/`Dir.walk`/`File.readLines` results as `[string]` arrays
+- **Parser**: Allow `move` keyword as method name in `parse_method_name()` for `File.move()`
+- **Tests**: 4 new snapshot tests (total: 232 codegen tests)
+- **Docs**: Updated `file-io.md`, `QUICK_REFERENCE.md`, stdlib README
+
 ## [1.5.0] - 2026-03-20
 
 ### Added - `rust { }` Interop 🦀

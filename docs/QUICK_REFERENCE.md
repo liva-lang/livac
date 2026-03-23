@@ -1363,15 +1363,30 @@ let ok, err2 = File.write("out.txt", "Hello")
 let ok2, err3 = File.append("log.txt", "Line\n")
 let exists = File.exists("file.txt")
 let ok3, err4 = File.delete("temp.txt")
+
+// v1.6: Extended File operations
+let ok4, copyErr = File.copy("src.txt", "dest.txt")
+let ok5, moveErr = File.move("old.txt", "new.txt")
+let bytes, sizeErr = File.size("data.bin")
+let ext = File.extension("photo.jpg")           // "jpg"
+let lines, readErr = File.readLines("data.txt")  // [string]
+let ok6, writeErr = File.writeLines("out.txt", ["line1", "line2"])
 ```
 
-### Directory Operations *(v1.3.0)*
+### Directory Operations *(v1.3.0+)*
 
 ```liva
 let entries, err = Dir.list("./src")    // List directory entries
 let isDir = Dir.isDir("./src")          // Check if path is directory
 
-// Recursive traversal
+// v1.6: Extended Dir operations
+let dirExists = Dir.exists("./output")               // true if path is dir
+let ok, createErr = Dir.create("./output/subdir")     // mkdir -p
+let ok2, delErr = Dir.delete("./temp")                // rm -rf
+let files, walkErr = Dir.listRecursive("./src")       // All files recursively
+let files2, walkErr2 = Dir.walk("./docs")             // Alias for listRecursive
+
+// Recursive traversal (manual)
 for i in 0..entries.length {
     let entry = entries[i]
     let fullPath = dirPath + "/" + entry

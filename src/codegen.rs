@@ -298,10 +298,10 @@ impl CodeGenerator {
             Expr::MethodCall(mc) => {
                 if let Expr::Identifier(obj) = mc.object.as_ref() {
                     if obj == "File" {
-                        return matches!(mc.method.as_str(), "read" | "write" | "append" | "delete");
+                        return matches!(mc.method.as_str(), "read" | "write" | "append" | "delete" | "copy" | "move" | "size" | "readLines" | "writeLines");
                     }
                     if obj == "Dir" {
-                        return matches!(mc.method.as_str(), "list");
+                        return matches!(mc.method.as_str(), "list" | "create" | "delete" | "listRecursive" | "walk");
                     }
                     if obj == "Config" {
                         return matches!(mc.method.as_str(), "get" | "getInt" | "getBool" | "load");
@@ -5172,10 +5172,12 @@ impl CodeGenerator {
                                         self.string_error_vars.insert(self.sanitize_name(name));
                                     }
                                 }
-                                // Track Dir.list() result as array of strings for proper par_iter/map lambda patterns
+                                // Track Dir.list()/Dir.listRecursive()/Dir.walk()/File.readLines() result as array of strings for proper par_iter/map lambda patterns
                                 if let Expr::MethodCall(mc) = &var.init {
                                     if let Expr::Identifier(obj) = mc.object.as_ref() {
-                                        if obj == "Dir" && mc.method == "list" {
+                                        if (obj == "Dir" && matches!(mc.method.as_str(), "list" | "listRecursive" | "walk"))
+                                            || (obj == "File" && mc.method == "readLines")
+                                        {
                                             if let Some(first_binding) = var.bindings.first() {
                                                 if let Some(name) = first_binding.name() {
                                                     let sanitized = self.sanitize_name(name);
@@ -10911,11 +10913,101 @@ impl CodeGenerator {
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(") { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"File delete error: {}\", e)) })");
             }
+            "copy" => {
+                // File.copy(src, dest) returns (Option<bool>, String)
+                if method_call.args.len() != 2 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "File.copy requires exactly 2 arguments",
+                        "Usage: File.copy(src, dest)",
+                    )));
+                }
+
+                self.output.push_str("match std::fs::copy(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(", &");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str(") { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"File copy error: {}\", e)) }");
+            }
+            "move" => {
+                // File.move(src, dest) returns (Option<bool>, String)
+                if method_call.args.len() != 2 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "File.move requires exactly 2 arguments",
+                        "Usage: File.move(src, dest)",
+                    )));
+                }
+
+                self.output.push_str("match std::fs::rename(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(", &");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str(") { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"File move error: {}\", e)) }");
+            }
+            "size" => {
+                // File.size(path) returns (Option<i64>, String)
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "File.size requires exactly 1 argument",
+                        "Usage: File.size(path)",
+                    )));
+                }
+
+                self.output.push_str("match std::fs::metadata(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(") { Ok(m) => (Some(m.len() as i64), String::new()), Err(e) => (None, format!(\"File size error: {}\", e)) }");
+            }
+            "extension" => {
+                // File.extension(path) returns string (no error binding)
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "File.extension requires exactly 1 argument",
+                        "Usage: File.extension(path)",
+                    )));
+                }
+
+                self.output.push_str("std::path::Path::new(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(").extension().and_then(|e| e.to_str()).unwrap_or(\"\").to_string()");
+            }
+            "readLines" => {
+                // File.readLines(path) returns (Option<Vec<String>>, String)
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "File.readLines requires exactly 1 argument",
+                        "Usage: File.readLines(path)",
+                    )));
+                }
+
+                self.output.push_str("match std::fs::read_to_string(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(") { Ok(content) => (Some(content.lines().map(|l| l.to_string()).collect::<Vec<String>>()), String::new()), Err(e) => (None, format!(\"File readLines error: {}\", e)) }");
+            }
+            "writeLines" => {
+                // File.writeLines(path, lines) returns (Option<bool>, String)
+                if method_call.args.len() != 2 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "File.writeLines requires exactly 2 arguments",
+                        "Usage: File.writeLines(path, lines)",
+                    )));
+                }
+
+                self.output.push_str("match std::fs::write(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(", ");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str(".join(\"\\n\")) { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"File writeLines error: {}\", e)) }");
+            }
             _ => {
                 return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
                     "E3000",
                     &format!("Unknown File function: {}", method_call.method),
-                    "Available File functions: read, write, append, exists, delete",
+                    "Available File functions: read, write, append, exists, delete, copy, move, size, extension, readLines, writeLines",
                 )));
             }
         }
@@ -10958,11 +11050,70 @@ impl CodeGenerator {
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(").is_dir()");
             }
+            "exists" => {
+                // Dir.exists(path) returns bool (no error binding)
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Dir.exists requires exactly 1 argument",
+                        "Usage: Dir.exists(path)",
+                    )));
+                }
+
+                self.output.push_str("{ let p = std::path::Path::new(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str("); p.exists() && p.is_dir() }");
+            }
+            "create" => {
+                // Dir.create(path) returns (Option<bool>, String)
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Dir.create requires exactly 1 argument",
+                        "Usage: Dir.create(path)",
+                    )));
+                }
+
+                self.output.push_str("match std::fs::create_dir_all(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(") { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"Dir.create error: {}\", e)) }");
+            }
+            "delete" => {
+                // Dir.delete(path) returns (Option<bool>, String)
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Dir.delete requires exactly 1 argument",
+                        "Usage: Dir.delete(path)",
+                    )));
+                }
+
+                self.output.push_str("match std::fs::remove_dir_all(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(") { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"Dir.delete error: {}\", e)) }");
+            }
+            "listRecursive" | "walk" => {
+                // Dir.listRecursive(path) / Dir.walk(path) returns ([string], String) - error binding
+                // Returns all files recursively
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        &format!("Dir.{} requires exactly 1 argument", method_call.method),
+                        &format!("Usage: Dir.{}(path)", method_call.method),
+                    )));
+                }
+
+                self.output.push_str("{ fn walk_dir(dir: &std::path::Path, result: &mut Vec<String>, base: &std::path::Path) -> Result<(), std::io::Error> { for entry in std::fs::read_dir(dir)? { let entry = entry?; let path = entry.path(); if let Some(rel) = path.strip_prefix(base).ok().and_then(|p| p.to_str()) { result.push(rel.to_string()); } if path.is_dir() { walk_dir(&path, result, base)?; } } Ok(()) } let base = std::path::Path::new(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str("); let mut names = Vec::new(); match walk_dir(base, &mut names, base) { Ok(_) => { names.sort(); (Some(names), String::new()) }, Err(e) => (None, format!(\"Dir.");
+                self.output.push_str(method_call.method.as_str());
+                self.output.push_str(" error: {}\", e)) } }");
+            }
             _ => {
                 return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
                     "E3000",
                     &format!("Unknown Dir function: {}", method_call.method),
-                    "Available Dir functions: list, isDir",
+                    "Available Dir functions: list, isDir, exists, create, delete, listRecursive, walk",
                 )));
             }
         }

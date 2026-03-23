@@ -105,7 +105,9 @@ No se crea librería. Se añaden al pipeline de generación de method calls de a
 | `Math.clamp(val, min, max)` | Limitar valor a rango | `val.max(min).min(max)` |
 | `Math.log(x)` | Logaritmo natural | `(x as f64).ln()` |
 
-### P1 — File: ampliar funciones existentes (+5)
+### P1 — File: ampliar funciones existentes (+6) ✅
+
+> **Completado:** v1.6.0-dev — 6 nuevas funciones (copy, move, size, extension, readLines, writeLines) + parser fix para `move` keyword.
 
 Se añaden ramas al `match` en `generate_file_function_call()`:
 
@@ -116,8 +118,11 @@ Se añaden ramas al `match` en `generate_file_function_call()`:
 | `File.copy(src, dst)` | Copiar archivo (fallible) | `fs::copy()` |
 | `File.move(src, dst)` | Mover/renombrar (fallible) | `fs::rename()` |
 | `File.size(path)` | Tamaño en bytes (fallible) | `.metadata()?.len()` |
+| `File.extension(path)` | Extensión del archivo (no-fail) | `Path::extension()` |
 
-### P1 — Dir: ampliar funciones existentes (+3)
+### P1 — Dir: ampliar funciones existentes (+5) ✅
+
+> **Completado:** v1.6.0-dev — 5 nuevas funciones (exists, create, delete, listRecursive, walk).
 
 Se añaden ramas al `match` en `generate_dir_function_call()`:
 
@@ -126,6 +131,8 @@ Se añaden ramas al `match` en `generate_dir_function_call()`:
 | `Dir.create(path)` | Crear directorio recursivo (fallible) | `fs::create_dir_all()` |
 | `Dir.delete(path)` | Eliminar directorio recursivo (fallible) | `fs::remove_dir_all()` |
 | `Dir.walk(path)` | Listar recursivamente (fallible) | Recursivo manual → `[string]` |
+| `Dir.exists(path)` | Comprobar si directorio existe (no-fail) | `Path::exists() && Path::is_dir()` |
+| `Dir.listRecursive(path)` | Alias de walk | Recursivo manual → `[string]` |
 
 ### P1 — Date (tipo NUEVO, first-class)
 

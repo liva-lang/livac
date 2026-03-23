@@ -1,9 +1,9 @@
 # 🗺️ Liva Language Roadmap
 
-> **Current Version:** v1.5.0-dev (tag: v1.2.0)  
-> **Status:** Stdlib P0, `rust { }` interop, Logging, Config, CLI subcommands, 381+ tests  
-> **Completed:** Phases 1-13, Sessions 14-18, Dogfooding v2, Stdlib P0, rust {}, Log, Config  
-> **Last Updated:** 2025-07-17
+> **Current Version:** v1.6.0-dev (tag: v1.2.0)  
+> **Status:** Stdlib P0, P1 (File/Dir), `rust { }` interop, Logging, Config, CLI subcommands, 391+ tests  
+> **Completed:** Phases 1-13, Sessions 14-18, Dogfooding v2, Stdlib P0, rust {}, Log, Config, File/Dir extended  
+> **Last Updated:** 2026-03-23
 
 ---
 
