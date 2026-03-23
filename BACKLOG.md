@@ -295,17 +295,45 @@
 
 ---
 
-## v2.0 — Dogfooding: API REST real
+## v1.9 — Dogfooding: API REST real
 
 > **Foco:** Validación real construyendo un proyecto completo.  
 > **Esfuerzo estimado:** ~12h
 
-- [ ] Definir proyecto de dogfooding (API REST con DB)
+- [ ] Definir proyecto de dogfooding (TODO API con DB + HTTP Server)
 - [ ] Implementar proyecto completo en Liva
+  - [ ] POST /tasks — crear tarea
+  - [ ] GET /tasks — listar tareas
+  - [ ] GET /tasks/:id — detalle
+  - [ ] PUT /tasks/:id — actualizar
+  - [ ] DELETE /tasks/:id — eliminar
+  - [ ] GET /health — health check
+  - [ ] SQLite como almacenamiento
 - [ ] Documentar bugs encontrados en BUGS.md
 - [ ] Corregir todos los bugs
 - [ ] Escribir regression tests
 - [ ] Post-mortem: qué falta, qué mejorar
+
+---
+
+## v2.0 — Enums recursivos + Self-hosting
+
+> **Foco:** Desbloquear estructuras de datos tipo árbol y preparar auto-compilación.  
+> **Cambio de lenguaje importante — justifica major version.**
+
+### Enums recursivos (auto-boxing)
+
+- [ ] Detectar campos recursivos en enums (`left: Expr` dentro de `enum Expr`)
+- [ ] Auto-generar `Box<T>` en codegen para campos recursivos
+- [ ] Soporte en arrays de tipos recursivos (`args: [Expr]`)
+- [ ] Tests + docs
+
+### Self-hosting (parcial)
+
+- [ ] Implementar lexer de Liva en Liva
+- [ ] Implementar parser (subset) en Liva
+- [ ] Implementar codegen (subset) en Liva
+- [ ] Comparar output con compilador Rust → verificar equivalencia
 
 ---
 
@@ -318,6 +346,7 @@
 - [ ] WebSockets — módulo `WS` (tokio-tungstenite)
 - [ ] YAML/TOML parsing — módulos nuevos (crates serde_yaml/toml)
 - [ ] `livac bench` — benchmarking built-in
+- [ ] REPL — `livac repl` (aplazado desde v1.8)
 
 ---
 

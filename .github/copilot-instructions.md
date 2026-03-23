@@ -4,7 +4,7 @@
 > **Versión:** v1.8.0-dev (tag: v1.2.0)  
 > **Lenguaje:** Rust  
 > **Tests:** 482 passing  
-> **Próximo objetivo:** v2.0 — Dogfooding API REST  
+> **Próximo objetivo:** v1.9 — Dogfooding API REST  
 > **Última actualización:** 2026-03-23
 
 ---
@@ -173,7 +173,8 @@ v1.5  rust { } interop + Logging + Config + livac init       ✅ completado
 v1.6  Stdlib P1 — File, Dir, Date, Regex, CSV/Table          ✅ completado
 v1.7  Stdlib P2 + HTTP Server                                ✅ completado
 v1.8  DB + Linter                                             ✅ completado (REPL ⏸️ aplazado)
-v2.0  Dogfooding — API REST completa con DB                  ← validación
+v1.9  Dogfooding — API REST completa con DB                  ← validación
+v2.0  Enums recursivos + Self-hosting parcial                ← cambio mayor
 ```
 
 **Documentos clave:**
