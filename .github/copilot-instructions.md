@@ -143,12 +143,12 @@ skills/liva-lang/
 
 ### Stdlib actual
 - **String (28 métodos):** toUpperCase, toLowerCase, trim, trimStart, trimEnd, split, replace, replaceAll, contains, startsWith, endsWith, substring, charAt, indexOf, lastIndexOf, slice, padStart, padEnd, repeat, capitalize, isBlank, isEmpty, reverse, truncate, countMatches, removePrefix, removeSuffix, chars
-- **Array (31 métodos):** map, filter, reduce, forEach, find, findIndex, some, every, includes, indexOf, join, length, flat, flatMap, slice, sort, distinct, zip, take, drop, first, last, isEmpty, chunks, reversed, sum, min, max, count, sortBy(pending), groupBy(pending)
+- **Array (33 métodos):** map, filter, reduce, forEach, find, findIndex, some, every, includes, indexOf, join, length, flat, flatMap, slice, sort, sortBy, distinct, zip, take, drop, first, last, isEmpty, chunks, reversed, sum, min, max, count, groupBy
 - **Math (14):** sqrt, pow, abs, floor, ceil, round, min, max, random, PI, E, clamp, sign, log
 
 ### Dogfooding
 - **86/86 bugs corregidos** (Dogfooding v1: 9 bugs #63-#74, v2: 8 bugs #75-#82, v3: 7 bugs #83-#89)
-- **494+ tests** totales (254 codegen, 6 desugar, 17 semantic snapshot tests + 11 Liva e2e + 6 init + 24 linter + doctests)
+- **503 tests** totales (258 codegen, 6 desugar, 17 semantic snapshot tests + 11 Liva e2e + 6 init + 24 linter + doctests)
 - **63 Liva assertion tests** (28 string + 26 array + 9 math) — cobertura completa de stdlib
 - **File (11 funciones):** read, write, append, exists, delete, copy, move, size, extension, readLines, writeLines
 - **Dir (7 funciones):** list, isDir, exists, create, delete, listRecursive, walk

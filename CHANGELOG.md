@@ -5,9 +5,26 @@ All notable changes to the Liva compiler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0-dev] - 2026-03-23
+## [2.0.0-dev] - 2026-03-24
 
 ### Added
+- **`arr.sortBy(fn)` method** — Sort arrays by a key extraction function
+  - Returns new sorted array (non-mutating)
+  - Key function receives owned element clone; works with Copy and non-Copy types
+  - Generates Rust `sort_by` with `partial_cmp` for universal comparability
+  - Works with class instances (`users.sortBy(u => u.age)`), primitives, and string length
+- **`arr.groupBy(fn)` method** — Group array elements by key function → `Map<K, [V]>`
+  - Returns `HashMap<K, Vec<V>>` grouped by key extraction
+  - Uses `entry().or_insert_with(Vec::new).push()` pattern
+  - Result tracked as `map_vars` for proper codegen handling
+  - Works with class fields, numeric expressions, boolean predicates
+- **Array method type propagation** — `sort`, `sortBy`, `reversed`, `distinct`, `flat`, `flatten`, `take`, `drop`, `slice`, `chunks`, `flatMap` results now properly tracked as typed arrays
+  - Fixes print format for array results (`{:?}` instead of broken `{}`)
+  - Enables correct for-loop iteration over method results (class field access)
+  - Fixed camelCase variable name lookup in for-loop type propagation
+- 4 new snapshot tests, 503 tests total
+
+### Changed
 - **Recursive enums (auto-boxing)** — Enum variants can reference their own enum type
   - Auto-detection: fields whose type matches the enum name are automatically boxed
   - Codegen: recursive fields emit `Box<T>` in enum definition

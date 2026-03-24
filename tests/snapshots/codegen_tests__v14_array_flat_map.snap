@@ -389,5 +389,5 @@ mod liva_rt {
 fn main() {
     let nums = vec![1, 2, 3];
     let expanded = nums.iter().flat_map(|&x| vec![x, x * 2]).collect::<Vec<_>>();
-    println!("{}", expanded);
+    println!("{:?}", expanded);
 }

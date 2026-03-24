@@ -133,6 +133,28 @@ Closures must be **immutable captures** for parallel execution.
   ["Alice", "Bob"].zip([30, 25])             // [("Alice", 30), ("Bob", 25)]
   — Stops at shorter array
 
+### sortBy(fn: (T) => K) => [T] *(v2.0.0)*
+  ```liva
+  users.sortBy(u => u.age)                   // sorted by age ascending
+  words.sortBy(w => w.length())              // sorted by string length
+  [5, 3, 8].sortBy(n => n)                   // [3, 5, 8]
+  ```
+  — Returns new array sorted by key extraction function
+  — Original array unchanged
+  — Works with class instances, primitives, and computed keys
+
+### groupBy(fn: (T) => K) => Map<K, [T]> *(v2.0.0)*
+  ```liva
+  let groups = items.groupBy(i => i.category)
+  // Map { "fruit": [apple, banana], "veggie": [carrot] }
+
+  let oddEven = [1, 2, 3, 4, 5].groupBy(n => n % 2)
+  // Map { 1: [1, 3, 5], 0: [2, 4] }
+  ```
+  — Groups elements into a Map by key extraction function
+  — Each key maps to an array of matching elements
+  — Preserves element order within groups
+
 ---
 
 ## Aggregation *(v1.4.0)*

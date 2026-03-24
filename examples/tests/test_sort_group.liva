@@ -1,0 +1,52 @@
+// Test: arr.sortBy(fn) and arr.groupBy(fn)
+
+Product {
+    name: string
+    price: int
+    category: string
+}
+
+main() {
+    // === sortBy ===
+    
+    // sortBy with numeric key on class instances
+    let products = [
+        Product("Banana", 2, "fruit"),
+        Product("Apple", 1, "fruit"),
+        Product("Milk", 3, "dairy"),
+        Product("Cheese", 5, "dairy"),
+        Product("Carrot", 2, "veggie")
+    ]
+    
+    let byPrice = products.sortBy(p => p.price)
+    for item in byPrice {
+        print(item.name)
+        print(item.price)
+    }
+    
+    // sortBy with string length
+    let words = ["banana", "kiwi", "apple", "fig"]
+    let byLength = words.sortBy(w => w.length())
+    for w in byLength {
+        print(w)
+    }
+    
+    // sortBy with numeric identity
+    let nums = [5, 3, 8, 1, 4]
+    let sorted = nums.sortBy(n => n)
+    for n in sorted {
+        print(n)
+    }
+
+    // === groupBy ===
+    
+    // groupBy with string key
+    let grouped = products.groupBy(p => p.category)
+    let keys = grouped.keys()
+    print(keys.length())
+    
+    // groupBy with numeric key (modulo)
+    let numbers = [1, 2, 3, 4, 5, 6, 7, 8]
+    let oddEven = numbers.groupBy(n => n % 2)
+    print(oddEven.length)
+}

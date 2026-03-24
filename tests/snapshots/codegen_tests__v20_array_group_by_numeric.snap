@@ -387,7 +387,7 @@ mod liva_rt {
 }
 
 fn main() {
-    let s = "hello world".to_string();
-    let sliced = s[(0) as usize..(5) as usize].to_string();
-    println!("{:?}", sliced);
+    let nums = vec![1, 2, 3, 4, 5, 6, 7, 8];
+    let groups = { let mut __m: std::collections::HashMap<_, Vec<_>> = std::collections::HashMap::new(); for __item in nums.iter() { let n = (*__item).clone(); let __key = n % 2; __m.entry(__key).or_insert_with(Vec::new).push((*__item).clone()); } __m };
+    println!("{}", (groups.len() as i32));
 }

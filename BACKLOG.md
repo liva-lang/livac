@@ -55,9 +55,9 @@
 - [x] `arr.min()` / `arr.max()` → `T`
 - [x] `arr.count(fn)` → `int`
 
-**Pendientes (pospuestos — complejidad alta):**
-- [ ] `arr.sortBy(fn)` → `[T]`
-- [ ] `arr.groupBy(fn)` → `Map<K, [T]>`
+**Completados en v2.0:**
+- [x] `arr.sortBy(fn)` → `[T]`
+- [x] `arr.groupBy(fn)` → `Map<K, [T]>`
 
 ### Math — ampliar `generate_math_function_call()` ✅
 

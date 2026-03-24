@@ -386,8 +386,30 @@ mod liva_rt {
     
 }
 
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct User {
+    pub name: String,
+    pub age: i32,
+}
+
+impl User {
+    pub fn new(name: String, age: i32) -> Self {
+        Self {
+                        name,
+                        age,
+        }
+    }
+
+}
+
+impl std::fmt::Display for User {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "User {{ name: {}, age: {} }}}}", self.name, self.age)
+    }
+}
+
 fn main() {
-    let s = "hello world".to_string();
-    let sliced = s[(0) as usize..(5) as usize].to_string();
-    println!("{:?}", sliced);
+    let users = vec![User::new("Charlie".to_string(), 35), User::new("Alice".to_string(), 25), User::new("Bob".to_string(), 30)];
+    let sorted = { let mut __v = users.clone(); __v.sort_by(|__a, __b| { let u = (*__a).clone(); let __ka = u.age; let u = (*__b).clone(); let __kb = u.age; __ka.partial_cmp(&__kb).unwrap_or(std::cmp::Ordering::Equal) }); __v };
+    println!("{:?}", sorted);
 }

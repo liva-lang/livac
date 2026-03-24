@@ -387,7 +387,7 @@ mod liva_rt {
 }
 
 fn main() {
-    let s = "hello world".to_string();
-    let sliced = s[(0) as usize..(5) as usize].to_string();
-    println!("{:?}", sliced);
+    let words = vec!["banana".to_string(), "apple".to_string(), "cherry".to_string()];
+    let sorted = { let mut __v = words.clone(); __v.sort_by(|__a, __b| { let w = (*__a).clone(); let __ka = (w.len() as i32); let w = (*__b).clone(); let __kb = (w.len() as i32); __ka.partial_cmp(&__kb).unwrap_or(std::cmp::Ordering::Equal) }); __v };
+    println!("{:?}", sorted);
 }

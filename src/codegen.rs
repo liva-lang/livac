@@ -5621,7 +5621,9 @@ impl CodeGenerator {
                         // Check if initializing with a method call that returns an array (map, filter, etc.)
                         // or Option (find)
                         else if let Expr::MethodCall(method_call) = &var.init {
-                            if matches!(method_call.method.as_str(), "map" | "filter" | "split") {
+                            if matches!(method_call.method.as_str(), "map" | "filter" | "split"
+                                | "sort" | "sortBy" | "reversed" | "distinct" | "flat" | "flatten"
+                                | "take" | "drop" | "slice" | "chunks" | "flatMap") {
                                 if let Some(name) = binding.name() {
                                     self.array_vars.insert(name.to_string());
 
@@ -5655,6 +5657,12 @@ impl CodeGenerator {
                                     self.array_vars.insert(name.to_string());
                                     self.typed_array_vars
                                         .insert(name.to_string(), "string".to_string());
+                                }
+                            }
+                            // groupBy returns HashMap<K, Vec<V>> — track as map variable
+                            else if method_call.method.as_str() == "groupBy" {
+                                if let Some(name) = binding.name() {
+                                    self.map_vars.insert(name.to_string());
                                 }
                             }
                             // Sys.args() returns Vec<String> - need direct indexing
@@ -5989,7 +5997,10 @@ impl CodeGenerator {
                 // generates dot notation instead of get_field()
                 if let Expr::Identifier(iterable_name) = &for_stmt.iterable {
                     let sanitized_iterable = self.sanitize_name(iterable_name);
-                    if let Some(element_type) = self.typed_array_vars.get(&sanitized_iterable).cloned() {
+                    // typed_array_vars may store raw (camelCase) or sanitized (snake_case) names
+                    let element_type = self.typed_array_vars.get(&sanitized_iterable).cloned()
+                        .or_else(|| self.typed_array_vars.get(iterable_name.as_str()).cloned());
+                    if let Some(element_type) = element_type {
                         // Check if element type is a class (uppercase first char, not a primitive)
                         let is_class_type = !matches!(
                             element_type.as_str(),
@@ -6006,8 +6017,9 @@ impl CodeGenerator {
                     }
                     // Also handle arrays from .split() that are tracked as array_vars
                     // but may not be in typed_array_vars — default to string element
-                    if self.array_vars.contains(&sanitized_iterable)
+                    if (self.array_vars.contains(&sanitized_iterable) || self.array_vars.contains(iterable_name.as_str()))
                         && !self.typed_array_vars.contains_key(&sanitized_iterable)
+                        && !self.typed_array_vars.contains_key(iterable_name.as_str())
                     {
                         self.string_vars.insert(var_name.clone());
                     }
@@ -9288,6 +9300,49 @@ impl CodeGenerator {
             self.generate_expr(&method_call.object)?;
             self.output.push_str(".clone(); __v.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)); __v }");
             return Ok(());
+        }
+
+        // Handle arr.sortBy(fn) — sort by key extraction function
+        if method_call.method == "sortBy" && !method_call.args.is_empty() && !object_is_class_instance {
+            if let Expr::Lambda(lambda) = &method_call.args[0] {
+                let param_name = lambda.params.first()
+                    .and_then(|p| p.name())
+                    .map(|n| self.sanitize_name(n))
+                    .unwrap_or_else(|| "__x".to_string());
+                self.output.push_str("{ let mut __v = ");
+                self.generate_expr(&method_call.object)?;
+                write!(self.output, ".clone(); __v.sort_by(|__a, __b| {{ let {} = (*__a).clone(); let __ka = ", param_name).unwrap();
+                match &lambda.body {
+                    LambdaBody::Expr(expr) => self.generate_expr(expr)?,
+                    LambdaBody::Block(block) => self.generate_block_inner(block)?,
+                }
+                write!(self.output, "; let {} = (*__b).clone(); let __kb = ", param_name).unwrap();
+                match &lambda.body {
+                    LambdaBody::Expr(expr) => self.generate_expr(expr)?,
+                    LambdaBody::Block(block) => self.generate_block_inner(block)?,
+                }
+                self.output.push_str("; __ka.partial_cmp(&__kb).unwrap_or(std::cmp::Ordering::Equal) }); __v }");
+                return Ok(());
+            }
+        }
+
+        // Handle arr.groupBy(fn) — group elements by key extraction function → HashMap<K, Vec<V>>
+        if method_call.method == "groupBy" && !method_call.args.is_empty() && !object_is_class_instance {
+            if let Expr::Lambda(lambda) = &method_call.args[0] {
+                let param_name = lambda.params.first()
+                    .and_then(|p| p.name())
+                    .map(|n| self.sanitize_name(n))
+                    .unwrap_or_else(|| "__x".to_string());
+                self.output.push_str("{ let mut __m: std::collections::HashMap<_, Vec<_>> = std::collections::HashMap::new(); for __item in ");
+                self.generate_expr(&method_call.object)?;
+                write!(self.output, ".iter() {{ let {} = (*__item).clone(); let __key = ", param_name).unwrap();
+                match &lambda.body {
+                    LambdaBody::Expr(expr) => self.generate_expr(expr)?,
+                    LambdaBody::Block(block) => self.generate_block_inner(block)?,
+                }
+                self.output.push_str("; __m.entry(__key).or_insert_with(Vec::new).push((*__item).clone()); } __m }");
+                return Ok(());
+            }
         }
 
         // Handle arr.distinct() — removes duplicates preserving order

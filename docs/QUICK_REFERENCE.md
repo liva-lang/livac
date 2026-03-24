@@ -897,6 +897,8 @@ let rest = numbers.drop(2)                   // [3, 4, 5]
 let sorted = numbers.sort()                  // [1, 2, 3, 4, 5]
 let rev = numbers.reversed()                 // [5, 4, 3, 2, 1]
 let uniq = [1, 2, 2, 3].distinct()           // [1, 2, 3]
+let byAge = users.sortBy(u => u.age)         // sorted by key function
+let groups = users.groupBy(u => u.role)      // Map<string, [User]>
 
 // Combine & split
 let flat = [[1, 2], [3, 4]].flat()           // [1, 2, 3, 4]

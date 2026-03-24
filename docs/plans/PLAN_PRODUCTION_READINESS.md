@@ -73,7 +73,7 @@ No se crea librería. Se añaden ramas al `match` en `generate_string_method_cal
 ### P0 — Array: ampliar métodos nativos (+20) ✅
 
 > **Completado:** v1.4.0-dev — 20 nuevos métodos implementados y testeados.  
-> **Nota:** `chunk()` renombrado a `chunks()` (conflicto con keyword `chunk` de parallel adapter). `flatten()` implementado como `flat()` (estilo JS). `sortBy(fn)` y `groupBy(fn)` pospuestos por complejidad.
+> **Nota:** `chunk()` renombrado a `chunks()` (conflicto con keyword `chunk` de parallel adapter). `flatten()` implementado como `flat()` (estilo JS). `sortBy(fn)` y `groupBy(fn)` implementados en v2.0.0.
 
 No se crea librería. Se añaden al pipeline de generación de method calls de arrays:
 

@@ -3944,6 +3944,79 @@ main() {
 }
 
 // =========================================================================
+// v2.0 — sortBy / groupBy array methods
+// =========================================================================
+
+#[test]
+fn test_v20_array_sort_by() {
+    let source = r#"
+User {
+    name: string
+    age: int
+}
+
+main() {
+    let users = [User("Charlie", 35), User("Alice", 25), User("Bob", 30)]
+    let sorted = users.sortBy(u => u.age)
+    print(sorted)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("sort_by"), "should use sort_by");
+    assert!(rust_code.contains("__ka"), "should extract key for comparison");
+    assert_snapshot!("v20_array_sort_by", rust_code);
+}
+
+#[test]
+fn test_v20_array_sort_by_string() {
+    let source = r#"
+main() {
+    let words = ["banana", "apple", "cherry"]
+    let sorted = words.sortBy(w => w.length())
+    print(sorted)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("sort_by"), "should use sort_by");
+    assert_snapshot!("v20_array_sort_by_string", rust_code);
+}
+
+#[test]
+fn test_v20_array_group_by() {
+    let source = r#"
+Item {
+    name: string
+    category: string
+}
+
+main() {
+    let items = [Item("apple", "fruit"), Item("carrot", "veggie"), Item("banana", "fruit")]
+    let groups = items.groupBy(i => i.category)
+    let keys = groups.keys()
+    print(keys)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("HashMap"), "should use HashMap for groupBy");
+    assert!(rust_code.contains("entry"), "should use entry API");
+    assert_snapshot!("v20_array_group_by", rust_code);
+}
+
+#[test]
+fn test_v20_array_group_by_numeric() {
+    let source = r#"
+main() {
+    let nums = [1, 2, 3, 4, 5, 6, 7, 8]
+    let groups = nums.groupBy(n => n % 2)
+    print(groups.length)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("HashMap"), "should use HashMap for groupBy");
+    assert_snapshot!("v20_array_group_by_numeric", rust_code);
+}
+
+// =========================================================================
 // v1.5 — rust {} interop tests
 // =========================================================================
 

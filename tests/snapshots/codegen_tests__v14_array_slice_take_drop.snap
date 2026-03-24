@@ -391,7 +391,7 @@ fn main() {
     let sliced = nums[(1) as usize..(4) as usize].to_vec();
     let taken = nums[..(3) as usize].to_vec();
     let dropped = nums[(2) as usize..].to_vec();
-    println!("{}", sliced);
-    println!("{}", taken);
-    println!("{}", dropped);
+    println!("{:?}", sliced);
+    println!("{:?}", taken);
+    println!("{:?}", dropped);
 }

@@ -386,8 +386,31 @@ mod liva_rt {
     
 }
 
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Item {
+    pub name: String,
+    pub category: String,
+}
+
+impl Item {
+    pub fn new(name: String, category: String) -> Self {
+        Self {
+                        name,
+                        category,
+        }
+    }
+
+}
+
+impl std::fmt::Display for Item {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Item {{ name: {}, category: {} }}}}", self.name, self.category)
+    }
+}
+
 fn main() {
-    let s = "hello world".to_string();
-    let sliced = s[(0) as usize..(5) as usize].to_string();
-    println!("{:?}", sliced);
+    let items = vec![Item::new("apple".to_string(), "fruit".to_string()), Item::new("carrot".to_string(), "veggie".to_string()), Item::new("banana".to_string(), "fruit".to_string())];
+    let groups = { let mut __m: std::collections::HashMap<_, Vec<_>> = std::collections::HashMap::new(); for __item in items.iter() { let i = (*__item).clone(); let __key = i.category; __m.entry(__key).or_insert_with(Vec::new).push((*__item).clone()); } __m };
+    let keys = groups.keys().cloned().collect::<Vec<_>>();
+    println!("{}", keys);
 }

@@ -391,7 +391,7 @@ fn main() {
     let sorted = { let mut __v = nums.clone(); __v.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)); __v };
     let rev = { let mut __v = nums.clone(); __v.reverse(); __v };
     let unique = { let mut __seen = std::collections::HashSet::new(); nums.iter().filter(|x| __seen.insert((*x).clone())).cloned().collect::<Vec<_>>() };
-    println!("{}", sorted);
-    println!("{}", rev);
-    println!("{}", unique);
+    println!("{:?}", sorted);
+    println!("{:?}", rev);
+    println!("{:?}", unique);
 }
