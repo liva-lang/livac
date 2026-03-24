@@ -166,16 +166,16 @@ validateAge(age: number): number {
 
 ### Error check idiom
 
-Always use `if err {` (truthy check), never `if err != ""`:
+Always use `if err` (truthy check), never compare against empty string:
 
 ```liva
-// ✅ Idiomatic
+// ✅ Idiomatic — truthy check
 let result, err = divide(10, 0)
 if err => print($"Error: {err}")
 
-// ❌ Verbose
+// ❌ Verbose — comparing against empty string
 let result, err = divide(10, 0)
-if err { print($"Error: {err}") }
+if err != "" => print($"Error: {err}")
 ```
 
 ---
@@ -834,6 +834,219 @@ print($"Total: {items.reduce(0, (acc, i) => acc + i.price)}")
 
 ---
 
+## 15. Defer
+
+### Use `defer` for guaranteed cleanup
+
+`defer` registers cleanup that runs when the scope exits — regardless of `return`, `fail`, or normal exit. Use it immediately after acquiring a resource:
+
+```liva
+// ✅ Acquire → defer release → use
+processFile(path: string) {
+    let file = File.read(path) or fail "Cannot open"
+    defer File.close(file)
+    // ... work with file — close is guaranteed
+}
+
+// ✅ DB connections
+queryUsers(): [User] {
+    let db = DB.open("app.db") or fail
+    defer DB.close(db)
+    return DB.query(db, "SELECT * FROM users") or fail
+}
+```
+
+### Inline vs block
+
+Follow the same `=>` rule: one action → inline `defer`, multiple → `defer { }`:
+
+```liva
+// ✅ Single action → inline
+defer DB.close(db)
+defer print("done")
+
+// ✅ Multiple actions → block
+defer {
+    DB.close(db)
+    Log.info("Connection closed")
+}
+```
+
+### LIFO order
+
+Multiple defers execute last-in, first-out. Register them in **reverse cleanup order**:
+
+```liva
+// ✅ LIFO — first opened, last closed
+let db = DB.open("app.db") or fail
+defer DB.close(db)           // Runs second
+
+let file = File.open("log.txt") or fail
+defer File.close(file)       // Runs first
+```
+
+### Don't defer cheap operations
+
+Only use `defer` when cleanup is **critical** (file handles, DB connections, locks). Don't use it for trivial bookkeeping:
+
+```liva
+// ❌ Overkill — just print at the end
+defer print("Function completed")
+
+// ✅ Justified — resource must be released
+defer DB.close(db)
+```
+
+---
+
+## 16. Rust Interop
+
+### Use `rust { }` as a last resort
+
+Prefer Liva's stdlib. Use `rust { }` only when you need a Rust crate or low-level API that Liva doesn't expose:
+
+```liva
+// ❌ Unnecessary — Liva has Crypto.sha256()
+let hash = rust {
+    use sha2::{Sha256, Digest};
+    format!("{:x}", Sha256::digest(b"hello"))
+}
+
+// ✅ Justified — Liva has no UUID support
+use rust "uuid" version "1.0" features ["v4"]
+
+let id = rust {
+    use uuid::Uuid;
+    Uuid::new_v4().to_string()
+}
+```
+
+### Keep blocks small and isolated
+
+Each `rust { }` block should be a single expression. Don't put business logic inside:
+
+```liva
+// ✅ Small, focused
+let timestamp = rust {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64
+}
+
+// ❌ Business logic in Rust — defeats the purpose of Liva
+rust {
+    let users: Vec<User> = db.query("SELECT * FROM users").unwrap();
+    let active: Vec<&User> = users.iter().filter(|u| u.active).collect();
+    println!("Found {} active users", active.len());
+}
+```
+
+### Declare crates at the top
+
+Group `use rust` declarations at the top of the file, after Liva imports:
+
+```liva
+import { User } from "./models.liva"
+
+use rust "uuid" version "1.0" features ["v4"]
+use rust "chrono" version "0.4"
+
+main() { ... }
+```
+
+---
+
+## 17. Stdlib Patterns
+
+### Logging
+
+Use the appropriate log level. Include context variables as extra arguments:
+
+```liva
+// ✅ Right level + context
+Log.info("Server started on port", port)
+Log.warn("Retrying request", url, $"attempt {n}")
+Log.error("Failed to connect", $"{err}")
+Log.debug("Query result", data)   // Only with --verbose
+
+// ❌ Using print for operational messages
+print("ERROR: connection failed")   // Use Log.error instead
+```
+
+### Config
+
+Load once, fail early. Pass the config object down — don't reload per function:
+
+```liva
+// ✅ Load once, fail fast
+main() {
+    let config = Config.load(".env") or fail "Missing .env file"
+    let port = Config.getInt(config, "PORT") or 3000
+    let dbPath = Config.get(config, "DB_PATH") or "app.db"
+    startServer(port, dbPath)
+}
+
+// ❌ Loading config in every function
+handleRequest(req) {
+    let config = Config.load(".env") or fail   // Reloads every time!
+    let db = Config.get(config, "DB_PATH") or "app.db"
+    ...
+}
+```
+
+### DB — acquire + defer + use
+
+Always pair `DB.open` with `defer DB.close`. Keep queries simple:
+
+```liva
+// ✅ Standard pattern
+let db = DB.open("app.db") or fail "Cannot open DB"
+defer DB.close(db)
+
+DB.exec(db, "CREATE TABLE IF NOT EXISTS users (name TEXT)") or fail
+DB.exec(db, "INSERT INTO users VALUES (?)", [name]) or fail
+let rows = DB.query(db, "SELECT * FROM users") or fail
+```
+
+### HTTP Server — handlers as focused functions
+
+Define route handlers as named functions. Keep `main()` as the route table:
+
+```liva
+// ✅ Route table in main, handlers separate
+main() {
+    let app = Server.create()
+    app.get("/health", healthCheck)
+    app.get("/users", listUsers)
+    app.post("/users", createUser)
+    app.listen(3000)
+}
+
+healthCheck(req) => Response.json("{\"status\": \"ok\"}")
+
+listUsers(req) {
+    let db = DB.open("app.db") or fail
+    defer DB.close(db)
+    let users = DB.query(db, "SELECT * FROM users") or fail
+    Response.json(JSON.stringify(users))
+}
+
+// ❌ Everything inline
+main() {
+    let app = Server.create()
+    app.get("/users", (req) {
+        let db = DB.open("app.db") or fail
+        let users = DB.query(db, "SELECT * FROM users") or fail
+        DB.close(db)
+        Response.json(JSON.stringify(users))
+    })
+    app.listen(3000)
+}
+```
+
+---
+
 ## Quick Reference: Style Decision Tree
 
 ```
@@ -842,11 +1055,13 @@ Is it a single expression/statement?
 │   ├── Function body?     → add(a, b) => a + b
 │   ├── if body?           → if x > 0 => print(x)
 │   ├── for body?          → for i in items => process(i)
-│   └── while body?        → while alive => tick()
+│   ├── while body?        → while alive => tick()
+│   └── defer body?        → defer DB.close(db)
 └── No (2+ statements) → use {}
     ├── Function body?     → calculate(x) { ... return y }
     ├── if body?           → if err { log(err); return }
-    └── Loop body?         → for i in items { ...; ... }
+    ├── Loop body?         → for i in items { ...; ... }
+    └── defer body?        → defer { close(db); log("done") }
 
 Need error handling?
 ├── Propagate error?       → or fail "message"
@@ -854,9 +1069,16 @@ Need error handling?
 └── Inspect/log error?     → let val, err = call()
                               if err => ...
 
+Acquiring a resource?
+├── Open + use + close     → defer DB.close(db) right after open
+
 Mapping values from enum/string?
 ├── Return a value?        → switch expr (=> arrows)
 └── Perform actions?       → switch stmt (case: colons)
+
+Need Rust ecosystem?
+├── Liva stdlib covers it? → Use stdlib (File, DB, Crypto, etc.)
+└── Need a crate?          → rust { } block + use rust "crate" version "x.y"
 ```
 
 ---
@@ -867,8 +1089,8 @@ Mapping values from enum/string?
 |----------|-------|-----|
 | `if x { doThing() }` | `if x => doThing()` | `=>` for single statements |
 | `items.forEach(x => print(x))` | `items.forEach(print)` | Point-free is cleaner |
-| `if err { ... }` | `if err { ... }` | Truthy check is idiomatic |
-| `x = x + 1; y = y + 1` | Semicolons anywhere | Liva has no semicolons (newlines) |
+| `if err != "" { ... }` | `if err { ... }` | Truthy check is idiomatic |
+| `x = x + 1; y = y + 1` | Use newlines to separate statements | Liva has no semicolons |
 | `let result, _ = f()` silently | Handle or `or fail`/`or default` | Don't swallow errors |
 | Everything in `main()` | Extract into functions | Readability, testability |
 | `Color::Red` | `Color.Red` | Dot syntax, not Rust's `::` |
@@ -876,7 +1098,10 @@ Mapping values from enum/string?
 | `fn add(a, b)` | `add(a, b) => a + b` | No `fn`/`def` keyword |
 | `async f()` used immediately | `f()` (no async) | No concurrency if awaited on next line |
 | `"Hi " + name` | `$"Hi {name}"` | Use string templates |
+| `print("ERROR: ...")` | `Log.error(...)` | Use structured logging |
+| Manual `close()` at end | `defer close()` after open | `defer` guarantees cleanup |
+| `rust { }` for stdlib features | Use Liva stdlib | Only use `rust { }` for missing functionality |
 
 ---
 
-*This guide reflects Liva v1.3.0. Run `livac fmt` to auto-format your code.*
+*This guide reflects Liva v2.0. Run `livac fmt` to auto-format your code.*
