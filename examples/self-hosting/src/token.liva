@@ -1,0 +1,281 @@
+// ═══════════════════════════════════════════════════════════════
+// Token — Token types for the Liva lexer
+// Part of the self-hosting Liva compiler
+// ═══════════════════════════════════════════════════════════════
+
+// All possible token types in the Liva language
+enum Token {
+    // ─── Keywords ────────────────────────────────────────────
+    Let,
+    Const,
+    Import,
+    From,
+    Use,
+    Rust,
+    Type,
+    Enum,
+    Test,
+    If,
+    Else,
+    While,
+    For,
+    In,
+    Switch,
+    Case,
+    Default,
+    Throw,
+    Try,
+    Catch,
+    Return,
+    Break,
+    Continue,
+    Async,
+    Parallel,
+    Par,
+    Task,
+    Await,
+    Fail,
+    Defer,
+    Move,
+    As,
+    True,
+    False,
+    Null,
+    And,
+    Or,
+    Not,
+
+    // ─── Type keywords ───────────────────────────────────────
+    NumberType,
+    FloatType,
+    BoolType,
+    CharType,
+    StringType,
+    BytesType,
+
+    // ─── Operators ───────────────────────────────────────────
+    Assign,
+    Plus,
+    Minus,
+    Star,
+    Slash,
+    Percent,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    Eq,
+    Ne,
+    AndAnd,
+    Pipe,
+    OrOr,
+    Bang,
+
+    // ─── Delimiters ──────────────────────────────────────────
+    LParen,
+    RParen,
+    LBrace,
+    RBrace,
+    LBracket,
+    RBracket,
+    Comma,
+    Colon,
+    DoubleColon,
+    Semicolon,
+    Underscore,
+    Dot,
+    DotDotDot,
+    DotDotEq,
+    DotDot,
+    Question,
+    Arrow,
+
+    // ─── Literals ────────────────────────────────────────────
+    IntLiteral(value: number),
+    FloatLiteral(value: string),
+    StringLiteral(value: string),
+    CharLiteral(value: string),
+    StringTemplate(value: string),
+
+    // ─── Identifiers ─────────────────────────────────────────
+    Ident(value: string),
+    PrivateIdent(value: string),
+
+    // ─── Special ─────────────────────────────────────────────
+    RustBlock(value: string),
+
+    // ─── End of file ─────────────────────────────────────────
+    EOF
+}
+
+// A token with its position in the source code
+TokenWithSpan {
+    token: Token
+    start: number
+    end: number
+    line: number
+    col: number
+
+    constructor(token: Token, start: number, end: number, line: number, col: number) {
+        this.token = token
+        this.start = start
+        this.end = end
+        this.line = line
+        this.col = col
+    }
+
+    // Get a human-readable description of this token
+    describe(): string {
+        return switch this.token {
+            Token.Let => "let",
+            Token.Const => "const",
+            Token.Import => "import",
+            Token.From => "from",
+            Token.Use => "use",
+            Token.Rust => "rust",
+            Token.Type => "type",
+            Token.Enum => "enum",
+            Token.Test => "test",
+            Token.If => "if",
+            Token.Else => "else",
+            Token.While => "while",
+            Token.For => "for",
+            Token.In => "in",
+            Token.Switch => "switch",
+            Token.Case => "case",
+            Token.Default => "default",
+            Token.Throw => "throw",
+            Token.Try => "try",
+            Token.Catch => "catch",
+            Token.Return => "return",
+            Token.Break => "break",
+            Token.Continue => "continue",
+            Token.Async => "async",
+            Token.Parallel => "parallel",
+            Token.Par => "par",
+            Token.Task => "task",
+            Token.Await => "await",
+            Token.Fail => "fail",
+            Token.Defer => "defer",
+            Token.Move => "move",
+            Token.As => "as",
+            Token.True => "true",
+            Token.False => "false",
+            Token.Null => "null",
+            Token.And => "and",
+            Token.Or => "or",
+            Token.Not => "not",
+            Token.NumberType => "number",
+            Token.FloatType => "float",
+            Token.BoolType => "bool",
+            Token.CharType => "char",
+            Token.StringType => "string",
+            Token.BytesType => "bytes",
+            Token.Assign => "=",
+            Token.Plus => "+",
+            Token.Minus => "-",
+            Token.Star => "*",
+            Token.Slash => "/",
+            Token.Percent => "%",
+            Token.Lt => "<",
+            Token.Le => "<=",
+            Token.Gt => ">",
+            Token.Ge => ">=",
+            Token.Eq => "==",
+            Token.Ne => "!=",
+            Token.AndAnd => "&&",
+            Token.Pipe => "|",
+            Token.OrOr => "||",
+            Token.Bang => "!",
+            Token.LParen => "(",
+            Token.RParen => ")",
+            Token.LBrace => "{",
+            Token.RBrace => "}",
+            Token.LBracket => "[",
+            Token.RBracket => "]",
+            Token.Comma => ",",
+            Token.Colon => ":",
+            Token.DoubleColon => "::",
+            Token.Semicolon => ";",
+            Token.Underscore => "_",
+            Token.Dot => ".",
+            Token.DotDotDot => "...",
+            Token.DotDotEq => "..=",
+            Token.DotDot => "..",
+            Token.Question => "?",
+            Token.Arrow => "=>",
+            Token.IntLiteral(v) => $"int({v})",
+            Token.FloatLiteral(v) => $"float({v})",
+            Token.StringLiteral(v) => $"string(\"{v}\")",
+            Token.CharLiteral(v) => $"char('{v}')",
+            Token.StringTemplate(v) => $"template(\"{v}\")",
+            Token.Ident(v) => $"ident({v})",
+            Token.PrivateIdent(v) => $"private({v})",
+            Token.RustBlock(v) => "rust{...}",
+            Token.EOF => "EOF"
+        }
+    }
+}
+
+// Look up a keyword by name, returns the Token or null
+lookupKeyword(word: string): Token {
+    return switch word {
+        "let" => Token.Let,
+        "const" => Token.Const,
+        "import" => Token.Import,
+        "from" => Token.From,
+        "use" => Token.Use,
+        "rust" => Token.Rust,
+        "type" => Token.Type,
+        "enum" => Token.Enum,
+        "test" => Token.Test,
+        "if" => Token.If,
+        "else" => Token.Else,
+        "while" => Token.While,
+        "for" => Token.For,
+        "in" => Token.In,
+        "switch" => Token.Switch,
+        "case" => Token.Case,
+        "default" => Token.Default,
+        "throw" => Token.Throw,
+        "try" => Token.Try,
+        "catch" => Token.Catch,
+        "return" => Token.Return,
+        "break" => Token.Break,
+        "continue" => Token.Continue,
+        "async" => Token.Async,
+        "parallel" => Token.Parallel,
+        "par" => Token.Par,
+        "task" => Token.Task,
+        "await" => Token.Await,
+        "fail" => Token.Fail,
+        "defer" => Token.Defer,
+        "move" => Token.Move,
+        "as" => Token.As,
+        "true" => Token.True,
+        "false" => Token.False,
+        "null" => Token.Null,
+        "and" => Token.And,
+        "or" => Token.Or,
+        "not" => Token.Not,
+        "number" => Token.NumberType,
+        "float" => Token.FloatType,
+        "bool" => Token.BoolType,
+        "char" => Token.CharType,
+        "string" => Token.StringType,
+        "bytes" => Token.BytesType,
+        _ => Token.Ident(word)
+    }
+}
+
+// Check if a character is a letter or underscore
+isAlpha(ch: string): bool => ch >= "a" and ch <= "z" or ch >= "A" and ch <= "Z" or ch == "_"
+
+// Check if a character is a digit
+isDigit(ch: string): bool => ch >= "0" and ch <= "9"
+
+// Check if a character is alphanumeric or underscore
+isAlphaNumeric(ch: string): bool => isAlpha(ch) or isDigit(ch)
+
+// Check if a character is whitespace
+isWhitespace(ch: string): bool => ch == " " or ch == "\t" or ch == "\r" or ch == "\n"

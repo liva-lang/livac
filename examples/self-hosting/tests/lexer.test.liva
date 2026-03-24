@@ -1,0 +1,503 @@
+// ═══════════════════════════════════════════════════════════════
+// Lexer Tests - Self-hosting Liva compiler
+// Run: livac test livac-liva/tests/lexer.test.liva
+// ═══════════════════════════════════════════════════════════════
+
+import { describe, test, expect } from "liva/test"
+import { Token, TokenWithSpan, lookupKeyword, isAlpha, isDigit, isAlphaNumeric, isWhitespace } from "../src/token.liva"
+import { tokenize } from "../src/lexer.liva"
+
+// ─── Helper: describe a bare Token by wrapping in TokenWithSpan ─
+describeToken(t: Token): string => TokenWithSpan(t, 0, 0, 0, 0).describe()
+
+// ─── Token type helpers ──────────────────────────────────────
+
+describe("Helper functions", () => {
+    test("isAlpha", () => {
+        expect(isAlpha("a")).toBeTruthy()
+        expect(isAlpha("Z")).toBeTruthy()
+        expect(isAlpha("_")).toBeTruthy()
+        expect(isAlpha("0")).toBeFalsy()
+        expect(isAlpha(" ")).toBeFalsy()
+    })
+
+    test("isDigit", () => {
+        expect(isDigit("0")).toBeTruthy()
+        expect(isDigit("9")).toBeTruthy()
+        expect(isDigit("a")).toBeFalsy()
+    })
+
+    test("isAlphaNumeric", () => {
+        expect(isAlphaNumeric("a")).toBeTruthy()
+        expect(isAlphaNumeric("5")).toBeTruthy()
+        expect(isAlphaNumeric("_")).toBeTruthy()
+        expect(isAlphaNumeric(" ")).toBeFalsy()
+    })
+
+    test("isWhitespace", () => {
+        expect(isWhitespace(" ")).toBeTruthy()
+        expect(isWhitespace("\t")).toBeTruthy()
+        expect(isWhitespace("\n")).toBeTruthy()
+        expect(isWhitespace("a")).toBeFalsy()
+    })
+})
+
+describe("lookupKeyword", () => {
+    test("returns keyword tokens for known keywords", () => {
+        expect(describeToken(lookupKeyword("let"))).toBe("let")
+        expect(describeToken(lookupKeyword("const"))).toBe("const")
+        expect(describeToken(lookupKeyword("if"))).toBe("if")
+        expect(describeToken(lookupKeyword("else"))).toBe("else")
+        expect(describeToken(lookupKeyword("return"))).toBe("return")
+        expect(describeToken(lookupKeyword("true"))).toBe("true")
+        expect(describeToken(lookupKeyword("false"))).toBe("false")
+        expect(describeToken(lookupKeyword("null"))).toBe("null")
+        expect(describeToken(lookupKeyword("and"))).toBe("and")
+        expect(describeToken(lookupKeyword("or"))).toBe("or")
+        expect(describeToken(lookupKeyword("not"))).toBe("not")
+        expect(describeToken(lookupKeyword("fail"))).toBe("fail")
+        expect(describeToken(lookupKeyword("defer"))).toBe("defer")
+    })
+
+    test("returns Ident for non-keywords", () => {
+        expect(describeToken(lookupKeyword("myVar"))).toBe("ident(myVar)")
+        expect(describeToken(lookupKeyword("Person"))).toBe("ident(Person)")
+        expect(describeToken(lookupKeyword("hello"))).toBe("ident(hello)")
+    })
+
+    test("returns type keywords", () => {
+        expect(describeToken(lookupKeyword("number"))).toBe("number")
+        expect(describeToken(lookupKeyword("string"))).toBe("string")
+        expect(describeToken(lookupKeyword("bool"))).toBe("bool")
+        expect(describeToken(lookupKeyword("float"))).toBe("float")
+    })
+})
+
+describe("Lexer - Basic tokens", () => {
+    test("empty source produces only EOF", () => {
+        let tokens = tokenize("")
+        expect(tokens.length).toBe(1)
+        expect(tokens[0].describe()).toBe("EOF")
+    })
+
+    test("whitespace-only source produces only EOF", () => {
+        let tokens = tokenize("   \t\n  ")
+        expect(tokens.length).toBe(1)
+        expect(tokens[0].describe()).toBe("EOF")
+    })
+
+    test("let-assign-int", () => {
+        let tokens = tokenize("let x = 10")
+        expect(tokens.length).toBe(5)  // let, x, =, 10, EOF
+        expect(tokens[0].describe()).toBe("let")
+        expect(tokens[1].describe()).toBe("ident(x)")
+        expect(tokens[2].describe()).toBe("=")
+        expect(tokens[3].describe()).toBe("int(10)")
+        expect(tokens[4].describe()).toBe("EOF")
+    })
+
+    test("const-assign-float", () => {
+        let tokens = tokenize("const PI = 3.14")
+        expect(tokens.length).toBe(5)
+        expect(tokens[0].describe()).toBe("const")
+        expect(tokens[1].describe()).toBe("ident(PI)")
+        expect(tokens[2].describe()).toBe("=")
+        expect(tokens[3].describe()).toBe("float(3.14)")
+        expect(tokens[4].describe()).toBe("EOF")
+    })
+})
+
+describe("Lexer - Strings", () => {
+    test("simple string literal", () => {
+        let tokens = tokenize("\"hello world\"")
+        expect(tokens.length).toBe(2)
+        expect(tokens[0].describe()).toBe("string(\"hello world\")")
+    })
+
+    test("string with escape sequences", () => {
+        let tokens = tokenize("\"hello\\nworld\"")
+        expect(tokens.length).toBe(2)
+        // Verify via describe - newline is embedded in the output
+        expect(tokens[0].describe()).toBe("string(\"hello\nworld\")")
+    })
+
+    test("string template", () => {
+        let tokens = tokenize("$\"Hello {name}\"")
+        expect(tokens.length).toBe(2)
+        expect(tokens[0].describe()).toBe("template(\"Hello {name}\")")
+    })
+
+    test("string template with nested quotes", () => {
+        let tokens = tokenize("$\"result: {fn(\"arg\")}\"")
+        expect(tokens.length).toBe(2)
+        expect(tokens[0].describe()).toBe("template(\"result: {fn(\"arg\")}\")")
+    })
+})
+
+describe("Lexer - Numbers", () => {
+    test("integer literal", () => {
+        let tokens = tokenize("42")
+        expect(tokens[0].describe()).toBe("int(42)")
+    })
+
+    test("integer with underscores", () => {
+        let tokens = tokenize("1_000_000")
+        expect(tokens[0].describe()).toBe("int(1000000)")
+    })
+
+    test("float literal", () => {
+        let tokens = tokenize("3.14")
+        expect(tokens[0].describe()).toBe("float(3.14)")
+    })
+
+    test("float with underscores", () => {
+        let tokens = tokenize("1_000.50")
+        expect(tokens[0].describe()).toBe("float(1000.50)")
+    })
+})
+
+describe("Lexer - Operators", () => {
+    test("arithmetic operators", () => {
+        let tokens = tokenize("+ - * / %")
+        expect(tokens[0].describe()).toBe("+")
+        expect(tokens[1].describe()).toBe("-")
+        expect(tokens[2].describe()).toBe("*")
+        expect(tokens[3].describe()).toBe("/")
+        expect(tokens[4].describe()).toBe("%")
+    })
+
+    test("comparison operators", () => {
+        let tokens = tokenize("== != < <= > >=")
+        expect(tokens[0].describe()).toBe("==")
+        expect(tokens[1].describe()).toBe("!=")
+        expect(tokens[2].describe()).toBe("<")
+        expect(tokens[3].describe()).toBe("<=")
+        expect(tokens[4].describe()).toBe(">")
+        expect(tokens[5].describe()).toBe(">=")
+    })
+
+    test("logical operators word", () => {
+        let tokens = tokenize("and or not")
+        expect(tokens[0].describe()).toBe("and")
+        expect(tokens[1].describe()).toBe("or")
+        expect(tokens[2].describe()).toBe("not")
+    })
+
+    test("logical operators symbols", () => {
+        let tokens = tokenize("&& || !")
+        expect(tokens[0].describe()).toBe("&&")
+        expect(tokens[1].describe()).toBe("||")
+        expect(tokens[2].describe()).toBe("!")
+    })
+
+    test("arrow operator", () => {
+        let tokens = tokenize("=>")
+        expect(tokens[0].describe()).toBe("=>")
+    })
+
+    test("assignment operator", () => {
+        let tokens = tokenize("=")
+        expect(tokens[0].describe()).toBe("=")
+    })
+})
+
+describe("Lexer - Delimiters", () => {
+    test("braces and parens", () => {
+        let tokens = tokenize("( ) { } [ ]")
+        expect(tokens[0].describe()).toBe("(")
+        expect(tokens[1].describe()).toBe(")")
+        expect(tokens[2].describe()).toBe("{")
+        expect(tokens[3].describe()).toBe("}")
+        expect(tokens[4].describe()).toBe("[")
+        expect(tokens[5].describe()).toBe("]")
+    })
+
+    test("colon and double colon", () => {
+        let tokens = tokenize(": ::")
+        expect(tokens[0].describe()).toBe(":")
+        expect(tokens[1].describe()).toBe("::")
+    })
+
+    test("dots", () => {
+        let tokens = tokenize(". .. ..= ...")
+        expect(tokens[0].describe()).toBe(".")
+        expect(tokens[1].describe()).toBe("..")
+        expect(tokens[2].describe()).toBe("..=")
+        expect(tokens[3].describe()).toBe("...")
+    })
+
+    test("comma and semicolon", () => {
+        let tokens = tokenize(", ;")
+        expect(tokens[0].describe()).toBe(",")
+        expect(tokens[1].describe()).toBe(";")
+    })
+})
+
+describe("Lexer - Identifiers", () => {
+    test("simple identifier", () => {
+        let tokens = tokenize("myVariable")
+        expect(tokens[0].describe()).toBe("ident(myVariable)")
+    })
+
+    test("identifier with numbers", () => {
+        let tokens = tokenize("var123")
+        expect(tokens[0].describe()).toBe("ident(var123)")
+    })
+
+    test("PascalCase class name", () => {
+        let tokens = tokenize("Person")
+        expect(tokens[0].describe()).toBe("ident(Person)")
+    })
+
+    test("private identifier", () => {
+        let tokens = tokenize("_private")
+        expect(tokens[0].describe()).toBe("private(_private)")
+    })
+
+    test("underscore alone", () => {
+        let tokens = tokenize("_ ")
+        expect(tokens[0].describe()).toBe("_")
+    })
+})
+
+describe("Lexer - Comments", () => {
+    test("line comment is skipped", () => {
+        let tokens = tokenize("let x = 1 // this is a comment\nlet y = 2")
+        // Should have: let, x, =, 1, let, y, =, 2, EOF
+        expect(tokens.length).toBe(9)
+        expect(tokens[0].describe()).toBe("let")
+        expect(tokens[4].describe()).toBe("let")
+    })
+
+    test("block comment is skipped", () => {
+        let tokens = tokenize("let /* hidden */ x = 1")
+        expect(tokens.length).toBe(5)
+        expect(tokens[0].describe()).toBe("let")
+        expect(tokens[1].describe()).toBe("ident(x)")
+    })
+
+    test("comment-only source", () => {
+        let tokens = tokenize("// just a comment")
+        expect(tokens.length).toBe(1)
+        expect(tokens[0].describe()).toBe("EOF")
+    })
+})
+
+describe("Lexer - Keywords", () => {
+    test("all primary keywords", () => {
+        let tokens = tokenize("let const import from if else while for in switch return break continue")
+        expect(tokens[0].describe()).toBe("let")
+        expect(tokens[1].describe()).toBe("const")
+        expect(tokens[2].describe()).toBe("import")
+        expect(tokens[3].describe()).toBe("from")
+        expect(tokens[4].describe()).toBe("if")
+        expect(tokens[5].describe()).toBe("else")
+        expect(tokens[6].describe()).toBe("while")
+        expect(tokens[7].describe()).toBe("for")
+        expect(tokens[8].describe()).toBe("in")
+        expect(tokens[9].describe()).toBe("switch")
+        expect(tokens[10].describe()).toBe("return")
+        expect(tokens[11].describe()).toBe("break")
+        expect(tokens[12].describe()).toBe("continue")
+    })
+
+    test("concurrency keywords", () => {
+        let tokens = tokenize("async par task await")
+        expect(tokens[0].describe()).toBe("async")
+        expect(tokens[1].describe()).toBe("par")
+        expect(tokens[2].describe()).toBe("task")
+        expect(tokens[3].describe()).toBe("await")
+    })
+
+    test("error and defer keywords", () => {
+        let tokens = tokenize("fail defer throw try catch")
+        expect(tokens[0].describe()).toBe("fail")
+        expect(tokens[1].describe()).toBe("defer")
+        expect(tokens[2].describe()).toBe("throw")
+        expect(tokens[3].describe()).toBe("try")
+        expect(tokens[4].describe()).toBe("catch")
+    })
+})
+
+describe("Lexer - Span tracking", () => {
+    test("line and column tracking", () => {
+        let tokens = tokenize("let x\nlet y")
+        // "let" at line 1, col 1
+        expect(tokens[0].line).toBe(1)
+        expect(tokens[0].col).toBe(1)
+        // "x" at line 1, col 5
+        expect(tokens[1].line).toBe(1)
+        expect(tokens[1].col).toBe(5)
+        // "let" at line 2, col 1
+        expect(tokens[2].line).toBe(2)
+        expect(tokens[2].col).toBe(1)
+        // "y" at line 2, col 5
+        expect(tokens[3].line).toBe(2)
+        expect(tokens[3].col).toBe(5)
+    })
+})
+
+describe("Lexer - Complex expressions", () => {
+    test("function definition", () => {
+        let tokens = tokenize("add(a, b) => a + b")
+        expect(tokens[0].describe()).toBe("ident(add)")
+        expect(tokens[1].describe()).toBe("(")
+        expect(tokens[2].describe()).toBe("ident(a)")
+        expect(tokens[3].describe()).toBe(",")
+        expect(tokens[4].describe()).toBe("ident(b)")
+        expect(tokens[5].describe()).toBe(")")
+        expect(tokens[6].describe()).toBe("=>")
+        expect(tokens[7].describe()).toBe("ident(a)")
+        expect(tokens[8].describe()).toBe("+")
+        expect(tokens[9].describe()).toBe("ident(b)")
+    })
+
+    test("typed function", () => {
+        let tokens = tokenize("multiply(a: number, b: number): number => a * b")
+        expect(tokens[0].describe()).toBe("ident(multiply)")
+        expect(tokens[3].describe()).toBe(":")
+        expect(tokens[4].describe()).toBe("number")
+    })
+
+    test("if-else one-liner", () => {
+        let tokens = tokenize("if x > 0 => print(x) else => print(0)")
+        expect(tokens[0].describe()).toBe("if")
+        expect(tokens[2].describe()).toBe(">")
+        expect(tokens[4].describe()).toBe("=>")
+        expect(tokens[9].describe()).toBe("else")
+        expect(tokens[10].describe()).toBe("=>")
+    })
+
+    test("for-in loop", () => {
+        let tokens = tokenize("for item in items => print(item)")
+        expect(tokens[0].describe()).toBe("for")
+        expect(tokens[1].describe()).toBe("ident(item)")
+        expect(tokens[2].describe()).toBe("in")
+        expect(tokens[3].describe()).toBe("ident(items)")
+        expect(tokens[4].describe()).toBe("=>")
+    })
+
+    test("range", () => {
+        let tokens = tokenize("0..10")
+        expect(tokens[0].describe()).toBe("int(0)")
+        expect(tokens[1].describe()).toBe("..")
+        expect(tokens[2].describe()).toBe("int(10)")
+    })
+
+    test("inclusive range", () => {
+        let tokens = tokenize("1..=100")
+        expect(tokens[0].describe()).toBe("int(1)")
+        expect(tokens[1].describe()).toBe("..=")
+        expect(tokens[2].describe()).toBe("int(100)")
+    })
+
+    test("class definition", () => {
+        let tokens = tokenize("Person {\n    name: string\n    age: number\n}")
+        expect(tokens[0].describe()).toBe("ident(Person)")
+        expect(tokens[1].describe()).toBe("{")
+        expect(tokens[2].describe()).toBe("ident(name)")
+        expect(tokens[3].describe()).toBe(":")
+        expect(tokens[4].describe()).toBe("string")
+        expect(tokens[5].describe()).toBe("ident(age)")
+        expect(tokens[6].describe()).toBe(":")
+        expect(tokens[7].describe()).toBe("number")
+        expect(tokens[8].describe()).toBe("}")
+    })
+
+    test("enum definition", () => {
+        let tokens = tokenize("enum Color {\n    Red,\n    Green,\n    Blue\n}")
+        expect(tokens[0].describe()).toBe("enum")
+        expect(tokens[1].describe()).toBe("ident(Color)")
+        expect(tokens[2].describe()).toBe("{")
+        expect(tokens[3].describe()).toBe("ident(Red)")
+        expect(tokens[4].describe()).toBe(",")
+        expect(tokens[5].describe()).toBe("ident(Green)")
+        expect(tokens[6].describe()).toBe(",")
+        expect(tokens[7].describe()).toBe("ident(Blue)")
+        expect(tokens[8].describe()).toBe("}")
+    })
+
+    test("import statement", () => {
+        let tokens = tokenize("import { add, subtract } from \"./math.liva\"")
+        expect(tokens[0].describe()).toBe("import")
+        expect(tokens[1].describe()).toBe("{")
+        expect(tokens[2].describe()).toBe("ident(add)")
+        expect(tokens[3].describe()).toBe(",")
+        expect(tokens[4].describe()).toBe("ident(subtract)")
+        expect(tokens[5].describe()).toBe("}")
+        expect(tokens[6].describe()).toBe("from")
+    })
+
+    test("error handling with or fail", () => {
+        let tokens = tokenize("let data = File.read(path) or fail \"error\"")
+        expect(tokens[0].describe()).toBe("let")
+        expect(tokens[1].describe()).toBe("ident(data)")
+        expect(tokens[2].describe()).toBe("=")
+        expect(tokens[3].describe()).toBe("ident(File)")
+        expect(tokens[4].describe()).toBe(".")
+        expect(tokens[5].describe()).toBe("ident(read)")
+        expect(tokens[9].describe()).toBe("or")
+        expect(tokens[10].describe()).toBe("fail")
+    })
+
+    test("switch expression", () => {
+        let tokens = tokenize("switch x {\n    0 => \"zero\",\n    _ => \"other\"\n}")
+        expect(tokens[0].describe()).toBe("switch")
+        expect(tokens[1].describe()).toBe("ident(x)")
+        expect(tokens[2].describe()).toBe("{")
+        expect(tokens[3].describe()).toBe("int(0)")
+        expect(tokens[4].describe()).toBe("=>")
+    })
+
+    test("defer statement", () => {
+        let tokens = tokenize("defer DB.close(db)")
+        expect(tokens[0].describe()).toBe("defer")
+        expect(tokens[1].describe()).toBe("ident(DB)")
+        expect(tokens[2].describe()).toBe(".")
+        expect(tokens[3].describe()).toBe("ident(close)")
+    })
+})
+
+describe("Lexer - Char literals", () => {
+    test("simple char", () => {
+        let tokens = tokenize("'a'")
+        expect(tokens[0].describe()).toBe("char('a')")
+    })
+
+    test("escape char newline", () => {
+        let tokens = tokenize("'\\n'")
+        expect(tokens[0].describe()).toBe("char('\n')")
+    })
+})
+
+describe("Lexer - Edge cases", () => {
+    test("consecutive operators without spaces", () => {
+        let tokens = tokenize("a+b*c")
+        expect(tokens.length).toBe(6)  // a, +, b, *, c, EOF
+        expect(tokens[0].describe()).toBe("ident(a)")
+        expect(tokens[1].describe()).toBe("+")
+        expect(tokens[2].describe()).toBe("ident(b)")
+        expect(tokens[3].describe()).toBe("*")
+        expect(tokens[4].describe()).toBe("ident(c)")
+    })
+
+    test("nested template with function call", () => {
+        let tokens = tokenize("$\"{x + 1}\"")
+        expect(tokens[0].describe()).toBe("template(\"{x + 1}\")")
+    })
+
+    test("question mark operator", () => {
+        let tokens = tokenize("x ? a : b")
+        expect(tokens[1].describe()).toBe("?")
+        expect(tokens[3].describe()).toBe(":")
+    })
+
+    test("pipe operator", () => {
+        let tokens = tokenize("|")
+        expect(tokens[0].describe()).toBe("|")
+    })
+})
+
+main() {
+    print("Lexer tests")
+}

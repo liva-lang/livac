@@ -86,6 +86,8 @@ pub struct CodeGenerator {
     fallible_methods: std::collections::HashSet<String>, // B19 fix: Track which class methods are fallible (method_name, not qualified)
     array_returning_functions: std::collections::HashMap<String, String>, // Track functions that return [T] (Vec) -> elem type
     string_returning_functions: std::collections::HashSet<String>, // Track functions that return string (String)
+    string_returning_methods: std::collections::HashSet<String>, // B100: Track class methods that return string (for VarDecl tracking)
+    array_returning_methods: std::collections::HashMap<String, String>, // B100: Track class methods that return [T] (method_name -> elem_type)
     ref_lambda_params: std::collections::HashSet<String>, // Lambda params that are &T references (need *deref in comparisons)
     suppress_option_unwrap: bool, // When true, Option-returning methods (find/first/last/min/max) don't add .unwrap()
     suppress_map_get_unwrap: bool, // When true, Map.get() doesn't add .unwrap_or_default() (used in `or` path)
@@ -177,6 +179,8 @@ impl CodeGenerator {
             fallible_methods: std::collections::HashSet::new(),
             array_returning_functions: std::collections::HashMap::new(),
             string_returning_functions: std::collections::HashSet::new(),
+            string_returning_methods: std::collections::HashSet::new(),
+            array_returning_methods: std::collections::HashMap::new(),
             ref_lambda_params: std::collections::HashSet::new(),
             suppress_option_unwrap: false,
             suppress_map_get_unwrap: false,
@@ -1274,6 +1278,13 @@ impl CodeGenerator {
             Stmt::Expr(expr_stmt) => {
                 self.collect_mutated_vars_in_expr(&expr_stmt.expr, mutated);
             }
+            // B100 fix: Analyze return expressions for mutated vars
+            // e.g., `return lexer.tokenize()` should mark `lexer` as mutated
+            Stmt::Return(ret_stmt) => {
+                if let Some(expr) = &ret_stmt.expr {
+                    self.collect_mutated_vars_in_expr(expr, mutated);
+                }
+            }
             _ => {}
         }
     }
@@ -1316,12 +1327,13 @@ impl CodeGenerator {
                 }
 
                 // For class instances, any method call could potentially mutate
-                // We use a heuristic: if the method name doesn't start with "get", "is", "has", "to"
+                // We use a heuristic: if the method name doesn't start with "get", "is", "has", "to[A-Z]"
                 // it's likely a mutating method
                 let is_likely_getter = mc.method.starts_with("get")
                     || mc.method.starts_with("is")
                     || mc.method.starts_with("has")
-                    || mc.method.starts_with("to")
+                    // B100 fix: Use "to" + uppercase check to avoid matching "tokenize" etc.
+                    || (mc.method.starts_with("to") && mc.method.chars().nth(2).map_or(false, |c| c.is_uppercase()))
                     || mc.method == "length"
                     || mc.method == "size"
                     || mc.method == "count"
@@ -1511,6 +1523,24 @@ impl CodeGenerator {
                     .insert(cls.name.clone(), optional_fields);
                 if !array_field_types.is_empty() {
                     self.class_array_field_types.insert(cls.name.clone(), array_field_types);
+                }
+
+                // B100 fix: Scan class methods for return types (string, [T])
+                for m in &cls.members {
+                    if let Member::Method(method) = m {
+                        if let Some(ret_type) = &method.return_type {
+                            if matches!(ret_type, TypeRef::Simple(name) if name == "string") {
+                                self.string_returning_methods.insert(method.name.clone());
+                            }
+                            if let TypeRef::Array(elem) = ret_type {
+                                let elem_type = match elem.as_ref() {
+                                    TypeRef::Simple(name) => name.clone(),
+                                    _ => String::new(),
+                                };
+                                self.array_returning_methods.insert(method.name.clone(), elem_type);
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -2963,15 +2993,35 @@ impl CodeGenerator {
 
         // Phase 2: Generate serde derives if class is used with JSON.parse or JSON.stringify (B46)
         // Data classes (auto-detected) also get PartialEq
+        // B99 fix: Don't derive Default if any field is an enum type (enums with data don't impl Default)
         let needs_serde = class.needs_serde || self.serde_classes.contains(&class.name);
-        let derives = if is_data && needs_serde {
+        let has_enum_field = class.members.iter().any(|m| {
+            if let crate::ast::Member::Field(f) = m {
+                if let Some(ref type_ref) = f.type_ref {
+                    if let crate::ast::TypeRef::Simple(ref name) = type_ref {
+                        return self.enum_names.contains(name);
+                    }
+                }
+            }
+            false
+        });
+        let can_default = !has_enum_field;
+        let derives = if is_data && needs_serde && can_default {
             "#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]"
-        } else if is_data {
+        } else if is_data && needs_serde {
+            "#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]"
+        } else if is_data && can_default {
             "#[derive(Debug, Clone, Default, PartialEq)]"
-        } else if needs_serde {
+        } else if is_data {
+            "#[derive(Debug, Clone, PartialEq)]"
+        } else if needs_serde && can_default {
             "#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]"
-        } else {
+        } else if needs_serde {
+            "#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]"
+        } else if can_default {
             "#[derive(Debug, Clone, Default)]"
+        } else {
+            "#[derive(Debug, Clone)]"
         };
 
         // Generate struct (interfaces are validated at compile-time, no runtime representation)
@@ -5710,6 +5760,22 @@ impl CodeGenerator {
                                     }
                                 }
                             }
+                            // B100 fix: Track variables assigned from method calls that return string
+                            // e.g., let ch = this._peek() where _peek() returns string
+                            if self.string_returning_methods.contains(&method_call.method) {
+                                if let Some(name) = binding.name() {
+                                    self.string_vars.insert(self.sanitize_name(name));
+                                }
+                            }
+                            // B100 fix: Track variables assigned from method calls that return [T]
+                            if let Some(elem_type) = self.array_returning_methods.get(&method_call.method).cloned() {
+                                if let Some(name) = binding.name() {
+                                    self.array_vars.insert(name.to_string());
+                                    if !elem_type.is_empty() {
+                                        self.typed_array_vars.insert(name.to_string(), elem_type);
+                                    }
+                                }
+                            }
                         }
                         // Mark instances created via constructor call: let x = ClassName(...)
                         else if let Expr::Call(call) = &var.init {
@@ -7286,8 +7352,12 @@ impl CodeGenerator {
                     } else if self.array_vars.contains(&sanitized) {
                         if let Some(elem_type) = self.typed_array_vars.get(&sanitized) {
                             // Clone for string and class instance types (not number/bool)
+                            // B100 fix: Also check enum_names for imported class types not in class_fields
                             elem_type == "string" || self.class_fields.contains_key(elem_type)
                                 || elem_type.contains("[]")
+                                || self.enum_names.contains(elem_type)
+                                || (!matches!(elem_type.as_str(), "number" | "int" | "i32" | "float" | "f64" | "bool" | "char")
+                                    && elem_type.chars().next().map_or(false, |c| c.is_uppercase()))
                         } else {
                             false
                         }
@@ -7873,9 +7943,25 @@ impl CodeGenerator {
         // Check if this is a union type match by examining the first Typed pattern
         let union_type_name = self.detect_union_switch(switch_expr);
 
+        // B96 fix: Detect string-based switch expressions (patterns are string literals)
+        let is_string_switch = switch_expr.arms.iter().any(|arm| {
+            matches!(&arm.pattern, Pattern::Literal(Literal::String(_)))
+        });
+
+        // B97 fix: When matching on self.field in a &self method, borrow to avoid move
+        let needs_ref = self.in_method && !self.current_method_is_mut
+            && matches!(&*switch_expr.discriminant, Expr::Member { object, .. }
+                if matches!(object.as_ref(), Expr::Identifier(n) if n == "this"));
+
         // Generate Rust match expression
         self.output.push_str("match ");
+        if needs_ref {
+            self.output.push('&');
+        }
         self.generate_expr(&switch_expr.discriminant)?;
+        if is_string_switch {
+            self.output.push_str(".as_str()");
+        }
         self.output.push_str(" {");
         self.indent();
 
@@ -10757,15 +10843,15 @@ impl CodeGenerator {
                 return Ok(());
             }
             "charAt" => {
-                // B25 fix: charAt(index) -> char (not String) so char comparisons work
-                // str.chars().nth((index) as usize).unwrap_or('\0')
+                // B95 fix: charAt(index) -> String so it works as Liva string type
+                // str.chars().nth((index) as usize).map(|c| c.to_string()).unwrap_or_default()
                 self.generate_expr(&method_call.object)?;
                 self.output.push_str(".chars().nth((");
                 if !method_call.args.is_empty() {
                     self.generate_expr(&method_call.args[0])?;
                     self.output.push_str(") as usize");
                 }
-                self.output.push_str(").unwrap_or('\\0')");
+                self.output.push_str(").map(|c| c.to_string()).unwrap_or_default()");
                 return Ok(());
             }
             "indexOf" => {
@@ -17530,7 +17616,7 @@ pub fn generate_multifile_project(
         }
 
         // Generate Rust code for this module
-        let rust_code = generate_module_code(module, &ctx)?;
+        let rust_code = generate_module_code(module, &ctx, modules)?;
 
         // Determine output path: src/module_name.rs
         let output_path = PathBuf::from("src").join(format!("{}.rs", module_name));
@@ -17548,21 +17634,65 @@ pub fn generate_multifile_project(
 }
 
 /// Generate Rust code for a single Liva module
-fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext) -> Result<String> {
+fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext, all_modules: &[&crate::module::Module]) -> Result<String> {
     let mut codegen = CodeGenerator::new(ctx.clone());
 
     // B06 fix: Pre-populate enum metadata so enum variants are recognized as
     // expressions (e.g., Priority.Alta) instead of falling through to get_field()
-    for item in &module.ast.items {
-        if let TopLevel::Enum(enum_decl) = item {
-            codegen.enum_names.insert(enum_decl.name.clone());
-            let mut variants_map = std::collections::HashMap::new();
-            for variant in &enum_decl.variants {
-                let field_names: Vec<String> =
-                    variant.fields.iter().map(|f| f.name.clone()).collect();
-                variants_map.insert(variant.name.clone(), field_names);
+    // B98 fix: Also pre-populate from ALL imported modules, not just the current one
+    for m in std::iter::once(&module as &crate::module::Module).chain(all_modules.iter().copied()) {
+        for item in &m.ast.items {
+            if let TopLevel::Enum(enum_decl) = item {
+                codegen.enum_names.insert(enum_decl.name.clone());
+                let mut variants_map = std::collections::HashMap::new();
+                for variant in &enum_decl.variants {
+                    let field_names: Vec<String> =
+                        variant.fields.iter().map(|f| f.name.clone()).collect();
+                    variants_map.insert(variant.name.clone(), field_names);
+                }
+                codegen.enum_variants.insert(enum_decl.name.clone(), variants_map);
             }
-            codegen.enum_variants.insert(enum_decl.name.clone(), variants_map);
+            // B98 fix: Also pre-populate fallible functions/methods from imported modules
+            if let TopLevel::Function(func) = item {
+                if func.contains_fail {
+                    codegen.fallible_functions.insert(func.name.clone());
+                }
+                // B100 fix: Pre-populate array/string returning functions from imported modules
+                if let Some(ret_type) = &func.return_type {
+                    if let TypeRef::Array(elem) = ret_type {
+                        let elem_type = match elem.as_ref() {
+                            TypeRef::Simple(name) => name.clone(),
+                            _ => String::new(),
+                        };
+                        codegen.array_returning_functions.insert(func.name.clone(), elem_type);
+                    }
+                    if matches!(ret_type, TypeRef::Simple(name) if name == "string") {
+                        codegen.string_returning_functions.insert(func.name.clone());
+                    }
+                }
+            }
+            if let TopLevel::Class(class) = item {
+                for member in &class.members {
+                    if let crate::ast::Member::Method(method) = member {
+                        if method.contains_fail {
+                            codegen.fallible_methods.insert(method.name.clone());
+                        }
+                        // B100 fix: Pre-populate string/array returning methods from imported classes
+                        if let Some(ret_type) = &method.return_type {
+                            if matches!(ret_type, TypeRef::Simple(name) if name == "string") {
+                                codegen.string_returning_methods.insert(method.name.clone());
+                            }
+                            if let TypeRef::Array(elem) = ret_type {
+                                let elem_type = match elem.as_ref() {
+                                    TypeRef::Simple(name) => name.clone(),
+                                    _ => String::new(),
+                                };
+                                codegen.array_returning_methods.insert(method.name.clone(), elem_type);
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -17818,6 +17948,19 @@ fn generate_entry_point(
                 if func.contains_fail {
                     codegen.fallible_functions.insert(func.name.clone());
                 }
+                // B100 fix: Pre-populate array/string returning functions from imported modules
+                if let Some(ret_type) = &func.return_type {
+                    if let TypeRef::Array(elem) = ret_type {
+                        let elem_type = match elem.as_ref() {
+                            TypeRef::Simple(name) => name.clone(),
+                            _ => String::new(),
+                        };
+                        codegen.array_returning_functions.insert(func.name.clone(), elem_type);
+                    }
+                    if matches!(ret_type, TypeRef::Simple(name) if name == "string") {
+                        codegen.string_returning_functions.insert(func.name.clone());
+                    }
+                }
             }
             // B23 fix: Also pre-populate fallible methods from imported classes
             if let TopLevel::Class(class) = item {
@@ -17825,6 +17968,19 @@ fn generate_entry_point(
                     if let crate::ast::Member::Method(method) = member {
                         if method.contains_fail {
                             codegen.fallible_methods.insert(method.name.clone());
+                        }
+                        // B100 fix: Pre-populate string/array returning methods from imported classes
+                        if let Some(ret_type) = &method.return_type {
+                            if matches!(ret_type, TypeRef::Simple(name) if name == "string") {
+                                codegen.string_returning_methods.insert(method.name.clone());
+                            }
+                            if let TypeRef::Array(elem) = ret_type {
+                                let elem_type = match elem.as_ref() {
+                                    TypeRef::Simple(name) => name.clone(),
+                                    _ => String::new(),
+                                };
+                                codegen.array_returning_methods.insert(method.name.clone(), elem_type);
+                            }
                         }
                     }
                 }

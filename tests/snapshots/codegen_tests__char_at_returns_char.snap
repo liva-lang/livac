@@ -388,7 +388,7 @@ mod liva_rt {
 
 fn main() {
     let mut text = "hello".to_string();
-    let ch = text.chars().nth((0) as usize).unwrap_or('\0');
+    let ch = text.chars().nth((0) as usize).map(|c| c.to_string()).unwrap_or_default();
     if ch == 'h' {
         println!("{}", "found h");
     }

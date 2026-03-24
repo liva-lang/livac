@@ -5070,7 +5070,8 @@ main() {
 
 #[test]
 fn test_char_at_returns_char() {
-    // B25: charAt should return char, not String, so char comparisons work
+    // B95: charAt should return String (matching Liva's type system)
+    // Previously B25 returned char which caused type mismatches in string contexts
     let source = r#"
 main() {
     let text = "hello"
@@ -5082,10 +5083,8 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     let main_code = rust_code.split("fn main()").last().unwrap_or("");
-    // Should use unwrap_or('\0') not .map(|c| c.to_string()).unwrap_or_default()
-    assert!(main_code.contains("unwrap_or('\\0')"), "Should return char with unwrap_or: {}", main_code);
-    let ch_line = main_code.lines().find(|l| l.contains("let ch") || l.contains("charAt")).unwrap_or("");
-    assert!(!ch_line.contains("c.to_string()"), "charAt should NOT convert to String: {}", ch_line);
+    // B95: charAt now returns String via .map(|c| c.to_string()).unwrap_or_default()
+    assert!(main_code.contains("map(|c| c.to_string()).unwrap_or_default()"), "Should return String with map(|c| c.to_string()): {}", main_code);
     assert_snapshot!("char_at_returns_char", rust_code);
 }
 

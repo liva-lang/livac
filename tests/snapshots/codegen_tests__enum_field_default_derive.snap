@@ -405,7 +405,7 @@ impl std::fmt::Display for Priority {
 }
 
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Item {
     pub title: String,
     pub priority: Priority,

@@ -396,7 +396,7 @@ fn main() {
     let starts = text.starts_with("Hello");
     let ends = text.ends_with("!");
     let sub = text[(0) as usize..(5) as usize].to_string();
-    let ch = text.chars().nth((0) as usize).unwrap_or('\0');
+    let ch = text.chars().nth((0) as usize).map(|c| c.to_string()).unwrap_or_default();
     let idx = text.find("World").map(|i| i as i32).unwrap_or(-1);
     let len = (text.len() as i32);
     println!("{}", upper);
