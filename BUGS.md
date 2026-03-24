@@ -630,65 +630,36 @@ Key areas of codegen bugs:
 > **Date**: 2026-03-23/24
 > **Branch**: `feat/self-hosting` (deleted — will restart after fixing these bugs)
 
-### Bug #90: `.length` field collision with codegen `.len()` ⚠️ OPEN
+### Bug #90: `.length` field collision with codegen `.len()` ✅ FIXED
 **Severity**: Medium
 **Location**: `codegen.rs` — Member expression generation
-**Status**: Not fixed
+**Status**: FIXED
 
 **Description**: When a class has a field literally named `length`, the codegen translates `obj.length` to `obj.len()` (Rust Vec method) instead of accessing the struct field.
 
-**Example**:
-```liva
-ParserState {
-    tokens: [TokenWithSpan]
-    length: number    // ← this field
-}
-let p = ParserState(tokens, tokens.length)
-print(p.length)  // Codegen: p.len() instead of p.length
-```
-
-**Root Cause**: `generate_expr()` has a blanket rule: any `.length` → `.len()`. It doesn't distinguish between array/string `.length` and user-defined struct fields named `length`.
-
-**Fix needed**: Check if the object is a known struct instance with a `length` field; if so, emit `.length` directly. Only translate to `.len()` for arrays/strings.
+**Fix**: Added check at start of `.length` handler: if object is a class instance (via `var_types`) and that class has a `length` field (via `class_fields`), emit `.length` directly. Only translate to `.len()` for arrays/strings.
 
 ---
 
-### Bug #91: `array[index].field` generates map-style access ⚠️ OPEN
+### Bug #91: `array[index].field` generates map-style access ✅ FIXED
 **Severity**: High
 **Location**: `codegen.rs` — nested Member expression through Index
-**Status**: Not fixed
+**Status**: FIXED
 
-**Description**: When accessing a field on an element retrieved by array indexing (`tokens[pos].token`), the codegen generates map-style string indexing (`tokens[pos]["token"]`) instead of struct field access (`tokens[pos].token`).
+**Description**: When accessing a field on an element retrieved by array indexing (`tokens[pos].token`), the codegen generates map-style string indexing instead of struct field access.
 
-**Example**:
-```liva
-let tokens: [TokenWithSpan] = tokenize(source)
-let t = tokens[pos].token  // Codegen: tokens[pos as usize]["token"]
-                            // Expected: tokens[pos as usize].token
-```
-
-**Root Cause**: The codegen can't track the type of `array[index]` expressions (it loses type info through the index operation), so it falls back to hash-map style string key access.
-
-**Fix needed**: Propagate element type from `typed_array_vars` through index expressions, so `typed_array[i].field` generates struct field access.
+**Fix**: Replaced the Bug #51 hardcoded field name list with universal `.clone()` for ALL fields accessed through array-indexed class elements. Primitives (i32, f64, bool) implement Copy so `.clone()` is harmless; String/Vec/struct fields need it.
 
 ---
 
-### Bug #92: `let t = array[idx]` for structs causes Rust move error ⚠️ OPEN
+### Bug #92: `let t = array[idx]` for structs causes Rust move error ✅ FIXED
 **Severity**: High
 **Location**: `codegen.rs` — VarDecl with array index of non-Copy types
-**Status**: Not fixed
+**Status**: FIXED
 
-**Description**: Binding a struct from an array index (`let t = tokens[pos]`) generates Rust code without `.clone()`, causing a "cannot move out of index" error because structs don't implement `Copy`.
+**Description**: Binding a struct from an array index (`let t = tokens[pos]`) generates Rust code without `.clone()`.
 
-**Example**:
-```liva
-let t = tokens[pos]  // Codegen: let t = tokens[pos as usize];
-                      // Rust error: cannot move out of index of Vec<TokenWithSpan>
-```
-
-**Root Cause**: The codegen emits direct indexing for struct arrays but `.get().cloned()` for string/number arrays. The struct path needs `.clone()` (or borrow `&`) added.
-
-**Fix needed**: Add `.clone()` suffix for array indexing on struct-typed arrays (same pattern as string arrays).
+**Fix**: The `needs_clone` logic in `Expr::Index` already handled class-typed arrays via `typed_array_vars` + `class_fields.contains_key()`. Verified working. Additionally, variables created from typed array indexing are now tracked as class instances via `var_types` (see Bug #94 fix).
 
 ---
 
@@ -703,31 +674,20 @@ let t = tokens[pos]  // Codegen: let t = tokens[pos as usize];
 
 ---
 
-### Bug #94: String function parameter move issue ⚠️ OPEN
+### Bug #94: String function parameter move issue ✅ FIXED
 **Severity**: Medium
-**Location**: `codegen.rs` — function parameter ownership
-**Status**: Not fixed
+**Location**: `codegen.rs` — VarDecl Index tracking + function call argument cloning
+**Status**: FIXED
 
-**Description**: When a `String` parameter is used in two separate function calls, Rust complains about "use of moved value" because the first call takes ownership.
+**Description**: `let opTok = toks[i]` where `toks` is `[string]` → `opTok` wasn't tracked as a string variable → not cloned when passed to multiple function calls → Rust move error.
 
-**Example**:
-```liva
-_infixPrecedence(tok: string): number { ... }
-_opString(tok: string): string { ... }
-
-let opTok = toks[currentPos]
-let prec = _infixPrecedence(opTok)   // moves opTok
-let opStr = _opString(opTok)          // error: opTok already moved
-```
-
-**Root Cause**: Function parameters with type `String` take ownership. The codegen should either (a) generate `&str` parameters, (b) auto-clone arguments, or (c) use `impl Into<String>`.
-
-**Fix needed**: Auto-clone string arguments when the same variable is used more than once across function calls, or generate `&str` params for functions that don't need ownership.
+**Fix**: In VarDecl `Expr::Index` handler, now propagates type tracking from `typed_array_vars`: if the base array is `[string]`, the indexed result is tracked in `string_vars`; if `[ClassName]`, tracked in `class_instance_vars` + `var_types`. This enables existing clone logic in `generate_normal_call` to auto-clone the variable.
 
 ---
 
 ### Session Self-Hosting Summary
 - **Bugs found**: 5 (3 codegen, 1 parser info, 1 move semantics)
-- **4 require compiler fixes** (#90, #91, #92, #94)
-- **Self-hosting result**: Lexer + Parser fully functional with workarounds
-- **Plan**: Fix these bugs on main, then restart self-hosting from scratch
+- **4 fixed**: #90, #91, #92, #94 — all resolved on main
+- **1 info**: #93 — self-hosting parser limitation, not a compiler bug
+- **Test total**: 497 tests, 0 failures
+- **Self-hosting result**: Lexer + Parser fully functional; workarounds no longer needed

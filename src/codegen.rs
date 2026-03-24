@@ -5757,6 +5757,20 @@ impl CodeGenerator {
                                         self.map_vars.insert(self.sanitize_name(name));
                                     }
                                 }
+                                // Bug #94 fix: Track variables indexed from typed arrays
+                                // e.g., let tok = toks[i] where toks is [string] → tok is string
+                                // e.g., let p = people[i] where people is [Person] → p is class instance
+                                if let Some(elem_type) = self.typed_array_vars.get(&sanitized_obj).cloned() {
+                                    if let Some(name) = binding.name() {
+                                        let var_name_s = self.sanitize_name(name);
+                                        if elem_type == "string" {
+                                            self.string_vars.insert(var_name_s);
+                                        } else if self.class_fields.contains_key(&elem_type) {
+                                            self.class_instance_vars.insert(var_name_s.clone());
+                                            self.var_types.insert(var_name_s, elem_type);
+                                        }
+                                    }
+                                }
                             }
                         }
 
@@ -6846,6 +6860,21 @@ impl CodeGenerator {
                 }
 
                 if property == "length" {
+                    // Bug #90 fix: Check if this is a class instance with a 'length' field
+                    // If so, emit .length as a struct field, NOT .len()
+                    if let Expr::Identifier(var_name) = object.as_ref() {
+                        let sanitized = self.sanitize_name(var_name);
+                        if let Some(class_name) = self.var_types.get(&sanitized) {
+                            if let Some(fields) = self.class_fields.get(class_name) {
+                                if fields.contains("length") {
+                                    self.generate_expr(object)?;
+                                    self.output.push_str(".length");
+                                    return Ok(());
+                                }
+                            }
+                        }
+                    }
+
                     // Check if this is a JsonValue (not an array, string, or class instance)
                     // JsonValue uses .length(), Rust arrays/strings use .len()
                     // Note: .len() returns usize, but Liva uses i32 (number), so we cast
@@ -7015,21 +7044,11 @@ impl CodeGenerator {
                             let rust_field = self.sanitize_name(property);
                             write!(self.output, ".{}", rust_field).unwrap();
 
-                            // Bug #51: String fields need .clone() to avoid move errors
-                            // Common string field names that need cloning
-                            if property.ends_with("name")
-                                || property.ends_with("label")
-                                || property.ends_with("title")
-                                || property.ends_with("text")
-                                || property.ends_with("message")
-                                || property.ends_with("description")
-                                || property == "name"
-                                || property == "label"
-                                || property == "title"
-                                || property == "text"
-                                || property == "message"
-                                || property == "description"
-                            {
+                            // Bug #91 fix: Always clone fields accessed through array-indexed
+                            // class elements. Primitive types (i32, f64, bool) implement Copy
+                            // so .clone() is harmless; String/Vec/struct fields need it.
+                            // This replaces the old Bug #51 hardcoded field name list.
+                            if !self.in_assignment_target {
                                 self.output.push_str(".clone()");
                             }
                         } else {

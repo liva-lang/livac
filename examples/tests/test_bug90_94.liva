@@ -1,0 +1,50 @@
+// Test for Bugs #90, #91, #92, #94
+
+// Bug #90: Class with "length" field — should NOT become .len()
+Item {
+    name: string
+    length: number
+}
+
+// Bug #91 + #92: Array of structs — field access through index + clone
+Person {
+    firstName: string
+    age: number
+}
+
+// Bug #94: String var from array index used in multiple calls
+_greet(name: string): string {
+    return $"Hello, {name}!"
+}
+
+_shout(name: string): string {
+    return $"{name}!!!"
+}
+
+_getAge(p: Person): number {
+    return p.age
+}
+
+main() {
+    // Bug #90 test
+    let item = Item("Cable", 3)
+    print($"Item length field: {item.length}")
+
+    // Bug #91 test — array[i].field
+    let people: [Person] = [Person("Alice", 30), Person("Bob", 25)]
+    let name0 = people[0].firstName
+    print($"First person: {name0}")
+
+    // Bug #92 test — let t = array[idx]
+    let idx = 0
+    let p = people[idx]
+    print($"Person: {p.firstName}, age: {p.age}")
+
+    // Bug #94 test — string var from array used in multiple calls
+    let names: [string] = ["Alice", "Bob", "Charlie"]
+    let picked = names[1]
+    let greeting = _greet(picked)
+    let shout = _shout(picked)
+    print(greeting)
+    print(shout)
+}
