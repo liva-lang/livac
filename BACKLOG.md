@@ -345,12 +345,13 @@
 - [x] Tests (4 snapshot + 1 assertion)
 - [x] Docs (QUICK_REFERENCE, CHANGELOG)
 
-### Self-hosting (parcial)
+### Self-hosting (parcial) — experimento completado
 
-- [ ] Implementar lexer de Liva en Liva
-- [ ] Implementar parser (subset) en Liva
-- [ ] Implementar codegen (subset) en Liva
-- [ ] Comparar output con compilador Rust → verificar equivalencia
+- [x] Implementar lexer de Liva en Liva (~660 líneas)
+- [x] Implementar parser (subset) en Liva (~948 líneas, self-referencial con 0 errores)
+- [ ] Implementar codegen (subset) en Liva (pendiente — reiniciar tras fixes)
+- [x] Comparar output con compilador Rust → verificar equivalencia
+- [x] Documentar bugs encontrados (#90-#94) y arreglar en main (#90, #91, #92, #94 ✅)
 
 ---
 

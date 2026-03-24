@@ -1,11 +1,11 @@
 # 🔧 Liva Compiler Context
 
 > **Proyecto:** livac - El compilador de Liva  
-> **Versión:** v1.9.0-dev (tag: v1.2.0)  
+> **Versión:** v2.0.0-dev (tag: v1.2.0)  
 > **Lenguaje:** Rust  
-> **Tests:** 488 passing  
+> **Tests:** 497 passing  
 > **Próximo objetivo:** v2.0 — Enums recursivos + Self-hosting parcial  
-> **Última actualización:** 2026-03-23
+> **Última actualización:** 2026-03-24
 
 ---
 
@@ -147,8 +147,8 @@ skills/liva-lang/
 - **Math (14):** sqrt, pow, abs, floor, ceil, round, min, max, random, PI, E, clamp, sign, log
 
 ### Dogfooding
-- **86/86 bugs corregidos** (Dogfooding v1: 9 bugs #63-#74, v2: 8 bugs #75-#82, v3: 7 bugs #83-#89)
-- **503 tests** totales (258 codegen, 6 desugar, 17 semantic snapshot tests + 11 Liva e2e + 6 init + 24 linter + doctests)
+- **90/90 bugs corregidos** (Dogfooding v1: 9 bugs #63-#74, v2: 8 bugs #75-#82, v3: 7 bugs #83-#89, Self-hosting: 4 bugs #90-#94)
+- **497 tests** totales (258 codegen, 6 desugar, 17 semantic snapshot tests + 11 Liva e2e + 6 init + 24 linter + doctests)
 - **63 Liva assertion tests** (28 string + 26 array + 9 math) — cobertura completa de stdlib
 - **File (11 funciones):** read, write, append, exists, delete, copy, move, size, extension, readLines, writeLines
 - **Dir (7 funciones):** list, isDir, exists, create, delete, listRecursive, walk

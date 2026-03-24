@@ -24,6 +24,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixed camelCase variable name lookup in for-loop type propagation
 - 4 new snapshot tests, 503 tests total
 
+### Fixed
+- **Bug #90:** `.length` on class instances with a `length` field now emits `.length` (not `.len()`)
+  - Checks `var_types` + `class_fields` before applying the `.len()` rule
+- **Bug #91:** `array[i].field` now always `.clone()` through class-typed array index
+  - Replaces hardcoded field name list (Bug #51) with universal clone for all fields
+- **Bug #92:** Struct array indexing verified to generate `.clone()` via `typed_array_vars`
+- **Bug #94:** Variables from typed array indexing (`let x = arr[i]`) now tracked as `string_vars` / `class_instance_vars`
+  - Enables auto-clone when the variable is passed to multiple function calls
+- Self-hosting experiment: lexer (660 lines) + parser (948 lines) written in Liva — identified and fixed 4 codegen bugs
+
 ### Changed
 - **Recursive enums (auto-boxing)** — Enum variants can reference their own enum type
   - Auto-detection: fields whose type matches the enum name are automatically boxed
