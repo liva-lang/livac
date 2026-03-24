@@ -621,3 +621,113 @@ Key areas of codegen bugs:
 3. Rust ownership/move semantics for Vec indexing and DB params
 4. Variable tracking for req.body assignments
 5. Runtime compatibility with axum 0.8 path syntax
+
+---
+
+## Found During Self-Hosting Experiment (v2.0)
+
+> **Session**: Implemented a lexer (~660 lines) and parser (~948 lines) for Liva in Liva itself.
+> **Date**: 2026-03-23/24
+> **Branch**: `feat/self-hosting` (deleted — will restart after fixing these bugs)
+
+### Bug #90: `.length` field collision with codegen `.len()` ⚠️ OPEN
+**Severity**: Medium
+**Location**: `codegen.rs` — Member expression generation
+**Status**: Not fixed
+
+**Description**: When a class has a field literally named `length`, the codegen translates `obj.length` to `obj.len()` (Rust Vec method) instead of accessing the struct field.
+
+**Example**:
+```liva
+ParserState {
+    tokens: [TokenWithSpan]
+    length: number    // ← this field
+}
+let p = ParserState(tokens, tokens.length)
+print(p.length)  // Codegen: p.len() instead of p.length
+```
+
+**Root Cause**: `generate_expr()` has a blanket rule: any `.length` → `.len()`. It doesn't distinguish between array/string `.length` and user-defined struct fields named `length`.
+
+**Fix needed**: Check if the object is a known struct instance with a `length` field; if so, emit `.length` directly. Only translate to `.len()` for arrays/strings.
+
+---
+
+### Bug #91: `array[index].field` generates map-style access ⚠️ OPEN
+**Severity**: High
+**Location**: `codegen.rs` — nested Member expression through Index
+**Status**: Not fixed
+
+**Description**: When accessing a field on an element retrieved by array indexing (`tokens[pos].token`), the codegen generates map-style string indexing (`tokens[pos]["token"]`) instead of struct field access (`tokens[pos].token`).
+
+**Example**:
+```liva
+let tokens: [TokenWithSpan] = tokenize(source)
+let t = tokens[pos].token  // Codegen: tokens[pos as usize]["token"]
+                            // Expected: tokens[pos as usize].token
+```
+
+**Root Cause**: The codegen can't track the type of `array[index]` expressions (it loses type info through the index operation), so it falls back to hash-map style string key access.
+
+**Fix needed**: Propagate element type from `typed_array_vars` through index expressions, so `typed_array[i].field` generates struct field access.
+
+---
+
+### Bug #92: `let t = array[idx]` for structs causes Rust move error ⚠️ OPEN
+**Severity**: High
+**Location**: `codegen.rs` — VarDecl with array index of non-Copy types
+**Status**: Not fixed
+
+**Description**: Binding a struct from an array index (`let t = tokens[pos]`) generates Rust code without `.clone()`, causing a "cannot move out of index" error because structs don't implement `Copy`.
+
+**Example**:
+```liva
+let t = tokens[pos]  // Codegen: let t = tokens[pos as usize];
+                      // Rust error: cannot move out of index of Vec<TokenWithSpan>
+```
+
+**Root Cause**: The codegen emits direct indexing for struct arrays but `.get().cloned()` for string/number arrays. The struct path needs `.clone()` (or borrow `&`) added.
+
+**Fix needed**: Add `.clone()` suffix for array indexing on struct-typed arrays (same pattern as string arrays).
+
+---
+
+### Bug #93: `if expr => break` parsed as lambda ⚠️ INFO
+**Severity**: Low
+**Location**: Only affects self-hosting parser (not the Rust compiler)
+**Status**: Not a compiler bug — self-hosting parser limitation
+
+**Description**: In the self-hosting parser, `if prec <= minPrec => break` is parsed as `prec <= (minPrec => break)` because the parser's Ident handler interprets `ident => expr` as a lambda.
+
+**Note**: The Rust compiler parser handles this correctly. This is documented for reference only — it shows an ambiguity in the `=>` syntax that a simpler parser can't resolve.
+
+---
+
+### Bug #94: String function parameter move issue ⚠️ OPEN
+**Severity**: Medium
+**Location**: `codegen.rs` — function parameter ownership
+**Status**: Not fixed
+
+**Description**: When a `String` parameter is used in two separate function calls, Rust complains about "use of moved value" because the first call takes ownership.
+
+**Example**:
+```liva
+_infixPrecedence(tok: string): number { ... }
+_opString(tok: string): string { ... }
+
+let opTok = toks[currentPos]
+let prec = _infixPrecedence(opTok)   // moves opTok
+let opStr = _opString(opTok)          // error: opTok already moved
+```
+
+**Root Cause**: Function parameters with type `String` take ownership. The codegen should either (a) generate `&str` parameters, (b) auto-clone arguments, or (c) use `impl Into<String>`.
+
+**Fix needed**: Auto-clone string arguments when the same variable is used more than once across function calls, or generate `&str` params for functions that don't need ownership.
+
+---
+
+### Session Self-Hosting Summary
+- **Bugs found**: 5 (3 codegen, 1 parser info, 1 move semantics)
+- **4 require compiler fixes** (#90, #91, #92, #94)
+- **Self-hosting result**: Lexer + Parser fully functional with workarounds
+- **Plan**: Fix these bugs on main, then restart self-hosting from scratch
