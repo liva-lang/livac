@@ -388,6 +388,7 @@ mod liva_rt {
 
 fn main() {
     let mut result = "".to_string();
-    result.push_str("hello");
+    let ch = "x".to_string();
+    result.push_str(&ch);
     println!("{}", result);
 }

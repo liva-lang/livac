@@ -40,6 +40,8 @@ pub struct SemanticAnalyzer {
     json_classes: HashSet<String>,
     // Type aliases: map from alias name to (type_params, target_type)
     type_aliases: HashMap<String, (Vec<TypeParameter>, TypeRef)>,
+    // Enum variants: map from enum name to list of variant names
+    enum_variants: HashMap<String, Vec<String>>,
 }
 
 #[derive(Debug, Clone)]
@@ -104,6 +106,7 @@ impl SemanticAnalyzer {
             trait_registry: TraitRegistry::new(),
             json_classes: HashSet::new(),
             type_aliases: HashMap::new(),
+            enum_variants: HashMap::new(),
         }
     }
 
@@ -244,6 +247,14 @@ impl SemanticAnalyzer {
         let current_file = Path::new(&self.source_file);
         let current_dir = current_file.parent().unwrap_or_else(|| Path::new("."));
         let import_path = current_dir.join(&import.source);
+
+        // Support extensionless imports: "./token" → "./token.liva"
+        let import_path = if !import_path.exists() && import_path.extension().is_none() {
+            let with_ext = import_path.with_extension("liva");
+            if with_ext.exists() { with_ext } else { import_path }
+        } else {
+            import_path
+        };
 
         // Canonicalize to match how modules are stored
         let canonical_path = import_path.canonicalize().ok();
@@ -515,6 +526,14 @@ impl SemanticAnalyzer {
                             methods: HashMap::new(),
                         },
                     );
+                    // Register enum variant names for exhaustiveness checking
+                    let variant_names: Vec<String> = enum_decl
+                        .variants
+                        .iter()
+                        .map(|v| v.name.clone())
+                        .collect();
+                    self.enum_variants
+                        .insert(enum_decl.name.clone(), variant_names);
                 }
                 _ => {}
             }
@@ -3905,10 +3924,16 @@ impl SemanticAnalyzer {
                 self.check_int_exhaustiveness(switch_expr, discriminant_type.as_deref().unwrap())
             }
             Some("string") | Some("String") => self.check_string_exhaustiveness(switch_expr),
+            Some(type_name) => {
+                // Check if this is an enum type
+                if let Some(all_variants) = self.enum_variants.get(type_name) {
+                    self.check_enum_exhaustiveness(switch_expr, type_name, all_variants)
+                } else {
+                    // For other types (float, char, custom types), we can't easily determine exhaustiveness
+                    Ok(())
+                }
+            }
             _ => {
-                // For other types (float, char, custom types), we can't easily determine exhaustiveness
-                // without advanced type analysis. Suggest using a wildcard pattern.
-                // This is a soft warning - we don't enforce it for now.
                 Ok(())
             }
         }
@@ -4069,6 +4094,73 @@ impl SemanticAnalyzer {
     }
 
     /// Check exhaustiveness for string patterns
+    /// Check if enum switch patterns are exhaustive
+    fn check_enum_exhaustiveness(
+        &self,
+        switch_expr: &SwitchExpr,
+        enum_name: &str,
+        all_variants: &[String],
+    ) -> Result<()> {
+        // Collect all variant names covered by the arms
+        let mut covered: HashSet<String> = HashSet::new();
+        for arm in &switch_expr.arms {
+            self.collect_enum_variants_from_pattern(&arm.pattern, &mut covered);
+        }
+
+        // Check if all variants are covered
+        let missing: Vec<&String> = all_variants
+            .iter()
+            .filter(|v| !covered.contains(*v))
+            .collect();
+
+        if missing.is_empty() {
+            return Ok(()); // Exhaustive — all variants covered, no `_` needed
+        }
+
+        // Not exhaustive — report missing variants
+        let missing_list = missing
+            .iter()
+            .map(|v| format!("{}.{}", enum_name, v))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let mut error = SemanticErrorInfo::new(
+            "E0904",
+            "Non-exhaustive Enum Pattern Matching",
+            &format!(
+                "Pattern matching on enum `{}` is not exhaustive — missing variant(s): {}",
+                enum_name, missing_list
+            ),
+        );
+
+        error.category = Some("Pattern Matching".to_string());
+        error.hint = Some(format!(
+            "Add the missing variant(s) or use wildcard `_` to catch remaining cases",
+        ));
+        error.example = Some(format!(
+            "switch value {{\n    {} => ...,\n    _ => ...  // or cover all variants\n}}",
+            missing_list
+        ));
+        error.doc_link = Some("https://github.com/liva-lang/livac/blob/main/docs/language-reference/pattern-matching.md#exhaustiveness".to_string());
+
+        Err(CompilerError::SemanticError(error))
+    }
+
+    /// Collect enum variant names from a pattern (recursively for Or-patterns)
+    fn collect_enum_variants_from_pattern(&self, pattern: &Pattern, covered: &mut HashSet<String>) {
+        match pattern {
+            Pattern::EnumVariant { variant_name, .. } => {
+                covered.insert(variant_name.clone());
+            }
+            Pattern::Or(patterns) => {
+                for p in patterns {
+                    self.collect_enum_variants_from_pattern(p, covered);
+                }
+            }
+            _ => {}
+        }
+    }
+
     fn check_string_exhaustiveness(&self, _switch_expr: &SwitchExpr) -> Result<()> {
         // Strings are infinite, so we always require a wildcard or binding pattern
         // This is already checked by has_catch_all at the start of check_switch_exhaustiveness

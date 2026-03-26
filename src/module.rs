@@ -409,8 +409,12 @@ impl ModuleResolver {
             current_dir.join(import_path)
         };
 
-        // Check if file exists
+        // Check if file exists (support extensionless imports: "./token" → "./token.liva")
         if !resolved.exists() {
+            let with_ext = resolved.with_extension("liva");
+            if with_ext.exists() {
+                return Ok(with_ext);
+            }
             return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
                 "E4004",
                 &format!("Module not found: '{}'", import_path),

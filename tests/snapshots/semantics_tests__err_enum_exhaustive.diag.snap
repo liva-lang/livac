@@ -1,0 +1,12 @@
+---
+source: tests/semantics_tests.rs
+expression: error_msg
+---
+
+● E0904: Non-exhaustive Enum Pattern Matching [Semantic]
+────────────────────────────────────────────────────────────
+
+  ⓘ Pattern matching on enum `Color` is not exhaustive — missing variant(s): Color.Blue
+
+  📚 Learn more: https://github.com/liva-lang/livac/blob/main/docs/ERROR_CODES.md#e0904
+────────────────────────────────────────────────────────────

@@ -5117,7 +5117,8 @@ main() {
 
 #[test]
 fn test_string_concat_not_extend() {
-    // B28: result = result + "x" should use format!, not .extend()
+    // B28: result = result + "x" should NOT use .extend()
+    // C5: Now optimized to use push_str() instead of format!()
     let source = r#"
 main() {
     let result = ""
@@ -5128,7 +5129,7 @@ main() {
     let rust_code = compile_and_generate(source);
     let main_code = rust_code.split("fn main()").last().unwrap_or("");
     assert!(!main_code.contains(".extend("), "Should NOT use .extend() for string concat: {}", main_code);
-    assert!(main_code.contains("format!"), "Should use format! for string concat: {}", main_code);
+    assert!(main_code.contains("push_str"), "Should use push_str for string append: {}", main_code);
     assert_snapshot!("string_concat_not_extend", rust_code);
 }
 
@@ -6380,4 +6381,82 @@ main() {
     let options = livac::formatter::FormatOptions::default();
     let formatted = livac::formatter::format_source(source, &options).unwrap();
     assert!(formatted.contains("for i, item in arr"), "Formatter should preserve for i, item in arr");
+}
+
+// ── C5: push_str optimization tests ──────────────────────────
+
+#[test]
+fn test_push_str_local_string_literal() {
+    // C5: content = content + "x" → content.push_str("x")
+    let source = r#"
+main() {
+    let content = ""
+    content = content + "hello"
+    print(content)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("push_str(\"hello\")"), "Should use push_str for string append: {}", rust_code);
+    assert_snapshot!("push_str_local_string_literal", rust_code);
+}
+
+#[test]
+fn test_push_str_local_string_var() {
+    // C5: result = result + ch → result.push_str(&ch)
+    let source = r#"
+main() {
+    let result = ""
+    let ch = "x"
+    result = result + ch
+    print(result)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("push_str(&ch)"), "Should use push_str(&var) for string var: {}", rust_code);
+    assert_snapshot!("push_str_local_string_var", rust_code);
+}
+
+#[test]
+fn test_push_str_compound_assign() {
+    // C5: content += "x" → content.push_str("x")
+    let source = r#"
+main() {
+    let content = ""
+    content += "world"
+    print(content)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("push_str(\"world\")"), "Should use push_str for += string append: {}", rust_code);
+    assert_snapshot!("push_str_compound_assign", rust_code);
+}
+
+// ── B4: Enum exhaustive switch tests ──────────────────────────
+
+#[test]
+fn test_enum_exhaustive_switch_no_wildcard() {
+    // B4: When all enum variants are covered, _ is optional
+    let source = r#"
+enum Color {
+    Red
+    Green
+    Blue
+}
+
+main() {
+    let c = Color.Red
+    let label = switch c {
+        Color.Red => "red"
+        Color.Green => "green"
+        Color.Blue => "blue"
+    }
+    print(label)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("Color::Red"), "Should generate enum pattern: {}", rust_code);
+    // Check the main function specifically — the runtime module may contain `_ =>`
+    let main_code = rust_code.split("fn main()").last().unwrap_or("");
+    assert!(!main_code.contains("_ =>"), "Should NOT need wildcard when all variants covered: {}", main_code);
+    assert_snapshot!("enum_exhaustive_no_wildcard", rust_code);
 }

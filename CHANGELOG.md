@@ -28,6 +28,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Suppress unused import warnings** — `#[allow(unused_imports)]` on generated `use` statements
   - Applies to both module files and entry point
   - Eliminates Rust warnings for pass-through type imports
+- **Extensionless imports** — `import { X } from "./module"` (without `.liva`)
+  - Module resolver and semantic validator try appending `.liva` when path has no extension
+  - LSP already had this fallback; now compiler matches
+  - 1 integration test added
+- **String append `push_str` optimization** — `content += ch` → `content.push_str(&ch)`
+  - Detects `x = x + expr` / `x += expr` pattern for known string variables
+  - Generates `push_str()` instead of `format!("{}{}", x, expr)` — O(1) vs O(n) per append
+  - Handles string literals, string variables, and non-string expressions
+  - 3 codegen tests added
+- **Enum exhaustive switch checking** — omit `_` when all variants are covered
+  - Semantic analyzer stores enum variant lists (`enum_variants`)
+  - `check_enum_exhaustiveness()` validates coverage, supports Or-patterns
+  - Error `E0904` lists missing variants when switch is non-exhaustive
+  - 2 tests (codegen + semantic error snapshot)
 - **`arr.sortBy(fn)` method** — Sort arrays by a key extraction function
   - Returns new sorted array (non-mutating)
   - Key function receives owned element clone; works with Copy and non-Copy types
@@ -64,6 +78,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Pre-scan phase populates `boxed_enum_fields` metadata for all program items
   - Works in both `generate_method_call_expr` and `generate_normal_call` paths
   - 5 new tests (4 snapshot + 1 assertion), 499 tests total
+
+### LANGUAGE_ISSUES — All 21 Resolved
+- **10 FIXED**: A1-A5 (codegen bugs), C1-C2, C4-C5, C7 (ergonomics), B4 (exhaustive enums)
+- **4 already-implemented**: B5 (type alias), B6 (switch guards), C1 (`parseInt or 0`)
+- **7 CLOSED**: A6/A8/C3 (deferred to C6), A7 (won't-fix), B1/B2 (design decisions, post-v2.0), B3 (not an issue), C6 (future enhancement)
 
 ## [1.9.0-dev] - 2026-03-23
 

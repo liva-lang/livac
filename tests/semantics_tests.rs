@@ -128,3 +128,8 @@ fn test_for_par_chunk_invalid() {
 fn test_internal_crate_override() {
     test_semantics_err("internal_crate_override");
 }
+
+#[test]
+fn test_enum_exhaustive_error() {
+    test_semantics_err("enum_exhaustive");
+}

@@ -3,7 +3,7 @@
 > **Proyecto:** livac - El compilador de Liva  
 > **Versión:** v2.0.0-dev (tag: v1.2.0)  
 > **Lenguaje:** Rust  
-> **Tests:** 510 passing  
+> **Tests:** 516 passing  
 > **Próximo objetivo:** v2.0 — Enums recursivos + Self-hosting parcial  
 > **Última actualización:** 2026-03-25
 
@@ -140,6 +140,9 @@ skills/liva-lang/
 - **Compound assignment** — `+=`, `-=`, `*=`, `/=`, `%=` (desugared at parser level)
 - **Enum wildcard `_`** — `EnumName.Variant(_)` ignores captured value in switch
 - **`for i, item in array`** — Enumerate iteration with index and element
+- **Extensionless imports** — `import { X } from "./module"` (auto-appends `.liva`)
+- **String `push_str` optimization** — `content += ch` generates `push_str()` instead of `format!()`
+- **Enum exhaustive switch** — Omit `_` when all variants covered; `E0904` for missing variants
 - **Auto data classes** — Sin keyword `data`, inferido por estructura
 - **CI/CD** — GitHub Actions en 3 OSes, releases con .deb/.rpm/.tar.gz/.zip
 - **Agent Skills** — Skill portable siguiendo estándar agentskills.io
@@ -149,9 +152,14 @@ skills/liva-lang/
 - **Array (33 métodos):** map, filter, reduce, forEach, find, findIndex, some, every, includes, indexOf, join, length, flat, flatMap, slice, sort, sortBy, distinct, zip, take, drop, first, last, isEmpty, chunks, reversed, sum, min, max, count, groupBy
 - **Math (14):** sqrt, pow, abs, floor, ceil, round, min, max, random, PI, E, clamp, sign, log
 
+### LANGUAGE_ISSUES — All 21 resolved
+- **10 FIXED**: A1-A5, C1-C2, C4-C5, C7, B4
+- **4 already-implemented**: B5, B6, C1
+- **7 CLOSED**: A6/A7/A8, B1/B2/B3, C3/C6
+
 ### Dogfooding
 - **90/90 bugs corregidos** (Dogfooding v1: 9 bugs #63-#74, v2: 8 bugs #75-#82, v3: 7 bugs #83-#89, Self-hosting: 4 bugs #90-#94)
-- **497 tests** totales (258 codegen, 6 desugar, 17 semantic snapshot tests + 11 Liva e2e + 6 init + 24 linter + doctests)
+- **516 tests** totales
 - **63 Liva assertion tests** (28 string + 26 array + 9 math) — cobertura completa de stdlib
 - **File (11 funciones):** read, write, append, exists, delete, copy, move, size, extension, readLines, writeLines
 - **Dir (7 funciones):** list, isDir, exists, create, delete, listRecursive, walk

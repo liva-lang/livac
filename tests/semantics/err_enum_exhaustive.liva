@@ -1,0 +1,15 @@
+// B4: Enum exhaustive switch — missing variant should error
+enum Color {
+    Red
+    Green
+    Blue
+}
+
+main() {
+    let c = Color.Red
+    let label = switch c {
+        Color.Red => "red"
+        Color.Green => "green"
+    }
+    print(label)
+}

@@ -5984,6 +5984,43 @@ impl CodeGenerator {
                 self.output.push_str(";\n");
             }
             Stmt::Assign(assign) => {
+                // ── push_str optimization: x = x + expr → x.push_str(...) ──
+                if let Expr::Identifier(var_name) = &assign.target {
+                    let sanitized_target = self.sanitize_name(var_name);
+                    if self.string_vars.contains(&sanitized_target) {
+                        if let Expr::Binary { op: BinOp::Add, left, right } = &assign.value {
+                            if let Expr::Identifier(left_name) = left.as_ref() {
+                                if self.sanitize_name(left_name) == sanitized_target {
+                                    // Pattern: var = var + rhs → var.push_str(...)
+                                    self.write_indent();
+                                    write!(self.output, "{}.push_str(", sanitized_target).unwrap();
+                                    // Determine how to pass rhs
+                                    match right.as_ref() {
+                                        Expr::Literal(Literal::String(s)) => {
+                                            write!(self.output, "\"{}\"", s).unwrap();
+                                        }
+                                        Expr::Identifier(rhs_name) => {
+                                            let rhs_san = self.sanitize_name(rhs_name);
+                                            if self.string_vars.contains(&rhs_san) {
+                                                write!(self.output, "&{}", rhs_san).unwrap();
+                                            } else {
+                                                write!(self.output, "&{}.to_string()", rhs_san).unwrap();
+                                            }
+                                        }
+                                        _ => {
+                                            self.output.push_str("&");
+                                            self.generate_expr(right)?;
+                                            self.output.push_str(".to_string()");
+                                        }
+                                    }
+                                    self.output.push_str(");\n");
+                                    return Ok(());
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Check if assigning an object literal - mark variable for bracket notation
                 if let Expr::Identifier(var_name) = &assign.target {
                     if let Expr::ObjectLiteral(_) = &assign.value {

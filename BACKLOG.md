@@ -359,6 +359,17 @@
 - [x] **A5**: Wildcard `_` en enum switch destructuring — parser + codegen + semantic, 3 tests
 - [x] **C2**: `for i, item in array` (enumerate) — codegen detecta Map vs Array, 3 tests
 - [x] **A4**: Suprimir warnings de imports no usados — `#[allow(unused_imports)]` en codegen
+- [x] **C7**: Imports sin extensión `.liva` — module.rs + semantic.rs fallback, 1 integration test
+- [x] **C5**: String append `push_str` optimization — codegen detecta `x = x + expr`, 3 tests
+- [x] **B4**: Enum exhaustive switch checking — semantic stores variant lists, E0904, 2 tests
+- [x] **C1**: `parseInt(s) or 0` ya funciona con `or value` (B16 fix)
+- [x] **B5**: Type alias ya implementado (lexer + parser + semantic + codegen)
+- [x] **B6**: Switch guards ya implementados (parser + codegen + semantic)
+- [x] **A7**: Closed (won't-fix — theoretical, no real failure)
+- [x] **B3**: Closed (not an issue — enums already fully supported)
+- [x] **A6/A8/C3**: Closed (deferred to C6 ref params)
+- [x] **C6**: Closed (future enhancement, post-v2.0)
+- [x] **B1/B2**: Closed (design decisions, deferred post-v2.0)
 
 ---
 

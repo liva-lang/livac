@@ -386,8 +386,31 @@ mod liva_rt {
     
 }
 
+#[derive(Debug, Clone, PartialEq, Default)]
+enum Color {
+    #[default]
+    Red,
+    Green,
+    Blue,
+}
+
+impl std::fmt::Display for Color {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Color::Red => write!(f, "Red"),
+            Color::Green => write!(f, "Green"),
+            Color::Blue => write!(f, "Blue"),
+        }
+    }
+}
+
+
 fn main() {
-    let mut result = "".to_string();
-    result.push_str("hello");
-    println!("{}", result);
+    let c = Color::Red;
+    let label = match c {
+        Color::Red => "red".to_string(),
+        Color::Green => "green".to_string(),
+        Color::Blue => "blue".to_string(),
+    };
+    println!("{}", label);
 }
