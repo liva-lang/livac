@@ -2,7 +2,7 @@
 
 > **The simplicity of TypeScript, the expressiveness of Python, and the safety of Rust.**
 
-**Version:** 1.3.0-dev  
+**Version:** 2.0.0-dev  
 **Repository:** [github.com/liva-lang/livac](https://github.com/liva-lang/livac)
 
 Liva compiles to Rust, giving you memory safety, zero-cost abstractions, and native performance with a clean, intuitive syntax.

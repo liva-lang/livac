@@ -204,6 +204,24 @@ let msg = switch num {
 ### E0903 - Non-Exhaustive String Match
 String pattern matching is not exhaustive — requires wildcard `_`.
 
+### E0904 - Non-Exhaustive Enum Match
+Enum pattern matching is not exhaustive — missing one or more variant(s). Either cover all variants or add a wildcard `_` pattern. The error message lists which variants are missing.
+
+```liva
+// ❌ E0904: Missing Color.Blue
+let label = switch color {
+    Color.Red => "red"
+    Color.Green => "green"
+}
+
+// ✅ All variants covered — no _ needed
+let label = switch color {
+    Color.Red => "red"
+    Color.Green => "green"
+    Color.Blue => "blue"
+}
+```
+
 ### E0906 - Incompatible Or-Pattern Bindings
 Or-patterns (`|`) must bind the same variables in all alternatives.
 

@@ -484,6 +484,29 @@ area(shape: Shape): number {
 }
 ```
 
+### Exhaustive Enum Switch (v2.0+)
+
+When all enum variants are covered, `_` wildcard can be omitted:
+
+```liva
+// ✅ All variants covered — no _ needed
+directionName(d: Direction): string {
+    return switch d {
+        Direction.North => "north"
+        Direction.South => "south"
+        Direction.East => "east"
+        Direction.West => "west"
+    }
+}
+
+// ❌ Missing variants — Compiler error: E0904
+let label = switch color {
+    Color.Red => "red"
+    Color.Green => "green"
+    // Missing Color.Blue!
+}
+```
+
 ### Enums as Parameters and Return Types
 
 ```liva
@@ -534,6 +557,19 @@ eval(e: Expr): number {
 
 > **Note:** Array fields like `children: [Tree]` don't need boxing — `Vec<T>` already provides heap indirection.
 ```
+
+---
+
+## Type Aliases
+
+```liva
+type TokenList = [TokenWithSpan]
+type Matrix = [[number]]
+type Result<T> = (T, error)
+type Handler = (Request): Response
+```
+
+Type aliases are expanded inline at codegen time — no separate Rust `type` declaration is emitted.
 
 ---
 
@@ -1227,6 +1263,7 @@ _helper(x) => x * 2          // Private (not exported)
 ```liva
 // main.liva
 import { add, subtract } from "./math.liva"
+import { add, subtract } from "./math"       // Extension optional (v2.0+)
 
 main() {
     print(add(10, 5))
@@ -1236,7 +1273,7 @@ main() {
 ### Wildcard Import
 
 ```liva
-import * as math from "./math.liva"
+import * as math from "./math"
 
 main() {
     print(math.add(10, 5))

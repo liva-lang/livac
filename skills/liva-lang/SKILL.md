@@ -105,6 +105,20 @@ let msg = switch shape {
     Shape.Rectangle(_) => "some rectangle",  // _ wildcard ignores field
     Shape.Point => "point"
 }
+
+// Guards
+let label = switch x {
+    n if n > 100 => "big",
+    n if n > 50 => "medium",
+    _ => "small"
+}
+
+// Enum exhaustive switch (v2.0+) — omit _ when all variants covered
+let name = switch color {
+    Color.Red => "red"       // All 3 variants covered →
+    Color.Green => "green"   // no _ needed
+    Color.Blue => "blue"     // E0904 if any variant missing
+}
 ```
 
 Switch statements use `case X:` with colon. Switch expressions use `X => val` with arrow.
@@ -289,12 +303,21 @@ text.removePrefix("pre_") / text.removeSuffix(".txt") / text.chars()
 // Escape braces: $"\{\"key\": \"{val}\"\}"
 ```
 
+## Type Aliases
+
+```liva
+type TokenList = [TokenWithSpan]
+type Result<T> = (T, error)
+type Handler = (Request): Response
+```
+
 ## Modules & Imports
 
 ```liva
 import { add, subtract } from "./math.liva"
-import * as math from "./math.liva"
-// Paths relative to importing file, must end with .liva
+import { add, subtract } from "./math"       // Extension optional (v2.0+)
+import * as math from "./math"
+// Paths relative to importing file
 // _prefix = private (not exported)
 ```
 

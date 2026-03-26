@@ -152,6 +152,29 @@ label(shape: Shape): string {
 }
 ```
 
+### Exhaustive Enum Switch (v2.0+)
+
+When all enum variants are covered in a switch, the `_` wildcard can be omitted. The compiler checks coverage and reports error `E0904` for missing variants:
+
+```liva
+// ✅ All variants covered — no _ needed
+directionName(d: Direction): string {
+    return switch d {
+        Direction.North => "north"
+        Direction.South => "south"
+        Direction.East => "east"
+        Direction.West => "west"
+    }
+}
+
+// ❌ E0904: Missing Direction.West
+let name = switch d {
+    Direction.North => "north"
+    Direction.South => "south"
+    Direction.East => "east"
+}
+```
+
 ---
 
 ## As Function Parameters and Return Types

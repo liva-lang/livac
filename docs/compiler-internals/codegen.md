@@ -313,6 +313,25 @@ let msg = $"User {user.name} (age {user.age}) at {timestamp}"
 let msg = format!("User {} (age {}) at {}", user.name, user.age, timestamp);
 ```
 
+### 7a. String Append Optimization (push_str)
+
+The codegen detects the pattern `x = x + expr` (or `x += expr`) where `x` is a known string variable, and generates `push_str()` instead of `format!()`. This avoids O(n) allocation per append in loops.
+
+```liva
+let content = ""
+content += ch           // or: content = content + ch
+```
+↓
+```rust
+let mut content = "".to_string();
+content.push_str(&ch);  // Instead of: content = format!("{}{}", content, ch);
+```
+
+Handles three RHS cases:
+- **String literal**: `push_str("hello")`
+- **String variable**: `push_str(&ch)`
+- **Other expression**: `push_str(&expr.to_string())`
+
 ### 8. Classes
 
 ```liva

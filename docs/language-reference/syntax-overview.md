@@ -299,6 +299,23 @@ continue  async     par       task      await
 fail      and       or        not       true      false
 this      constructor         enum      match     data
 describe  test      expect    use       import    export
+type      defer     rust
+```
+
+## Type Aliases
+
+```liva
+type TokenList = [TokenWithSpan]
+type Result<T> = (T, error)
+type Handler = (Request): Response
+```
+
+## Modules & Imports
+
+```liva
+import { add, subtract } from "./math.liva"
+import { add, subtract } from "./math"       // Extension optional (v2.0+)
+import * as math from "./math"
 ```
 
 ## See Also

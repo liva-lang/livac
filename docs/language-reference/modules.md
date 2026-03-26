@@ -44,6 +44,7 @@ Use the `import` statement to bring functions from another module into scope:
 **main.liva:**
 ```liva
 import { add, subtract } from "./math.liva"
+import { add, subtract } from "./math"       // Extension optional (v2.0+)
 
 main() {
     let sum = add(10, 20)
@@ -125,7 +126,7 @@ import { constants } from "../../constants.liva"
 
 ### Path Rules
 
-- Paths must end with `.liva`
+- The `.liva` extension is optional — `"./math"` and `"./math.liva"` both work
 - Paths are resolved relative to the importing file
 - Use `/` as path separator (works on all platforms)
 

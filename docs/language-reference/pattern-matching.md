@@ -277,6 +277,34 @@ let code = switch status {
 };
 ```
 
+### Enum Exhaustiveness (v2.0+)
+
+When switching on an enum, covering all variants makes `_` optional:
+
+```liva
+enum Color { Red, Green, Blue }
+
+// ✅ All variants covered — no _ needed
+let label = switch color {
+    Color.Red => "red",
+    Color.Green => "green",
+    Color.Blue => "blue"
+};
+
+// ✅ Using _ is also fine
+let label = switch color {
+    Color.Red => "red",
+    _ => "other"
+};
+
+// ❌ Missing variant — Compiler error: E0904
+let label = switch color {
+    Color.Red => "red",
+    Color.Green => "green"
+};
+// Error: Pattern matching on enum `Color` is not exhaustive — missing variant(s): Color.Blue
+```
+
 ### Exhaustiveness Summary
 
 | Type | Requirement | Since |
@@ -285,7 +313,8 @@ let code = switch status {
 | `int`, `i8`-`i128`, `u8`-`u128` | Requires wildcard/binding | v0.10.5 |
 | `string`, `String` | Requires wildcard/binding | v0.10.5 |
 | Or-patterns | Supported, still need wildcard | v0.10.5 |
-| `float`, `char`, enums | Not yet checked | — |
+| Enums | Cover all variants or use `_` (E0904) | v2.0 |
+| `float`, `char` | Not yet checked | — |
 
 ---
 
