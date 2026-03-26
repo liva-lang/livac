@@ -55,7 +55,7 @@ Reads a CSV file where the **first row is treated as headers**. Returns a `Table
 
 ```liva
 let table, err = CSV.readTable("ventas.csv")
-if err == "" {
+if !err {
     for row in table {
         print($"{row.get(\"producto\")}: {row.get(\"ventas\")}")
     }

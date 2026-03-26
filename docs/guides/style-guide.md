@@ -1,21 +1,20 @@
 # Liva Style Guide
 
-Idiomatic conventions for writing clean, consistent Liva code. Follow these rules to produce code that is readable, maintainable, and aligned with the language's design philosophy.
+Idiomatic conventions for clean, consistent Liva code.
 
 ---
 
 ## 1. One-Liner `=>` vs Block `{}`
 
-> **One statement → `=>`**. Two or more statements → `{}`.
+> **One statement → `=>`**. Two or more → `{}`.
 
-This applies to **functions, if/else, for, and while** — all bodies follow the same rule:
+Applies to **functions, if/else, for, while, defer** — all bodies:
 
 ```liva
-// ✅ Single expression/statement → =>
+// ✅ Single expression → =>
 add(a, b) => a + b
 greet(name: string): string => $"Hello, {name}!"
 if age >= 18 => print("Adult")
-if b == 0 => fail "Division by zero"
 if err => return
 for item in items => print(item)
 while alive => tick()
@@ -33,21 +32,9 @@ calculate(items) {
     for item in items => total = total + item.price
     return total
 }
-
-if err {
-    console.error($"Error: {err}")
-    return
-}
-
-// ❌ Avoid: braces for a single statement
-add(a, b) { return a + b }
-if b == 0 { fail "Division by zero" }
-for item in items { print(item) }
 ```
 
-Use `{}` without hesitation when:
-- The body has **2+ statements**
-- The line would exceed **~90 characters** with `=>`
+Use `{}` when: body has **2+ statements**, or line would exceed **~90 characters**.
 
 ---
 
@@ -58,30 +45,10 @@ Use `{}` without hesitation when:
 | Variables, functions | camelCase | `let userName`, `getUser()` |
 | Classes, Enums, Interfaces | PascalCase | `Person`, `Color`, `Printable` |
 | Constants | SCREAMING_SNAKE_CASE | `const MAX_RETRIES = 3` |
-| Private fields/methods | `_` prefix + camelCase | `_password`, `_validate()` |
-| Files, modules | snake_case or kebab-case | `user_service.liva`, `api-client.liva` |
+| Private fields/methods | `_` prefix | `_password`, `_validate()` |
+| Files, modules | snake_case or kebab-case | `user_service.liva` |
 
-```liva
-// ✅ Good naming
-const MAX_ITEMS = 100
-let currentUser = getActiveUser()
-
-UserService {
-    _cache: Map<string, User>
-    
-    fetchUser(id: number): User { ... }
-    _validateToken(token: string): bool { ... }
-}
-
-// ❌ Bad naming
-const max_items = 100        // Constants: SCREAMING_SNAKE_CASE
-let CurrentUser = ...        // Variables: camelCase
-user_service { ... }         // Classes: PascalCase
-```
-
-### Booleans
-
-Prefix boolean variables and functions with `is`, `has`, `can`, `should`:
+**Booleans:** prefix with `is`, `has`, `can`, `should`:
 
 ```liva
 let isActive = true
@@ -93,113 +60,59 @@ canDelete(user) => user.role == "admin"
 
 ## 3. Error Handling
 
-### Prefer `or fail` for propagation
-
-When you don't need to inspect the error, `or fail` is cleaner than manual error binding:
+### `or fail` for propagation
 
 ```liva
-// ✅ Concise — or fail
-loadConfig(path: string): Config {
-    let content = File.read(path) or fail "Cannot read config"
-    let config: Config = JSON.parse(content) or fail "Invalid JSON"
-    return config
-}
-
-// ❌ Verbose — manual binding when not needed
-loadConfig(path: string): Config {
-    let content, err1 = File.read(path)
-    if err1 => fail $"Cannot read config: {err1}"
-    let config: Config, err2 = JSON.parse(content)
-    if err2 => fail $"Invalid JSON: {err2}"
-    return config
-}
+let content = File.read(path) or fail "Cannot read config"
+let config: Config = JSON.parse(content) or fail "Invalid JSON"
 ```
 
-### Prefer `or <default>` for fallbacks
+### `or <default>` for fallbacks
 
 ```liva
-// ✅ Clean
 let port = parseInt(portStr) or 3000
 let name = config.get("name") or "Anonymous"
-
-// ❌ Verbose
-let port, err = parseInt(portStr)
-if err => port = 3000
 ```
 
-### Use manual binding when you need the error
+### Manual binding when inspecting the error
 
 ```liva
-// ✅ Correct — when you inspect or log the error
 let data, err = async fetchUser(id)
 if err {
-    console.error($"Failed to fetch user {id}: {err}")
+    Log.error($"Failed to fetch user {id}: {err}")
     return null
 }
 ```
 
-### Guard clauses with fail
-
-Place validation at the top of functions. Use `=>` for single-line guards:
+### Guard clauses with `fail`
 
 ```liva
-// ✅ Guard clauses at the top
 validateAge(age: number): number {
     if age < 0 => fail "Age cannot be negative"
     if age > 150 => fail "Unrealistic age"
     return age
 }
-
-// ❌ Nested validation
-validateAge(age: number): number {
-    if age >= 0 {
-        if age <= 150 {
-            return age
-        } else {
-            fail "Unrealistic age"
-        }
-    } else {
-        fail "Age cannot be negative"
-    }
-}
 ```
 
-### Error check idiom
-
-Always use `if err` (truthy check), never compare against empty string:
+### Error check idiom — always `if err` (truthy), not `if err != ""`
 
 ```liva
-// ✅ Idiomatic — truthy check
 let result, err = divide(10, 0)
 if err => print($"Error: {err}")
-
-// ❌ Verbose — comparing against empty string
-let result, err = divide(10, 0)
-if err != "" => print($"Error: {err}")
 ```
 
 ---
 
 ## 4. Functions
 
-### Arrow vs block threshold
-
-- **One expression** → always `=>`
-- **2–3 lines with clear logic** → `{}` block
-- **Guard + return** → `{}` block (even if short)
+- **One expression** → `=>`
+- **2+ lines** → `{}`
+- **Guard + return** → `{}`
 
 ```liva
-// ✅ Pure expression → arrow
 square(n) => n * n
 fullName(first, last) => $"{first} {last}"
-urgencyScore(u: Urgency): number => switch u {
-    Urgency.Critical => 4,
-    Urgency.High => 3,
-    Urgency.Normal => 2,
-    Urgency.Low => 1
-}
 
-// ✅ Multiple steps → block
 processOrder(order) {
     let total = order.items.reduce(0, (acc, i) => acc + i.price)
     let taxed = total + (total * TAX_RATE / 100)
@@ -207,18 +120,15 @@ processOrder(order) {
 }
 ```
 
-### Prefer point-free when applicable
+### Point-free
 
 ```liva
-// ✅ Point-free
+// ✅
 items.forEach(print)
 names.map(toUpperCase)
-for item in items => process
 
 // ❌ Redundant wrapper
 items.forEach(x => print(x))
-names.map(x => toUpperCase(x))
-for item in items => process(item)
 ```
 
 ### Type annotations
@@ -226,36 +136,25 @@ for item in items => process(item)
 Annotate **public API** functions. Omit types for internal/obvious code:
 
 ```liva
-// ✅ Public: annotated
-fetchUser(id: number): User { ... }
-calculateTax(amount: number, rate: float): float => amount * rate
-
-// ✅ Internal: inferred is fine
-_sum(a, b) => a + b
-let doubled = nums.map(x => x * 2)
+fetchUser(id: number): User { ... }       // Public: annotated
+_sum(a, b) => a + b                       // Internal: inferred
 ```
 
 ---
 
 ## 5. Classes
 
-### Data class vs regular class
-
-If a class has only fields (and optionally methods), it's a **data class** — the compiler auto-generates the constructor, `==`, and `toString`. Add an explicit `constructor()` only when you need **validation**:
+Data class (fields only) — compiler auto-generates constructor, `==`, `toString`. Add `constructor()` only for **validation**:
 
 ```liva
-// ✅ Data class — no constructor needed
-Point {
-    x: number
-    y: number
-}
-let p = Point(10, 20)   // Auto-generated constructor
+// Data class — no constructor needed
+Point { x: number; y: number }
+let p = Point(10, 20)
 
-// ✅ Regular class — constructor validates
+// Validated class
 User {
     email: string
     age: number
-
     constructor(email: string, age: number) {
         if email == "" => fail "Email required"
         if age < 0 => fail "Age must be positive"
@@ -263,133 +162,43 @@ User {
         this.age = age
     }
 }
-
-// ❌ Unnecessary constructor — just repeats the fields
-Point {
-    x: number
-    y: number
-    constructor(x: number, y: number) {
-        this.x = x
-        this.y = y
-    }
-}
 ```
 
-### Class body order
-
-Always: **fields → constructor → methods**:
-
-```liva
-TodoItem {
-    // 1. Fields
-    title: string
-    done: bool = false
-
-    // 2. Constructor (only if needed)
-    constructor(title: string) {
-        if title == "" => fail "Title required"
-        this.title = title
-    }
-
-    // 3. Methods
-    toggle() => this.done = !this.done
-    display(): string => $"[{if this.done => "x" else => " "}] {this.title}"
-}
-```
-
-### Prefer composition over deep hierarchies
-
-Use small interfaces. A class implements only what it needs:
-
-```liva
-// ✅ Focused interfaces
-Readable { read(): string }
-Writable { write(data: string) }
-
-LogFile : Writable {
-    path: string
-    write(data: string) => File.append(this.path, data) or fail "Write error"
-}
-```
+**Body order:** fields → constructor → methods.
 
 ---
 
 ## 6. Collections
 
-### Prefer functional methods over manual loops
+### Prefer functional methods
 
 ```liva
-// ✅ Functional
 let total = prices.reduce(0, (acc, p) => acc + p)
 let adults = users.filter(u => u.age >= 18)
 let names = users.map(u => u.name)
-let found = users.find(u => u.id == targetId)
-
-// ❌ Manual loop for what a method does better
-let total = 0
-for p in prices { total = total + p }
 ```
 
-### Array growth
-
-Two options: `push` (mutates in place) or concatenation (creates new array):
+### Map/Set
 
 ```liva
-// ✅ push — mutates the array
-result.push(newItem)
-this.books.push(title)
-
-// ✅ Concatenation — creates a new array
-result = result + [newItem]
-result = result + items.filter(x => x.active)
-```
-
-Prefer `push` for building up arrays in loops. Use concatenation when you want a new array or are chaining with functional methods.
-
-### Map/Set initialization
-
-Use the `Map {}` / `Set {}` literal syntax:
-
-```liva
-// ✅ Literal
 let config = Map { "host": "localhost", "port": "8080" }
 let tags = Set { "urgent", "new" }
-
-// ✅ Empty
-let cache = Map {}
-let visited = Set {}
-```
-
-### Map access with `or`
-
-Always provide a default for `map.get()`:
-
-```liva
-// ✅ Safe access
 let name = users.get(id) or "Unknown"
-let count = counters.get(key) or 0
-
-// ⚠️ Risky — get() on a missing key
-let name = users.get(id)
 ```
 
 ---
 
 ## 7. Pattern Matching
 
-### Switch expressions for value mapping
-
-Use switch expressions (with `=>`) to map values. Use switch statements (with `case:`) for side effects:
-
 ```liva
-// ✅ Switch expression — returns a value
+// Switch expression — returns a value
 let label = switch status {
     Status.Active => "Active",
     Status.Inactive => "Inactive",
     _ => "Unknown"
 }
 
-// ✅ Switch statement — performs actions
+// Switch statement — performs actions
 switch command {
     case "start": startServer()
     case "stop": stopServer()
@@ -397,358 +206,82 @@ switch command {
 }
 ```
 
-### Exhaustive matching
-
-Always handle all enum variants or include `_` as catch-all:
-
-```liva
-// ✅ All variants covered
-let icon = switch urgency {
-    Urgency.Critical => "[!!!]",
-    Urgency.High => "[!!]",
-    Urgency.Normal => "[!]",
-    Urgency.Low => "[-]"
-}
-
-// ✅ Catch-all for open-ended values
-let category = switch ext {
-    ".liva" => "Source",
-    ".md" => "Docs",
-    _ => "Other"
-}
-```
+Always handle all enum variants or include `_` wildcard.
 
 ---
 
 ## 8. Concurrency
 
-### Choose the right primitive
-
 | Need | Use | Example |
 |------|-----|---------|
-| I/O-bound (HTTP, files) | `async` | `let data = async fetch(url)` |
-| CPU-bound (computation) | `par` | `let result = par heavyCalc(n)` |
-| Multiple independent tasks | `task` | `let t = task async fetch(url)` |
+| I/O-bound | `async` | `let data = async fetch(url)` |
+| CPU-bound | `par` | `let result = par heavyCalc(n)` |
+| Multiple independent | `task` | `let t = task async fetch(url)` |
 | Fire-and-forget | unassigned `async` | `async logEvent("click")` |
-| Parallel collection | `.par()` or `for par` | `nums.par().map(x => x * 2)` |
+| Parallel collection | `.par()` / `for par` | `nums.par().map(x => x * 2)` |
 
-### Task grouping
-
-All `async` and `par` calls launch immediately without blocking. The result is auto-awaited/joined on first **use** of the variable:
+Auto-await: `async`/`par` calls launch immediately; result is awaited on first **use** of the variable. Don't use `async` if the result is used on the very next line (no concurrency gained).
 
 ```liva
-// ✅ All three launch concurrently — await happens on first use
-let u1 = async fetchUser(1)    // Launches, does NOT block
-let u2 = async fetchUser(2)    // Launches, does NOT block
-let u3 = async fetchUser(3)    // Launches, does NOT block
-
-// All 3 are running. Awaits happen here when values are accessed:
-print($"User 1: {u1.name}")   // Awaits u1 here
-print($"User 2: {u2.name}")   // Awaits u2 here
-print($"User 3: {u3.name}")   // Awaits u3 here
-```
-
-Use `task` + explicit `await` when you need fine-grained control over when to collect results:
-
-```liva
-// task + await — explicit control
-let t1 = task async fetchUser(1)
-let t2 = task async fetchUser(2)
-let u1 = await t1
-let u2 = await t2
-```
-
-### Fire-and-forget
-
-When you don't assign to a variable, the call runs in the background with no await:
-
-```liva
-async logEvent("user_login")    // Fire-and-forget, no result needed
-```
-
-### Don't use `async` if you need the result immediately
-
-Since `async` auto-awaits on first **use**, calling `async` and using the variable on the very next line gains nothing — it behaves identically to a synchronous call. Only use `async` when there is independent work between the launch and the first use:
-
-```liva
-// ❌ Pointless async — used immediately, no concurrency gained
+// ✅ Real concurrency — independent work between launch and use
 let users = async fetchUsers(url)
-let report = buildReport(users)    // Awaits here → same as sync
-
-// ✅ No async needed — just call it directly
-let users = fetchUsers(url)
-let report = buildReport(users)
-
-// ✅ Useful async — independent work happens while fetch is in flight
-let users = async fetchUsers(url)      // Launches
 let config = loadDisplayConfig()       // Runs while fetch is in flight
-let report = buildReport(users, config) // Awaits users here — real gain
+let report = buildReport(users, config) // Awaits users here
 ```
 
 ---
 
-## 9. Code Organization & Design Principles
+## 9. Code Organization
 
-### Single Responsibility
-
-Every function should do **one thing**. If you can describe what a function does with "and", split it:
-
-```liva
-// ❌ Does two things: validates AND saves
-processUser(user: User) {
-    if user.name == "" => fail "Name required"
-    if user.age < 0 => fail "Invalid age"
-    let data = JSON.stringify(user)
-    File.write("users.json", data) or fail "Write failed"
-}
-
-// ✅ Split into focused functions
-validateUser(user: User) {
-    if user.name == "" => fail "Name required"
-    if user.age < 0 => fail "Invalid age"
-}
-
-saveUser(user: User) {
-    let data = JSON.stringify(user)
-    File.write("users.json", data) or fail "Write failed"
-}
-
-processUser(user: User) {
-    validateUser(user) or fail "Validation failed"
-    saveUser(user) or fail "Save failed"
-}
-```
-
-### Keep functions short and focused
-
-A function should be **readable at a glance**. If you need to scroll to understand it, it's too long. Aim for functions that:
-- Fit in one screen (~20–30 lines max)
-- Have one level of abstraction
-- Have a name that fully describes what they do
+- **Single responsibility** per function
+- **~20–30 lines** max per function
+- **`main()` as orchestrator** — delegate, don't implement
 
 ```liva
-// ❌ Long function mixing abstraction levels
-generateReport(users: [User]) {
-    let active = users.filter(u => u.isActive)
-    let total = active.reduce(0, (acc, u) => acc + u.orders)
-    let avg = total / active.length
-    let header = "=== Report ==="
-    let separator = "─".repeat(40)
-    print(header)
-    print(separator)
-    for user in active {
-        let pct = (user.orders * 100) / total
-        print($"  {user.name}: {user.orders} orders ({pct}%)")
-    }
-    print(separator)
-    print($"  Total: {total} | Avg: {avg}")
-}
-
-// ✅ Each function is one abstraction level
-calcStats(users: [User]): Stats {
-    let active = users.filter(u => u.isActive)
-    let total = active.reduce(0, (acc, u) => acc + u.orders)
-    return Stats(active, total, total / active.length)
-}
-
-printReport(stats: Stats) {
-    printHeader("Report")
-    for user in stats.users => printUserLine(user, stats.total)
-    printFooter(stats.total, stats.avg)
-}
-
-generateReport(users: [User]) {
-    let stats = calcStats(users)
-    printReport(stats)
-}
-```
-
-### Split modules when it adds value
-
-Don't split files just because they're long — split when **separation adds clarity**. Good reasons to split:
-- Different responsibilities (models vs logic vs I/O)
-- Reusable utilities that other modules could import
-- Reducing cognitive load (a reader only needs part of the file)
-
-Bad reasons to split:
-- "The file has more than X lines"
-- Functions that are tightly coupled and always used together
-
-```
-// ✅ Split by responsibility
-src/
-├── main.liva           // Orchestration
-├── models.liva         // Data classes, enums
-├── api.liva            // HTTP calls, external I/O
-├── validation.liva     // Input validation, guards
-└── format.liva         // Display, formatting helpers
-```
-
-### Dependency direction
-
-Higher-level modules depend on lower-level ones, never the reverse:
-
-```
-main.liva → api.liva → models.liva
-main.liva → format.liva → models.liva
-                ↑ never imports from main
-```
-
-### `main()` as orchestrator
-
-`main()` should read like a table of contents — delegate, don't implement:
-
-```liva
-// ✅ main() orchestrates
 main() {
     let config = loadConfig() or fail "Bad config"
     let users = fetchUsers(config.apiUrl) or fail "Fetch failed"
     let report = buildReport(users)
     displayReport(report)
 }
-
-// ❌ main() does everything
-main() {
-    let content = File.read("config.json") or fail "No config"
-    let config: Config = JSON.parse(content) or fail "Bad JSON"
-    let resp = HTTP.get(config.url) or fail "HTTP error"
-    let users: [User] = resp.json() or fail "Parse error"
-    let active = users.filter(u => u.isActive)
-    let total = active.reduce(0, (acc, u) => acc + u.score)
-    print("=== Report ===")
-    for user in active {
-        print($"  {user.name}: {user.score}")
-    }
-    print($"Total: {total}")
-}
 ```
 
-### Open/Closed: design for extension
-
-Use enums and switch expressions so adding a variant only requires adding a case, not changing existing logic:
-
-```liva
-// ✅ Adding a new Shape only requires a new variant + case
-enum Shape {
-    Circle(radius: float),
-    Rectangle(w: float, h: float),
-    Triangle(base: float, height: float)    // Easy to add
-}
-
-area(s: Shape): float => switch s {
-    Shape.Circle(r) => Math.PI * r * r,
-    Shape.Rectangle(w, h) => w * h,
-    Shape.Triangle(b, h) => 0.5 * b * h    // Just add a case
-}
-```
+**Dependency direction:** higher-level → lower-level, never reverse.
 
 ---
 
 ## 10. Imports
 
-Group imports: standard library first, then project modules, separated by a blank line:
+Group: stdlib first, then project modules:
 
 ```liva
-// ✅ Ordered imports
 import { describe, test, expect } from "liva/test"
 
 import { User, Role } from "./models.liva"
 import { fetchUser } from "./api/client.liva"
-import { formatName } from "./utils/format.liva"
 ```
 
-Import only what you use. Prefer named imports over `import *`:
-
-```liva
-// ✅ Named — clear what's used
-import { formatDate, formatNumber } from "./utils/format.liva"
-
-// ⚠️ Wildcard — okay for small modules
-import * as math from "./math.liva"
-```
+Prefer named imports over `import *`.
 
 ---
 
 ## 11. Comments
 
-### When to comment
-
-- **Why**, not **what**. The code shows *what*; comments explain *why*.
-- Section headers for logical blocks in longer functions.
-- Public API functions: brief doc comment.
-
-```liva
-// ✅ Explains "why"
-// Retry up to 3 times because the API is flaky during deployments
-let data = fetchWithRetry(url, 3) or fail "API unavailable"
-
-// ❌ Restates the code
-// Add a and b
-add(a, b) => a + b
-```
-
-### Section separators
-
-For longer files, use a consistent separator:
-
-```liva
-// --- Constants ---
-const MAX_RETRIES = 3
-const TIMEOUT = 5000
-
-// --- Models ---
-User { name: string; email: string }
-
-// --- API ---
-fetchUser(id: number): User { ... }
-```
+- **Why**, not **what**
+- Section headers for logical blocks
+- Brief doc comments on public API
 
 ---
 
 ## 12. Formatting
 
-### Indentation
-
-4 spaces. No tabs. (The `livac fmt` formatter handles this.)
-
-### Line length
-
-Aim for **≤90 characters**. Break long lines logically:
-
-```liva
-// ✅ Break at logical points
-let result = items
-    .filter(x => x.active)
-    .map(x => x.name)
-    .join(", ")
-
-// ✅ Break long string templates
-print($"User {user.name} (id={user.id}) "
-    + $"has {user.orders.length} orders")
-```
-
-### Blank lines
-
-One blank line between:
-- Function definitions
-- Logical sections within a function
-- Import block and first declaration
-
-```liva
-import { User } from "./models.liva"
-
-const MAX_USERS = 100
-
-fetchUser(id: number): User { ... }
-
-deleteUser(id: number) { ... }
-```
+- **4 spaces** indent (no tabs) — `livac fmt` handles this
+- **≤90 characters** per line
+- One blank line between function definitions
 
 ---
 
 ## 13. Testing
-
-### Use the Jest-like API
 
 ```liva
 import { describe, test, expect } from "liva/test"
@@ -756,54 +289,20 @@ import { describe, test, expect } from "liva/test"
 describe("Calculator", () => {
     test("addition", () => {
         expect(add(2, 3)).toBe(5)
-        expect(add(-1, 1)).toBe(0)
     })
-
     test("division by zero fails", () => {
         expect(() => divide(10, 0)).toThrow()
     })
 })
 ```
 
-### Test naming
-
-- **Files:** `*.test.liva` (required by the test runner)
-- **Descriptions:** natural language, describe behavior: `"returns empty list when no matches"`
-- **One concept per test** — if you'd use "and" in the name, split it
-
-```liva
-// ✅ Focused tests
-test("filters active users", () => { ... })
-test("returns empty list when no users", () => { ... })
-
-// ❌ Testing multiple things
-test("filters users and sorts by name", () => { ... })
-```
-
-### Keep tests independent
-
-Use `beforeEach` for setup, not shared mutable state across tests:
-
-```liva
-describe("UserService", () => {
-    beforeEach(() => {
-        // Fresh state for each test
-    })
-
-    test("creates user", () => { ... })
-    test("rejects duplicate email", () => { ... })
-})
-```
-
-### Matchers cheat sheet
+Files: `*.test.liva`. One concept per test.
 
 | Assertion | Matcher |
 |-----------|--------|
 | Equality | `expect(x).toBe(5)` |
 | Negation | `expect(x).not.toBe(0)` |
 | Truthiness | `expect(x).toBeTruthy()` |
-| Null | `expect(x).toBeNull()` |
-| Comparison | `expect(x).toBeGreaterThan(3)` |
 | Contains | `expect(list).toContain("a")` |
 | Throws | `expect(() => f()).toThrow()` |
 
@@ -811,274 +310,39 @@ describe("UserService", () => {
 
 ## 14. String Templates
 
-Always use `$"..."` for string interpolation. Never concatenate with `+`:
+Always `$"..."` for interpolation, never `+` concatenation:
 
 ```liva
-// ✅ String template
 let msg = $"User {user.name} (ID: {user.id}) logged in"
-
-// ❌ Manual concatenation
-let msg = "User " + user.name + " (ID: " + user.id + ") logged in"
-```
-
-Keep expressions inside `{}` simple. Extract complex logic to a variable:
-
-```liva
-// ✅ Clean — extract first
-let total = items.reduce(0, (acc, i) => acc + i.price)
-print($"Total: {total}")
-
-// ❌ Complex expression buried in template
-print($"Total: {items.reduce(0, (acc, i) => acc + i.price)}")
 ```
 
 ---
 
 ## 15. Defer
 
-### Use `defer` for guaranteed cleanup
-
-`defer` registers cleanup that runs when the scope exits — regardless of `return`, `fail`, or normal exit. Use it immediately after acquiring a resource:
+Acquire → defer release → use. `defer` guarantees cleanup on scope exit.
 
 ```liva
-// ✅ Acquire → defer release → use
-processFile(path: string) {
-    let file = File.read(path) or fail "Cannot open"
-    defer File.close(file)
-    // ... work with file — close is guaranteed
-}
-
-// ✅ DB connections
-queryUsers(): [User] {
-    let db = DB.open("app.db") or fail
-    defer DB.close(db)
-    return DB.query(db, "SELECT * FROM users") or fail
-}
-```
-
-### Inline vs block
-
-Follow the same `=>` rule: one action → inline `defer`, multiple → `defer { }`:
-
-```liva
-// ✅ Single action → inline
+let db = DB.open("app.db") or fail "Cannot open database"
 defer DB.close(db)
-defer print("done")
-
-// ✅ Multiple actions → block
-defer {
-    DB.close(db)
-    Log.info("Connection closed")
-}
+return DB.query(db, "SELECT * FROM users") or fail "Query failed"
 ```
 
-### LIFO order
-
-Multiple defers execute last-in, first-out. Register them in **reverse cleanup order**:
-
-```liva
-// ✅ LIFO — first opened, last closed
-let db = DB.open("app.db") or fail
-defer DB.close(db)           // Runs second
-
-let file = File.open("log.txt") or fail
-defer File.close(file)       // Runs first
-```
-
-### Don't defer cheap operations
-
-Only use `defer` when cleanup is **critical** (file handles, DB connections, locks). Don't use it for trivial bookkeeping:
-
-```liva
-// ❌ Overkill — just print at the end
-defer print("Function completed")
-
-// ✅ Justified — resource must be released
-defer DB.close(db)
-```
+Single action → `defer stmt`. Multiple → `defer { ... }`. LIFO order.
 
 ---
 
 ## 16. Rust Interop
 
-### Use `rust { }` as a last resort
-
-Prefer Liva's stdlib. Use `rust { }` only when you need a Rust crate or low-level API that Liva doesn't expose:
+Use `rust { }` as a **last resort** — prefer Liva stdlib. Keep blocks small. Declare `use rust` at file top:
 
 ```liva
-// ❌ Unnecessary — Liva has Crypto.sha256()
-let hash = rust {
-    use sha2::{Sha256, Digest};
-    format!("{:x}", Sha256::digest(b"hello"))
-}
-
-// ✅ Justified — Liva has no UUID support
 use rust "uuid" version "1.0" features ["v4"]
 
 let id = rust {
     use uuid::Uuid;
     Uuid::new_v4().to_string()
 }
-```
-
-### Keep blocks small and isolated
-
-Each `rust { }` block should be a single expression. Don't put business logic inside:
-
-```liva
-// ✅ Small, focused
-let timestamp = rust {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_millis() as i64
-}
-
-// ❌ Business logic in Rust — defeats the purpose of Liva
-rust {
-    let users: Vec<User> = db.query("SELECT * FROM users").unwrap();
-    let active: Vec<&User> = users.iter().filter(|u| u.active).collect();
-    println!("Found {} active users", active.len());
-}
-```
-
-### Declare crates at the top
-
-Group `use rust` declarations at the top of the file, after Liva imports:
-
-```liva
-import { User } from "./models.liva"
-
-use rust "uuid" version "1.0" features ["v4"]
-use rust "chrono" version "0.4"
-
-main() { ... }
-```
-
----
-
-## 17. Stdlib Patterns
-
-### Logging
-
-Use the appropriate log level. Include context variables as extra arguments:
-
-```liva
-// ✅ Right level + context
-Log.info("Server started on port", port)
-Log.warn("Retrying request", url, $"attempt {n}")
-Log.error("Failed to connect", $"{err}")
-Log.debug("Query result", data)   // Only with --verbose
-
-// ❌ Using print for operational messages
-print("ERROR: connection failed")   // Use Log.error instead
-```
-
-### Config
-
-Load once, fail early. Pass the config object down — don't reload per function:
-
-```liva
-// ✅ Load once, fail fast
-main() {
-    let config = Config.load(".env") or fail "Missing .env file"
-    let port = Config.getInt(config, "PORT") or 3000
-    let dbPath = Config.get(config, "DB_PATH") or "app.db"
-    startServer(port, dbPath)
-}
-
-// ❌ Loading config in every function
-handleRequest(req) {
-    let config = Config.load(".env") or fail   // Reloads every time!
-    let db = Config.get(config, "DB_PATH") or "app.db"
-    ...
-}
-```
-
-### DB — acquire + defer + use
-
-Always pair `DB.open` with `defer DB.close`. Keep queries simple:
-
-```liva
-// ✅ Standard pattern
-let db = DB.open("app.db") or fail "Cannot open DB"
-defer DB.close(db)
-
-DB.exec(db, "CREATE TABLE IF NOT EXISTS users (name TEXT)") or fail
-DB.exec(db, "INSERT INTO users VALUES (?)", [name]) or fail
-let rows = DB.query(db, "SELECT * FROM users") or fail
-```
-
-### HTTP Server — handlers as focused functions
-
-Define route handlers as named functions. Keep `main()` as the route table:
-
-```liva
-// ✅ Route table in main, handlers separate
-main() {
-    let app = Server.create()
-    app.get("/health", healthCheck)
-    app.get("/users", listUsers)
-    app.post("/users", createUser)
-    app.listen(3000)
-}
-
-healthCheck(req) => Response.json("{\"status\": \"ok\"}")
-
-listUsers(req) {
-    let db = DB.open("app.db") or fail
-    defer DB.close(db)
-    let users = DB.query(db, "SELECT * FROM users") or fail
-    Response.json(JSON.stringify(users))
-}
-
-// ❌ Everything inline
-main() {
-    let app = Server.create()
-    app.get("/users", (req) {
-        let db = DB.open("app.db") or fail
-        let users = DB.query(db, "SELECT * FROM users") or fail
-        DB.close(db)
-        Response.json(JSON.stringify(users))
-    })
-    app.listen(3000)
-}
-```
-
----
-
-## Quick Reference: Style Decision Tree
-
-```
-Is it a single expression/statement?
-├── Yes → use =>
-│   ├── Function body?     → add(a, b) => a + b
-│   ├── if body?           → if x > 0 => print(x)
-│   ├── for body?          → for i in items => process(i)
-│   ├── while body?        → while alive => tick()
-│   └── defer body?        → defer DB.close(db)
-└── No (2+ statements) → use {}
-    ├── Function body?     → calculate(x) { ... return y }
-    ├── if body?           → if err { log(err); return }
-    ├── Loop body?         → for i in items { ...; ... }
-    └── defer body?        → defer { close(db); log("done") }
-
-Need error handling?
-├── Propagate error?       → or fail "message"
-├── Default on error?      → or <value>
-└── Inspect/log error?     → let val, err = call()
-                              if err => ...
-
-Acquiring a resource?
-├── Open + use + close     → defer DB.close(db) right after open
-
-Mapping values from enum/string?
-├── Return a value?        → switch expr (=> arrows)
-└── Perform actions?       → switch stmt (case: colons)
-
-Need Rust ecosystem?
-├── Liva stdlib covers it? → Use stdlib (File, DB, Crypto, etc.)
-└── Need a crate?          → rust { } block + use rust "crate" version "x.y"
 ```
 
 ---
@@ -1088,20 +352,12 @@ Need Rust ecosystem?
 | ❌ Don't | ✅ Do | Why |
 |----------|-------|-----|
 | `if x { doThing() }` | `if x => doThing()` | `=>` for single statements |
-| `items.forEach(x => print(x))` | `items.forEach(print)` | Point-free is cleaner |
-| `if err != "" { ... }` | `if err { ... }` | Truthy check is idiomatic |
-| `x = x + 1; y = y + 1` | Use newlines to separate statements | Liva has no semicolons |
-| `let result, _ = f()` silently | Handle or `or fail`/`or default` | Don't swallow errors |
-| Everything in `main()` | Extract into functions | Readability, testability |
-| `Color::Red` | `Color.Red` | Dot syntax, not Rust's `::` |
-| `let x += 1` | `x = x + 1` | No compound assignment |
-| `fn add(a, b)` | `add(a, b) => a + b` | No `fn`/`def` keyword |
-| `async f()` used immediately | `f()` (no async) | No concurrency if awaited on next line |
-| `"Hi " + name` | `$"Hi {name}"` | Use string templates |
-| `print("ERROR: ...")` | `Log.error(...)` | Use structured logging |
-| Manual `close()` at end | `defer close()` after open | `defer` guarantees cleanup |
-| `rust { }` for stdlib features | Use Liva stdlib | Only use `rust { }` for missing functionality |
-
----
-
-*This guide reflects Liva v2.0. Run `livac fmt` to auto-format your code.*
+| `items.forEach(x => print(x))` | `items.forEach(print)` | Point-free |
+| `if err != "" { ... }` | `if err { ... }` | Truthy check |
+| `Color::Red` | `Color.Red` | Dot syntax |
+| `fn add(a, b)` | `add(a, b) => a + b` | No `fn` keyword |
+| `"Hi " + name` | `$"Hi {name}"` | String templates |
+| `print("ERROR: ...")` | `Log.error(...)` | Structured logging |
+| Manual `close()` at end | `defer close()` after open | Guaranteed cleanup |
+| `rust { }` for stdlib features | Use Liva stdlib | Only for missing functionality |
+| `async f()` used immediately | `f()` (no async) | No gain if awaited next line |

@@ -1,731 +1,197 @@
-# Collections
+# Collections — Additional Reference
 
-Complete reference for arrays, maps, objects, and data structures in Liva.
+> SKILL.md covers array/map/set creation, basic CRUD, and iteration.
+> This file covers **type annotations, complete method tables, and advanced patterns only**.
 
-## Table of Contents
-- [Arrays](#arrays)
-- [Maps (Dictionaries)](#maps-dictionaries)
-- [Sets](#sets)
-- [Object Literals](#object-literals)
-- [Struct Literals](#struct-literals)
-- [Iteration](#iteration)
-- [Best Practices](#best-practices)
-
----
-
-## Arrays
-
-### Array Literals
+## Map Type Annotations
 
 ```liva
-let numbers = [1, 2, 3, 4, 5]
-let names = ["Alice", "Bob", "Charlie"]
-let mixed = [1, "two", 3.0, true]  // Mixed types
-```
-
-### Type Annotations
-
-```liva
-let numbers: [number] = [1, 2, 3]
-let names: [string] = ["Alice", "Bob"]
-```
-
-### Accessing Elements
-
-```liva
-let numbers = [10, 20, 30, 40]
-
-let first = numbers[0]   // 10
-let second = numbers[1]  // 20
-let last = numbers[3]    // 40
-```
-
-### Array Properties
-
-```liva
-let items = [1, 2, 3, 4, 5]
-
-let count = items.length  // 5
-```
-
-### Nested Arrays
-
-```liva
-let matrix = [
-  [1, 2, 3],
-  [4, 5, 6],
-  [7, 8, 9]
-]
-
-let element = matrix[1][2]  // 6
-```
-
-### Array of Objects
-
-```liva
-let users = [
-  { name: "Alice", age: 25 },
-  { name: "Bob", age: 30 },
-  { name: "Charlie", age: 35 }
-]
-
-let firstUser = users[0]
-let firstName = users[0].name  // "Alice"
-```
-
----
-
-## Maps (Dictionaries)
-
-*Added in v1.3.0*
-
-Maps are key-value collections backed by `HashMap` with O(1) lookup, insertion, and deletion.
-
-### Map Literals
-
-```liva
-// Empty map (requires type annotation)
+// Empty map requires type annotation
 let empty: Map<string, int> = Map {}
-
-// Map with entries
-let ages = Map {
-  "Alice": 30,
-  "Bob": 25,
-  "Carlos": 35
-}
-```
-
-### Type Annotations
-
-```liva
-let scores: Map<string, number> = Map {}
-let config: Map<string, string> = Map { "host": "localhost" }
-
-// As function return type
-getDefaults(): Map<string, int> {
-  return Map { "timeout": 30, "retries": 3 }
-}
 
 // As function parameter
 processConfig(config: Map<string, string>) {
-  // ...
+    for key, value in config {
+        print($"{key}: {value}")
+    }
+}
+
+// As return type
+getDefaults(): Map<string, int> {
+    return Map { "timeout": 30, "retries": 3 }
 }
 ```
 
-### Getting Values
+## Map Method Table
 
-`map.get(key)` returns an optional value — use `or` to provide a default:
+| Method | Signature | Returns |
+|--------|-----------|---------|
+| `map.get(key) or default` | Get value with fallback | `V` |
+| `map.set(key, value)` | Insert or update | `void` |
+| `map.has(key)` | Check key existence | `bool` |
+| `map.delete(key)` | Remove by key | `void` |
+| `map.keys()` | All keys as array | `[K]` |
+| `map.values()` | All values as array | `[V]` |
+| `map.entries()` | All pairs as tuples | `[(K, V)]` |
+| `map.clear()` | Remove all entries | `void` |
+| `map.forEach((k, v) => { })` | Iterate with callback | `void` |
+| `map.length` | Number of entries (property) | `int` |
 
-```liva
-let ages = Map { "Alice": 30, "Bob": 25 }
+> **Always use `or default` with `map.get()`** — the key may not exist.
 
-let age = ages.get("Alice") or 0       // 30
-let missing = ages.get("Unknown") or -1 // -1 (key not found)
-```
-
-> **Note:** Always use `or default` with `map.get()` since the key may not exist.
-
-### Setting Values
-
-```liva
-let users = Map { "alice": "Alice Smith" }
-
-// Insert new entry
-users.set("bob", "Bob Jones")
-
-// Update existing entry
-users.set("alice", "Alice Johnson")
-```
-
-### Checking Key Existence
+## Map Iteration
 
 ```liva
-let ages = Map { "Alice": 30, "Bob": 25 }
-
-let hasAlice = ages.has("Alice")    // true
-let hasEve = ages.has("Eve")        // false
-
-if ages.has("Alice") {
-  print("Alice is in the map")
-}
-```
-
-### Deleting Entries
-
-```liva
-let ages = Map { "Alice": 30, "Bob": 25, "Carlos": 35 }
-
-ages.delete("Bob")
-// ages now has: Alice: 30, Carlos: 35
-```
-
-### Size
-
-```liva
-let ages = Map { "Alice": 30, "Bob": 25 }
-let count = ages.length  // 2
-```
-
-### Clearing All Entries
-
-```liva
-let cache = Map { "key1": "val1", "key2": "val2" }
-cache.clear()
-// cache is now empty, cache.length == 0
-```
-
-### Extracting Keys, Values, and Entries
-
-```liva
-let config = Map { "host": "localhost", "port": "8080" }
-
-let allKeys = config.keys()       // [string] — ["host", "port"]
-let allValues = config.values()   // [string] — ["localhost", "8080"]
-let allPairs = config.entries()   // [(string, string)] — tuples
-```
-
-### Iterating Maps
-
-#### for key, value in map
-
-Destructured iteration gives you both the key and value:
-
-```liva
-let scores = Map { "math": 95, "english": 88, "science": 92 }
-
+// Destructured key-value (order may vary)
 for subject, score in scores {
-  print($"{subject}: {score}")
+    print($"{subject}: {score}")
 }
-// Output (order may vary):
-// math: 95
-// english: 88
-// science: 92
-```
 
-#### forEach with Lambda
+// Keys only
+for key in config.keys() {
+    print(key)
+}
 
-```liva
-let ages = Map { "Alice": 30, "Bob": 25 }
-
+// forEach with lambda
 ages.forEach((name, age) => {
-  print($"{name} is {age} years old")
+    print($"{name} is {age} years old")
 })
 ```
 
-#### Iterating Keys Only
+## Set Type Annotations
 
 ```liva
-let config = Map { "host": "localhost", "port": "8080" }
-
-for key in config.keys() {
-  print(key)
-}
-```
-
-### Map Methods Summary
-
-| Method | Signature | Description | Returns |
-|--------|-----------|-------------|---------|
-| `get` | `map.get(key) or default` | Get value by key with fallback | `V` |
-| `set` | `map.set(key, value)` | Insert or update entry | `void` |
-| `has` | `map.has(key)` | Check if key exists | `bool` |
-| `delete` | `map.delete(key)` | Remove entry by key | `void` |
-| `keys` | `map.keys()` | Get all keys as array | `[K]` |
-| `values` | `map.values()` | Get all values as array | `[V]` |
-| `entries` | `map.entries()` | Get all pairs as tuples | `[(K, V)]` |
-| `clear` | `map.clear()` | Remove all entries | `void` |
-| `forEach` | `map.forEach((k, v) => { })` | Iterate with callback | `void` |
-| `length` | `map.length` | Number of entries | `int` |
-
-### Compiled Output
-
-Liva maps compile to Rust's `std::collections::HashMap<K, V>`:
-
-| Liva | Rust |
-|------|------|
-| `Map { "a": 1 }` | `HashMap::from([("a".to_string(), 1)])` |
-| `map.get("k") or 0` | `map.get(&"k".to_string()).cloned().unwrap_or(0)` |
-| `map.set("k", v)` | `map.insert("k".to_string(), v)` |
-| `map.has("k")` | `map.contains_key(&"k".to_string())` |
-| `for k, v in map` | `for (k, v) in map.iter()` |
-
----
-
-## Sets
-
-> Added in v1.3.0
-
-Sets are unordered collections of unique values, backed by Rust's `HashSet`.
-
-### Creating Sets
-
-```liva
-// Empty set (type annotation required)
+// Empty set requires type annotation
 let empty: Set<string> = Set {}
 
-// Set with values (type inferred from first element)
+// With values (type inferred from first element)
 let colors = Set { "red", "green", "blue" }
 let primes = Set { 2, 3, 5, 7, 11 }
 ```
 
-### Adding & Removing Elements
+## Set Method Table
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `set.add(value)` | `void` | Add element |
+| `set.has(value)` | `bool` | Check membership |
+| `set.delete(value)` | `void` | Remove element |
+| `set.values()` | `[T]` | All values as array |
+| `set.union(other)` | `Set<T>` | Elements in either set |
+| `set.intersection(other)` | `Set<T>` | Elements in both sets |
+| `set.difference(other)` | `Set<T>` | Elements in this but not other |
+| `set.clear()` | `void` | Remove all elements |
+| `set.forEach(fn)` | `void` | Iterate with callback |
+| `set.length` | `int` | Number of elements (property) |
+
+## Set Iteration
 
 ```liva
-let fruits = Set { "apple", "banana" }
-
-fruits.add("cherry")       // Insert element
-fruits.delete("banana")    // Remove element
-fruits.clear()             // Remove all elements
-```
-
-### Checking Membership
-
-```liva
-let colors = Set { "red", "green", "blue" }
-
-let hasRed = colors.has("red")        // true
-let hasPurple = colors.has("purple")  // false
-```
-
-### Set Algebra Operations
-
-```liva
-let a = Set { 1, 2, 3 }
-let b = Set { 3, 4, 5 }
-
-let u = a.union(b)            // Set { 1, 2, 3, 4, 5 }
-let i = a.intersection(b)     // Set { 3 }
-let d = a.difference(b)       // Set { 1, 2 }
-```
-
-### Getting Values
-
-```liva
-let colors = Set { "red", "green", "blue" }
-
-let vals = colors.values()    // [string] — all elements as array
-let count = colors.length     // 3
-```
-
-### Iterating Sets
-
-```liva
-let numbers = Set { 10, 20, 30 }
-
-// for-in loop
 for n in numbers {
-  print(n)
+    print(n)
 }
 
-// forEach with lambda
 numbers.forEach((n) => {
-  print("Number: " + n)
+    print($"Number: {n}")
 })
 ```
 
-### Set Methods
-
-| Method | Description | Returns |
-|--------|-------------|--------|
-| `set.add(value)` | Add element to set | `void` |
-| `set.has(value)` | Check if value exists | `bool` |
-| `set.delete(value)` | Remove element | `void` |
-| `set.values()` | All values as array | `[T]` |
-| `set.union(other)` | Elements in either set | `Set<T>` |
-| `set.intersection(other)` | Elements in both sets | `Set<T>` |
-| `set.difference(other)` | Elements in this but not other | `Set<T>` |
-| `set.clear()` | Remove all elements | `void` |
-| `set.forEach(fn)` | Iterate with callback | `void` |
-| `set.length` | Number of elements | `int` |
-
-### Compiled Output
-
-Liva sets compile to Rust's `std::collections::HashSet<T>`:
-
-| Liva | Rust |
-|------|------|
-| `Set { "a", "b" }` | `HashSet::from(["a".to_string(), "b".to_string()])` |
-| `set.add("x")` | `set.insert("x".to_string())` |
-| `set.has("x")` | `set.contains(&"x".to_string())` |
-| `set.union(other)` | `set.union(&other).cloned().collect::<HashSet<_>>()` |
-| `for v in set` | `for v in set.iter()` |
-
----
-
 ## Object Literals
-
-### Basic Object
 
 ```liva
 let user = {
-  name: "Alice",
-  age: 25,
-  email: "alice@example.com"
+    name: "Alice",
+    age: 25,
+    email: "alice@example.com"
 }
+
+// Property access
+let name = user.name
+
+// Dynamic property access
+let key = "age"
+let value = user[key]
 ```
 
-### Accessing Properties
+## Nested Collections
 
 ```liva
-let name = user.name      // "Alice"
-let age = user.age        // 25
-let email = user.email    // "alice@example.com"
-```
+// Array of arrays (matrix)
+let matrix = [
+    [1, 2, 3],
+    [4, 5, 6],
+    [7, 8, 9]
+]
+let element = matrix[1][2]  // 6
 
-### Nested Objects
+// Object with arrays
+let team = {
+    name: "Engineering",
+    members: ["Alice", "Bob", "Charlie"]
+}
+let first = team.members[0]  // "Alice"
 
-```liva
+// Nested objects
 let person = {
-  name: "Alice",
-  address: {
-    street: "123 Main St",
-    city: "Boston",
-    zip: "02101"
-  }
+    name: "Alice",
+    address: {
+        city: "Boston",
+        zip: "02101"
+    }
 }
-
 let city = person.address.city  // "Boston"
 ```
 
-### Object with Arrays
-
-```liva
-let team = {
-  name: "Engineering",
-  members: ["Alice", "Bob", "Charlie"],
-  size: 3
-}
-
-let firstMember = team.members[0]  // "Alice"
-```
-
-### Dynamic Properties
-
-```liva
-let key = "name"
-let value = user[key]  // Access property dynamically
-```
-
----
-
-## Struct Literals
-
-### Using Class Types
+## Struct Literals (From Classes)
 
 ```liva
 Person {
-  constructor(name: string, age: number) {
-    this.name = name
-    this.age = age
-  }
-  
-  name: string
-  age: number
+    name: string
+    age: number
+    constructor(name: string, age: number) {
+        this.name = name
+        this.age = age
+    }
 }
 
-// Struct literal syntax
-let alice = Person {
-  name: "Alice",
-  age: 25
-}
-
-// Constructor syntax
-let bob = Person("Bob", 30)
+// Two creation styles:
+let alice = Person { name: "Alice", age: 25 }   // Struct literal
+let bob = Person("Bob", 30)                       // Constructor call
 ```
 
-### Struct with Nested Objects
+## Collection Type Annotation Summary
 
 ```liva
-let config = Config {
-  database: {
-    host: "localhost",
-    port: 5432
-  },
-  cache: {
-    enabled: true,
-    ttl: 300
-  }
-}
-```
+let nums: [number] = [1, 2, 3]             // Typed array
+let ages: Map<string, int> = Map {}         // Typed empty map
+let tags: Set<string> = Set {}              // Typed empty set
+let matrix: [[number]] = [[1, 2], [3, 4]]  // Nested array type
+let maybe: [string?] = ["a", null, "b"]    // Array of optionals
 
----
-
-## Iteration
-
-### Iterating Arrays
-
-```liva
-let numbers = [1, 2, 3, 4, 5]
-
-for num in numbers {
-  print(num)
-}
-
-// One-liner with => (v1.1.0)
-for num in numbers => print(num)
-
-// Point-free (v1.1.0)
-for num in numbers => print
-```
-
-### Iterating with Index
-
-```liva
-let names = ["Alice", "Bob", "Charlie"]
-
-for i in 0..names.length {
-  print($"{i}: {names[i]}")
-}
-// Output:
-// 0: Alice
-// 1: Bob
-// 2: Charlie
-```
-
-### Iterating Objects in Arrays
-
-```liva
-let users = [
-  { name: "Alice", age: 25 },
-  { name: "Bob", age: 30 }
-]
-
-for user in users {
-  print($"{user.name} is {user.age} years old")
-}
-```
-
-### Parallel Iteration
-
-```liva
-let numbers = [1, 2, 3, 4, 5, 6, 7, 8]
-
-for par num in numbers with threads 4 {
-  let result = heavyComputation(num)
-  print(result)
-}
-```
-
-### Vectorized Iteration
-
-```liva
-let values = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
-
-for vec value in values with simdWidth 4 {
-  let result = mathOperation(value)
-  print(result)
-}
-```
-
----
-
-## Best Practices
-
-### Array Naming
-
-```liva
-// ✅ Good: Plural nouns
-let users = [...]
-let products = [...]
-let errors = [...]
-
-// ❌ Bad: Singular or unclear
-let user = [...]
-let data = [...]
-```
-
-### Type Annotations for Complex Arrays
-
-```liva
-// ✅ Good: Explicit type for clarity
+// Typed array of objects
 let users: [{ name: string, age: number }] = [
-  { name: "Alice", age: 25 },
-  { name: "Bob", age: 30 }
+    { name: "Alice", age: 25 },
+    { name: "Bob", age: 30 }
 ]
-
-// ⚠️ Acceptable: Inference for simple types
-let numbers = [1, 2, 3]
 ```
 
-### Avoid Mixed-Type Arrays
-
-```liva
-// ❌ Bad: Mixed types
-let mixed = [1, "two", 3.0, true]
-
-// ✅ Good: Consistent types
-let numbers = [1, 2, 3]
-let strings = ["one", "two", "three"]
-```
-
-### Use Descriptive Object Keys
-
-```liva
-// ✅ Good: Clear property names
-let user = {
-  firstName: "Alice",
-  lastName: "Smith",
-  emailAddress: "alice@example.com"
-}
-
-// ❌ Bad: Cryptic abbreviations
-let user = {
-  fn: "Alice",
-  ln: "Smith",
-  em: "alice@example.com"
-}
-```
-
-### Extract Complex Nested Structures
-
-```liva
-// ⚠️ Acceptable but hard to read
-let config = {
-  db: { host: "localhost", port: 5432, creds: { user: "admin", pass: "secret" } }
-}
-
-// ✅ Better: Extract to separate objects
-let dbCreds = { user: "admin", pass: "secret" }
-let dbConfig = { host: "localhost", port: 5432, creds: dbCreds }
-let config = { db: dbConfig }
-```
-
-### Use Parallel Iteration for CPU-Bound Work
-
-```liva
-// ✅ Good: Parallel for CPU-intensive tasks
-for par item in largeDataset with threads 8 {
-  complexComputation(item)
-}
-
-// ✅ Good: Sequential for I/O or order-dependent work
-for item in files {
-  writeToFile(item)
-}
-```
-
----
-
-## Summary
-
-### Arrays
-
-```liva
-// Literal
-let arr = [1, 2, 3]
-
-// Access
-let first = arr[0]
-
-// Iterate
-for item in arr { }
-```
-
-### Objects
-
-```liva
-// Literal
-let obj = { name: "Alice", age: 25 }
-
-// Access
-let name = obj.name
-
-// Dynamic access
-let key = "age"
-let value = obj[key]
-```
-
-### Maps
-
-```liva
-// Create
-let ages = Map { "Alice": 30, "Bob": 25 }
-
-// CRUD
-ages.set("Carlos", 35)
-let age = ages.get("Alice") or 0
-ages.delete("Bob")
-
-// Iterate
-for key, value in ages { }
-```
-
-### Struct Literals
-
-```liva
-// Using class
-let person = Person {
-  name: "Alice",
-  age: 25
-}
-```
-
-### Iteration
-
-```liva
-// Sequential
-for item in items { }
-
-// Parallel
-for par item in items with threads 4 { }
-
-// Vectorized
-for vec value in values with simdWidth 4 { }
-```
-
-### Quick Reference
+## Iteration Patterns Summary
 
 ```liva
 // Array
-let numbers = [1, 2, 3, 4, 5]
-let first = numbers[0]
-let length = numbers.length
+for item in items { print(item) }
+for i, item in items { print($"{i}: {item}") }  // With index
 
-for num in numbers {
-  print(num)
-}
+// Map (destructured key-value)
+for key, value in ages { print($"{key}: {value}") }
 
-// Map
-let ages = Map { "Alice": 30, "Bob": 25 }
-ages.set("Carlos", 35)
-let age = ages.get("Alice") or 0
-ages.delete("Bob")
+// Set
+for color in colors { print(color) }
 
-for name, age in ages {
-  print($"{name}: {age}")
-}
+// Range
+for i in 0..items.length { print(items[i]) }
 
-// Object
-let user = {
-  name: "Alice",
-  age: 25,
-  email: "alice@example.com"
-}
-
-let name = user.name
-let age = user["age"]
-
-// Array of objects
-let users = [
-  { name: "Alice", age: 25 },
-  { name: "Bob", age: 30 }
-]
-
-for user in users {
-  print($"{user.name}: {user.age}")
-}
-
-// Parallel iteration
-for par item in items with threads 4 {
-  processItem(item)
-}
+// One-liner / point-free
+for item in items => print
+for item in items => process
 ```
-
----
-
-**Next**: [Visibility →](visibility.md)
-
-**See Also**:
-- [Variables](variables.md)
-- [Control Flow](control-flow.md) - For loops
-- [Concurrency](concurrency.md) - Data-parallel iteration

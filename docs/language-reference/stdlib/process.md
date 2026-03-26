@@ -71,19 +71,19 @@ main() {
 
     // Run a command
     let hostname, err = Process.exec("hostname")
-    if err == "" {
+    if !err {
         print($"Running on: {hostname}")
     }
 
     // Check disk space
     let disk, err2 = Process.exec("df -h / | tail -1")
-    if err2 == "" {
+    if !err2 {
         print($"Disk: {disk}")
     }
 
     // Spawn background task
     let pid, err3 = Process.spawn("sleep 10")
-    if err3 == "" {
+    if !err3 {
         print($"Background task PID: {pid}")
     }
 }

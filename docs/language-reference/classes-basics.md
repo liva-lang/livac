@@ -1,365 +1,162 @@
 # Classes: Basics
 
-Fundamentals of object-oriented programming in Liva: class declarations, constructors, fields, methods, and method references.
+> SKILL.md covers: declaration syntax, constructor, fields, methods, `object::method` references.
+> This file: field defaults, constructor validation, `this` binding, body ordering, factory patterns.
 
-## Table of Contents
-- [Class Declaration](#class-declaration)
-- [Constructors](#constructors)
-- [Fields](#fields)
-- [Methods](#methods)
-- [Method References (`::` Syntax)](#method-references--syntax)
+## Body Ordering (Required)
 
----
+1. **Fields** (first)
+2. **Constructor** (second)
+3. **Methods** (last)
 
-## Class Declaration
+Violating this order → parse error.
 
-### Basic Syntax
+## Field Defaults
 
-```liva
-Person {
-  name: string
-  age: number
-  
-  constructor(name: string, age: number) {
-    this.name = name
-    this.age = age
-  }
-  
-  greet() => $"Hello, I'm {this.name}"
-}
-```
-
-### Components
-
-A class body follows this **required ordering**:
-
-1. **Fields** (first) — instance variable declarations
-2. **Constructor** (second) — initialization logic
-3. **Methods** (last) — instance functions
-
----
-
-## Constructors
-
-### Basic Constructor
+Fields can have default values. When a class has an explicit constructor, the constructor doesn't need to set fields that have defaults:
 
 ```liva
-Person {
-  name: string
-  age: number
-  
-  constructor(name: string, age: number) {
-    this.name = name
-    this.age = age
-  }
-}
-```
+AppSettings {
+    host: string = "localhost"
+    port: int = 8080
+    debug: bool = false
 
-### Constructor with Validation
-
-```liva
-User {
-  username: string
-  password: string
-  
-  constructor(username: string, password: string) {
-    if username == "" {
-      fail "Username cannot be empty"
-    }
-    if password.length < 8 {
-      fail "Password must be at least 8 characters"
-    }
-    
-    this.username = username
-    this.password = password
-  }
-}
-```
-
-### Multiple Constructors
-
-Liva supports **one constructor per class**. Use default parameters or factory functions for variants:
-
-```liva
-// Default parameters in constructor
-Rectangle {
-  width: number
-  height: number
-  
-  constructor(width: number = 1.0, height: number = 1.0) {
-    this.width = width
-    this.height = height
-  }
+    constructor() {}    // explicit — even if empty
 }
 
-// Or factory functions
-createSquare(size: number): Rectangle {
-  return Rectangle(size, size)
-}
-```
-
----
-
-## Fields
-
-### Field Declarations
-
-Fields are declared **before the constructor**:
-
-```liva
-Person {
-  name: string
-  age: number
-  email: string?  // Optional field
-  
-  constructor(name: string, age: number) {
-    this.name = name
-    this.age = age
-  }
-}
-```
-
-### Field Initialization
-
-Fields are initialized in the constructor:
-
-```liva
-Counter {
-  count: number
-  
-  constructor() {
-    this.count = 0
-  }
-}
-```
-
-### Default Values ✅ Available in v0.10.4
-
-Fields can have default values that are automatically used in constructors:
-
-```liva
-User {
-  name: string
-  age: int = 18           // Default value
-  role: string = "user"   // Default value
-  active: bool = true     // Default value
-  
-  constructor(name: string) {
-    this.name = name
-    // Other fields use their defaults automatically
-  }
-}
-
-let user = User.new("Alice")
-// age = 18, role = "user", active = true
-```
-
-**Supported Default Types:**
-- `int`, `i8`-`i128`, `u8`-`u128`: Integer literals
-- `float`, `f32`, `f64`: Float literals
-- `string`, `String`: String literals (auto-converted to `String`)
-- `bool`: `true` or `false`
-
-**Default Constructor:**
-When no constructor is defined, fields with defaults are used:
-
-```liva
-Config {
-  host: string = "localhost"
-  port: int = 8080
-  debug: bool = false
-}
-
-let config = Config.new()
+let settings = AppSettings()
 // host = "localhost", port = 8080, debug = false
 ```
 
-**Optional Fields with Defaults:**
-Combine `?` (optional) with `=` (default) for JSON deserialization:
+Any type supports field defaults (not just primitives) — as long as you provide an init expression.
+
+**Data classes** (no constructor) also support defaults: if ALL fields have default values, the auto-generated constructor takes no arguments:
+
+```liva
+AppConfig {
+    host: string = "localhost"
+    port: int = 8080
+    debug: bool = false
+}
+
+let config = AppConfig()    // ✅ Works — all fields use defaults
+```
+
+> **Note:** If a data class has a mix of fields with and without defaults, ALL fields are required as positional args.
+
+### Mixing Required + Default Fields
+
+```liva
+User {
+    name: string
+    age: int = 18
+    role: string = "user"
+    active: bool = true
+
+    constructor(name: string) {
+        this.name = name
+        // age, role, active use their defaults
+    }
+}
+
+let user = User("Alice")
+```
+
+### Optional Fields with Defaults
+
+Combine `?` (nullable) with `=` (default):
 
 ```liva
 Settings {
-  theme: string = "dark"          // Required with default
-  fontSize: int = 14              // Required with default
-  autoSave?: bool = true          // Optional with default
+    theme: string = "dark"
+    fontSize: int = 14
+    autoSave?: bool = true    // Optional + default → Some(true)
 }
-
-let settings = Settings.new()
-// theme = "dark", fontSize = 14, autoSave = Some(true)
 ```
 
-See [JSON Typed Parsing](./json.md) for how defaults work with JSON deserialization.
+## Constructor Validation
 
-### Computed Fields
+Use `fail` in constructors to reject invalid state — caller must use error binding:
 
-Use methods for computed values:
+```liva
+User {
+    username: string
+    password: string
+
+    constructor(username: string, password: string) {
+        if username == "" { fail "Username cannot be empty" }
+        if password.length < 8 { fail "Password must be at least 8 characters" }
+        this.username = username
+        this.password = password
+    }
+}
+
+let user, err = User("", "short")
+if err { print(err) }
+```
+
+## `this` Binding
+
+- All field/method access inside a class requires `this.fieldName`
+- `this` is implicit — no parameter needed
+- Works in both arrow (`=>`) and block (`{ }`) methods
 
 ```liva
 Person {
-  firstName: string
-  lastName: string
-  
-  constructor(firstName: string, lastName: string) {
-    this.firstName = firstName
-    this.lastName = lastName
-  }
-  
-  // Computed property via method
-  fullName() => $"{this.firstName} {this.lastName}"
+    firstName: string
+    lastName: string
+
+    constructor(firstName: string, lastName: string) {
+        this.firstName = firstName
+        this.lastName = lastName
+    }
+
+    fullName() => $"{this.firstName} {this.lastName}"
 }
 ```
 
----
+## One Constructor Only
 
-## Methods
-
-### Basic Methods
+For variants use default parameters or factory functions outside the class:
 
 ```liva
-Person {
-  name: string
-  age: number
-  
-  constructor(name: string, age: number) {
-    this.name = name
-    this.age = age
-  }
-  
-  // Arrow method (one-liner)
-  isAdult() => this.age >= 18
-  
-  // Block method
-  birthday() {
-    this.age = this.age + 1
-    print($"{this.name} is now {this.age}")
-  }
+Rectangle {
+    width: number
+    height: number
+
+    constructor(width: number = 1, height: number = 1) {
+        this.width = width
+        this.height = height
+    }
 }
+
+createSquare(size: number) => Rectangle(size, size)
 ```
 
-### Methods with Parameters
+## Computed Properties
+
+Use methods — Liva has no computed field syntax:
 
 ```liva
-BankAccount {
-  balance: number
-  
-  constructor(balance: number) {
-    this.balance = balance
-  }
-  
-  deposit(amount: number) {
-    if amount <= 0 fail "Amount must be positive"
-    this.balance = this.balance + amount
-  }
-  
-  withdraw(amount: number) {
-    if amount > this.balance fail "Insufficient funds"
-    this.balance = this.balance - amount
-  }
-  
-  getBalance() => this.balance
+Circle {
+    radius: float
+    constructor(radius: float) { this.radius = radius }
+    area() => 3.14159 * this.radius * this.radius
 }
 ```
 
-### Methods with Return Types
+## Async Methods
 
-```liva
-Calculator {
-  constructor() { }
-  
-  add(a: number, b: number): number => a + b
-  
-  multiply(a: number, b: number): number => a * b
-  
-  divide(a: number, b: number): number {
-    if b == 0 fail "Division by zero"
-    return a / b
-  }
-}
-```
-
-### Async Methods
-
-Methods are **automatically inferred as async**:
+Methods are **automatically async** if they call async functions — no annotation needed:
 
 ```liva
 UserService {
-  apiUrl: string
-  
-  constructor(apiUrl: string) {
-    this.apiUrl = apiUrl
-  }
-  
-  // Automatically async (calls async function)
-  fetchUser(id: number): string {
-    let response = async httpGet($"{this.apiUrl}/users/{id}")
-    return response.body
-  }
+    apiUrl: string
+    constructor(apiUrl: string) { this.apiUrl = apiUrl }
+
+    fetchUser(id: number): string {
+        let response, err = async HTTP.get($"{this.apiUrl}/users/{id}")
+        if err { fail $"Fetch failed: {err}" }
+        return response.body
+    }
 }
-```
-
----
-
-## Method References (`::` Syntax)
-
-**⭐ New in v1.1.0**
-
-Pass an instance method as a callback using `object::method` syntax. The method is bound to the specific instance.
-
-### Basic Usage
-
-```liva
-Formatter {
-    prefix: string
-    
-    constructor(prefix: string) { this.prefix = prefix }
-    
-    format(s: string) => $"{this.prefix}: {s}"
-}
-
-main() {
-    let names = ["Alice", "Bob", "Charlie"]
-    let fmt = Formatter("Hello")
-
-    // Method reference: pass fmt.format as callback
-    let greetings = names.map(fmt::format)
-    // Result: ["Hello: Alice", "Hello: Bob", "Hello: Charlie"]
-
-    greetings.forEach(print)
-}
-```
-
-### How It Works
-
-`object::method` creates a closure that calls the instance method on the given object:
-
-```liva
-// These two are equivalent:
-let greetings = names.map(fmt::format)
-let greetings = names.map(name => fmt.format(name))
-```
-
-### Supported Array Methods
-
-Method references work with all callback-accepting array methods:
-
-```liva
-let checker = Validator(3)
-
-names.forEach(logger::log)         // Side effects
-let labels = names.map(fmt::format) // Transform
-let valid = names.filter(checker::isValid)  // Filter
-let found = names.find(checker::matches)    // Search
-let any = names.some(checker::isValid)      // Test any
-let all = names.every(checker::isValid)     // Test all
-```
-
-> **Note:** The referenced method must accept a single argument matching the array element type. For multi-argument or complex expressions, use the standard lambda syntax.
-
----
-
-## See Also
-
-- [Classes: Interfaces & Visibility](classes-interfaces.md) — Visibility rules, instantiation, and interfaces
-- [Classes: Best Practices & Data Classes](classes-data.md) — Best practices, patterns, and `data` class sugar
-- [Functions](functions.md)
-- [Variables](variables.md)

@@ -49,26 +49,37 @@
 
 ## Input
 
-### console.readLine() => string
-  console.log("What is your name?")
-  let name = console.readLine()              // blocks, reads line from stdin
+### readLine() => string (free function)
+  print("What is your name?")
+  let name = readLine()                      // blocks, reads line from stdin
   — Returns trimmed string
   — Blocks until user presses Enter
+  — This is a FREE function, NOT a console method
 
-### console.prompt(message: string) => string
-  let name = console.prompt("Enter name: ") // displays prompt, reads input
-  let age = console.prompt("Age: ")          // same line input
+### prompt(message: string) => string (free function)
+  let name = prompt("Enter name: ")          // displays prompt, reads input
+  let age = prompt("Age: ")                  // same line input
   — Combines output + input in one call
-  — Equivalent to: print(message) + console.readLine()
+  — Equivalent to: print(message) + readLine()
+  — This is a FREE function, NOT a console method
+
+### console.input([message]) => string
+  let name = console.input("Enter name: ")   // displays prompt, reads input
+  let line = console.input()                  // reads stdin without prompt
+  — Like Python's `input()` — with optional prompt argument
+  — Returns trimmed string
 
 ---
 
 ## Common Patterns
 
 ```liva
-// Interactive input
-let name = console.prompt("Name: ")
-let ageStr = console.prompt("Age: ")
+// Interactive input (free functions)
+let name = prompt("Name: ")
+let ageStr = prompt("Age: ")
+
+// Or using console.input (console method)
+let name = console.input("Name: ")
 
 // Error handling with proper streams
 let result, err = doSomething()

@@ -1,216 +1,14 @@
-# Enums
+# Enums — Extended Reference
 
-Complete reference for enum types (algebraic data types) in Liva.
+See SKILL.md for: basic enums, data enums, dot syntax (`Color.Red`), switch destructuring.
 
-## Table of Contents
-- [Declaration](#declaration)
-- [Simple Enums](#simple-enums)
-- [Enums with Data](#enums-with-data)
-- [Construction](#construction)
-- [Pattern Matching](#pattern-matching)
-- [As Function Parameters and Return Types](#as-function-parameters-and-return-types)
-- [Recursive Enums](#recursive-enums)
-- [Generated Rust Code](#generated-rust-code)
-- [Best Practices](#best-practices)
+This file covers additional details NOT in SKILL.md.
 
 ---
 
-## Declaration
+## Recursive Enums (v2.0+) — CRITICAL
 
-### Basic Syntax
-
-Enums define a type with a fixed set of **variants**. Each variant can optionally carry **named fields**.
-
-```liva
-enum EnumName {
-    Variant1,
-    Variant2(field1: type, field2: type),
-    Variant3(field: type)
-}
-```
-
-- `enum` is a **hard keyword** (cannot be used as a variable name)
-- Variants are comma-separated
-- Fields use **named syntax**: `field: type`
-- Trailing comma after the last variant is optional
-
----
-
-## Simple Enums
-
-Enums with no associated data (unit variants):
-
-```liva
-enum Color {
-    Red,
-    Green,
-    Blue
-}
-
-enum Direction {
-    North,
-    South,
-    East,
-    West
-}
-```
-
-Simple enums automatically get a `Display` implementation, so they can be printed:
-
-```liva
-let c = Color.Red
-print(c)  // "Red"
-```
-
----
-
-## Enums with Data
-
-Variants can carry named fields:
-
-```liva
-enum Shape {
-    Circle(radius: number),
-    Rectangle(width: number, height: number),
-    Point
-}
-```
-
-You can mix variants with and without data in the same enum. Each field has a name and a type, using the same types available elsewhere in Liva (`number`, `string`, `bool`, etc.).
-
----
-
-## Construction
-
-### Unit Variants
-
-Access via dot syntax on the enum name:
-
-```liva
-let color = Color.Red
-let dir = Direction.North
-```
-
-### Variants with Data
-
-Call the variant like a function with positional arguments (matched to named fields in order):
-
-```liva
-let circle = Shape.Circle(5)
-let rect = Shape.Rectangle(10, 20)
-let point = Shape.Point
-```
-
----
-
-## Pattern Matching
-
-Enums are designed to work with `switch` expressions for exhaustive pattern matching.
-
-### Basic Matching
-
-```liva
-directionName(d: Direction): string {
-    return switch d {
-        Direction.North => "north"
-        Direction.South => "south"
-        Direction.East => "east"
-        Direction.West => "west"
-    }
-}
-```
-
-### Destructuring Fields
-
-When a variant carries data, you can bind its fields to variables in the pattern:
-
-```liva
-area(shape: Shape): number {
-    return switch shape {
-        Shape.Circle(r) => 3 * r * r
-        Shape.Rectangle(w, h) => w * h
-        Shape.Point => 0
-    }
-}
-```
-
-The bindings (`r`, `w`, `h`) are matched **positionally** to the variant's named fields. In the example above:
-- `Shape.Circle(r)` binds `r` to the `radius` field
-- `Shape.Rectangle(w, h)` binds `w` to `width` and `h` to `height`
-
-### Wildcard `_` in Destructuring
-
-Use `_` to ignore a field you don't need:
-
-```liva
-label(shape: Shape): string {
-    return switch shape {
-        Shape.Circle(_) => "circle"         // ignore radius
-        Shape.Rectangle(w, _) => $"w={w}"  // ignore height
-        Shape.Point => "point"
-    }
-}
-```
-
-### Exhaustive Enum Switch (v2.0+)
-
-When all enum variants are covered in a switch, the `_` wildcard can be omitted. The compiler checks coverage and reports error `E0904` for missing variants:
-
-```liva
-// ✅ All variants covered — no _ needed
-directionName(d: Direction): string {
-    return switch d {
-        Direction.North => "north"
-        Direction.South => "south"
-        Direction.East => "east"
-        Direction.West => "west"
-    }
-}
-
-// ❌ E0904: Missing Direction.West
-let name = switch d {
-    Direction.North => "north"
-    Direction.South => "south"
-    Direction.East => "east"
-}
-```
-
----
-
-## As Function Parameters and Return Types
-
-Enums can be used as parameter types and return types:
-
-```liva
-enum SearchResult {
-    Found(value: number),
-    NotFound
-}
-
-findItem(id: number): SearchResult {
-    if id > 0 {
-        return SearchResult.Found(id * 10)
-    }
-    return SearchResult.NotFound
-}
-
-main() {
-    let result = findItem(5)
-    let message = switch result {
-        SearchResult.Found(v) => $"Found: {v}"
-        SearchResult.NotFound => "Not found"
-    }
-    print(message)
-}
-```
-
----
-
-## Recursive Enums
-
-*(v2.0+)*
-
-Enum variants can reference their own enum type. The compiler automatically wraps recursive fields in `Box<T>` (auto-boxing) — no manual annotation needed.
+Enum variants can reference their own enum type. The compiler **auto-boxes** recursive fields in `Box<T>` — no manual annotation needed.
 
 ### Tree / AST Pattern
 
@@ -238,9 +36,9 @@ let list = List.Cons(1, List.Cons(2, List.Cons(3, List.Nil)))
 
 Only the recursive field (`tail: List`) is boxed. Non-recursive fields (`head: number`) remain unboxed.
 
-### Pattern Matching
+### Pattern Matching on Recursive Enums
 
-Pattern matching works transparently — the compiler auto-dereferences boxed bindings:
+The compiler auto-dereferences boxed bindings — transparent to the user:
 
 ```liva
 eval(e: Expr): number {
@@ -252,9 +50,9 @@ eval(e: Expr): number {
 }
 ```
 
-### Array Fields
+### Array Fields — No Boxing Needed
 
-Array fields like `children: [Tree]` do **not** need boxing — `Vec<T>` already provides heap indirection:
+`Vec<T>` already provides heap indirection:
 
 ```liva
 enum Tree {
@@ -263,7 +61,7 @@ enum Tree {
 }
 ```
 
-### How It Works
+### Auto-Boxing Codegen Summary
 
 | Liva | Generated Rust |
 |------|---------------|
@@ -274,32 +72,17 @@ enum Tree {
 
 ---
 
-## Generated Rust Code
+## Generated Rust for Each Variant Type
 
-Liva enums compile to Rust enums with `#[derive(Debug, Clone, PartialEq)]`:
+### Simple enum (unit variants)
 
 ```liva
 enum Color { Red, Green, Blue }
 ```
 
-Generates:
+→ Rust: `#[derive(Debug, Clone, PartialEq)]` enum + `Display` impl (prints variant name).
 
-```rust
-#[derive(Debug, Clone, PartialEq)]
-enum Color {
-    Red,
-    Green,
-    Blue,
-}
-
-impl std::fmt::Display for Color {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-```
-
-Variants with data use **named fields** in Rust:
+### Data enum (named fields)
 
 ```liva
 enum Shape {
@@ -309,24 +92,60 @@ enum Shape {
 }
 ```
 
-Generates:
+→ Rust uses **named fields**: `Circle { radius: i32 }`, `Rectangle { width: i32, height: i32 }`, `Point`.
 
-```rust
-#[derive(Debug, Clone, PartialEq)]
-enum Shape {
-    Circle { radius: i32 },
-    Rectangle { width: i32, height: i32 },
-    Point,
+All enums get: `Debug`, `Clone`, `PartialEq`, `Display`.
+
+---
+
+## Exhaustive Switch — E0904
+
+When all variants of an enum are covered, `_` is optional. Missing a variant produces **E0904**:
+
+```liva
+enum Direction { North, South, East, West }
+
+// ✅ All variants covered — no _ needed
+directionName(d: Direction): string {
+    return switch d {
+        Direction.North => "north"
+        Direction.South => "south"
+        Direction.East => "east"
+        Direction.West => "west"
+    }
+}
+
+// ❌ E0904: Missing Direction.West
+let name = switch d {
+    Direction.North => "north"
+    Direction.South => "south"
+    Direction.East => "east"
+}
+```
+
+Using `_` still works for partial matching:
+
+```liva
+let label = switch color {
+    Color.Red => "red"
+    _ => "other"
 }
 ```
 
 ---
 
-## Best Practices
+## Wildcard `_` in Destructuring
 
-1. **Use PascalCase** for enum names and variant names
-2. **Prefer enums over string constants** for fixed sets of values
-3. **Always handle all variants** in switch expressions for exhaustiveness
-4. **Use meaningful field names** — they document the data each variant carries
-5. **Simple enums** (unit variants only) are ideal for state machines and categories
-6. **Enums with data** are ideal for representing results, events, or messages with varying payloads
+Ignore fields you don't need:
+
+```liva
+label(shape: Shape): string {
+    return switch shape {
+        Shape.Circle(_) => "circle"
+        Shape.Rectangle(w, _) => $"w={w}"
+        Shape.Point => "point"
+    }
+}
+```
+
+Bindings match positionally to named fields: `Shape.Circle(r)` → `r` binds to `radius`.

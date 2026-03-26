@@ -68,7 +68,7 @@ main() {
 
     // Decode received data
     let decoded, err = Crypto.base64Decode(encoded)
-    if err == "" {
+    if !err {
         print($"Decoded: {decoded}")
     }
 
