@@ -36,3 +36,4 @@ Cargo.lock
 # OS
 Thumbs.db
 todos.db
+.liva_test_build/
