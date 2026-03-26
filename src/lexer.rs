@@ -140,6 +140,16 @@ pub enum Token {
     // Operators
     #[token("=")]
     Assign,
+    #[token("+=")]
+    PlusAssign,
+    #[token("-=")]
+    MinusAssign,
+    #[token("*=")]
+    StarAssign,
+    #[token("/=")]
+    SlashAssign,
+    #[token("%=")]
+    PercentAssign,
     #[token("+")]
     Plus,
     #[token("-")]

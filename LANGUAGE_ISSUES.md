@@ -13,7 +13,7 @@
 |------|-------|-------------|----------|---------|
 | Codegen (bugs del compilador) | 8 | ~~3~~ 0 ✅ | 3 | 2 |
 | Diseño del lenguaje | 6 | 0 | 2 | 4 |
-| Ergonomía / DX | 7 | 0 | 1 | 6 |
+| Ergonomía / DX | 7 | 0 | 1 | ~~6~~ 5 (1 FIXED) |
 | **Total** | **21** | **0** | **6** | **12** |
 
 ---
@@ -138,10 +138,10 @@ pub fn tokenize(source: String) -> Vec<TokenWithSpan> {
 
 ---
 
-### A4. 🟡 Imports no usados generan warnings
+### A4. ~~🟡~~ ✅ Imports no usados generan warnings
 
-**Severidad**: Menor (warning, no error)
-**Warning Rust**: `unused imports: Token, TokenWithSpan`
+**Severidad**: ~~Menor (warning, no error)~~ FIXED
+**Implementación**: Codegen now emits `#[allow(unused_imports)]` before each generated `use` statement, both in module files and entry point. This suppresses Rust's `unused imports` warning for pass-through type imports.
 
 **Descripción**: `import { Token, TokenWithSpan } from "./token.liva"` en `main.liva` genera `use crate::token::{Token, TokenWithSpan}` aunque esos símbolos solo se usan como tipos en el output de `tokenize()`, no directamente en el código.
 
@@ -158,10 +158,10 @@ import { tokenize } from "./lexer.liva"
 
 ---
 
-### A5. 🟡 Variable no usada en switch expression
+### A5. ~~🟡~~ ✅ Variable no usada en switch expression
 
-**Severidad**: Menor (warning, no error)
-**Warning Rust**: `unused variable: v`
+**Severidad**: ~~Menor~~ FIXED
+**Implementación**: Parser now accepts `Token::Underscore` as enum binding. Codegen generates `field: _` pattern. Semantic analysis skips `_` bindings. 3 tests added.
 
 **Descripción**: El patrón `Token.RustBlock(v) => "rust{...}"` captura `v` pero no lo usa. Liva no tiene forma de escribir `Token.RustBlock(_)` con wildcard en destructuring de enum.
 
@@ -316,9 +316,10 @@ let intVal = value.toNumber()
 
 ---
 
-### C2. 🔵 No hay `for i, item in array` — indexing manual
+### C2. ~~🔵~~ ✅ No hay `for i, item in array` — indexing manual
 
-**Severidad**: Menor
+**Severidad**: ~~Menor~~ FIXED
+**Implementación**: Parser already supported `for var1, var2 in expr`. Codegen now distinguishes Map iteration (`.iter()`) from Array enumerate (`.iter().enumerate()`) by checking `map_vars`. Index is cast to `i32` for Liva's `int` type. 3 tests added.
 
 **Descripción**: Para iterar un array con índice, se necesita `for i in 0..arr.length { let item = arr[i] }`. Un `for i, item in arr` (enumerate) sería más ergonómico.
 
@@ -351,9 +352,10 @@ Esto no afecta al usuario de Liva, pero genera código Rust más pesado.
 
 ---
 
-### C4. 🔵 No hay operador `+=` / `-=` / `*=`
+### C4. ~~🔵~~ ✅ No hay operador `+=` / `-=` / `*=`
 
-**Severidad**: Menor
+**Severidad**: ~~Menor~~ FIXED
+**Implementación**: Desugaring at parser level — `x += expr` → `Assign { target: x, value: Binary(x, +, expr), op: Some(Add) }`. Formatter uses `op` field to round-trip back to `+=` syntax. 7 tests added.
 
 **Descripción**: El lexer tiene muchos patrones como:
 ```liva
@@ -422,13 +424,13 @@ import { Token } from "./token"
 4. **B1**: Considerar tipo `char` nativo
 5. **B2**: Soportar tipos nullable `T?` o `Option<T>`
 6. **C1**: Versión simplificada de `parseInt`
-7. **C4**: Operadores compuestos `+=`, `-=`
+7. **C4**: ✅ FIXED — Operadores compuestos `+=`, `-=`, `*=`, `/=`, `%=`
 
 ### Prioridad Baja (calidad de vida)
-8. **A4**: Suprimir imports no usados en codegen
-9. **A5**: Soportar `_` en destructuring de enum
+8. **A4**: ✅ FIXED — `#[allow(unused_imports)]` en codegen
+9. **A5**: ✅ FIXED — Soportar `_` en destructuring de enum
 10. **B4**: Exhaustividad de switch con enums
-11. **C2**: `for i, item in array`
+11. **C2**: ✅ FIXED — `for i, item in array` (enumerate)
 12. **C5**: StringBuilder / detección de append pattern
 13. **C7**: Imports sin extensión `.liva`
 

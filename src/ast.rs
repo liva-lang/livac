@@ -407,6 +407,9 @@ pub struct ConstDecl {
 pub struct AssignStmt {
     pub target: Expr,
     pub value: Expr,
+    /// If this was a compound assignment (`+=`, `-=`, etc.), stores the operator.
+    /// The `value` field already contains the desugared expression (`target op rhs`).
+    pub op: Option<BinOp>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

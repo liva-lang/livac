@@ -81,7 +81,8 @@ expression: json
                       },
                       "value": {
                         "Identifier": "first"
-                      }
+                      },
+                      "op": null
                     }
                   },
                   {
@@ -96,7 +97,8 @@ expression: json
                       },
                       "value": {
                         "Identifier": "second"
-                      }
+                      },
+                      "op": null
                     }
                   }
                 ]

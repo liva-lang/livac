@@ -253,7 +253,8 @@ expression: json
                               }
                             }
                           }
-                        }
+                        },
+                        "op": null
                       }
                     }
                   ]
@@ -388,7 +389,8 @@ expression: json
                               }
                             }
                           }
-                        }
+                        },
+                        "op": null
                       }
                     }
                   ]
@@ -428,7 +430,8 @@ expression: json
                             }
                           }
                         }
-                      }
+                      },
+                      "op": null
                     }
                   }
                 },

@@ -3,9 +3,9 @@
 > **Proyecto:** livac - El compilador de Liva  
 > **Versión:** v2.0.0-dev (tag: v1.2.0)  
 > **Lenguaje:** Rust  
-> **Tests:** 497 passing  
+> **Tests:** 510 passing  
 > **Próximo objetivo:** v2.0 — Enums recursivos + Self-hosting parcial  
-> **Última actualización:** 2026-03-24
+> **Última actualización:** 2026-03-25
 
 ---
 
@@ -137,6 +137,9 @@ skills/liva-lang/
 - **Method refs `::`** — `names.map(fmt::format)`
 - **`break`/`continue`** — Control de flujo en loops
 - **`..=` inclusive range** — `for i in 1..=10`
+- **Compound assignment** — `+=`, `-=`, `*=`, `/=`, `%=` (desugared at parser level)
+- **Enum wildcard `_`** — `EnumName.Variant(_)` ignores captured value in switch
+- **`for i, item in array`** — Enumerate iteration with index and element
 - **Auto data classes** — Sin keyword `data`, inferido por estructura
 - **CI/CD** — GitHub Actions en 3 OSes, releases con .deb/.rpm/.tar.gz/.zip
 - **Agent Skills** — Skill portable siguiendo estándar agentskills.io

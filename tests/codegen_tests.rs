@@ -6119,3 +6119,265 @@ main() {
     assert!(formatted.contains("defer print(\"cleanup\")"), "Single-line defer should be formatted");
     assert!(formatted.contains("defer {"), "Block defer should be formatted");
 }
+
+// ===================== Compound Assignment Tests (C4) =====================
+
+#[test]
+fn test_compound_assign_plus() {
+    let source = r#"
+main() {
+    let x = 10
+    x += 5
+    print(x)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("compound_assign_plus", rust_code);
+}
+
+#[test]
+fn test_compound_assign_all_operators() {
+    let source = r#"
+main() {
+    let a = 100
+    a += 10
+    a -= 20
+    a *= 2
+    a /= 3
+    a %= 7
+    print(a)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("compound_assign_all_ops", rust_code);
+}
+
+#[test]
+fn test_compound_assign_with_expression() {
+    let source = r#"
+main() {
+    let x = 10
+    let y = 3
+    x += y * 2
+    print(x)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("compound_assign_with_expr", rust_code);
+}
+
+#[test]
+fn test_compound_assign_member_access() {
+    let source = r#"
+Counter {
+    count: int
+
+    constructor(count: int) {
+        this.count = count
+    }
+}
+
+main() {
+    let c = Counter(0)
+    c.count += 1
+    print(c.count)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("compound_assign_member", rust_code);
+}
+
+#[test]
+fn test_compound_assign_array_index() {
+    let source = r#"
+main() {
+    let arr = [10, 20, 30]
+    arr[1] += 5
+    print(arr[1])
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("compound_assign_array_index", rust_code);
+}
+
+#[test]
+fn test_compound_assign_in_loop() {
+    let source = r#"
+main() {
+    let sum = 0
+    for i in [1, 2, 3, 4, 5] {
+        sum += i
+    }
+    print(sum)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("compound_assign_in_loop", rust_code);
+}
+
+#[test]
+fn test_compound_assign_formatter() {
+    let source = r#"
+main() {
+    let x = 10
+    x += 5
+    x -= 3
+    x *= 2
+    x /= 4
+    x %= 3
+    print(x)
+}
+"#;
+
+    let tokens = tokenize(source).unwrap();
+    let _program = parse(tokens, source).unwrap();
+    let options = livac::formatter::FormatOptions::default();
+    let formatted = livac::formatter::format_source(source, &options).unwrap();
+    assert!(formatted.contains("x += 5"), "Formatter should preserve +=");
+    assert!(formatted.contains("x -= 3"), "Formatter should preserve -=");
+    assert!(formatted.contains("x *= 2"), "Formatter should preserve *=");
+    assert!(formatted.contains("x /= 4"), "Formatter should preserve /=");
+    assert!(formatted.contains("x %= 3"), "Formatter should preserve %=");
+}
+
+// ===================== Wildcard _ in Enum Switch Tests (A5) =====================
+
+#[test]
+fn test_enum_wildcard_binding() {
+    let source = r#"
+enum Shape {
+    Circle(radius: float)
+    Square(side: float)
+    Point
+}
+
+shapeLabel(s: Shape): string {
+    return switch s {
+        Shape.Circle(_) => "a circle"
+        Shape.Square(_) => "a square"
+        Shape.Point => "a point"
+    }
+}
+
+main() {
+    let s = Shape.Circle(5.0)
+    print(shapeLabel(s))
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("enum_wildcard_binding", rust_code);
+}
+
+#[test]
+fn test_enum_wildcard_mixed_bindings() {
+    let source = r#"
+enum Expr {
+    Add(left: int, right: int)
+    Literal(value: int)
+}
+
+getLeft(e: Expr): int {
+    return switch e {
+        Expr.Add(l, _) => l
+        Expr.Literal(v) => v
+    }
+}
+
+main() {
+    let e = Expr.Add(10, 20)
+    print(getLeft(e))
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("enum_wildcard_mixed", rust_code);
+}
+
+#[test]
+fn test_enum_wildcard_formatter() {
+    let source = r#"
+enum Token {
+    Number(value: int)
+    Text(content: string)
+}
+
+describe(t: Token): string {
+    return switch t {
+        Token.Number(_) => "number"
+        Token.Text(_) => "text"
+    }
+}
+
+main() {
+    print("ok")
+}
+"#;
+
+    let tokens = tokenize(source).unwrap();
+    let _program = parse(tokens, source).unwrap();
+    let options = livac::formatter::FormatOptions::default();
+    let formatted = livac::formatter::format_source(source, &options).unwrap();
+    assert!(formatted.contains("Token.Number(_)"), "Formatter should preserve _ wildcard");
+    assert!(formatted.contains("Token.Text(_)"), "Formatter should preserve _ wildcard");
+}
+
+// ===================== For Enumerate Tests (C2) =====================
+
+#[test]
+fn test_for_enumerate_basic() {
+    let source = r#"
+main() {
+    let names = ["Alice", "Bob", "Charlie"]
+    for i, name in names {
+        print($"{i}: {name}")
+    }
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("for_enumerate_basic", rust_code);
+}
+
+#[test]
+fn test_for_enumerate_with_logic() {
+    let source = r#"
+main() {
+    let items = [10, 20, 30, 40, 50]
+    let sum = 0
+    for i, item in items {
+        if i > 1 {
+            sum += item
+        }
+    }
+    print(sum)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert_snapshot!("for_enumerate_with_logic", rust_code);
+}
+
+#[test]
+fn test_for_enumerate_formatter() {
+    let source = r#"
+main() {
+    let arr = [1, 2, 3]
+    for i, item in arr {
+        print(i)
+    }
+}
+"#;
+
+    let tokens = tokenize(source).unwrap();
+    let _program = parse(tokens, source).unwrap();
+    let options = livac::formatter::FormatOptions::default();
+    let formatted = livac::formatter::format_source(source, &options).unwrap();
+    assert!(formatted.contains("for i, item in arr"), "Formatter should preserve for i, item in arr");
+}

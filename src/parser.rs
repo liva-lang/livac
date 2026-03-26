@@ -84,6 +84,29 @@ impl Parser {
         }
     }
 
+    /// Check for compound assignment operators (`+=`, `-=`, `*=`, `/=`, `%=`).
+    /// If matched, advances the parser and returns the corresponding BinOp.
+    fn match_compound_assign(&mut self) -> Option<BinOp> {
+        if self.check(&Token::PlusAssign) {
+            self.advance();
+            Some(BinOp::Add)
+        } else if self.check(&Token::MinusAssign) {
+            self.advance();
+            Some(BinOp::Sub)
+        } else if self.check(&Token::StarAssign) {
+            self.advance();
+            Some(BinOp::Mul)
+        } else if self.check(&Token::SlashAssign) {
+            self.advance();
+            Some(BinOp::Div)
+        } else if self.check(&Token::PercentAssign) {
+            self.advance();
+            Some(BinOp::Mod)
+        } else {
+            None
+        }
+    }
+
     /// Get the span of the current token
     #[allow(dead_code)]
     fn current_span(&self) -> Option<crate::span::Span> {
@@ -1374,11 +1397,19 @@ impl Parser {
             let body = self.parse_defer_body()?;
             Ok(Stmt::Defer(DeferStmt { body: Box::new(body) }))
         } else {
-            // Parse assignment statement: target = value
+            // Parse assignment statement: target = value  or  target += value
             let target = self.parse_expression()?;
             if self.match_token(&Token::Assign) {
                 let value = self.parse_expression()?;
-                Ok(Stmt::Assign(AssignStmt { target, value }))
+                Ok(Stmt::Assign(AssignStmt { target, value, op: None }))
+            } else if let Some(bin_op) = self.match_compound_assign() {
+                let rhs = self.parse_expression()?;
+                let value = Expr::Binary {
+                    op: bin_op,
+                    left: Box::new(target.clone()),
+                    right: Box::new(rhs),
+                };
+                Ok(Stmt::Assign(AssignStmt { target, value, op: Some(bin_op) }))
             } else {
                 // Expression statement
                 Ok(Stmt::Expr(ExprStmt { expr: target }))
@@ -1728,6 +1759,24 @@ impl Parser {
             return Ok(Stmt::Assign(AssignStmt {
                 target: expr,
                 value,
+                op: None,
+            }));
+        }
+        if let Some(bin_op) = self.match_compound_assign() {
+            if !is_valid_assignment_target(&expr) {
+                return Err(self.error("Invalid assignment target".into()));
+            }
+            let rhs = self.parse_expression()?;
+            let value = Expr::Binary {
+                op: bin_op,
+                left: Box::new(expr.clone()),
+                right: Box::new(rhs),
+            };
+            self.match_token(&Token::Semicolon);
+            return Ok(Stmt::Assign(AssignStmt {
+                target: expr,
+                value,
+                op: Some(bin_op),
             }));
         }
 
@@ -2819,7 +2868,11 @@ impl Parser {
                     let bindings = if self.match_token(&Token::LParen) {
                         let mut bindings = Vec::new();
                         while !self.check(&Token::RParen) && !self.is_at_end() {
-                            bindings.push(self.parse_identifier()?);
+                            if self.match_token(&Token::Underscore) {
+                                bindings.push("_".to_string());
+                            } else {
+                                bindings.push(self.parse_identifier()?);
+                            }
                             if !self.check(&Token::RParen) {
                                 self.expect(Token::Comma)?;
                             }

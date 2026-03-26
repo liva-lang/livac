@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.0-dev] - 2026-03-24
 
 ### Added
+- **Compound assignment operators** — `+=`, `-=`, `*=`, `/=`, `%=`
+  - Desugared at parser level: `x += expr` → `Assign { target: x, value: x + expr, op: Add }`
+  - Formatter round-trips correctly using `op` field
+  - 5 new lexer tokens (PlusAssign, MinusAssign, StarAssign, SlashAssign, PercentAssign)
+  - Works with variables, member access (`c.count += 1`), array index (`arr[0] += 1`), in loops
+  - 7 new tests (codegen snapshots + formatter)
+- **Wildcard `_` in enum switch destructuring** — `EnumName.Variant(_)` ignores captured value
+  - Parser accepts `Token::Underscore` in enum variant bindings
+  - Codegen generates `field_name: _` in Rust match pattern
+  - Semantic analysis skips `_` bindings (not counted as variables)
+  - Works with mixed bindings: `Expr.Add(l, _)` captures `l`, ignores right
+  - 3 new tests (codegen snapshots + formatter)
+- **`for i, item in array` (enumerate)** — iterate arrays with index
+  - Codegen detects Map vs Array by checking `map_vars`
+  - Array: generates `.iter().enumerate()` with `i as i32` cast for Liva `int` type
+  - Map: unchanged (`.iter()` with key-value clone)
+  - 3 new tests (codegen snapshots + formatter)
+- **Suppress unused import warnings** — `#[allow(unused_imports)]` on generated `use` statements
+  - Applies to both module files and entry point
+  - Eliminates Rust warnings for pass-through type imports
 - **`arr.sortBy(fn)` method** — Sort arrays by a key extraction function
   - Returns new sorted array (non-mutating)
   - Key function receives owned element clone; works with Copy and non-Copy types

@@ -3739,7 +3739,9 @@ impl SemanticAnalyzer {
                 ..
             } => {
                 for b in variant_bindings {
-                    bindings.push(b.clone());
+                    if b != "_" {
+                        bindings.push(b.clone());
+                    }
                 }
             }
         }

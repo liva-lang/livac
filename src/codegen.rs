@@ -6046,23 +6046,48 @@ impl CodeGenerator {
                 self.writeln("}");
             }
             Stmt::For(for_stmt) => {
-                // Map iteration: for key, value in map { ... }
+                // Two-variable for loop: for key, value in map OR for i, item in array
                 if let Some(ref var2_name) = for_stmt.var2 {
-                    let key_name = self.sanitize_name(&for_stmt.var);
-                    let val_name = self.sanitize_name(var2_name);
-                    self.write_indent();
-                    write!(self.output, "for ({}, {}) in ", key_name, val_name).unwrap();
-                    self.generate_expr(&for_stmt.iterable)?;
-                    self.output.push_str(".iter()");
-                    self.output.push_str(" {\n");
-                    self.indent();
-                    // Bug #79 fix: Clone loop variables to get owned values
-                    // (.iter() yields (&K, &V) references, code in body expects owned K, V)
-                    self.writeln(&format!("let {} = {}.clone();", key_name, key_name));
-                    self.writeln(&format!("let {} = {}.clone();", val_name, val_name));
-                    // Register both variables as string vars for clone safety
-                    self.string_vars.insert(key_name.clone());
-                    self.string_vars.insert(val_name.clone());
+                    let var1_name = self.sanitize_name(&for_stmt.var);
+                    let var2_name_san = self.sanitize_name(var2_name);
+
+                    // Detect if iterable is a Map (key-value iteration) or Array (enumerate)
+                    let is_map_iteration = match &for_stmt.iterable {
+                        Expr::Identifier(name) => {
+                            let sanitized = self.sanitize_name(name);
+                            self.map_vars.contains(&sanitized) || self.map_vars.contains(name.as_str())
+                        }
+                        _ => false,
+                    };
+
+                    if is_map_iteration {
+                        // Map iteration: for key, value in map { ... }
+                        self.write_indent();
+                        write!(self.output, "for ({}, {}) in ", var1_name, var2_name_san).unwrap();
+                        self.generate_expr(&for_stmt.iterable)?;
+                        self.output.push_str(".iter()");
+                        self.output.push_str(" {\n");
+                        self.indent();
+                        // Bug #79 fix: Clone loop variables to get owned values
+                        self.writeln(&format!("let {} = {}.clone();", var1_name, var1_name));
+                        self.writeln(&format!("let {} = {}.clone();", var2_name_san, var2_name_san));
+                        self.string_vars.insert(var1_name.clone());
+                        self.string_vars.insert(var2_name_san.clone());
+                    } else {
+                        // Array enumerate: for i, item in array { ... }
+                        self.write_indent();
+                        write!(self.output, "for ({}, {}) in ", var1_name, var2_name_san).unwrap();
+                        self.generate_expr(&for_stmt.iterable)?;
+                        self.output.push_str(".iter().enumerate()");
+                        self.output.push_str(" {\n");
+                        self.indent();
+                        // enumerate() returns (usize, &T) — cast index to i32 for Liva's int type
+                        self.writeln(&format!("let {} = {} as i32;", var1_name, var1_name));
+                        // Clone item to get owned value
+                        self.writeln(&format!("let {} = {}.clone();", var2_name_san, var2_name_san));
+                        self.string_vars.insert(var2_name_san.clone());
+                    }
+
                     self.generate_block_inner(&for_stmt.body)?;
                     self.dedent();
                     self.writeln("}");
@@ -8079,6 +8104,9 @@ impl CodeGenerator {
 
                     let mut result = Vec::new();
                     for (i, binding) in bindings.iter().enumerate() {
+                        if binding == "_" {
+                            continue; // Skip wildcard bindings
+                        }
                         if i < field_names.len() && boxed_field_names.contains(&field_names[i]) {
                             result.push(self.sanitize_name(binding));
                         }
@@ -8229,7 +8257,19 @@ impl CodeGenerator {
                         if i > 0 {
                             self.output.push_str(", ");
                         }
-                        if i < field_names.len() && field_names[i] != *binding {
+                        if binding == "_" {
+                            // Wildcard binding: field_name: _ or just _
+                            if i < field_names.len() {
+                                write!(
+                                    self.output,
+                                    "{}: _",
+                                    self.sanitize_name(&field_names[i])
+                                )
+                                .unwrap();
+                            } else {
+                                self.output.push('_');
+                            }
+                        } else if i < field_names.len() && field_names[i] != *binding {
                             // Field name differs from binding: field_name: binding
                             write!(
                                 self.output,
@@ -16776,7 +16816,19 @@ impl<'a> IrCodeGenerator<'a> {
                         if i > 0 {
                             self.output.push_str(", ");
                         }
-                        if i < field_names.len() && field_names[i] != *binding {
+                        if binding == "_" {
+                            // Wildcard binding: field_name: _ or just _
+                            if i < field_names.len() {
+                                write!(
+                                    self.output,
+                                    "{}: _",
+                                    self.sanitize_name(&field_names[i])
+                                )
+                                .unwrap();
+                            } else {
+                                self.output.push('_');
+                            }
+                        } else if i < field_names.len() && field_names[i] != *binding {
                             // Field name differs from binding: field_name: binding
                             write!(
                                 self.output,
@@ -17816,9 +17868,15 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext, al
         output.push_str("use crate::liva_rt;\n\n");
     }
 
-    // Add use statements
+    // Add use statements (with allow(unused_imports) to suppress warnings for pass-through types)
     if !use_statements.is_empty() {
-        output.push_str(&use_statements);
+        for line in use_statements.lines() {
+            if line.starts_with("use ") {
+                output.push_str("#[allow(unused_imports)]\n");
+            }
+            output.push_str(line);
+            output.push('\n');
+        }
         output.push('\n');
     }
 
@@ -18018,6 +18076,7 @@ fn generate_entry_point(
         }
 
         let use_stmt = generate_use_statement(import_decl, &entry_module.path)?;
+        codegen.output.push_str("#[allow(unused_imports)]\n");
         codegen.output.push_str(&use_stmt);
         codegen.output.push('\n');
     }

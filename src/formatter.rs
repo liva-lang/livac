@@ -790,6 +790,17 @@ impl Formatter {
 
     fn format_assign(&mut self, assign: &AssignStmt) {
         let target = self.format_expr(&assign.target);
+        // If compound assignment (+=, -=, etc.), format with the compound operator
+        if let Some(op) = &assign.op {
+            // Extract the RHS from the desugared Binary expr
+            let rhs = if let Expr::Binary { right, .. } = &assign.value {
+                self.format_expr(right)
+            } else {
+                self.format_expr(&assign.value)
+            };
+            self.write_line(&format!("{} {}= {}", target, op, rhs));
+            return;
+        }
         let value = self.format_expr(&assign.value);
         let line = format!("{} = {}", target, value);
         if value.contains('\n') {

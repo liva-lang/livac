@@ -59,7 +59,8 @@ expression: json
                       },
                       "value": {
                         "Identifier": "value"
-                      }
+                      },
+                      "op": null
                     }
                   }
                 ]

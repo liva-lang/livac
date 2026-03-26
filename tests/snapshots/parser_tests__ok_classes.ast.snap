@@ -83,7 +83,8 @@ expression: json
                       },
                       "value": {
                         "Identifier": "nombre"
-                      }
+                      },
+                      "op": null
                     }
                   },
                   {
@@ -98,7 +99,8 @@ expression: json
                       },
                       "value": {
                         "Identifier": "edad"
-                      }
+                      },
+                      "op": null
                     }
                   }
                 ]

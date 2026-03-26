@@ -353,6 +353,13 @@
 - [x] Comparar output con compilador Rust → verificar equivalencia
 - [x] Documentar bugs encontrados (#90-#94) y arreglar en main (#90, #91, #92, #94 ✅)
 
+### LANGUAGE_ISSUES fixes ✅
+
+- [x] **C4**: Compound assignment `+=`, `-=`, `*=`, `/=`, `%=` — desugaring en parser, formatter round-trip, 7 tests
+- [x] **A5**: Wildcard `_` en enum switch destructuring — parser + codegen + semantic, 3 tests
+- [x] **C2**: `for i, item in array` (enumerate) — codegen detecta Map vs Array, 3 tests
+- [x] **A4**: Suprimir warnings de imports no usados — `#[allow(unused_imports)]` en codegen
+
 ---
 
 ## v2.x — Ecosistema maduro (futuro)
