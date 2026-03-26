@@ -95,6 +95,7 @@ for i in 0..10 { print(i) }           // Range (exclusive end)
 for i in 0..=10 { print(i) }          // Range (inclusive end)
 
 for item in items { print(item) }      // Array iteration
+for i, item in items { print($"{i}: {item}") }  // Enumerate
 ```
 
 ### While Loops
@@ -135,6 +136,7 @@ a && b     a || b    !a
 
 // Assignment
 x = 10
+x += 5        // Compound: +=  -=  *=  /=  %=
 
 // Method reference (v1.1.0)
 names.map(fmt::format)       // binds instance method as callback

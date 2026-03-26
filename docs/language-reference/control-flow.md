@@ -190,6 +190,20 @@ for name in names {
 }
 ```
 
+### Enumerate (Index + Value)
+
+Use `for i, item in array` to iterate with both index and value:
+
+```liva
+let names = ["Alice", "Bob", "Charlie"]
+
+for i, name in names {
+  print($"{i}: {name}")   // 0: Alice, 1: Bob, 2: Charlie
+}
+```
+
+> **Note:** The index variable is `int` (0-based). For Maps, `for key, value in map` iterates key-value pairs.
+
 ### Iterating Objects
 
 ```liva
@@ -567,6 +581,7 @@ for vec value in numbers {  // SIMD: vectorized
 | **If-Else-If** | `if cond { } else if { }` | Multiple conditions |
 | **While** | `while cond { }` | Repeat while true |
 | **For** | `for item in items { }` | Iterate collection |
+| **For Enumerate** | `for i, item in items { }` | Iterate with index |
 | **For Range** | `for i in 1..10 { }` | Iterate range |
 | **For =>** | `for item in items => expr` | One-liner *(v1.1.0)* |
 | **For => (point-free)** | `for item in items => func` | Point-free *(v1.1.0)* |

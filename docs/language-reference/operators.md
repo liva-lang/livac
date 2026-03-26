@@ -177,19 +177,27 @@ let x = 10
 x = 20  // Reassignment
 ```
 
-### No Compound Assignment
+### Compound Assignment
 
-Liva **does not support** `+=`, `-=`, etc. Use explicit assignment:
+Liva supports compound assignment operators that combine an operation with assignment:
 
 ```liva
-// ❌ Not supported
-x += 5
-counter++
-
-// ✅ Use explicit assignment
-x = x + 5
-counter = counter + 1
+let x = 10
+x += 5      // x = x + 5  → 15
+x -= 3      // x = x - 3  → 12
+x *= 2      // x = x * 2  → 24
+x /= 4      // x = x / 4  → 6
+x %= 5      // x = x % 5  → 1
 ```
+
+Compound assignment works with variables, member access, and array indexing:
+
+```liva
+c.count += 1        // Member access
+arr[0] += 10        // Array index
+```
+
+> **Note:** `++` and `--` are not supported. Use `x += 1` instead.
 
 ---
 
@@ -448,6 +456,7 @@ and or not
 .       // member access
 []      // index access
 =       // assignment
++=  -=  *=  /=  %=  // compound assignment
 ```
 
 ### Quick Reference

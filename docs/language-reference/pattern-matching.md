@@ -93,6 +93,16 @@ let result = switch value {
 };
 ```
 
+Wildcards also work inside enum destructuring to ignore specific fields:
+
+```liva
+let msg = switch shape {
+    Shape.Circle(_) => "some circle"       // ignore radius
+    Shape.Add(l, _) => $"left={l}"        // ignore second field
+    Shape.Point => "point"
+}
+```
+
 ### 3. Binding Pattern
 
 Captures the matched value in a variable:
@@ -384,14 +394,13 @@ switch user {
 
 ## Limitations
 
-**Current (v0.11.0):**
-- No enum variant patterns yet (coming soon)
+**Current:**
 - No array destructuring patterns: `[x, y, z] => ...`
 - Tuple destructuring in `let` bindings not yet supported
 - Float/char exhaustiveness not checked
 
 **Planned:**
-- Enum variant patterns, array patterns, as-patterns
+- Array patterns, as-patterns
 
 ---
 

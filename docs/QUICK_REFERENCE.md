@@ -354,6 +354,15 @@ for name in names {
 }
 ```
 
+### For with Index (Enumerate)
+
+```liva
+let names = ["Alice", "Bob", "Charlie"]
+for i, name in names {
+    print($"{i}: {name}")  // 0: Alice, 1: Bob, 2: Charlie
+}
+```
+
 ### Break / Continue
 
 ```liva
@@ -469,6 +478,7 @@ area(shape: Shape): number {
     return switch shape {
         Shape.Circle(r) => 3 * r * r
         Shape.Rectangle(w, h) => w * h
+        Shape.Circle(_) => 0         // _ wildcard ignores field
         Shape.Point => 0
     }
 }
@@ -1787,6 +1797,7 @@ f32 f64 isize usize
 == != < > <= >=              // Comparison  
 and or not (or && || !)      // Logical
 =                            // Assignment
++= -= *= /= %=               // Compound assignment
 =>                           // Arrow (function one-liner / lambda / switch arm / control flow one-liner)
 ? :                          // Ternary
 .. ..=                       // Ranges

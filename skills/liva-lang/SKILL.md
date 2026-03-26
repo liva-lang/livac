@@ -10,7 +10,7 @@ description: >
 
 # Liva Language — Quick Reference
 
-Liva compiles to Rust. It has Python/TypeScript-like syntax with Rust performance. The compiler (`livac`) generates idiomatic Rust code compiled to native binaries. No `fn`/`def`/`class` keywords. No semicolons. No `+=`/`++`.
+Liva compiles to Rust. It has Python/TypeScript-like syntax with Rust performance. The compiler (`livac`) generates idiomatic Rust code compiled to native binaries. No `fn`/`def`/`class` keywords. No semicolons. No `++`.
 
 **`main()` is auto-detected** — just define `main() { ... }` at top level. No need to call it. The compiler finds it and uses it as the entry point.
 
@@ -84,6 +84,7 @@ if age >= 18 => print("Adult")          // One-liner
 for i in 0..5 { print(i) }             // 0,1,2,3,4
 for i in 1..=10 { print(i) }           // Inclusive
 for name in names { print(name) }
+for i, name in names { print($"{i}: {name}") }  // Enumerate
 while running { tick() }
 break / continue                         // Loop control
 ```
@@ -101,6 +102,7 @@ let grade = switch score {
 let msg = switch shape {
     Shape.Circle(r) => $"radius={r}",
     Shape.Rectangle(w, h) => $"{w}x{h}",
+    Shape.Rectangle(_) => "some rectangle",  // _ wildcard ignores field
     Shape.Point => "point"
 }
 ```
@@ -471,7 +473,7 @@ describe("Math", () => {
 
 1. **No `fn`/`def`/`class` keyword** — just write `add(a, b) => a + b`
 2. **No semicolons** — newline terminates statements
-3. **No `+=`/`++`** — use `x = x + 1`
+3. **No `++`** — use `x += 1` or `x = x + 1` (compound assignment `+=  -=  *=  /=  %=` supported)
 4. **Error binding required** — `let val, err = riskyCall()` (E0701)
 5. **`if err {`** — NOT `if err != ""`
 6. **Enum dot syntax** — `Color.Red`, NOT `Color::Red`

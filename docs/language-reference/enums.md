@@ -138,6 +138,20 @@ The bindings (`r`, `w`, `h`) are matched **positionally** to the variant's named
 - `Shape.Circle(r)` binds `r` to the `radius` field
 - `Shape.Rectangle(w, h)` binds `w` to `width` and `h` to `height`
 
+### Wildcard `_` in Destructuring
+
+Use `_` to ignore a field you don't need:
+
+```liva
+label(shape: Shape): string {
+    return switch shape {
+        Shape.Circle(_) => "circle"         // ignore radius
+        Shape.Rectangle(w, _) => $"w={w}"  // ignore height
+        Shape.Point => "point"
+    }
+}
+```
+
 ---
 
 ## As Function Parameters and Return Types
