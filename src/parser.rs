@@ -1453,7 +1453,24 @@ impl Parser {
                     self.advance(); // consume `fail`
                     let fail_span = self.previous_span();
                     or_fail_line = fail_span.map(|s| s.start_position(&self.source_map).0 as u32).unwrap_or(0);
-                    let msg = self.parse_expression()?;
+                    // Bug #95 fix: bare `or fail` (without message) — use empty string
+                    // instead of consuming the next statement as the message expression.
+                    // Check if next token is on a different line than `fail`, or at end.
+                    let fail_line_num = fail_span.map(|s| s.start_position(&self.source_map).0);
+                    let next_line_num = self.current_span().map(|s| s.start_position(&self.source_map).0);
+                    let next_is_different_line = match (fail_line_num, next_line_num) {
+                        (Some(fl), Some(nl)) => nl != fl,
+                        _ => true,
+                    };
+                    let msg = if self.is_at_end()
+                        || self.check(&Token::Semicolon)
+                        || self.check(&Token::RBrace)
+                        || next_is_different_line
+                    {
+                        Expr::Literal(crate::ast::Literal::String(String::new()))
+                    } else {
+                        self.parse_expression()?
+                    };
                     or_fail_msg = Some(Box::new(msg));
                 }
             }

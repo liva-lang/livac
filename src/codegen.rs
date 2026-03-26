@@ -3225,6 +3225,14 @@ impl CodeGenerator {
             // Default constructor
             // Data classes get a constructor with all fields as parameters
             if is_data {
+                // Bug #96 fix: Check if ALL fields have default values
+                let all_fields_have_defaults = class.members.iter().all(|m| {
+                    match m {
+                        Member::Field(field) => field.init.is_some(),
+                        _ => true, // non-field members don't count
+                    }
+                });
+
                 // Collect field info for the constructor signature
                 let fields: Vec<(&str, String)> = class
                     .members
@@ -3244,7 +3252,49 @@ impl CodeGenerator {
                     })
                     .collect();
 
-                // Generate: pub fn new(field1: Type1, field2: Type2, ...) -> Self {
+                if all_fields_have_defaults {
+                    // Bug #96: All fields have defaults → generate no-arg new() using defaults
+                    self.write_indent();
+                    self.output.push_str("pub fn new() -> Self {\n");
+                    self.indent();
+                    self.writeln("Self {");
+                    self.indent();
+                    for member in &class.members {
+                        if let Member::Field(field) = member {
+                            let field_name = self.sanitize_name(&field.name);
+                            write!(self.output, "{}", " ".repeat(self.indent_level * 4)).unwrap();
+                            write!(self.output, "{}: ", field_name).unwrap();
+
+                            let init_expr = field.init.as_ref().unwrap();
+                            let needs_string_conversion = matches!(init_expr, Expr::Literal(Literal::String(_)))
+                                && field.type_ref.as_ref().map(|t| matches!(t, TypeRef::Simple(s) if s == "string" || s == "String")).unwrap_or(false);
+
+                            if field.is_optional {
+                                self.output.push_str("Some(");
+                            }
+
+                            if needs_string_conversion {
+                                self.generate_expr(init_expr)?;
+                                self.output.push_str(".to_string()");
+                            } else {
+                                self.generate_expr(init_expr)?;
+                            }
+
+                            if field.is_optional {
+                                self.output.push_str(")");
+                            }
+
+                            self.output.push_str(",\n");
+                        }
+                    }
+                    self.dedent();
+                    self.writeln("}");
+                    self.dedent();
+                    self.writeln("}");
+                    self.output.push('\n');
+                } else {
+                    // Regular data class: constructor requires all fields as params
+                    // Generate: pub fn new(field1: Type1, field2: Type2, ...) -> Self {
                 self.write_indent();
                 self.output.push_str("pub fn new(");
                 for (i, (name, rust_type)) in fields.iter().enumerate() {
@@ -3268,6 +3318,7 @@ impl CodeGenerator {
                 self.dedent();
                 self.writeln("}");
                 self.output.push('\n');
+                } // end else (regular data class with all fields as params)
             } else {
                 // Regular class without constructor — default no-arg constructor
                 self.writeln(&format!("pub fn new() -> Self {{"));
@@ -4849,6 +4900,13 @@ impl CodeGenerator {
 
                 // Handle `or fail "message"` — error propagation shorthand (v1.1.0)
                 if let Some(fail_msg) = &var.or_fail_msg {
+                    // Check if this is bare `or fail` (no message) — Bug #95 fix
+                    // Bare `or fail` propagates the original error unchanged.
+                    let is_bare_or_fail = matches!(
+                        fail_msg.as_ref(),
+                        Expr::Literal(crate::ast::Literal::String(s)) if s.is_empty()
+                    );
+
                     // let x = fallible_expr or fail "message"
                     // Generates: let x = match fallible_expr { Ok(v) => v, Err(e) => return Err(liva_rt::Error::chain("message", fn, loc, e)) };
                     let binding = &var.bindings[0];
@@ -4875,7 +4933,11 @@ impl CodeGenerator {
                         write!(self.output,
                             ".await; if !err_str.is_empty() {{ return Err(liva_rt::Error::new(",
                         ).unwrap();
-                        self.generate_expr(fail_msg)?;
+                        if is_bare_or_fail {
+                            self.output.push_str("err_str");
+                        } else {
+                            self.generate_expr(fail_msg)?;
+                        }
                         write!(self.output, ", \"{}\", \"{}\")); }} opt.unwrap_or_default() }};\n", fn_name, location).unwrap();
 
                         // Track as rust_struct for member access
@@ -4887,7 +4949,11 @@ impl CodeGenerator {
                         write!(self.output,
                             "; if !err_str.is_empty() {{ return Err(liva_rt::Error::new(",
                         ).unwrap();
-                        self.generate_expr(fail_msg)?;
+                        if is_bare_or_fail {
+                            self.output.push_str("err_str");
+                        } else {
+                            self.generate_expr(fail_msg)?;
+                        }
                         write!(self.output, ", \"{}\", \"{}\")); }} opt.unwrap_or_default() }};\n", fn_name, location).unwrap();
                     } else if is_json_parse {
                         // JSON.parse returns (Option<JsonValue>, String)
@@ -4896,20 +4962,29 @@ impl CodeGenerator {
                         write!(self.output,
                             "; if !err_str.is_empty() {{ return Err(liva_rt::Error::new(",
                         ).unwrap();
-                        self.generate_expr(fail_msg)?;
+                        if is_bare_or_fail {
+                            self.output.push_str("err_str");
+                        } else {
+                            self.generate_expr(fail_msg)?;
+                        }
                         write!(self.output, ", \"{}\", \"{}\")); }} opt.unwrap_or_default() }};\n", fn_name, location).unwrap();
 
                         // Track as json_value_var for indexed access
                         self.json_value_vars.insert(var_name);
                     } else if is_user_fallible {
                         // User-defined fallible functions return Result<T, Error>
-                        // Chain: Err(e) => return Err(Error::chain("msg", fn, loc, e))
                         write!(self.output, "let {} = match ", var_name).unwrap();
                         self.generate_expr(&var.init)?;
-                        self.output
-                            .push_str(" { Ok(v) => v, Err(e) => return Err(liva_rt::Error::chain(");
-                        self.generate_expr(fail_msg)?;
-                        write!(self.output, ", \"{}\", \"{}\", e)) }};\n", fn_name, location).unwrap();
+                        if is_bare_or_fail {
+                            // Bare `or fail` — propagate original error unchanged
+                            self.output.push_str(" { Ok(v) => v, Err(e) => return Err(e) };\n");
+                        } else {
+                            // Chain: Err(e) => return Err(Error::chain("msg", fn, loc, e))
+                            self.output
+                                .push_str(" { Ok(v) => v, Err(e) => return Err(liva_rt::Error::chain(");
+                            self.generate_expr(fail_msg)?;
+                            write!(self.output, ", \"{}\", \"{}\", e)) }};\n", fn_name, location).unwrap();
+                        }
                     } else if self.is_option_returning_method(&var.init) {
                         // Option-returning methods (find, first, last, min, max) with or fail
                         self.suppress_option_unwrap = true;

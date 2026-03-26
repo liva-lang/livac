@@ -486,7 +486,91 @@ Use `!` instead of `not` for negation.
 **Medium severity**: 55 (all fixed!)
 **Documentation issues**: 4
 
-**Totals**: 71 bugs tracked, 65 fixed, 6 documented for future work
+**Totals**: 73 bugs tracked, 67 fixed, 6 documented for future work
+
+## Found During Docs Verification Audit (Session v2.0 — 2026-03-26)
+
+> **Context**: Systematic verification of all skill/reference files against compiler source code.
+> Discovered 2 compiler bugs by testing documented examples against the actual compiler.
+
+### Bug #95: Bare `or fail` (without message) eats next statement ✅ FIXED
+**Severity**: High
+**Location**: `parser.rs` L1444-1458 — `or fail` handling in VarDecl parsing
+**Status**: FIXED
+
+**Description**: When using `or fail` without a message string, the parser always calls `parse_expression()` after consuming the `fail` token. This causes it to **consume the next statement** as the fail message expression, producing silently broken code.
+
+**Root Cause**: In `parser.rs` L1456, after consuming `or` and `fail`, there's no check for end-of-line/newline/semicolon before calling `parse_expression()`. It unconditionally parses the next available expression.
+
+**Example** (broken):
+```liva
+main() {
+    let data, err = File.read("test.txt")
+    let result = data or fail     // ← bare or fail
+    print(data)                    // ← THIS gets consumed as the fail message!
+}
+```
+
+**Generated Rust** (wrong):
+```rust
+let result = data.unwrap_or_else(|| {
+    Err(liva_rt::Error::chain(
+        println!("{}", data),      // <-- print(data) was consumed as fail message
+        "main", "test.liva:3"
+    ))
+});
+// print(data) is GONE — silently eaten
+```
+
+**Workaround**: Always use `or fail "message"`:
+```liva
+let result = data or fail "Failed to read file"   // ✅ Works correctly
+```
+
+**Fix Applied**: In `parser.rs`, after consuming `or fail`, compare the line number of the `fail` token with the next token's line. If they differ (or at end/semicolon/RBrace), use an empty string sentinel instead of calling `parse_expression()`. In `codegen.rs`, detect the empty string sentinel and generate direct error propagation (`return Err(e)`) instead of wrapping in `Error::chain`.
+
+---
+
+### Bug #96: Data class with all-default fields — no-arg constructor not generated ✅ FIXED
+**Severity**: Medium
+**Location**: `codegen.rs` — data class `new()` generation
+**Status**: FIXED
+
+**Description**: When a data class has **all fields with default values** but **no explicit constructor**, the auto-generated `new()` method requires ALL fields as positional arguments. The field defaults are ignored because the auto-generated constructor takes all fields as parameters.
+
+**Example** (broken):
+```liva
+AppConfig {
+    host: string = "localhost"
+    port: int = 8080
+    debug: bool = false
+}
+
+main() {
+    let config = AppConfig()    // ❌ Error: expects 3 arguments
+}
+```
+
+**Workaround**: Add an explicit empty constructor, which allows field defaults to apply:
+```liva
+AppConfig {
+    host: string = "localhost"
+    port: int = 8080
+    debug: bool = false
+
+    constructor() {}            // ← explicit empty constructor
+}
+
+main() {
+    let config = AppConfig()    // ✅ Works — host="localhost", port=8080, debug=false
+}
+```
+
+**Why**: Data classes (no constructor) auto-generate `new(field1, field2, ...)` with ALL fields as parameters. The field defaults only apply when an explicit constructor is present and doesn't assign those fields.
+
+**Fix Applied**: In `codegen.rs`, when generating data class constructor, check if ALL fields have `init` expressions (defaults). If so, generate a no-arg `pub fn new() -> Self` that initializes each field from its default expression. Mixed-default data classes still require all fields as positional args.
+
+---
 
 ## Found During Dogfooding v2 — Inventory Manager (Session 18)
 
