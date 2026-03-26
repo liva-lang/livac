@@ -24,6 +24,10 @@ livac check file.liva             # Syntax check only
 livac fmt file.liva               # Format in place
 livac test                        # Run *.test.liva files
 livac test --filter "name"        # Filter tests
+livac lint file.liva              # Linter warnings (W001-W004)
+livac init my-project             # Scaffold new project
+livac init .                      # Init in current directory
+livac update                      # Self-update to latest version
 livac build --verbose file.liva   # Show generated Rust
 ```
 
@@ -37,7 +41,7 @@ let maybe: number? = null        // Optional
 let nums: [number] = [1, 2, 3]  // Array
 ```
 
-Primitives: `number` (i32), `float` (f64), `bool`, `string`, `char`. Rust types available: `i8`–`i128`, `u8`–`u128`, `f32`, `f64`.
+Primitives: `number` (i32), `float` (f64), `bool`, `string`, `char`, `bytes` (Vec<u8>). Aliases: `int` = `number`, `void` = `()`. Rust types available: `i8`–`i128`, `u8`–`u128`, `f32`, `f64`.
 
 > **Note:** `number` = integer (i32). For decimal/float values, use `float` (f64). Do NOT use `number` for floating-point math — it will truncate. There is no generic "number" type that covers both.
 
@@ -67,7 +71,7 @@ calculate(items) {
 greet(name: string = "World") => $"Hello, {name}!"
 
 // Tuple return (explicit type required)
-getPoint(): (int, int) => (10, 20)
+getPoint(): (number, number) => (10, 20)
 
 // Point-free references
 items.forEach(print)
@@ -178,18 +182,16 @@ divide(a: number, b: number): number {
 let result, err = divide(10, 0)
 if err { print($"Error: {err}") }    // Always use `if err {`, NOT `if err != ""`
 
-// IMPORTANT: `err` is a plain string, NOT an object.
-// Do NOT access `err.message` — just use `err` directly.
-// `print(err)` shows the error trace with function names and lines.
+// IMPORTANT: `err` is internally an Option<Error> with fields:
+//   err.message → plain string (just the message text)
+//   print(err) → full trace with function names, file locations, and chained causes
+// Always check with `if err {` (truthy when error exists), NEVER `if err != ""`
 
 // Shorthand: or fail (propagate)
 let data = File.read("f.txt") or fail "Cannot read"
 
 // Shorthand: or <default> (fallback)
-let port = parsePort("abc") or 3000
-
-// Error traces are automatic — print(err) shows full trace with function names and lines
-// Use err.message for plain text without trace
+let port = parseInt("abc") or 3000
 ```
 
 ## Defer
@@ -215,8 +217,13 @@ defer print("1st")
 ## Concurrency
 
 ```liva
-let user = async fetchUser(1)       // I/O-bound (auto-awaited on use)
-let result = par heavyCalc(1000)    // CPU-bound (auto-joined on use)
+let user = async fetchUser(1)       // Spawns tokio task NOW (doesn't block)
+let result = par heavyCalc(1000)    // Spawns thread NOW (doesn't block)
+
+doOtherWork()                       // Runs concurrently with both
+
+print(user)                         // Auto-awaits here on first use of variable
+print(result)                       // Auto-joins here on first use of variable
 
 // Explicit task handles
 let t1 = task async fetchUser(1)
@@ -441,6 +448,46 @@ for row in rows {
 DB.close(db)                                          // Close connection
 ```
 
+## HTTP Server *(axum)*
+
+```liva
+let app = Server.create()
+
+app.get("/hello", (req) => {
+    Response.text("Hello, World!")
+})
+
+app.post("/users", (req) => {
+    let body = req.body
+    Response.json(body)
+})
+
+app.put("/users/:id", (req) => {
+    let id = req.params.get("id")
+    Response.text("Updated " + id)
+})
+
+app.delete("/users/:id", (req) => {
+    let id = req.params.get("id")
+    Response.status(204)
+})
+
+app.listen(3000)
+// Routes: app.get/post/put/delete(path, handler)
+// Request: req.params.get("name"), req.body
+// Response: Response.text(str), Response.json(data), Response.json(data, 201), Response.status(code)
+```
+
+## Config *(v1.5.0)*
+
+```liva
+let config, err = Config.load(".env")
+let host, err = Config.get(config, "HOST")
+let port, err = Config.getInt(config, "PORT")
+let debug, err = Config.getBool(config, "DEBUG")
+let all = Config.getAll(config)   // Map<string, string> sorted
+```
+
 ## Rust Interop *(v1.5.0)*
 
 ```liva
@@ -517,44 +564,22 @@ let const import from as if else while for in switch case default return
 break continue fail throw try catch async par parallel task await move seq defer
 vec parvec with ordered chunk threads enum type use rust test true false null
 and or not safe fast static dynamic auto detect schedule reduction prefetch simdWidth
+number float bool char string bytes
 ```
 
 Additionally, avoid Rust reserved words as field/method names: `type`, `match`, `mod`, `self`, `super`, `crate`, `impl`, `trait`, `pub`, `fn`, `struct`, `where`, `loop`, `ref`, `mut`, `dyn`, `abstract`, `yield`. The compiler escapes some of these (e.g., `type` → `r#type`), but it's best to use alternatives (e.g., `kind` instead of `type`).
 
 ## References
 
-For detailed documentation on each topic, read the corresponding file in `references/`:
+For detailed docs, read files in `references/`. Key files:
 
-### Language Reference
-- `references/variables.md` — Variables, constants, scoping, destructuring, type annotations
-- `references/types-primitives.md` — Primitive types, Rust types, type inference, collections
-- `references/operators.md` — Arithmetic, comparison, logical, range, ternary, precedence
-- `references/functions-basics.md` — Arrow/block functions, parameters, return types
-- `references/functions-advanced.md` — Closures, function references, method references
-- `references/control-flow.md` — If/else, while/for loops, break/continue, one-liner `=>`
-- `references/pattern-matching.md` — Switch expressions, range/or/guard/tuple/enum patterns
-- `references/classes-basics.md` — Class declaration, constructors, field defaults, validation
-- `references/classes-data.md` — Auto data classes (no constructor), PartialEq, Display
-- `references/classes-interfaces.md` — Interface detection, implementation, multiple interfaces
-- `references/enums.md` — Simple enums, enums with data, pattern matching on enums
-- `references/visibility.md` — `_` prefix convention, public/private rules
-- `references/error-handling.md` — fail, error binding, or fail, or default, error traces
-- `references/collections.md` — Arrays, Maps, Sets, functional methods, parallel execution
-- `references/concurrency.md` — async, par, task, await, fire-and-forget, array policies
-- `references/rust-interop.md` — Inline `rust { }` blocks, crate dependencies, use hoisting, internal crates, limitations
-- `references/modules.md` — Imports, exports, path resolution, visibility rules
-- `references/string-templates.md` — String interpolation, escaping braces
-
-### Standard Library
-- `references/stdlib/arrays.md` — Array methods (map, filter, reduce, forEach, find, etc.)
-- `references/stdlib/strings.md` — String methods (split, trim, replace, contains, etc.)
-- `references/stdlib/io.md` — File I/O, Directory operations, console API
-- `references/stdlib/math.md` — Math constants and functions
-- `references/stdlib/conversions.md` — parseInt, parseFloat, toString
-- `references/stdlib/system.md` — Sys.args, Sys.env, Sys.exit, HTTP client, JSON
-- `references/stdlib/db.md` — DB.open, DB.exec, DB.query, DB.close (SQLite)
-
-### Guides
-- `references/quick-reference.md` — Complete quick reference card (all syntax in one file)
-- `references/project-structure.md` — Multi-file patterns, naming conventions, practical examples
-- `references/style-guide.md` — Idiomatic style: `=>` vs `{}`, naming, error handling, SOLID, anti-patterns
+- `references/pattern-matching.md` — Range/or/guard/tuple/enum patterns, exhaustiveness
+- `references/enums.md` — Enums with data, recursive enums, exhaustive switch
+- `references/collections.md` — Maps, Sets, parallel execution policies
+- `references/concurrency.md` — async, par, task, fire-and-forget, parallel arrays
+- `references/rust-interop.md` — `rust { }` blocks, crate deps, snake_case rules
+- `references/modules.md` — Import paths, wildcard imports, visibility
+- `references/file-io.md` — File and Dir methods with signatures
+- `references/linter.md` — W001-W004 warning codes
+- `references/style-guide.md` — Idiomatic patterns, `=>` vs `{}`, naming
+- `references/stdlib/` — Per-module API: arrays, strings, math, date, regex, csv, db, server, etc.
