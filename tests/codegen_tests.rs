@@ -3069,10 +3069,106 @@ main() {
     let rust_code = compile_and_generate(source);
     // Should NOT have PartialEq on User struct or auto Display (has explicit constructor)
     assert!(!rust_code.contains("impl std::fmt::Display for User"), "should not have auto Display");
-    // The derive for User should be just Debug, Clone, Default — no PartialEq
-    assert!(rust_code.contains("#[derive(Debug, Clone, Default)]\npub struct User"), 
-        "class with constructor should get basic derives, not PartialEq");
+    // All structs now get PartialEq (SH-008 fix: classes used as enum fields need it)
+    assert!(rust_code.contains("#[derive(Debug, Clone, Default, PartialEq)]\npub struct User"), 
+        "class with constructor should get PartialEq derive");
     assert_snapshot!("class_with_constructor_not_data", rust_code);
+}
+
+#[test]
+fn test_constructor_with_let_bindings() {
+    // SH-002 regression: let bindings in constructor must be emitted before Self { ... }
+    let source = r#"
+Lexer {
+    source: string
+    chars: [string]
+    pos: number
+
+    constructor(source: string) {
+        let sourceChars = source.split("")
+        this.source = source
+        this.chars = sourceChars
+        this.pos = 0
+    }
+}
+
+main() {
+    let lex = Lexer("hello")
+    print(lex.source)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    // The let binding must appear before Self { ... }
+    assert!(rust_code.contains("let source_chars"), "let binding should be emitted");
+    // Find the constructor fn new(...) -> Self, then verify let comes before Self {
+    let new_fn_pos = rust_code.find("pub fn new(source: String)").unwrap();
+    let constructor_code = &rust_code[new_fn_pos..];
+    let let_pos = constructor_code.find("let source_chars").unwrap();
+    // Search for indented "Self {" (the struct literal, not return-type -> Self {)
+    let self_pos = constructor_code.find("    Self {").unwrap();
+    assert!(let_pos < self_pos, "let binding should appear before Self {{ }}");
+    assert_snapshot!("constructor_with_let_bindings", rust_code);
+}
+
+#[test]
+fn test_constructor_with_if_fail_validation() {
+    // SH-002 regression: if...fail validation in constructor must be emitted
+    let source = r#"
+User {
+    name: string
+    age: number
+
+    constructor(name: string, age: number) {
+        if age < 0 fail "Age must be positive"
+        if name == "" fail "Name required"
+        this.name = name
+        this.age = age
+    }
+}
+
+main() {
+    let u = User("Alice", 25)
+    print(u.name)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    // Both if validations must be present
+    assert!(rust_code.contains("if age < 0"), "first validation should be emitted");
+    assert!(rust_code.contains("panic!"), "fail should generate panic in constructor");
+    // Validations should come before Self { ... }
+    let panic_pos = rust_code.find("panic!").unwrap();
+    let self_pos = rust_code.rfind("Self {").unwrap();
+    assert!(panic_pos < self_pos, "validation should appear before Self {{ }}");
+    assert_snapshot!("constructor_with_if_fail_validation", rust_code);
+}
+
+#[test]
+fn test_constructor_with_method_call() {
+    // SH-002 regression: method calls on params in constructor should work
+    let source = r#"
+Parser {
+    tokens: [string]
+    count: number
+
+    constructor(input: string) {
+        let parts = input.split(",")
+        this.tokens = parts
+        this.count = parts.length
+    }
+}
+
+main() {
+    let p = Parser("a,b,c")
+    print(p.count)
+}
+"#;
+
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains("let parts"), "let with method call should be emitted");
+    assert!(rust_code.contains("Self {"), "Self struct should be generated");
+    assert_snapshot!("constructor_with_method_call", rust_code);
 }
 
 #[test]

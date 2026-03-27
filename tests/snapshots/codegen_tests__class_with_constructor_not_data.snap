@@ -386,7 +386,7 @@ mod liva_rt {
     
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct User {
     pub name: String,
     pub age: i32,
@@ -394,6 +394,9 @@ pub struct User {
 
 impl User {
     pub fn new(name: String, age: i32) -> Self {
+        if age < 0 {
+            panic!("{}", format!("FAIL [] at :7: Age must be positive"));
+        }
         Self {
             name: name,
             age: age,

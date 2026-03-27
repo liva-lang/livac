@@ -386,7 +386,7 @@ mod liva_rt {
     
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct TodoItem {
     pub title: String,
     pub done: bool,
@@ -402,7 +402,7 @@ impl TodoItem {
 
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct TodoList {
     pub items: Vec<TodoItem>,
 }

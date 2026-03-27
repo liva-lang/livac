@@ -387,35 +387,23 @@ mod liva_rt {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-pub struct Finder {
-    _items: Vec<String>,
+pub struct Parser {
+    pub tokens: Vec<String>,
+    pub count: i32,
 }
 
-impl Finder {
-    pub fn new() -> Self {
+impl Parser {
+    pub fn new(input: String) -> Self {
+        let parts = input.split(",").map(|s| s.to_string()).collect::<Vec<String>>();
         Self {
-            _items: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            tokens: parts,
+            count: (parts.len() as i32),
         }
-    }
-
-    // Generating method: findItem
-    pub fn find_item(&self, name: String) -> Result<String, liva_rt::Error> {
-        for item in self._items.clone() {
-            if item == name {
-                return Ok(item);
-            }
-        }
-        return Err(liva_rt::Error::new("not found", "Finder.findItem", ":15"));
     }
 
 }
 
 fn main() {
-    let mut f = Finder::new();
-    let (result, err) = match f.find_item("b".to_string()) { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };
-    if err.is_some() {
-        println!("{}", "error");
-    } else {
-        println!("{}", "found it");
-    }
+    let p = Parser::new("a,b,c".to_string());
+    println!("{}", p.count);
 }

@@ -386,7 +386,7 @@ mod liva_rt {
     
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Registry {
     pub items: std::collections::HashMap<String, i32>,
     pub tags: std::collections::HashSet<String>,

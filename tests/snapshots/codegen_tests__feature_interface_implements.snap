@@ -388,7 +388,7 @@ mod liva_rt {
 
 // Interface: Printable (compile-time validation only)
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Item {
     pub name: String,
 }

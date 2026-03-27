@@ -386,7 +386,7 @@ mod liva_rt {
     
 }
 
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Author {
     pub id: i32,
     pub name: String,

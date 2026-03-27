@@ -390,7 +390,7 @@ fn format_priority(p: String) -> String {
     return format!("{}{}", "Priority: ", p);
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Task {
     pub title: String,
     pub priority: String,

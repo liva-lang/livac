@@ -387,35 +387,25 @@ mod liva_rt {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-pub struct Finder {
-    _items: Vec<String>,
+pub struct Lexer {
+    pub source: String,
+    pub chars: Vec<String>,
+    pub pos: i32,
 }
 
-impl Finder {
-    pub fn new() -> Self {
+impl Lexer {
+    pub fn new(source: String) -> Self {
+        let source_chars = source.split("").map(|s| s.to_string()).collect::<Vec<String>>();
         Self {
-            _items: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            source: source,
+            chars: source_chars,
+            pos: 0,
         }
-    }
-
-    // Generating method: findItem
-    pub fn find_item(&self, name: String) -> Result<String, liva_rt::Error> {
-        for item in self._items.clone() {
-            if item == name {
-                return Ok(item);
-            }
-        }
-        return Err(liva_rt::Error::new("not found", "Finder.findItem", ":15"));
     }
 
 }
 
 fn main() {
-    let mut f = Finder::new();
-    let (result, err) = match f.find_item("b".to_string()) { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };
-    if err.is_some() {
-        println!("{}", "error");
-    } else {
-        println!("{}", "found it");
-    }
+    let lex = Lexer::new("hello".to_string());
+    println!("{}", lex.source);
 }

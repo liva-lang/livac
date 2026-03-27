@@ -138,6 +138,8 @@ pub struct CodeGenerator {
     rust_block_uses: Vec<String>,
     /// Counter for generating unique defer guard variable names
     defer_counter: usize,
+    /// SH-002: When true, we're inside a constructor body — `this.field` maps to local vars
+    in_constructor: bool,
 }
 
 impl CodeGenerator {
@@ -211,6 +213,7 @@ impl CodeGenerator {
             source_filename,
             rust_block_uses: Vec::new(),
             defer_counter: 0,
+            in_constructor: false,
         }
     }
 
@@ -974,6 +977,7 @@ impl CodeGenerator {
                 self.expr_calls_mut_self_method(&assign.value)
             }
             Stmt::If(if_stmt) => {
+                let cond_calls = self.expr_calls_mut_self_method(&if_stmt.condition);
                 let then_calls = match &if_stmt.then_branch {
                     IfBody::Block(b) => self.block_calls_mut_self_method(b),
                     IfBody::Stmt(s) => self.stmt_calls_mut_self_method(s),
@@ -982,10 +986,21 @@ impl CodeGenerator {
                     IfBody::Block(b) => self.block_calls_mut_self_method(b),
                     IfBody::Stmt(s) => self.stmt_calls_mut_self_method(s),
                 });
-                then_calls || else_calls
+                cond_calls || then_calls || else_calls
             }
-            Stmt::While(w) => self.block_calls_mut_self_method(&w.body),
-            Stmt::For(f) => self.block_calls_mut_self_method(&f.body),
+            Stmt::While(w) => {
+                self.expr_calls_mut_self_method(&w.condition)
+                    || self.block_calls_mut_self_method(&w.body)
+            }
+            Stmt::For(f) => {
+                self.expr_calls_mut_self_method(&f.iterable)
+                    || self.block_calls_mut_self_method(&f.body)
+            }
+            Stmt::Switch(sw) => {
+                self.expr_calls_mut_self_method(&sw.discriminant)
+                    || sw.cases.iter().any(|case| case.body.iter().any(|s| self.stmt_calls_mut_self_method(s)))
+                    || sw.default.as_ref().map_or(false, |d| d.iter().any(|s| self.stmt_calls_mut_self_method(s)))
+            }
             Stmt::Defer(defer_stmt) => self.stmt_calls_mut_self_method(&defer_stmt.body),
             _ => false,
         }
@@ -1005,7 +1020,8 @@ impl CodeGenerator {
                     || self.expr_calls_mut_self_method(&mc.object)
             }
             Expr::Call(call) => {
-                call.args
+                self.expr_calls_mut_self_method(&call.callee)
+                    || call.args
                     .iter()
                     .any(|a| self.expr_calls_mut_self_method(a))
             }
@@ -1013,6 +1029,32 @@ impl CodeGenerator {
                 self.expr_calls_mut_self_method(left)
                     || self.expr_calls_mut_self_method(right)
             }
+            Expr::Unary { operand, .. } => self.expr_calls_mut_self_method(operand),
+            Expr::Member { object, .. } => self.expr_calls_mut_self_method(object),
+            Expr::Index { object, index, .. } => {
+                self.expr_calls_mut_self_method(object)
+                    || self.expr_calls_mut_self_method(index)
+            }
+            Expr::Ternary { condition, then_expr, else_expr } => {
+                self.expr_calls_mut_self_method(condition)
+                    || self.expr_calls_mut_self_method(then_expr)
+                    || self.expr_calls_mut_self_method(else_expr)
+            }
+            Expr::Switch(sw) => {
+                self.expr_calls_mut_self_method(&sw.discriminant)
+                    || sw.arms.iter().any(|arm| match &arm.body {
+                        SwitchBody::Block(b) => b.iter().any(|s| self.stmt_calls_mut_self_method(s)),
+                        SwitchBody::Expr(e) => self.expr_calls_mut_self_method(&*e),
+                    })
+            }
+            Expr::ArrayLiteral(elems) => elems.iter().any(|e| self.expr_calls_mut_self_method(e)),
+            Expr::StringTemplate { parts } => parts.iter().any(|p| {
+                if let StringTemplatePart::Expr(e) = p {
+                    self.expr_calls_mut_self_method(e)
+                } else {
+                    false
+                }
+            }),
             _ => false,
         }
     }
@@ -3015,13 +3057,13 @@ impl CodeGenerator {
         } else if is_data {
             "#[derive(Debug, Clone, PartialEq)]"
         } else if needs_serde && can_default {
-            "#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]"
+            "#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]"
         } else if needs_serde {
-            "#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]"
+            "#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]"
         } else if can_default {
-            "#[derive(Debug, Clone, Default)]"
+            "#[derive(Debug, Clone, Default, PartialEq)]"
         } else {
-            "#[derive(Debug, Clone)]"
+            "#[derive(Debug, Clone, PartialEq)]"
         };
 
         // Generate struct (interfaces are validated at compile-time, no runtime representation)
@@ -3115,7 +3157,11 @@ impl CodeGenerator {
 
         // Generate constructor
         if let Some(constructor_method) = constructor {
-            // Custom constructor - generate new() with parameters
+            // SH-002: Full constructor codegen — constructors work like any other method.
+            // Two-phase approach:
+            //   Phase 1: Walk body statements, emit non-field-assignment statements normally,
+            //            collect this.field = expr as (field_name, expr) pairs.
+            //   Phase 2: Emit Self { field: expr, ... } with collected values + defaults.
             self.write_indent();
             write!(self.output, "pub fn new(").unwrap();
             let params_str = self.generate_params(
@@ -3127,38 +3173,62 @@ impl CodeGenerator {
             )?;
             write!(self.output, "{}) -> Self {{\n", params_str).unwrap();
             self.indent();
+
+            // Phase 1: Walk body, emit non-field stmts, collect field assignments
+            // Use IndexMap-like Vec to preserve last-write-wins while keeping insertion order
+            let mut field_assignments: Vec<(String, &Expr)> = Vec::new();
+            let mut assigned_fields: std::collections::HashSet<String> =
+                std::collections::HashSet::new();
+
+            if let Some(body) = &constructor_method.body {
+                self.in_constructor = true;
+
+                for stmt in &body.stmts {
+                    // Check if this is a top-level this.field = expr assignment
+                    let is_field_assign = if let Stmt::Assign(assign) = stmt {
+                        if let Expr::Member { object, property } = &assign.target {
+                            if let Expr::Identifier(obj_name) = object.as_ref() {
+                                if obj_name == "this" {
+                                    let field_name = self.sanitize_name(property);
+                                    // Remove previous assignment to same field (last write wins)
+                                    field_assignments.retain(|(f, _)| *f != field_name);
+                                    assigned_fields.insert(field_name.clone());
+                                    field_assignments.push((field_name, &assign.value));
+                                    true
+                                } else {
+                                    false
+                                }
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    };
+
+                    if !is_field_assign {
+                        // Not a field assignment → generate normally (let, if, while, etc.)
+                        self.generate_stmt(stmt)?;
+                    }
+                }
+
+                self.in_constructor = false;
+            }
+
+            // Phase 2: Emit Self { field: expr, ... }
             self.write_indent();
             self.output.push_str("Self {\n");
             self.indent();
 
-            // Bug #19 fix: Parse constructor body to find this.field = value assignments
-            // Build a map of field_name -> assigned_value
-            let mut field_assignments: std::collections::HashMap<String, &Expr> =
-                std::collections::HashMap::new();
-
-            if let Some(body) = &constructor_method.body {
-                for stmt in &body.stmts {
-                    // Look for assignments like: this.field = value
-                    if let Stmt::Assign(assign) = stmt {
-                        if let Expr::Member { object, property } = &assign.target {
-                            if let Expr::Identifier(obj_name) = object.as_ref() {
-                                if obj_name == "this" {
-                                    // Found this.field = value
-                                    let field_name = self.sanitize_name(property);
-                                    field_assignments.insert(field_name, &assign.value);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Generate field initializations from the body assignments
             for member in &class.members {
                 if let Member::Field(field) = member {
                     let field_name = self.sanitize_name(&field.name);
 
-                    if let Some(value_expr) = field_assignments.get(&field_name) {
+                    if let Some((_, value_expr)) =
+                        field_assignments.iter().find(|(f, _)| *f == field_name)
+                    {
                         // Use the value from the constructor body
                         self.write_indent();
                         write!(self.output, "{}: ", field_name).unwrap();
@@ -3178,11 +3248,9 @@ impl CodeGenerator {
                         let default_value = if field.is_optional {
                             "None".to_string()
                         } else if let Some(init_expr) = &field.init {
-                            // Field has an initializer in its definition
                             let needs_string_conversion = matches!(init_expr, Expr::Literal(Literal::String(_)))
                                 && field.type_ref.as_ref().map(|t| matches!(t, TypeRef::Simple(s) if s == "string" || s == "String")).unwrap_or(false);
 
-                            // Generate the init expression to a temporary buffer
                             let old_output = std::mem::take(&mut self.output);
                             self.generate_expr(init_expr)?;
                             let value = std::mem::replace(&mut self.output, old_output);
@@ -3768,64 +3836,6 @@ impl CodeGenerator {
             }
         }
         None
-    }
-
-    #[allow(dead_code)]
-    fn generate_constructor_method(&mut self, method: &MethodDecl) -> Result<()> {
-        let vis = "pub";
-        let _async_kw = "";
-        let _type_params = String::new();
-
-        let params_str = self.generate_params(&method.params, false, None, None, None)?; // false because constructor is not a method
-
-        // Constructor returns Self
-        let return_type = " -> Self".to_string();
-
-        self.write_indent();
-        write!(
-            self.output,
-            "{}{}fn {}({}){}",
-            vis,
-            if vis.is_empty() { "" } else { " " },
-            "new", // Always generate as new()
-            params_str,
-            return_type
-        )
-        .unwrap();
-
-        // For custom constructor, map parameters to fields by name
-        // Assume parameter names match field names
-        self.output.push_str(" {\n");
-        self.indent();
-        self.write_indent();
-        self.output.push_str("Self {\n");
-        self.indent();
-
-        // Generate field assignments based on parameters
-        for param in &method.params {
-            self.write_indent();
-            let field_name = self.sanitize_name(param.name().unwrap());
-            // Add conversion for string fields
-            if param.name().unwrap() == "name" {
-                self.output
-                    .push_str(&format!("{}: {}.to_string()", field_name, field_name));
-            } else {
-                self.output
-                    .push_str(&format!("{}: {}", field_name, field_name));
-            }
-            self.output.push_str(",\n");
-        }
-
-        // Add default values for fields not covered by parameters
-        // For now, assume all fields are covered by parameters
-
-        self.dedent();
-        self.write_indent();
-        self.output.push_str("}\n");
-        self.dedent();
-        self.writeln("}");
-
-        Ok(())
     }
 
     fn generate_method(&mut self, method: &MethodDecl, class: Option<&ClassDecl>) -> Result<()> {
@@ -6561,6 +6571,30 @@ impl CodeGenerator {
                 } else {
                     filename.clone()
                 };
+
+                // SH-004 fix: In test blocks, use panic!() instead of return Err(...)
+                // because test functions have return type () not Result.
+                // SH-002: In constructors, also use panic!() — new() returns Self, not Result.
+                if self.in_test_block || self.in_constructor {
+                    self.output.push_str("panic!(\"{}\", ");
+                    match &fail_stmt.expr {
+                        Expr::Literal(Literal::String(s)) => {
+                            write!(self.output, "format!(\"FAIL [{}] at {}: {}\")", fn_name, location, s).unwrap();
+                        }
+                        Expr::Identifier(name) if self.error_binding_vars.contains(name) => {
+                            // fail err — use the error's message
+                            write!(self.output, "format!(\"FAIL [{}] at {}: {{:?}}\", {})", fn_name, location, name).unwrap();
+                        }
+                        _ => {
+                            write!(self.output, "format!(\"FAIL [{}] at {}: {{}}\", ", fn_name, location).unwrap();
+                            self.generate_expr(&fail_stmt.expr)?;
+                            self.output.push(')');
+                        }
+                    }
+                    self.output.push_str(");\n");
+                    return Ok(());
+                }
+
                 // B20 fix: Determine whether to chain or create a new error.
                 // Case 1: `fail err` (identifier that IS an error binding var) → always chain
                 // Case 2: `fail "string"` → only chain if there's an error var in scope (by indent level)
@@ -7358,14 +7392,16 @@ impl CodeGenerator {
                     }
                 }
 
-                // For JsonValue direct access (not Option), check if object looks like JsonValue
-                // This is a heuristic: if object is an identifier that's not in our known sets,
-                // it might be a JsonValue. We'll generate .get_field() / .get() instead of []
+                // For JsonValue direct access (not Option), check if object is a known JsonValue var.
+                // SH-012 fix: Only use JsonValue access when the variable is explicitly tracked as
+                // json_value_vars. Previously, any unknown var was assumed JsonValue, which broke
+                // array indexing for types that don't implement Default.
                 if let Expr::Identifier(var_name) = object.as_ref() {
                     let sanitized = self.sanitize_name(var_name);
-                    // If it's not a known array or class instance, try JsonValue access
                     if !self.array_vars.contains(&sanitized)
                         && !self.class_instance_vars.contains(&sanitized)
+                        && (self.json_value_vars.contains(&sanitized)
+                            || !self.var_types.contains_key(&sanitized))
                     {
                         match index.as_ref() {
                             Expr::Literal(Literal::String(key)) => {
@@ -7455,7 +7491,10 @@ impl CodeGenerator {
                 let needs_usize_conversion = match object.as_ref() {
                     Expr::Identifier(var_name) => {
                         let sanitized = self.sanitize_name(var_name);
-                        if self.array_vars.contains(&sanitized) {
+                        // SH-012: Also convert for typed vars that bypassed JsonValue heuristic
+                        if self.array_vars.contains(&sanitized)
+                            || self.var_types.contains_key(&sanitized)
+                        {
                             match index.as_ref() {
                                 Expr::Literal(Literal::Int(_)) => false,
                                 _ => true,
@@ -8145,9 +8184,22 @@ impl CodeGenerator {
                         }
                     }
                     SwitchBody::Block(stmts) => {
-                        for stmt in stmts {
+                        // SH-011 fix: transform last `return expr` into just `expr`
+                        // so the switch expression produces a value instead of returning from the function
+                        for (i, stmt) in stmts.iter().enumerate() {
                             self.output.push('\n');
                             self.write_indent();
+                            if i == stmts.len() - 1 {
+                                if let Stmt::Return(ret) = stmt {
+                                    if let Some(expr) = &ret.expr {
+                                        self.generate_expr(expr)?;
+                                        if matches!(expr, Expr::Literal(Literal::String(_))) {
+                                            self.output.push_str(".to_string()");
+                                        }
+                                    }
+                                    continue;
+                                }
+                            }
                             self.generate_stmt(stmt)?;
                         }
                     }
@@ -8171,9 +8223,21 @@ impl CodeGenerator {
                     SwitchBody::Block(stmts) => {
                         self.output.push('{');
                         self.indent();
-                        for stmt in stmts {
+                        // SH-011 fix: transform last `return expr` into just `expr`
+                        for (i, stmt) in stmts.iter().enumerate() {
                             self.output.push('\n');
                             self.write_indent();
+                            if i == stmts.len() - 1 {
+                                if let Stmt::Return(ret) = stmt {
+                                    if let Some(expr) = &ret.expr {
+                                        self.generate_expr(expr)?;
+                                        if matches!(expr, Expr::Literal(Literal::String(_))) {
+                                            self.output.push_str(".to_string()");
+                                        }
+                                    }
+                                    continue;
+                                }
+                            }
                             self.generate_stmt(stmt)?;
                         }
                         self.dedent();
@@ -8440,9 +8504,18 @@ impl CodeGenerator {
                                 if boxed_fields.contains(field_name) {
                                     self.output.push_str("Box::new(");
                                     self.generate_expr(arg)?;
+                                    // SH-010 fix: clone identifiers being boxed to avoid
+                                    // move errors when the same var is used elsewhere
+                                    if matches!(arg, Expr::Identifier(_)) {
+                                        self.output.push_str(".clone()");
+                                    }
                                     self.output.push(')');
                                 } else {
                                     self.generate_expr(arg)?;
+                                }
+                                // SH-009 fix: string literals need .to_string() for String-typed enum fields
+                                if matches!(arg, Expr::Literal(Literal::String(_))) {
+                                    self.output.push_str(".to_string()");
                                 }
                             }
                             self.output.push_str(" }");
@@ -9273,9 +9346,18 @@ impl CodeGenerator {
                             if boxed_fields.contains(field_name) {
                                 self.output.push_str("Box::new(");
                                 self.generate_expr(arg)?;
+                                // SH-010 fix: clone identifiers being boxed to avoid
+                                // move errors when the same var is used elsewhere
+                                if matches!(arg, Expr::Identifier(_)) {
+                                    self.output.push_str(".clone()");
+                                }
                                 self.output.push(')');
                             } else {
                                 self.generate_expr(arg)?;
+                            }
+                            // SH-009 fix: string literals need .to_string() for String-typed enum fields
+                            if matches!(arg, Expr::Literal(Literal::String(_))) {
+                                self.output.push_str(".to_string()");
                             }
                         }
                         self.output.push_str(" }");
@@ -14818,7 +14900,10 @@ impl CodeGenerator {
     }
 
     fn sanitize_test_name(&self, name: &str) -> String {
-        name.replace(' ', "_").replace('-', "_").to_lowercase()
+        name.chars()
+            .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
+            .collect::<String>()
+            .to_lowercase()
     }
 
     fn to_snake_case(&self, s: &str) -> String {
@@ -17086,7 +17171,10 @@ impl<'a> IrCodeGenerator<'a> {
     }
 
     fn sanitize_test_name(&self, name: &str) -> String {
-        name.replace(' ', "_").replace('-', "_").to_lowercase()
+        name.chars()
+            .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
+            .collect::<String>()
+            .to_lowercase()
     }
 }
 
@@ -17815,6 +17903,26 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext, al
                     variants_map.insert(variant.name.clone(), field_names);
                 }
                 codegen.enum_variants.insert(enum_decl.name.clone(), variants_map);
+
+                // SH-006 fix: Pre-populate boxed_enum_fields for recursive enum auto-boxing
+                let mut boxed_fields_for_enum: std::collections::HashMap<
+                    String,
+                    std::collections::HashSet<String>,
+                > = std::collections::HashMap::new();
+                for variant in &enum_decl.variants {
+                    for field in &variant.fields {
+                        if CodeGenerator::is_recursive_field(&field.type_ref, &enum_decl.name) {
+                            boxed_fields_for_enum
+                                .entry(variant.name.clone())
+                                .or_default()
+                                .insert(field.name.clone());
+                        }
+                    }
+                }
+                if !boxed_fields_for_enum.is_empty() {
+                    codegen.boxed_enum_fields
+                        .insert(enum_decl.name.clone(), boxed_fields_for_enum);
+                }
             }
             // B98 fix: Also pre-populate fallible functions/methods from imported modules
             if let TopLevel::Function(func) = item {
@@ -18111,6 +18219,26 @@ fn generate_entry_point(
                 }
                 codegen.enum_variants
                     .insert(enum_decl.name.clone(), variants_map);
+
+                // SH-006 fix: Pre-populate boxed_enum_fields for recursive enum auto-boxing
+                let mut boxed_fields_for_enum: std::collections::HashMap<
+                    String,
+                    std::collections::HashSet<String>,
+                > = std::collections::HashMap::new();
+                for variant in &enum_decl.variants {
+                    for field in &variant.fields {
+                        if CodeGenerator::is_recursive_field(&field.type_ref, &enum_decl.name) {
+                            boxed_fields_for_enum
+                                .entry(variant.name.clone())
+                                .or_default()
+                                .insert(field.name.clone());
+                        }
+                    }
+                }
+                if !boxed_fields_for_enum.is_empty() {
+                    codegen.boxed_enum_fields
+                        .insert(enum_decl.name.clone(), boxed_fields_for_enum);
+                }
             }
             // B23 fix: Pre-populate fallible functions from imported modules
             // Without this, cross-file error binding generates (fn(), None) instead of match { Ok/Err }

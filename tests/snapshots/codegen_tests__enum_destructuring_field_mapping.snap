@@ -401,6 +401,6 @@ fn show(t: Token) -> String {
 }
 
 fn main() {
-    let t = Token::TString { value: "hello" };
+    let t = Token::TString { value: "hello".to_string() };
     println!("{}", show(t.clone()));
 }
