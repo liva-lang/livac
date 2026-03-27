@@ -1,5 +1,6 @@
 ---
 source: tests/codegen_ir_tests.rs
+assertion_line: 97
 expression: rust_code
 ---
 #![allow(unused_parens, unused_mut)]
@@ -390,7 +391,7 @@ fn main() {
     match (|| -> Result<(), Box<dyn std::error::Error>> {
         let flag = false;
         if flag == false {
-            return Err("error".into());
+            panic!("{}", "error");
         }
         println!("{}", "done");
         Ok(())

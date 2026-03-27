@@ -106,6 +106,9 @@ pub struct CodeGenerator {
     rust_struct_vars: std::collections::HashSet<String>, // Variables that are Rust structs (HTTP response, etc.), not JsonValue
     typed_array_vars: std::collections::HashMap<String, String>, // Track arrays with element type: var_name -> element_class_name (e.g., "posts" -> "Post")
     current_lambda_element_type: Option<String>, // Temporarily track element type when generating lambdas in forEach/map/etc
+    // --- Constructor optional param tracking (for Some() wrapping at call sites)
+    class_constructor_optionals: std::collections::HashMap<String, Vec<bool>>, // className -> [is_optional per field, in order]
+    enum_variant_optionals: std::collections::HashMap<String, Vec<bool>>, // "EnumName::VariantName" -> [is_optional per field]
     // --- Phase 4: Join combining optimization
     #[allow(dead_code)]
     awaitable_tasks: Vec<String>, // Tasks that can be combined with tokio::join!
@@ -197,6 +200,8 @@ impl CodeGenerator {
             rust_struct_vars: std::collections::HashSet::new(),
             typed_array_vars: std::collections::HashMap::new(),
             current_lambda_element_type: None,
+            class_constructor_optionals: std::collections::HashMap::new(),
+            enum_variant_optionals: std::collections::HashMap::new(),
             awaitable_tasks: Vec::new(),
             trait_registry: TraitRegistry::new(),
             async_functions: async_funcs,
@@ -1541,17 +1546,23 @@ impl CodeGenerator {
         self.class_fields.clear();
         self.class_optional_fields.clear();
         self.class_array_field_types.clear();
+        self.class_constructor_optionals.clear();
+        // Note: enum_variant_optionals is NOT cleared here because it may contain
+        // pre-populated data from imported modules (generate_entry_point/generate_module_code)
         for item in &program.items {
             if let TopLevel::Class(cls) = item {
                 let mut fields = std::collections::HashSet::new();
                 let mut optional_fields = std::collections::HashSet::new();
                 let mut array_field_types = std::collections::HashMap::new();
+                let mut constructor_optionals: Vec<bool> = Vec::new();
                 for m in &cls.members {
                     if let Member::Field(f) = m {
                         fields.insert(f.name.clone());
-                        if f.is_optional {
+                        let is_opt = f.is_optional || matches!(&f.type_ref, Some(TypeRef::Optional(_)));
+                        if is_opt {
                             optional_fields.insert(f.name.clone());
                         }
+                        constructor_optionals.push(is_opt);
                         // Track array field types: fieldName -> elementType
                         if let Some(TypeRef::Array(element_type)) = &f.type_ref {
                             if let TypeRef::Simple(type_name) = element_type.as_ref() {
@@ -1563,6 +1574,7 @@ impl CodeGenerator {
                 self.class_fields.insert(cls.name.clone(), fields);
                 self.class_optional_fields
                     .insert(cls.name.clone(), optional_fields);
+                self.class_constructor_optionals.insert(cls.name.clone(), constructor_optionals);
                 if !array_field_types.is_empty() {
                     self.class_array_field_types.insert(cls.name.clone(), array_field_types);
                 }
@@ -1643,6 +1655,15 @@ impl CodeGenerator {
                     let field_names: Vec<String> =
                         variant.fields.iter().map(|f| f.name.clone()).collect();
                     variants_map.insert(variant.name.clone(), field_names);
+
+                    // Track optional fields per variant for Some() wrapping
+                    let variant_optionals: Vec<bool> = variant.fields.iter()
+                        .map(|f| matches!(&f.type_ref, TypeRef::Optional(_)))
+                        .collect();
+                    if variant_optionals.iter().any(|&o| o) {
+                        let key = format!("{}::{}", enum_decl.name, variant.name);
+                        self.enum_variant_optionals.insert(key, variant_optionals);
+                    }
                 }
                 self.enum_variants
                     .insert(enum_decl.name.clone(), variants_map);
@@ -3171,6 +3192,24 @@ impl CodeGenerator {
                 Some("constructor"),
                 None,
             )?;
+            // For optional parameters (Option<T>), use impl Into<Option<T>> for ergonomic callers
+            let params_str = {
+                let mut result = String::new();
+                for (i, part) in params_str.split(", ").enumerate() {
+                    if i > 0 { result.push_str(", "); }
+                    if let Some(colon_pos) = part.find(": Option<") {
+                        let name = &part[..colon_pos];
+                        let type_str = &part[colon_pos + 2..];
+                        result.push_str(name);
+                        result.push_str(": impl Into<");
+                        result.push_str(type_str);
+                        result.push('>');
+                    } else {
+                        result.push_str(part);
+                    }
+                }
+                result
+            };
             write!(self.output, "{}) -> Self {{\n", params_str).unwrap();
             self.indent();
 
@@ -3237,10 +3276,16 @@ impl CodeGenerator {
                         let needs_to_string =
                             matches!(value_expr, Expr::Literal(Literal::String(_)));
 
+                        // Check if field is optional (needs .into() for impl Into<Option<T>> params)
+                        let is_opt_field = field.is_optional || matches!(&field.type_ref, Some(TypeRef::Optional(_)));
+
                         self.generate_expr(value_expr)?;
 
                         if needs_to_string {
                             self.output.push_str(".to_string()");
+                        }
+                        if is_opt_field {
+                            self.output.push_str(".into()");
                         }
                         self.output.push_str(",\n");
                     } else {
@@ -5937,6 +5982,11 @@ impl CodeGenerator {
                             let rust_type = self.expand_type_alias(type_ref);
                             write!(self.output, ": {}", rust_type).unwrap();
 
+                            // Track optional variables for Some() wrapping on assignment
+                            if matches!(type_ref, TypeRef::Optional(_)) {
+                                self.option_value_vars.insert(var_name.clone());
+                            }
+
                             // Track string type for .length -> .len() conversion
                             if matches!(type_ref, TypeRef::Simple(name) if name == "string") {
                                 self.string_vars.insert(var_name.clone());
@@ -6127,6 +6177,37 @@ impl CodeGenerator {
                 self.generate_expr(&assign.target)?;
                 self.in_assignment_target = false;
                 self.output.push_str(" = ");
+
+                // Check if assigning to an optional variable — wrap in Some()
+                let needs_some_wrap = if let Expr::Identifier(var_name) = &assign.target {
+                    let san = self.sanitize_name(var_name);
+                    self.option_value_vars.contains(&san) && !matches!(&assign.value, Expr::Literal(Literal::Null))
+                } else if let Expr::Member { object, property } = &assign.target {
+                    // Check this.field = value for optional class fields
+                    if let Expr::Identifier(name) = object.as_ref() {
+                        if (name == "this" || name == "self") {
+                            if let Some(class_name) = &self.current_class_name {
+                                self.class_optional_fields
+                                    .get(class_name)
+                                    .map_or(false, |fields| fields.contains(property))
+                                    && !matches!(&assign.value, Expr::Literal(Literal::Null))
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
+
+                if needs_some_wrap {
+                    self.output.push_str("Some(");
+                }
+
                 // If assigning a string literal to what might be a String field, add .to_string()
                 if let Expr::Literal(Literal::String(_)) = &assign.value {
                     self.generate_expr(&assign.value)?;
@@ -6134,6 +6215,11 @@ impl CodeGenerator {
                 } else {
                     self.generate_expr(&assign.value)?;
                 }
+
+                if needs_some_wrap {
+                    self.output.push_str(")");
+                }
+
                 self.output.push_str(";\n");
             }
             Stmt::If(if_stmt) => {
@@ -6449,16 +6535,9 @@ impl CodeGenerator {
             }
             Stmt::Throw(throw_stmt) => {
                 self.write_indent();
-                if self.in_test_block {
-                    self.output.push_str("panic!(\"{}\", ");
-                    self.generate_expr(&throw_stmt.expr)?;
-                    self.output.push_str(");");
-                } else {
-                    self.output.push_str("return Err(");
-                    self.generate_expr(&throw_stmt.expr)?;
-                    self.output.push_str(".into());");
-                }
-                self.output.push('\n');
+                self.output.push_str("panic!(\"{}\", ");
+                self.generate_expr(&throw_stmt.expr)?;
+                self.output.push_str(");\n");
             }
             Stmt::Return(ret) => {
                 self.write_indent();
@@ -8489,6 +8568,10 @@ impl CodeGenerator {
                             .cloned()
                             .unwrap_or_default();
 
+                        // Check optional fields for this variant
+                        let variant_key = format!("{}::{}", enum_name, property);
+                        let variant_optionals = self.enum_variant_optionals.get(&variant_key).cloned();
+
                         write!(self.output, "{}::{}", enum_name, property).unwrap();
                         if !field_names.is_empty() {
                             self.output.push_str(" { ");
@@ -8500,6 +8583,17 @@ impl CodeGenerator {
                                 }
                                 write!(self.output, "{}: ", self.sanitize_name(field_name))
                                     .unwrap();
+
+                                // Check if field is optional and arg is not null
+                                let is_opt_field = variant_optionals.as_ref()
+                                    .map_or(false, |opts| i < opts.len() && opts[i]);
+                                let is_null = matches!(arg, Expr::Literal(Literal::Null));
+                                let wrap_some = is_opt_field && !is_null;
+
+                                if wrap_some {
+                                    self.output.push_str("Some(");
+                                }
+
                                 // Auto-boxing: recursive fields get wrapped in Box::new()
                                 if boxed_fields.contains(field_name) {
                                     self.output.push_str("Box::new(");
@@ -8516,6 +8610,10 @@ impl CodeGenerator {
                                 // SH-009 fix: string literals need .to_string() for String-typed enum fields
                                 if matches!(arg, Expr::Literal(Literal::String(_))) {
                                     self.output.push_str(".to_string()");
+                                }
+
+                                if wrap_some {
+                                    self.output.push(')');
                                 }
                             }
                             self.output.push_str(" }");
@@ -8671,11 +8769,22 @@ impl CodeGenerator {
             // Check if this is a constructor call (starts with uppercase)
             if name.chars().next().map_or(false, |c| c.is_uppercase()) {
                 // Assume it's a constructor call like ClassName(args...)
+                let constructor_optionals = self.class_constructor_optionals.get(name).cloned();
                 write!(self.output, "{}::new(", name).unwrap();
                 for (i, arg) in call.args.iter().enumerate() {
                     if i > 0 {
                         self.output.push_str(", ");
                     }
+                    // Check if this arg position corresponds to an optional field
+                    let is_optional_param = constructor_optionals.as_ref()
+                        .map_or(false, |opts| i < opts.len() && opts[i]);
+                    let is_null_arg = matches!(arg, Expr::Literal(Literal::Null));
+                    let wrap_some = is_optional_param && !is_null_arg;
+
+                    if wrap_some {
+                        self.output.push_str("Some(");
+                    }
+
                     // Add .to_string() for string literals (hack for constructor parameters)
                     if let Expr::Literal(Literal::String(_)) = arg {
                         self.generate_expr(arg)?;
@@ -8716,6 +8825,10 @@ impl CodeGenerator {
                         self.output.push_str(".clone()");
                     } else {
                         self.generate_expr(arg)?;
+                    }
+
+                    if wrap_some {
+                        self.output.push(')');
                     }
                 }
                 self.output.push(')');
@@ -9332,6 +9445,10 @@ impl CodeGenerator {
                         .cloned()
                         .unwrap_or_default();
 
+                    // Check optional fields for this variant
+                    let variant_key = format!("{}::{}", name, method_call.method);
+                    let variant_optionals = self.enum_variant_optionals.get(&variant_key).cloned();
+
                     write!(self.output, "{}::{}", name, method_call.method).unwrap();
                     if !field_names.is_empty() {
                         self.output.push_str(" { ");
@@ -9342,6 +9459,17 @@ impl CodeGenerator {
                                 self.output.push_str(", ");
                             }
                             write!(self.output, "{}: ", self.sanitize_name(field_name)).unwrap();
+
+                            // Check if field is optional and arg is not null
+                            let is_opt_field = variant_optionals.as_ref()
+                                .map_or(false, |opts| i < opts.len() && opts[i]);
+                            let is_null = matches!(arg, Expr::Literal(Literal::Null));
+                            let wrap_some = is_opt_field && !is_null;
+
+                            if wrap_some {
+                                self.output.push_str("Some(");
+                            }
+
                             // Auto-boxing: recursive fields get wrapped in Box::new()
                             if boxed_fields.contains(field_name) {
                                 self.output.push_str("Box::new(");
@@ -9358,6 +9486,10 @@ impl CodeGenerator {
                             // SH-009 fix: string literals need .to_string() for String-typed enum fields
                             if matches!(arg, Expr::Literal(Literal::String(_))) {
                                 self.output.push_str(".to_string()");
+                            }
+
+                            if wrap_some {
+                                self.output.push(')');
                             }
                         }
                         self.output.push_str(" }");
@@ -15859,16 +15991,9 @@ impl<'a> IrCodeGenerator<'a> {
             }
             ir::Stmt::Throw(expr) => {
                 self.write_indent();
-                if self.in_test_block {
-                    self.output.push_str("panic!(\"{}\", ");
-                    self.generate_expr(expr)?;
-                    self.output.push_str(");");
-                } else {
-                    self.output.push_str("return Err(");
-                    self.generate_expr(expr)?;
-                    self.output.push_str(".into());");
-                }
-                self.output.push('\n');
+                self.output.push_str("panic!(\"{}\", ");
+                self.generate_expr(expr)?;
+                self.output.push_str(");\n");
             }
             ir::Stmt::Expr(expr) => {
                 // Fire-and-forget inference: async/par calls used as statements
@@ -17901,6 +18026,15 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext, al
                     let field_names: Vec<String> =
                         variant.fields.iter().map(|f| f.name.clone()).collect();
                     variants_map.insert(variant.name.clone(), field_names);
+
+                    // Pre-populate optional fields per variant for Some() wrapping
+                    let variant_optionals: Vec<bool> = variant.fields.iter()
+                        .map(|f| matches!(&f.type_ref, TypeRef::Optional(_)))
+                        .collect();
+                    if variant_optionals.iter().any(|&o| o) {
+                        let key = format!("{}::{}", enum_decl.name, variant.name);
+                        codegen.enum_variant_optionals.insert(key, variant_optionals);
+                    }
                 }
                 codegen.enum_variants.insert(enum_decl.name.clone(), variants_map);
 
@@ -18216,6 +18350,15 @@ fn generate_entry_point(
                     let field_names: Vec<String> =
                         variant.fields.iter().map(|f| f.name.clone()).collect();
                     variants_map.insert(variant.name.clone(), field_names);
+
+                    // Pre-populate optional fields per variant for Some() wrapping
+                    let variant_optionals: Vec<bool> = variant.fields.iter()
+                        .map(|f| matches!(&f.type_ref, TypeRef::Optional(_)))
+                        .collect();
+                    if variant_optionals.iter().any(|&o| o) {
+                        let key = format!("{}::{}", enum_decl.name, variant.name);
+                        codegen.enum_variant_optionals.insert(key, variant_optionals);
+                    }
                 }
                 codegen.enum_variants
                     .insert(enum_decl.name.clone(), variants_map);
