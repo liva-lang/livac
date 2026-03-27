@@ -1971,12 +1971,6 @@ fn extract_code_prefix(code: &str) -> String {
     code[..end].trim().to_string()
 }
 
-/// Find the first line in formatted output matching the normalized code
-fn find_line_in_formatted(lines: &[String], normalized_code: &str) -> Option<usize> {
-    let unused = vec![false; lines.len()];
-    find_line_in_formatted_from(lines, normalized_code, 0, &unused)
-}
-
 /// Finalize lines back into a string
 fn finalize_lines(lines: &[String], original_formatted: &str) -> String {
     let mut result = lines.join("\n");
