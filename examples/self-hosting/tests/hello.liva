@@ -1,4 +1,0 @@
-// Simple Liva file for testing the lexer
-let x = 42
-let name = "hello"
-print($"Value: {x}")
