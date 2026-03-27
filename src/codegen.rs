@@ -1480,6 +1480,8 @@ impl CodeGenerator {
                     || mc.method == "countMatches"
                     || mc.method == "removePrefix"
                     || mc.method == "removeSuffix"
+                    || mc.method == "toInt"
+                    || mc.method == "toFloat"
                     // v1.4 Array methods (non-mutating)
                     || mc.method == "findIndex"
                     || mc.method == "first"
@@ -9781,6 +9783,8 @@ impl CodeGenerator {
                     | "countMatches"
                     | "removePrefix"
                     | "removeSuffix"
+                    | "toInt"
+                    | "toFloat"
             ))
             || is_string_indexof;
 
@@ -11486,6 +11490,18 @@ impl CodeGenerator {
                 // isEmpty() -> str.is_empty() (also works for Vec)
                 self.generate_expr(&method_call.object)?;
                 self.output.push_str(".is_empty()");
+                return Ok(());
+            }
+            "toInt" => {
+                // toInt() -> str.parse::<i32>().unwrap_or(0)
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".parse::<i32>().unwrap_or(0)");
+                return Ok(());
+            }
+            "toFloat" => {
+                // toFloat() -> str.parse::<f64>().unwrap_or(0.0)
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".parse::<f64>().unwrap_or(0.0)");
                 return Ok(());
             }
             "reverse" => {

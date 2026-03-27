@@ -1,6 +1,6 @@
 # String Methods
 
-> **28 methods** | v1.4.0
+> **30 methods** | v1.4.0
 
 ---
 
@@ -81,6 +81,24 @@
 ### removeSuffix(suffix: string) => string
   "document.txt".removeSuffix(".txt")     // "document"
   "hello".removeSuffix(".pdf")            // "hello"  (not found → original)
+
+---
+
+## Conversion
+
+### toInt() => int
+  "42".toInt()                             // 42
+  "-7".toInt()                             // -7
+  "abc".toInt()                            // 0  (invalid → 0)
+  "3.14".toInt()                           // 0  (float string → 0)
+  — Returns 0 for non-parseable strings. For error handling, use `parseInt()`.
+
+### toFloat() => float
+  "3.14".toFloat()                         // 3.14
+  "-0.5".toFloat()                         // -0.5
+  "42".toFloat()                           // 42.0
+  "abc".toFloat()                          // 0.0  (invalid → 0.0)
+  — Returns 0.0 for non-parseable strings. For error handling, use `parseFloat()`.
 
 ---
 

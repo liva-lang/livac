@@ -6556,3 +6556,22 @@ main() {
     assert!(!main_code.contains("_ =>"), "Should NOT need wildcard when all variants covered: {}", main_code);
     assert_snapshot!("enum_exhaustive_no_wildcard", rust_code);
 }
+
+#[test]
+fn test_string_to_int_to_float() {
+    let source = r#"
+main() {
+    let input = "42"
+    let n = input.toInt()
+    let f = input.toFloat()
+    let direct = "3.14".toFloat()
+    print(n)
+    print(f)
+    print(direct)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    assert!(rust_code.contains(".parse::<i32>().unwrap_or(0)"), "Should generate parse::<i32> for toInt(): {}", rust_code);
+    assert!(rust_code.contains(".parse::<f64>().unwrap_or(0.0)"), "Should generate parse::<f64> for toFloat(): {}", rust_code);
+    assert_snapshot!("string_to_int_to_float", rust_code);
+}
