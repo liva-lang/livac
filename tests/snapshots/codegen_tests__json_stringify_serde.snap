@@ -394,9 +394,11 @@ pub struct Author {
 
 impl Author {
     pub fn new(id: i32, name: String) -> Self {
+        let __field_id = id;
+        let __field_name = name;
         Self {
-            id: id,
-            name: name,
+            id: __field_id,
+            name: __field_name,
         }
     }
 

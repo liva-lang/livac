@@ -415,8 +415,9 @@ pub struct TodoList {
 
 impl TodoList {
     pub fn new() -> Self {
+        let __field_tasks = vec![];
         Self {
-            tasks: vec![],
+            tasks: __field_tasks,
         }
     }
 

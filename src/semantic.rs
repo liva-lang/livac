@@ -2928,6 +2928,8 @@ impl SemanticAnalyzer {
             // (e.g., book.getPassingGrades().length) — validated at codegen
             Expr::Member { .. } => true,
             Expr::MethodCall(_) => true,
+            // Allow .length on function call results (e.g., getItems().length)
+            Expr::Call(_) => true,
             _ => self
                 .infer_expr_type(object)
                 .map(|ty| self.type_supports_length(&Self::strip_optional(ty)))

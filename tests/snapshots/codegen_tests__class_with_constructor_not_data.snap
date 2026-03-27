@@ -397,9 +397,11 @@ impl User {
         if age < 0 {
             panic!("{}", format!("FAIL [] at :7: Age must be positive"));
         }
+        let __field_name = name;
+        let __field_age = age;
         Self {
-            name: name,
-            age: age,
+            name: __field_name,
+            age: __field_age,
         }
     }
 

@@ -414,10 +414,13 @@ pub struct Item {
 
 impl Item {
     pub fn new(t: String, p: Priority) -> Self {
+        let __field_title = t;
+        let __field_priority = p;
+        let __field_done = false;
         Self {
-            title: t,
-            priority: p,
-            done: false,
+            title: __field_title,
+            priority: __field_priority,
+            done: __field_done,
         }
     }
 

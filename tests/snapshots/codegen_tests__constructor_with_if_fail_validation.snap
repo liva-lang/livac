@@ -400,9 +400,11 @@ impl User {
         if name == "" {
             panic!("{}", format!("FAIL [] at :8: Name required"));
         }
+        let __field_name = name;
+        let __field_age = age;
         Self {
-            name: name,
-            age: age,
+            name: __field_name,
+            age: __field_age,
         }
     }
 

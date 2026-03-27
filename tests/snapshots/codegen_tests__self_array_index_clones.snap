@@ -393,8 +393,9 @@ pub struct Parser {
 
 impl Parser {
     pub fn new(t: Vec<String>) -> Self {
+        let __field_tokens = t;
         Self {
-            tokens: t,
+            tokens: __field_tokens,
         }
     }
 

@@ -395,9 +395,11 @@ pub struct Parser {
 impl Parser {
     pub fn new(input: String) -> Self {
         let parts = input.split(",").map(|s| s.to_string()).collect::<Vec<String>>();
+        let __field_tokens = parts;
+        let __field_count = (parts.len() as i32);
         Self {
-            tokens: parts,
-            count: (parts.len() as i32),
+            tokens: __field_tokens,
+            count: __field_count,
         }
     }
 

@@ -413,7 +413,14 @@ impl ModuleResolver {
         if !resolved.exists() {
             let with_ext = resolved.with_extension("liva");
             if with_ext.exists() {
-                return Ok(with_ext);
+                // Canonicalize to avoid path mismatches (e.g., ../src/token.liva vs src/token.liva)
+                return with_ext.canonicalize().map_err(|e| {
+                    CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E4004",
+                        &format!("Cannot canonicalize path: {}", with_ext.display()),
+                        &e.to_string(),
+                    ))
+                });
             }
             return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
                 "E4004",
@@ -422,7 +429,14 @@ impl ModuleResolver {
             )));
         }
 
-        Ok(resolved)
+        // Canonicalize to avoid path mismatches in dependency graph
+        resolved.canonicalize().map_err(|e| {
+            CompilerError::CodegenError(SemanticErrorInfo::new(
+                "E4004",
+                &format!("Cannot canonicalize path: {}", resolved.display()),
+                &e.to_string(),
+            ))
+        })
     }
 
     /// Get a module by path

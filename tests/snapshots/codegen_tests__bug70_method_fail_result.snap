@@ -393,8 +393,9 @@ pub struct Finder {
 
 impl Finder {
     pub fn new() -> Self {
+        let __field__items = vec!["a".to_string(), "b".to_string(), "c".to_string()];
         Self {
-            _items: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            _items: __field__items,
         }
     }
 

@@ -393,8 +393,9 @@ pub struct Library {
 
 impl Library {
     pub fn new() -> Self {
+        let __field_books = vec![];
         Self {
-            books: vec![],
+            books: __field_books,
         }
     }
 

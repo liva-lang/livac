@@ -394,9 +394,11 @@ pub struct Item {
 
 impl Item {
     pub fn new(n: String, p: f64) -> Self {
+        let __field_name = n;
+        let __field_price = p;
         Self {
-            name: n,
-            price: p,
+            name: __field_name,
+            price: __field_price,
         }
     }
 

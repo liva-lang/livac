@@ -393,8 +393,9 @@ pub struct Lookup {
 
 impl Lookup {
     pub fn new() -> Self {
+        let __field_data = std::collections::HashMap::new();
         Self {
-            data: std::collections::HashMap::new(),
+            data: __field_data,
         }
     }
 

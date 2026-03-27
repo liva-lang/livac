@@ -396,10 +396,13 @@ pub struct Lexer {
 impl Lexer {
     pub fn new(source: String) -> Self {
         let source_chars = source.split("").map(|s| s.to_string()).collect::<Vec<String>>();
+        let __field_source = source;
+        let __field_chars = source_chars;
+        let __field_pos = 0;
         Self {
-            source: source,
-            chars: source_chars,
-            pos: 0,
+            source: __field_source,
+            chars: __field_chars,
+            pos: __field_pos,
         }
     }
 

@@ -393,8 +393,9 @@ pub struct Counter {
 
 impl Counter {
     pub fn new(count: i32) -> Self {
+        let __field_count = count;
         Self {
-            count: count,
+            count: __field_count,
         }
     }
 

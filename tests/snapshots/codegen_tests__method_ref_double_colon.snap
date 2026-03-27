@@ -393,8 +393,9 @@ pub struct Formatter {
 
 impl Formatter {
     pub fn new(prefix: String) -> Self {
+        let __field_prefix = prefix;
         Self {
-            prefix: prefix,
+            prefix: __field_prefix,
         }
     }
 

@@ -1078,7 +1078,13 @@ impl Parser {
 
             // Empty tuple type: ()
             if self.match_token(&Token::RParen) {
-                return Ok(TypeRef::Tuple(vec![]));
+                let mut result = TypeRef::Tuple(vec![]);
+                if self.match_token(&Token::Question) {
+                    result = TypeRef::Optional(Box::new(result));
+                } else if self.match_token(&Token::Bang) {
+                    result = TypeRef::Fallible(Box::new(result));
+                }
+                return Ok(result);
             }
 
             // Parse first type
@@ -1103,7 +1109,13 @@ impl Parser {
                 }
 
                 self.expect(Token::RParen)?;
-                return Ok(TypeRef::Tuple(types));
+                let mut result = TypeRef::Tuple(types);
+                if self.match_token(&Token::Question) {
+                    result = TypeRef::Optional(Box::new(result));
+                } else if self.match_token(&Token::Bang) {
+                    result = TypeRef::Fallible(Box::new(result));
+                }
+                return Ok(result);
             } else {
                 // Error: grouped type doesn't make sense in Liva
                 return Err(self.error(
@@ -1117,7 +1129,14 @@ impl Parser {
             self.advance(); // consume '['
             let inner = Box::new(self.parse_type()?);
             self.expect(Token::RBracket)?;
-            return Ok(TypeRef::Array(inner));
+            let mut result = TypeRef::Array(inner);
+            // Check for ? or ! suffix (e.g., [string]? or [number]!)
+            if self.match_token(&Token::Question) {
+                result = TypeRef::Optional(Box::new(result));
+            } else if self.match_token(&Token::Bang) {
+                result = TypeRef::Fallible(Box::new(result));
+            }
+            return Ok(result);
         }
 
         let base = match self.advance() {

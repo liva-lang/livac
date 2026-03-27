@@ -394,9 +394,11 @@ pub struct TokenStream {
 
 impl TokenStream {
     pub fn new() -> Self {
+        let __field_tokens = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+        let __field_pos = 0;
         Self {
-            tokens: vec!["a".to_string(), "b".to_string(), "c".to_string()],
-            pos: 0,
+            tokens: __field_tokens,
+            pos: __field_pos,
         }
     }
 

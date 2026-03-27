@@ -395,8 +395,9 @@ pub struct Item {
 
 impl Item {
     pub fn new(name: String) -> Self {
+        let __field_name = name;
         Self {
-            name: name,
+            name: __field_name,
         }
     }
 

@@ -394,9 +394,11 @@ pub struct Registry {
 
 impl Registry {
     pub fn new() -> Self {
+        let __field_items = std::collections::HashMap::new();
+        let __field_tags = std::collections::HashSet::new();
         Self {
-            items: std::collections::HashMap::new(),
-            tags: std::collections::HashSet::new(),
+            items: __field_items,
+            tags: __field_tags,
         }
     }
 

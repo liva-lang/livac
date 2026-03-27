@@ -398,9 +398,11 @@ pub struct Task {
 
 impl Task {
     pub fn new(t: String, p: String) -> Self {
+        let __field_title = t;
+        let __field_priority = p;
         Self {
-            title: t,
-            priority: p,
+            title: __field_title,
+            priority: __field_priority,
         }
     }
 

@@ -130,6 +130,9 @@ pub struct CodeGenerator {
     /// Recursive enum fields that are auto-boxed: enum_name -> (variant_name -> set of boxed field names)
     boxed_enum_fields:
         std::collections::HashMap<String, std::collections::HashMap<String, std::collections::HashSet<String>>>,
+    /// Enum variant field types: enum_name -> (variant_name -> [(field_name, type_ref)])
+    enum_variant_field_types:
+        std::collections::HashMap<String, std::collections::HashMap<String, Vec<(String, TypeRef)>>>,
     // --- B46: Classes that need serde derives (from JSON.stringify usage)
     serde_classes: std::collections::HashSet<String>,
     // --- Float literal suffix context (for f32 variable declarations)
@@ -212,6 +215,7 @@ impl CodeGenerator {
             enum_names: std::collections::HashSet::new(),
             enum_variants: std::collections::HashMap::new(),
             boxed_enum_fields: std::collections::HashMap::new(),
+            enum_variant_field_types: std::collections::HashMap::new(),
             serde_classes: std::collections::HashSet::new(),
             float_literal_suffix: "f64".to_string(),
             current_function_name: String::new(),
@@ -236,6 +240,62 @@ impl CodeGenerator {
         || self.var_types.contains_key(&sanitized)
         // Temporary heuristic: single character variables are likely class instances
         || var_name.len() == 1
+    }
+
+    /// Register enum pattern bindings as class instances so member access generates
+    /// `.field` instead of `get_field()`. Returns the bindings that were registered
+    /// (for cleanup after the arm body).
+    fn register_pattern_bindings(&mut self, pattern: &Pattern) -> Vec<String> {
+        let mut registered = Vec::new();
+        if let Pattern::EnumVariant {
+            enum_name,
+            variant_name,
+            bindings,
+        } = pattern
+        {
+            if let Some(variant_map) = self.enum_variant_field_types.get(enum_name) {
+                if let Some(field_types) = variant_map.get(variant_name) {
+                    for (i, binding) in bindings.iter().enumerate() {
+                        if binding == "_" {
+                            continue;
+                        }
+                        if let Some((_, type_ref)) = field_types.get(i) {
+                            // Check if the field type is a class/struct (starts with uppercase
+                            // and is known in class_fields or enum_names)
+                            let type_name = match type_ref {
+                                TypeRef::Simple(name) => Some(name.as_str()),
+                                TypeRef::Optional(inner) => {
+                                    if let TypeRef::Simple(name) = inner.as_ref() {
+                                        Some(name.as_str())
+                                    } else {
+                                        None
+                                    }
+                                }
+                                _ => None,
+                            };
+                            if let Some(name) = type_name {
+                                let first_char = name.chars().next().unwrap_or('a');
+                                if first_char.is_uppercase()
+                                    && self.class_fields.contains_key(name)
+                                {
+                                    let sanitized = self.sanitize_name(binding);
+                                    self.class_instance_vars.insert(sanitized.clone());
+                                    registered.push(sanitized);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        registered
+    }
+
+    /// Unregister pattern bindings after an arm body to avoid polluting outer scope
+    fn unregister_pattern_bindings(&mut self, bindings: &[String]) {
+        for binding in bindings {
+            self.class_instance_vars.remove(binding);
+        }
     }
 
     /// Check if an expression is a JsonValue (for lambda pattern detection)
@@ -1651,10 +1711,14 @@ impl CodeGenerator {
             if let TopLevel::Enum(enum_decl) = item {
                 self.enum_names.insert(enum_decl.name.clone());
                 let mut variants_map = std::collections::HashMap::new();
+                let mut variants_type_map = std::collections::HashMap::new();
                 for variant in &enum_decl.variants {
                     let field_names: Vec<String> =
                         variant.fields.iter().map(|f| f.name.clone()).collect();
+                    let field_types: Vec<(String, TypeRef)> =
+                        variant.fields.iter().map(|f| (f.name.clone(), f.type_ref.clone())).collect();
                     variants_map.insert(variant.name.clone(), field_names);
+                    variants_type_map.insert(variant.name.clone(), field_types);
 
                     // Track optional fields per variant for Some() wrapping
                     let variant_optionals: Vec<bool> = variant.fields.iter()
@@ -1667,6 +1731,8 @@ impl CodeGenerator {
                 }
                 self.enum_variants
                     .insert(enum_decl.name.clone(), variants_map);
+                self.enum_variant_field_types
+                    .insert(enum_decl.name.clone(), variants_type_map);
 
                 // Pre-detect recursive fields for auto-boxing
                 let mut boxed_fields_for_enum: std::collections::HashMap<
@@ -3256,7 +3322,35 @@ impl CodeGenerator {
                 self.in_constructor = false;
             }
 
-            // Phase 2: Emit Self { field: expr, ... }
+            // Phase 2: Evaluate field expressions in SOURCE ORDER into temporaries,
+            // then emit Self { field: temp, ... } in STRUCT order.
+            // This prevents Rust move-before-borrow errors when the constructor
+            // borrows a value before moving it, but struct order differs.
+            for (field_name, value_expr) in &field_assignments {
+                self.write_indent();
+                write!(self.output, "let __field_{} = ", field_name).unwrap();
+                self.generate_expr(value_expr)?;
+
+                // Check if value is a string literal and needs .to_string()
+                if matches!(value_expr, Expr::Literal(Literal::String(_))) {
+                    self.output.push_str(".to_string()");
+                }
+
+                // Check if field is optional (needs .into())
+                let is_opt_field = class.members.iter().any(|m| {
+                    if let Member::Field(f) = m {
+                        let f_name = self.sanitize_name(&f.name);
+                        f_name == *field_name && (f.is_optional || matches!(&f.type_ref, Some(TypeRef::Optional(_))))
+                    } else {
+                        false
+                    }
+                });
+                if is_opt_field {
+                    self.output.push_str(".into()");
+                }
+                self.output.push_str(";\n");
+            }
+
             self.write_indent();
             self.output.push_str("Self {\n");
             self.indent();
@@ -3265,29 +3359,9 @@ impl CodeGenerator {
                 if let Member::Field(field) = member {
                     let field_name = self.sanitize_name(&field.name);
 
-                    if let Some((_, value_expr)) =
-                        field_assignments.iter().find(|(f, _)| *f == field_name)
-                    {
-                        // Use the value from the constructor body
-                        self.write_indent();
-                        write!(self.output, "{}: ", field_name).unwrap();
-
-                        // Check if value is a string literal and needs .to_string()
-                        let needs_to_string =
-                            matches!(value_expr, Expr::Literal(Literal::String(_)));
-
-                        // Check if field is optional (needs .into() for impl Into<Option<T>> params)
-                        let is_opt_field = field.is_optional || matches!(&field.type_ref, Some(TypeRef::Optional(_)));
-
-                        self.generate_expr(value_expr)?;
-
-                        if needs_to_string {
-                            self.output.push_str(".to_string()");
-                        }
-                        if is_opt_field {
-                            self.output.push_str(".into()");
-                        }
-                        self.output.push_str(",\n");
+                    if assigned_fields.contains(&field_name) {
+                        // Use the temp variable
+                        self.writeln(&format!("{}: __field_{},", field_name, field_name));
                     } else {
                         // Field not assigned in constructor - use default value
                         let default_value = if field.is_optional {
@@ -3586,9 +3660,16 @@ impl CodeGenerator {
                         self.output.push_str(", ");
                     }
                     let field_name = self.sanitize_name(&field.name);
-                    // Use {:?} for array/Vec fields since Vec<T> doesn't implement Display
-                    let is_array = matches!(field.type_ref.as_ref(), Some(TypeRef::Array(_)));
-                    if is_array {
+                    // Use {:?} for types that don't implement Display (arrays, enums, maps, sets, optionals)
+                    let needs_debug = match field.type_ref.as_ref() {
+                        Some(TypeRef::Array(_)) => true,
+                        Some(TypeRef::Map(_, _)) => true,
+                        Some(TypeRef::Set(_)) => true,
+                        Some(TypeRef::Optional(_)) => true,
+                        Some(TypeRef::Simple(name)) => self.enum_names.contains(name),
+                        _ => false,
+                    };
+                    if needs_debug {
                         self.output.push_str(&format!("{}: {{:?}}", field_name));
                     } else {
                         self.output.push_str(&format!("{}: {{}}", field_name));
@@ -6487,12 +6568,60 @@ impl CodeGenerator {
 
                 for case in &switch_stmt.cases {
                     self.write_indent();
-                    self.generate_expr(&case.value)?;
+                    // Detect enum variant patterns: Enum.Variant(a, b) parsed as MethodCall
+                    let (boxed_deref_bindings, enum_pattern) = if let Expr::MethodCall(mc) = &case.value {
+                        if let Expr::Identifier(name) = mc.object.as_ref() {
+                            if self.enum_variants.contains_key(name) {
+                                // This is an enum variant pattern — generate as pattern, not expression
+                                let variant = &mc.method;
+                                let bindings: Vec<String> = mc
+                                    .args
+                                    .iter()
+                                    .map(|a| {
+                                        if let Expr::Identifier(id) = a {
+                                            id.clone()
+                                        } else {
+                                            "_".to_string()
+                                        }
+                                    })
+                                    .collect();
+                                let pattern = Pattern::EnumVariant {
+                                    enum_name: name.clone(),
+                                    variant_name: variant.clone(),
+                                    bindings: bindings.clone(),
+                                };
+                                let deref_bindings =
+                                    self.get_boxed_pattern_bindings(&pattern);
+                                self.generate_pattern(&pattern)?;
+                                (deref_bindings, Some(pattern))
+                            } else {
+                                self.generate_expr(&case.value)?;
+                                (Vec::new(), None)
+                            }
+                        } else {
+                            self.generate_expr(&case.value)?;
+                            (Vec::new(), None)
+                        }
+                    } else {
+                        self.generate_expr(&case.value)?;
+                        (Vec::new(), None)
+                    };
                     self.output.push_str(" => {\n");
                     self.indent();
+                    // Auto-dereference boxed bindings
+                    for binding in &boxed_deref_bindings {
+                        self.writeln(&format!("let {} = *{};", binding, binding));
+                    }
+                    // GAP-007 fix: Register pattern bindings as class instances
+                    let registered = if let Some(ref pat) = enum_pattern {
+                        self.register_pattern_bindings(pat)
+                    } else {
+                        Vec::new()
+                    };
                     for stmt in &case.body {
                         self.generate_stmt(stmt)?;
                     }
+                    self.unregister_pattern_bindings(&registered);
                     self.dedent();
                     self.writeln("}");
                 }
@@ -8242,6 +8371,9 @@ impl CodeGenerator {
             // Check if this pattern has boxed enum bindings that need auto-dereference
             let boxed_bindings = self.get_boxed_pattern_bindings(&arm.pattern);
 
+            // GAP-007 fix: Register pattern bindings as class instances for member access
+            let registered_bindings = self.register_pattern_bindings(&arm.pattern);
+
             if !boxed_bindings.is_empty() {
                 // Wrap body in a block with auto-dereference let statements
                 self.output.push('{');
@@ -8326,6 +8458,9 @@ impl CodeGenerator {
                     }
                 }
             }
+
+            // GAP-007 fix: Unregister pattern bindings after arm body
+            self.unregister_pattern_bindings(&registered_bindings);
 
             self.output.push(',');
         }
@@ -18022,10 +18157,14 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext, al
             if let TopLevel::Enum(enum_decl) = item {
                 codegen.enum_names.insert(enum_decl.name.clone());
                 let mut variants_map = std::collections::HashMap::new();
+                let mut variants_type_map = std::collections::HashMap::new();
                 for variant in &enum_decl.variants {
                     let field_names: Vec<String> =
                         variant.fields.iter().map(|f| f.name.clone()).collect();
+                    let field_types: Vec<(String, TypeRef)> =
+                        variant.fields.iter().map(|f| (f.name.clone(), f.type_ref.clone())).collect();
                     variants_map.insert(variant.name.clone(), field_names);
+                    variants_type_map.insert(variant.name.clone(), field_types);
 
                     // Pre-populate optional fields per variant for Some() wrapping
                     let variant_optionals: Vec<bool> = variant.fields.iter()
@@ -18037,6 +18176,7 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext, al
                     }
                 }
                 codegen.enum_variants.insert(enum_decl.name.clone(), variants_map);
+                codegen.enum_variant_field_types.insert(enum_decl.name.clone(), variants_type_map);
 
                 // SH-006 fix: Pre-populate boxed_enum_fields for recursive enum auto-boxing
                 let mut boxed_fields_for_enum: std::collections::HashMap<
@@ -18346,10 +18486,14 @@ fn generate_entry_point(
             if let TopLevel::Enum(enum_decl) = item {
                 codegen.enum_names.insert(enum_decl.name.clone());
                 let mut variants_map = std::collections::HashMap::new();
+                let mut variants_type_map = std::collections::HashMap::new();
                 for variant in &enum_decl.variants {
                     let field_names: Vec<String> =
                         variant.fields.iter().map(|f| f.name.clone()).collect();
+                    let field_types: Vec<(String, TypeRef)> =
+                        variant.fields.iter().map(|f| (f.name.clone(), f.type_ref.clone())).collect();
                     variants_map.insert(variant.name.clone(), field_names);
+                    variants_type_map.insert(variant.name.clone(), field_types);
 
                     // Pre-populate optional fields per variant for Some() wrapping
                     let variant_optionals: Vec<bool> = variant.fields.iter()
@@ -18362,6 +18506,8 @@ fn generate_entry_point(
                 }
                 codegen.enum_variants
                     .insert(enum_decl.name.clone(), variants_map);
+                codegen.enum_variant_field_types
+                    .insert(enum_decl.name.clone(), variants_type_map);
 
                 // SH-006 fix: Pre-populate boxed_enum_fields for recursive enum auto-boxing
                 let mut boxed_fields_for_enum: std::collections::HashMap<
