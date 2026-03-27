@@ -1,0 +1,876 @@
+// Code Generator — Liva AST → Rust source code
+// Part of the Liva self-hosting compiler
+//
+// Generates idiomatic Rust from the Liva AST.
+// Simplified version: no IR, direct AST-to-Rust translation.
+// Covers the core language subset needed for self-hosting.
+
+import { Span } from "./token.liva"
+import {
+    Program, TopLevel, FuncDecl, Param, ClassDef, FieldDef, MethodDef,
+    EnumDef, EnumVariantDef, EnumFieldDef, ImportDef, ConstDef, TestDef,
+    TypeRef, Stmt, VarDeclStmt, ConstDeclStmt, AssignStmt, AssignOp,
+    IfStmt, WhileStmt, ForStmt, SwitchStmt, CaseClause, Pattern,
+    ReturnStmt, Expr, BinOp, UnaryOp, MapEntry, SwitchArm
+} from "./ast.liva"
+
+// ─── Code Generator ───────────────────────────────────────
+
+CodeGen {
+    _output: string
+    _indent: number
+
+    constructor() {
+        this._output = ""
+        this._indent = 0
+    }
+
+    // ── Public API ──────────────────────────────────
+
+    generate(prog: Program): string {
+        this._output = ""
+        this._indent = 0
+        this._writeln("#![allow(unused_parens, unused_mut, unused_variables, dead_code)]")
+        this._writeln("")
+        this._writeln("use std::fmt;")
+        this._writeln("")
+
+        for item in prog.items {
+            this._genTopLevel(item)
+            this._writeln("")
+        }
+
+        return this._output
+    }
+
+    // ── Top Level ───────────────────────────────────
+
+    _genTopLevel(item: TopLevel) {
+        switch item {
+            case TopLevel.FunctionDecl(decl): {
+                this._genFunction(decl)
+            }
+            case TopLevel.ClassDecl(decl): {
+                this._genClass(decl)
+            }
+            case TopLevel.EnumDecl(decl): {
+                this._genEnum(decl)
+            }
+            case TopLevel.ImportDecl(decl): {
+                // Imports are handled at module level — skip in codegen
+            }
+            case TopLevel.ConstDecl(decl): {
+                this._genConst(decl)
+            }
+            case TopLevel.TestDecl(decl): {
+                this._genTest(decl)
+            }
+        }
+    }
+
+    // ── Functions ───────────────────────────────────
+
+    _genFunction(f: FuncDecl) {
+        let isMain = f.name == "main"
+        let fnName = this._rustName(f.name)
+
+        if isMain {
+            this._writeln("fn main() {")
+        } else {
+            let params = this._genParams(f.params)
+            let ret = this._genReturnType(f.returnType)
+            this._writeln($"fn {fnName}({params}){ret} {{")
+        }
+
+        this._indent = this._indent + 1
+        this._genBody(f.body)
+        this._indent = this._indent - 1
+        this._writeln("}")
+    }
+
+    _genParams(params: [Param]): string {
+        let parts: [string] = []
+        for p in params {
+            let pname = this._rustName(p.name)
+            let ptype = this._genTypeRefOr(p.typeRef, "i32")
+            parts.push($"{pname}: {ptype}")
+        }
+        return parts.join(", ")
+    }
+
+    _genReturnType(rt: TypeRef?): string {
+        if rt == null {
+            return ""
+        }
+        let t = this._genTypeRef(rt)
+        return $" -> {t}"
+    }
+
+    // ── Classes ─────────────────────────────────────
+
+    _genClass(cls: ClassDef) {
+        let name = cls.name
+        this._writeln("#[derive(Clone, Debug, PartialEq)]")
+        this._writeln($"pub struct {name} {{")
+        this._indent = this._indent + 1
+        for field in cls.fields {
+            let fname = this._rustName(field.name)
+            let ftype = this._genTypeRef(field.typeRef)
+            let vis = ""
+            if field.isPrivate == false {
+                vis = "pub "
+            }
+            this._writeln($"{vis}{fname}: {ftype},")
+        }
+        this._indent = this._indent - 1
+        this._writeln("}")
+
+        // Generate Display impl
+        this._writeln("")
+        this._writeln($"impl fmt::Display for {name} {{")
+        this._indent = this._indent + 1
+        this._writeln("fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {")
+        this._indent = this._indent + 1
+        let fieldNames: [string] = []
+        let fieldFmts: [string] = []
+        for field in cls.fields {
+            let fname = this._rustName(field.name)
+            fieldNames.push(fname)
+            fieldFmts.push($"{fname}: {{}}")
+        }
+        let fmtStr = fieldFmts.join(", ")
+        let fieldRefs: [string] = []
+        for fname in fieldNames {
+            fieldRefs.push($"self.{fname}")
+        }
+        let args = fieldRefs.join(", ")
+        this._writeln($"write!(f, \"{name} {{ {fmtStr} }}\", {args})")
+        this._indent = this._indent - 1
+        this._writeln("}")
+        this._indent = this._indent - 1
+        this._writeln("}")
+
+        // Generate constructor function
+        this._writeln("")
+        let ctorParams: [string] = []
+        let ctorFields: [string] = []
+        for field in cls.fields {
+            let fname = this._rustName(field.name)
+            let ftype = this._genTypeRef(field.typeRef)
+            ctorParams.push($"{fname}: {ftype}")
+            ctorFields.push(fname)
+        }
+        let ctorP = ctorParams.join(", ")
+        let ctorF = ctorFields.join(", ")
+        this._writeln($"#[allow(non_snake_case)]")
+        this._writeln($"fn {name}({ctorP}) -> {name} {{")
+        this._indent = this._indent + 1
+        this._writeln($"{name} {{ {ctorF} }}")
+        this._indent = this._indent - 1
+        this._writeln("}")
+
+        // Generate methods (impl block)
+        if cls.methods.length > 0 {
+            this._writeln("")
+            this._writeln($"impl {name} {{")
+            this._indent = this._indent + 1
+            for method in cls.methods {
+                this._genMethod(method)
+            }
+            this._indent = this._indent - 1
+            this._writeln("}")
+        }
+    }
+
+    _genMethod(m: MethodDef) {
+        let mname = this._rustName(m.name)
+        let params = this._genParams(m.params)
+        let ret = this._genReturnType(m.returnType)
+        let selfParam = "&mut self"
+        if params.length > 0 {
+            this._writeln($"fn {mname}({selfParam}, {params}){ret} {{")
+        } else {
+            this._writeln($"fn {mname}({selfParam}){ret} {{")
+        }
+        this._indent = this._indent + 1
+        this._genBody(m.body)
+        this._indent = this._indent - 1
+        this._writeln("}")
+    }
+
+    // ── Enums ───────────────────────────────────────
+
+    _genEnum(e: EnumDef) {
+        let name = e.name
+        this._writeln("#[derive(Clone, Debug, PartialEq)]")
+        this._writeln($"pub enum {name} {{")
+        this._indent = this._indent + 1
+        for v in e.variants {
+            if v.fields.length == 0 {
+                this._writeln($"{v.name},")
+            } else {
+                let fieldParts: [string] = []
+                for field in v.fields {
+                    let fname = this._rustName(field.name)
+                    let ftype = this._genTypeRef(field.typeRef)
+                    fieldParts.push($"{fname}: {ftype}")
+                }
+                let fields = fieldParts.join(", ")
+                this._writeln($"{v.name} {{ {fields} }},")
+            }
+        }
+        this._indent = this._indent - 1
+        this._writeln("}")
+
+        // Generate Display impl for enum
+        this._writeln("")
+        this._writeln($"impl fmt::Display for {name} {{")
+        this._indent = this._indent + 1
+        this._writeln("fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {")
+        this._indent = this._indent + 1
+        this._writeln($"write!(f, \"{{:?}}\", self)")
+        this._indent = this._indent - 1
+        this._writeln("}")
+        this._indent = this._indent - 1
+        this._writeln("}")
+    }
+
+    // ── Constants ───────────────────────────────────
+
+    _genConst(c: ConstDef) {
+        let name = this._toScreamingSnake(c.name)
+        let t = this._genTypeRefOr(c.typeRef, "i32")
+        let val = this._genExpr(c.value)
+        this._writeln($"const {name}: {t} = {val};")
+    }
+
+    // ── Tests ───────────────────────────────────────
+
+    _genTest(t: TestDef) {
+        let fnName = this._testFnName(t.description)
+        this._writeln("#[test]")
+        this._writeln($"fn {fnName}() {{")
+        this._indent = this._indent + 1
+        this._genBody(t.body)
+        this._indent = this._indent - 1
+        this._writeln("}")
+    }
+
+    // ── Statements ──────────────────────────────────
+
+    _genBody(stmts: [Stmt]) {
+        for s in stmts {
+            this._genStmt(s)
+        }
+    }
+
+    _genStmt(s: Stmt) {
+        switch s {
+            case Stmt.VarDecl(decl): {
+                this._genVarDecl(decl)
+            }
+            case Stmt.ConstDecl(decl): {
+                this._genConstDecl(decl)
+            }
+            case Stmt.Assign(stmt): {
+                this._genAssign(stmt)
+            }
+            case Stmt.If(stmt): {
+                this._genIf(stmt)
+            }
+            case Stmt.While(stmt): {
+                this._genWhile(stmt)
+            }
+            case Stmt.For(stmt): {
+                this._genFor(stmt)
+            }
+            case Stmt.Switch(stmt): {
+                this._genSwitch(stmt)
+            }
+            case Stmt.Return(stmt): {
+                this._genReturn(stmt)
+            }
+            case Stmt.Break(span): {
+                this._writeln("break;")
+            }
+            case Stmt.Continue(span): {
+                this._writeln("continue;")
+            }
+            case Stmt.Throw(expr, span): {
+                let val = this._genExpr(expr)
+                this._writeln($"panic!(\"{{}}\", {val});")
+            }
+            case Stmt.Fail(message, span): {
+                let val = this._genExpr(message)
+                this._writeln($"return Err({val}.to_string());")
+            }
+            case Stmt.Defer(body, span): {
+                // Defer is complex — simplified: wrap in a drop guard
+                this._writeln("// defer (simplified)")
+                this._writeln("{")
+                this._indent = this._indent + 1
+                this._genBody(body)
+                this._indent = this._indent - 1
+                this._writeln("}")
+            }
+            case Stmt.Expr(expr, span): {
+                let val = this._genExpr(expr)
+                this._writeln($"{val};")
+            }
+        }
+    }
+
+    _genVarDecl(decl: VarDeclStmt) {
+        let name = this._rustName(decl.name)
+        if decl.value != null {
+            let val = this._genExpr(decl.value)
+            if decl.typeRef != null {
+                let t = this._genTypeRef(decl.typeRef)
+                this._writeln($"let mut {name}: {t} = {val};")
+            } else {
+                this._writeln($"let mut {name} = {val};")
+            }
+        } else {
+            if decl.typeRef != null {
+                let t = this._genTypeRef(decl.typeRef)
+                this._writeln($"let mut {name}: {t};")
+            } else {
+                this._writeln($"let mut {name};")
+            }
+        }
+    }
+
+    _genConstDecl(decl: ConstDeclStmt) {
+        let name = this._rustName(decl.name)
+        let val = this._genExpr(decl.value)
+        if decl.typeRef != null {
+            let t = this._genTypeRef(decl.typeRef)
+            this._writeln($"let {name}: {t} = {val};")
+        } else {
+            this._writeln($"let {name} = {val};")
+        }
+    }
+
+    _genAssign(stmt: AssignStmt) {
+        let target = this._genExpr(stmt.target)
+        let val = this._genExpr(stmt.value)
+        let op = this._assignOpStr(stmt.op)
+        this._writeln($"{target} {op} {val};")
+    }
+
+    _assignOpStr(op: AssignOp): string {
+        switch op {
+            case AssignOp.Eq: { return "=" }
+            case AssignOp.PlusEq: { return "+=" }
+            case AssignOp.MinusEq: { return "-=" }
+            case AssignOp.StarEq: { return "*=" }
+            case AssignOp.SlashEq: { return "/=" }
+            case AssignOp.PercentEq: { return "%=" }
+        }
+        return "="
+    }
+
+    _genIf(stmt: IfStmt) {
+        let cond = this._genExpr(stmt.condition)
+        this._writeln($"if {cond} {{")
+        this._indent = this._indent + 1
+        this._genBody(stmt.thenBody)
+        this._indent = this._indent - 1
+        if stmt.elseBody != null {
+            this._writeln("} else {")
+            this._indent = this._indent + 1
+            this._genBody(stmt.elseBody)
+            this._indent = this._indent - 1
+        }
+        this._writeln("}")
+    }
+
+    _genWhile(stmt: WhileStmt) {
+        let cond = this._genExpr(stmt.condition)
+        this._writeln($"while {cond} {{")
+        this._indent = this._indent + 1
+        this._genBody(stmt.body)
+        this._indent = this._indent - 1
+        this._writeln("}")
+    }
+
+    _genFor(stmt: ForStmt) {
+        let item = this._rustName(stmt.itemVar)
+        let iter = this._genExpr(stmt.iterable)
+        if stmt.indexVar != null {
+            let idx = this._rustName(stmt.indexVar)
+            this._writeln($"for ({idx}, {item}) in ({iter}).iter().enumerate() {{")
+        } else {
+            this._writeln($"for {item} in {iter} {{")
+        }
+        this._indent = this._indent + 1
+        this._genBody(stmt.body)
+        this._indent = this._indent - 1
+        this._writeln("}")
+    }
+
+    _genSwitch(stmt: SwitchStmt) {
+        let subject = this._genExpr(stmt.subject)
+        this._writeln($"match {subject} {{")
+        this._indent = this._indent + 1
+        for c in stmt.cases {
+            let pat = this._genPattern(c.pattern)
+            this._writeln($"{pat} => {{")
+            this._indent = this._indent + 1
+            this._genBody(c.body)
+            this._indent = this._indent - 1
+            this._writeln("}")
+        }
+        if stmt.defaultBody != null {
+            this._writeln("_ => {")
+            this._indent = this._indent + 1
+            this._genBody(stmt.defaultBody)
+            this._indent = this._indent - 1
+            this._writeln("}")
+        }
+        this._indent = this._indent - 1
+        this._writeln("}")
+    }
+
+    _genPattern(p: Pattern): string {
+        switch p {
+            case Pattern.Literal(value): {
+                return this._genExpr(value)
+            }
+            case Pattern.EnumVariant(enumName, variant, bindings): {
+                if bindings.length == 0 {
+                    return $"{enumName}::{variant}"
+                }
+                let parts: [string] = []
+                for b in bindings {
+                    parts.push(this._rustName(b))
+                }
+                let bindStr = parts.join(", ")
+                return $"{enumName}::{variant} {{ {bindStr} }}"
+            }
+            case Pattern.Wildcard: {
+                return "_"
+            }
+        }
+        return "_"
+    }
+
+    _genReturn(stmt: ReturnStmt) {
+        if stmt.value != null {
+            let val = this._genExpr(stmt.value)
+            this._writeln($"return {val};")
+        } else {
+            this._writeln("return;")
+        }
+    }
+
+    // ── Expressions ─────────────────────────────────
+
+    _genExpr(e: Expr): string {
+        switch e {
+            case Expr.IntLiteral(value, span): {
+                return value
+            }
+            case Expr.FloatLiteral(value, span): {
+                return value
+            }
+            case Expr.StringLiteral(value, span): {
+                return $"\"{value}\".to_string()"
+            }
+            case Expr.StringTemplate(value, span): {
+                return this._genStringTemplate(value)
+            }
+            case Expr.CharLiteral(value, span): {
+                return $"'{value}'"
+            }
+            case Expr.BoolLiteral(value, span): {
+                if value {
+                    return "true"
+                }
+                return "false"
+            }
+            case Expr.NullLiteral(span): {
+                return "None"
+            }
+            case Expr.Identifier(name, span): {
+                return this._rustName(name)
+            }
+            case Expr.Binary(left, op, right, span): {
+                let l = this._genExpr(left)
+                let r = this._genExpr(right)
+                let o = this._binOpStr(op)
+                return $"({l} {o} {r})"
+            }
+            case Expr.Unary(op, operand, span): {
+                let val = this._genExpr(operand)
+                switch op {
+                    case UnaryOp.Neg: { return $"-{val}" }
+                    case UnaryOp.Not: { return $"!{val}" }
+                    case UnaryOp.Bang: { return $"!{val}" }
+                }
+                return $"!{val}"
+            }
+            case Expr.Call(callee, args, span): {
+                return this._genCall(callee, args)
+            }
+            case Expr.MethodCall(object, method, args, span): {
+                return this._genMethodCall(object, method, args)
+            }
+            case Expr.Member(object, field, span): {
+                let obj = this._genExpr(object)
+                let f = this._rustName(field)
+                return $"{obj}.{f}"
+            }
+            case Expr.Index(object, index, span): {
+                let obj = this._genExpr(object)
+                let idx = this._genExpr(index)
+                return $"{obj}[{idx} as usize]"
+            }
+            case Expr.ArrayLiteral(elements, span): {
+                let parts: [string] = []
+                for el in elements {
+                    parts.push(this._genExpr(el))
+                }
+                let body = parts.join(", ")
+                return $"vec![{body}]"
+            }
+            case Expr.MapLiteral(entries, span): {
+                return this._genMapLiteral(entries)
+            }
+            case Expr.IfExpr(condition, thenExpr, elseExpr, span): {
+                let cond = this._genExpr(condition)
+                let thenVal = this._genExpr(thenExpr)
+                let elseVal = this._genExpr(elseExpr)
+                return $"if {cond} {{ {thenVal} }} else {{ {elseVal} }}"
+            }
+            case Expr.SwitchExpr(subject, arms, span): {
+                return this._genSwitchExpr(subject, arms)
+            }
+            case Expr.Or(expr, fallback, span): {
+                let val = this._genExpr(expr)
+                let fb = this._genExpr(fallback)
+                return $"{val}.unwrap_or_else(|| {fb})"
+            }
+            case Expr.OrFail(expr, message, span): {
+                let val = this._genExpr(expr)
+                return $"{val}?"
+            }
+            case Expr.Range(start, end, inclusive, span): {
+                let s = this._genExpr(start)
+                let en = this._genExpr(end)
+                if inclusive {
+                    return $"{s}..={en}"
+                }
+                return $"{s}..{en}"
+            }
+            case Expr.Await(expr, span): {
+                let val = this._genExpr(expr)
+                return $"{val}.await"
+            }
+            case Expr.Try(expr, span): {
+                let val = this._genExpr(expr)
+                return $"{val}?"
+            }
+        }
+        return "/* unknown expr */"
+    }
+
+    // ── Expression Helpers ──────────────────────────
+
+    _genCall(callee: Expr, args: [Expr]): string {
+        let argParts: [string] = []
+        for a in args {
+            argParts.push(this._genExpr(a))
+        }
+        let argStr = argParts.join(", ")
+
+        // Special case: print → println!
+        switch callee {
+            case Expr.Identifier(name, span): {
+                if name == "print" {
+                    if args.length == 0 {
+                        return "println!()"
+                    }
+                    return $"println!(\"{{}}\", {argStr})"
+                }
+                let fn_name = this._rustName(name)
+                return $"{fn_name}({argStr})"
+            }
+            case Expr.Member(object, field, span): {
+                // Constructor call: ClassName(args) via Member
+                let obj = this._genExpr(object)
+                return $"{obj}.{field}({argStr})"
+            }
+            default: {
+                let fn_expr = this._genExpr(callee)
+                return $"{fn_expr}({argStr})"
+            }
+        }
+        let fn_expr = this._genExpr(callee)
+        return $"{fn_expr}({argStr})"
+    }
+
+    _genMethodCall(object: Expr, method: string, args: [Expr]): string {
+        let obj = this._genExpr(object)
+        let argParts: [string] = []
+        for a in args {
+            argParts.push(this._genExpr(a))
+        }
+        let argStr = argParts.join(", ")
+        let mname = this._rustName(method)
+
+        // Map common Liva methods to Rust equivalents
+        if method == "push" {
+            return $"{obj}.push({argStr})"
+        }
+        if method == "pop" {
+            return $"{obj}.pop().unwrap()"
+        }
+        if method == "length" {
+            return $"{obj}.len()"
+        }
+        if method == "join" {
+            return $"{obj}.join({argStr})"
+        }
+        if method == "contains" {
+            return $"{obj}.contains({argStr})"
+        }
+        if method == "split" {
+            return $"{obj}.split({argStr}).map(|s| s.to_string()).collect::<Vec<_>>()"
+        }
+        if method == "trim" {
+            return $"{obj}.trim().to_string()"
+        }
+        if method == "toUpperCase" {
+            return $"{obj}.to_uppercase()"
+        }
+        if method == "toLowerCase" {
+            return $"{obj}.to_lowercase()"
+        }
+        if method == "toString" {
+            return $"{obj}.to_string()"
+        }
+        if method == "startsWith" {
+            return $"{obj}.starts_with({argStr})"
+        }
+        if method == "endsWith" {
+            return $"{obj}.ends_with({argStr})"
+        }
+        if method == "replace" {
+            return $"{obj}.replace({argStr})"
+        }
+        if method == "map" {
+            return $"{obj}.iter().map({argStr}).collect::<Vec<_>>()"
+        }
+        if method == "filter" {
+            return $"{obj}.iter().filter({argStr}).cloned().collect::<Vec<_>>()"
+        }
+        if method == "forEach" {
+            return $"{obj}.iter().for_each({argStr})"
+        }
+
+        return $"{obj}.{mname}({argStr})"
+    }
+
+    _genStringTemplate(tmpl: string): string {
+        // String templates use $"Hello, {name}!" syntax in Liva
+        // → format!("Hello, {}!", name) in Rust
+        // The template has been stored as-is; we need to convert {expr} → {}
+        // For now, use the format! macro with the raw string
+        return $"format!({tmpl})"
+    }
+
+    _genMapLiteral(entries: [MapEntry]): string {
+        if entries.length == 0 {
+            return "std::collections::HashMap::new()"
+        }
+        let parts: [string] = []
+        for entry in entries {
+            let k = this._genExpr(entry.key)
+            let v = this._genExpr(entry.value)
+            parts.push($"({k}, {v})")
+        }
+        let body = parts.join(", ")
+        return $"[{body}].iter().cloned().collect::<std::collections::HashMap<_, _>>()"
+    }
+
+    _genSwitchExpr(subject: Expr, arms: [SwitchArm]): string {
+        let sub = this._genExpr(subject)
+        let parts: [string] = []
+        for arm in arms {
+            let pat = this._genPattern(arm.pattern)
+            let body = this._genExpr(arm.body)
+            parts.push($"{pat} => {body}")
+        }
+        let armStr = parts.join(", ")
+        return $"match {sub} {{ {armStr} }}"
+    }
+
+    // ── Binary Operators ────────────────────────────
+
+    _binOpStr(op: BinOp): string {
+        switch op {
+            case BinOp.Add: { return "+" }
+            case BinOp.Sub: { return "-" }
+            case BinOp.Mul: { return "*" }
+            case BinOp.Div: { return "/" }
+            case BinOp.Mod: { return "%" }
+            case BinOp.Eq: { return "==" }
+            case BinOp.Ne: { return "!=" }
+            case BinOp.Lt: { return "<" }
+            case BinOp.Le: { return "<=" }
+            case BinOp.Gt: { return ">" }
+            case BinOp.Ge: { return ">=" }
+            case BinOp.And: { return "&&" }
+            case BinOp.Or: { return "||" }
+        }
+        return "+"
+    }
+
+    // ── Type References ─────────────────────────────
+
+    _genTypeRef(t: TypeRef): string {
+        switch t {
+            case TypeRef.Named(name): {
+                return this._rustType(name)
+            }
+            case TypeRef.Array(inner): {
+                let elem = this._genTypeRef(inner)
+                return $"Vec<{elem}>"
+            }
+            case TypeRef.Optional(inner): {
+                let elem = this._genTypeRef(inner)
+                return $"Option<{elem}>"
+            }
+            case TypeRef.Tuple(elements): {
+                let parts: [string] = []
+                for el in elements {
+                    parts.push(this._genTypeRef(el))
+                }
+                let body = parts.join(", ")
+                return $"({body})"
+            }
+            case TypeRef.Map(key, value): {
+                let k = this._genTypeRef(key)
+                let v = this._genTypeRef(value)
+                return $"std::collections::HashMap<{k}, {v}>"
+            }
+            case TypeRef.Set(inner): {
+                let elem = this._genTypeRef(inner)
+                return $"std::collections::HashSet<{elem}>"
+            }
+            case TypeRef.Func(params, ret): {
+                let pparts: [string] = []
+                for p in params {
+                    pparts.push(this._genTypeRef(p))
+                }
+                let ps = pparts.join(", ")
+                let r = this._genTypeRef(ret)
+                return $"fn({ps}) -> {r}"
+            }
+        }
+        return "/* unknown type */"
+    }
+
+    _genTypeRefOr(t: TypeRef?, fallback: string): string {
+        if t == null {
+            return fallback
+        }
+        return this._genTypeRef(t)
+    }
+
+    _rustType(name: string): string {
+        if name == "number" { return "i32" }
+        if name == "float" { return "f64" }
+        if name == "string" { return "String" }
+        if name == "bool" { return "bool" }
+        if name == "char" { return "char" }
+        if name == "void" { return "()" }
+        // Custom types: keep as-is
+        return name
+    }
+
+    // ── Name Helpers ────────────────────────────────
+
+    _rustName(name: string): string {
+        // Convert Liva names to Rust-compatible names
+        // Private fields: _name → name (Rust doesn't use _ prefix for fields)
+        if name == "this" {
+            return "self"
+        }
+        if name == "type" {
+            return "r#type"
+        }
+        if name == "match" {
+            return "r#match"
+        }
+        if name == "self" {
+            return "r#self"
+        }
+        // Convert camelCase to snake_case for functions/variables
+        return this._toSnakeCase(name)
+    }
+
+    _toSnakeCase(s: string): string {
+        let result = ""
+        let i = 0
+        for ch in s {
+            if ch >= "A" {
+                if ch <= "Z" {
+                    if i > 0 {
+                        result = result + "_"
+                    }
+                    result = result + ch.toLowerCase()
+                } else {
+                    result = result + ch
+                }
+            } else {
+                result = result + ch
+            }
+            i = i + 1
+        }
+        return result
+    }
+
+    _toScreamingSnake(s: string): string {
+        let snake = this._toSnakeCase(s)
+        return snake.toUpperCase()
+    }
+
+    _testFnName(desc: string): string {
+        let result = "test_"
+        for ch in desc {
+            if ch == " " {
+                result = result + "_"
+            } else {
+                if ch >= "a" {
+                    if ch <= "z" {
+                        result = result + ch
+                    }
+                } else {
+                    if ch >= "0" {
+                        if ch <= "9" {
+                            result = result + ch
+                        }
+                    }
+                }
+            }
+        }
+        return result
+    }
+
+    // ── Output Helpers ──────────────────────────────
+
+    _writeln(line: string) {
+        let i = 0
+        while i < this._indent {
+            this._output = this._output + "    "
+            i = i + 1
+        }
+        this._output = this._output + line + "\n"
+    }
+
+    _write(text: string) {
+        this._output = this._output + text
+    }
+}

@@ -400,12 +400,12 @@ fn eval(e: Expr) -> i32 {
         Expr::Add { left: l, right: r } => {
             let l = *l;
             let r = *r;
-            eval(l) + eval(r)
+            eval(l.clone()) + eval(r.clone())
         },
         Expr::Mul { left: l, right: r } => {
             let l = *l;
             let r = *r;
-            eval(l) * eval(r)
+            eval(l.clone()) * eval(r.clone())
         },
     };
 }

@@ -276,7 +276,8 @@ impl CodeGenerator {
                             if let Some(name) = type_name {
                                 let first_char = name.chars().next().unwrap_or('a');
                                 if first_char.is_uppercase()
-                                    && self.class_fields.contains_key(name)
+                                    && (self.class_fields.contains_key(name)
+                                        || self.enum_names.contains(name))
                                 {
                                     let sanitized = self.sanitize_name(binding);
                                     self.class_instance_vars.insert(sanitized.clone());
@@ -1605,8 +1606,9 @@ impl CodeGenerator {
         }
 
         // Build class metadata maps
-        self.class_fields.clear();
-        self.class_optional_fields.clear();
+        // Note: class_fields/class_optional_fields are NOT fully cleared here because
+        // they may contain pre-populated data from imported modules
+        // (generate_entry_point/generate_module_code) — BUG-003 fix
         self.class_array_field_types.clear();
         self.class_constructor_optionals.clear();
         // Note: enum_variant_optionals is NOT cleared here because it may contain
@@ -18234,6 +18236,31 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext, al
                 }
             }
             if let TopLevel::Class(class) = item {
+                // BUG-003 fix: Pre-populate class_fields from all modules so
+                // register_pattern_bindings recognizes imported class types
+                let mut fields = std::collections::HashSet::new();
+                let mut optional_fields = std::collections::HashSet::new();
+                let mut array_field_types = std::collections::HashMap::new();
+                for m2 in &class.members {
+                    if let crate::ast::Member::Field(f) = m2 {
+                        fields.insert(f.name.clone());
+                        if f.is_optional || matches!(&f.type_ref, Some(TypeRef::Optional(_))) {
+                            optional_fields.insert(f.name.clone());
+                        }
+                        // BUG-003 fix: Track array field element types for for-loop var typing
+                        if let Some(TypeRef::Array(element_type)) = &f.type_ref {
+                            if let TypeRef::Simple(type_name) = element_type.as_ref() {
+                                array_field_types.insert(f.name.clone(), type_name.clone());
+                            }
+                        }
+                    }
+                }
+                codegen.class_fields.insert(class.name.clone(), fields);
+                codegen.class_optional_fields.insert(class.name.clone(), optional_fields);
+                if !array_field_types.is_empty() {
+                    codegen.class_array_field_types.insert(class.name.clone(), array_field_types);
+                }
+
                 for member in &class.members {
                     if let crate::ast::Member::Method(method) = member {
                         if method.contains_fail {
@@ -18567,6 +18594,31 @@ fn generate_entry_point(
             }
             // B23 fix: Also pre-populate fallible methods from imported classes
             if let TopLevel::Class(class) = item {
+                // BUG-003 fix: Pre-populate class_fields from all modules so
+                // register_pattern_bindings recognizes imported class types
+                let mut fields = std::collections::HashSet::new();
+                let mut optional_fields = std::collections::HashSet::new();
+                let mut array_field_types = std::collections::HashMap::new();
+                for m2 in &class.members {
+                    if let crate::ast::Member::Field(f) = m2 {
+                        fields.insert(f.name.clone());
+                        if f.is_optional || matches!(&f.type_ref, Some(TypeRef::Optional(_))) {
+                            optional_fields.insert(f.name.clone());
+                        }
+                        // BUG-003 fix: Track array field element types for for-loop var typing
+                        if let Some(TypeRef::Array(element_type)) = &f.type_ref {
+                            if let TypeRef::Simple(type_name) = element_type.as_ref() {
+                                array_field_types.insert(f.name.clone(), type_name.clone());
+                            }
+                        }
+                    }
+                }
+                codegen.class_fields.insert(class.name.clone(), fields);
+                codegen.class_optional_fields.insert(class.name.clone(), optional_fields);
+                if !array_field_types.is_empty() {
+                    codegen.class_array_field_types.insert(class.name.clone(), array_field_types);
+                }
+
                 for member in &class.members {
                     if let crate::ast::Member::Method(method) = member {
                         if method.contains_fail {

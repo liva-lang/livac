@@ -1,0 +1,269 @@
+// AST (Abstract Syntax Tree) types for the Liva self-hosting compiler
+// Simplified subset covering the core language features
+
+import { Token, Span } from "./token.liva"
+
+// ─── Program ───────────────────────────────────────────────
+
+Program {
+    items: [TopLevel]
+    span: Span
+}
+
+// ─── Top Level Declarations ────────────────────────────────
+
+enum TopLevel {
+    FunctionDecl(decl: FuncDecl)
+    ClassDecl(decl: ClassDef)
+    EnumDecl(decl: EnumDef)
+    ImportDecl(decl: ImportDef)
+    ConstDecl(decl: ConstDef)
+    TestDecl(decl: TestDef)
+}
+
+FuncDecl {
+    name: string
+    params: [Param]
+    returnType: TypeRef?
+    body: [Stmt]
+    isAsync: bool
+    span: Span
+}
+
+Param {
+    name: string
+    typeRef: TypeRef?
+    defaultValue: Expr?
+    isVariadic: bool
+    span: Span
+}
+
+ClassDef {
+    name: string
+    fields: [FieldDef]
+    methods: [MethodDef]
+    span: Span
+}
+
+FieldDef {
+    name: string
+    typeRef: TypeRef
+    isPrivate: bool
+    defaultValue: Expr?
+    span: Span
+}
+
+MethodDef {
+    name: string
+    params: [Param]
+    returnType: TypeRef?
+    body: [Stmt]
+    isPrivate: bool
+    isStatic: bool
+    span: Span
+}
+
+EnumDef {
+    name: string
+    variants: [EnumVariantDef]
+    span: Span
+}
+
+EnumVariantDef {
+    name: string
+    fields: [EnumFieldDef]
+    span: Span
+}
+
+EnumFieldDef {
+    name: string
+    typeRef: TypeRef
+    span: Span
+}
+
+ImportDef {
+    names: [string]
+    source: string
+    span: Span
+}
+
+ConstDef {
+    name: string
+    typeRef: TypeRef?
+    value: Expr
+    span: Span
+}
+
+TestDef {
+    description: string
+    body: [Stmt]
+    span: Span
+}
+
+// ─── Type References ───────────────────────────────────────
+
+enum TypeRef {
+    Named(name: string)
+    Array(inner: TypeRef)
+    Optional(inner: TypeRef)
+    Tuple(elements: [TypeRef])
+    Map(key: TypeRef, value: TypeRef)
+    Set(inner: TypeRef)
+    Func(params: [TypeRef], ret: TypeRef)
+}
+
+// ─── Statements ────────────────────────────────────────────
+
+enum Stmt {
+    VarDecl(decl: VarDeclStmt)
+    ConstDecl(decl: ConstDeclStmt)
+    Assign(stmt: AssignStmt)
+    If(stmt: IfStmt)
+    While(stmt: WhileStmt)
+    For(stmt: ForStmt)
+    Switch(stmt: SwitchStmt)
+    Return(stmt: ReturnStmt)
+    Break(span: Span)
+    Continue(span: Span)
+    Throw(expr: Expr, span: Span)
+    Fail(message: Expr, span: Span)
+    Defer(body: [Stmt], span: Span)
+    Expr(expr: Expr, span: Span)
+}
+
+VarDeclStmt {
+    name: string
+    typeRef: TypeRef?
+    value: Expr?
+    span: Span
+}
+
+ConstDeclStmt {
+    name: string
+    typeRef: TypeRef?
+    value: Expr
+    span: Span
+}
+
+AssignStmt {
+    target: Expr
+    op: AssignOp
+    value: Expr
+    span: Span
+}
+
+enum AssignOp {
+    Eq
+    PlusEq
+    MinusEq
+    StarEq
+    SlashEq
+    PercentEq
+}
+
+IfStmt {
+    condition: Expr
+    thenBody: [Stmt]
+    elseBody: [Stmt]?
+    span: Span
+}
+
+WhileStmt {
+    condition: Expr
+    body: [Stmt]
+    span: Span
+}
+
+ForStmt {
+    indexVar: string?
+    itemVar: string
+    iterable: Expr
+    body: [Stmt]
+    span: Span
+}
+
+SwitchStmt {
+    subject: Expr
+    cases: [CaseClause]
+    defaultBody: [Stmt]?
+    span: Span
+}
+
+CaseClause {
+    pattern: Pattern
+    body: [Stmt]
+    span: Span
+}
+
+enum Pattern {
+    Literal(value: Expr)
+    EnumVariant(enumName: string, variant: string, bindings: [string])
+    Wildcard
+}
+
+ReturnStmt {
+    value: Expr?
+    span: Span
+}
+
+// ─── Expressions ───────────────────────────────────────────
+
+enum Expr {
+    IntLiteral(value: string, span: Span)
+    FloatLiteral(value: string, span: Span)
+    StringLiteral(value: string, span: Span)
+    StringTemplate(value: string, span: Span)
+    CharLiteral(value: string, span: Span)
+    BoolLiteral(value: bool, span: Span)
+    NullLiteral(span: Span)
+    Identifier(name: string, span: Span)
+    Binary(left: Expr, op: BinOp, right: Expr, span: Span)
+    Unary(op: UnaryOp, operand: Expr, span: Span)
+    Call(callee: Expr, args: [Expr], span: Span)
+    MethodCall(object: Expr, method: string, args: [Expr], span: Span)
+    Member(object: Expr, field: string, span: Span)
+    Index(object: Expr, index: Expr, span: Span)
+    ArrayLiteral(elements: [Expr], span: Span)
+    MapLiteral(entries: [MapEntry], span: Span)
+    IfExpr(condition: Expr, thenExpr: Expr, elseExpr: Expr, span: Span)
+    SwitchExpr(subject: Expr, arms: [SwitchArm], span: Span)
+    Or(expr: Expr, fallback: Expr, span: Span)
+    OrFail(expr: Expr, message: string, span: Span)
+    Range(start: Expr, end: Expr, inclusive: bool, span: Span)
+    Await(expr: Expr, span: Span)
+    Try(expr: Expr, span: Span)
+}
+
+enum BinOp {
+    Add
+    Sub
+    Mul
+    Div
+    Mod
+    Eq
+    Ne
+    Lt
+    Le
+    Gt
+    Ge
+    And
+    Or
+}
+
+enum UnaryOp {
+    Neg
+    Not
+    Bang
+}
+
+MapEntry {
+    key: Expr
+    value: Expr
+    span: Span
+}
+
+SwitchArm {
+    pattern: Pattern
+    body: Expr
+    span: Span
+}
