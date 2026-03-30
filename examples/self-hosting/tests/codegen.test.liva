@@ -583,3 +583,76 @@ describe("CodeGen — Constants", () => {
         expect(_contains(code, "const MAX_SIZE: i32 = 1024;")).toBe(true)
     })
 })
+
+// --- Enum Variant Access (BUG-010) ---
+
+describe("CodeGen - Enum Variant Access", () => {
+    test("Color.Red generates Color::Red", () => {
+        let expr = Expr.Member(Expr.Identifier("Color", _sp()), "Red", _sp())
+        let stmts = [Stmt.Expr(expr, _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "Color::Red")).toBe(true)
+    })
+
+    test("Status.Active generates Status::Active", () => {
+        let expr = Expr.Member(Expr.Identifier("Status", _sp()), "Active", _sp())
+        let stmts = [Stmt.Expr(expr, _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "Status::Active")).toBe(true)
+    })
+
+    test("lowercase object uses dot access", () => {
+        let expr = Expr.Member(Expr.Identifier("config", _sp()), "host", _sp())
+        let stmts = [Stmt.Expr(expr, _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "config.host")).toBe(true)
+    })
+
+    test("PascalCase constructor call preserved", () => {
+        let expr = Expr.Call(
+            Expr.Identifier("Point", _sp()),
+            [Expr.IntLiteral("10", _sp()), Expr.IntLiteral("20", _sp())],
+            _sp()
+        )
+        let stmts = [Stmt.Expr(expr, _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "Point(10, 20)")).toBe(true)
+    })
+
+    test("camelCase function call gets snake_cased", () => {
+        let expr = Expr.Call(
+            Expr.Identifier("getName", _sp()),
+            [],
+            _sp()
+        )
+        let stmts = [Stmt.Expr(expr, _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "get_name()")).toBe(true)
+    })
+
+    test("ALL_CAPS constant not treated as PascalCase", () => {
+        let c = ConstDef("MAX", TypeRef.Named("number"), Expr.IntLiteral("100", _sp()), _sp())
+        let code = _genProgram([TopLevel.ConstDecl(c)])
+        expect(_contains(code, "const MAX: i32 = 100;")).toBe(true)
+    })
+
+    test("enum variant in array literal", () => {
+        let items = [
+            Expr.Member(Expr.Identifier("Color", _sp()), "Red", _sp()),
+            Expr.Member(Expr.Identifier("Color", _sp()), "Green", _sp()),
+            Expr.Member(Expr.Identifier("Color", _sp()), "Blue", _sp())
+        ]
+        let arr = Expr.ArrayLiteral(items, _sp())
+        let stmts = [Stmt.VarDecl(VarDeclStmt("colors", TypeRef.None, arr, _sp()))]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "Color::Red")).toBe(true)
+        expect(_contains(code, "Color::Green")).toBe(true)
+        expect(_contains(code, "Color::Blue")).toBe(true)
+    })
+})
