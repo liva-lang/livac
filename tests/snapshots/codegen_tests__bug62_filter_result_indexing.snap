@@ -415,6 +415,12 @@ impl Library {
 
 }
 
+impl std::fmt::Display for Library {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Library {{ books: {:?} }}}}", self.books)
+    }
+}
+
 fn main() {
     let mut lib = Library::new();
     lib.add_book("Rust Book".to_string());

@@ -416,6 +416,12 @@ impl Lookup {
 
 }
 
+impl std::fmt::Display for Lookup {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Lookup {{ data: {:?} }}}}", self.data)
+    }
+}
+
 fn main() {
     let mut lookup = Lookup::new();
     lookup.add("a".to_string(), "Alpha".to_string());

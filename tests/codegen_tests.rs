@@ -3067,8 +3067,8 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    // Should NOT have PartialEq on User struct or auto Display (has explicit constructor)
-    assert!(!rust_code.contains("impl std::fmt::Display for User"), "should not have auto Display");
+    // BUG-004 fix: ALL classes with fields now get Display (even with explicit constructor)
+    assert!(rust_code.contains("impl std::fmt::Display for User"), "should have auto Display even with constructor");
     // All structs now get PartialEq (SH-008 fix: classes used as enum fields need it)
     assert!(rust_code.contains("#[derive(Debug, Clone, Default, PartialEq)]\npub struct User"), 
         "class with constructor should get PartialEq derive");

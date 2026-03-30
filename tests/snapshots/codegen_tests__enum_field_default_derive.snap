@@ -426,6 +426,12 @@ impl Item {
 
 }
 
+impl std::fmt::Display for Item {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Item {{ title: {}, priority: {:?}, done: {} }}}}", self.title, self.priority, self.done)
+    }
+}
+
 fn main() {
     let item = Item::new("Fix bug".to_string(), Priority::High);
     println!("{}", item.title);

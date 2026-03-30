@@ -404,6 +404,12 @@ impl Item {
 
 }
 
+impl std::fmt::Display for Item {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Item {{ name: {}, price: {} }}}}", self.name, self.price)
+    }
+}
+
 fn show_item(item: Item) {
     println!("{}", format!("{}{}", format!("{}{}", item.name, " costs "), item.price));
 }

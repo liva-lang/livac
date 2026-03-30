@@ -411,6 +411,12 @@ impl Counter {
 
 }
 
+impl std::fmt::Display for Counter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Counter {{ _count: {} }}}}", self._count)
+    }
+}
+
 fn main() {
     let mut c = Counter::new();
     c.increment();

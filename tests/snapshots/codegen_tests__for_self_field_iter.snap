@@ -404,6 +404,12 @@ impl TodoItem {
 
 }
 
+impl std::fmt::Display for TodoItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "TodoItem {{ title: {}, done: {} }}}}", self.title, self.done)
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct TodoList {
     pub items: Vec<TodoItem>,
@@ -436,6 +442,12 @@ impl TodoList {
         }
     }
 
+}
+
+impl std::fmt::Display for TodoList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "TodoList {{ items: {:?} }}}}", self.items)
+    }
 }
 
 fn main() {

@@ -409,6 +409,12 @@ impl Calculator {
 
 }
 
+impl std::fmt::Display for Calculator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Calculator {{ value: {} }}}}", self.value)
+    }
+}
+
 fn main() {
     let mut calc = Calculator::new(100);
     let (result, err) = match calc.divide(5) { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };

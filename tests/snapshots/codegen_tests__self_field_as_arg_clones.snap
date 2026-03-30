@@ -413,6 +413,12 @@ impl Task {
 
 }
 
+impl std::fmt::Display for Task {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Task {{ title: {}, priority: {} }}}}", self.title, self.priority)
+    }
+}
+
 fn main() {
     let t = Task::new("Fix bug".to_string(), "high".to_string());
     println!("{}", t.label());

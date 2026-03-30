@@ -408,6 +408,12 @@ impl Lexer {
 
 }
 
+impl std::fmt::Display for Lexer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Lexer {{ source: {}, chars: {:?}, pos: {} }}}}", self.source, self.chars, self.pos)
+    }
+}
+
 fn main() {
     let lex = Lexer::new("hello".to_string());
     println!("{}", lex.source);

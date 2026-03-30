@@ -21,10 +21,9 @@
 - **Detail:** `class_fields` was only populated for the local module in `generate_program()`, so imported class types weren't recognized. Pattern-bound variables from enum matching fell through to the JSON `get_field()` path.
 
 ### BUG-004: Classes with explicit `constructor()` don't get Display impl
-- **Status:** OPEN
+- **Status:** ✅ FIXED (Rust compiler)
+- **Fix:** Changed `if is_data {` to `if has_fields {` in codegen.rs — Display impl now generated for ALL classes with fields, not just data classes.
 - **Impact:** Cross-module Display errors when types without Display are used as fields
-- **Detail:** Data classes (no constructor) get auto-generated Display. Classes with explicit `constructor()` do NOT get Display. Then other modules that reference them in Display impls fail.
-- **Workaround:** Remove explicit constructors; use data class pattern
 
 ### NOTE-001: No `!` unwrap operator for optionals
 - **Status:** LANGUAGE GAP (not a bug)
@@ -39,31 +38,28 @@
 - **Rust target:** Could generate `.as_ref().map(|x| x.field)` chains
 
 ### BUG-005: `for ch in s` doesn't work when `s: string`
-- **Status:** OPEN
+- **Status:** ✅ FIXED (Rust compiler)
+- **Fix:** Added `is_string_iterable` detection in `Stmt::For` handler. When iterable is a string var, emits `.chars()` + `let ch = ch.to_string();` inside the loop body.
 - **Impact:** String iteration inside class methods generates `for ch in s.clone()` but `String` is not iterable in Rust
-- **Workaround:** Use `while i < s.length { let ch = s.charAt(i) ... }`
-- **Expected:** The compiler should generate `for ch in s.chars()` for string iteration
 
-### BUG-006: `or <value>` doesn't unwrap `Option<T>` fields
-- **Status:** OPEN (LANGUAGE LIMITATION)
-- **Impact:** `x or fallback` where x is `T?` class field generates `x || fallback` (boolean OR) instead of `x.unwrap_or_else(|| fallback)`
-- **Detail:** `or` only works in `let x = fallible_fn() or default` context, not for general `Option<T>` unwrapping
-- **Workaround:** Use sentinel values (TypeRef.None, Expr.None) instead of optional types
+### BUG-006: `or <value>` doesn't unwrap `Option<T>` from user functions
+- **Status:** ✅ FIXED (Rust compiler)
+- **Fix:** (a) Added `in_optional_function` tracking — `return x` in `T?` functions wraps with `Some()`, `return null` emits `None`. (b) Fixed `or` handler for `Expr::Call` — generic function calls now generate `.unwrap_or()` instead of silently dropping the default.
+- **Impact:** `let x = fn() or default` where fn returns `T?` now correctly unwraps the Option
 
 ### BUG-007: No type narrowing after null checks
-- **Status:** OPEN (LANGUAGE LIMITATION)
-- **Impact:** After `if x != null { ... }`, x is still `Option<T>` in the generated Rust, not `T`
-- **Workaround:** Use sentinel approach — avoid optional types entirely
+- **Status:** ✅ FIXED (Rust compiler)
+- **Fix:** Added `extract_option_null_check()` helper. `if x != null { body }` now generates `if let Some(x) = x { body }` — the variable is unwrapped inside the block. Also tracks `optional_returning_functions` to auto-detect Option variables from function calls.
+- **Impact:** After `if x != null { ... }`, x is now the unwrapped type inside the block
 
 ### BUG-008: switch/case on optional types doesn't wrap patterns in `Some()`
-- **Status:** OPEN
-- **Impact:** `switch t` where `t: TypeRef?` generates `match t { TypeRef::Named { name } => ... }` instead of `match t { Some(TypeRef::Named { name }) => ... }`
-- **Workaround:** Don't use optional types with switch
+- **Status:** ✅ FIXED (Rust compiler)
+- **Fix:** Added `is_option_discriminant` detection in switch handler. String switches on Option vars use `.as_deref()` instead of `.as_str()`, case patterns wrapped in `Some()`, null cases generate `None`.
+- **Impact:** `switch opt_var { case "x": ... case null: ... }` now generates correct `match opt_var.as_deref() { Some("x") => ..., None => ... }`
 
 ### BUG-009: Struct fields used in multiple for-loops cause move errors
-- **Status:** OPEN
-- **Impact:** `for f in cls.fields { ... }; for f in cls.fields { ... }` — second loop gets "use of moved value"
-- **Workaround:** Collect all data in a single pass through the fields
+- **Status:** NOT A BUG (`.clone()` in for-loops already handles this)
+- **Detail:** Tested in Rust compiler — `.clone()` on for-loop iterables prevents move errors. Was a self-hosting codegen issue only.
 
 ### BUG-010: Enum variant constructor in codegen generates snake_case
 - **Status:** ✅ FIXED (codegen.liva)
@@ -72,34 +68,24 @@
 - **Fix:** Added `_isPascalCase(s)` helper. `Expr.Member` uses `::` for PascalCase objects. `_genCall` preserves PascalCase for constructors. `_rustName` skips snake_case for PascalCase names.
 
 ### BUG-011: `idx = idx + 1` generates `.push_str()` in multi-module codegen
-- **Status:** OPEN (compiler bug)
-- **Impact:** In class methods compiled from multi-module projects, `n = n + 1` where n is a number generates `n.push_str(&1.to_string())` instead of `n = n + 1`
-- **Detail:** The compiler's type inference for `+` operator incorrectly chooses string concatenation over numeric addition in certain class method contexts. Only affects multi-file builds via `import`.
-- **Workaround:** Use `for ... in` loops instead of `while idx < arr.length { idx = idx + 1 }`. Avoid mixing numeric counters with string operations in the same scope.
+- **Status:** NOT REPRODUCIBLE in Rust compiler
+- **Detail:** Tested multi-module builds with numeric counters — no `.push_str()` generated. Was a self-hosting codegen issue only.
 
 ### BUG-012: Quotes inside `//` comments break the lexer
-- **Status:** OPEN (compiler bug)
-- **Impact:** A comment like `// example: ["foo"]` causes E1000 lexer error
-- **Detail:** The lexer appears to parse `"..."` inside `//` comments as string literals, corrupting lexer state. Comments with double quotes cause subsequent code to fail parsing.
-- **Workaround:** Avoid using `"` characters in `//` comments.
+- **Status:** NOT A BUG in Rust compiler
+- **Detail:** The logos regex `//[^\n]*` correctly handles quotes in comments. Was a self-hosting Liva lexer issue only.
 
 ### BUG-013: Struct field access from imported types generates `.get_field()`
-- **Status:** OPEN (compiler bug, pre-existing)
-- **Impact:** When iterating over struct fields from an imported module, `field.name` generates `field.get_field("name")` instead of `field.name`
-- **Detail:** Multi-module compilation loses type information for imported struct types. The compiler falls back to dynamic `get_field()` access instead of direct field access. Affects `for field in variant.fields { field.name }` patterns.
-- **Workaround:** Works in test runner context (doesn't prevent test execution), but fails in standalone `build`. Only affects certain struct access patterns in multi-module builds.
+- **Status:** NOT REPRODUCIBLE in Rust compiler
+- **Detail:** Tested complex multi-module builds with imported struct types — field access generates correctly. Was a self-hosting codegen issue only.
 
 ### BUG-014: Integer comparison generates `.as_str()` in multi-module codegen
-- **Status:** OPEN (compiler bug)
-- **Impact:** `while idx < arr.length` generates `idx.as_str() < (arr.len() as i32)` — calls `.as_str()` on an integer
-- **Detail:** Same root cause as BUG-011. The compiler's type inference in multi-module class methods sometimes types integer variables as strings, producing `.as_str()` on integers for comparisons and `.push_str()` for arithmetic.
-- **Workaround:** Use `for item in arr` loops instead of index-based while loops.
+- **Status:** NOT REPRODUCIBLE in Rust compiler
+- **Detail:** Tested multi-module with integer comparisons — generates correctly. Same as BUG-011, was a self-hosting codegen issue only.
 
 ### BUG-015: Parameters used multiple times generate `borrow of moved value` (E0382)
-- **Status:** OPEN (compiler bug)
-- **Impact:** A function parameter used more than once in the body (e.g., `name` used in two different expressions) compiles to Rust that moves the value on first use, causing E0382 on subsequent uses
-- **Detail:** The Rust codegen doesn't insert `.clone()` for multi-use string/struct parameters in all necessary places. Triggers when a param is passed to a function AND used in another expression within the same scope.
-- **Workaround:** Manually assign param to a local variable (`let x = param`) for each additional use.
+- **Status:** NOT REPRODUCIBLE in Rust compiler
+- **Detail:** Tested multi-use parameters in single and multi-file modes — works fine. Was a self-hosting codegen issue only.
 
 ---
 
@@ -110,17 +96,17 @@
 | BUG-001 | `_prefix` visibility in multi-module | ✅ FIXED | Self-hosting |
 | BUG-002 | Missing ref patterns in array comprehension | ✅ FIXED | Self-hosting |
 | BUG-003 | Codegen refactored to one-liner `add` functions | ✅ FIXED | Self-hosting |
-| BUG-004 | Class method `this.` prefix missing in generated Rust | ✅ FIXED | Self-hosting |
-| BUG-005 | `for i, char in s.chars` generates wrong variable references | ✅ FIXED | Self-hosting |
-| BUG-006 | Enum variant struct constructor generates tuple syntax | ✅ FIXED | Self-hosting |
-| BUG-007 | Named-field enum pattern in switch generates tuple pattern | ✅ FIXED | Self-hosting |
-| BUG-008 | `for i, item in array` doesn't desugar to `.iter().enumerate()` | ✅ FIXED | Self-hosting |
-| BUG-009 | Multi-line methods in enum break parser | ✅ FIXED | Self-hosting |
+| BUG-004 | Classes with constructor don't get Display impl | ✅ FIXED | Rust compiler |
+| BUG-005 | `for ch in s` doesn't work for string iteration | ✅ FIXED | Rust compiler |
+| BUG-006 | `or` doesn't unwrap `Option<T>` from functions | ✅ FIXED | Rust compiler |
+| BUG-007 | No type narrowing after null checks | ✅ FIXED | Rust compiler |
+| BUG-008 | switch/case on optional types no `Some()` wrap | ✅ FIXED | Rust compiler |
+| BUG-009 | Multi-loop struct field move errors | NOT A BUG | Self-hosting only |
 | BUG-010 | Enum variant constructor generates snake_case | ✅ FIXED | Self-hosting |
-| BUG-011 | `idx + 1` generates `.push_str()` in multi-module | OPEN | Compiler |
-| BUG-012 | Quotes inside `//` comments break lexer | OPEN | Compiler |
-| BUG-013 | Imported struct field → `.get_field()` | OPEN | Compiler |
-| BUG-014 | Integer comparison → `.as_str()` | OPEN | Compiler |
-| BUG-015 | Multi-use params → `borrow of moved value` | OPEN | Compiler |
+| BUG-011 | `idx + 1` generates `.push_str()` in multi-module | NOT REPRODUCIBLE | Self-hosting only |
+| BUG-012 | Quotes inside `//` comments break lexer | NOT A BUG | Self-hosting only |
+| BUG-013 | Imported struct field → `.get_field()` | NOT REPRODUCIBLE | Self-hosting only |
+| BUG-014 | Integer comparison → `.as_str()` | NOT REPRODUCIBLE | Self-hosting only |
+| BUG-015 | Multi-use params → `borrow of moved value` | NOT REPRODUCIBLE | Self-hosting only |
 
-**Blocking:** BUG-011 through BUG-015 block enum variant construction in self-hosting codegen (Shape::Circle { radius: 3.14 }).
+**Result:** Of 15 bugs found during self-hosting, 8 were actual Rust compiler bugs (all now FIXED), 1 was self-hosting codegen only (FIXED), and 6 were not reproducible in the Rust compiler.

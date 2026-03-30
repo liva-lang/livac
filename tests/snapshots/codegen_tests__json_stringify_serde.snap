@@ -404,6 +404,12 @@ impl Author {
 
 }
 
+impl std::fmt::Display for Author {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Author {{ id: {}, name: {} }}}}", self.id, self.name)
+    }
+}
+
 fn main() {
     let author = Author::new(1, "Alice".to_string());
     let (json, err) = match serde_json::to_string(&author) { Ok(s) => (Some(s), String::new()), Err(e) => (None, format!("JSON stringify error: {}", e)) };

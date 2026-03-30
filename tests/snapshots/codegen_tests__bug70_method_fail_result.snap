@@ -411,6 +411,12 @@ impl Finder {
 
 }
 
+impl std::fmt::Display for Finder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Finder {{ _items: {:?} }}}}", self._items)
+    }
+}
+
 fn main() {
     let mut f = Finder::new();
     let (result, err) = match f.find_item("b".to_string()) { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };

@@ -407,6 +407,12 @@ impl Token {
 
 }
 
+impl std::fmt::Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Token {{ r#type: {}, value: {}, line: {} }}}}", self.r#type, self.value, self.line)
+    }
+}
+
 fn main() {
     let tok = Token::new("ident".to_string(), "hello".to_string(), 1);
     println!("{}", tok.r#type);

@@ -419,6 +419,12 @@ impl Store {
 
 }
 
+impl std::fmt::Display for Store {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Store {{ prices: {:?}, tags: {:?} }}}}", self.prices, self.tags)
+    }
+}
+
 fn main() {
     let mut s = Store::new();
     s.add_price("apple".to_string(), 1);

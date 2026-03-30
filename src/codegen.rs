@@ -58,6 +58,7 @@ pub struct CodeGenerator {
     mut_self_methods: HashSet<String>,
     in_assignment_target: bool,
     in_fallible_function: bool,
+    in_optional_function: bool, // BUG-006: Track if inside function returning T?
     in_test_block: bool,
     /// Stack of test lifecycle hooks per describe() scope (for auto-invocation)
     test_hooks_stack: Vec<TestHookScope>,
@@ -86,6 +87,7 @@ pub struct CodeGenerator {
     fallible_methods: std::collections::HashSet<String>, // B19 fix: Track which class methods are fallible (method_name, not qualified)
     array_returning_functions: std::collections::HashMap<String, String>, // Track functions that return [T] (Vec) -> elem type
     string_returning_functions: std::collections::HashSet<String>, // Track functions that return string (String)
+    optional_returning_functions: std::collections::HashSet<String>, // BUG-007: Track functions that return T? (Option<T>)
     string_returning_methods: std::collections::HashSet<String>, // B100: Track class methods that return string (for VarDecl tracking)
     array_returning_methods: std::collections::HashMap<String, String>, // B100: Track class methods that return [T] (method_name -> elem_type)
     ref_lambda_params: std::collections::HashSet<String>, // Lambda params that are &T references (need *deref in comparisons)
@@ -162,6 +164,7 @@ impl CodeGenerator {
             mut_self_methods: HashSet::new(),
             in_assignment_target: false,
             in_fallible_function: false,
+            in_optional_function: false,
             in_test_block: false,
             in_string_template: false,
             bracket_notation_vars: std::collections::HashSet::new(),
@@ -187,6 +190,7 @@ impl CodeGenerator {
             fallible_methods: std::collections::HashSet::new(),
             array_returning_functions: std::collections::HashMap::new(),
             string_returning_functions: std::collections::HashSet::new(),
+            optional_returning_functions: std::collections::HashSet::new(),
             string_returning_methods: std::collections::HashSet::new(),
             array_returning_methods: std::collections::HashMap::new(),
             ref_lambda_params: std::collections::HashSet::new(),
@@ -3677,8 +3681,9 @@ impl CodeGenerator {
         self.dedent();
         self.writeln("}");
 
-        // Data class: auto-generate Display impl
-        if is_data {
+        // BUG-004 fix: Auto-generate Display impl for ALL classes with fields,
+        // not just data classes. Classes with explicit constructors also need Display.
+        if has_fields {
             self.output.push('\n');
             self.writeln(&format!(
                 "impl{} std::fmt::Display for {}{} {{",
@@ -4403,6 +4408,8 @@ impl CodeGenerator {
             self.write_indent();
             let was_fallible = self.in_fallible_function;
             self.in_fallible_function = func.contains_fail;
+            let was_optional = self.in_optional_function;
+            self.in_optional_function = matches!(&func.return_type, Some(TypeRef::Optional(_)));
 
             // Track return type for division casting (Bug #52)
             let prev_return_type = self.current_return_type.take();
@@ -4422,10 +4429,16 @@ impl CodeGenerator {
                 if !expr_returns_result {
                     self.output.push(')');
                 }
+            } else if self.in_optional_function {
+                // BUG-006: Wrap expression body in Some() for optional return
+                self.output.push_str("Some(");
+                self.generate_expr(expr)?;
+                self.output.push(')');
             } else {
                 self.generate_expr(expr)?;
             }
             self.in_fallible_function = was_fallible;
+            self.in_optional_function = was_optional;
             self.current_return_type = prev_return_type;
             self.output.push('\n');
 
@@ -4444,6 +4457,8 @@ impl CodeGenerator {
 
             let was_fallible = self.in_fallible_function;
             self.in_fallible_function = func.contains_fail;
+            let was_optional = self.in_optional_function;
+            self.in_optional_function = matches!(&func.return_type, Some(TypeRef::Optional(_)));
 
             // Track return type for division casting (Bug #52)
             let prev_return_type = self.current_return_type.take();
@@ -4458,6 +4473,7 @@ impl CodeGenerator {
                 self.writeln("Ok(())");
             }
             self.in_fallible_function = was_fallible;
+            self.in_optional_function = was_optional;
             self.current_return_type = prev_return_type;
 
             // Phase 4.2: Check for dead tasks (tasks that were never awaited)
@@ -5303,19 +5319,44 @@ impl CodeGenerator {
                                 self.generate_expr(default_val)?;
                                 self.output.push_str(" };\n");
                             } else {
+                                // BUG-006: Generic function call with `or` — unwrap Option
                                 write!(self.output, "let {} = ", var_name).unwrap();
                                 self.generate_expr(&var.init)?;
-                                self.output.push_str(";\n");
+                                self.output.push_str(".unwrap_or(");
+                                if matches!(default_val.as_ref(), Expr::Literal(Literal::String(_))) {
+                                    self.generate_expr(default_val)?;
+                                    self.output.push_str(".to_string()");
+                                } else {
+                                    self.generate_expr(default_val)?;
+                                }
+                                self.output.push_str(");\n");
                             }
                         } else {
+                            // BUG-006: Method call with `or` — unwrap Option
                             write!(self.output, "let {} = ", var_name).unwrap();
                             self.generate_expr(&var.init)?;
-                            self.output.push_str(";\n");
+                            self.output.push_str(".unwrap_or(");
+                            if matches!(default_val.as_ref(), Expr::Literal(Literal::String(_))) {
+                                self.generate_expr(default_val)?;
+                                self.output.push_str(".to_string()");
+                            } else {
+                                self.generate_expr(default_val)?;
+                            }
+                            self.output.push_str(");\n");
                         }
                     } else {
+                        // BUG-006: Generic fallback — use .unwrap_or / .unwrap_or_else for
+                        // functions that return Option<T> (user-defined or otherwise)
                         write!(self.output, "let {} = ", var_name).unwrap();
                         self.generate_expr(&var.init)?;
-                        self.output.push_str(";\n");
+                        self.output.push_str(".unwrap_or(");
+                        if matches!(default_val.as_ref(), Expr::Literal(Literal::String(_))) {
+                            self.generate_expr(default_val)?;
+                            self.output.push_str(".to_string()");
+                        } else {
+                            self.generate_expr(default_val)?;
+                        }
+                        self.output.push_str(");\n");
                     }
 
                     return Ok(());
@@ -6072,8 +6113,12 @@ impl CodeGenerator {
                         else if let Expr::Call(call) = &var.init {
                             if let Expr::Identifier(class_name) = &*call.callee {
                                 if let Some(name) = binding.name() {
+                                    // BUG-007: Track variables assigned from optional-returning functions
+                                    if self.optional_returning_functions.contains(class_name) {
+                                        self.option_value_vars.insert(name.to_string());
+                                    }
                                     // Check if this is an array-returning function
-                                    if let Some(elem_type) = self.array_returning_functions.get(class_name).cloned() {
+                                    else if let Some(elem_type) = self.array_returning_functions.get(class_name).cloned() {
                                         self.array_vars.insert(name.to_string());
                                         if !elem_type.is_empty() {
                                             self.typed_array_vars.insert(name.to_string(), elem_type);
@@ -6384,12 +6429,29 @@ impl CodeGenerator {
                 self.output.push_str(";\n");
             }
             Stmt::If(if_stmt) => {
+                // BUG-007: Detect `if x != null { ... }` where x is Option<T>
+                // Transform to `if let Some(x) = x { ... }` for type narrowing
+                let option_null_var = self.extract_option_null_check(&if_stmt.condition);
+                
                 self.write_indent();
-                self.output.push_str("if ");
-                self.generate_condition_expr(&if_stmt.condition)?;
-                self.output.push_str(" {\n");
+                if let Some(ref var_name) = option_null_var {
+                    // Generate: if let Some(var) = var { ... }
+                    write!(self.output, "if let Some({}) = {} {{\n", var_name, var_name).unwrap();
+                } else {
+                    self.output.push_str("if ");
+                    self.generate_condition_expr(&if_stmt.condition)?;
+                    self.output.push_str(" {\n");
+                }
                 self.indent();
+                // BUG-007: Inside the narrowed block, the variable is no longer Option
+                if let Some(ref var_name) = option_null_var {
+                    self.option_value_vars.remove(var_name);
+                }
                 self.generate_if_body(&if_stmt.then_branch)?;
+                // BUG-007: Restore Option tracking after the block
+                if let Some(ref var_name) = option_null_var {
+                    self.option_value_vars.insert(var_name.clone());
+                }
                 self.dedent();
                 self.write_indent();
                 self.output.push('}');
@@ -6554,14 +6616,41 @@ impl CodeGenerator {
                 let mutates_loop_var = is_self_field
                     && self.current_method_is_mut
                     && self.block_assigns_to_var_field(&for_stmt.body, &for_stmt.var);
+                // BUG-005 fix: Check if iterable is a string variable — if so,
+                // emit .chars() instead of .clone() since String is not iterable in Rust.
+                let is_string_iterable = match &for_stmt.iterable {
+                    Expr::Identifier(name) => {
+                        let sanitized = self.sanitize_name(name);
+                        self.string_vars.contains(&sanitized) || self.string_vars.contains(name.as_str())
+                    }
+                    Expr::Member { object, property } => {
+                        // this.field where field is a string
+                        if matches!(object.as_ref(), Expr::Identifier(name) if name == "this") {
+                            self.string_vars.contains(property)
+                        } else {
+                            false
+                        }
+                    }
+                    _ => false,
+                };
+
                 self.generate_expr(&for_stmt.iterable)?;
-                if is_self_field && mutates_loop_var {
+                if is_string_iterable {
+                    self.output.push_str(".chars()");
+                } else if is_self_field && mutates_loop_var {
                     self.output.push_str(".iter_mut()");
                 } else if is_self_field || needs_clone {
                     self.output.push_str(".clone()");
                 }
                 self.output.push_str(" {\n");
                 self.indent();
+
+                // BUG-005: When iterating over string chars, the loop variable is a Rust `char`.
+                // In Liva, characters are strings, so convert to String for compatibility.
+                if is_string_iterable {
+                    self.writeln(&format!("let {} = {}.to_string();", var_name, var_name));
+                    self.string_vars.insert(var_name.clone());
+                }
 
                 // Phase 11.3: Point-free in for loops
                 // for item in items => print  →  for item in items { print(item) }
@@ -6636,44 +6725,74 @@ impl CodeGenerator {
                     .iter()
                     .any(|case| matches!(&case.value, Expr::Literal(Literal::String(_))));
 
+                // BUG-008: Check if discriminant is an Option variable
+                let is_option_discriminant = if let Expr::Identifier(name) = &switch_stmt.discriminant {
+                    let sanitized = self.sanitize_name(name);
+                    self.option_value_vars.contains(&sanitized)
+                } else {
+                    false
+                };
+
                 self.write_indent();
                 self.output.push_str("match ");
                 self.generate_expr(&switch_stmt.discriminant)?;
                 // Add .as_str() for string-based switches so literals match
                 if is_string_switch {
-                    self.output.push_str(".as_str()");
+                    if is_option_discriminant {
+                        // BUG-008: Use .as_deref() for Option<String> -> Option<&str>
+                        self.output.push_str(".as_deref()");
+                    } else {
+                        self.output.push_str(".as_str()");
+                    }
                 }
                 self.output.push_str(" {\n");
                 self.indent();
 
                 for case in &switch_stmt.cases {
                     self.write_indent();
-                    // Detect enum variant patterns: Enum.Variant(a, b) parsed as MethodCall
-                    let (boxed_deref_bindings, enum_pattern) = if let Expr::MethodCall(mc) = &case.value {
-                        if let Expr::Identifier(name) = mc.object.as_ref() {
-                            if self.enum_variants.contains_key(name) {
-                                // This is an enum variant pattern — generate as pattern, not expression
-                                let variant = &mc.method;
-                                let bindings: Vec<String> = mc
-                                    .args
-                                    .iter()
-                                    .map(|a| {
-                                        if let Expr::Identifier(id) = a {
-                                            id.clone()
-                                        } else {
-                                            "_".to_string()
-                                        }
-                                    })
-                                    .collect();
-                                let pattern = Pattern::EnumVariant {
-                                    enum_name: name.clone(),
-                                    variant_name: variant.clone(),
-                                    bindings: bindings.clone(),
-                                };
-                                let deref_bindings =
-                                    self.get_boxed_pattern_bindings(&pattern);
-                                self.generate_pattern(&pattern)?;
-                                (deref_bindings, Some(pattern))
+
+                    // BUG-008: Handle null case → None pattern
+                    let is_null_case = matches!(&case.value, Expr::Literal(Literal::Null));
+
+                    // BUG-008: For null cases on Option discriminant, generate None pattern
+                    let (boxed_deref_bindings, enum_pattern) = if is_null_case && is_option_discriminant {
+                        self.output.push_str("None");
+                        (Vec::new(), None)
+                    } else {
+                        // BUG-008: Wrap non-null case values in Some() for Option discriminants
+                        if is_option_discriminant {
+                            self.output.push_str("Some(");
+                        }
+                        // Detect enum variant patterns: Enum.Variant(a, b) parsed as MethodCall
+                        let result = if let Expr::MethodCall(mc) = &case.value {
+                            if let Expr::Identifier(name) = mc.object.as_ref() {
+                                if self.enum_variants.contains_key(name) {
+                                    // This is an enum variant pattern — generate as pattern, not expression
+                                    let variant = &mc.method;
+                                    let bindings: Vec<String> = mc
+                                        .args
+                                        .iter()
+                                        .map(|a| {
+                                            if let Expr::Identifier(id) = a {
+                                                id.clone()
+                                            } else {
+                                                "_".to_string()
+                                            }
+                                        })
+                                        .collect();
+                                    let pattern = Pattern::EnumVariant {
+                                        enum_name: name.clone(),
+                                        variant_name: variant.clone(),
+                                        bindings: bindings.clone(),
+                                    };
+                                    let deref_bindings =
+                                        self.get_boxed_pattern_bindings(&pattern);
+                                    self.generate_pattern(&pattern)?;
+                                    (deref_bindings, Some(pattern))
+                                } else {
+                                    self.generate_expr(&case.value)?;
+                                    (Vec::new(), None)
+                                }
                             } else {
                                 self.generate_expr(&case.value)?;
                                 (Vec::new(), None)
@@ -6681,10 +6800,12 @@ impl CodeGenerator {
                         } else {
                             self.generate_expr(&case.value)?;
                             (Vec::new(), None)
+                        };
+                        // BUG-008: Close Some() wrapper
+                        if is_option_discriminant {
+                            self.output.push(')');
                         }
-                    } else {
-                        self.generate_expr(&case.value)?;
-                        (Vec::new(), None)
+                        result
                     };
                     self.output.push_str(" => {\n");
                     self.indent();
@@ -6757,6 +6878,16 @@ impl CodeGenerator {
                         self.output.push_str("Ok(");
                         self.generate_return_expr(expr)?;
                         self.output.push(')');
+                    } else if self.in_optional_function {
+                        // BUG-006: return value → return Some(value), return null → return None
+                        let is_null = matches!(expr, Expr::Literal(Literal::Null));
+                        if is_null {
+                            self.output.push_str("None");
+                        } else {
+                            self.output.push_str("Some(");
+                            self.generate_return_expr(expr)?;
+                            self.output.push(')');
+                        }
                     } else {
                         self.generate_return_expr(expr)?;
                     }
@@ -14655,6 +14786,28 @@ impl CodeGenerator {
     }
 
     /// Check if expression is a method call that returns Option<T> (find, first, last, min, max)
+    /// BUG-007: Detect `x != null` where x is an Option variable.
+    /// Returns the sanitized variable name if this is a null-check on an Option var.
+    fn extract_option_null_check(&self, condition: &Expr) -> Option<String> {
+        if let Expr::Binary { op: BinOp::Ne, left, right } = condition {
+            // x != null
+            if let (Expr::Identifier(name), Expr::Literal(Literal::Null)) = (left.as_ref(), right.as_ref()) {
+                let sanitized = self.sanitize_name(name);
+                if self.option_value_vars.contains(&sanitized) {
+                    return Some(sanitized);
+                }
+            }
+            // null != x
+            if let (Expr::Literal(Literal::Null), Expr::Identifier(name)) = (left.as_ref(), right.as_ref()) {
+                let sanitized = self.sanitize_name(name);
+                if self.option_value_vars.contains(&sanitized) {
+                    return Some(sanitized);
+                }
+            }
+        }
+        None
+    }
+
     fn is_option_returning_method(&self, expr: &Expr) -> bool {
         if let Expr::MethodCall(mc) = expr {
             matches!(mc.method.as_str(), "find" | "first" | "last" | "min" | "max")
@@ -18309,6 +18462,10 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext, al
                     if matches!(ret_type, TypeRef::Simple(name) if name == "string") {
                         codegen.string_returning_functions.insert(func.name.clone());
                     }
+                    // BUG-007: Track functions returning T? (Option<T>)
+                    if matches!(ret_type, TypeRef::Optional(_)) {
+                        codegen.optional_returning_functions.insert(func.name.clone());
+                    }
                 }
             }
             if let TopLevel::Class(class) = item {
@@ -18666,6 +18823,10 @@ fn generate_entry_point(
                     if matches!(ret_type, TypeRef::Simple(name) if name == "string") {
                         codegen.string_returning_functions.insert(func.name.clone());
                     }
+                    // BUG-007: Track functions returning T? (Option<T>)
+                    if matches!(ret_type, TypeRef::Optional(_)) {
+                        codegen.optional_returning_functions.insert(func.name.clone());
+                    }
                 }
             }
             // B23 fix: Also pre-populate fallible methods from imported classes
@@ -18791,6 +18952,12 @@ pub fn generate_with_ast(program: &Program, ctx: DesugarContext) -> Result<(Stri
                 if matches!(ret_type, TypeRef::Simple(name) if name == "string") {
                     generator
                         .string_returning_functions
+                        .insert(func.name.clone());
+                }
+                // BUG-007: Track functions returning T? (Option<T>)
+                if matches!(ret_type, TypeRef::Optional(_)) {
+                    generator
+                        .optional_returning_functions
                         .insert(func.name.clone());
                 }
             }
