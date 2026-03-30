@@ -37,3 +37,36 @@
 - **Expected:** `obj?.field` → returns `null` if `obj` is null, otherwise `obj.field`
 - **Workaround:** Nested `if x != null` checks or `or <default>` at each step
 - **Rust target:** Could generate `.as_ref().map(|x| x.field)` chains
+
+### BUG-005: `for ch in s` doesn't work when `s: string`
+- **Status:** OPEN
+- **Impact:** String iteration inside class methods generates `for ch in s.clone()` but `String` is not iterable in Rust
+- **Workaround:** Use `while i < s.length { let ch = s.charAt(i) ... }`
+- **Expected:** The compiler should generate `for ch in s.chars()` for string iteration
+
+### BUG-006: `or <value>` doesn't unwrap `Option<T>` fields
+- **Status:** OPEN (LANGUAGE LIMITATION)
+- **Impact:** `x or fallback` where x is `T?` class field generates `x || fallback` (boolean OR) instead of `x.unwrap_or_else(|| fallback)`
+- **Detail:** `or` only works in `let x = fallible_fn() or default` context, not for general `Option<T>` unwrapping
+- **Workaround:** Use sentinel values (TypeRef.None, Expr.None) instead of optional types
+
+### BUG-007: No type narrowing after null checks
+- **Status:** OPEN (LANGUAGE LIMITATION)
+- **Impact:** After `if x != null { ... }`, x is still `Option<T>` in the generated Rust, not `T`
+- **Workaround:** Use sentinel approach — avoid optional types entirely
+
+### BUG-008: switch/case on optional types doesn't wrap patterns in `Some()`
+- **Status:** OPEN
+- **Impact:** `switch t` where `t: TypeRef?` generates `match t { TypeRef::Named { name } => ... }` instead of `match t { Some(TypeRef::Named { name }) => ... }`
+- **Workaround:** Don't use optional types with switch
+
+### BUG-009: Struct fields used in multiple for-loops cause move errors
+- **Status:** OPEN
+- **Impact:** `for f in cls.fields { ... }; for f in cls.fields { ... }` — second loop gets "use of moved value"
+- **Workaround:** Collect all data in a single pass through the fields
+
+### BUG-010: Enum variant constructor in codegen generates snake_case
+- **Status:** OPEN (codegen.liva issue, not compiler)
+- **Impact:** `Color.Red` generates `color.red` instead of `Color::Red`
+- **Detail:** The self-hosting codegen applies `_rustName()` to enum variant access, which snake-cases it
+- **Fix needed:** Handle `Member` access on enum types differently — preserve PascalCase
