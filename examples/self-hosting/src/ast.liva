@@ -24,7 +24,7 @@ enum TopLevel {
 FuncDecl {
     name: string
     params: [Param]
-    returnType: TypeRef?
+    returnType: TypeRef
     body: [Stmt]
     isAsync: bool
     span: Span
@@ -32,8 +32,8 @@ FuncDecl {
 
 Param {
     name: string
-    typeRef: TypeRef?
-    defaultValue: Expr?
+    typeRef: TypeRef
+    defaultValue: Expr
     isVariadic: bool
     span: Span
 }
@@ -49,14 +49,14 @@ FieldDef {
     name: string
     typeRef: TypeRef
     isPrivate: bool
-    defaultValue: Expr?
+    defaultValue: Expr
     span: Span
 }
 
 MethodDef {
     name: string
     params: [Param]
-    returnType: TypeRef?
+    returnType: TypeRef
     body: [Stmt]
     isPrivate: bool
     isStatic: bool
@@ -89,7 +89,7 @@ ImportDef {
 
 ConstDef {
     name: string
-    typeRef: TypeRef?
+    typeRef: TypeRef
     value: Expr
     span: Span
 }
@@ -103,6 +103,7 @@ TestDef {
 // ─── Type References ───────────────────────────────────────
 
 enum TypeRef {
+    None
     Named(name: string)
     Array(inner: TypeRef)
     Optional(inner: TypeRef)
@@ -133,14 +134,14 @@ enum Stmt {
 
 VarDeclStmt {
     name: string
-    typeRef: TypeRef?
-    value: Expr?
+    typeRef: TypeRef
+    value: Expr
     span: Span
 }
 
 ConstDeclStmt {
     name: string
-    typeRef: TypeRef?
+    typeRef: TypeRef
     value: Expr
     span: Span
 }
@@ -164,7 +165,7 @@ enum AssignOp {
 IfStmt {
     condition: Expr
     thenBody: [Stmt]
-    elseBody: [Stmt]?
+    elseBody: [Stmt]
     span: Span
 }
 
@@ -175,7 +176,7 @@ WhileStmt {
 }
 
 ForStmt {
-    indexVar: string?
+    indexVar: string
     itemVar: string
     iterable: Expr
     body: [Stmt]
@@ -185,7 +186,7 @@ ForStmt {
 SwitchStmt {
     subject: Expr
     cases: [CaseClause]
-    defaultBody: [Stmt]?
+    defaultBody: [Stmt]
     span: Span
 }
 
@@ -202,13 +203,14 @@ enum Pattern {
 }
 
 ReturnStmt {
-    value: Expr?
+    value: Expr
     span: Span
 }
 
 // ─── Expressions ───────────────────────────────────────────
 
 enum Expr {
+    None(span: Span)
     IntLiteral(value: string, span: Span)
     FloatLiteral(value: string, span: Span)
     StringLiteral(value: string, span: Span)

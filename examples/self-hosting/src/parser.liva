@@ -285,7 +285,7 @@ Parser {
         let params = this._parseParams()
         this._expect(Token.RParen)
 
-        let returnType: TypeRef? = null
+        let returnType = TypeRef.None
         if this._match(Token.Colon) {
             returnType = this._parseTypeRef()
         }
@@ -328,7 +328,7 @@ Parser {
                     // Field: name: Type
                     this._expect(Token.Colon)
                     let typeRef = this._parseTypeRef()
-                    let defaultVal: Expr? = null
+                    let defaultVal = Expr.None(Span(0, 0))
                     if this._match(Token.Assign) {
                         defaultVal = this._parseExpr()
                     }
@@ -340,7 +340,7 @@ Parser {
                     this._expect(Token.LParen)
                     let params = this._parseParams()
                     this._expect(Token.RParen)
-                    let returnType: TypeRef? = null
+                    let returnType = TypeRef.None
                     if this._match(Token.Colon) {
                         returnType = this._parseTypeRef()
                     }
@@ -366,7 +366,7 @@ Parser {
         let start = this._peekSpan().start
         this._expect(Token.ConstKw)
         let name = this._expectIdent()
-        let typeRef: TypeRef? = null
+        let typeRef = TypeRef.None
         if this._match(Token.Colon) {
             typeRef = this._parseTypeRef()
         }
@@ -393,11 +393,11 @@ Parser {
         let start = this._peekSpan().start
         let isVariadic = this._match(Token.DotDotDot)
         let name = this._expectIdent()
-        let typeRef: TypeRef? = null
+        let typeRef = TypeRef.None
         if this._match(Token.Colon) {
             typeRef = this._parseTypeRef()
         }
-        let defaultVal: Expr? = null
+        let defaultVal = Expr.None(Span(0, 0))
         if this._match(Token.Assign) {
             defaultVal = this._parseExpr()
         }
@@ -521,11 +521,11 @@ Parser {
         let start = this._peekSpan().start
         this._expect(Token.LetKw)
         let name = this._expectIdent()
-        let typeRef: TypeRef? = null
+        let typeRef = TypeRef.None
         if this._match(Token.Colon) {
             typeRef = this._parseTypeRef()
         }
-        let value: Expr? = null
+        let value = Expr.None(Span(0, 0))
         if this._match(Token.Assign) {
             value = this._parseExpr()
         }
@@ -539,7 +539,7 @@ Parser {
         let start = this._peekSpan().start
         this._expect(Token.ConstKw)
         let name = this._expectIdent()
-        let typeRef: TypeRef? = null
+        let typeRef = TypeRef.None
         if this._match(Token.Colon) {
             typeRef = this._parseTypeRef()
         }
@@ -558,7 +558,7 @@ Parser {
         this._expect(Token.LBrace)
         let thenBody = this._parseBlock()
         this._expect(Token.RBrace)
-        let elseBody: [Stmt]? = null
+        let elseBody: [Stmt] = []
         if this._match(Token.ElseKw) {
             // else if ... or else { ... }
             switch this._peek() {
@@ -597,7 +597,7 @@ Parser {
         let start = this._peekSpan().start
         this._expect(Token.ForKw)
         let firstName = this._expectIdent()
-        let indexVar: string? = null
+        let indexVar = ""
         let itemVar = ""
         if this._match(Token.Comma) {
             // for i, item in ...
@@ -623,7 +623,7 @@ Parser {
         let subject = this._parseExpr()
         this._expect(Token.LBrace)
         let cases: [CaseClause] = []
-        let defaultBody: [Stmt]? = null
+        let defaultBody: [Stmt] = []
         while not this._check(Token.RBrace) and not this._isAtEnd() {
             if this._match(Token.DefaultKw) {
                 this._expect(Token.Colon)
@@ -683,7 +683,7 @@ Parser {
     _parseReturn(): Stmt {
         let start = this._peekSpan().start
         this._expect(Token.ReturnKw)
-        let value: Expr? = null
+        let value = Expr.None(Span(0, 0))
         if not this._check(Token.RBrace) and not this._isAtEnd() {
             value = this._parseExpr()
         }
