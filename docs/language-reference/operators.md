@@ -6,15 +6,15 @@
 
 | Prec | Operator | Description | Assoc |
 |------|----------|-------------|-------|
-| 1 | `()` `[]` `.` `::` | Grouping, index, member, method ref | L→R |
-| 2 | `-` `!` `not` `await` | Unary | R→L |
+| 1 | `()` `[]` `.` `?.` `::` `!` | Grouping, index, member, chain, ref, unwrap | L→R |
+| 2 | `-` `not` `await` | Unary prefix | R→L |
 | 3 | `*` `/` `%` | Multiply, divide, modulo | L→R |
 | 4 | `+` `-` | Add, subtract | L→R |
 | 5 | `..` | Range | L→R |
 | 6 | `<` `<=` `>` `>=` | Comparison | L→R |
 | 7 | `==` `!=` | Equality | L→R |
 | 8 | `and` `&&` | Logical AND | L→R |
-| 9 | `or` `\|\|` | Logical OR | L→R |
+| 9 | `or` `\|\|` | Logical OR / Optional fallback | L→R |
 | 10 | `? :` | Ternary | R→L |
 | 11 | `=` `+=` `-=` `*=` `/=` `%=` | Assignment | R→L |
 
@@ -83,6 +83,37 @@ Both word and symbol forms supported:
 |------|--------|-----------|
 | `and` | `&&` | Logical AND |
 | `or` | `\|\|` | Logical OR |
-| `not` | `!` | Logical NOT |
+| `not` | `!` (prefix) | Logical NOT |
 
 Short-circuit evaluation applies to both forms.
+
+## Optional Operators
+
+### Unwrap (`!` postfix)
+
+Force-unwraps an optional value. Panics if `null`.
+
+```liva
+let user = find_user("admin")  // string?
+print(user!)                   // string — panics if null
+```
+
+### Optional Chaining (`?.`)
+
+Safely accesses a field on an optional value. Returns `null` if the base is `null`.
+
+```liva
+let user = find_user("admin")  // User?
+let name = user?.name           // string? — null if user is null
+```
+
+### Optional Fallback (`or`)
+
+When used with an optional value, `or` provides a default instead of acting as logical OR:
+
+```liva
+let name = user?.name or "Unknown"   // string — never null
+let port = getPort() or 8080         // number — fallback if null
+```
+
+> **Note:** `or` is context-sensitive — with optional values it's `unwrap_or`, with booleans it's logical OR.

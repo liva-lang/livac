@@ -2391,6 +2391,16 @@ impl Parser {
                 } else {
                     return Err(self.error("Expected identifier before '::'".to_string()));
                 }
+            } else if self.match_token(&Token::Bang) {
+                // Postfix unwrap: expr! → Unwrap(expr)
+                expr = Expr::Unwrap(Box::new(expr));
+            } else if self.match_token(&Token::QuestionDot) {
+                // Optional chaining: expr?.field
+                let name = self.parse_method_name()?;
+                expr = Expr::OptionalChain {
+                    object: Box::new(expr),
+                    property: name,
+                };
             } else {
                 break;
             }

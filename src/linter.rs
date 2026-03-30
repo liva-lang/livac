@@ -662,6 +662,12 @@ impl Linter {
             Expr::MethodRef { object, .. } => {
                 used.insert(object.clone());
             }
+            Expr::Unwrap(inner) => {
+                self.collect_var_usages_expr(inner, used);
+            }
+            Expr::OptionalChain { object, .. } => {
+                self.collect_var_usages_expr(object, used);
+            }
             Expr::Literal(_) | Expr::RustBlock { .. } => {}
         }
     }

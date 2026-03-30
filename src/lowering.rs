@@ -425,6 +425,10 @@ fn lower_expr(expr: &ast::Expr) -> ir::Expr {
             // Method references are handled directly in codegen
             ir::Expr::Unsupported(expr.clone())
         }
+        ast::Expr::Unwrap(_) | ast::Expr::OptionalChain { .. } => {
+            // Unwrap and optional chaining are handled directly in codegen
+            ir::Expr::Unsupported(expr.clone())
+        }
         ast::Expr::RustBlock { code } => ir::Expr::RustBlock(code.clone()),
     }
 }

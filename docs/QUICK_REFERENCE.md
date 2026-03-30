@@ -381,6 +381,43 @@ let val = parseInt(input) or 0
 
 ---
 
+## 15. Optional Operators (`!` unwrap, `?.` chaining)
+
+### Unwrap Operator (`!`)
+
+Force-unwraps optional values. Panics at runtime if `null`.
+
+```liva
+let user = find_user("admin")   // string?
+print(user!)                    // "Admin" — panics if null
+```
+
+### Optional Chaining (`?.`)
+
+Safely accesses fields on optional values. Returns `null` if base is `null`.
+
+```liva
+User { name: string; age: number }
+
+let user = find_user("admin")   // User?
+let name = user?.name            // string? — "Admin" or null
+print(name or "Unknown")        // "Admin"
+
+let nobody = find_user("nobody")
+print(nobody?.age or 0)          // 0
+```
+
+### Combining with `or`
+
+`or` on an optional value provides a safe default (not logical OR):
+
+```liva
+let name = user?.name or "Guest"   // string — always has a value
+let age = user?.age or 0           // number — fallback to 0
+```
+
+---
+
 ## CSV: Custom Separator
 
 ```liva

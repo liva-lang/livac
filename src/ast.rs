@@ -687,6 +687,15 @@ pub enum Expr {
         object: String, // Class name or variable name
         method: String, // Method name or "new" for constructors
     },
+    /// Postfix unwrap: `expr!` → `.unwrap()` (v2.0.0)
+    /// Panics at runtime if the value is None
+    Unwrap(Box<Expr>),
+    /// Optional chaining: `expr?.field` → `.as_ref().map(|x| x.field)` (v2.0.0)
+    /// Returns null if expr is None, otherwise accesses the field
+    OptionalChain {
+        object: Box<Expr>,
+        property: String,
+    },
     /// Inline Rust code block (v1.5.0)
     /// Example: `rust { use std::collections::HashMap; HashMap::new() }`
     RustBlock {

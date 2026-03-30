@@ -1072,6 +1072,12 @@ impl Formatter {
             Expr::RustBlock { code } => {
                 format!("rust {{{}}}", code)
             }
+            Expr::Unwrap(inner) => {
+                format!("{}!", self.format_expr(inner))
+            }
+            Expr::OptionalChain { object, property } => {
+                format!("{}?.{}", self.format_expr(object), property)
+            }
         }
     }
 

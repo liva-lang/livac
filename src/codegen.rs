@@ -6134,6 +6134,13 @@ impl CodeGenerator {
                                 }
                             }
                         }
+                        // Track variables assigned from optional chaining: let name = user?.field
+                        // The result is Option<T>, so track as option_value_var
+                        else if matches!(&var.init, Expr::OptionalChain { .. }) {
+                            if let Some(name) = binding.name() {
+                                self.option_value_vars.insert(self.sanitize_name(name));
+                            }
+                        }
                         // Mark instances created via struct literal: let x = ClassName { ... }
                         else if let Expr::StructLiteral { type_name, .. } = &var.init {
                             if let Some(name) = binding.name() {
@@ -8498,6 +8505,17 @@ impl CodeGenerator {
             }
             Expr::RustBlock { code } => {
                 self.generate_rust_block(code)?;
+            }
+            Expr::Unwrap(inner) => {
+                // Postfix unwrap: expr! → expr.unwrap()
+                self.generate_expr(inner)?;
+                self.output.push_str(".unwrap()");
+            }
+            Expr::OptionalChain { object, property } => {
+                // Optional chaining: expr?.field → expr.as_ref().map(|__v| __v.field.clone())
+                // For string properties, generates .clone() to get owned String
+                self.generate_expr(object)?;
+                write!(self.output, ".as_ref().map(|__v| __v.{}.clone())", self.sanitize_name(property)).unwrap();
             }
         }
         Ok(())
@@ -14465,6 +14483,21 @@ impl CodeGenerator {
     }
 
     fn generate_binary_operation(&mut self, op: &BinOp, left: &Expr, right: &Expr) -> Result<()> {
+        // Optional chaining or default: expr?.field or default → expr.as_ref().map(...).unwrap_or(default)
+        // Also handles option_value_vars: optVar or default → optVar.unwrap_or(default)
+        if matches!(op, BinOp::Or) && (matches!(left, Expr::OptionalChain { .. }) || matches!(left, Expr::Identifier(name) if self.option_value_vars.contains(&self.sanitize_name(name)))) {
+            self.generate_expr(left)?;
+            self.output.push_str(".unwrap_or(");
+            if matches!(right, Expr::Literal(Literal::String(_))) {
+                self.generate_expr(right)?;
+                self.output.push_str(".to_string()");
+            } else {
+                self.generate_expr(right)?;
+            }
+            self.output.push(')');
+            return Ok(());
+        }
+
         // Bug #76 fix: map.get(key) or default → map.get(&key).cloned().unwrap_or(default)
         // When `or` is used with a Map.get expression, it's not boolean OR but Option unwrap
         if matches!(op, BinOp::Or) && self.is_map_get_call(left) {
@@ -18312,6 +18345,8 @@ fn ast_expr_has_async(expr: &Expr) -> bool {
             .any(|(k, v)| ast_expr_has_async(k) || ast_expr_has_async(v)),
         Expr::SetLiteral(elements) => elements.iter().any(ast_expr_has_async),
         Expr::Literal(_) | Expr::Identifier(_) | Expr::MethodRef { .. } => false,
+        Expr::Unwrap(inner) => ast_expr_has_async(inner),
+        Expr::OptionalChain { object, .. } => ast_expr_has_async(object),
         // B24 fix: check rust { } blocks for .await
         Expr::RustBlock { code } => code.contains(".await"),
     }

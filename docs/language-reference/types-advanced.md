@@ -110,6 +110,66 @@ if maybe != null {
 }
 ```
 
+### Unwrap Operator (`!`)
+
+The postfix `!` operator unwraps an optional value, panicking at runtime if the value is `null`:
+
+```liva
+find_user(id: string): string? {
+    if id == "admin" { return "Admin" }
+    return null
+}
+
+main() {
+    let user = find_user("admin")
+    print(user!)   // "Admin" — unwraps the Option
+}
+```
+
+> **Warning:** Using `!` on a `null` value causes a runtime panic. Prefer `or` for safe fallback.
+
+**Compiles to:** `value.unwrap()`
+
+### Optional Chaining (`?.`)
+
+The `?.` operator safely accesses a field on an optional value, returning `null` if the value is `null`:
+
+```liva
+User { name: string; age: number }
+
+find_user(id: string): User? {
+    if id == "admin" { return User("Admin", 30) }
+    return null
+}
+
+main() {
+    let user = find_user("admin")
+    let name = user?.name           // string? — "Admin"
+    print(name or "Unknown")        // "Admin"
+
+    let nobody = find_user("nobody")
+    let age = nobody?.age           // number? — null
+    print(age or 0)                 // 0
+}
+```
+
+**Key points:**
+- `expr?.field` returns `T?` — the result is always optional
+- Chain with `or <default>` to provide a fallback value
+- Chain with `!` to force-unwrap: `user?.name!` (dangerous)
+
+**Compiles to:** `value.as_ref().map(|v| v.field.clone())`
+
+### Combining Optional Operators
+
+| Pattern | Meaning | Safe? |
+|---------|---------|-------|
+| `x or default` | Fallback if null | ✅ Safe |
+| `x!` | Force unwrap (panic if null) | ⚠️ Unsafe |
+| `x?.field` | Access field if not null | ✅ Safe |
+| `x?.field or default` | Access field with fallback | ✅ Safe |
+| `x?.field!` | Access field then force unwrap | ⚠️ Unsafe |
+
 ### Optional Fields in Classes
 
 ```liva

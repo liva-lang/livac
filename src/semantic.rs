@@ -781,6 +781,8 @@ impl SemanticAnalyzer {
             }),
             // B24 fix: check rust { } blocks for .await
             Expr::RustBlock { code } => code.contains(".await"),
+            Expr::Unwrap(inner) => self.expr_contains_async(inner),
+            Expr::OptionalChain { object, .. } => self.expr_contains_async(object),
             _ => false,
         }
     }
@@ -1845,6 +1847,8 @@ impl SemanticAnalyzer {
                 // Raw Rust code — no semantic validation needed
                 Ok(())
             }
+            Expr::Unwrap(inner) => self.validate_expr(inner),
+            Expr::OptionalChain { object, .. } => self.validate_expr(object),
         }
     }
 
@@ -2484,6 +2488,8 @@ impl SemanticAnalyzer {
                     })
             }
             Expr::RustBlock { .. } => false,
+            Expr::Unwrap(inner) => Self::expr_contains_await(inner),
+            Expr::OptionalChain { object, .. } => Self::expr_contains_await(object),
         }
     }
 

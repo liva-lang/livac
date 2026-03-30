@@ -26,16 +26,18 @@
 - **Impact:** Cross-module Display errors when types without Display are used as fields
 
 ### NOTE-001: No `!` unwrap operator for optionals
-- **Status:** LANGUAGE GAP (not a bug)
-- **Impact:** Cannot write `optionalVar!` to unwrap. Must use `or <default>` or restructure code.
-- **Workaround:** Use `or <value>` / `or fail` or restructure with switch/if
+- **Status:** ✅ IMPLEMENTED
+- **Syntax:** `optionalVar!` — postfix unwrap, panics at runtime if null
+- **Codegen:** `value.unwrap()`
+- **Example:** `let user = find_user("admin"); print(user!)`
+- **Documented:** `docs/language-reference/types-advanced.md`, `docs/language-reference/operators.md`
 
 ### NOTE-002: No optional chaining operator `?.`
-- **Status:** FEATURE REQUEST
-- **Impact:** Cannot write `user?.profile?.name` for safe navigation through nullable chains.
-- **Expected:** `obj?.field` → returns `null` if `obj` is null, otherwise `obj.field`
-- **Workaround:** Nested `if x != null` checks or `or <default>` at each step
-- **Rust target:** Could generate `.as_ref().map(|x| x.field)` chains
+- **Status:** ✅ IMPLEMENTED
+- **Syntax:** `obj?.field` → returns `null` if `obj` is null, otherwise `obj.field`
+- **Codegen:** `obj.as_ref().map(|__v| __v.field.clone())`
+- **Example:** `let name = user?.name or "Guest"`
+- **Documented:** `docs/language-reference/types-advanced.md`, `docs/language-reference/operators.md`
 
 ### BUG-005: `for ch in s` doesn't work when `s: string`
 - **Status:** ✅ FIXED (Rust compiler)
@@ -108,5 +110,7 @@
 | BUG-013 | Imported struct field → `.get_field()` | NOT REPRODUCIBLE | Self-hosting only |
 | BUG-014 | Integer comparison → `.as_str()` | NOT REPRODUCIBLE | Self-hosting only |
 | BUG-015 | Multi-use params → `borrow of moved value` | NOT REPRODUCIBLE | Self-hosting only |
+| NOTE-001 | `!` unwrap operator | ✅ IMPLEMENTED | New feature |
+| NOTE-002 | `?.` optional chaining | ✅ IMPLEMENTED | New feature |
 
-**Result:** Of 15 bugs found during self-hosting, 8 were actual Rust compiler bugs (all now FIXED), 1 was self-hosting codegen only (FIXED), and 6 were not reproducible in the Rust compiler.
+**Result:** Of 15 bugs found during self-hosting, 8 were actual Rust compiler bugs (all now FIXED), 1 was self-hosting codegen only (FIXED), and 6 were not reproducible in the Rust compiler. 2 feature requests (NOTE-001, NOTE-002) have been implemented.

@@ -192,6 +192,14 @@ let data = File.read("f.txt") or fail "Cannot read"
 
 // Shorthand: or <default> (fallback)
 let port = parseInt("abc") or 3000
+
+// Unwrap operator (!) — force-unwrap, panics if null
+let user = find_user("admin")   // string?
+print(user!)                    // "Admin" — panics if null
+
+// Optional chaining (?.) — safe field access on nullable values
+let name = user?.name            // string? — null if user is null
+let safe = user?.name or "Guest" // string — with fallback
 ```
 
 ## Defer

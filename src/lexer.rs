@@ -214,6 +214,8 @@ pub enum Token {
     DotDot,
     #[token("?")]
     Question,
+    #[token("?.")]
+    QuestionDot,
     #[token("=>")]
     Arrow,
 
