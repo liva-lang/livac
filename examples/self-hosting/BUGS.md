@@ -6,17 +6,14 @@
 ---
 
 ### BUG-001: Variables inside `test()` blocks not mutable
-- **Status:** OPEN
-- **Impact:** Compilation error when calling `&mut self` methods on variables
-- **Detail:** In regular functions, `let x = ...` generates `let mut x = ...` in Rust. Inside `test()` blocks, it generates `let x = ...` (immutable). This causes Rust errors when calling methods that take `&mut self`.
-- **Repro:** Any `let x = Foo(...)` followed by `x.mutatingMethod()` inside a `test()` block
-- **Workaround:** Use helper functions outside test blocks for operations requiring mutable variables
+- **Status:** ✅ FIXED (v1.5.0+)
+- **Fix:** Added `collect_mutated_vars_in_block` pre-analysis to `generate_test`, `generate_test_case`, and `generate_test_lifecycle` — same as `generate_function` already does.
+- **Detail:** `mutated_vars` set was never populated for test blocks, so all variables got `let x` instead of `let mut x`.
 
 ### BUG-002: Mutation detection misses `self._field` inside switch/case blocks
-- **Status:** OPEN
-- **Impact:** Methods that modify `self._field` inside switch cases are generated as `&self` instead of `&mut self`
-- **Detail:** The compiler checks for `self._field = ...` to decide `&self` vs `&mut self`, but doesn't detect mutations inside `switch/case` blocks.
-- **Workaround:** Call `this._advance()` (already `&mut self`) instead of direct `this._pos = this._pos + 1`
+- **Status:** ✅ FIXED (v1.5.0+)
+- **Fix:** Added `Stmt::Switch`, `Stmt::TryCatch`, `Stmt::Block` cases to `stmt_modifies_self()` and `Expr::Switch` to `expr_modifies_self()`. The `_ => false` wildcard was silently ignoring mutations inside match arms.
+- **Detail:** `method_modifies_self()` scanner didn't recurse into switch/case/try-catch blocks.
 
 ### BUG-003: Field access on enum variant payload uses `get_field()` instead of direct access
 - **Status:** ✅ FIXED (v1.5.0+)
@@ -33,3 +30,10 @@
 - **Status:** LANGUAGE GAP (not a bug)
 - **Impact:** Cannot write `optionalVar!` to unwrap. Must use `or <default>` or restructure code.
 - **Workaround:** Use `or <value>` / `or fail` or restructure with switch/if
+
+### NOTE-002: No optional chaining operator `?.`
+- **Status:** FEATURE REQUEST
+- **Impact:** Cannot write `user?.profile?.name` for safe navigation through nullable chains.
+- **Expected:** `obj?.field` → returns `null` if `obj` is null, otherwise `obj.field`
+- **Workaround:** Nested `if x != null` checks or `or <default>` at each step
+- **Rust target:** Could generate `.as_ref().map(|x| x.field)` chains

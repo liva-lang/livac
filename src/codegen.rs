@@ -1175,6 +1175,32 @@ impl CodeGenerator {
                     || self.for_mutates_self_transitively(for_stmt)
             }
             Stmt::Defer(defer_stmt) => self.stmt_modifies_self(&defer_stmt.body),
+            // BUG-002 fix: Recurse into switch/case arms for self-mutation detection
+            Stmt::Switch(switch_stmt) => {
+                if self.expr_modifies_self(&switch_stmt.discriminant) {
+                    return true;
+                }
+                for case in &switch_stmt.cases {
+                    for s in &case.body {
+                        if self.stmt_modifies_self(s) {
+                            return true;
+                        }
+                    }
+                }
+                if let Some(default) = &switch_stmt.default {
+                    for s in default {
+                        if self.stmt_modifies_self(s) {
+                            return true;
+                        }
+                    }
+                }
+                false
+            }
+            Stmt::TryCatch(tc) => {
+                self.block_modifies_self(&tc.try_block)
+                    || self.block_modifies_self(&tc.catch_block)
+            }
+            Stmt::Block(block) => self.block_modifies_self(block),
             _ => false,
         }
     }
@@ -1229,6 +1255,29 @@ impl CodeGenerator {
             }
             Expr::Binary { left, right, .. } => {
                 self.expr_modifies_self(left) || self.expr_modifies_self(right)
+            }
+            // BUG-002 fix: Recurse into switch expression arms for self-mutation detection
+            Expr::Switch(switch_expr) => {
+                if self.expr_modifies_self(&switch_expr.discriminant) {
+                    return true;
+                }
+                for arm in &switch_expr.arms {
+                    match &arm.body {
+                        SwitchBody::Expr(e) => {
+                            if self.expr_modifies_self(e) {
+                                return true;
+                            }
+                        }
+                        SwitchBody::Block(stmts) => {
+                            for s in stmts {
+                                if self.stmt_modifies_self(s) {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+                false
             }
             _ => false,
         }
@@ -4436,8 +4485,17 @@ impl CodeGenerator {
         self.indent();
         let was_in_test = self.in_test_block;
         self.in_test_block = true;
+
+        // BUG-001 fix: Pre-analyze mutated variables in test body
+        // (same as generate_function does for regular function bodies)
+        let saved_mutated = std::mem::take(&mut self.mutated_vars);
+        let mut temp_mutated = std::collections::HashSet::new();
+        self.collect_mutated_vars_in_block(&test.body, &mut temp_mutated);
+        self.mutated_vars = temp_mutated;
+
         self.generate_block_inner(&test.body)?;
         self.in_test_block = was_in_test;
+        self.mutated_vars = saved_mutated;
         self.dedent();
         self.writeln("}");
         Ok(())
@@ -4631,6 +4689,14 @@ impl CodeGenerator {
         let was_in_test = self.in_test_block;
         self.in_test_block = true;
 
+        // BUG-001 fix: Pre-analyze mutated variables in test body
+        let saved_mutated = std::mem::take(&mut self.mutated_vars);
+        if let LambdaBody::Block(block) = lambda_body {
+            let mut temp_mutated = std::collections::HashSet::new();
+            self.collect_mutated_vars_in_block(block, &mut temp_mutated);
+            self.mutated_vars = temp_mutated;
+        }
+
         // Auto-invoke beforeEach hooks (from all parent describe scopes + current)
         let before_hooks = self.collect_before_each_hooks();
         for (hook_fn, hook_is_async) in &before_hooks {
@@ -4663,6 +4729,7 @@ impl CodeGenerator {
         }
 
         self.in_test_block = was_in_test;
+        self.mutated_vars = saved_mutated;
         self.dedent();
         self.writeln("}");
         Ok(())
@@ -4703,6 +4770,14 @@ impl CodeGenerator {
         }
         self.indent();
 
+        // BUG-001 fix: Pre-analyze mutated variables in lifecycle hook body
+        let saved_mutated = std::mem::take(&mut self.mutated_vars);
+        if let LambdaBody::Block(block) = lambda_body {
+            let mut temp_mutated = std::collections::HashSet::new();
+            self.collect_mutated_vars_in_block(block, &mut temp_mutated);
+            self.mutated_vars = temp_mutated;
+        }
+
         match lambda_body {
             LambdaBody::Block(block) => {
                 self.generate_block_inner(block)?;
@@ -4714,6 +4789,7 @@ impl CodeGenerator {
             }
         }
 
+        self.mutated_vars = saved_mutated;
         self.dedent();
         self.writeln("}");
         Ok(())
