@@ -520,6 +520,10 @@ CodeGen {
             }
             case Expr.Member(object, field, span): {
                 let obj = this._genExpr(object)
+                // Enum variant access: Color.Red → Color::Red
+                if this._isPascalCase(obj) {
+                    return $"{obj}::{field}"
+                }
                 let f = this._rustName(field)
                 return $"{obj}.{f}"
             }
@@ -594,6 +598,10 @@ CodeGen {
                         return "println!()"
                     }
                     return $"println!(\"{{}}\", {argStr})"
+                }
+                // Preserve PascalCase for constructor calls: Point(1,2) → Point(1,2)
+                if this._isPascalCase(name) {
+                    return $"{name}({argStr})"
                 }
                 let fn_name = this._rustName(name)
                 return $"{fn_name}({argStr})"
@@ -799,6 +807,26 @@ CodeGen {
     // ── Name Helpers ────────────────────────────────
 
 
+    _isPascalCase(s: string): bool {
+        if s.length == 0 {
+            return false
+        }
+        let first = s.charAt(0)
+        if first < "A" or first > "Z" {
+            return false
+        }
+        // Must contain at least one lowercase letter (distinguishes from SCREAMING_CASE)
+        let i = 1
+        while i < s.length {
+            let ch = s.charAt(i)
+            if ch >= "a" and ch <= "z" {
+                return true
+            }
+            i = i + 1
+        }
+        return false
+    }
+
     _rustName(name: string): string {
         // Convert Liva names to Rust-compatible names
         // Private fields: _name → name (Rust doesn't use _ prefix for fields)
@@ -813,6 +841,10 @@ CodeGen {
         }
         if name == "self" {
             return "r#self"
+        }
+        // PascalCase names are types/enums — preserve as-is
+        if this._isPascalCase(name) {
+            return name
         }
         // Convert camelCase to snake_case for functions/variables
         return this._toSnakeCase(name)
