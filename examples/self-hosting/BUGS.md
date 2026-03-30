@@ -66,7 +66,61 @@
 - **Workaround:** Collect all data in a single pass through the fields
 
 ### BUG-010: Enum variant constructor in codegen generates snake_case
-- **Status:** OPEN (codegen.liva issue, not compiler)
+- **Status:** ✅ FIXED (codegen.liva)
 - **Impact:** `Color.Red` generates `color.red` instead of `Color::Red`
 - **Detail:** The self-hosting codegen applies `_rustName()` to enum variant access, which snake-cases it
-- **Fix needed:** Handle `Member` access on enum types differently — preserve PascalCase
+- **Fix:** Added `_isPascalCase(s)` helper. `Expr.Member` uses `::` for PascalCase objects. `_genCall` preserves PascalCase for constructors. `_rustName` skips snake_case for PascalCase names.
+
+### BUG-011: `idx = idx + 1` generates `.push_str()` in multi-module codegen
+- **Status:** OPEN (compiler bug)
+- **Impact:** In class methods compiled from multi-module projects, `n = n + 1` where n is a number generates `n.push_str(&1.to_string())` instead of `n = n + 1`
+- **Detail:** The compiler's type inference for `+` operator incorrectly chooses string concatenation over numeric addition in certain class method contexts. Only affects multi-file builds via `import`.
+- **Workaround:** Use `for ... in` loops instead of `while idx < arr.length { idx = idx + 1 }`. Avoid mixing numeric counters with string operations in the same scope.
+
+### BUG-012: Quotes inside `//` comments break the lexer
+- **Status:** OPEN (compiler bug)
+- **Impact:** A comment like `// example: ["foo"]` causes E1000 lexer error
+- **Detail:** The lexer appears to parse `"..."` inside `//` comments as string literals, corrupting lexer state. Comments with double quotes cause subsequent code to fail parsing.
+- **Workaround:** Avoid using `"` characters in `//` comments.
+
+### BUG-013: Struct field access from imported types generates `.get_field()`
+- **Status:** OPEN (compiler bug, pre-existing)
+- **Impact:** When iterating over struct fields from an imported module, `field.name` generates `field.get_field("name")` instead of `field.name`
+- **Detail:** Multi-module compilation loses type information for imported struct types. The compiler falls back to dynamic `get_field()` access instead of direct field access. Affects `for field in variant.fields { field.name }` patterns.
+- **Workaround:** Works in test runner context (doesn't prevent test execution), but fails in standalone `build`. Only affects certain struct access patterns in multi-module builds.
+
+### BUG-014: Integer comparison generates `.as_str()` in multi-module codegen
+- **Status:** OPEN (compiler bug)
+- **Impact:** `while idx < arr.length` generates `idx.as_str() < (arr.len() as i32)` — calls `.as_str()` on an integer
+- **Detail:** Same root cause as BUG-011. The compiler's type inference in multi-module class methods sometimes types integer variables as strings, producing `.as_str()` on integers for comparisons and `.push_str()` for arithmetic.
+- **Workaround:** Use `for item in arr` loops instead of index-based while loops.
+
+### BUG-015: Parameters used multiple times generate `borrow of moved value` (E0382)
+- **Status:** OPEN (compiler bug)
+- **Impact:** A function parameter used more than once in the body (e.g., `name` used in two different expressions) compiles to Rust that moves the value on first use, causing E0382 on subsequent uses
+- **Detail:** The Rust codegen doesn't insert `.clone()` for multi-use string/struct parameters in all necessary places. Triggers when a param is passed to a function AND used in another expression within the same scope.
+- **Workaround:** Manually assign param to a local variable (`let x = param`) for each additional use.
+
+---
+
+## Summary
+
+| Bug | Description | Status | Scope |
+|-----|-------------|--------|-------|
+| BUG-001 | `_prefix` visibility in multi-module | ✅ FIXED | Self-hosting |
+| BUG-002 | Missing ref patterns in array comprehension | ✅ FIXED | Self-hosting |
+| BUG-003 | Codegen refactored to one-liner `add` functions | ✅ FIXED | Self-hosting |
+| BUG-004 | Class method `this.` prefix missing in generated Rust | ✅ FIXED | Self-hosting |
+| BUG-005 | `for i, char in s.chars` generates wrong variable references | ✅ FIXED | Self-hosting |
+| BUG-006 | Enum variant struct constructor generates tuple syntax | ✅ FIXED | Self-hosting |
+| BUG-007 | Named-field enum pattern in switch generates tuple pattern | ✅ FIXED | Self-hosting |
+| BUG-008 | `for i, item in array` doesn't desugar to `.iter().enumerate()` | ✅ FIXED | Self-hosting |
+| BUG-009 | Multi-line methods in enum break parser | ✅ FIXED | Self-hosting |
+| BUG-010 | Enum variant constructor generates snake_case | ✅ FIXED | Self-hosting |
+| BUG-011 | `idx + 1` generates `.push_str()` in multi-module | OPEN | Compiler |
+| BUG-012 | Quotes inside `//` comments break lexer | OPEN | Compiler |
+| BUG-013 | Imported struct field → `.get_field()` | OPEN | Compiler |
+| BUG-014 | Integer comparison → `.as_str()` | OPEN | Compiler |
+| BUG-015 | Multi-use params → `borrow of moved value` | OPEN | Compiler |
+
+**Blocking:** BUG-011 through BUG-015 block enum variant construction in self-hosting codegen (Shape::Circle { radius: 3.14 }).

@@ -1,0 +1,658 @@
+// Code Generator Tests
+// Tests that the CodeGen produces correct Rust output from AST nodes
+
+import { Span } from "../src/token.liva"
+import {
+    Program, TopLevel, FuncDecl, Param, ClassDef, FieldDef, MethodDef,
+    EnumDef, EnumVariantDef, EnumFieldDef, ImportDef, ConstDef, TestDef,
+    TypeRef, Stmt, VarDeclStmt, ConstDeclStmt, AssignStmt, AssignOp,
+    IfStmt, WhileStmt, ForStmt, SwitchStmt, CaseClause, Pattern,
+    ReturnStmt, Expr, BinOp, UnaryOp, MapEntry, SwitchArm
+} from "../src/ast.liva"
+import { CodeGen } from "../src/codegen.liva"
+
+// ─── Helpers ───────────────────────────────────────────
+
+_sp(): Span => Span(0, 0)
+
+_genProgram(items: [TopLevel]): string {
+    let gen = CodeGen()
+    let prog = Program(items, _sp())
+    return gen.generate(prog)
+}
+
+_contains(haystack: string, needle: string): bool {
+    return haystack.contains(needle)
+}
+
+// ─── Function Generation ───────────────────────────────
+
+describe("CodeGen — Functions", () => {
+    test("empty main function", () => {
+        let decl = FuncDecl("main", [], TypeRef.None, [], false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "fn main()")).toBe(true)
+    })
+
+    test("function with return type", () => {
+        let ret = TypeRef.Named("number")
+        let body = [Stmt.Return(ReturnStmt(Expr.IntLiteral("42", _sp()), _sp()))]
+        let decl = FuncDecl("getAnswer", [], ret, body, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "fn get_answer() -> i32")).toBe(true)
+        expect(_contains(code, "return 42;")).toBe(true)
+    })
+
+    test("function with params", () => {
+        let p1 = Param("x", TypeRef.Named("number"), Expr.None(_sp()), false, _sp())
+        let p2 = Param("y", TypeRef.Named("number"), Expr.None(_sp()), false, _sp())
+        let ret = TypeRef.Named("number")
+        let body = [Stmt.Return(ReturnStmt(
+            Expr.Binary(
+                Expr.Identifier("x", _sp()),
+                BinOp.Add,
+                Expr.Identifier("y", _sp()),
+                _sp()
+            ), _sp()
+        ))]
+        let decl = FuncDecl("add", [p1, p2], ret, body, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "fn add(x: i32, y: i32) -> i32")).toBe(true)
+        expect(_contains(code, "return (x + y);")).toBe(true)
+    })
+
+    test("function with string param", () => {
+        let p = Param("name", TypeRef.Named("string"), Expr.None(_sp()), false, _sp())
+        let ret = TypeRef.Named("string")
+        let decl = FuncDecl("greet", [p], ret, [], false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "fn greet(name: String) -> String")).toBe(true)
+    })
+})
+
+// ─── Class Generation ──────────────────────────────────
+
+describe("CodeGen — Classes", () => {
+    test("simple data class", () => {
+        let fields = [
+            FieldDef("x", TypeRef.Named("number"), false, Expr.None(_sp()), _sp()),
+            FieldDef("y", TypeRef.Named("number"), false, Expr.None(_sp()), _sp())
+        ]
+        let cls = ClassDef("Point", fields, [], _sp())
+        let code = _genProgram([TopLevel.ClassDecl(cls)])
+        expect(_contains(code, "pub struct Point")).toBe(true)
+        expect(_contains(code, "pub x: i32")).toBe(true)
+        expect(_contains(code, "pub y: i32")).toBe(true)
+        expect(_contains(code, "#[derive(Clone, Debug, PartialEq)]")).toBe(true)
+    })
+
+    test("class constructor function", () => {
+        let fields = [
+            FieldDef("name", TypeRef.Named("string"), false, Expr.None(_sp()), _sp())
+        ]
+        let cls = ClassDef("User", fields, [], _sp())
+        let code = _genProgram([TopLevel.ClassDecl(cls)])
+        expect(_contains(code, "fn User(name: String) -> User")).toBe(true)
+    })
+
+    test("class with private fields", () => {
+        let fields = [
+            FieldDef("_count", TypeRef.Named("number"), true, Expr.None(_sp()), _sp())
+        ]
+        let cls = ClassDef("Counter", fields, [], _sp())
+        let code = _genProgram([TopLevel.ClassDecl(cls)])
+        // Private fields should NOT have "pub"
+        expect(_contains(code, "pub _count")).toBe(false)
+    })
+
+    test("class with method", () => {
+        let fields = [
+            FieldDef("value", TypeRef.Named("number"), false, Expr.None(_sp()), _sp())
+        ]
+        let body = [
+            Stmt.Return(ReturnStmt(
+                Expr.Member(Expr.Identifier("this", _sp()), "value", _sp()),
+                _sp()
+            ))
+        ]
+        let method = MethodDef("getValue", [], TypeRef.Named("number"), body, false, false, _sp())
+        let cls = ClassDef("Box", fields, [method], _sp())
+        let code = _genProgram([TopLevel.ClassDecl(cls)])
+        expect(_contains(code, "impl Box")).toBe(true)
+        expect(_contains(code, "fn get_value(&mut self) -> i32")).toBe(true)
+    })
+})
+
+// ─── Enum Generation ───────────────────────────────────
+
+describe("CodeGen — Enums", () => {
+    test("simple enum", () => {
+        let variants = [
+            EnumVariantDef("Red", [], _sp()),
+            EnumVariantDef("Green", [], _sp()),
+            EnumVariantDef("Blue", [], _sp())
+        ]
+        let e = EnumDef("Color", variants, _sp())
+        let code = _genProgram([TopLevel.EnumDecl(e)])
+        expect(_contains(code, "pub enum Color")).toBe(true)
+        expect(_contains(code, "Red,")).toBe(true)
+        expect(_contains(code, "Green,")).toBe(true)
+        expect(_contains(code, "Blue,")).toBe(true)
+    })
+
+    test("enum with fields", () => {
+        let circleFields = [
+            EnumFieldDef("radius", TypeRef.Named("float"), _sp())
+        ]
+        let rectFields = [
+            EnumFieldDef("width", TypeRef.Named("float"), _sp()),
+            EnumFieldDef("height", TypeRef.Named("float"), _sp())
+        ]
+        let variants = [
+            EnumVariantDef("Circle", circleFields, _sp()),
+            EnumVariantDef("Rect", rectFields, _sp()),
+            EnumVariantDef("Point", [], _sp())
+        ]
+        let e = EnumDef("Shape", variants, _sp())
+        let code = _genProgram([TopLevel.EnumDecl(e)])
+        expect(_contains(code, "Circle { radius: f64 }")).toBe(true)
+        expect(_contains(code, "Rect { width: f64, height: f64 }")).toBe(true)
+        expect(_contains(code, "Point,")).toBe(true)
+    })
+
+    test("enum derives", () => {
+        let e = EnumDef("Status", [EnumVariantDef("Ok", [], _sp())], _sp())
+        let code = _genProgram([TopLevel.EnumDecl(e)])
+        expect(_contains(code, "#[derive(Clone, Debug, PartialEq)]")).toBe(true)
+    })
+})
+
+// ─── Statement Generation ──────────────────────────────
+
+describe("CodeGen — Statements", () => {
+    test("let declaration", () => {
+        let varDecl = VarDeclStmt("count", TypeRef.None, Expr.IntLiteral("0", _sp()), _sp())
+        let decl = FuncDecl("main", [], TypeRef.None, [Stmt.VarDecl(varDecl)], false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "let mut count = 0;")).toBe(true)
+    })
+
+    test("let with type annotation", () => {
+        let varDecl = VarDeclStmt("name", TypeRef.Named("string"), Expr.StringLiteral("Alice", _sp()), _sp())
+        let decl = FuncDecl("main", [], TypeRef.None, [Stmt.VarDecl(varDecl)], false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "let mut name: String")).toBe(true)
+    })
+
+    test("const declaration", () => {
+        let constDecl = ConstDeclStmt("MAX", TypeRef.Named("number"), Expr.IntLiteral("100", _sp()), _sp())
+        let decl = FuncDecl("main", [], TypeRef.None, [Stmt.ConstDecl(constDecl)], false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "let max: i32 = 100;")).toBe(true)
+    })
+
+    test("assignment", () => {
+        let assign = AssignStmt(
+            Expr.Identifier("x", _sp()), AssignOp.Eq, Expr.IntLiteral("5", _sp()), _sp()
+        )
+        let decl = FuncDecl("main", [], TypeRef.None, [Stmt.Assign(assign)], false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "x = 5;")).toBe(true)
+    })
+
+    test("compound assignment", () => {
+        let assign = AssignStmt(
+            Expr.Identifier("x", _sp()), AssignOp.PlusEq, Expr.IntLiteral("1", _sp()), _sp()
+        )
+        let decl = FuncDecl("main", [], TypeRef.None, [Stmt.Assign(assign)], false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "x += 1;")).toBe(true)
+    })
+
+    test("if statement", () => {
+        let ifStmt = IfStmt(
+            Expr.Binary(Expr.Identifier("x", _sp()), BinOp.Gt, Expr.IntLiteral("0", _sp()), _sp()),
+            [Stmt.Return(ReturnStmt(Expr.BoolLiteral(true, _sp()), _sp()))],
+            [],
+            _sp()
+        )
+        let decl = FuncDecl("main", [], TypeRef.None, [Stmt.If(ifStmt)], false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "if (x > 0)")).toBe(true)
+    })
+
+    test("if-else statement", () => {
+        let ifStmt = IfStmt(
+            Expr.BoolLiteral(true, _sp()),
+            [Stmt.Expr(Expr.Call(Expr.Identifier("print", _sp()), [Expr.StringLiteral("yes", _sp())], _sp()), _sp())],
+            [Stmt.Expr(Expr.Call(Expr.Identifier("print", _sp()), [Expr.StringLiteral("no", _sp())], _sp()), _sp())],
+            _sp()
+        )
+        let decl = FuncDecl("main", [], TypeRef.None, [Stmt.If(ifStmt)], false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "} else {")).toBe(true)
+    })
+
+    test("while loop", () => {
+        let whileStmt = WhileStmt(
+            Expr.Binary(Expr.Identifier("i", _sp()), BinOp.Lt, Expr.IntLiteral("10", _sp()), _sp()),
+            [],
+            _sp()
+        )
+        let decl = FuncDecl("main", [], TypeRef.None, [Stmt.While(whileStmt)], false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "while (i < 10)")).toBe(true)
+    })
+
+    test("for loop", () => {
+        let forStmt = ForStmt(
+            "", "item",
+            Expr.Identifier("items", _sp()),
+            [],
+            _sp()
+        )
+        let decl = FuncDecl("main", [], TypeRef.None, [Stmt.For(forStmt)], false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "for item in items")).toBe(true)
+    })
+
+    test("for loop with index", () => {
+        let forStmt = ForStmt(
+            "i", "item",
+            Expr.Identifier("items", _sp()),
+            [],
+            _sp()
+        )
+        let decl = FuncDecl("main", [], TypeRef.None, [Stmt.For(forStmt)], false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "enumerate()")).toBe(true)
+    })
+
+    test("return statement", () => {
+        let ret = ReturnStmt(Expr.IntLiteral("42", _sp()), _sp())
+        let decl = FuncDecl("main", [], TypeRef.None, [Stmt.Return(ret)], false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "return 42;")).toBe(true)
+    })
+
+    test("break and continue", () => {
+        let stmts: [Stmt] = [
+            Stmt.Break(_sp()),
+            Stmt.Continue(_sp())
+        ]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "break;")).toBe(true)
+        expect(_contains(code, "continue;")).toBe(true)
+    })
+
+    test("throw statement", () => {
+        let stmts = [Stmt.Throw(Expr.StringLiteral("error!", _sp()), _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "panic!")).toBe(true)
+    })
+})
+
+// ─── Expression Generation ─────────────────────────────
+
+describe("CodeGen — Expressions", () => {
+    test("integer literal", () => {
+        let stmts = [Stmt.Expr(Expr.IntLiteral("42", _sp()), _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "42;")).toBe(true)
+    })
+
+    test("float literal", () => {
+        let stmts = [Stmt.Expr(Expr.FloatLiteral("3.14", _sp()), _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "3.14;")).toBe(true)
+    })
+
+    test("string literal", () => {
+        let stmts = [Stmt.Expr(Expr.StringLiteral("hello", _sp()), _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "\"hello\".to_string()")).toBe(true)
+    })
+
+    test("bool literal true", () => {
+        let stmts = [Stmt.Expr(Expr.BoolLiteral(true, _sp()), _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "true;")).toBe(true)
+    })
+
+    test("null literal", () => {
+        let stmts = [Stmt.Expr(Expr.NullLiteral(_sp()), _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "None;")).toBe(true)
+    })
+
+    test("binary expression", () => {
+        let expr = Expr.Binary(
+            Expr.IntLiteral("2", _sp()), BinOp.Mul, Expr.IntLiteral("3", _sp()), _sp()
+        )
+        let stmts = [Stmt.Expr(expr, _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "(2 * 3)")).toBe(true)
+    })
+
+    test("unary negation", () => {
+        let expr = Expr.Unary(UnaryOp.Neg, Expr.IntLiteral("5", _sp()), _sp())
+        let stmts = [Stmt.Expr(expr, _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "-5")).toBe(true)
+    })
+
+    test("function call", () => {
+        let expr = Expr.Call(
+            Expr.Identifier("compute", _sp()),
+            [Expr.IntLiteral("1", _sp()), Expr.IntLiteral("2", _sp())],
+            _sp()
+        )
+        let stmts = [Stmt.Expr(expr, _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "compute(1, 2)")).toBe(true)
+    })
+
+    test("print becomes println!", () => {
+        let expr = Expr.Call(
+            Expr.Identifier("print", _sp()),
+            [Expr.StringLiteral("hello", _sp())],
+            _sp()
+        )
+        let stmts = [Stmt.Expr(expr, _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "println!")).toBe(true)
+    })
+
+    test("member access", () => {
+        let expr = Expr.Member(Expr.Identifier("point", _sp()), "x", _sp())
+        let stmts = [Stmt.Expr(expr, _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "point.x")).toBe(true)
+    })
+
+    test("index expression", () => {
+        let expr = Expr.Index(
+            Expr.Identifier("arr", _sp()),
+            Expr.IntLiteral("0", _sp()),
+            _sp()
+        )
+        let stmts = [Stmt.Expr(expr, _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "arr[0 as usize]")).toBe(true)
+    })
+
+    test("array literal", () => {
+        let expr = Expr.ArrayLiteral(
+            [Expr.IntLiteral("1", _sp()), Expr.IntLiteral("2", _sp()), Expr.IntLiteral("3", _sp())],
+            _sp()
+        )
+        let stmts = [Stmt.Expr(expr, _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "vec![1, 2, 3]")).toBe(true)
+    })
+
+    test("range expression", () => {
+        let expr = Expr.Range(
+            Expr.IntLiteral("0", _sp()),
+            Expr.IntLiteral("10", _sp()),
+            false,
+            _sp()
+        )
+        let stmts = [Stmt.Expr(expr, _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "0..10")).toBe(true)
+    })
+
+    test("inclusive range", () => {
+        let expr = Expr.Range(
+            Expr.IntLiteral("1", _sp()),
+            Expr.IntLiteral("5", _sp()),
+            true,
+            _sp()
+        )
+        let stmts = [Stmt.Expr(expr, _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "1..=5")).toBe(true)
+    })
+})
+
+// ─── Method Call Mapping ───────────────────────────────
+
+describe("CodeGen — Method Mappings", () => {
+    test("push method", () => {
+        let expr = Expr.MethodCall(
+            Expr.Identifier("arr", _sp()), "push",
+            [Expr.IntLiteral("1", _sp())], _sp()
+        )
+        let stmts = [Stmt.Expr(expr, _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "arr.push(1)")).toBe(true)
+    })
+
+    test("length becomes len", () => {
+        let expr = Expr.MethodCall(
+            Expr.Identifier("arr", _sp()), "length", [], _sp()
+        )
+        let stmts = [Stmt.Expr(expr, _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "arr.len()")).toBe(true)
+    })
+
+    test("join method", () => {
+        let expr = Expr.MethodCall(
+            Expr.Identifier("parts", _sp()), "join",
+            [Expr.StringLiteral(", ", _sp())], _sp()
+        )
+        let stmts = [Stmt.Expr(expr, _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "parts.join")).toBe(true)
+    })
+
+    test("contains method", () => {
+        let expr = Expr.MethodCall(
+            Expr.Identifier("s", _sp()), "contains",
+            [Expr.StringLiteral("x", _sp())], _sp()
+        )
+        let stmts = [Stmt.Expr(expr, _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "s.contains")).toBe(true)
+    })
+})
+
+// ─── Type References ───────────────────────────────────
+
+describe("CodeGen — Types", () => {
+    test("number maps to i32", () => {
+        let p = Param("x", TypeRef.Named("number"), Expr.None(_sp()), false, _sp())
+        let decl = FuncDecl("foo", [p], TypeRef.None, [], false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "x: i32")).toBe(true)
+    })
+
+    test("string maps to String", () => {
+        let p = Param("s", TypeRef.Named("string"), Expr.None(_sp()), false, _sp())
+        let decl = FuncDecl("foo", [p], TypeRef.None, [], false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "s: String")).toBe(true)
+    })
+
+    test("float maps to f64", () => {
+        let p = Param("f", TypeRef.Named("float"), Expr.None(_sp()), false, _sp())
+        let decl = FuncDecl("foo", [p], TypeRef.None, [], false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "f: f64")).toBe(true)
+    })
+
+    test("array type", () => {
+        let p = Param("items", TypeRef.Array(TypeRef.Named("number")), Expr.None(_sp()), false, _sp())
+        let decl = FuncDecl("foo", [p], TypeRef.None, [], false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "items: Vec<i32>")).toBe(true)
+    })
+
+    test("optional type", () => {
+        let p = Param("maybe", TypeRef.Optional(TypeRef.Named("string")), Expr.None(_sp()), false, _sp())
+        let decl = FuncDecl("foo", [p], TypeRef.None, [], false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "maybe: Option<String>")).toBe(true)
+    })
+
+    test("map type", () => {
+        let p = Param("m", TypeRef.Map(TypeRef.Named("string"), TypeRef.Named("number")), Expr.None(_sp()), false, _sp())
+        let decl = FuncDecl("foo", [p], TypeRef.None, [], false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "HashMap<String, i32>")).toBe(true)
+    })
+
+    test("custom type stays as-is", () => {
+        let p = Param("p", TypeRef.Named("Point"), Expr.None(_sp()), false, _sp())
+        let decl = FuncDecl("foo", [p], TypeRef.None, [], false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "p: Point")).toBe(true)
+    })
+})
+
+// ─── Switch / Pattern Matching ─────────────────────────
+
+describe("CodeGen — Switch", () => {
+    test("switch statement", () => {
+        let switchStmt = SwitchStmt(
+            Expr.Identifier("color", _sp()),
+            [
+                CaseClause(
+                    Pattern.EnumVariant("Color", "Red", []),
+                    [Stmt.Expr(Expr.Call(Expr.Identifier("print", _sp()), [Expr.StringLiteral("red", _sp())], _sp()), _sp())],
+                    _sp()
+                )
+            ],
+            [Stmt.Expr(Expr.Call(Expr.Identifier("print", _sp()), [Expr.StringLiteral("other", _sp())], _sp()), _sp())],
+            _sp()
+        )
+        let decl = FuncDecl("main", [], TypeRef.None, [Stmt.Switch(switchStmt)], false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "match color")).toBe(true)
+        expect(_contains(code, "Color::Red")).toBe(true)
+        expect(_contains(code, "_ =>")).toBe(true)
+    })
+
+    test("pattern with bindings", () => {
+        let switchStmt = SwitchStmt(
+            Expr.Identifier("shape", _sp()),
+            [
+                CaseClause(
+                    Pattern.EnumVariant("Shape", "Circle", ["r"]),
+                    [Stmt.Return(ReturnStmt(Expr.Identifier("r", _sp()), _sp()))],
+                    _sp()
+                )
+            ],
+            [],
+            _sp()
+        )
+        let decl = FuncDecl("main", [], TypeRef.None, [Stmt.Switch(switchStmt)], false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "Shape::Circle { r }")).toBe(true)
+    })
+})
+
+// ─── Top Level Const ───────────────────────────────────
+
+describe("CodeGen — Constants", () => {
+    test("top-level const", () => {
+        let c = ConstDef("MAX_SIZE", TypeRef.Named("number"), Expr.IntLiteral("1024", _sp()), _sp())
+        let code = _genProgram([TopLevel.ConstDecl(c)])
+        expect(_contains(code, "const MAX_SIZE: i32 = 1024;")).toBe(true)
+    })
+})
+
+// --- Enum Variant Access (BUG-010) ---
+
+describe("CodeGen - Enum Variant Access", () => {
+    test("Color.Red generates Color::Red", () => {
+        let expr = Expr.Member(Expr.Identifier("Color", _sp()), "Red", _sp())
+        let stmts = [Stmt.Expr(expr, _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "Color::Red")).toBe(true)
+    })
+
+    test("Status.Active generates Status::Active", () => {
+        let expr = Expr.Member(Expr.Identifier("Status", _sp()), "Active", _sp())
+        let stmts = [Stmt.Expr(expr, _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "Status::Active")).toBe(true)
+    })
+
+    test("lowercase object uses dot access", () => {
+        let expr = Expr.Member(Expr.Identifier("config", _sp()), "host", _sp())
+        let stmts = [Stmt.Expr(expr, _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "config.host")).toBe(true)
+    })
+
+    test("PascalCase constructor call preserved", () => {
+        let expr = Expr.Call(
+            Expr.Identifier("Point", _sp()),
+            [Expr.IntLiteral("10", _sp()), Expr.IntLiteral("20", _sp())],
+            _sp()
+        )
+        let stmts = [Stmt.Expr(expr, _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "Point(10, 20)")).toBe(true)
+    })
+
+    test("camelCase function call gets snake_cased", () => {
+        let expr = Expr.Call(
+            Expr.Identifier("getName", _sp()),
+            [],
+            _sp()
+        )
+        let stmts = [Stmt.Expr(expr, _sp())]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "get_name()")).toBe(true)
+    })
+
+    test("ALL_CAPS constant not treated as PascalCase", () => {
+        let c = ConstDef("MAX", TypeRef.Named("number"), Expr.IntLiteral("100", _sp()), _sp())
+        let code = _genProgram([TopLevel.ConstDecl(c)])
+        expect(_contains(code, "const MAX: i32 = 100;")).toBe(true)
+    })
+
+    test("enum variant in array literal", () => {
+        let items = [
+            Expr.Member(Expr.Identifier("Color", _sp()), "Red", _sp()),
+            Expr.Member(Expr.Identifier("Color", _sp()), "Green", _sp()),
+            Expr.Member(Expr.Identifier("Color", _sp()), "Blue", _sp())
+        ]
+        let arr = Expr.ArrayLiteral(items, _sp())
+        let stmts = [Stmt.VarDecl(VarDeclStmt("colors", TypeRef.None, arr, _sp()))]
+        let decl = FuncDecl("main", [], TypeRef.None, stmts, false, _sp())
+        let code = _genProgram([TopLevel.FunctionDecl(decl)])
+        expect(_contains(code, "Color::Red")).toBe(true)
+        expect(_contains(code, "Color::Green")).toBe(true)
+        expect(_contains(code, "Color::Blue")).toBe(true)
+    })
+})
