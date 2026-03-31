@@ -1,8 +1,8 @@
 # Self-Hosting: Compilador de Liva escrito en Liva
 
-> **Estado:** Fase 2.2 completada ✅ (semantic.liva — Type resolver)
+> **Estado:** Fase 2.3 completada ✅ (semantic.liva — Expr typing)
 > **Última actualización:** 2026-04-01
-> **Próximo:** Fase 2.3 — Expr typing
+> **Próximo:** Fase 2.4 — Function signatures
 
 ---
 
@@ -179,7 +179,7 @@ enum ParamMode { Owned, Borrow }
 |---|-----------|-------------|
 | 2.1 | **Scope tracker** ✅ | Variables declaradas, sus tipos, scope enter/leave |
 | 2.2 | **Type resolver** ✅ | `TypeRef.Simple("string")` → tipo concreto con toda su info |
-| 2.3 | **Expr typing** | Cada `Expr` recibe su tipo: `x.length` → `int` (sabemos que `x: string`) |
+| 2.3 | **Expr typing** ✅ | Cada `Expr` recibe su tipo: `x.length` → `int` (sabemos que `x: string`) |
 | 2.4 | **Function signatures** | Return types, param types, fallibility, async |
 | 2.5 | **Class/Enum metadata** | Fields con tipos, variant fields, methods |
 | 2.6 | **Import resolution** | Tipos de símbolos importados de otros módulos |
@@ -242,6 +242,31 @@ enum ParamMode { Owned, Borrow }
   genera `format!()` que borrowea en vez de mover
 - No pre-resolver aliases ni return types en registration (causa double-move).
   Dejar lookups lazy para Phase 2.3+
+
+#### Fase 2.3 — Completada ✅ (2026-04-01)
+
+**Módulo:** `compiler/src/semantic.liva` (1328 líneas, +116 desde Phase 2.2)
+
+**Qué incluye:**
+- **Type index maps**: `_funcRetTypeIdx`, `_fieldTypeIdx`, `_methodRetTypeIdx` (Map<string, number>)
+  — indexes de pool por función, campo y método para lookup O(1)
+- **Second indexing pass**: `_indexTypeInfo(program)` — recorre items después de registration
+  para poblar los index maps antes del analysis pass
+- **Index helpers**: `_indexFuncRetType`, `_indexClassTypes`, `_indexFieldType`, `_indexMethodRetType`
+- **Lookup methods filled**: `lookupFuncReturnType`, `_lookupMethodReturnType`, `_lookupFieldType`
+  — ahora usan los index maps (antes eran stubs devolviendo "unknown")
+- **Expression analysis**: `_analyzeExpr(expr)` — recorre expresiones via `inferExprType`
+  durante el analysis pass para ejercitar el type resolver
+- **Statement analysis enhancements**: `_analyzeStmt` ahora maneja Assign, Switch, ExprStmt, Return, Throw, Fail
+- **Control flow analysis**: `_analyzeIf` analiza condición, `_analyzeWhile` analiza condición
+- **Helper methods**: `_analyzeReturnOpt`, `_analyzeAssign`, `_analyzeSwitch`
+- **Factory function**: `_addTypeOpt(optRef: TypeRef?)` — rutas Optional values por param auto-unwrap
+- **TypeContext enriched**: `funcRetTypes`, `fieldTypes`, `methodRetTypes` fields
+
+**New workaround (limitación del bootstrap):**
+- W-005: `option_value_vars` leaks across class methods in codegen. Si un param se llama `t: TypeRef?`,
+  todos los `for t in ...` en otros métodos del mismo class generan `.as_ref().unwrap()` incorrecto.
+  **Fix:** Usar nombres únicos para params Optional (e.g., `optRef` en vez de `t`).
 
 ### Fase 3: Codegen Limpio
 
@@ -432,7 +457,7 @@ Fase 1: Frontend ✅ (idiomatic rewrite done)
 Fase 2: Semantic Analyzer
   [x] 2.1: TypeContext struct + scope tracker (semantic.liva — 647 líneas)
   [x] 2.2: Type resolver (Simple/Array/Map/Optional → info concreta)
-  [ ] 2.3: Expr typing (cada expresión anotada con su tipo)
+  [x] 2.3: Expr typing (cada expresión anotada con su tipo)
   [ ] 2.4: Function signatures registry
   [ ] 2.5: Class/Enum metadata registry
   [ ] 2.6: Import resolution (tipos de otros módulos)

@@ -374,6 +374,20 @@
 - [x] Bootstrap fix SH-013: For-loop var_types tracking
 - [x] 518 tests verdes
 
+### Self-hosting — Fase 2.3: Expr typing ✅
+
+- [x] semantic.liva — 1328 líneas (+116), compila a Rust sin errores
+- [x] Type index maps: _funcRetTypeIdx, _fieldTypeIdx, _methodRetTypeIdx
+- [x] Second indexing pass: _indexTypeInfo populates maps after registration
+- [x] Lookup methods: lookupFuncReturnType, _lookupMethodReturnType, _lookupFieldType
+- [x] Expression analysis: _analyzeExpr exercises inferExprType during analysis
+- [x] Statement analysis: Assign, Switch, ExprStmt, Return, Throw, Fail
+- [x] Control flow analysis: _analyzeIf/_analyzeWhile condition analysis
+- [x] Factory: _addTypeOpt(optRef: TypeRef?) for safe Optional→pool
+- [x] TypeContext enriched: funcRetTypes, fieldTypes, methodRetTypes
+- [x] 1 new workaround: W-005 (option_value_vars leak across methods)
+- [x] 518 tests verdes
+
 ### Self-hosting — Fase 2.2: Type resolver ✅
 
 - [x] semantic.liva — 1212 líneas (+564), compila a Rust sin errores

@@ -386,3 +386,16 @@ let copy = clone(originalValue)
 - **Workaround:** Extraer a variable local: `let rt: TypeRef? = decl.returnType; if rt != null { ... }`
   O evitar el patrón y no pre-resolver tipos en registration pass.
 - **Estado:** ⚠️ DOCUMENTED — workaround funcional
+
+## Bootstrap Workarounds — Phase 2.3
+
+> Limitaciones descubiertas del bootstrap durante Expr typing (semantic.liva).
+
+### W-005: `option_value_vars` leaks across class methods
+- **Tipo:** CODEGEN BUG
+- **Descripción:** Si un método tiene un parámetro `t: TypeRef?`, el nombre `t` queda
+  registrado en `option_value_vars` del codegen. Luego, en otros métodos del mismo class,
+  `for t in array` genera `t.as_ref().unwrap().name` en vez de `t.name`, porque el codegen
+  cree que `t` sigue siendo Optional.
+- **Workaround:** Usar nombres únicos para params Optional: `optRef` en vez de `t`.
+- **Estado:** ⚠️ DOCUMENTED — workaround funcional

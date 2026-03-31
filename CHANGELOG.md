@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.0-dev] - 2026-04-01
 
 ### Added
+- **Self-hosting Phase 2.3: Expr Typing** — `compiler/src/semantic.liva` (1328 lines, +116)
+  - Type index maps: `_funcRetTypeIdx`, `_fieldTypeIdx`, `_methodRetTypeIdx` for O(1) lookup
+  - Second indexing pass: `_indexTypeInfo(program)` populates maps after registration
+  - Lookup methods filled: `lookupFuncReturnType`, `_lookupMethodReturnType`, `_lookupFieldType`
+  - Expression analysis: `_analyzeExpr` exercises type resolver during analysis pass
+  - Statement analysis: Assign, Switch, ExprStmt, Return, Throw, Fail handling
+  - Control flow: `_analyzeIf`/`_analyzeWhile` analyze conditions
+  - Factory function: `_addTypeOpt(optRef: TypeRef?)` for safe Optional → pool index
+  - TypeContext enriched with funcRetTypes, fieldTypes, methodRetTypes
+  - 1 new bootstrap workaround documented (W-005: option_value_vars leak)
 - **Self-hosting Phase 2.2: Type Resolver** — `compiler/src/semantic.liva` (1212 lines, +564)
   - Type pool: `_typePool: [TypeRef]` + `_varTypeIdx: Map<string, number>` for storing resolved types
   - `resolveTypeRef(t: TypeRef): TypeRef` — recursive resolution of all 9 TypeRef variants

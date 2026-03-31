@@ -1,7 +1,7 @@
 // ============================================================================
 // semantic.liva — Semantic Analyzer for the Liva self-hosting compiler
 // ============================================================================
-// Phase 2.2: Type resolver (builds on Phase 2.1 Scope tracker)
+// Phase 2.3: Expr typing (builds on Phase 2.2 Type resolver)
 //
 // The bootstrap compiler (Rust) has NO type system — codegen uses ~20 HashSets
 // to "guess" types. This module replaces that with a proper semantic analysis
@@ -166,6 +166,9 @@ TypeContext {
     diagnostics: [Diagnostic]
     typePool: [TypeRef]
     varTypes: Map<string, number>
+    funcRetTypes: Map<string, number>
+    fieldTypes: Map<string, number>
+    methodRetTypes: Map<string, number>
 }
 
 // =====================================================================
@@ -207,6 +210,9 @@ SemanticAnalyzer {
     _nextScopeId: number
     _typePool: [TypeRef]
     _varTypeIdx: Map<string, number>
+    _funcRetTypeIdx: Map<string, number>
+    _fieldTypeIdx: Map<string, number>
+    _methodRetTypeIdx: Map<string, number>
 
     constructor() {
         this._scopeParents = [-1]
@@ -220,6 +226,9 @@ SemanticAnalyzer {
         this._nextScopeId = 1
         this._typePool = [TypeRef.Simple("unknown")]
         this._varTypeIdx = Map {}
+        this._funcRetTypeIdx = Map {}
+        this._fieldTypeIdx = Map {}
+        this._methodRetTypeIdx = Map {}
     }
 
     // -- Scope management --
@@ -288,6 +297,16 @@ SemanticAnalyzer {
         return idx
     }
 
+    // Factory: add Optional TypeRef to pool — returns 0 (sentinel) when null.
+    // The TypeRef? param annotation ensures auto-unwrap inside the if block.
+    // NOTE: param named "optRef" (not "t") to avoid polluting option_value_vars for "t" used in for-loops.
+    _addTypeOpt(optRef: TypeRef?): number {
+        if optRef != null {
+            return this._addType(optRef)
+        }
+        return 0
+    }
+
     _getType(idx: number): TypeRef {
         if idx >= 0 {
             if idx < this._typePool.length {
@@ -326,8 +345,9 @@ SemanticAnalyzer {
     }
 
     lookupFuncReturnType(name: string): TypeRef {
-        // Function return types live in FunctionSig.returnType (via _functions map)
-        // Phase 2.2: return unknown — full sig lookups in Phase 2.3
+        if this._funcRetTypeIdx.has(name) {
+            return this._getType(this._funcRetTypeIdx.get(name))
+        }
         return this._typePool[0]
     }
 
@@ -614,8 +634,10 @@ SemanticAnalyzer {
     }
 
     _lookupMethodReturnType(className: string, method: string): TypeRef {
-        // Walk class methods — registered in _classes
-        // For now return unknown — will be enriched when we integrate method sig lookups
+        let key = $"{className}.{method}"
+        if this._methodRetTypeIdx.has(key) {
+            return this._getType(this._methodRetTypeIdx.get(key))
+        }
         return TypeRef.Simple("unknown")
     }
 
@@ -694,8 +716,10 @@ SemanticAnalyzer {
     }
 
     _lookupFieldType(className: string, field: string): TypeRef {
-        // Walk class fields — iterate since we can't Map.get on non-Default types
-        // For now return unknown — will be enriched incrementally
+        let key = $"{className}.{field}"
+        if this._fieldTypeIdx.has(key) {
+            return this._getType(this._fieldTypeIdx.get(key))
+        }
         return TypeRef.Simple("unknown")
     }
 
@@ -945,10 +969,65 @@ SemanticAnalyzer {
 
     analyze(program: Program): TypeContext {
         this.registerDeclarations(program)
+        this._indexTypeInfo(program)
         for item in program.items {
             this._analyzeTopLevel(item)
         }
         return this._buildContext()
+    }
+
+    // -- Phase 2.3: Index type info (second pass over declarations) --
+    // Extracts return types, field types, method return types into pool indexes.
+    // This is a separate pass because the first pass (registerDeclarations) already
+    // consumes Optional fields for FunctionSig/ClassInfo construction.
+
+    _indexTypeInfo(program: Program) {
+        for item in program.items {
+            let _ = switch item {
+                TopLevel.Function(decl) => { this._indexFuncRetType(decl); 0 },
+                TopLevel.Class(decl) => { this._indexClassTypes(decl); 0 },
+                _ => { 0 }
+            }
+        }
+    }
+
+    _indexFuncRetType(decl: FunctionDecl) {
+        let idx = this._addTypeOpt(decl.returnType)
+        if idx > 0 {
+            this._funcRetTypeIdx.set(decl.name, idx)
+        }
+    }
+
+    _indexClassTypes(decl: ClassDecl) {
+        let className = $"{decl.name}"
+        for m in decl.members {
+            let _ = switch m {
+                Member.Field(f) => {
+                    this._indexFieldType(className, f)
+                    0
+                },
+                Member.Method(d) => {
+                    this._indexMethodRetType(className, d)
+                    0
+                }
+            }
+        }
+    }
+
+    _indexFieldType(className: string, f: FieldDecl) {
+        let idx = this._addTypeOpt(f.typeRef)
+        if idx > 0 {
+            let key = $"{className}.{f.name}"
+            this._fieldTypeIdx.set(key, idx)
+        }
+    }
+
+    _indexMethodRetType(className: string, d: MethodDecl) {
+        let idx = this._addTypeOpt(d.returnType)
+        if idx > 0 {
+            let key = $"{className}.{d.name}"
+            this._methodRetTypeIdx.set(key, idx)
+        }
     }
 
     _buildContext(): TypeContext {
@@ -969,7 +1048,10 @@ SemanticAnalyzer {
             this._typeAliases,
             this._diagnostics,
             this._typePool,
-            this._varTypeIdx
+            this._varTypeIdx,
+            this._funcRetTypeIdx,
+            this._fieldTypeIdx,
+            this._methodRetTypeIdx
         )
     }
 
@@ -1055,14 +1137,45 @@ SemanticAnalyzer {
         let _ = switch stmt {
             Stmt.VarDecl(decl) => { this._analyzeVarDecl(decl); 0 },
             Stmt.ConstDecl(decl) => { this._analyzeConstDecl(decl); 0 },
-            Stmt.Assign(s) => { 0 },
+            Stmt.Assign(s) => { this._analyzeAssign(s); 0 },
             Stmt.If(s) => { this._analyzeIf(s); 0 },
             Stmt.While(s) => { this._analyzeWhile(s); 0 },
             Stmt.For(s) => { this._analyzeFor(s); 0 },
-            Stmt.Switch(s) => { 0 },
+            Stmt.Switch(s) => { this._analyzeSwitch(s); 0 },
             Stmt.TryCatch(s) => { this._analyzeTryCatch(s); 0 },
             Stmt.Block(block) => { this._analyzeBlock(block); 0 },
+            Stmt.ExprStmt(expr) => { this._analyzeExpr(expr); 0 },
+            Stmt.Return(expr) => { this._analyzeReturnOpt(expr); 0 },
+            Stmt.Throw(expr) => { this._analyzeExpr(expr); 0 },
+            Stmt.Fail(expr, line) => { this._analyzeExpr(expr); 0 },
             _ => { 0 }
+        }
+    }
+
+    // -- Phase 2.3: Expression analysis --
+    // Walk sub-expressions to ensure type inference covers the full tree.
+
+    _analyzeExpr(expr: Expr) {
+        // Infer the type (ensures sub-expressions are visited)
+        let _ = this.inferExprType(expr)
+    }
+
+    _analyzeReturnOpt(expr: Expr?) {
+        if expr != null {
+            this._analyzeExpr(expr)
+        }
+    }
+
+    _analyzeAssign(stmt: AssignStmt) {
+        this._analyzeExpr(stmt.value)
+    }
+
+    _analyzeSwitch(stmt: SwitchStmt) {
+        this._analyzeExpr(stmt.discriminant)
+        for c in stmt.cases {
+            for s in c.body {
+                this._analyzeStmt(s)
+            }
         }
     }
 
@@ -1103,6 +1216,8 @@ SemanticAnalyzer {
     }
 
     _analyzeIf(stmt: IfStmt) {
+        this._analyzeExpr(stmt.condition)
+
         let _ = switch stmt.thenBranch {
             IfBody.Block(block) => { this._analyzeBlock(block); 0 },
             IfBody.SingleStmt(stmts) => {
@@ -1132,6 +1247,7 @@ SemanticAnalyzer {
     }
 
     _analyzeWhile(stmt: WhileStmt) {
+        this._analyzeExpr(stmt.condition)
         this._analyzeBlock(stmt.body)
     }
 
