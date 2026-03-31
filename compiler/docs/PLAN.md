@@ -15,6 +15,32 @@ El compilador Rust actual (`src/`) se convierte en **bootstrap compiler**: solo 
 para compilar el compilador Liva la primera vez. Después, el compilador Liva se
 compila a sí mismo.
 
+## Estructura del repo
+
+```
+AHORA (durante desarrollo):
+  livac/
+  ├── src/              ← bootstrap compiler (Rust) — necesario para compilar
+  ├── compiler/
+  │   ├── src/          ← compilador Liva (en desarrollo)
+  │   └── docs/         ← PLAN.md, ISSUES.md
+  ├── tests/            ← tests del bootstrap
+  └── Cargo.toml
+
+DESPUÉS (Fase 4 completada — self-hosting funcional):
+  livac/
+  ├── src/              ← compilador Liva (promovido desde compiler/src/)
+  ├── docs/
+  ├── tests/            ← tests del compilador Liva
+  └── bootstrap/        ← compilador Rust (congelado, solo para primer build)
+      ├── src/
+      ├── tests/
+      └── Cargo.toml
+```
+
+Cuando el compilador Liva llegue a Fase 4 (se compila a sí mismo), `compiler/src/`
+se promueve a `src/` y el código Rust actual se archiva en `bootstrap/`.
+
 ## Por qué reescribir (no reparar)
 
 El compilador Rust tiene un defecto fundamental: **no tiene sistema de tipos**.
