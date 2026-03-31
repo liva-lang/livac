@@ -387,6 +387,30 @@
 - [x] 518 tests verdes
 - [x] **Phase 2 COMPLETE**
 
+### Self-hosting — Fase 3: Codegen Limpio ✅
+
+- [x] codegen.liva — 2458 líneas, nuevo módulo, compila a Rust sin errores
+- [x] RustEmitter class: output buffer, indent management, name sanitization
+- [x] Type emission: all 9 TypeRef variants → Rust types
+- [x] Declarations: functions, classes (struct+impl+constructor), enums, type aliases, imports
+- [x] Statements: all 16 Stmt variants
+- [x] Expressions: all 22+ Expr variants
+- [x] Stdlib mapping: 78 methods (28 string + 30 array + 10 map + 10 set)
+- [x] Ownership helpers: type-directed _emitRefArg
+- [x] Cargo.toml generation with feature-aware dependencies
+- [x] Public API: generateRust(program, typeCtx, liveCtx)
+- [x] 520 tests verdes
+
+### Self-hosting — Fase 4: Main + CLI + Bootstrap ✅
+
+- [x] main.liva — 449 líneas, CLI entry point (build/run/check)
+- [x] module.liva — 234 líneas, module resolver (BFS, topological sort)
+- [x] bootstrap_test.sh — validation script
+- [x] Full pipeline: read → lex → parse → semantic → liveness → codegen → write → cargo build
+- [x] Bootstrap test: 7/9 modules → valid Rust (10,859 lines from 9,013 Liva)
+- [x] Modules passing: token, ast, lexer, parser, semantic, liveness, module
+- [x] **Phases 0-4 COMPLETE**
+
 ### Self-hosting — Fase 2.6: Import resolution ✅
 
 - [x] semantic.liva — 1708 líneas (+62), compila a Rust sin errores

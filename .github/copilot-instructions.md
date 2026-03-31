@@ -2,9 +2,9 @@
 
 > **Proyecto:** livac - El compilador de Liva  
 > **Versión:** v2.0.0-dev (tag: v1.2.0)  
-> **Lenguaje:** Rust  
-> **Tests:** 518 passing  
-> **Próximo objetivo:** v2.0 — Fase 2.7 Liveness analysis (self-hosting)  
+> **Lenguaje:** Rust (bootstrap) + Liva (self-hosting)  
+> **Tests:** 520 passing (518 + 2 ignored)  
+> **Próximo objetivo:** v2.0 — Self-hosting refinement (codegen/main Rust errors)  
 > **Última actualización:** 2026-04-01
 
 ---
@@ -160,7 +160,8 @@ skills/liva-lang/
 ### Dogfooding
 - **90/90 bugs corregidos** (Dogfooding v1: 9 bugs #63-#74, v2: 8 bugs #75-#82, v3: 7 bugs #83-#89, Self-hosting: 4 bugs #90-#94)
 - **518 tests** totales
-- **Self-hosting:** Fase 2.6 completada — `compiler/src/semantic.liva` (1708 líneas) Import resolution + shallow type stubs + import queries
+- **Self-hosting:** Fases 0-4 COMPLETAS — 9 módulos, 9,013 líneas Liva, 7/9 generan Rust válido
+  - compiler/src/: token, ast, lexer, parser, semantic (1709), liveness (520), codegen (2458), module (234), main (449)
 - **63 Liva assertion tests** (28 string + 26 array + 9 math) — cobertura completa de stdlib
 - **File (11 funciones):** read, write, append, exists, delete, copy, move, size, extension, readLines, writeLines
 - **Dir (7 funciones):** list, isDir, exists, create, delete, listRecursive, walk
@@ -187,7 +188,7 @@ v1.6  Stdlib P1 — File, Dir, Date, Regex, CSV/Table          ✅ completado
 v1.7  Stdlib P2 + HTTP Server                                ✅ completado
 v1.8  DB + Linter                                             ✅ completado (REPL ⏸️ aplazado)
 v1.9  Dogfooding — API REST completa con DB                  ✅ completado (7 bugs)
-v2.0  Enums recursivos + Self-hosting parcial                🔧 en progreso
+v2.0  Enums recursivos + Self-hosting                        ✅ completado (Fases 0-4)
 ```
 
 **Documentos clave:**

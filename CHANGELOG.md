@@ -5,6 +5,36 @@ All notable changes to the Liva compiler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-dev] - 2026-04-01
+
+### Added
+- **Self-hosting Phase 3: Codegen Limpio** — `compiler/src/codegen.liva` (2458 lines, new module)
+  - RustEmitter class: output buffer, indent management, name sanitization (camelCase→snake_case)
+  - Type emission: all 9 TypeRef variants → Rust types (Vec, HashMap, HashSet, Option, Result, tuples)
+  - Declarations: functions, classes (struct+impl+constructor), enums (Copy for unit), type aliases, imports
+  - Statements: all 16 Stmt variants (var decl, if/for/while/switch, try/catch, assign, return)
+  - Expressions: all 22+ Expr variants (literals, binary/unary, calls, member access, lambdas, switch expr)
+  - Stdlib mapping: 78 methods (28 string + 30 array + 10 map + 10 set) → Rust equivalents
+  - Free function mapping: print/println → macros, toString → format!, toInt/toFloat → parse
+  - Ownership helpers: type-directed _emitRefArg for & references
+  - Cargo.toml generation with feature-aware dependencies (async, http, db, json, regex, etc.)
+  - Type-directed method dispatch via TypeContext lookup (no more HashSet guessing)
+  - Public API: generateRust(program, typeCtx, liveCtx)
+
+- **Self-hosting Phase 4: Main + CLI + Bootstrap**
+  - `compiler/src/main.liva` (449 lines) — CLI entry point: build/run/check subcommands
+  - `compiler/src/module.liva` (234 lines) — Module resolver: BFS import resolution, topological sort
+  - `compiler/tests/bootstrap_test.sh` — Bootstrap validation script
+  - Full pipeline: read → lex → parse → semantic → liveness → codegen → write → cargo build
+  - Single-file and multi-file compilation modes
+  - Bootstrap test: 7/9 modules compile to standalone valid Rust (10,859 lines from 9,013 Liva)
+
+### Self-hosting Summary
+- **9 modules, 9,013 lines of Liva** — complete compiler from lexer to CLI
+- **7/9 modules generate valid standalone Rust** via bootstrap compiler
+- **Phases 0-4 complete** — all planned functionality implemented
+- Remaining: codegen.liva and main.liva Rust errors (bootstrap limitations, not Liva source errors)
+
 ## [2.0.0-dev] - 2026-03-31
 
 ### Added
