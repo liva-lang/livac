@@ -374,6 +374,18 @@
 - [x] Bootstrap fix SH-013: For-loop var_types tracking
 - [x] 518 tests verdes
 
+### Self-hosting — Fase 2.4: Function signatures ✅
+
+- [x] semantic.liva — 1506 líneas (+178), compila a Rust sin errores
+- [x] Current function tracking: _currentFuncName + _currentFuncFallible
+- [x] Param type storage: _storeParamType stores types in pool during analysis
+- [x] Return type validation: _validateReturn warns on mismatch
+- [x] Call argument count validation: _validateCallArgs + _countRequiredParams
+- [x] Fallibility tracking: _trackCallFallibility + _checkCalleeFallible
+- [x] Ownership workarounds: store-before-declare, string-compare patterns
+- [x] 1 new workaround: W-006 (bare return after => not supported)
+- [x] 518 tests verdes
+
 ### Self-hosting — Fase 2.3: Expr typing ✅
 
 - [x] semantic.liva — 1328 líneas (+116), compila a Rust sin errores

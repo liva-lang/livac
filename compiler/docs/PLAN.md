@@ -1,8 +1,8 @@
 # Self-Hosting: Compilador de Liva escrito en Liva
 
-> **Estado:** Fase 2.3 completada ✅ (semantic.liva — Expr typing)
-> **Última actualización:** 2026-04-01
-> **Próximo:** Fase 2.4 — Function signatures
+> **Estado:** Fase 2.4 completada ✅ (semantic.liva — Function signatures)
+> **Última actualización:** 2026-03-31
+> **Próximo:** Fase 2.5 — Class/Enum metadata
 
 ---
 
@@ -180,7 +180,7 @@ enum ParamMode { Owned, Borrow }
 | 2.1 | **Scope tracker** ✅ | Variables declaradas, sus tipos, scope enter/leave |
 | 2.2 | **Type resolver** ✅ | `TypeRef.Simple("string")` → tipo concreto con toda su info |
 | 2.3 | **Expr typing** ✅ | Cada `Expr` recibe su tipo: `x.length` → `int` (sabemos que `x: string`) |
-| 2.4 | **Function signatures** | Return types, param types, fallibility, async |
+| 2.4 | **Function signatures** ✅ | Return types, param types, fallibility, async |
 | 2.5 | **Class/Enum metadata** | Fields con tipos, variant fields, methods |
 | 2.6 | **Import resolution** | Tipos de símbolos importados de otros módulos |
 | 2.7 | **Liveness analysis** | Último uso → move, no-último → borrow/clone |
@@ -458,7 +458,7 @@ Fase 2: Semantic Analyzer
   [x] 2.1: TypeContext struct + scope tracker (semantic.liva — 647 líneas)
   [x] 2.2: Type resolver (Simple/Array/Map/Optional → info concreta)
   [x] 2.3: Expr typing (cada expresión anotada con su tipo)
-  [ ] 2.4: Function signatures registry
+  [x] 2.4: Function signatures registry
   [ ] 2.5: Class/Enum metadata registry
   [ ] 2.6: Import resolution (tipos de otros módulos)
   [ ] 2.7: Liveness analysis (move/borrow/clone)

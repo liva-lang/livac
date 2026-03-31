@@ -399,3 +399,14 @@ let copy = clone(originalValue)
   cree que `t` sigue siendo Optional.
 - **Workaround:** Usar nombres únicos para params Optional: `optRef` en vez de `t`.
 - **Estado:** ⚠️ DOCUMENTED — workaround funcional
+
+## Bootstrap Workarounds — Phase 2.4
+
+> Limitaciones descubiertas del bootstrap durante Function signatures (semantic.liva).
+
+### W-006: bare `return` after `=>` not supported
+- **Tipo:** PARSER LIMITATION
+- **Descripción:** `if cond => return` genera parse error "Expected expression".
+  El parser trata `=> return` como one-liner expression, but bare `return` is a statement.
+- **Workaround:** Use block form: `if cond { return }`
+- **Estado:** ⚠️ DOCUMENTED — workaround funcional

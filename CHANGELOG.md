@@ -5,6 +5,17 @@ All notable changes to the Liva compiler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-dev] - 2026-03-31
+
+### Added
+- **Self-hosting Phase 2.4: Function Signatures** — `compiler/src/semantic.liva` (1506 lines, +178)
+  - Current function tracking: `_currentFuncName` + `_currentFuncFallible` with save/restore
+  - Param type storage: `_storeParamType` stores parameter types in pool during analysis
+  - Return type validation: `_validateReturn` compares inferred vs declared return types
+  - Call argument count validation: `_validateCallArgs` checks against function signatures
+  - Fallibility tracking: `_trackCallFallibility` propagates fallibility from callees
+  - 1 new bootstrap workaround (W-006: bare return after => not supported)
+
 ## [2.0.0-dev] - 2026-04-01
 
 ### Added

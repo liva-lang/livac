@@ -1,7 +1,7 @@
 // ============================================================================
 // semantic.liva — Semantic Analyzer for the Liva self-hosting compiler
 // ============================================================================
-// Phase 2.3: Expr typing (builds on Phase 2.2 Type resolver)
+// Phase 2.4: Function signatures (builds on Phase 2.3 Expr typing)
 //
 // The bootstrap compiler (Rust) has NO type system — codegen uses ~20 HashSets
 // to "guess" types. This module replaces that with a proper semantic analysis
@@ -213,6 +213,8 @@ SemanticAnalyzer {
     _funcRetTypeIdx: Map<string, number>
     _fieldTypeIdx: Map<string, number>
     _methodRetTypeIdx: Map<string, number>
+    _currentFuncName: string
+    _currentFuncFallible: bool
 
     constructor() {
         this._scopeParents = [-1]
@@ -229,6 +231,8 @@ SemanticAnalyzer {
         this._funcRetTypeIdx = Map {}
         this._fieldTypeIdx = Map {}
         this._methodRetTypeIdx = Map {}
+        this._currentFuncName = ""
+        this._currentFuncFallible = false
     }
 
     // -- Scope management --
@@ -1069,17 +1073,34 @@ SemanticAnalyzer {
 
     _analyzeFunction(decl: FunctionDecl) {
         this._enterScope()
+        let prevFunc = $"{this._currentFuncName}"
+        let prevFallible = this._currentFuncFallible
+        this._currentFuncName = $"{decl.name}"
+        this._currentFuncFallible = false
 
         for p in decl.params {
             let paramName = switch p.pattern {
                 BindingPattern.Identifier(n) => n,
                 _ => "_"
             }
-            this.declareParam(paramName, p.typeRef)
+            // Phase 2.4: store type in pool FIRST (consumes p.typeRef),
+            // then declare with null (type already in pool via _varTypeIdx)
+            let paramNameCopy = $"{paramName}"
+            this._storeParamType(paramNameCopy, p.typeRef)
+            this.declareParam(paramName, null)
         }
 
         this._analyzeBlockOpt(decl.body)
 
+        // Phase 2.4: warn if function uses fail/fallible calls but is not declared fallible
+        if this._currentFuncFallible {
+            if decl.containsFail == false {
+                this._warning($"Function '{decl.name}' calls fallible code but is not marked fallible", 0, 0)
+            }
+        }
+
+        this._currentFuncName = prevFunc
+        this._currentFuncFallible = prevFallible
         this._leaveScope()
     }
 
@@ -1088,6 +1109,10 @@ SemanticAnalyzer {
             let _ = switch m {
                 Member.Method(d) => {
                     this._enterScope()
+                    let prevFunc = $"{this._currentFuncName}"
+                    let prevFallible = this._currentFuncFallible
+                    this._currentFuncName = $"{decl.name}.{d.name}"
+                    this._currentFuncFallible = false
 
                     let thisType: TypeRef? = TypeRef.Simple(decl.name)
                     this._declareSymbol("this", SymbolKind.Variable, thisType, false)
@@ -1097,11 +1122,23 @@ SemanticAnalyzer {
                             BindingPattern.Identifier(n) => n,
                             _ => "_"
                         }
-                        this.declareParam(paramName, p.typeRef)
+                        // Phase 2.4: store type first, then declare with null
+                        let paramNameCopy = $"{paramName}"
+                        this._storeParamType(paramNameCopy, p.typeRef)
+                        this.declareParam(paramName, null)
                     }
 
                     this._analyzeBlockOpt(d.body)
 
+                    // Phase 2.4: warn if method uses fail but not declared fallible
+                    if this._currentFuncFallible {
+                        if d.containsFail == false {
+                            this._warning($"Method '{d.name}' calls fallible code but is not marked fallible", 0, 0)
+                        }
+                    }
+
+                    this._currentFuncName = prevFunc
+                    this._currentFuncFallible = prevFallible
                     this._leaveScope()
                     0
                 },
@@ -1147,21 +1184,162 @@ SemanticAnalyzer {
             Stmt.ExprStmt(expr) => { this._analyzeExpr(expr); 0 },
             Stmt.Return(expr) => { this._analyzeReturnOpt(expr); 0 },
             Stmt.Throw(expr) => { this._analyzeExpr(expr); 0 },
-            Stmt.Fail(expr, line) => { this._analyzeExpr(expr); 0 },
+            Stmt.Fail(expr, line) => { this._currentFuncFallible = true; this._analyzeExpr(expr); 0 },
             _ => { 0 }
         }
     }
 
-    // -- Phase 2.3: Expression analysis --
+    // -- Phase 2.4: Param type storage --
+    // Store param types in pool so lookupVarType(paramName) works during body analysis.
+    // Uses _addTypeOpt to safely handle Optional typeRef from Param declaration.
+
+    _storeParamType(name: string, paramTypeRef: TypeRef?) {
+        let idx = this._addTypeOpt(paramTypeRef)
+        if idx > 0 {
+            let key = this._symKey(this._currentScopeId, name)
+            this._varTypeIdx.set(key, idx)
+        }
+    }
+
+    // -- Phase 2.4: Return type validation --
+    // Checks that return expression type is compatible with declared return type.
+    // Guards use nested ifs (bootstrap: bare `return` after `=>` not supported).
+
+    _validateReturn(expr: Expr) {
+        if this._currentFuncName == "" {
+            return
+        }
+
+        // Convert types to strings FIRST to avoid double-consumption of TypeRef
+        let actualType = this.inferExprType(expr)
+        let actualStr = this._typeToString(actualType)
+        if actualStr == "unknown" {
+            return
+        }
+
+        let expectedIdx = this._lookupCurrentFuncRetIdx()
+        if expectedIdx == 0 {
+            return
+        }
+
+        let expectedType = this._getType(expectedIdx)
+        let expectedStr = this._typeToString(expectedType)
+        if expectedStr == "unknown" {
+            return
+        }
+
+        if actualStr != expectedStr {
+            this._warning($"Return type mismatch in '{this._currentFuncName}': expected {expectedStr}, got {actualStr}", 0, 0)
+        }
+    }
+
+    _lookupCurrentFuncRetIdx(): number {
+        // Check if it's a method (contains ".")
+        if this._currentFuncName.contains(".") {
+            if this._methodRetTypeIdx.has(this._currentFuncName) {
+                return this._methodRetTypeIdx.get(this._currentFuncName)
+            }
+            return 0
+        }
+        // Plain function
+        if this._funcRetTypeIdx.has(this._currentFuncName) {
+            return this._funcRetTypeIdx.get(this._currentFuncName)
+        }
+        return 0
+    }
+
+    // -- Phase 2.4: Call argument validation --
+    // Checks arg count against declared function signature.
+
+    _validateCallArgs(callee: Expr, args: [Expr]) {
+        let _ = switch callee {
+            Expr.Identifier(name) => {
+                this._validateCallByName(name, args)
+                0
+            },
+            _ => { 0 }
+        }
+    }
+
+    _validateCallByName(name: string, args: [Expr]) {
+        if this._functions.has(name) == false {
+            return
+        }
+
+        let sig = this._functions.get(name)
+        let nArgs = args.length
+        let nParams = sig.params.length
+
+        // Count required params (no default value)
+        let nRequired = this._countRequiredParams(sig)
+
+        if nArgs < nRequired {
+            this._error($"Function '{name}' expects at least {nRequired} arguments, got {nArgs}", 0, 0)
+        }
+        if nArgs > nParams {
+            this._error($"Function '{name}' expects at most {nParams} arguments, got {nArgs}", 0, 0)
+        }
+    }
+
+    _countRequiredParams(sig: FunctionSig): number {
+        let count = 0
+        for p in sig.params {
+            if p.hasDefault == false {
+                count += 1
+            }
+        }
+        return count
+    }
+
+    // -- Phase 2.4: Fallibility tracking --
+    // If a function calls another function that is fallible (containsFail),
+    // the current function is marked as needing fallibility.
+
+    _trackCallFallibility(callee: Expr) {
+        let _ = switch callee {
+            Expr.Identifier(name) => {
+                this._checkCalleeFallible(name)
+                0
+            },
+            _ => { 0 }
+        }
+    }
+
+    _checkCalleeFallible(name: string) {
+        if this._functions.has(name) {
+            let sig = this._functions.get(name)
+            if sig.isFallible {
+                this._currentFuncFallible = true
+            }
+        }
+    }
+
+    // -- Phase 2.3+2.4: Expression analysis --
     // Walk sub-expressions to ensure type inference covers the full tree.
+    // Phase 2.4: also validates calls and tracks fallibility.
 
     _analyzeExpr(expr: Expr) {
         // Infer the type (ensures sub-expressions are visited)
         let _ = this.inferExprType(expr)
+
+        // Phase 2.4: validate calls + track fallibility
+        let _ = switch expr {
+            Expr.Call(callee, args, execPolicy, typeArgs) => {
+                this._validateCallArgs(callee, args)
+                this._trackCallFallibility(callee)
+                0
+            },
+            Expr.Fail(inner) => {
+                this._currentFuncFallible = true
+                0
+            },
+            _ => { 0 }
+        }
     }
 
     _analyzeReturnOpt(expr: Expr?) {
         if expr != null {
+            this._validateReturn(expr)
             this._analyzeExpr(expr)
         }
     }
