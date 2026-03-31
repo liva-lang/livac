@@ -374,6 +374,19 @@
 - [x] Bootstrap fix SH-013: For-loop var_types tracking
 - [x] 518 tests verdes
 
+### Self-hosting — Fase 2.7: Liveness analysis ✅
+
+- [x] liveness.liva — 519 líneas, nuevo módulo, compila a Rust sin errores
+- [x] LivenessContext: useCounts + loopUseCounts + paramBorrow maps
+- [x] LivenessAnalyzer: walks AST counting variable uses per function/method
+- [x] Loop tracking: _inLoop flag for for/while — uses inside loops never eligible for move
+- [x] Parameter borrow detection: Copy types owned, non-Copy borrow
+- [x] Full Expr/Stmt coverage: 22 Expr variants, all Stmt variants, lambdas, switch arms
+- [x] Public API: analyzeLiveness(program)
+- [x] Removed examples/self-hosting/ legacy (canonical: compiler/)
+- [x] 518 tests verdes
+- [x] **Phase 2 COMPLETE**
+
 ### Self-hosting — Fase 2.6: Import resolution ✅
 
 - [x] semantic.liva — 1708 líneas (+62), compila a Rust sin errores

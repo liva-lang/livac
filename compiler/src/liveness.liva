@@ -1,0 +1,520 @@
+// ============================================================================
+// liveness.liva — Liveness Analysis for the Liva self-hosting compiler
+// ============================================================================
+// Phase 2.7: Determines variable use counts and parameter borrow modes.
+// This completes Phase 2 (Semantic Analyzer) of the self-hosting compiler.
+//
+// For each function/method, counts how many times each variable is referenced
+// (static use count). Codegen uses this to determine:
+//   - Last use (remaining count == 0, not in loop) → move (zero cost)
+//   - Non-last use, read only → borrow &x (zero cost)
+//   - Non-last use, needs owned → clone x.clone() (has cost)
+//
+// Also determines which function parameters should be borrowed (&T):
+//   - Copy types (int, float, bool, number, char) → owned (pass by value)
+//   - Non-Copy types (string, [T], Map, Set, class, enum) → borrow (&T)
+//
+// Output: LivenessContext with three Map<string, number>:
+//   useCounts     — "func:var" → total static use count
+//   loopUseCounts — "func:var" → uses occurring inside for/while loops
+//   paramBorrow   — "func:param" → 0 (owned) or 1 (borrow)
+//
+// Design notes:
+//   - All maps are Map<string, number> for maximum bootstrap compatibility
+//   - Keys use "funcName:varName" format; methods use "ClassName.methodName"
+//   - "this" references are excluded (not a local variable)
+//   - Assignment targets are counted as uses (conservative; safe for codegen)
+//   - Lambda bodies are analyzed in the enclosing function's context
+//   - Loop flag (_inLoop) is saved/restored for nested loops
+//
+// Codegen compat notes (bootstrap limitations — same as semantic.liva):
+//   - W-001: No return inside switch arm blocks
+//   - W-002: Careful with variable name collisions across switch arms
+//   - W-003: String template copies ($"{name}") for ownership transfer
+//   - W-006: No bare return after => in one-liners
+
+import {
+    TypeRef, Expr, Stmt, BlockStmt, TopLevel, Program,
+    FunctionDecl, ClassDecl, MethodDecl, Param, Member,
+    VarDeclStmt, ConstDecl, AssignStmt,
+    IfStmt, IfBody, WhileStmt, ForStmt, SwitchStmt, TryCatchStmt,
+    LambdaExpr, LambdaBody, BindingPattern,
+    SwitchArm, SwitchArmBody, ObjField, MapEntry, StringTemplatePart
+} from "./ast.liva"
+
+// =====================================================================
+//  LivenessContext — the output of liveness analysis
+// =====================================================================
+// All maps use "funcName:varName" as key with plain number values.
+// Codegen reads useCounts to init a per-variable counter, decrements
+// on each emission, and emits move/borrow/clone accordingly.
+
+LivenessContext {
+    useCounts: Map<string, number>
+    loopUseCounts: Map<string, number>
+    paramBorrow: Map<string, number>
+}
+
+// =====================================================================
+//  LivenessAnalyzer — walks AST, counts variable uses per function
+// =====================================================================
+
+LivenessAnalyzer {
+    _useCounts: Map<string, number>
+    _loopUseCounts: Map<string, number>
+    _paramBorrow: Map<string, number>
+    _currentFunc: string
+    _inLoop: bool
+
+    constructor() {
+        this._useCounts = Map {}
+        this._loopUseCounts = Map {}
+        this._paramBorrow = Map {}
+        this._currentFunc = ""
+        this._inLoop = false
+    }
+
+    // -- Entry point --
+
+    analyze(program: Program): LivenessContext {
+        for item in program.items {
+            this._analyzeTopLevel(item)
+        }
+        return LivenessContext(
+            this._useCounts,
+            this._loopUseCounts,
+            this._paramBorrow
+        )
+    }
+
+    // -- Top-level dispatch --
+
+    _analyzeTopLevel(item: TopLevel) {
+        let _ = switch item {
+            TopLevel.Function(decl) => { this._analyzeFunction(decl); 0 },
+            TopLevel.Class(decl) => { this._analyzeClassDecl(decl); 0 },
+            _ => { 0 }
+        }
+    }
+
+    _analyzeFunction(decl: FunctionDecl) {
+        let prevFunc = $"{this._currentFunc}"
+        this._currentFunc = $"{decl.name}"
+        for p in decl.params {
+            this._analyzeParam(p)
+        }
+        this._analyzeBlockOpt(decl.body)
+        this._currentFunc = prevFunc
+    }
+
+    _analyzeClassDecl(decl: ClassDecl) {
+        let className = $"{decl.name}"
+        for m in decl.members {
+            let _ = switch m {
+                Member.Method(md) => {
+                    this._analyzeMethod(className, md)
+                    0
+                },
+                _ => { 0 }
+            }
+        }
+    }
+
+    _analyzeMethod(className: string, decl: MethodDecl) {
+        let prevFunc = $"{this._currentFunc}"
+        this._currentFunc = $"{className}.{decl.name}"
+        for p in decl.params {
+            this._analyzeParam(p)
+        }
+        this._analyzeBlockOpt(decl.body)
+        this._currentFunc = prevFunc
+    }
+
+    _analyzeParam(p: Param) {
+        let paramName = switch p.pattern {
+            BindingPattern.Identifier(n) => n,
+            _ => "_"
+        }
+        let borrow = this._shouldBorrowType(p.typeRef)
+        let key = $"{this._currentFunc}:{paramName}"
+        this._paramBorrow.set(key, borrow)
+    }
+
+    // -- Block and statement analysis --
+
+    _analyzeBlockOpt(body: BlockStmt?) {
+        if body != null {
+            this._analyzeBlock(body)
+        }
+    }
+
+    _analyzeBlock(block: BlockStmt) {
+        for s in block.stmts {
+            this._analyzeStmt(s)
+        }
+    }
+
+    _analyzeStmt(stmt: Stmt) {
+        let _ = switch stmt {
+            Stmt.VarDecl(decl) => { this._analyzeVarDecl(decl); 0 },
+            Stmt.ConstDecl(cdecl) => { this._analyzeExpr(cdecl.init); 0 },
+            Stmt.Assign(asgn) => {
+                this._analyzeExpr(asgn.target)
+                this._analyzeExpr(asgn.value)
+                0
+            },
+            Stmt.If(ifStmt) => { this._analyzeIf(ifStmt); 0 },
+            Stmt.While(wStmt) => { this._analyzeWhile(wStmt); 0 },
+            Stmt.For(fStmt) => { this._analyzeFor(fStmt); 0 },
+            Stmt.Switch(swStmt) => { this._analyzeSwitchStmt(swStmt); 0 },
+            Stmt.TryCatch(tcStmt) => { this._analyzeTryCatch(tcStmt); 0 },
+            Stmt.Throw(throwExpr) => { this._analyzeExpr(throwExpr); 0 },
+            Stmt.Fail(failExpr, line) => { this._analyzeExpr(failExpr); 0 },
+            Stmt.Return(retExpr) => { this._analyzeExprOpt(retExpr); 0 },
+            Stmt.Defer(deferStmt) => { this._analyzeStmt(deferStmt); 0 },
+            Stmt.ExprStmt(expr) => { this._analyzeExpr(expr); 0 },
+            Stmt.Block(blk) => { this._analyzeBlock(blk); 0 },
+            _ => { 0 }
+        }
+    }
+
+    _analyzeVarDecl(decl: VarDeclStmt) {
+        this._analyzeExpr(decl.init)
+        this._analyzeExprOpt(decl.orValue)
+        this._analyzeExprOpt(decl.orFailMsg)
+    }
+
+    _analyzeIf(stmt: IfStmt) {
+        this._analyzeExpr(stmt.condition)
+        this._analyzeIfBody(stmt.thenBranch)
+        this._analyzeIfBodyOpt(stmt.elseBranch)
+    }
+
+    _analyzeIfBody(body: IfBody) {
+        let _ = switch body {
+            IfBody.Block(block) => { this._analyzeBlock(block); 0 },
+            IfBody.SingleStmt(stmts) => {
+                for s in stmts {
+                    this._analyzeStmt(s)
+                }
+                0
+            }
+        }
+    }
+
+    _analyzeIfBodyOpt(body: IfBody?) {
+        if body != null {
+            this._analyzeIfBody(body)
+        }
+    }
+
+    _analyzeWhile(stmt: WhileStmt) {
+        let prevLoop = this._inLoop
+        this._inLoop = true
+        this._analyzeExpr(stmt.condition)
+        this._analyzeBlock(stmt.body)
+        this._inLoop = prevLoop
+    }
+
+    _analyzeFor(stmt: ForStmt) {
+        // Iterable is evaluated OUTSIDE the loop
+        this._analyzeExpr(stmt.iterable)
+        let prevLoop = this._inLoop
+        this._inLoop = true
+        this._analyzeBlock(stmt.body)
+        this._inLoop = prevLoop
+    }
+
+    _analyzeSwitchStmt(stmt: SwitchStmt) {
+        this._analyzeExpr(stmt.discriminant)
+        for c in stmt.cases {
+            this._analyzeExpr(c.value)
+            for s in c.body {
+                this._analyzeStmt(s)
+            }
+        }
+        this._analyzeStmtListOpt(stmt.defaultBody)
+    }
+
+    _analyzeStmtListOpt(stmts: [Stmt]?) {
+        if stmts != null {
+            for s in stmts {
+                this._analyzeStmt(s)
+            }
+        }
+    }
+
+    _analyzeTryCatch(stmt: TryCatchStmt) {
+        this._analyzeBlock(stmt.tryBlock)
+        this._analyzeBlock(stmt.catchBlock)
+    }
+
+    // -- Expression analysis (counts Identifier uses) --
+
+    _analyzeExprOpt(expr: Expr?) {
+        if expr != null {
+            this._analyzeExpr(expr)
+        }
+    }
+
+    _analyzeExpr(expr: Expr) {
+        let _ = switch expr {
+            Expr.Identifier(name) => {
+                this._recordUse(name)
+                0
+            },
+            Expr.Literal(lit) => { 0 },
+            Expr.Binary(op, left, right) => {
+                this._analyzeExpr(left)
+                this._analyzeExpr(right)
+                0
+            },
+            Expr.Unary(op, operand) => {
+                this._analyzeExpr(operand)
+                0
+            },
+            Expr.Ternary(cond, thenE, elseE) => {
+                this._analyzeExpr(cond)
+                this._analyzeExpr(thenE)
+                this._analyzeExpr(elseE)
+                0
+            },
+            Expr.Call(callee, callArgs, policy, tArgs) => {
+                this._analyzeExpr(callee)
+                this._analyzeExprList(callArgs)
+                0
+            },
+            Expr.MemberAccess(maObj, prop) => {
+                this._analyzeExpr(maObj)
+                0
+            },
+            Expr.Index(idxObj, idxExpr) => {
+                this._analyzeExpr(idxObj)
+                this._analyzeExpr(idxExpr)
+                0
+            },
+            Expr.ObjectLiteral(objFields) => {
+                this._analyzeObjFields(objFields)
+                0
+            },
+            Expr.StructLiteral(typeName, sFields) => {
+                this._analyzeObjFields(sFields)
+                0
+            },
+            Expr.ArrayLiteral(arrElems) => {
+                this._analyzeExprList(arrElems)
+                0
+            },
+            Expr.MapLiteral(entries) => {
+                this._analyzeMapEntries(entries)
+                0
+            },
+            Expr.SetLiteral(setElems) => {
+                this._analyzeExprList(setElems)
+                0
+            },
+            Expr.TupleLiteral(tupElems) => {
+                this._analyzeExprList(tupElems)
+                0
+            },
+            Expr.Lambda(lam) => {
+                this._analyzeLambda(lam)
+                0
+            },
+            Expr.StringTemplate(parts) => {
+                this._analyzeStringParts(parts)
+                0
+            },
+            Expr.Fail(fExpr) => {
+                this._analyzeExpr(fExpr)
+                0
+            },
+            Expr.MethodCall(mcObj, method, mcArgs) => {
+                this._analyzeExpr(mcObj)
+                this._analyzeExprList(mcArgs)
+                0
+            },
+            Expr.SwitchExpr(disc, arms) => {
+                this._analyzeExpr(disc)
+                this._analyzeSwitchArms(arms)
+                0
+            },
+            Expr.MethodRef(refName, refMethod) => {
+                this._recordUse(refName)
+                0
+            },
+            Expr.Unwrap(uwExpr) => {
+                this._analyzeExpr(uwExpr)
+                0
+            },
+            Expr.OptionalChain(ocObj, ocProp) => {
+                this._analyzeExpr(ocObj)
+                0
+            },
+            Expr.RustBlock(code) => { 0 }
+        }
+    }
+
+    // -- Collection helpers (reduce code in switch arms) --
+
+    _analyzeExprList(exprs: [Expr]) {
+        for e in exprs {
+            this._analyzeExpr(e)
+        }
+    }
+
+    _analyzeObjFields(fields: [ObjField]) {
+        for f in fields {
+            this._analyzeExpr(f.value)
+        }
+    }
+
+    _analyzeMapEntries(entries: [MapEntry]) {
+        for e in entries {
+            this._analyzeExpr(e.key)
+            this._analyzeExpr(e.value)
+        }
+    }
+
+    _analyzeStringParts(parts: [StringTemplatePart]) {
+        for p in parts {
+            let _ = switch p {
+                StringTemplatePart.Text(text) => { 0 },
+                StringTemplatePart.ExprPart(spExpr) => {
+                    this._analyzeExpr(spExpr)
+                    0
+                }
+            }
+        }
+    }
+
+    _analyzeLambda(lam: LambdaExpr) {
+        let _ = switch lam.body {
+            LambdaBody.Expr(lamExprs) => {
+                this._analyzeExprList(lamExprs)
+                0
+            },
+            LambdaBody.Block(lamBlock) => {
+                this._analyzeBlock(lamBlock)
+                0
+            }
+        }
+    }
+
+    _analyzeSwitchArms(arms: [SwitchArm]) {
+        for arm in arms {
+            this._analyzeExprOpt(arm.guard)
+            let _ = switch arm.body {
+                SwitchArmBody.Expr(armExpr) => {
+                    this._analyzeExpr(armExpr)
+                    0
+                },
+                SwitchArmBody.Block(armStmts) => {
+                    for s in armStmts {
+                        this._analyzeStmt(s)
+                    }
+                    0
+                }
+            }
+        }
+    }
+
+    // -- Use tracking --
+
+    _recordUse(varName: string) {
+        // Skip "this" — not a local variable, no liveness tracking needed
+        if varName == "this" {
+            return
+        }
+        let key = $"{this._currentFunc}:{varName}"
+
+        // Increment total use count
+        let prev = 0
+        if this._useCounts.has(key) {
+            prev = this._useCounts.get(key)
+        }
+        this._useCounts.set(key, prev + 1)
+
+        // Track uses inside loops separately
+        if this._inLoop {
+            let prevLoop = 0
+            if this._loopUseCounts.has(key) {
+                prevLoop = this._loopUseCounts.get(key)
+            }
+            this._loopUseCounts.set(key, prevLoop + 1)
+        }
+    }
+
+    // -- Parameter borrow detection --
+    // Returns 1 if param should be borrowed (&T), 0 if owned (T).
+    // Copy types (int, float, bool, number, char) are always owned.
+    // Returns 1 if param should be borrowed (&T), 0 if owned (T).
+    // Copy types (int, float, bool, number, char) are always owned.
+    // Non-Copy types (string, arrays, maps, sets, classes, enums) → borrow.
+    // NOTE: param named "optRef" to avoid polluting option_value_vars (W-005)
+
+    _shouldBorrowType(optRef: TypeRef?): number {
+        if optRef != null {
+            return this._borrowForTypeRef(optRef)
+        }
+        return 0
+    }
+
+    _borrowForTypeRef(typeRef: TypeRef): number {
+        let result = 0
+        let _ = switch typeRef {
+            TypeRef.Simple(name) => {
+                result = this._borrowForSimple(name)
+                0
+            },
+            TypeRef.Array(inner) => { result = 1; 0 },
+            TypeRef.MapType(k, v) => { result = 1; 0 },
+            TypeRef.SetType(inner) => { result = 1; 0 },
+            TypeRef.Tuple(elems) => { result = 1; 0 },
+            TypeRef.OptionalType(inner) => { result = 1; 0 },
+            TypeRef.Fallible(inner) => { result = 1; 0 },
+            TypeRef.Generic(base, gArgs) => { result = 1; 0 },
+            TypeRef.Union(parts) => { result = 1; 0 }
+        }
+        return result
+    }
+
+    _borrowForSimple(name: string): number {
+        // Copy types → 0 (owned, pass by value)
+        if name == "int" { return 0 }
+        if name == "number" { return 0 }
+        if name == "float" { return 0 }
+        if name == "bool" { return 0 }
+        if name == "char" { return 0 }
+        // Everything else (string, class names, enum names) → 1 (borrow)
+        return 1
+    }
+}
+
+// =====================================================================
+//  Standalone helpers
+// =====================================================================
+
+// Check if a type name is Copy (does not need liveness tracking).
+// Copy types pass by value; no move/borrow/clone distinction needed.
+isCopyTypeName(name: string): bool {
+    if name == "int" { return true }
+    if name == "number" { return true }
+    if name == "float" { return true }
+    if name == "bool" { return true }
+    if name == "char" { return true }
+    return false
+}
+
+// =====================================================================
+//  Public API
+// =====================================================================
+
+analyzeLiveness(program: Program): LivenessContext {
+    let analyzer = LivenessAnalyzer()
+    return analyzer.analyze(program)
+}
+
+main() {
+    print("liveness module loaded")
+}

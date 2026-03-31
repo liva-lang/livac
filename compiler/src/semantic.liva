@@ -2,6 +2,7 @@
 // semantic.liva — Semantic Analyzer for the Liva self-hosting compiler
 // ============================================================================
 // Phase 2.6: Import resolution (builds on Phase 2.5 Class/Enum metadata)
+// Phase 2 COMPLETE — liveness analysis in separate module: liveness.liva
 //
 // The bootstrap compiler (Rust) has NO type system — codegen uses ~20 HashSets
 // to "guess" types. This module replaces that with a proper semantic analysis

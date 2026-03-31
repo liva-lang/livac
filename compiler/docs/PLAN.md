@@ -1,8 +1,8 @@
 # Self-Hosting: Compilador de Liva escrito en Liva
 
-> **Estado:** Fase 2.6 completada ✅ (semantic.liva — Import resolution)
+> **Estado:** Fase 2 completada ✅ (semantic analyzer completo + liveness analysis)
 > **Última actualización:** 2026-03-31
-> **Próximo:** Fase 2.7 — Liveness analysis
+> **Próximo:** Fase 3 — Codegen limpio
 
 ---
 
@@ -183,7 +183,7 @@ enum ParamMode { Owned, Borrow }
 | 2.4 | **Function signatures** ✅ | Return types, param types, fallibility, async |
 | 2.5 | **Class/Enum metadata** ✅ | Fields con tipos, variant fields, methods |
 | 2.6 | **Import resolution** ✅ | Tipos de símbolos importados de otros módulos |
-| 2.7 | **Liveness analysis** | Último uso → move, no-último → borrow/clone |
+| 2.7 | **Liveness analysis** ✅ | Último uso → move, no-último → borrow/clone |
 
 #### Fase 2.1 — Completada ✅ (2026-03-31)
 
@@ -267,6 +267,26 @@ enum ParamMode { Owned, Borrow }
 - W-005: `option_value_vars` leaks across class methods in codegen. Si un param se llama `t: TypeRef?`,
   todos los `for t in ...` en otros métodos del mismo class generan `.as_ref().unwrap()` incorrecto.
   **Fix:** Usar nombres únicos para params Optional (e.g., `optRef` en vez de `t`).
+
+#### Fase 2.7 — Completada ✅ (2026-03-31)
+
+**Módulo:** `compiler/src/liveness.liva` (519 líneas — nuevo módulo)
+
+**Qué incluye:**
+- **LivenessContext** output struct: `useCounts`, `loopUseCounts`, `paramBorrow` (all `Map<string, number>`)
+- **LivenessAnalyzer** class: walks AST counting variable references per function/method
+- **Use counting**: `_recordUse(varName)` increments `"funcName:varName"` key in useCounts
+- **Loop tracking**: `_inLoop` flag saved/restored for for/while — uses inside loops tracked in loopUseCounts
+- **Parameter borrow detection**: `_shouldBorrowType(optRef)` → Copy types (int/float/bool/number/char) = owned, non-Copy = borrow
+- **Full AST coverage**: all 22 Expr variants + all Stmt variants + lambdas + switch arms + string templates
+- **"this" exclusion**: self-references not tracked (not local variables)
+- **Public API**: `analyzeLiveness(program)` → `LivenessContext`
+- **Helper**: `isCopyTypeName(name)` for codegen consumption
+- **Cleanup**: Removed `examples/self-hosting/` legacy directory — canonical location is `compiler/`
+
+**Bootstrap workaround reused:**
+- W-005: param named `optRef` (not `typeRef`) in `_shouldBorrowType` to avoid option_value_vars pollution
+- Optional→non-Optional delegation: null check + pass to non-Optional method (auto-unwrap in if block)
 
 ### Fase 3: Codegen Limpio
 
@@ -461,7 +481,7 @@ Fase 2: Semantic Analyzer
   [x] 2.4: Function signatures registry
   [x] 2.5: Class/Enum metadata registry
   [x] 2.6: Import resolution (tipos de otros módulos)
-  [ ] 2.7: Liveness analysis (move/borrow/clone)
+  [x] 2.7: Liveness analysis (move/borrow/clone)
   [ ] Tests: semantic_typing_tests
 
 Fase 3: Codegen

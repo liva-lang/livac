@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.0-dev] - 2026-03-31
 
 ### Added
+- **Self-hosting Phase 2.7: Liveness Analysis** — `compiler/src/liveness.liva` (519 lines, new module)
+  - LivenessContext output: useCounts, loopUseCounts, paramBorrow maps
+  - LivenessAnalyzer class: walks AST counting variable uses per function/method
+  - Loop tracking: `_inLoop` flag saved/restored for for/while nesting
+  - Parameter borrow detection: Copy types → owned, non-Copy → borrow
+  - Full AST coverage: all 22 Expr variants, all Stmt variants, lambdas, switch arms
+  - Query helper: isCopyTypeName for codegen consumption
+  - Public API: analyzeLiveness(program) entry point
+  - Phase 2 COMPLETE — semantic analyzer fully functional
+- Removed `examples/self-hosting/` legacy directory (canonical location: `compiler/`)
+
+## [2.0.0-dev] - 2026-03-31
+
+### Added
 - **Self-hosting Phase 2.6: Import Resolution** — `compiler/src/semantic.liva` (1708 lines, +62)
   - Import registration: `_registerImport` processes TopLevel.Import items
   - Shallow type stubs: uppercase imported names get stub ClassInfo for type resolution
