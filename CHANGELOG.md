@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.0-dev] - 2026-03-31
 
 ### Added
+- **Self-hosting Phase 2.5: Class/Enum Metadata** — `compiler/src/semantic.liva` (1646 lines, +140)
+  - Constructor validation: `_validateStructLiteral` checks field count vs ClassInfo
+  - Map method type table: 10 methods (has/get/set/delete/keys/values/entries/size/isEmpty/clear)
+  - Set method type table: 7 methods (has/add/delete/size/isEmpty/toArray/clear)
+  - Enum variant inference in `_inferCallByName` and `_inferMemberOnSimple`
+  - Method dispatch on MapType and SetType in `_inferMethodCallType`
+  - Metadata query API: getClassFieldNames, getClassMethodNames, getEnumVariantNames, isEnumUnit, getVariantFieldCount
+
+## [2.0.0-dev] - 2026-03-31
+
+### Added
 - **Self-hosting Phase 2.4: Function Signatures** — `compiler/src/semantic.liva` (1506 lines, +178)
   - Current function tracking: `_currentFuncName` + `_currentFuncFallible` with save/restore
   - Param type storage: `_storeParamType` stores parameter types in pool during analysis

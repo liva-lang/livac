@@ -374,6 +374,18 @@
 - [x] Bootstrap fix SH-013: For-loop var_types tracking
 - [x] 518 tests verdes
 
+### Self-hosting — Fase 2.5: Class/Enum metadata ✅
+
+- [x] semantic.liva — 1646 líneas (+140), compila a Rust sin errores
+- [x] Constructor validation: _validateStructLiteral + _countRequiredFields
+- [x] Map method type table: 10 methods
+- [x] Set method type table: 7 methods
+- [x] Enum variant inference in _inferCallByName and _inferMemberOnSimple
+- [x] Method dispatch on MapType and SetType
+- [x] Metadata query API: 5 methods for codegen
+- [x] ObjField import added
+- [x] 518 tests verdes
+
 ### Self-hosting — Fase 2.4: Function signatures ✅
 
 - [x] semantic.liva — 1506 líneas (+178), compila a Rust sin errores

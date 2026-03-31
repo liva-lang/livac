@@ -1,7 +1,7 @@
 // ============================================================================
 // semantic.liva — Semantic Analyzer for the Liva self-hosting compiler
 // ============================================================================
-// Phase 2.4: Function signatures (builds on Phase 2.3 Expr typing)
+// Phase 2.5: Class/Enum metadata (builds on Phase 2.4 Function signatures)
 //
 // The bootstrap compiler (Rust) has NO type system — codegen uses ~20 HashSets
 // to "guess" types. This module replaces that with a proper semantic analysis
@@ -33,7 +33,7 @@ import {
     IfStmt, IfBody, WhileStmt, ForStmt, SwitchStmt, TryCatchStmt,
     LambdaExpr, LambdaParam, LambdaBody, BindingPattern,
     SwitchArm, Pattern, Literal, BinOp, UnOp, ExecPolicy,
-    TypeParameter, TypeAliasDecl
+    TypeParameter, TypeAliasDecl, ObjField
 } from "./ast.liva"
 
 // =====================================================================
@@ -485,11 +485,14 @@ SemanticAnalyzer {
                 0
             },
             Expr.StructLiteral(name, fields) => {
+                // Phase 2.5: validate constructor fields (must use name before moving into TypeRef)
+                this._validateStructLiteral($"{name}", fields)
                 result = TypeRef.Simple(name)
                 0
             },
             Expr.Unwrap(inner) => {
-                result = this._unwrapOptionalType(this.inferExprType(inner))
+                let innerType = this.inferExprType(inner)
+                result = this._unwrapOptionalType(innerType)
                 0
             },
             Expr.OptionalChain(object, property) => {
@@ -604,7 +607,13 @@ SemanticAnalyzer {
     }
 
     _inferCallByName(name: string): TypeRef {
+        // Class constructor
         if this._classes.has(name) {
+            return TypeRef.Simple(name)
+        }
+        // Enum constructor: "EnumName.Variant" or just "Variant"
+        // For now we check registered enum names
+        if this._enums.has(name) {
             return TypeRef.Simple(name)
         }
         return this.lookupFuncReturnType(name)
@@ -620,6 +629,14 @@ SemanticAnalyzer {
             },
             TypeRef.Array(inner) => {
                 result = this._inferArrayMethodType(method, inner)
+                0
+            },
+            TypeRef.MapType(k, v) => {
+                result = this._inferMapMethodType(method, k, v)
+                0
+            },
+            TypeRef.SetType(inner) => {
+                result = this._inferSetMethodType(method, inner)
                 0
             },
             _ => { 0 }
@@ -709,6 +726,10 @@ SemanticAnalyzer {
         if this._classes.has(typeName) {
             return this._lookupFieldType(typeName, property)
         }
+        // Phase 2.5: enum variant access (e.g., MyEnum.Variant)
+        if this._enums.has(typeName) {
+            return TypeRef.Simple(typeName)
+        }
         return TypeRef.Simple("unknown")
     }
 
@@ -716,6 +737,35 @@ SemanticAnalyzer {
         if property == "length" {
             return TypeRef.Simple("number")
         }
+        return TypeRef.Simple("unknown")
+    }
+
+    // -- Phase 2.5: Map method type table --
+
+    _inferMapMethodType(method: string, keyType: TypeRef, valType: TypeRef): TypeRef {
+        if method == "has" => return TypeRef.Simple("bool")
+        if method == "get" => return valType
+        if method == "set" => return TypeRef.Simple("void")
+        if method == "delete" => return TypeRef.Simple("bool")
+        if method == "keys" => return TypeRef.Array(keyType)
+        if method == "values" => return TypeRef.Array(valType)
+        if method == "entries" => return TypeRef.Array(TypeRef.Tuple([keyType, valType]))
+        if method == "size" => return TypeRef.Simple("number")
+        if method == "isEmpty" => return TypeRef.Simple("bool")
+        if method == "clear" => return TypeRef.Simple("void")
+        return TypeRef.Simple("unknown")
+    }
+
+    // -- Phase 2.5: Set method type table --
+
+    _inferSetMethodType(method: string, elemType: TypeRef): TypeRef {
+        if method == "has" => return TypeRef.Simple("bool")
+        if method == "add" => return TypeRef.Simple("void")
+        if method == "delete" => return TypeRef.Simple("bool")
+        if method == "size" => return TypeRef.Simple("number")
+        if method == "isEmpty" => return TypeRef.Simple("bool")
+        if method == "toArray" => return TypeRef.Array(elemType)
+        if method == "clear" => return TypeRef.Simple("void")
         return TypeRef.Simple("unknown")
     }
 
@@ -1312,6 +1362,96 @@ SemanticAnalyzer {
                 this._currentFuncFallible = true
             }
         }
+    }
+
+    // -- Phase 2.5: Struct literal (constructor) validation --
+    // Checks that fields in a StructLiteral match the class declaration.
+
+    _validateStructLiteral(className: string, fields: [ObjField]) {
+        if this._classes.has(className) == false {
+            // Not a known class — might be imported; skip validation
+            return
+        }
+
+        let info = this._classes.get(className)
+        let nGiven = fields.length
+        let nExpected = info.fields.length
+
+        // Count required fields (non-optional)
+        let nRequired = this._countRequiredFields(info)
+
+        if nGiven < nRequired {
+            this._error($"Constructor '{className}' expects at least {nRequired} fields, got {nGiven}", 0, 0)
+        }
+        if nGiven > nExpected {
+            this._error($"Constructor '{className}' has {nExpected} fields, got {nGiven}", 0, 0)
+        }
+    }
+
+    _countRequiredFields(info: ClassInfo): number {
+        let count = 0
+        for f in info.fields {
+            if f.isOptional == false {
+                count += 1
+            }
+        }
+        return count
+    }
+
+    // -- Phase 2.5: Metadata query methods --
+    // Allow codegen and external consumers to look up class/enum info.
+
+    getClassFieldNames(className: string): [string] {
+        let names: [string] = []
+        if this._classes.has(className) {
+            let info = this._classes.get(className)
+            for f in info.fields {
+                names.push($"{f.name}")
+            }
+        }
+        return names
+    }
+
+    getClassMethodNames(className: string): [string] {
+        let names: [string] = []
+        if this._classes.has(className) {
+            let info = this._classes.get(className)
+            for m in info.methods {
+                names.push($"{m.name}")
+            }
+        }
+        return names
+    }
+
+    getEnumVariantNames(enumName: string): [string] {
+        let names: [string] = []
+        if this._enums.has(enumName) {
+            let info = this._enums.get(enumName)
+            for v in info.variants {
+                names.push($"{v.name}")
+            }
+        }
+        return names
+    }
+
+    isEnumUnit(enumName: string): bool {
+        if this._enums.has(enumName) {
+            let info = this._enums.get(enumName)
+            return info.isUnit
+        }
+        return false
+    }
+
+    getVariantFieldCount(enumName: string, variantName: string): number {
+        if this._enums.has(enumName) {
+            let info = this._enums.get(enumName)
+            for v in info.variants {
+                if v.name == variantName {
+                    return v.fields.length
+                }
+            }
+        }
+        return 0
     }
 
     // -- Phase 2.3+2.4: Expression analysis --
