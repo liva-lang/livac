@@ -216,6 +216,41 @@ _scanIdentifier(firstChar: string, ...) {
 
 ---
 
+### ISSUE-012: Switch expression con `_ => null` no genera Option correcto
+- **Tipo:** BUG
+- **Severidad:** MEDIUM
+- **Descripción:** Cuando un switch expression tiene arms que devuelven `T` y un `_ => null`, el codegen no unifica los tipos. Genera `match { ... "x" => Color::Red, _ => None }` donde un arm es `Color` y otro `Option<Color>`. Debería generar `Some(Color::Red)` en los arms no-null y `None` en el default, o bien el `let` debería ser `Option<T>` y el return no wrappear.
+- **Código que falla:**
+```liva
+lookupColor(name: string): Color? {
+    let result = switch name {
+        "red"   => Color.Red,
+        _       => null
+    }
+    return result
+}
+```
+- **Genera:**
+```rust
+let result = match name.as_str() {
+    "red" => Color::Red,  // Color
+    _ => None,            // Option<Color>  ← TYPE MISMATCH
+};
+return Some(result);      // double-wrap
+```
+- **Esperado:**
+```rust
+let result = match name.as_str() {
+    "red" => Some(Color::Red),
+    _ => None,
+};
+return result;
+```
+- **Workaround:** Usar sentinel value (`_ => TokenKind.EOF`) y comprobar después.
+- **Estado:** OPEN
+
+---
+
 ## Feature Requests
 
 > Features del lenguaje que facilitarían el self-hosting significativamente.
