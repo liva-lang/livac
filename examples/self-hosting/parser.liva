@@ -49,17 +49,13 @@ Parser {
 
     _peekToken(offset: number): TokenKind {
         let idx = this.current + offset
-        if idx >= this.tokens.length {
-            return TokenKind.EOF
-        }
+        if idx >= this.tokens.length => return TokenKind.EOF
         return this.tokens[idx].kind
     }
 
     _advance(): Token {
         let tok = this.tokens[this.current]
-        if not this._isAtEnd() {
-            this.current = this.current + 1
-        }
+        if not this._isAtEnd() => this.current += 1
         return tok
     }
 
@@ -74,9 +70,7 @@ Parser {
 
     // Check if current token matches a simple (no-data) TokenKind
     _check(kind: TokenKind): bool {
-        if this._isAtEnd() {
-            return false
-        }
+        if this._isAtEnd() => return false
         return this._peekKind() == kind
     }
 
@@ -128,9 +122,7 @@ Parser {
     }
 
     // Check if token at offset is a specific simple kind
-    _checkTokenAt(offset: number, kind: TokenKind): bool {
-        return this._peekToken(offset) == kind
-    }
+    _checkTokenAt(offset: number, kind: TokenKind): bool => this._peekToken(offset) == kind
 
     // Check if token at offset is any Ident
     _isIdentAt(offset: number): bool => switch this._peekToken(offset) {
@@ -229,39 +221,33 @@ Parser {
             while idx < this.tokens.length {
                 let t = this._peekToken(idx)
                 if t == TokenKind.LParen {
-                    depth = depth + 1
+                    depth += 1
                 } else if t == TokenKind.RParen {
-                    depth = depth - 1
+                    depth -= 1
                     if depth == 0 {
-                        idx = idx + 1
+                        idx += 1
                         break
                     }
-                } else if t == TokenKind.EOF {
-                    return false
-                }
-                idx = idx + 1
+                } else if t == TokenKind.EOF => return false
+                idx += 1
             }
-            if depth != 0 {
-                return false
-            }
+            if depth != 0 => return false
 
             // After closing paren, check for optional return type then =>
             let idxAfter = idx
             if this._peekToken(idxAfter) == TokenKind.Colon {
                 // Skip type tokens until we find => or something that stops us
-                idxAfter = idxAfter + 1
+                idxAfter += 1
                 while true {
                     let t = this._peekToken(idxAfter)
-                    if t == TokenKind.Arrow {
-                        return true
-                    }
+                    if t == TokenKind.Arrow => return true
                     if t == TokenKind.Comma or t == TokenKind.RParen
                         or t == TokenKind.Assign or t == TokenKind.Semicolon
                         or t == TokenKind.LBrace or t == TokenKind.RBrace
                         or t == TokenKind.EOF {
                         break
                     }
-                    idxAfter = idxAfter + 1
+                    idxAfter += 1
                 }
                 return this._peekToken(idxAfter) == TokenKind.Arrow
             }
@@ -274,9 +260,7 @@ Parser {
             TokenKind.PrivateIdent(_) => true,
             _ => false
         }
-        if isIdent {
-            return this._peekToken(offset + 1) == TokenKind.Arrow
-        }
+        if isIdent => return this._peekToken(offset + 1) == TokenKind.Arrow
 
         // {x, y} => ...
         if tok == TokenKind.LBrace {
@@ -285,17 +269,15 @@ Parser {
             while idx < this.tokens.length {
                 let t = this._peekToken(idx)
                 if t == TokenKind.LBrace {
-                    depth = depth + 1
+                    depth += 1
                 } else if t == TokenKind.RBrace {
-                    depth = depth - 1
+                    depth -= 1
                     if depth == 0 {
-                        idx = idx + 1
+                        idx += 1
                         break
                     }
-                } else if t == TokenKind.EOF {
-                    return false
-                }
-                idx = idx + 1
+                } else if t == TokenKind.EOF => return false
+                idx += 1
             }
             return this._peekToken(idx) == TokenKind.Arrow
         }
@@ -307,17 +289,15 @@ Parser {
             while idx < this.tokens.length {
                 let t = this._peekToken(idx)
                 if t == TokenKind.LBracket {
-                    depth = depth + 1
+                    depth += 1
                 } else if t == TokenKind.RBracket {
-                    depth = depth - 1
+                    depth -= 1
                     if depth == 0 {
-                        idx = idx + 1
+                        idx += 1
                         break
                     }
-                } else if t == TokenKind.EOF {
-                    return false
-                }
-                idx = idx + 1
+                } else if t == TokenKind.EOF => return false
+                idx += 1
             }
             return this._peekToken(idx) == TokenKind.Arrow
         }
@@ -333,34 +313,26 @@ Parser {
         let offset = 1  // start after <
 
         // Must start with a type token
-        if not this._isIdentAt(offset) and not this._isTypeKeywordAt(offset) {
-            return false
-        }
-        offset = offset + 1
+        if not this._isIdentAt(offset) and not this._isTypeKeywordAt(offset) => return false
+        offset += 1
 
         // Skip through type params
         while true {
             let t = this._peekToken(offset)
             if t == TokenKind.Comma {
-                offset = offset + 1
-                if not this._isIdentAt(offset) and not this._isTypeKeywordAt(offset) {
-                    return false
-                }
-                offset = offset + 1
+                offset += 1
+                if not this._isIdentAt(offset) and not this._isTypeKeywordAt(offset) => return false
+                offset += 1
             } else if t == TokenKind.Gt {
-                offset = offset + 1
+                offset += 1
                 return this._peekToken(offset) == TokenKind.LParen
             } else if t == TokenKind.LBracket {
                 // Array type like [int]
-                offset = offset + 1
-                if not this._isIdentAt(offset) {
-                    return false
-                }
-                offset = offset + 1
-                if this._peekToken(offset) != TokenKind.RBracket {
-                    return false
-                }
-                offset = offset + 1
+                offset += 1
+                if not this._isIdentAt(offset) => return false
+                offset += 1
+                if this._peekToken(offset) != TokenKind.RBracket => return false
+                offset += 1
             } else {
                 return false
             }
@@ -497,9 +469,7 @@ Parser {
 
     _parseTopLevel(): TopLevel {
         // ── import ────────────────────────────────────────────────
-        if this._match(TokenKind.KwImport) {
-            return this._parseImportDecl()
-        }
+        if this._match(TokenKind.KwImport) => return this._parseImportDecl()
 
         // ── use rust "crate" ──────────────────────────────────────
         if this._match(TokenKind.KwUse) {
@@ -527,9 +497,7 @@ Parser {
             }
 
             let alias: string? = null
-            if this._match(TokenKind.KwAs) {
-                alias = this._parseIdentifier()
-            }
+            if this._match(TokenKind.KwAs) => alias = this._parseIdentifier()
 
             return TopLevel.UseRust(UseRustDecl(crateName, alias, version, features))
         }
@@ -553,9 +521,7 @@ Parser {
         }
 
         // ── enum ──────────────────────────────────────────────────
-        if this._match(TokenKind.KwEnum) {
-            return this._parseEnumDecl()
-        }
+        if this._match(TokenKind.KwEnum) => return this._parseEnumDecl()
 
         // ── test ──────────────────────────────────────────────────
         if this._match(TokenKind.KwTest) {
@@ -580,26 +546,20 @@ Parser {
         if this._match(TokenKind.KwConst) {
             let name = this._parseIdentifier()
             let typeRef: TypeRef? = null
-            if this._match(TokenKind.Colon) {
-                typeRef = this._parseType()
-            }
+            if this._match(TokenKind.Colon) => typeRef = this._parseType()
             this._expect(TokenKind.Assign)
             let value = this._parseExpression()
             this._match(TokenKind.Semicolon)
             return TopLevel.ConstDecl(ConstDecl(name, typeRef, value))
         }
 
-        if this._isAtEnd() {
-            this._error("Unexpected end of file")
-        }
+        if this._isAtEnd() => this._error("Unexpected end of file")
 
         // ── Detect top-level expression (e.g., describe("...")) ──
         // Heuristic: ident ( stringLiteral → call, not function decl
         let isPotentialCall = false
         if this._isIdent() or this._check(TokenKind.KwTest) {
-            if this._peekToken(1) == TokenKind.LParen {
-                isPotentialCall = this._isStringLitAt(2)
-            }
+            if this._peekToken(1) == TokenKind.LParen => isPotentialCall = this._isStringLitAt(2)
         }
         if isPotentialCall {
             let expr = this._parseExpression()
@@ -637,9 +597,7 @@ Parser {
         this._expect(TokenKind.RParen)
 
         let returnType: TypeRef? = null
-        if this._match(TokenKind.Colon) {
-            returnType = this._parseType()
-        }
+        if this._match(TokenKind.Colon) => returnType = this._parseType()
 
         // One-liner: => expr or = expr
         if this._check(TokenKind.Arrow) or this._check(TokenKind.Assign) {
@@ -710,9 +668,7 @@ Parser {
                     this._expect(TokenKind.Colon)
                     let typeRef = this._parseType()
                     fields.push(EnumField(fieldName, typeRef))
-                    if not this._check(TokenKind.RParen) {
-                        this._expect(TokenKind.Comma)
-                    }
+                    if not this._check(TokenKind.RParen) => this._expect(TokenKind.Comma)
                 }
                 this._expect(TokenKind.RParen)
             }
@@ -772,9 +728,7 @@ Parser {
                 this._expect(TokenKind.RParen)
 
                 let returnType: TypeRef? = null
-                if this._match(TokenKind.Colon) {
-                    returnType = this._parseType()
-                }
+                if this._match(TokenKind.Colon) => returnType = this._parseType()
 
                 // One-liner method: => expr or = expr
                 if this._check(TokenKind.Arrow) or this._check(TokenKind.Assign) {
@@ -815,13 +769,9 @@ Parser {
                 // Field
                 let isOptional = this._match(TokenKind.Question)
                 let typeRef: TypeRef? = null
-                if this._match(TokenKind.Colon) {
-                    typeRef = this._parseType()
-                }
+                if this._match(TokenKind.Colon) => typeRef = this._parseType()
                 let init: Expr? = null
-                if this._match(TokenKind.Assign) {
-                    init = this._parseExpression()
-                }
+                if this._match(TokenKind.Assign) => init = this._parseExpression()
                 members.push(Member.Field(FieldDecl(name, visibility, typeRef, init, isOptional)))
                 this._match(TokenKind.Semicolon)
             }
@@ -837,13 +787,9 @@ Parser {
         while true {
             let pattern = this._parseParamPattern()
             let typeRef: TypeRef? = null
-            if this._match(TokenKind.Colon) {
-                typeRef = this._parseType()
-            }
+            if this._match(TokenKind.Colon) => typeRef = this._parseType()
             let defaultVal: Expr? = null
-            if this._match(TokenKind.Assign) {
-                defaultVal = this._parseExpression()
-            }
+            if this._match(TokenKind.Assign) => defaultVal = this._parseExpression()
             params.push(Param(pattern, typeRef, defaultVal))
             if not this._match(TokenKind.Comma) { break }
         }
@@ -873,9 +819,7 @@ Parser {
             this._advance()
             if this._match(TokenKind.RParen) {
                 let result = TypeRef.Tuple([])
-                if this._match(TokenKind.Question) {
-                    return TypeRef.OptionalType(result)
-                }
+                if this._match(TokenKind.Question) => return TypeRef.OptionalType(result)
                 return result
             }
             let first = this._parseType()
@@ -890,9 +834,7 @@ Parser {
                 }
                 this._expect(TokenKind.RParen)
                 let result = TypeRef.Tuple(types)
-                if this._match(TokenKind.Question) {
-                    return TypeRef.OptionalType(result)
-                }
+                if this._match(TokenKind.Question) => return TypeRef.OptionalType(result)
                 return result
             }
             this._error("Unexpected type in parentheses — did you mean a tuple type like (T,)?")
@@ -905,9 +847,7 @@ Parser {
             let inner = this._parseType()
             this._expect(TokenKind.RBracket)
             let result = TypeRef.Array(inner)
-            if this._match(TokenKind.Question) {
-                return TypeRef.OptionalType(result)
-            }
+            if this._match(TokenKind.Question) => return TypeRef.OptionalType(result)
             return result
         }
 
@@ -938,30 +878,22 @@ Parser {
 
             if base == "Map" and args.length == 2 {
                 let mapResult = TypeRef.MapType(args[0], args[1])
-                if this._match(TokenKind.Question) {
-                    return TypeRef.OptionalType(mapResult)
-                }
+                if this._match(TokenKind.Question) => return TypeRef.OptionalType(mapResult)
                 return mapResult
             }
             if base == "Set" and args.length == 1 {
                 let setResult = TypeRef.SetType(args[0])
-                if this._match(TokenKind.Question) {
-                    return TypeRef.OptionalType(setResult)
-                }
+                if this._match(TokenKind.Question) => return TypeRef.OptionalType(setResult)
                 return setResult
             }
             let genResult = TypeRef.Generic(base, args)
-            if this._match(TokenKind.Question) {
-                return TypeRef.OptionalType(genResult)
-            }
+            if this._match(TokenKind.Question) => return TypeRef.OptionalType(genResult)
             return genResult
         }
 
         // Simple type
         let result = TypeRef.Simple(base)
-        if this._match(TokenKind.Question) {
-            return TypeRef.OptionalType(result)
-        }
+        if this._match(TokenKind.Question) => return TypeRef.OptionalType(result)
         return result
     }
 
@@ -981,12 +913,8 @@ Parser {
     // ═════════════════════════════════════════════════════════════════
 
     _parseParamPattern(): BindingPattern {
-        if this._check(TokenKind.LBrace) {
-            return this._parseObjectPattern()
-        }
-        if this._check(TokenKind.LBracket) {
-            return this._parseArrayPattern()
-        }
+        if this._check(TokenKind.LBrace) => return this._parseObjectPattern()
+        if this._check(TokenKind.LBracket) => return this._parseArrayPattern()
         let name = this._parseIdentifier()
         return BindingPattern.Identifier(name)
     }
@@ -1007,9 +935,7 @@ Parser {
         }
 
         let typeRef: TypeRef? = null
-        if this._match(TokenKind.Colon) {
-            typeRef = this._parseType()
-        }
+        if this._match(TokenKind.Colon) => typeRef = this._parseType()
         return VarBinding(pattern, typeRef)
     }
 
@@ -1214,9 +1140,7 @@ Parser {
         if this._match(TokenKind.KwConst) {
             let name = this._parseIdentifier()
             let typeRef: TypeRef? = null
-            if this._match(TokenKind.Colon) {
-                typeRef = this._parseType()
-            }
+            if this._match(TokenKind.Colon) => typeRef = this._parseType()
             this._expect(TokenKind.Assign)
             let value = this._parseExpression()
             this._match(TokenKind.Semicolon)
@@ -1389,9 +1313,7 @@ Parser {
 
             let variable = this._parseIdentifier()
             let variable2: string? = null
-            if this._match(TokenKind.Comma) {
-                variable2 = this._parseIdentifier()
-            }
+            if this._match(TokenKind.Comma) => variable2 = this._parseIdentifier()
             this._expect(TokenKind.KwIn)
             let iterable = this._parseExpressionNoLambda()
 
@@ -1462,14 +1384,10 @@ Parser {
 
     _parseLambdaExpression(): Expr {
         if this._match(TokenKind.KwMove) {
-            if not this._isLambdaStart() {
-                this._error("Expected lambda parameters after 'move'")
-            }
+            if not this._isLambdaStart() => this._error("Expected lambda parameters after 'move'")
             return this._parseLambda(true)
         }
-        if this._isLambdaStart() {
-            return this._parseLambda(false)
-        }
+        if this._isLambdaStart() => return this._parseLambda(false)
         return this._parseAssignment()
     }
 
@@ -1484,9 +1402,7 @@ Parser {
         }
 
         let returnType: TypeRef? = null
-        if this._match(TokenKind.Colon) {
-            returnType = this._parseType()
-        }
+        if this._match(TokenKind.Colon) => returnType = this._parseType()
 
         this._expect(TokenKind.Arrow)
         let body = this._parseLambdaBody()
@@ -1499,9 +1415,7 @@ Parser {
         while true {
             let pattern = this._parseParamPattern()
             let typeRef: TypeRef? = null
-            if this._match(TokenKind.Colon) {
-                typeRef = this._parseType()
-            }
+            if this._match(TokenKind.Colon) => typeRef = this._parseType()
             params.push(LambdaParam(pattern, typeRef))
             if not this._match(TokenKind.Comma) { break }
         }
@@ -1546,13 +1460,9 @@ Parser {
             // `or` but not `or fail`
             let isOr = false
             if this._check(TokenKind.KwOr) {
-                if this._peekToken(1) != TokenKind.KwFail {
-                    isOr = true
-                }
+                if this._peekToken(1) != TokenKind.KwFail => isOr = true
             }
-            if this._check(TokenKind.OrOr) {
-                isOr = true
-            }
+            if this._check(TokenKind.OrOr) => isOr = true
             if not isOr { break }
             this._advance()
             let right = this._parseAnd()
@@ -1656,12 +1566,8 @@ Parser {
             let operand = this._parseUnary()
             return Expr.Unary(UnOp.Await, operand)
         }
-        if this._match(TokenKind.KwAsync) {
-            return this._parseExecCall(ExecPolicy.Async)
-        }
-        if this._match(TokenKind.KwPar) {
-            return this._parseExecCall(ExecPolicy.Par)
-        }
+        if this._match(TokenKind.KwAsync) => return this._parseExecCall(ExecPolicy.Async)
+        if this._match(TokenKind.KwPar) => return this._parseExecCall(ExecPolicy.Par)
         if this._match(TokenKind.KwTask) {
             let policy = ExecPolicy.Normal
             if this._match(TokenKind.KwAsync) {
@@ -1686,9 +1592,7 @@ Parser {
                 _ => expr
             }
         }
-        if isMC {
-            return Expr.Call(expr, [], policy, [])
-        }
+        if isMC => return Expr.Call(expr, [], policy, [])
         this._error("Expected function call after execution modifier")
         return expr
     }
@@ -1722,9 +1626,7 @@ Parser {
                 isIdent = false
             } else if this._check(TokenKind.LBrace) {
                 // Map/Set/Struct literal after identifier
-                if not isIdent {
-                    break
-                }
+                if not isIdent => break
                 let typeName = this._getIdentNameAt(identTokenIdx)
                 if typeName == "Map" {
                     this._advance()
@@ -1776,9 +1678,7 @@ Parser {
                 isIdent = false
             } else if this._match(TokenKind.DoubleColon) {
                 // Method reference: Utils::validate
-                if not isIdent {
-                    this._error("Expected identifier before '::'")
-                }
+                if not isIdent => this._error("Expected identifier before '::'")
                 let objectName = this._getIdentNameAt(identTokenIdx)
                 let method = this._parseIdentifier()
                 expr = Expr.MethodRef(objectName, method)
@@ -1857,15 +1757,11 @@ Parser {
         }
 
         // switch expression
-        if this._match(TokenKind.KwSwitch) {
-            return this._parseSwitchExpr()
-        }
+        if this._match(TokenKind.KwSwitch) => return this._parseSwitchExpr()
 
         // Grouped expression or tuple: (expr) or (a, b)
         if this._match(TokenKind.LParen) {
-            if this._match(TokenKind.RParen) {
-                return Expr.TupleLiteral([])
-            }
+            if this._match(TokenKind.RParen) => return Expr.TupleLiteral([])
             let first = this._parseExpression()
             if this._match(TokenKind.Comma) {
                 let elements = [first]
@@ -1895,9 +1791,7 @@ Parser {
         }
 
         // Array literal: [...]
-        if this._match(TokenKind.LBracket) {
-            return this._parseArrayLiteral()
-        }
+        if this._match(TokenKind.LBracket) => return this._parseArrayLiteral()
 
         this._error("Expected expression")
         return Expr.Literal(Literal.Null)   // unreachable
@@ -1977,9 +1871,7 @@ Parser {
         while not this._isAtEnd() and not this._check(TokenKind.RBrace) {
             let pattern = this._parsePattern()
             let guard: Expr? = null
-            if this._match(TokenKind.KwIf) {
-                guard = this._parseExpression()
-            }
+            if this._match(TokenKind.KwIf) => guard = this._parseExpression()
             this._expect(TokenKind.Arrow)
 
             let body = SwitchArmBody.Expr(Expr.Literal(Literal.Null))
@@ -2001,9 +1893,7 @@ Parser {
         }
 
         this._expect(TokenKind.RBrace)
-        if arms.length == 0 {
-            this._error("Switch expression must have at least one arm")
-        }
+        if arms.length == 0 => this._error("Switch expression must have at least one arm")
         return Expr.SwitchExpr(discriminant, arms)
     }
 
@@ -2026,9 +1916,7 @@ Parser {
 
     _parseSinglePattern(): Pattern {
         // Wildcard: _
-        if this._match(TokenKind.Underscore) {
-            return Pattern.Wildcard
-        }
+        if this._match(TokenKind.Underscore) => return Pattern.Wildcard
 
         // Tuple pattern: (p1, p2)
         if this._match(TokenKind.LParen) {
@@ -2111,9 +1999,7 @@ Parser {
                         } else {
                             bindings.push(this._parseIdentifier())
                         }
-                        if not this._check(TokenKind.RParen) {
-                            this._expect(TokenKind.Comma)
-                        }
+                        if not this._check(TokenKind.RParen) => this._expect(TokenKind.Comma)
                     }
                     this._expect(TokenKind.RParen)
                 }
@@ -2159,7 +2045,7 @@ Parser {
                     if nextIsFail { return true }
                 }
             }
-            i = i + 1
+            i += 1
         }
         return false
     }
@@ -2237,27 +2123,27 @@ parseStringTemplateParts(raw: string): [StringTemplatePart] {
 
         if ch == "\\" {
             // Escape sequence
-            i = i + 1
+            i += 1
             if i < chars.length {
                 let escaped = chars[i]
-                if escaped == "n"  { buffer = buffer + "\n" }
-                else if escaped == "r" { buffer = buffer + "\r" }
-                else if escaped == "t" { buffer = buffer + "\t" }
-                else if escaped == "\\" { buffer = buffer + "\\" }
-                else if escaped == "\"" { buffer = buffer + "\"" }
-                else if escaped == "{" { buffer = buffer + "{" }
-                else if escaped == "}" { buffer = buffer + "}" }
-                else { buffer = buffer + escaped }
+                if escaped == "n"  { buffer += "\n" }
+                else if escaped == "r" { buffer += "\r" }
+                else if escaped == "t" { buffer += "\t" }
+                else if escaped == "\\" { buffer += "\\" }
+                else if escaped == "\"" { buffer += "\"" }
+                else if escaped == "{" { buffer += "{" }
+                else if escaped == "}" { buffer += "}" }
+                else { buffer += escaped }
             }
-            i = i + 1
+            i += 1
             continue
         }
 
         if ch == "{" {
             // Check for {{ escape
             if i + 1 < chars.length and chars[i + 1] == "{" {
-                buffer = buffer + "{"
-                i = i + 2
+                buffer += "{"
+                i += 2
                 continue
             }
 
@@ -2267,23 +2153,23 @@ parseStringTemplateParts(raw: string): [StringTemplatePart] {
                 buffer = ""
             }
 
-            i = i + 1
+            i += 1
             let depth = 1
             let exprSrc = ""
             while i < chars.length and depth > 0 {
                 let next = chars[i]
                 if next == "{" {
-                    depth = depth + 1
-                    exprSrc = exprSrc + next
+                    depth += 1
+                    exprSrc += next
                 } else if next == "}" {
-                    depth = depth - 1
+                    depth -= 1
                     if depth > 0 {
-                        exprSrc = exprSrc + "}"
+                        exprSrc += "}"
                     }
                 } else {
-                    exprSrc = exprSrc + next
+                    exprSrc += next
                 }
-                i = i + 1
+                i += 1
             }
 
             let trimmed = exprSrc.trim()
@@ -2297,20 +2183,18 @@ parseStringTemplateParts(raw: string): [StringTemplatePart] {
         if ch == "}" {
             // Check for }} escape
             if i + 1 < chars.length and chars[i + 1] == "}" {
-                buffer = buffer + "}"
-                i = i + 2
+                buffer += "}"
+                i += 2
                 continue
             }
             throw "Unmatched closing brace in string template"
         }
 
-        buffer = buffer + ch
-        i = i + 1
+        buffer += ch
+        i += 1
     }
 
-    if buffer != "" {
-        parts.push(StringTemplatePart.Text(buffer))
-    }
+    if buffer != "" => parts.push(StringTemplatePart.Text(buffer))
 
     return parts
 }
@@ -2335,19 +2219,19 @@ _normalizeTemplateStrings(input: string): string {
         let ch = chars[i]
         if ch == "\"" {
             inDoubleQuote = not inDoubleQuote
-            result = result + ch
+            result += ch
         } else if ch == "'" and not inDoubleQuote {
-            result = result + "\""
+            result += "\""
         } else if ch == "\\" {
-            result = result + ch
-            i = i + 1
+            result += ch
+            i += 1
             if i < chars.length {
-                result = result + chars[i]
+                result += chars[i]
             }
         } else {
-            result = result + ch
+            result += ch
         }
-        i = i + 1
+        i += 1
     }
     return result
 }
