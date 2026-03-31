@@ -32,59 +32,43 @@ Lexer {
     _isAtEnd(): bool => this.pos >= this.chars.length
 
     _peek(): string {
-        if this._isAtEnd() {
-            return ""
-        }
+        if this._isAtEnd() => return ""
         return this.chars[this.pos]
     }
 
     _peekNext(): string {
-        if this.pos + 1 >= this.chars.length {
-            return ""
-        }
+        if this.pos + 1 >= this.chars.length => return ""
         return this.chars[this.pos + 1]
     }
 
     _advance(): string {
         let ch = this.chars[this.pos]
-        this.pos = this.pos + 1
+        this.pos += 1
         if ch == "\n" {
-            this.line = this.line + 1
+            this.line += 1
             this.col = 1
         } else {
-            this.col = this.col + 1
+            this.col += 1
         }
         return ch
     }
 
     _match(expected: string): bool {
-        if this._isAtEnd() {
-            return false
-        }
-        if this.chars[this.pos] != expected {
-            return false
-        }
+        if this._isAtEnd() => return false
+        if this.chars[this.pos] != expected => return false
         this._advance()
         return true
     }
 
     // ── Character classification ──────────────────────────────────
 
-    _isDigit(ch: string): bool {
-        return ch >= "0" and ch <= "9"
-    }
+    _isDigit(ch: string): bool => ch >= "0" and ch <= "9"
 
-    _isAlpha(ch: string): bool {
-        return (ch >= "a" and ch <= "z") or (ch >= "A" and ch <= "Z") or ch == "_"
-    }
+    _isAlpha(ch: string): bool => (ch >= "a" and ch <= "z") or (ch >= "A" and ch <= "Z") or ch == "_"
 
-    _isAlphaNumeric(ch: string): bool {
-        return this._isAlpha(ch) or this._isDigit(ch)
-    }
+    _isAlphaNumeric(ch: string): bool => this._isAlpha(ch) or this._isDigit(ch)
 
-    _isWhitespace(ch: string): bool {
-        return ch == " " or ch == "\t" or ch == "\r" or ch == "\n"
-    }
+    _isWhitespace(ch: string): bool => ch == " " or ch == "\t" or ch == "\r" or ch == "\n"
 
     // ── Token emitting ────────────────────────────────────────────
 
@@ -97,9 +81,7 @@ Lexer {
     tokenize(): [Token] {
         while not this._isAtEnd() {
             this._skipWhitespaceAndComments()
-            if this._isAtEnd() {
-                break
-            }
+            if this._isAtEnd() => break
             this._scanToken()
         }
         // Append EOF
@@ -387,37 +369,33 @@ Lexer {
                 if not this._isAtEnd() {
                     let escaped = this._advance()
                     if escaped == "n" {
-                        value = value + "\n"
+                        value += "\n"
                     } else if escaped == "t" {
-                        value = value + "\t"
+                        value += "\t"
                     } else if escaped == "r" {
-                        value = value + "\r"
+                        value += "\r"
                     } else if escaped == "\\" {
-                        value = value + "\\"
+                        value += "\\"
                     } else if escaped == "\"" {
-                        value = value + "\""
+                        value += "\""
                     } else if escaped == "0" {
-                        value = value + "\0"
+                        value += "\0"
                     } else {
-                        value = value + escaped
+                        value += escaped
                     }
                 }
             } else {
-                value = value + this._advance()
+                value += this._advance()
             }
         }
-        // Consume closing "
-        if not this._isAtEnd() {
-            this._advance()
-        }
+        if not this._isAtEnd() => this._advance()
         this._addToken(TokenKind.StringLit(value), startPos, startLine, startCol)
     }
 
     // ── String template scanner ($"...{expr}...") ─────────────────
 
     _scanStringTemplate(startPos: number, startLine: number, startCol: number) {
-        // Skip the opening "
-        this._advance()
+        this._advance()  // skip opening "
 
         let content = ""
         let braceDepth = 0
@@ -428,44 +406,36 @@ Lexer {
             if braceDepth > 0 {
                 // Inside {…} interpolation — track nesting
                 if ch == "{" {
-                    braceDepth = braceDepth + 1
+                    braceDepth += 1
                 } else if ch == "}" {
-                    braceDepth = braceDepth - 1
+                    braceDepth -= 1
                 } else if ch == "\"" {
-                    // String inside interpolation — skip it
-                    content = content + this._advance()
+                    content += this._advance()
                     while not this._isAtEnd() and this._peek() != "\"" {
                         if this._peek() == "\\" {
-                            content = content + this._advance()
-                            if not this._isAtEnd() {
-                                content = content + this._advance()
-                            }
+                            content += this._advance()
+                            if not this._isAtEnd() => content += this._advance()
                         } else {
-                            content = content + this._advance()
+                            content += this._advance()
                         }
                     }
-                    if not this._isAtEnd() {
-                        content = content + this._advance()
-                    }
+                    if not this._isAtEnd() => content += this._advance()
                     continue
                 }
-                content = content + this._advance()
+                content += this._advance()
             } else {
                 // At template level
                 if ch == "{" {
-                    braceDepth = braceDepth + 1
-                    content = content + this._advance()
+                    braceDepth += 1
+                    content += this._advance()
                 } else if ch == "\\" {
-                    content = content + this._advance()
-                    if not this._isAtEnd() {
-                        content = content + this._advance()
-                    }
+                    content += this._advance()
+                    if not this._isAtEnd() => content += this._advance()
                 } else if ch == "\"" {
-                    // Closing quote
                     this._advance()
                     break
                 } else {
-                    content = content + this._advance()
+                    content += this._advance()
                 }
             }
         }
@@ -500,10 +470,7 @@ Lexer {
         } else if not this._isAtEnd() {
             value = this._advance()
         }
-        // Consume closing '
-        if not this._isAtEnd() and this._peek() == "'" {
-            this._advance()
-        }
+        if not this._isAtEnd() and this._peek() == "'" => this._advance()  // closing '
         this._addToken(TokenKind.CharLit(value), startPos, startLine, startCol)
     }
 
@@ -515,21 +482,16 @@ Lexer {
         // Integer part — consume digits and underscores
         while not this._isAtEnd() and (this._isDigit(this._peek()) or this._peek() == "_") {
             let ch = this._advance()
-            if ch != "_" {
-                numStr = numStr + ch
-            }
+            if ch != "_" => numStr += ch
         }
 
         // Check for decimal point (float)
         if not this._isAtEnd() and this._peek() == "." and this._peekNext() != "." {
-            // It's a float only if after . there's a digit
             if this.pos + 1 < this.chars.length and this._isDigit(this._peekNext()) {
-                numStr = numStr + this._advance()  // consume .
+                numStr += this._advance()  // consume .
                 while not this._isAtEnd() and (this._isDigit(this._peek()) or this._peek() == "_") {
                     let ch = this._advance()
-                    if ch != "_" {
-                        numStr = numStr + ch
-                    }
+                    if ch != "_" => numStr += ch
                 }
                 let floatVal, err = parseFloat(numStr)
                 if err {
@@ -557,7 +519,7 @@ Lexer {
         let name = firstChar
 
         while not this._isAtEnd() and this._isAlphaNumeric(this._peek()) {
-            name = name + this._advance()
+            name += this._advance()
         }
 
         // Check for keyword
@@ -587,8 +549,7 @@ Lexer {
     // ── Rust block scanner ────────────────────────────────────────
 
     _scanRustBlock(startPos: number, startLine: number, startCol: number) {
-        // Skip opening {
-        this._advance()
+        this._advance()  // skip opening {
 
         let content = ""
         let depth = 1
@@ -597,40 +558,36 @@ Lexer {
             let ch = this._peek()
 
             if ch == "{" {
-                depth = depth + 1
-                content = content + this._advance()
+                depth += 1
+                content += this._advance()
             } else if ch == "}" {
-                depth = depth - 1
+                depth -= 1
                 if depth > 0 {
-                    content = content + this._advance()
+                    content += this._advance()
                 } else {
                     this._advance()  // consume closing }
                 }
             } else if ch == "\"" {
-                // String inside rust block — skip
-                content = content + this._advance()
+                content += this._advance()
                 while not this._isAtEnd() {
                     if this._peek() == "\\" {
-                        content = content + this._advance()
-                        if not this._isAtEnd() {
-                            content = content + this._advance()
-                        }
+                        content += this._advance()
+                        if not this._isAtEnd() => content += this._advance()
                     } else if this._peek() == "\"" {
-                        content = content + this._advance()
+                        content += this._advance()
                         break
                     } else {
-                        content = content + this._advance()
+                        content += this._advance()
                     }
                 }
             } else if ch == "/" and this._peekNext() == "/" {
-                // Line comment inside rust block
-                content = content + this._advance()
-                content = content + this._advance()
+                content += this._advance()
+                content += this._advance()
                 while not this._isAtEnd() and this._peek() != "\n" {
-                    content = content + this._advance()
+                    content += this._advance()
                 }
             } else {
-                content = content + this._advance()
+                content += this._advance()
             }
         }
 
