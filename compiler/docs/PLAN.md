@@ -1,8 +1,8 @@
 # Self-Hosting: Compilador de Liva escrito en Liva
 
 > **Estado:** Fase 4 completada ✅ (self-hosting compiler funcional — 9 módulos, 7/9 generan Rust válido)
-> **Última actualización:** 2026-04-01
-> **Próximo:** Refinamiento — codegen/main Rust errors, behavior tests
+> **Última actualización:** 2026-03-31
+> **Próximo:** Fase 5 — Liva Test Suite (~65 archivos .liva validando toda la sintaxis y features)
 
 ---
 
@@ -375,6 +375,63 @@ fn generateMemberAccess(obj: Expr, prop: string, ctx: TypeContext) {
 - E0599 no method `has` (should generate `contains_key`)
 - E0423 println as function, not macro
 
+### Fase 5: Liva Test Suite — Archivos .liva que validan el lenguaje
+
+> **Objetivo:** Crear suite completa de tests escritos EN Liva que validen toda la sintaxis y features documentadas en `docs/`.
+> **Estimación:** 2-3 sesiones
+> **Dependencia:** Compilador funcional (Fase 0-4)
+> **Directorio:** `tests/liva/`
+> **Runner:** `tests/liva/run_tests.sh` con filtros por capa
+
+Los 520 tests actuales son tests Rust que validan el compilador desde dentro.
+Pero no hay una suite de archivos `.liva` que valide sistemáticamente que el
+lenguaje funciona como está documentado. Esta fase llena ese gap.
+
+**6 capas de testing:**
+
+| # | Capa | Directorio | Validación | Método | Archivos |
+|---|------|-----------|------------|--------|----------|
+| 1 | **Syntax** | `tests/liva/syntax/` | Parse + semantic OK | `livac check` | ~15 |
+| 2 | **Compile** | `tests/liva/compile/` | Codegen → Rust válido | `livac build` + cargo check | ~8 |
+| 3 | **E2E Runtime** | `tests/liva/e2e/` | Pipeline completo + output correcto | build + run + comparar .expected | ~10 |
+| 4 | **Stdlib** | `tests/liva/stdlib/` | Cada módulo stdlib | build + run | ~18 |
+| 5 | **Stdlib-IO** | `tests/liva/stdlib-io/` | File, Dir, DB, HTTP (opt-in) | build + run | ~4 |
+| 6 | **Errors** | `tests/liva/errors/` | Errores esperados (negativos) | `livac check`, debe fallar | ~10 |
+
+**Syntax catalog (~15 archivos):**
+- variables, functions, classes, enums, generics, control_flow
+- error_handling, pattern_matching, imports, types, lambdas
+- string_templates, defer, compound_assign, rust_interop
+
+**Compile tests (~8 archivos):**
+- basic_program, class_program, enum_program, generic_program
+- error_program, collections, closures, multifile/
+
+**E2E runtime (~10 archivos):**
+- hello, fibonacci, calculator, linked_list, grade_tracker
+- key_value_store, error_chain, async_basic, string_utils, for_patterns
+- Cada uno con `.expected` file para comparar output
+
+**Stdlib (~18 archivos):**
+- string_methods (x3), array_methods (x3), map_methods, set_methods
+- math, random, regex, date, csv, config, process, log, crypto, type_conversions
+
+**Stdlib-IO (~4 archivos, opt-in con `--all`):**
+- file_operations, dir_operations, db_sqlite, http_server
+
+**Error cases (~10 archivos):**
+- E0101 undefined var, E0201 type mismatch, E0301 undefined function
+- E0401 missing return, E0501 duplicate definition, E0601 invalid import
+- E0904 non-exhaustive switch, W001/W002/W003 warnings
+
+**Test runner:**
+```bash
+./tests/liva/run_tests.sh              # todo menos stdlib-io
+./tests/liva/run_tests.sh --all        # incluye stdlib-io
+./tests/liva/run_tests.sh --only e2e   # solo una capa
+./tests/liva/run_tests.sh --only stdlib # solo stdlib
+```
+
 ---
 
 ## Estrategia de Testing
@@ -533,6 +590,15 @@ Fase 4: Bootstrap
   [x] 4.1: main.liva (CLI)
   [x] 4.2: Module resolver
   [x] 4.3: Bootstrap test (7/9 modules → valid Rust)
+
+Fase 5: Liva Test Suite
+  [ ] 5.1: Test runner (run_tests.sh con filtros por capa)
+  [ ] 5.2: Syntax tests (~15 archivos — livac check)
+  [ ] 5.3: Compile tests (~8 archivos — livac build + cargo check)
+  [ ] 5.4: E2E tests (~10 archivos + .expected — build + run + compare)
+  [ ] 5.5: Stdlib tests (~18 archivos — build + run)
+  [ ] 5.6: Stdlib-IO tests (~4 archivos — opt-in)
+  [ ] 5.7: Error tests (~10 archivos — errores esperados)
 ```
 
 ---
