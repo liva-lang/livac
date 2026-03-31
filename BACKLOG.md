@@ -504,63 +504,70 @@
 > **Runner:** `compiler/tests/liva/run_tests.sh` con filtros por capa
 
 **Capa 1: Syntax (`compiler/tests/liva/syntax/`)** — `livac check`, sin compilar
-- [ ] variables.liva — let, const, type inference, top-level const
-- [ ] functions.liva — block, one-liner `=>`, typed params/returns, default params
-- [ ] classes.liva — constructor, methods, visibility, data classes
-- [ ] enums.liva — unit, tuple, struct variants, recursive (auto-boxing)
-- [ ] generics.liva — generic functions, classes, constraints
-- [ ] control_flow.liva — if/else, switch (statement + expression), for, while, break/continue
-- [ ] error_handling.liva — fallible `!`, `or value`, `or fail`, try/catch
-- [ ] pattern_matching.liva — switch patterns, destructuring, guards, wildcard `_`
-- [ ] imports.liva — use statements, extensionless, public/private
-- [ ] types.liva — type aliases, optional `T?`, tuples, union types
-- [ ] lambdas.liva — closures, point-free refs, method references `::`
-- [ ] string_templates.liva — `$"..."`  interpolation
-- [ ] defer.liva — defer statement, defer blocks
-- [ ] compound_assign.liva — `+=`, `-=`, `*=`, `/=`, `%=`
-- [ ] rust_interop.liva — `rust { }` blocks, `use rust`
+- [x] variables.liva — let, const, type inference, top-level const
+- [x] functions.liva — block, one-liner `=>`, typed params/returns, default params
+- [x] classes.liva — constructor, methods, visibility, data classes
+- [x] enums.liva — unit, tuple, struct variants, recursive (auto-boxing)
+- [x] generics.liva — generic functions, classes, constraints
+- [x] control_flow.liva — if/else, switch (statement + expression), for, while, break/continue
+- [x] error_handling.liva — fallible `!`, `or value`, `or fail`, try/catch
+- [x] pattern_matching.liva — switch patterns, destructuring, guards, wildcard `_`
+- [x] imports.liva — use statements, extensionless, public/private
+- [x] types.liva — type aliases, optional `T?`, tuples, union types
+- [x] lambdas.liva — closures, point-free refs, method references `::`
+- [x] string_templates.liva — `$"..."`  interpolation
+- [x] defer.liva — defer statement, defer blocks
+- [x] compound_assign.liva — `+=`, `-=`, `*=`, `/=`, `%=`
+- [x] rust_interop.liva — `rust { }` blocks, `use rust`
 
 **Capa 2: Compile (`compiler/tests/liva/compile/`)** — `livac build`, cargo check
-- [ ] basic_program.liva — hello world, variables, functions
-- [ ] class_program.liva — class con métodos, constructores
-- [ ] enum_program.liva — enums con switch exhaustivo
-- [ ] generic_program.liva — funciones y clases genéricas
-- [ ] error_program.liva — fallible functions, or value, try/catch
-- [ ] collections.liva — arrays, maps, sets, iteraciones
-- [ ] closures.liva — lambdas como parámetros, map/filter/reduce
+- [x] basic_program.liva — hello world, variables, functions
+- [x] class_program.liva — class con métodos, constructores
+- [x] enum_program.liva — enums con switch exhaustivo
+- [x] generic_program.liva — funciones y clases genéricas
+- [x] error_program.liva — fallible functions, or value, try/catch
+- [x] collections.liva — arrays, maps, sets, iteraciones
+- [x] closures.liva — lambdas como parámetros, map/filter/reduce
+- [x] pattern_matching.liva — switch patterns, destructuring
 - [ ] multifile/ — proyecto multi-archivo con imports
 
-**Capa 3: E2E Runtime (`compiler/tests/liva/e2e/`)** — build + run + comparar output
-- [ ] hello.liva + hello.expected — pipeline completo mínimo
-- [ ] fibonacci.liva + fibonacci.expected — recursión, expresiones
-- [ ] calculator.liva + calculator.expected — clases, switch, métodos
-- [ ] linked_list.liva + linked_list.expected — enums recursivos, pattern matching
-- [ ] grade_tracker.liva + grade_tracker.expected — arrays, map, filter, sort
-- [ ] key_value_store.liva + key_value_store.expected — Map, Set, iteración
-- [ ] error_chain.liva + error_chain.expected — fallible, or fail, error trace
+**Capa 3: E2E Runtime (`compiler/tests/liva/e2e/`)** — build + run + compare OR livac test
+- [x] hello.liva + hello.expected — pipeline completo mínimo
+- [x] fibonacci.liva + fibonacci.expected — recursión, expresiones
+- [x] calculator.liva + calculator.expected — clases, switch, métodos
+- [x] basics.test.liva — variables, constants, string templates (6 assertions)
+- [x] functions.test.liva — params, defaults, one-liners (7 assertions)
+- [x] control_flow.test.liva — if/else, switch, for, while (12 assertions)
+- [x] classes.test.liva — constructors, methods, data classes (8 assertions)
+- [x] enums.test.liva — unit, tuple, struct, recursive (10 assertions)
+- [x] errors.test.liva — or value, or fail, try/catch (7 assertions)
+- [x] error_handling.test.liva — fallible flow (7 assertions)
+- [x] collections.test.liva — arrays, maps, sets (11 assertions)
+- [x] compound_assign.test.liva — +=, -=, etc. (11 assertions)
+- [x] generics.test.liva — generic functions (4 assertions)
+- [x] lambdas.test.liva — closures, map/filter (14 assertions)
+- [x] for_patterns.test.liva — for i,v; for k,v (9 assertions)
+- [x] pattern_matching.test.liva — switch, destructuring (9 assertions)
+- [x] defer.test.liva — defer smoke test (1 assertion)
+- [x] smoke.test.liva — minimal sanity (1 assertion)
 - [ ] async_basic.liva + async_basic.expected — async/await básico
 - [ ] string_utils.liva + string_utils.expected — string processing intensivo
-- [ ] for_patterns.liva + for_patterns.expected — for i,v in array, for k,v in map, ranges
 
-**Capa 4: Stdlib (`compiler/tests/liva/stdlib/`)** — build + run, métodos stdlib
-- [ ] string_methods_1.liva — contains, replace, split, trim, case, indexOf, startsWith/endsWith
-- [ ] string_methods_2.liva — padStart/End, repeat, slice, chars, capitalize, removePrefix/Suffix
-- [ ] string_methods_3.liva — countMatches, isBlank, isEmpty, reverse, truncate, lastIndexOf
-- [ ] array_methods_1.liva — push, pop, length, sort, reversed, includes, indexOf, join
-- [ ] array_methods_2.liva — map, filter, find, forEach, some, every, reduce, flatMap
-- [ ] array_methods_3.liva — distinct, chunks, zip, take, drop, first, last, flat, findIndex, slice
-- [ ] map_methods.liva — get, set, has, delete, keys, values, entries, clear, forEach, isEmpty
-- [ ] set_methods.liva — add, has, delete, clear, values, forEach, union, intersection, difference
-- [ ] math_functions.liva — abs, floor, ceil, round, pow, sqrt, min, max, PI, E, log, sin, cos, tan
-- [ ] random_functions.liva — Random.int, Random.float, Random.bool, Random.choice, Random.shuffle
-- [ ] regex_functions.liva — Regex.match, test, findAll, replace, split
-- [ ] date_functions.liva — Date.now, format, parse, diff, add, year/month/day/hour/minute/second
-- [ ] csv_functions.liva — CSV.parse, stringify, parseFile, writeFile
-- [ ] config_functions.liva — Config.load, get, getInt, getBool, getAll
-- [ ] process_functions.liva — Process.exec, Process.exit, Sys.args, Sys.env
-- [ ] log_functions.liva — Log.info, Log.warn, Log.error, Log.debug
-- [ ] crypto_functions.liva — Crypto.hash, hmac, randomBytes, uuid
-- [ ] type_conversions.liva — toString, toInt, toFloat, parseInt, parseFloat
+**Capa 4: Stdlib (`compiler/tests/liva/stdlib/`)** — livac test, métodos stdlib
+- [x] string_methods.test.liva — 26 assertions (contains, replace, split, trim, case, etc.)
+- [x] array_methods.test.liva — 27 assertions (push, pop, map, filter, sort, etc.)
+- [x] map_methods.test.liva — 12 assertions (get, set, has, delete, keys, values, entries)
+- [x] set_methods.test.liva — 7 assertions (add, has, delete, clear, iteration)
+- [x] math_functions.test.liva — 13 assertions (abs, floor, ceil, pow, sqrt, min, max, PI)
+- [x] type_conversions.test.liva — 12 assertions (toString, toInt, toFloat, parseInt, parseFloat)
+- [ ] random_functions.test.liva — Random.int, Random.float, Random.bool, Random.choice
+- [ ] regex_functions.test.liva — Regex.match, test, findAll, replace, split
+- [ ] date_functions.test.liva — Date.now, format, parse, diff, add
+- [ ] csv_functions.test.liva — CSV.parse, stringify
+- [ ] config_functions.test.liva — Config.load, get, getInt, getBool
+- [ ] process_functions.test.liva — Process.exec, Sys.args, Sys.env
+- [ ] log_functions.test.liva — Log.info, Log.warn, Log.error, Log.debug
+- [ ] crypto_functions.test.liva — Crypto.hash, hmac, randomBytes, uuid
 
 **Capa 5: Stdlib-IO (`compiler/tests/liva/stdlib-io/`)** — opt-in, requiere filesystem/red
 - [ ] file_operations.liva — File.read, write, append, exists, delete, copy, move, size, ext, name, lines
@@ -569,24 +576,27 @@
 - [ ] http_server.liva — Server.create, routes, Response helpers
 
 **Capa 6: Errors (`compiler/tests/liva/errors/`)** — `livac check`, deben fallar con error esperado
-- [ ] E0101_undefined_var.liva — variable not defined
-- [ ] E0201_type_mismatch.liva — type mismatch assignment
-- [ ] E0301_undefined_function.liva — calling undefined function
-- [ ] E0401_missing_return.liva — missing return type
-- [ ] E0501_duplicate_definition.liva — duplicate name
-- [ ] E0601_invalid_import.liva — importing from nonexistent module
-- [ ] E0904_non_exhaustive_switch.liva — enum switch missing variant
+- [x] e0001_duplicate_variable.liva — variable already defined (E0001)
+- [x] e0310_duplicate_param.liva — duplicate function parameter (E0310)
+- [x] e0701_unhandled_fallible.liva — fallible without error handling (E0701)
+- [x] e0901_bool_exhaustiveness.liva — non-exhaustive bool switch (E0901)
+- [x] e0902_int_exhaustiveness.liva — non-exhaustive int switch (E0902)
+- [x] e0903_string_exhaustiveness.liva — non-exhaustive string switch (E0903)
+- [x] e0904_enum_exhaustiveness.liva — non-exhaustive enum switch (E0904)
+- [x] e1000_lexer_error.liva — unclosed string literal (E1000)
+- [x] e2000_parse_error.liva — missing closing brace (E2000)
+- [x] e4004_module_not_found.liva — module file not found (E4004)
 - [ ] W001_unused_var.liva — unused variable warning
 - [ ] W002_unused_import.liva — unused import warning
 - [ ] W003_unreachable_code.liva — unreachable after return
 
 **Runner:**
-- [ ] `compiler/tests/liva/run_tests.sh` — test runner con filtros
+- [x] `compiler/tests/liva/run_tests.sh` — test runner con 6 layers + filtros
   - `./run_tests.sh` — todo menos stdlib-io
   - `./run_tests.sh --all` — incluye stdlib-io
   - `./run_tests.sh --only syntax` — solo una capa
-  - `./run_tests.sh --only stdlib` — solo stdlib
   - Exit code 0/1 para CI
+- [x] `compiler/tests/liva/run_error_tests.sh` — runner dedicado para error tests
 
 ---
 

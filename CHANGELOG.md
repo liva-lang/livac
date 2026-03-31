@@ -8,6 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.0-dev] - 2026-04-01
 
 ### Added
+- **Liva Test Suite Phase 5 — 4 of 6 layers complete**
+  - **Syntax tests:** 15 files — all pass `livac check`
+  - **Compile tests:** 8 files — `livac build` + cargo check
+  - **E2E tests:** 18 files — 117 assertions via `livac test --verbose`
+  - **Stdlib tests:** 6 files — 97 assertions (string, array, map, set, math, types)
+  - **Error tests:** 10 files — validates 10 error codes (E0001, E0310, E0701, E0901-E0904, E1000, E2000, E4004)
+  - **Test runner:** `run_tests.sh` with 6-layer support + `run_error_tests.sh`
+  - Total: **57 test files, 214+ assertions**
+
+### Fixed
+- **FIX-DEFAULT-PARAMS**: Function default parameters now inject at call sites when args missing
+- **FIX-STRING-SWITCH-OR**: String switch or-patterns (`"a" | "b"`) now correctly detect `.as_str()` need
+- **FIX-ENUM-REF-CLONE**: Match-by-reference now clones ALL bindings (not just non-Copy)
+- **Runner `set -e` compatibility**: Replaced `((PASS++))` with `PASS=$((PASS + 1))`
+
+### Documented
+- **BUGS.md**: 12 codegen bugs (B101-B112) + 3 language gaps (GAP-001 to GAP-003)
+
+## [2.0.0-dev] - 2026-04-01
+
+### Added
 - **Self-hosting Phase 3: Codegen Limpio** — `compiler/src/codegen.liva` (2458 lines, new module)
   - RustEmitter class: output buffer, indent management, name sanitization (camelCase→snake_case)
   - Type emission: all 9 TypeRef variants → Rust types (Vec, HashMap, HashSet, Option, Result, tuples)

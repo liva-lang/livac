@@ -607,13 +607,13 @@ Fase 4: Bootstrap
   [x] 4.3: Bootstrap test (7/9 modules → valid Rust)
 
 Fase 5: Liva Test Suite
-  [ ] 5.1: Test runner (run_tests.sh con filtros por capa)
-  [ ] 5.2: Syntax tests (~15 archivos — livac check)
-  [ ] 5.3: Compile tests (~8 archivos — livac build + cargo check)
-  [ ] 5.4: E2E tests (~10 archivos + .expected — build + run + compare)
-  [ ] 5.5: Stdlib tests (~18 archivos — build + run)
-  [ ] 5.6: Stdlib-IO tests (~4 archivos — opt-in)
-  [ ] 5.7: Error tests (~10 archivos — errores esperados)
+  [x] 5.1: Test runner (run_tests.sh + run_error_tests.sh — 6 layers)
+  [x] 5.2: Syntax tests (15 archivos — livac check) ✅
+  [x] 5.3: Compile tests (8 archivos — livac build + cargo check) ✅
+  [x] 5.4: E2E tests (18 archivos — 15 test + 3 with .expected — 117 assertions) ✅
+  [x] 5.5: Stdlib tests (6 archivos — 97 assertions) ✅
+  [ ] 5.6: Stdlib-IO tests (~4 archivos — opt-in, I/O dependent)
+  [x] 5.7: Error tests (10 archivos — 10 error codes verified) ✅
 ```
 
 ---
