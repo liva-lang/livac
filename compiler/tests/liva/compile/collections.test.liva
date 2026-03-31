@@ -1,0 +1,83 @@
+// Compile Test: Collections — arrays, Map, Set, iteration
+import { describe, test, expect } from "liva/test"
+
+describe("Arrays", () => {
+    test("basic operations", () => {
+        let nums = [1, 2, 3, 4, 5]
+        expect(nums.length).toBe(5)
+        expect(nums.includes(3)).toBe(true)
+        expect(nums.includes(9)).toBe(false)
+        expect(nums.indexOf(4)).toBe(3)
+    })
+
+    test("push mutates array", () => {
+        let items = [10, 20]
+        items.push(30)
+        expect(items.length).toBe(3)
+        expect(items).toEqual([10, 20, 30])
+    })
+
+    test("map filter reduce", () => {
+        let nums = [1, 2, 3, 4, 5]
+        let doubled = nums.map(x => x * 2)
+        expect(doubled).toEqual([2, 4, 6, 8, 10])
+        let evens = nums.filter(x => x % 2 == 0)
+        expect(evens).toEqual([2, 4])
+        let total = nums.reduce(0, (acc, x) => acc + x)
+        expect(total).toBe(15)
+    })
+
+    test("for iteration accumulates", () => {
+        let nums = [10, 20, 30]
+        let sum = 0
+        for item in nums {
+            sum += item
+        }
+        expect(sum).toBe(60)
+    })
+
+    test("for with index", () => {
+        let names = ["Alice", "Bob", "Carol"]
+        let result = ""
+        for i, name in names {
+            result = $"{result}{i}:{name} "
+        }
+        expect(result).toBe("0:Alice 1:Bob 2:Carol ")
+    })
+})
+
+describe("Map", () => {
+    test("get set has delete", () => {
+        let ages = Map { "Alice": 30, "Bob": 25 }
+        let aliceAge = ages.get("Alice") or 0
+        expect(aliceAge).toBe(30)
+        expect(ages.has("Bob")).toBe(true)
+        expect(ages.has("Dave")).toBe(false)
+
+        ages.set("Dave", 28)
+        expect(ages.has("Dave")).toBe(true)
+
+        ages.delete("Bob")
+        expect(ages.has("Bob")).toBe(false)
+    })
+
+    test("get with default on missing key", () => {
+        let m = Map { "a": 1 }
+        let val = m.get("z") or -1
+        expect(val).toBe(-1)
+    })
+})
+
+describe("Set", () => {
+    test("add has delete", () => {
+        let colors = Set { "red", "green", "blue" }
+        expect(colors.has("red")).toBe(true)
+        expect(colors.has("yellow")).toBe(false)
+
+        colors.add("yellow")
+        expect(colors.has("yellow")).toBe(true)
+
+        colors.delete("green")
+        expect(colors.has("green")).toBe(false)
+    })
+})

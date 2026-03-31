@@ -1,0 +1,14 @@
+// E2E Test: Hello World — minimal pipeline
+import { describe, test, expect } from "liva/test"
+
+greet(name: string): string => $"Hello, {name}!"
+
+describe("Hello World", () => {
+    test("basic greeting", () => {
+        expect(greet("Liva")).toBe("Hello, Liva!")
+    })
+
+    test("greeting with different name", () => {
+        expect(greet("World")).toBe("Hello, World!")
+    })
+})

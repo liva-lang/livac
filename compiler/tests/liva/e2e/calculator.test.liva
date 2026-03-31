@@ -1,0 +1,67 @@
+// E2E Test: Calculator — class with mutable state, methods
+import { describe, test, expect } from "liva/test"
+
+Calculator {
+    _result: number
+
+    constructor() {
+        this._result = 0
+    }
+
+    add(n: number) {
+        this._result = this._result + n
+    }
+
+    subtract(n: number) {
+        this._result = this._result - n
+    }
+
+    multiply(n: number) {
+        this._result = this._result * n
+    }
+
+    getResult(): number => this._result
+
+    reset() {
+        this._result = 0
+    }
+}
+
+describe("Calculator", () => {
+    test("add", () => {
+        let calc = Calculator()
+        calc.add(10)
+        expect(calc.getResult()).toBe(10)
+        calc.add(5)
+        expect(calc.getResult()).toBe(15)
+    })
+
+    test("subtract", () => {
+        let calc = Calculator()
+        calc.add(20)
+        calc.subtract(7)
+        expect(calc.getResult()).toBe(13)
+    })
+
+    test("multiply", () => {
+        let calc = Calculator()
+        calc.add(6)
+        calc.multiply(4)
+        expect(calc.getResult()).toBe(24)
+    })
+
+    test("reset", () => {
+        let calc = Calculator()
+        calc.add(100)
+        calc.reset()
+        expect(calc.getResult()).toBe(0)
+    })
+
+    test("chained operations", () => {
+        let calc = Calculator()
+        calc.add(100)
+        calc.subtract(25)
+        calc.multiply(2)
+        expect(calc.getResult()).toBe(150)
+    })
+})

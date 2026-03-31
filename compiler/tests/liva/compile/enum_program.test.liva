@@ -1,0 +1,63 @@
+// Compile Test: Enums — unit, data variants, switch, exhaustive matching
+import { describe, test, expect } from "liva/test"
+
+enum Direction { North, South, East, West }
+
+enum Shape {
+    Circle(radius: number),
+    Rectangle(width: number, height: number),
+    Point
+}
+
+directionName(d: Direction): string {
+    return switch d {
+        Direction.North => "north",
+        Direction.South => "south",
+        Direction.East => "east",
+        Direction.West => "west"
+    }
+}
+
+area(s: Shape): number {
+    return switch s {
+        Shape.Circle(r) => 3 * r * r,
+        Shape.Rectangle(w, h) => w * h,
+        Shape.Point => 0
+    }
+}
+
+describeShape(s: Shape): string {
+    return switch s {
+        Shape.Circle(r) => $"circle with radius {r}",
+        Shape.Rectangle(w, _) => $"rectangle with width {w}",
+        Shape.Point => "just a point"
+    }
+}
+
+describe("Enums", () => {
+    test("unit enum exhaustive switch", () => {
+        expect(directionName(Direction.North)).toBe("north")
+        expect(directionName(Direction.South)).toBe("south")
+        expect(directionName(Direction.East)).toBe("east")
+        expect(directionName(Direction.West)).toBe("west")
+    })
+
+    test("data enum area calculation", () => {
+        expect(area(Shape.Circle(5))).toBe(75)
+        expect(area(Shape.Rectangle(4, 6))).toBe(24)
+        expect(area(Shape.Point)).toBe(0)
+    })
+
+    test("enum descriptions with destructuring", () => {
+        expect(describeShape(Shape.Circle(10))).toBe("circle with radius 10")
+        expect(describeShape(Shape.Rectangle(3, 4))).toBe("rectangle with width 3")
+        expect(describeShape(Shape.Point)).toBe("just a point")
+    })
+
+    test("enum construction and matching", () => {
+        let c = Shape.Circle(7)
+        let r = Shape.Rectangle(2, 5)
+        expect(area(c)).toBe(147)
+        expect(area(r)).toBe(10)
+    })
+})

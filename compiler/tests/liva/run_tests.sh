@@ -18,7 +18,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 LIVAC="$REPO_ROOT/target/release/livac"
-BUILD_DIR="/tmp/liva_test_builds"
 
 # Colors
 RED='\033[0;31m'
@@ -51,7 +50,6 @@ if [[ ! -x "$LIVAC" ]]; then
     exit 1
 fi
 
-mkdir -p "$BUILD_DIR"
 
 #───────────────────────────────────────────────────────
 # Layer 1: Syntax — livac check must pass
@@ -76,177 +74,89 @@ run_syntax_tests() {
 }
 
 #───────────────────────────────────────────────────────
-# Layer 2: Compile — livac build + cargo check
+# Layer 2: Compile — livac test (*.test.liva with assertions)
 #───────────────────────────────────────────────────────
 run_compile_tests() {
     local dir="$SCRIPT_DIR/compile"
     [[ ! -d "$dir" ]] && return
-    echo -e "\n${CYAN}${BOLD}═══ Layer 2: Compile Tests (livac build) ═══${NC}"
-    for f in "$dir"/*.liva; do
+    echo -e "\n${CYAN}${BOLD}═══ Layer 2: Compile Tests (livac test) ═══${NC}"
+    for f in "$dir"/*.test.liva; do
         [[ ! -f "$f" ]] && continue
-        local name base out_dir
+        local name
         name="$(basename "$f")"
-        base="${name%.liva}"
-        out_dir="$BUILD_DIR/compile_$base"
-        rm -rf "$out_dir"
-        if $LIVAC build "$f" --output "$out_dir" > /dev/null 2>&1; then
+        if $LIVAC test "$f" > /dev/null 2>&1; then
             echo -e "  ${GREEN}✓${NC} $name"
             PASS=$((PASS + 1))
         else
             echo -e "  ${RED}✗${NC} $name"
             FAIL=$((FAIL + 1))
-            ERRORS+=("compile/$name: livac build failed")
+            ERRORS+=("compile/$name: livac test failed")
         fi
     done
 }
 
 #───────────────────────────────────────────────────────
-# Layer 3: E2E — build + run + compare output
+# Layer 3: E2E — livac test (*.test.liva with assertions)
 #───────────────────────────────────────────────────────
 run_e2e_tests() {
     local dir="$SCRIPT_DIR/e2e"
     [[ ! -d "$dir" ]] && return
-    echo -e "\n${CYAN}${BOLD}═══ Layer 3: E2E Tests (build + run + compare) ═══${NC}"
-    for f in "$dir"/*.liva; do
+    echo -e "\n${CYAN}${BOLD}═══ Layer 3: E2E Tests (livac test) ═══${NC}"
+    for f in "$dir"/*.test.liva; do
         [[ ! -f "$f" ]] && continue
-        local name base expected out_dir actual
+        local name
         name="$(basename "$f")"
-        base="${name%.liva}"
-        expected="$dir/$base.expected"
-        if [[ ! -f "$expected" ]]; then
-            echo -e "  ${YELLOW}⊘${NC} $name (missing .expected)"
-            SKIP=$((SKIP + 1))
-            continue
-        fi
-        out_dir="$BUILD_DIR/e2e_$base"
-        rm -rf "$out_dir"
-        # Build
-        if ! $LIVAC build "$f" --output "$out_dir" > /dev/null 2>&1; then
-            echo -e "  ${RED}✗${NC} $name (build failed)"
-            FAIL=$((FAIL + 1))
-            ERRORS+=("e2e/$name: build failed")
-            continue
-        fi
-        # Find binary
-        local binary
-        binary=$(find "$out_dir/target/debug" -maxdepth 1 -type f -executable ! -name "*.d" 2>/dev/null | head -1)
-        if [[ -z "$binary" ]]; then
-            echo -e "  ${RED}✗${NC} $name (no binary found)"
-            FAIL=$((FAIL + 1))
-            ERRORS+=("e2e/$name: no binary found after build")
-            continue
-        fi
-        # Run and compare
-        actual=$("$binary" 2>&1 || true)
-        local expected_content
-        expected_content=$(cat "$expected")
-        if [[ "$actual" == "$expected_content" ]]; then
+        if $LIVAC test "$f" > /dev/null 2>&1; then
             echo -e "  ${GREEN}✓${NC} $name"
             PASS=$((PASS + 1))
         else
-            echo -e "  ${RED}✗${NC} $name (output mismatch)"
+            echo -e "  ${RED}✗${NC} $name"
             FAIL=$((FAIL + 1))
-            ERRORS+=("e2e/$name: output mismatch")
-            echo -e "    ${YELLOW}Expected:${NC} $(head -3 "$expected")"
-            echo -e "    ${YELLOW}Actual:${NC}   $(echo "$actual" | head -3)"
+            ERRORS+=("e2e/$name: livac test failed")
         fi
     done
 }
 
 #───────────────────────────────────────────────────────
-# Layer 4: Stdlib — build + run (same as E2E)
+# Layer 4: Stdlib — livac test (*.test.liva with assertions)
 #───────────────────────────────────────────────────────
 run_stdlib_tests() {
     local dir="$SCRIPT_DIR/stdlib"
     [[ ! -d "$dir" ]] && return
-    echo -e "\n${CYAN}${BOLD}═══ Layer 4: Stdlib Tests (build + run + compare) ═══${NC}"
-    for f in "$dir"/*.liva; do
+    echo -e "\n${CYAN}${BOLD}═══ Layer 4: Stdlib Tests (livac test) ═══${NC}"
+    for f in "$dir"/*.test.liva; do
         [[ ! -f "$f" ]] && continue
-        local name base expected out_dir actual
+        local name
         name="$(basename "$f")"
-        base="${name%.liva}"
-        expected="$dir/$base.expected"
-        if [[ ! -f "$expected" ]]; then
-            echo -e "  ${YELLOW}⊘${NC} $name (missing .expected)"
-            SKIP=$((SKIP + 1))
-            continue
-        fi
-        out_dir="$BUILD_DIR/stdlib_$base"
-        rm -rf "$out_dir"
-        if ! $LIVAC build "$f" --output "$out_dir" > /dev/null 2>&1; then
-            echo -e "  ${RED}✗${NC} $name (build failed)"
-            FAIL=$((FAIL + 1))
-            ERRORS+=("stdlib/$name: build failed")
-            continue
-        fi
-        local binary
-        binary=$(find "$out_dir/target/debug" -maxdepth 1 -type f -executable ! -name "*.d" 2>/dev/null | head -1)
-        if [[ -z "$binary" ]]; then
-            echo -e "  ${RED}✗${NC} $name (no binary found)"
-            FAIL=$((FAIL + 1))
-            ERRORS+=("stdlib/$name: no binary found")
-            continue
-        fi
-        actual=$("$binary" 2>&1 || true)
-        local expected_content
-        expected_content=$(cat "$expected")
-        if [[ "$actual" == "$expected_content" ]]; then
+        if $LIVAC test "$f" > /dev/null 2>&1; then
             echo -e "  ${GREEN}✓${NC} $name"
             PASS=$((PASS + 1))
         else
-            echo -e "  ${RED}✗${NC} $name (output mismatch)"
+            echo -e "  ${RED}✗${NC} $name"
             FAIL=$((FAIL + 1))
-            ERRORS+=("stdlib/$name: output mismatch")
-            echo -e "    ${YELLOW}Expected:${NC} $(head -3 "$expected")"
-            echo -e "    ${YELLOW}Actual:${NC}   $(echo "$actual" | head -3)"
+            ERRORS+=("stdlib/$name: livac test failed")
         fi
     done
 }
 
 #───────────────────────────────────────────────────────
-# Layer 5: Stdlib-IO — opt-in (same mechanism)
+# Layer 5: Stdlib-IO — opt-in (livac test)
 #───────────────────────────────────────────────────────
 run_stdlib_io_tests() {
     local dir="$SCRIPT_DIR/stdlib-io"
     [[ ! -d "$dir" ]] && return
-    echo -e "\n${CYAN}${BOLD}═══ Layer 5: Stdlib-IO Tests (opt-in) ═══${NC}"
-    for f in "$dir"/*.liva; do
+    echo -e "\n${CYAN}${BOLD}═══ Layer 5: Stdlib-IO Tests (opt-in, livac test) ═══${NC}"
+    for f in "$dir"/*.test.liva; do
         [[ ! -f "$f" ]] && continue
-        local name base expected out_dir actual
+        local name
         name="$(basename "$f")"
-        base="${name%.liva}"
-        expected="$dir/$base.expected"
-        if [[ ! -f "$expected" ]]; then
-            echo -e "  ${YELLOW}⊘${NC} $name (missing .expected)"
-            SKIP=$((SKIP + 1))
-            continue
-        fi
-        out_dir="$BUILD_DIR/stdlib_io_$base"
-        rm -rf "$out_dir"
-        if ! $LIVAC build "$f" --output "$out_dir" > /dev/null 2>&1; then
-            echo -e "  ${RED}✗${NC} $name (build failed)"
-            FAIL=$((FAIL + 1))
-            ERRORS+=("stdlib-io/$name: build failed")
-            continue
-        fi
-        local binary
-        binary=$(find "$out_dir/target/debug" -maxdepth 1 -type f -executable ! -name "*.d" 2>/dev/null | head -1)
-        if [[ -z "$binary" ]]; then
-            echo -e "  ${RED}✗${NC} $name (no binary found)"
-            FAIL=$((FAIL + 1))
-            ERRORS+=("stdlib-io/$name: no binary found")
-            continue
-        fi
-        actual=$("$binary" 2>&1 || true)
-        local expected_content
-        expected_content=$(cat "$expected")
-        if [[ "$actual" == "$expected_content" ]]; then
+        if $LIVAC test "$f" > /dev/null 2>&1; then
             echo -e "  ${GREEN}✓${NC} $name"
             PASS=$((PASS + 1))
         else
-            echo -e "  ${RED}✗${NC} $name (output mismatch)"
+            echo -e "  ${RED}✗${NC} $name"
             FAIL=$((FAIL + 1))
-            ERRORS+=("stdlib-io/$name: output mismatch")
+            ERRORS+=("stdlib-io/$name: livac test failed")
         fi
     done
 }

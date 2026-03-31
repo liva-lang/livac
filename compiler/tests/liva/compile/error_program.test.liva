@@ -1,0 +1,66 @@
+// Compile Test: Error Handling — fail, error binding, or value, or fail
+import { describe, test, expect } from "liva/test"
+
+divide(a: number, b: number): number {
+    if b == 0 {
+        fail "Division by zero"
+    }
+    return a / b
+}
+
+safeDivide(a: number, b: number): number {
+    let result = divide(a, b) or fail "Division failed in safeDivide"
+    return result
+}
+
+safeParse(s: string): number {
+    let val = parseInt(s) or 0
+    return val
+}
+
+compute(a: number, b: number): number {
+    let d = safeDivide(a, b) or fail "Compute failed"
+    return d * 2
+}
+
+describe("Error Handling", () => {
+    test("successful division", () => {
+        let val = divide(10, 2) or 0
+        expect(val).toBe(5)
+    })
+
+    test("division by zero with or default", () => {
+        let val = divide(10, 0) or -1
+        expect(val).toBe(-1)
+    })
+
+    test("error binding on success", () => {
+        let val, err = divide(10, 2)
+        expect(val).toBe(5)
+    })
+
+    test("error binding on failure", () => {
+        let val, err = divide(10, 0)
+        expect(val).toBe(0)
+    })
+
+    test("or value with parseInt", () => {
+        expect(safeParse("42")).toBe(42)
+        expect(safeParse("abc")).toBe(0)
+    })
+
+    test("or fail propagation", () => {
+        let val = safeDivide(100, 5) or 0
+        expect(val).toBe(20)
+    })
+
+    test("chained propagation", () => {
+        let val = compute(20, 4) or 0
+        expect(val).toBe(10)
+    })
+
+    test("chained propagation failure", () => {
+        let val = compute(20, 0) or -1
+        expect(val).toBe(-1)
+    })
+})

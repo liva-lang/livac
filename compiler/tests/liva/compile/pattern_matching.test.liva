@@ -1,0 +1,110 @@
+// Compile Test: Pattern Matching — switch, ranges, or-patterns, guards, enum destructuring
+import { describe, test, expect } from "liva/test"
+
+enum Shape {
+    Circle(radius: number),
+    Rectangle(width: number, height: number),
+    Point
+}
+
+enum Priority { Critical, High, Normal, Low }
+
+describeShape(s: Shape): string {
+    return switch s {
+        Shape.Circle(r) => $"circle r={r}",
+        Shape.Rectangle(w, h) => $"rect {w}x{h}",
+        Shape.Point => "point"
+    }
+}
+
+priorityLabel(p: Priority): string {
+    return switch p {
+        Priority.Critical => "CRITICAL",
+        Priority.High => "HIGH",
+        Priority.Normal => "NORMAL",
+        Priority.Low => "LOW"
+    }
+}
+
+shapeType(s: Shape): string {
+    return switch s {
+        Shape.Circle(_) => "circle",
+        Shape.Rectangle(_, _) => "rectangle",
+        Shape.Point => "point"
+    }
+}
+
+describe("Pattern Matching", () => {
+    test("range patterns", () => {
+        let score = 87
+        let grade = switch score {
+            90..=100 => "A",
+            80..=89 => "B",
+            70..=79 => "C",
+            60..=69 => "D",
+            _ => "F"
+        }
+        expect(grade).toBe("B")
+    })
+
+    test("or-patterns numeric", () => {
+        let code = 200
+        let tier = switch code {
+            200 | 201 | 204 => "Success",
+            400 | 404 => "Client error",
+            500 => "Server error",
+            _ => "Other"
+        }
+        expect(tier).toBe("Success")
+    })
+
+    test("guards", () => {
+        let x = -5
+        let kind = switch x {
+            0 => "zero",
+            n if n < 0 => "negative",
+            n if n > 100 => "big",
+            _ => "small positive"
+        }
+        expect(kind).toBe("negative")
+    })
+
+    test("age category with guards", () => {
+        let age = 25
+        let category = switch age {
+            n if n < 13 => "child",
+            n if n < 20 => "teenager",
+            n if n < 65 => "adult",
+            _ => "senior"
+        }
+        expect(category).toBe("adult")
+    })
+
+    test("value binding", () => {
+        let val = 42
+        let label = switch val {
+            0 => "zero",
+            n => $"nonzero: {n}"
+        }
+        expect(label).toBe("nonzero: 42")
+    })
+
+    test("enum destructuring", () => {
+        expect(describeShape(Shape.Circle(10))).toBe("circle r=10")
+        expect(describeShape(Shape.Rectangle(3, 4))).toBe("rect 3x4")
+        expect(describeShape(Shape.Point)).toBe("point")
+    })
+
+    test("exhaustive enum switch", () => {
+        expect(priorityLabel(Priority.Critical)).toBe("CRITICAL")
+        expect(priorityLabel(Priority.High)).toBe("HIGH")
+        expect(priorityLabel(Priority.Normal)).toBe("NORMAL")
+        expect(priorityLabel(Priority.Low)).toBe("LOW")
+    })
+
+    test("wildcard destructuring", () => {
+        expect(shapeType(Shape.Circle(5))).toBe("circle")
+        expect(shapeType(Shape.Rectangle(2, 3))).toBe("rectangle")
+        expect(shapeType(Shape.Point)).toBe("point")
+    })
+})

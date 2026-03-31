@@ -1,0 +1,64 @@
+// Compile Test: Generics — generic functions with bounds, turbofish
+import { describe, test, expect } from "liva/test"
+
+identity<T: Numeric>(x: T): T => x
+
+addThree<T: Numeric>(a: T, b: T, c: T): T => a + b + c
+
+maxVal<T: Comparable>(a: T, b: T): T {
+    if a > b {
+        return a
+    }
+    return b
+}
+
+clamp<T: Number>(value: T, lo: T, hi: T): T {
+    if value < lo { return lo }
+    if value > hi { return hi }
+    return value
+}
+
+minVal<T: Number>(a: T, b: T): T {
+    if a < b {
+        return a
+    }
+    return b
+}
+
+absDiff<T: Number>(a: T, b: T): T {
+    if a > b {
+        return a - b
+    }
+    return b - a
+}
+
+describe("Generics", () => {
+    test("identity with turbofish", () => {
+        expect(identity<int>(42)).toBe(42)
+    })
+
+    test("addThree", () => {
+        expect(addThree<int>(10, 20, 30)).toBe(60)
+    })
+
+    test("maxVal", () => {
+        expect(maxVal<int>(10, 20)).toBe(20)
+        expect(maxVal<int>(30, 5)).toBe(30)
+    })
+
+    test("clamp", () => {
+        expect(clamp<int>(150, 0, 100)).toBe(100)
+        expect(clamp<int>(-5, 0, 100)).toBe(0)
+        expect(clamp<int>(50, 0, 100)).toBe(50)
+    })
+
+    test("minVal", () => {
+        expect(minVal<int>(42, 17)).toBe(17)
+        expect(minVal<int>(3, 99)).toBe(3)
+    })
+
+    test("absDiff", () => {
+        expect(absDiff<int>(10, 25)).toBe(15)
+        expect(absDiff<int>(25, 10)).toBe(15)
+    })
+})

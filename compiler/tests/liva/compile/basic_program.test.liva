@@ -1,0 +1,75 @@
+// Compile Test: Basic Program — variables, functions, string templates, compound assign
+import { describe, test, expect } from "liva/test"
+
+const VERSION: number = 1
+
+add(a: number, b: number): number => a + b
+
+double(x: number) => x * 2
+
+classify(n: number): string {
+    if n < 0 {
+        return "negative"
+    }
+    if n == 0 {
+        return "zero"
+    }
+    return "positive"
+}
+
+describe("Basic Program", () => {
+    test("constants", () => {
+        expect(VERSION).toBe(1)
+    })
+
+    test("arithmetic functions", () => {
+        expect(add(3, 4)).toBe(7)
+        expect(add(0, 0)).toBe(0)
+        expect(add(-1, 1)).toBe(0)
+        expect(double(5)).toBe(10)
+        expect(double(0)).toBe(0)
+    })
+
+    test("classify function", () => {
+        expect(classify(-1)).toBe("negative")
+        expect(classify(0)).toBe("zero")
+        expect(classify(7)).toBe("positive")
+    })
+
+    test("string templates", () => {
+        let x = 42
+        let name = "World"
+        expect($"x is {x}").toBe("x is 42")
+        expect($"Hello, {name}!").toBe("Hello, World!")
+        expect($"Version: {VERSION}").toBe("Version: 1")
+    })
+
+    test("compound assignment", () => {
+        let counter = 0
+        counter += 10
+        expect(counter).toBe(10)
+        counter -= 3
+        expect(counter).toBe(7)
+        counter *= 2
+        expect(counter).toBe(14)
+    })
+
+    test("control flow", () => {
+        let x = 42
+        let label = "unknown"
+        if x > 40 {
+            label = "big"
+        } else {
+            label = "small"
+        }
+        expect(label).toBe("big")
+    })
+
+    test("for loop sum", () => {
+        let sum = 0
+        for i in 1..=5 {
+            sum += i
+        }
+        expect(sum).toBe(15)
+    })
+})

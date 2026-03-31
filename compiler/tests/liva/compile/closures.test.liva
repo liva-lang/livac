@@ -1,0 +1,58 @@
+// Compile Test: Closures & Lambdas — map, filter, reduce, find, some, every, chaining
+import { describe, test, expect } from "liva/test"
+
+describe("Closures", () => {
+    test("map", () => {
+        let nums = [1, 2, 3, 4, 5]
+        let doubled = nums.map(x => x * 2)
+        expect(doubled).toEqual([2, 4, 6, 8, 10])
+        let squares = nums.map(x => x * x)
+        expect(squares).toEqual([1, 4, 9, 16, 25])
+    })
+
+    test("filter", () => {
+        let nums = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        let evens = nums.filter(x => x % 2 == 0)
+        expect(evens).toEqual([2, 4, 6, 8, 10])
+        let bigNums = nums.filter(x => x > 5)
+        expect(bigNums).toEqual([6, 7, 8, 9, 10])
+    })
+
+    test("reduce", () => {
+        let nums = [1, 2, 3, 4, 5]
+        let total = nums.reduce(0, (acc, x) => acc + x)
+        expect(total).toBe(15)
+    })
+
+    test("find", () => {
+        let nums = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        let found = nums.find(x => x > 7) or 0
+        expect(found).toBe(8)
+    })
+
+    test("some and every", () => {
+        let nums = [1, 2, 3, 4, 5]
+        let hasEven = nums.some(x => x % 2 == 0)
+        expect(hasEven).toBe(true)
+        let allPositive = nums.every(x => x > 0)
+        expect(allPositive).toBe(true)
+        let allBig = nums.every(x => x > 3)
+        expect(allBig).toBe(false)
+    })
+
+    test("chaining filter then map then reduce", () => {
+        let nums = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        let result = nums
+            .filter(x => x % 2 == 0)
+            .map(x => x * x)
+            .reduce(0, (acc, x) => acc + x)
+        expect(result).toBe(220)
+    })
+
+    test("closure captures outer variable", () => {
+        let multiplier = 10
+        let nums = [1, 2, 3]
+        let scaled = nums.map(x => x * multiplier)
+        expect(scaled).toEqual([10, 20, 30])
+    })
+})

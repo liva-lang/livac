@@ -1,0 +1,73 @@
+// Compile Test: Classes — constructor, methods, data class, field access
+import { describe, test, expect } from "liva/test"
+
+Point { x: number; y: number }
+
+Color {
+    r: number
+    g: number
+    b: number
+
+    brightness(): number => this.r + this.g + this.b
+}
+
+Animal {
+    name: string
+    legs: number
+
+    constructor(name: string, legs: number) {
+        this.name = name
+        this.legs = legs
+    }
+
+    describe(): string => $"{this.name} has {this.legs} legs"
+}
+
+Counter {
+    _count: number
+
+    constructor() {
+        this._count = 0
+    }
+
+    increment() {
+        this._count = this._count + 1
+    }
+
+    getCount(): number => this._count
+}
+
+describe("Classes", () => {
+    test("data class fields", () => {
+        let p = Point(10, 20)
+        expect(p.x).toBe(10)
+        expect(p.y).toBe(20)
+    })
+
+    test("data class equality", () => {
+        let p1 = Point(10, 20)
+        let p2 = Point(10, 20)
+        expect(p1 == p2).toBe(true)
+    })
+
+    test("data class with method", () => {
+        let c = Color(255, 128, 0)
+        expect(c.brightness()).toBe(383)
+    })
+
+    test("regular class with constructor", () => {
+        let dog = Animal("Rex", 4)
+        expect(dog.describe()).toBe("Rex has 4 legs")
+        expect(dog.name).toBe("Rex")
+        expect(dog.legs).toBe(4)
+    })
+
+    test("mutable state via methods", () => {
+        let counter = Counter()
+        expect(counter.getCount()).toBe(0)
+        counter.increment()
+        counter.increment()
+        counter.increment()
+        expect(counter.getCount()).toBe(3)
+    })
+})
