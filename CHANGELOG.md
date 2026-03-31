@@ -5,6 +5,23 @@ All notable changes to the Liva compiler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-dev] - 2026-04-01
+
+### Added
+- **Self-hosting Phase 2.2: Type Resolver** — `compiler/src/semantic.liva` (1212 lines, +564)
+  - Type pool: `_typePool: [TypeRef]` + `_varTypeIdx: Map<string, number>` for storing resolved types
+  - `resolveTypeRef(t: TypeRef): TypeRef` — recursive resolution of all 9 TypeRef variants
+  - `inferExprType(expr: Expr): TypeRef` — infers types for all Expr variants:
+    Literals, Identifiers, StringTemplate, Array/Map/Set/Tuple literals,
+    Binary/Unary ops, Call, MethodCall, MemberAccess, Lambda, Ternary,
+    StructLiteral, Unwrap, OptionalChain, Fail, RustBlock
+  - String method type tables (15 methods: length, trim, contains, split, etc.)
+  - Array method type tables (15 methods: push, pop, filter, find, sort, etc.)
+  - For-loop element type inference via `_inferIterableElemType`
+  - Type utilities: `_typeToString`, `typesEqual`, `isUnknownType`, `_unwrapOptionalType`
+  - Variable type storage during analysis: `_analyzeVarDecl`, `_analyzeConstDecl`, `_analyzeFor`
+  - 4 new bootstrap workarounds documented (W-001 through W-004)
+
 ## [2.0.0-dev] - 2026-03-31
 
 ### Added

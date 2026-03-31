@@ -1,8 +1,8 @@
 # Self-Hosting: Compilador de Liva escrito en Liva
 
-> **Estado:** Fase 2.1 completada ✅ (semantic.liva — TypeContext + Scope tracker)
-> **Última actualización:** 2026-03-31
-> **Próximo:** Fase 2.2 — Type resolver
+> **Estado:** Fase 2.2 completada ✅ (semantic.liva — Type resolver)
+> **Última actualización:** 2026-04-01
+> **Próximo:** Fase 2.3 — Expr typing
 
 ---
 
@@ -178,7 +178,7 @@ enum ParamMode { Owned, Borrow }
 | # | Componente | Descripción |
 |---|-----------|-------------|
 | 2.1 | **Scope tracker** ✅ | Variables declaradas, sus tipos, scope enter/leave |
-| 2.2 | **Type resolver** | `TypeRef.Simple("string")` → tipo concreto con toda su info |
+| 2.2 | **Type resolver** ✅ | `TypeRef.Simple("string")` → tipo concreto con toda su info |
 | 2.3 | **Expr typing** | Cada `Expr` recibe su tipo: `x.length` → `int` (sabemos que `x: string`) |
 | 2.4 | **Function signatures** | Return types, param types, fallibility, async |
 | 2.5 | **Class/Enum metadata** | Fields con tipos, variant fields, methods |
@@ -213,6 +213,35 @@ enum ParamMode { Owned, Borrow }
 - `let thisType: TypeRef? = TypeRef.Simple(...)` para pasar a params `TypeRef?`
 - `_ => { 0 }` en todos los arms de switch expression (consistencia de tipos)
 - Single-char loop vars para structs importados (heurística `len==1`)
+
+#### Fase 2.2 — Completada ✅ (2026-04-01)
+
+**Módulo:** `compiler/src/semantic.liva` (1212 líneas, +564 desde Phase 2.1)
+
+**Qué incluye:**
+- **Type pool**: `_typePool: [TypeRef]` + `_varTypeIdx: Map<string, number>` — almacena tipos resueltos de variables
+- **Type resolver**: `resolveTypeRef(t: TypeRef): TypeRef` — sigue aliases, resuelve recursivamente todos los 9 variantes de TypeRef
+- **Expression type inference**: `inferExprType(expr: Expr): TypeRef` — infiere tipos de todas las variantes de Expr:
+  - Literales (Int→number, Float→float, Str→string, Char→char, Bool→bool, Null→null)
+  - Identificadores (lookup en scope chain via `_varTypeIdx`)
+  - Colecciones: ArrayLiteral, MapLiteral, SetLiteral, TupleLiteral
+  - Operadores: Binary (Add→infer, comparisons→bool, arithmetic→number), Unary (Neg→number, Not→bool)
+  - Calls (constructor→ClassName, function→return type), MethodCall, MemberAccess
+  - Lambda→fn, Ternary→then branch, StructLiteral→name, Unwrap→inner, OptionalChain→Optional
+- **String/Array method type tables**: 15 string method types + 15 array method types
+- **For-loop type inference**: `_inferIterableElemType` — Array→inner, Set→inner, Map→Tuple(k,v), string→char, range→number
+- **Type utilities**: `_typeToString(TypeRef): string`, `typesEqual(a, b): bool`, `isUnknownType(t): bool`
+- **Variable type storage**: `_setVarType(name, TypeRef)` → pool index; `lookupVarType(name): TypeRef` → walks scope chain
+
+**New workarounds (limitaciones del bootstrap):**
+- NO `return` dentro de switch arm blocks: el parser Liva no lo soporta. Usar patrón de variable mutable:
+  `let result = ...; let _ = switch t { Arm => { result = ...; 0 } }; return result`
+- Variables con nombres únicos por switch arm: Liva no crea scopes separados por arm
+  (e.g., `tupleResolved`, `genResolved`, `unionResolved` en vez de reutilizar `resolved`)
+- String template trick para clonar strings de struct fields: `$"{stmt.variable}"`
+  genera `format!()` que borrowea en vez de mover
+- No pre-resolver aliases ni return types en registration (causa double-move).
+  Dejar lookups lazy para Phase 2.3+
 
 ### Fase 3: Codegen Limpio
 
@@ -402,7 +431,7 @@ Fase 1: Frontend ✅ (idiomatic rewrite done)
 
 Fase 2: Semantic Analyzer
   [x] 2.1: TypeContext struct + scope tracker (semantic.liva — 647 líneas)
-  [ ] 2.2: Type resolver (Simple/Array/Map/Optional → info concreta)
+  [x] 2.2: Type resolver (Simple/Array/Map/Optional → info concreta)
   [ ] 2.3: Expr typing (cada expresión anotada con su tipo)
   [ ] 2.4: Function signatures registry
   [ ] 2.5: Class/Enum metadata registry

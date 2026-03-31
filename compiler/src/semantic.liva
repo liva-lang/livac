@@ -1,7 +1,7 @@
 // ============================================================================
 // semantic.liva — Semantic Analyzer for the Liva self-hosting compiler
 // ============================================================================
-// Phase 2.1: TypeContext + Scope tracker
+// Phase 2.2: Type resolver (builds on Phase 2.1 Scope tracker)
 //
 // The bootstrap compiler (Rust) has NO type system — codegen uses ~20 HashSets
 // to "guess" types. This module replaces that with a proper semantic analysis
@@ -18,6 +18,8 @@
 //   - All standalone enum switches use "let _ = switch ..." (expression form)
 //   - Switch arms returning void wrapped as { method(); 0 } for type consistency
 //   - Lookup methods return bool (Map.get adds unwrap_or_default in codegen)
+//   - Type pool + index maps: TypeRef stored in _typePool, lookups via _varTypeIdx
+//     (avoids Map.get on non-Default types; sentinel: pool index 0 = unknown)
 //   - Factory functions for struct construction with Optional fields
 //     (avoids double Some() wrapping from constructor arg rewriting)
 //   - Helper methods for passing Optional values to non-Optional params
@@ -162,6 +164,8 @@ TypeContext {
     enums: Map<string, EnumInfo>
     typeAliases: Map<string, TypeAliasInfo>
     diagnostics: [Diagnostic]
+    typePool: [TypeRef]
+    varTypes: Map<string, number>
 }
 
 // =====================================================================
@@ -201,6 +205,8 @@ SemanticAnalyzer {
     _diagnostics: [Diagnostic]
     _currentScopeId: number
     _nextScopeId: number
+    _typePool: [TypeRef]
+    _varTypeIdx: Map<string, number>
 
     constructor() {
         this._scopeParents = [-1]
@@ -212,6 +218,8 @@ SemanticAnalyzer {
         this._diagnostics = []
         this._currentScopeId = 0
         this._nextScopeId = 1
+        this._typePool = [TypeRef.Simple("unknown")]
+        this._varTypeIdx = Map {}
     }
 
     // -- Scope management --
@@ -270,8 +278,514 @@ SemanticAnalyzer {
         this._functions.set(name, sig)
     }
 
+    // -- Type pool management --
+    // Pool index 0 is always TypeRef.Simple("unknown") — the sentinel value.
+    // All TypeRef values are stored here; maps hold integer indices into pool.
+
+    _addType(t: TypeRef): number {
+        let idx = this._typePool.length
+        this._typePool.push(t)
+        return idx
+    }
+
+    _getType(idx: number): TypeRef {
+        if idx >= 0 {
+            if idx < this._typePool.length {
+                return this._typePool[idx]
+            }
+        }
+        return this._typePool[0]
+    }
+
+    // -- Register a variable type by scoped key --
+
+    _setVarType(name: string, t: TypeRef) {
+        let key = this._symKey(this._currentScopeId, name)
+        let idx = this._addType(t)
+        this._varTypeIdx.set(key, idx)
+    }
+
+    // -- Type-returning lookups (Phase 2.2) --
+    // Returns pool index (0 = unknown sentinel)
+
+    lookupVarTypeIdx(name: string): number {
+        let scopeId = this._currentScopeId
+        while scopeId >= 0 {
+            let key = this._symKey(scopeId, name)
+            if this._varTypeIdx.has(key) {
+                return this._varTypeIdx.get(key)
+            }
+            scopeId = this._scopeParents[scopeId]
+        }
+        return 0
+    }
+
+    lookupVarType(name: string): TypeRef {
+        let idx = this.lookupVarTypeIdx(name)
+        return this._getType(idx)
+    }
+
+    lookupFuncReturnType(name: string): TypeRef {
+        // Function return types live in FunctionSig.returnType (via _functions map)
+        // Phase 2.2: return unknown — full sig lookups in Phase 2.3
+        return this._typePool[0]
+    }
+
+    // -- Resolve a TypeRef to concrete info --
+    // Follows type aliases, validates class/enum names exist.
+    // Note: cannot use `return` inside switch arm blocks (parser limitation).
+    // Uses mutable `result` variable assigned in each arm.
+
+    resolveTypeRef(t: TypeRef): TypeRef {
+        let result = TypeRef.Simple("unknown")
+        let _ = switch t {
+            TypeRef.Simple(n) => {
+                result = this._resolveSimpleName(n)
+                0
+            },
+            TypeRef.Array(inner) => {
+                result = TypeRef.Array(this.resolveTypeRef(inner))
+                0
+            },
+            TypeRef.MapType(k, v) => {
+                let rk = this.resolveTypeRef(k)
+                let rv = this.resolveTypeRef(v)
+                result = TypeRef.MapType(rk, rv)
+                0
+            },
+            TypeRef.SetType(inner) => {
+                result = TypeRef.SetType(this.resolveTypeRef(inner))
+                0
+            },
+            TypeRef.OptionalType(inner) => {
+                result = TypeRef.OptionalType(this.resolveTypeRef(inner))
+                0
+            },
+            TypeRef.Fallible(inner) => {
+                result = TypeRef.Fallible(this.resolveTypeRef(inner))
+                0
+            },
+            TypeRef.Tuple(elems) => {
+                let tupleResolved: [TypeRef] = []
+                for e in elems {
+                    tupleResolved.push(this.resolveTypeRef(e))
+                }
+                result = TypeRef.Tuple(tupleResolved)
+                0
+            },
+            TypeRef.Generic(base, args) => {
+                let genResolved: [TypeRef] = []
+                for a in args {
+                    genResolved.push(this.resolveTypeRef(a))
+                }
+                result = TypeRef.Generic(base, genResolved)
+                0
+            },
+            TypeRef.Union(types) => {
+                let unionResolved: [TypeRef] = []
+                for u in types {
+                    unionResolved.push(this.resolveTypeRef(u))
+                }
+                result = TypeRef.Union(unionResolved)
+                0
+            }
+        }
+        return result
+    }
+
+    _resolveSimpleName(n: string): TypeRef {
+        // Phase 2.2: return as-is (alias resolution deferred to Phase 2.3)
+        return TypeRef.Simple(n)
+    }
+
+    // -- Infer type of an expression --
+    // Uses mutable `result` to avoid `return` inside switch arms.
+
+    inferExprType(expr: Expr): TypeRef {
+        let result = TypeRef.Simple("unknown")
+        let _ = switch expr {
+            Expr.Literal(lit) => {
+                result = this._inferLiteralType(lit)
+                0
+            },
+            Expr.Identifier(name) => {
+                result = this.lookupVarType(name)
+                0
+            },
+            Expr.StringTemplate(parts) => {
+                result = TypeRef.Simple("string")
+                0
+            },
+            Expr.ArrayLiteral(elements) => {
+                result = this._inferArrayLitType(elements)
+                0
+            },
+            Expr.MapLiteral(entries) => {
+                result = TypeRef.MapType(TypeRef.Simple("unknown"), TypeRef.Simple("unknown"))
+                0
+            },
+            Expr.SetLiteral(elements) => {
+                result = this._inferSetLitType(elements)
+                0
+            },
+            Expr.TupleLiteral(elements) => {
+                result = this._inferTupleLitType(elements)
+                0
+            },
+            Expr.Binary(op, left, right) => {
+                result = this._inferBinaryType(op, left, right)
+                0
+            },
+            Expr.Unary(op, operand) => {
+                result = this._inferUnaryType(op, operand)
+                0
+            },
+            Expr.Call(callee, args, execPolicy, typeArgs) => {
+                result = this._inferCallType(callee)
+                0
+            },
+            Expr.MethodCall(object, method, args) => {
+                result = this._inferMethodCallType(object, method)
+                0
+            },
+            Expr.MemberAccess(object, property) => {
+                result = this._inferMemberAccessType(object, property)
+                0
+            },
+            Expr.Lambda(lam) => {
+                result = TypeRef.Simple("fn")
+                0
+            },
+            Expr.Ternary(cond, thenExpr, elseExpr) => {
+                result = this.inferExprType(thenExpr)
+                0
+            },
+            Expr.StructLiteral(name, fields) => {
+                result = TypeRef.Simple(name)
+                0
+            },
+            Expr.Unwrap(inner) => {
+                result = this._unwrapOptionalType(this.inferExprType(inner))
+                0
+            },
+            Expr.OptionalChain(object, property) => {
+                let propType = this._inferMemberAccessType(object, property)
+                result = TypeRef.OptionalType(propType)
+                0
+            },
+            Expr.Fail(inner) => {
+                result = TypeRef.Simple("never")
+                0
+            },
+            Expr.RustBlock(code) => {
+                result = TypeRef.Simple("unknown")
+                0
+            },
+            _ => { 0 }
+        }
+        return result
+    }
+
+    // -- Literal type inference (all arms → TypeRef.Simple) --
+
+    _inferLiteralType(lit: Literal): TypeRef {
+        let kind = switch lit {
+            Literal.Int(v) => "number",
+            Literal.Float(v) => "float",
+            Literal.Str(v) => "string",
+            Literal.Char(v) => "char",
+            Literal.Bool(v) => "bool",
+            Literal.Null => "null"
+        }
+        return TypeRef.Simple(kind)
+    }
+
+    // -- Collection literal helpers --
+
+    _inferArrayLitType(elements: [Expr]): TypeRef {
+        if elements.length > 0 {
+            let elemType = this.inferExprType(elements[0])
+            return TypeRef.Array(elemType)
+        }
+        return TypeRef.Array(TypeRef.Simple("unknown"))
+    }
+
+    _inferSetLitType(elements: [Expr]): TypeRef {
+        if elements.length > 0 {
+            let elemType = this.inferExprType(elements[0])
+            return TypeRef.SetType(elemType)
+        }
+        return TypeRef.SetType(TypeRef.Simple("unknown"))
+    }
+
+    _inferTupleLitType(elements: [Expr]): TypeRef {
+        let types: [TypeRef] = []
+        for e in elements {
+            types.push(this.inferExprType(e))
+        }
+        return TypeRef.Tuple(types)
+    }
+
+    // -- Binary/Unary type inference --
+
+    _inferBinaryType(op: BinOp, left: Expr, right: Expr): TypeRef {
+        let kind = switch op {
+            BinOp.Add => "_infer",
+            BinOp.Sub => "number",
+            BinOp.Mul => "number",
+            BinOp.Div => "number",
+            BinOp.Mod => "number",
+            BinOp.Lt => "bool",
+            BinOp.Le => "bool",
+            BinOp.Gt => "bool",
+            BinOp.Ge => "bool",
+            BinOp.Eq => "bool",
+            BinOp.Ne => "bool",
+            BinOp.And => "bool",
+            BinOp.Or => "bool",
+            BinOp.Range => "range",
+            BinOp.RangeInclusive => "range",
+            _ => "unknown"
+        }
+        if kind == "_infer" {
+            return this.inferExprType(left)
+        }
+        return TypeRef.Simple(kind)
+    }
+
+    _inferUnaryType(op: UnOp, operand: Expr): TypeRef {
+        let kind = switch op {
+            UnOp.Neg => "number",
+            UnOp.Not => "bool",
+            UnOp.Await => "_infer"
+        }
+        if kind == "_infer" {
+            return this.inferExprType(operand)
+        }
+        return TypeRef.Simple(kind)
+    }
+
+    // -- Call/Method/Member type inference --
+
+    _inferCallType(callee: Expr): TypeRef {
+        let result = TypeRef.Simple("unknown")
+        let _ = switch callee {
+            Expr.Identifier(name) => {
+                result = this._inferCallByName(name)
+                0
+            },
+            _ => { 0 }
+        }
+        return result
+    }
+
+    _inferCallByName(name: string): TypeRef {
+        if this._classes.has(name) {
+            return TypeRef.Simple(name)
+        }
+        return this.lookupFuncReturnType(name)
+    }
+
+    _inferMethodCallType(object: Expr, method: string): TypeRef {
+        let objType = this.inferExprType(object)
+        let result = TypeRef.Simple("unknown")
+        let _ = switch objType {
+            TypeRef.Simple(n) => {
+                result = this._inferMethodOnSimple(n, method)
+                0
+            },
+            TypeRef.Array(inner) => {
+                result = this._inferArrayMethodType(method, inner)
+                0
+            },
+            _ => { 0 }
+        }
+        return result
+    }
+
+    _inferMethodOnSimple(typeName: string, method: string): TypeRef {
+        if this._classes.has(typeName) {
+            return this._lookupMethodReturnType(typeName, method)
+        }
+        if typeName == "string" {
+            return this._inferStringMethodType(method)
+        }
+        return TypeRef.Simple("unknown")
+    }
+
+    _lookupMethodReturnType(className: string, method: string): TypeRef {
+        // Walk class methods — registered in _classes
+        // For now return unknown — will be enriched when we integrate method sig lookups
+        return TypeRef.Simple("unknown")
+    }
+
+    _inferStringMethodType(method: string): TypeRef {
+        if method == "length" => return TypeRef.Simple("number")
+        if method == "trim" => return TypeRef.Simple("string")
+        if method == "toUpper" => return TypeRef.Simple("string")
+        if method == "toLower" => return TypeRef.Simple("string")
+        if method == "contains" => return TypeRef.Simple("bool")
+        if method == "startsWith" => return TypeRef.Simple("bool")
+        if method == "endsWith" => return TypeRef.Simple("bool")
+        if method == "indexOf" => return TypeRef.Simple("number")
+        if method == "split" => return TypeRef.Array(TypeRef.Simple("string"))
+        if method == "replace" => return TypeRef.Simple("string")
+        if method == "slice" => return TypeRef.Simple("string")
+        if method == "charAt" => return TypeRef.Simple("char")
+        if method == "repeat" => return TypeRef.Simple("string")
+        if method == "padStart" => return TypeRef.Simple("string")
+        if method == "padEnd" => return TypeRef.Simple("string")
+        return TypeRef.Simple("unknown")
+    }
+
+    _inferArrayMethodType(method: string, elemType: TypeRef): TypeRef {
+        if method == "length" => return TypeRef.Simple("number")
+        if method == "push" => return TypeRef.Simple("void")
+        if method == "pop" => return TypeRef.OptionalType(elemType)
+        if method == "contains" => return TypeRef.Simple("bool")
+        if method == "indexOf" => return TypeRef.Simple("number")
+        if method == "join" => return TypeRef.Simple("string")
+        if method == "map" => return TypeRef.Array(TypeRef.Simple("unknown"))
+        if method == "filter" => return TypeRef.Array(elemType)
+        if method == "find" => return TypeRef.OptionalType(elemType)
+        if method == "isEmpty" => return TypeRef.Simple("bool")
+        if method == "first" => return TypeRef.OptionalType(elemType)
+        if method == "last" => return TypeRef.OptionalType(elemType)
+        if method == "reverse" => return TypeRef.Array(elemType)
+        if method == "sort" => return TypeRef.Array(elemType)
+        if method == "slice" => return TypeRef.Array(elemType)
+        return TypeRef.Simple("unknown")
+    }
+
+    _inferMemberAccessType(object: Expr, property: string): TypeRef {
+        let objType = this.inferExprType(object)
+        let result = TypeRef.Simple("unknown")
+        let _ = switch objType {
+            TypeRef.Simple(n) => {
+                result = this._inferMemberOnSimple(n, property)
+                0
+            },
+            TypeRef.Array(inner) => {
+                result = this._inferMemberOnArray(property)
+                0
+            },
+            _ => { 0 }
+        }
+        return result
+    }
+
+    _inferMemberOnSimple(typeName: string, property: string): TypeRef {
+        if typeName == "string" {
+            if property == "length" {
+                return TypeRef.Simple("number")
+            }
+        }
+        if this._classes.has(typeName) {
+            return this._lookupFieldType(typeName, property)
+        }
+        return TypeRef.Simple("unknown")
+    }
+
+    _inferMemberOnArray(property: string): TypeRef {
+        if property == "length" {
+            return TypeRef.Simple("number")
+        }
+        return TypeRef.Simple("unknown")
+    }
+
+    _lookupFieldType(className: string, field: string): TypeRef {
+        // Walk class fields — iterate since we can't Map.get on non-Default types
+        // For now return unknown — will be enriched incrementally
+        return TypeRef.Simple("unknown")
+    }
+
+    // -- Optional/Fallible unwrap --
+
+    _unwrapOptionalType(t: TypeRef): TypeRef {
+        let result = TypeRef.Simple("unknown")
+        let _ = switch t {
+            TypeRef.OptionalType(inner) => { result = inner; 0 },
+            TypeRef.Fallible(inner) => { result = inner; 0 },
+            TypeRef.Simple(n) => { result = TypeRef.Simple(n); 0 },
+            TypeRef.Array(inner) => { result = TypeRef.Array(inner); 0 },
+            TypeRef.MapType(k, v) => { result = TypeRef.MapType(k, v); 0 },
+            TypeRef.SetType(inner) => { result = TypeRef.SetType(inner); 0 },
+            TypeRef.Tuple(elems) => { result = TypeRef.Tuple(elems); 0 },
+            TypeRef.Generic(base, args) => { result = TypeRef.Generic(base, args); 0 },
+            TypeRef.Union(types) => { result = TypeRef.Union(types); 0 }
+        }
+        return result
+    }
+
+    // -- Type checking helpers --
+
+    isUnknownType(t: TypeRef): bool {
+        let tag = switch t {
+            TypeRef.Simple(n) => n,
+            _ => "other"
+        }
+        return tag == "unknown"
+    }
+
+    typesEqual(a: TypeRef, b: TypeRef): bool {
+        let aStr = this._typeToString(a)
+        let bStr = this._typeToString(b)
+        return aStr == bStr
+    }
+
+    _typeToString(t: TypeRef): string {
+        let result = "unknown"
+        let _ = switch t {
+            TypeRef.Simple(n) => { result = n; 0 },
+            TypeRef.Array(inner) => {
+                result = $"[{this._typeToString(inner)}]"
+                0
+            },
+            TypeRef.MapType(k, v) => {
+                result = $"Map<{this._typeToString(k)},{this._typeToString(v)}>"
+                0
+            },
+            TypeRef.SetType(inner) => {
+                result = $"Set<{this._typeToString(inner)}>"
+                0
+            },
+            TypeRef.OptionalType(inner) => {
+                result = $"{this._typeToString(inner)}?"
+                0
+            },
+            TypeRef.Fallible(inner) => {
+                result = $"{this._typeToString(inner)}!"
+                0
+            },
+            TypeRef.Tuple(elems) => {
+                let tupleParts: [string] = []
+                for e in elems {
+                    tupleParts.push(this._typeToString(e))
+                }
+                result = $"({tupleParts.join(", ")})"
+                0
+            },
+            TypeRef.Generic(base, args) => {
+                let argParts: [string] = []
+                for a in args {
+                    argParts.push(this._typeToString(a))
+                }
+                result = $"{base}<{argParts.join(", ")}>"
+                0
+            },
+            TypeRef.Union(types) => {
+                let unionParts: [string] = []
+                for u in types {
+                    unionParts.push(this._typeToString(u))
+                }
+                result = unionParts.join(" | ")
+                0
+            }
+        }
+        return result
+    }
+
     // -- Symbol lookup (walks parent chain) --
-    // Phase 2.1: returns bool. Value-returning variants in Phase 2.2.
 
     lookupVar(name: string): bool {
         let scopeId = this._currentScopeId
@@ -453,7 +967,9 @@ SemanticAnalyzer {
             this._classes,
             this._enums,
             this._typeAliases,
-            this._diagnostics
+            this._diagnostics,
+            this._typePool,
+            this._varTypeIdx
         )
     }
 
@@ -513,7 +1029,9 @@ SemanticAnalyzer {
     }
 
     _analyzeConstDecl(decl: ConstDecl) {
+        let initType = this.inferExprType(decl.init)
         this.declareConst(decl.name, decl.typeRef)
+        this._setVarType(decl.name, initType)
     }
 
     // -- Block & statement analysis --
@@ -549,10 +1067,16 @@ SemanticAnalyzer {
     }
 
     _analyzeVarDecl(decl: VarDeclStmt) {
+        // Phase 2.2: infer type from initializer, store in pool for reuse across bindings
+        let initType = this.inferExprType(decl.init)
+        let initIdx = this._addType(initType)
+
         for b in decl.bindings {
             let _ = switch b.pattern {
                 BindingPattern.Identifier(name) => {
                     this.declareVar(name, b.typeRef)
+                    let recovered = this._getType(initIdx)
+                    this._setVarType(name, recovered)
                     0
                 },
                 BindingPattern.ObjectPat(fields) => {
@@ -613,12 +1137,53 @@ SemanticAnalyzer {
 
     _analyzeFor(stmt: ForStmt) {
         this._enterScope()
+
+        // Phase 2.2: infer loop var type from iterable
+        let iterType = this.inferExprType(stmt.iterable)
+        let elemType = this._inferIterableElemType(iterType)
+        let elemIdx = this._addType(elemType)
+
+        // String template creates a copy (borrows stmt.variable, doesn't move it)
+        let varNameCopy = $"{stmt.variable}"
         this.declareVar(stmt.variable, null)
+        let recoveredElem = this._getType(elemIdx)
+        this._setVarType(varNameCopy, recoveredElem)
+
+        // variable2 is the index (number) when present
         this._declareVarOpt(stmt.variable2, null)
+
         for s in stmt.body.stmts {
             this._analyzeStmt(s)
         }
         this._leaveScope()
+    }
+
+    _inferIterableElemType(iterType: TypeRef): TypeRef {
+        let result = TypeRef.Simple("unknown")
+        let _ = switch iterType {
+            TypeRef.Array(inner) => { result = inner; 0 },
+            TypeRef.SetType(inner) => { result = inner; 0 },
+            TypeRef.MapType(k, v) => {
+                result = TypeRef.Tuple([k, v])
+                0
+            },
+            TypeRef.Simple(n) => {
+                result = this._inferIterableSimpleElem(n)
+                0
+            },
+            _ => { 0 }
+        }
+        return result
+    }
+
+    _inferIterableSimpleElem(typeName: string): TypeRef {
+        if typeName == "string" {
+            return TypeRef.Simple("char")
+        }
+        if typeName == "range" {
+            return TypeRef.Simple("number")
+        }
+        return TypeRef.Simple("unknown")
     }
 
     _analyzeTryCatch(stmt: TryCatchStmt) {

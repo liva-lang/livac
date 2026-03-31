@@ -345,3 +345,44 @@ let copy = clone(originalValue)
   pero NO en `var_types`, impidiendo que SH-012 detectara el tipo de `p`.
 - **Fix:** Añadido `var_types.insert(var_name, element_type)` junto al `class_instance_vars.insert()`.
 - **Estado:** ✅ FIXED — 518 tests verdes
+
+## Bootstrap Workarounds — Phase 2.2
+
+> Limitaciones descubiertas del bootstrap durante Type Resolver (semantic.liva).
+> No requieren fixes al codegen — se resuelven con patrones en el código Liva.
+
+### W-001: No `return` inside switch arm blocks
+- **Tipo:** PARSER LIMITATION
+- **Descripción:** `{ return TypeRef.Simple("number"); 0 }` falla con "Expected expression"
+  en la posición del `;` después del return. El parser Liva no reconoce `return` como
+  statement válido dentro de bloques de switch arm expression.
+- **Workaround:** Patrón de variable mutable:
+  ```liva
+  let result = TypeRef.Simple("unknown")
+  let _ = switch t { Arm => { result = value; 0 } }
+  return result
+  ```
+- **Estado:** ⚠️ DOCUMENTED — workaround funcional
+
+### W-002: Variable names collide across switch arms
+- **Tipo:** SEMANTIC LIMITATION
+- **Descripción:** `let resolved: [TypeRef] = []` en arm de Tuple colisiona con mismo
+  nombre en arm de Union. Liva no crea scopes separados por switch arm block.
+- **Workaround:** Usar nombres únicos: `tupleResolved`, `genResolved`, `unionResolved`.
+- **Estado:** ⚠️ DOCUMENTED — workaround funcional
+
+### W-003: Struct field strings not auto-cloned for multi-use
+- **Tipo:** CODEGEN LIMITATION
+- **Descripción:** `stmt.variable` usado en `declareVar()` y `_setVarType()` genera
+  use-after-move en Rust. El codegen no añade `.clone()` para strings de struct fields.
+- **Workaround:** String template trick: `let copy = $"{stmt.variable}"` genera
+  `format!("{}", stmt.variable)` que borrowea sin mover.
+- **Estado:** ⚠️ DOCUMENTED — workaround funcional
+
+### W-004: Struct field Optional auto-unwrap broken
+- **Tipo:** CODEGEN LIMITATION
+- **Descripción:** `if decl.returnType != null { ... decl.returnType ... }` no auto-unwraps
+  struct fields. Solo funciona con variables locales simples.
+- **Workaround:** Extraer a variable local: `let rt: TypeRef? = decl.returnType; if rt != null { ... }`
+  O evitar el patrón y no pre-resolver tipos en registration pass.
+- **Estado:** ⚠️ DOCUMENTED — workaround funcional

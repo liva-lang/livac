@@ -374,6 +374,18 @@
 - [x] Bootstrap fix SH-013: For-loop var_types tracking
 - [x] 518 tests verdes
 
+### Self-hosting — Fase 2.2: Type resolver ✅
+
+- [x] semantic.liva — 1212 líneas (+564), compila a Rust sin errores
+- [x] Type pool: _typePool + _varTypeIdx for resolved type storage
+- [x] resolveTypeRef: recursive resolution of all 9 TypeRef variants
+- [x] inferExprType: type inference for all Expr variants (literals, ops, calls, collections)
+- [x] String/Array method type tables (15+15 methods)
+- [x] For-loop iterable element type inference (_inferIterableElemType)
+- [x] Type utilities: _typeToString, typesEqual, isUnknownType, _unwrapOptionalType
+- [x] 4 new workarounds documented (W-001 through W-004)
+- [x] 518 tests verdes
+
 ### Self-hosting (parcial) — experimento completado
 
 - [x] Implementar lexer de Liva en Liva (~660 líneas)
