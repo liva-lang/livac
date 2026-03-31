@@ -323,21 +323,25 @@ writeOutputFiles(result: CompilationResult, outputDir: string) {
 }
 
 runCargoBuild(outputDir: string, release: bool): bool {
-    let releaseFlag = ""
-    if release {
-        releaseFlag = " --release"
-    }
-    let exitCode = Process.run("cargo build" + releaseFlag, outputDir)
-    return exitCode == 0
+    let cmd = _buildCargoCmd(outputDir, release)
+    let result = Process.exec(cmd)
+    // Process.exec returns (Option<string>, string) — success if first is not null
+    return result[0] != null
+}
+
+_buildCargoCmd(outputDir: string, release: bool): string {
+    if release => "cd " + outputDir + " && cargo build --release"
+    return "cd " + outputDir + " && cargo build"
 }
 
 runBinary(outputDir: string, release: bool, projectName: string) {
-    let profile = "debug"
-    if release {
-        profile = "release"
-    }
-    let binaryPath = outputDir + "/target/" + profile + "/" + projectName
-    Process.run(binaryPath, ".")
+    let binaryPath = _buildBinaryPath(outputDir, release, projectName)
+    Process.exec(binaryPath)
+}
+
+_buildBinaryPath(outputDir: string, release: bool, projectName: string): string {
+    if release => outputDir + "/target/release/" + projectName
+    return outputDir + "/target/debug/" + projectName
 }
 
 // =====================================================================
@@ -345,20 +349,43 @@ runBinary(outputDir: string, release: bool, projectName: string) {
 // =====================================================================
 
 fileToProjectName(filePath: string): string {
+    let raw = _extractFileNameMain(filePath)
+    let name = _removeLivaExtMain(raw)
+    return name.replace("-", "_")
+}
+
+_extractFileNameMain(filePath: string): string {
     let lastSlash = filePath.lastIndexOf("/")
-    let fileName = filePath
-    if lastSlash >= 0 {
-        fileName = filePath.substring(lastSlash + 1, filePath.length)
-    }
-    if fileName.endsWith(".liva") {
-        fileName = fileName.substring(0, fileName.length - 5)
-    }
-    // Replace non-alphanumeric chars with underscore
-    return fileName.replace("-", "_")
+    if lastSlash >= 0 => filePath.substring(lastSlash + 1, filePath.length)
+    return filePath
+}
+
+_removeLivaExtMain(fileName: string): string {
+    if fileName.endsWith(".liva") => fileName.substring(0, fileName.length - 5)
+    return fileName
 }
 
 hasImports(source: string): bool {
     return source.contains("import ")
+}
+
+_resolveOutputDir(outputDir: string): string {
+    if outputDir != "" => outputDir
+    return "target/liva_build"
+}
+
+_compileSource(source: string, inputFile: string, isMultiFile: bool,
+               checkOnly: bool, verbose: bool): CompilationResult {
+    if isMultiFile {
+        if verbose {
+            println("  Multi-file compilation mode")
+        }
+        return compileMultiFile(inputFile, checkOnly, verbose)
+    }
+    if verbose {
+        println("  Single-file compilation mode")
+    }
+    return compileSingleFile(source, inputFile, checkOnly)
 }
 
 // =====================================================================
@@ -366,7 +393,7 @@ hasImports(source: string): bool {
 // =====================================================================
 
 main() {
-    let args = Process.args()
+    let args = Sys.args()
     let opts = parseCliArgs(args)
 
     if opts.inputFile == "" {
@@ -381,28 +408,14 @@ main() {
     }
 
     // Determine output directory
-    let outputDir = opts.outputDir
-    if outputDir == "" {
-        outputDir = "target/liva_build"
-    }
+    let outputDir = _resolveOutputDir(opts.outputDir)
 
     // Read source to determine single vs multi-file
     let source = readFile(opts.inputFile)
     let isMultiFile = hasImports(source)
 
     // Compile
-    let result = CompilationResult(false, "", "", [], Map {})
-    if isMultiFile {
-        if opts.verbose {
-            println("  Multi-file compilation mode")
-        }
-        result = compileMultiFile(opts.inputFile, opts.checkOnly, opts.verbose)
-    } else {
-        if opts.verbose {
-            println("  Single-file compilation mode")
-        }
-        result = compileSingleFile(source, opts.inputFile, opts.checkOnly)
-    }
+    let result = _compileSource(source, opts.inputFile, isMultiFile, opts.checkOnly, opts.verbose)
 
     // Report errors
     if !result.success {

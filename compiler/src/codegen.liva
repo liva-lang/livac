@@ -1251,6 +1251,19 @@ RustEmitter {
         return tag
     }
 
+    _getLiteralTypeName(lit: Literal): string {
+        let litTag = "unknown"
+        let _ = switch lit {
+            Literal.Str(_) => { litTag = "string"; 0 },
+            Literal.Int(_) => { litTag = "number"; 0 },
+            Literal.Float(_) => { litTag = "float"; 0 },
+            Literal.Bool(_) => { litTag = "bool"; 0 },
+            Literal.Char(_) => { litTag = "char"; 0 },
+            _ => { 0 }
+        }
+        return litTag
+    }
+
     _getExprTypeName(expr: Expr): string {
         // Lightweight type inference for codegen dispatch
         let tag = "unknown"
@@ -1261,16 +1274,7 @@ RustEmitter {
                 0
             },
             Expr.Literal(lit) => {
-                let litTag = "unknown"
-                let _2 = switch lit {
-                    Literal.Str(_) => { litTag = "string"; 0 },
-                    Literal.Int(_) => { litTag = "number"; 0 },
-                    Literal.Float(_) => { litTag = "float"; 0 },
-                    Literal.Bool(_) => { litTag = "bool"; 0 },
-                    Literal.Char(_) => { litTag = "char"; 0 },
-                    _ => { 0 }
-                }
-                tag = litTag
+                tag = this._getLiteralTypeName(lit)
                 0
             },
             Expr.StringTemplate(_) => { tag = "string"; 0 },
