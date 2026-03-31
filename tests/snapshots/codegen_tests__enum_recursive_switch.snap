@@ -395,7 +395,7 @@ enum Expr {
 
 
 fn eval(e: Expr) -> i32 {
-    return match e {
+    return match &e {
         Expr::Num { value: v } => v,
         Expr::Add { left: l, right: r } => {
             let l = *l;

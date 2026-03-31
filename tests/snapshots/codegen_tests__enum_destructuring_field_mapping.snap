@@ -394,9 +394,15 @@ enum Token {
 
 
 fn show(t: Token) -> String {
-    return match t {
-        Token::TString { value: v } => format!("str({})", v),
-        Token::TNumber { value: n } => format!("num({})", n),
+    return match &t {
+        Token::TString { value: v } => {
+            let v = v.clone();
+            format!("str({})", v)
+        },
+        Token::TNumber { value: n } => {
+            let n = n.clone();
+            format!("num({})", n)
+        },
     };
 }
 

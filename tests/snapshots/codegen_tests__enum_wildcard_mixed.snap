@@ -394,7 +394,7 @@ enum Expr {
 
 
 fn get_left(e: Expr) -> i32 {
-    return match e {
+    return match &e {
         Expr::Add { left: l, right: _ } => l,
         Expr::Literal { value: v } => v,
     };

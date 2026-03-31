@@ -395,7 +395,7 @@ enum Shape {
 
 
 fn shape_label(s: Shape) -> String {
-    return match s {
+    return match &s {
         Shape::Circle { radius: _ } => "a circle".to_string(),
         Shape::Square { side: _ } => "a square".to_string(),
         Shape::Point => "a point".to_string(),

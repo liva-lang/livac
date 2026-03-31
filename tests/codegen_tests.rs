@@ -6576,3 +6576,57 @@ main() {
     assert!(rust_code.contains(".parse::<f64>().unwrap_or(0.0)"), "Should generate parse::<f64> for toFloat(): {}", rust_code);
     assert_snapshot!("string_to_int_to_float", rust_code);
 }
+
+// ===== FIX-1: Optional variable declaration wraps non-optional init in Some() =====
+
+#[test]
+fn test_optional_var_decl_some_wrapping() {
+    // FIX-1 (ISSUE-001): let x: T? = nonOptionalValue should generate Some(value)
+    let source = r#"
+main() {
+    let name = "Alice"
+    let maybeName: string? = name
+    let maybeNull: string? = null
+    let count = 42
+    let maybeCount: int? = count
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // Non-null init should be wrapped in Some()
+    assert!(rust_code.contains("Some(name.clone())") || rust_code.contains("Some(name)"),
+        "Optional var with non-null init should wrap in Some(): {}", rust_code);
+    // Null init should NOT be wrapped in Some()
+    assert!(rust_code.contains("None"), "Optional var with null init should generate None: {}", rust_code);
+    assert!(!rust_code.contains("Some(None)"), "Should not generate Some(None): {}", rust_code);
+    assert_snapshot!("optional_var_decl_some_wrap", rust_code);
+}
+
+// ===== FIX-3: Switch borrows discriminant to avoid move =====
+
+#[test]
+fn test_switch_borrows_enum_data() {
+    // FIX-3 (ISSUE-003): switch on enum with data should use match &variable
+    // so the variable is still available after the switch
+    let source = r#"
+enum Expr {
+    Identifier(name: string)
+    Binary(left: Expr, op: string, right: Expr)
+}
+
+main() {
+    let expr: Expr = Expr.Identifier("x")
+    let name = switch expr {
+        Expr.Identifier(n) => n,
+        _ => "unknown"
+    }
+    print(name)
+    print(expr)  // expr should still be available after switch
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // Should use match &expr to avoid consuming the variable
+    assert!(rust_code.contains("match &expr"), "Should generate match &expr for enum data switch: {}", rust_code);
+    // String bindings should be cloned (String is not Copy)
+    assert!(rust_code.contains("let n = n.clone()"), "String binding should be cloned: {}", rust_code);
+    assert_snapshot!("switch_borrows_enum_data", rust_code);
+}

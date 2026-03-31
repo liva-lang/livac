@@ -387,24 +387,21 @@ mod liva_rt {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum Shape {
-    Circle { radius: i32 },
-    Rectangle { width: i32, height: i32 },
-    Point,
+enum Expr {
+    Identifier { name: String },
+    Binary { left: Box<Expr>, op: String, right: Box<Expr> },
 }
 
-
-fn area(shape: Shape) -> i32 {
-    return match &shape {
-        Shape::Circle { radius: r } => 3.14159_f64 * r * r,
-        Shape::Rectangle { width: w, height: h } => w * h,
-        Shape::Point => 0_f64,
-    };
-}
 
 fn main() {
-    let circle = Shape::Circle { radius: 5_f64 };
-    let rect = Shape::Rectangle { width: 10_f64, height: 20_f64 };
-    println!("{}", area(circle));
-    println!("{}", area(rect));
+    let expr: Expr = Expr::Identifier { name: "x".to_string() };
+    let name = match &expr {
+        Expr::Identifier { name: n } => {
+            let n = n.clone();
+            n
+        },
+        _ => "unknown".to_string(),
+    };
+    println!("{}", name);
+    println!("{}", expr);
 }

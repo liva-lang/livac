@@ -6231,6 +6231,15 @@ impl CodeGenerator {
 
                         self.output.push_str(" = ");
 
+                        // FIX-1 (ISSUE-001): Wrap init in Some() if type annotation is T?
+                        // but the value is not already optional (null, optional chain, option-returning fn/method)
+                        let needs_some_wrap_decl = binding.type_ref.as_ref()
+                            .is_some_and(|t| matches!(t, TypeRef::Optional(_)))
+                            && !matches!(&var.init, Expr::Literal(Literal::Null))
+                            && !matches!(&var.init, Expr::OptionalChain { .. })
+                            && !self.is_option_returning_method(&var.init)
+                            && !self.init_is_already_optional(&var.init);
+
                         // Check if we need to wrap in a union variant
                         let (needs_union_close, mut needs_to_string) =
                             if let Some(type_ref) = &binding.type_ref {
@@ -6249,9 +6258,13 @@ impl CodeGenerator {
                         let is_json_parse = self.is_json_parse_call(&var.init);
                         let has_type_hint = binding.type_ref.is_some();
 
+                        // FIX-1: Open Some() wrapper for T? = non-optional-value
+                        if needs_some_wrap_decl {
+                            self.output.push_str("Some(");
+                        }
+
                         if is_json_parse && has_type_hint {
-                            // Typed JSON parsing: let nums: [i32] = JSON.parse("[1,2,3]")
-                            // Generate: let nums: Vec<i32> = serde_json::from_str::<Vec<i32>>(&"[1,2,3]").expect("JSON parse failed");
+                            // Typed JSON parsing — not expected with T? annotation, skip Some wrap
                             if let Expr::MethodCall(method_call) = &var.init {
                                 self.generate_typed_json_parse(
                                     method_call,
@@ -6287,6 +6300,11 @@ impl CodeGenerator {
                         // Add .to_string() if needed for string literals
                         if needs_to_string {
                             self.output.push_str(".to_string()");
+                        }
+
+                        // FIX-1: Close Some() wrapper
+                        if needs_some_wrap_decl {
+                            self.output.push(')');
                         }
 
                         // Close union wrapper if opened
@@ -6740,8 +6758,26 @@ impl CodeGenerator {
                     false
                 };
 
+                // FIX-3 (ISSUE-003): Detect enum switches with data bindings.
+                // When matching on a local variable with enum data variants,
+                // use `match &variable` to avoid consuming the variable.
+                let is_enum_data_switch = !is_string_switch && switch_stmt.cases.iter().any(|case| {
+                    if let Expr::MethodCall(mc) = &case.value {
+                        if let Expr::Identifier(name) = mc.object.as_ref() {
+                            self.enum_variants.contains_key(name) && !mc.args.is_empty()
+                        } else { false }
+                    } else { false }
+                });
+                let needs_borrow = is_enum_data_switch
+                    && matches!(&switch_stmt.discriminant, Expr::Identifier(_))
+                    && !is_option_discriminant;
+
                 self.write_indent();
                 self.output.push_str("match ");
+                // FIX-3: Borrow discriminant to avoid move
+                if needs_borrow {
+                    self.output.push('&');
+                }
                 self.generate_expr(&switch_stmt.discriminant)?;
                 // Add .as_str() for string-based switches so literals match
                 if is_string_switch {
@@ -6819,6 +6855,24 @@ impl CodeGenerator {
                     // Auto-dereference boxed bindings
                     for binding in &boxed_deref_bindings {
                         self.writeln(&format!("let {} = *{};", binding, binding));
+                    }
+                    // FIX-3: Clone bindings when matching by reference (&expr)
+                    // In `match &expr { Variant { field } => ... }`, field is &T.
+                    // Clone to get owned values matching the behavior of match-by-value.
+                    if needs_borrow {
+                        if let Some(ref pat) = enum_pattern {
+                            if let Pattern::EnumVariant { bindings, .. } = pat {
+                                for b in bindings {
+                                    if b != "_" {
+                                        let san = self.sanitize_name(b);
+                                        // Don't re-clone boxed bindings (already handled)
+                                        if !boxed_deref_bindings.contains(&san) {
+                                            self.writeln(&format!("let {} = {}.clone();", san, san));
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                     // GAP-007 fix: Register pattern bindings as class instances
                     let registered = if let Some(ref pat) = enum_pattern {
@@ -8562,9 +8616,17 @@ impl CodeGenerator {
         });
 
         // B97 fix: When matching on self.field in a &self method, borrow to avoid move
-        let needs_ref = self.in_method && !self.current_method_is_mut
+        let needs_ref_b97 = self.in_method && !self.current_method_is_mut
             && matches!(&*switch_expr.discriminant, Expr::Member { object, .. }
                 if matches!(object.as_ref(), Expr::Identifier(n) if n == "this"));
+
+        // FIX-3 (ISSUE-003): Borrow discriminant for enum data switches to avoid move
+        let is_enum_data_switch_expr = !is_string_switch && switch_expr.arms.iter().any(|arm| {
+            matches!(&arm.pattern, Pattern::EnumVariant { bindings, .. } if !bindings.is_empty())
+        });
+        let needs_ref = needs_ref_b97
+            || (is_enum_data_switch_expr
+                && matches!(&*switch_expr.discriminant, Expr::Identifier(_)));
 
         // Generate Rust match expression
         self.output.push_str("match ");
@@ -8600,17 +8662,30 @@ impl CodeGenerator {
             // Check if this pattern has boxed enum bindings that need auto-dereference
             let boxed_bindings = self.get_boxed_pattern_bindings(&arm.pattern);
 
+            // FIX-3: Collect bindings that need cloning when matching by reference
+            let ref_clone_bindings = if needs_ref {
+                self.get_ref_clone_bindings(&arm.pattern, &boxed_bindings)
+            } else {
+                Vec::new()
+            };
+
             // GAP-007 fix: Register pattern bindings as class instances for member access
             let registered_bindings = self.register_pattern_bindings(&arm.pattern);
 
-            if !boxed_bindings.is_empty() {
-                // Wrap body in a block with auto-dereference let statements
+            if !boxed_bindings.is_empty() || !ref_clone_bindings.is_empty() {
+                // Wrap body in a block with auto-dereference/clone let statements
                 self.output.push('{');
                 self.indent();
                 for binding in &boxed_bindings {
                     self.output.push('\n');
                     self.write_indent();
                     write!(self.output, "let {} = *{};", binding, binding).unwrap();
+                }
+                // FIX-3: Clone ref bindings to get owned values
+                for binding in &ref_clone_bindings {
+                    self.output.push('\n');
+                    self.write_indent();
+                    write!(self.output, "let {} = {}.clone();", binding, binding).unwrap();
                 }
                 match &arm.body {
                     SwitchBody::Expr(expr) => {
@@ -8735,6 +8810,54 @@ impl CodeGenerator {
             }
         }
         Vec::new()
+    }
+
+    /// FIX-3: Get bindings that need `.clone()` when matching by reference (`match &expr`).
+    /// All non-wildcard, non-Copy bindings that aren't already handled by boxed deref need cloning.
+    fn get_ref_clone_bindings(&self, pattern: &Pattern, boxed_bindings: &[String]) -> Vec<String> {
+        if let Pattern::EnumVariant { enum_name, variant_name, bindings } = pattern {
+            // Look up field types for this variant
+            let field_types = self.enum_variant_field_types
+                .get(enum_name)
+                .and_then(|v| v.get(variant_name));
+
+            bindings.iter().enumerate()
+                .filter(|(_, b)| *b != "_")
+                .filter(|(i, _)| {
+                    // Check if this field's type is Copy (no clone needed)
+                    if let Some(fields) = field_types {
+                        if let Some((_, type_ref)) = fields.get(*i) {
+                            return !self.is_copy_type(type_ref);
+                        }
+                    }
+                    true // If we can't determine the type, clone to be safe
+                })
+                .map(|(_, b)| self.sanitize_name(b))
+                .filter(|b| !boxed_bindings.contains(b))
+                .collect()
+        } else {
+            Vec::new()
+        }
+    }
+
+    /// Check if a TypeRef is a Copy type (doesn't need cloning)
+    fn is_copy_type(&self, type_ref: &TypeRef) -> bool {
+        match type_ref {
+            TypeRef::Simple(name) => {
+                // Primitive Copy types
+                if matches!(name.as_str(),
+                    "int" | "float" | "number" | "bool" | "f32" | "f64" | "i32" | "i64" | "u32" | "u64" | "usize"
+                ) {
+                    return true;
+                }
+                // FIX-5: Unit enums derive Copy — check if this is a known enum with all-unit variants
+                if let Some(variants) = self.enum_variants.get(name.as_str()) {
+                    return variants.values().all(|fields| fields.is_empty());
+                }
+                false
+            }
+            _ => false,
+        }
     }
 
     /// Detect if this is a union type switch by checking for Typed patterns
@@ -14846,6 +14969,33 @@ impl CodeGenerator {
             matches!(mc.method.as_str(), "find" | "first" | "last" | "min" | "max")
         } else {
             false
+        }
+    }
+
+    /// FIX-1: Check if an init expression already produces an Option<T> value,
+    /// so we should NOT double-wrap it in Some().
+    fn init_is_already_optional(&self, expr: &Expr) -> bool {
+        match expr {
+            // Variable already tracked as optional
+            Expr::Identifier(name) => {
+                let san = self.sanitize_name(name);
+                self.option_value_vars.contains(&san)
+            }
+            // Function call to an optional-returning function
+            Expr::Call(call) => {
+                if let Expr::Identifier(fn_name) = &*call.callee {
+                    self.optional_returning_functions.contains(fn_name)
+                } else {
+                    false
+                }
+            }
+            // Method call that returns Option<T>
+            Expr::MethodCall(mc) => {
+                matches!(mc.method.as_str(), "find" | "first" | "last" | "min" | "max")
+            }
+            // Optional chaining already produces Option<T>
+            Expr::OptionalChain { .. } => true,
+            _ => false,
         }
     }
 
