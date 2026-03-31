@@ -345,16 +345,34 @@
 - [x] Tests (4 snapshot + 1 assertion)
 - [x] Docs (QUICK_REFERENCE, CHANGELOG)
 
-### Self-hosting — Fase 0: Bootstrap fixes 🔧
+### Self-hosting — Fase 0: Bootstrap fixes ✅
 
 > Arreglar el compilador Rust para que escribir Liva sea cómodo (prerequisito de Fase 2).
 
 - [x] **FIX-5**: `#[derive(Copy)]` para enums unitarios — evita move errors en BinOp, Visibility, etc.
 - [x] **FIX-6**: Borrar `IrCodeGenerator` dead code — eliminadas ~4.400 líneas (ir.rs, lowering.rs, IrCodeGenerator, codegen_ir_tests)
-- [ ] **FIX-1**: `let x: T? = value` → generar `Some(value)` automáticamente
-- [ ] **FIX-2**: Reassignment de enum sin `Some()` espurio
-- [ ] **FIX-3**: `switch` genera `match &expr` si variable se usa después (BLOCKER)
-- [ ] **FIX-4**: Parámetros no-Copy por referencia `&T` (BLOCKER)
+- [x] **FIX-1**: `let x: T? = value` → generar `Some(value)` automáticamente
+- [x] **FIX-2**: Reassignment de enum sin `Some()` espurio (no reproduce)
+- [x] **FIX-3**: `switch` genera `match &expr` si variable se usa después
+- [x] **FIX-4**: Parámetros no-Copy: clone at call site
+
+### Self-hosting — Fase 1: Frontend en Liva ✅
+
+- [x] token.liva — 312 líneas, idiomatic
+- [x] ast.liva — 450 líneas, idiomatic
+- [x] lexer.liva — 610 líneas, idiomatic
+- [x] parser.liva — 2254 líneas, idiomatic
+
+### Self-hosting — Fase 2.1: Scope tracker ✅
+
+- [x] semantic.liva — 647 líneas, compila a Rust sin errores
+- [x] TypeContext, Scope, Symbol, FunctionSig, ClassInfo, EnumInfo, Diagnostic
+- [x] SemanticAnalyzer: scope management, symbol table, registration + analysis passes
+- [x] Factory functions (makeParamSig, makeFunctionSig, makeFieldInfo)
+- [x] Bootstrap fix SH-011: Switch expression mutation scanner
+- [x] Bootstrap fix SH-012: init_is_already_optional() para Expr::Member
+- [x] Bootstrap fix SH-013: For-loop var_types tracking
+- [x] 518 tests verdes
 
 ### Self-hosting (parcial) — experimento completado
 

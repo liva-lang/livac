@@ -5,9 +5,24 @@ All notable changes to the Liva compiler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0-dev] - 2026-03-24
+## [2.0.0-dev] - 2026-03-31
 
 ### Added
+- **Self-hosting Phase 2.1: Semantic Analyzer** — `compiler/src/semantic.liva` (647 lines)
+  - TypeContext, Scope, Symbol, FunctionSig, ClassInfo, EnumInfo, Diagnostic types
+  - SemanticAnalyzer: scope management, flat symbol table (`"scopeId:name"` keys)
+  - Registration pass (collects all top-level declarations)
+  - Analysis pass (walks AST, declares variables in proper scopes)
+  - Factory functions (makeParamSig, makeFunctionSig, makeFieldInfo) for Optional field routing
+  - Compiles to Rust without errors via bootstrap compiler
+- **Bootstrap codegen fix SH-011** — Switch expression mutation scanner
+  - `collect_mutated_vars_in_expr()` now descends into `Expr::Switch` arms
+  - Fixes `let mut` detection for variables mutated inside switch expression arms
+- **Bootstrap codegen fix SH-012** — `init_is_already_optional()` for `Expr::Member`
+  - Detects Optional struct fields via `var_types` + `class_optional_fields`
+  - Prevents double `Some()` wrapping when passing already-Optional member access to constructors
+- **Bootstrap codegen fix SH-013** — For-loop `var_types` tracking
+  - Loop variables from `for p in arr` now registered in `var_types` for type detection
 - **Compound assignment operators** — `+=`, `-=`, `*=`, `/=`, `%=`
   - Desugared at parser level: `x += expr` → `Assign { target: x, value: x + expr, op: Add }`
   - Formatter round-trips correctly using `op` field

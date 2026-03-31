@@ -3,9 +3,9 @@
 > **Proyecto:** livac - El compilador de Liva  
 > **Versión:** v2.0.0-dev (tag: v1.2.0)  
 > **Lenguaje:** Rust  
-> **Tests:** 516 passing  
-> **Próximo objetivo:** v2.0 — Enums recursivos + Self-hosting parcial  
-> **Última actualización:** 2026-03-25
+> **Tests:** 518 passing  
+> **Próximo objetivo:** v2.0 — Fase 2.2 Type resolver (self-hosting)  
+> **Última actualización:** 2026-03-31
 
 ---
 
@@ -159,7 +159,8 @@ skills/liva-lang/
 
 ### Dogfooding
 - **90/90 bugs corregidos** (Dogfooding v1: 9 bugs #63-#74, v2: 8 bugs #75-#82, v3: 7 bugs #83-#89, Self-hosting: 4 bugs #90-#94)
-- **516 tests** totales
+- **518 tests** totales
+- **Self-hosting:** Fase 2.1 completada — `compiler/src/semantic.liva` (647 líneas) compila a Rust sin errores
 - **63 Liva assertion tests** (28 string + 26 array + 9 math) — cobertura completa de stdlib
 - **File (11 funciones):** read, write, append, exists, delete, copy, move, size, extension, readLines, writeLines
 - **Dir (7 funciones):** list, isDir, exists, create, delete, listRecursive, walk

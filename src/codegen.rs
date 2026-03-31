@@ -1574,6 +1574,22 @@ impl CodeGenerator {
                     LambdaBody::Expr(e) => self.collect_mutated_vars_in_expr(e, mutated),
                 }
             }
+            // SH-011 fix: Descend into switch expression arms to find mutations
+            // e.g., `let _ = switch x { Variant => { arr.push(...); 0 } }` should mark arr as mutated
+            Expr::Switch(switch_expr) => {
+                for arm in &switch_expr.arms {
+                    match &arm.body {
+                        SwitchBody::Block(stmts) => {
+                            for s in stmts {
+                                self.collect_mutated_vars_in_stmt(s, mutated);
+                            }
+                        }
+                        SwitchBody::Expr(e) => {
+                            self.collect_mutated_vars_in_expr(e, mutated);
+                        }
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -5056,6 +5072,11 @@ impl CodeGenerator {
                             // Array of strings - tracked for forEach |s| pattern
                         }
                     }
+                    // Track Optional-typed parameters so that init_is_already_optional
+                    // can detect them and avoid double-wrapping in Some() at call sites
+                    if matches!(type_ref, TypeRef::Optional(_)) {
+                        self.option_value_vars.insert(param_name.clone());
+                    }
                 }
 
                 rust_type
@@ -6579,6 +6600,7 @@ impl CodeGenerator {
                         ) && element_type.chars().next().map(|c| c.is_uppercase()).unwrap_or(false);
                         if is_class_type {
                             self.class_instance_vars.insert(var_name.clone());
+                            self.var_types.insert(var_name.clone(), element_type.clone());
                         }
                         // Bug #75: Register string loop variables so they get .clone()
                         // when passed to functions inside the loop body
@@ -6623,6 +6645,7 @@ impl CodeGenerator {
                                     ) && element_type.chars().next().map(|c| c.is_uppercase()).unwrap_or(false);
                                     if is_class_type {
                                         self.class_instance_vars.insert(var_name.clone());
+                                        self.var_types.insert(var_name.clone(), element_type.clone());
                                     }
                                 }
                             }
@@ -9099,7 +9122,8 @@ impl CodeGenerator {
                                 let is_opt_field = variant_optionals.as_ref()
                                     .map_or(false, |opts| i < opts.len() && opts[i]);
                                 let is_null = matches!(arg, Expr::Literal(Literal::Null));
-                                let wrap_some = is_opt_field && !is_null;
+                                let already_optional = self.init_is_already_optional(arg);
+                                let wrap_some = is_opt_field && !is_null && !already_optional;
 
                                 if wrap_some {
                                     self.output.push_str("Some(");
@@ -9290,7 +9314,8 @@ impl CodeGenerator {
                     let is_optional_param = constructor_optionals.as_ref()
                         .map_or(false, |opts| i < opts.len() && opts[i]);
                     let is_null_arg = matches!(arg, Expr::Literal(Literal::Null));
-                    let wrap_some = is_optional_param && !is_null_arg;
+                    let already_optional = self.init_is_already_optional(arg);
+                    let wrap_some = is_optional_param && !is_null_arg && !already_optional;
 
                     if wrap_some {
                         self.output.push_str("Some(");
@@ -9988,7 +10013,8 @@ impl CodeGenerator {
                             let is_opt_field = variant_optionals.as_ref()
                                 .map_or(false, |opts| i < opts.len() && opts[i]);
                             let is_null = matches!(arg, Expr::Literal(Literal::Null));
-                            let wrap_some = is_opt_field && !is_null;
+                            let already_optional = self.init_is_already_optional(arg);
+                            let wrap_some = is_opt_field && !is_null && !already_optional;
 
                             if wrap_some {
                                 self.output.push_str("Some(");
@@ -15053,6 +15079,21 @@ impl CodeGenerator {
             Expr::Identifier(name) => {
                 let san = self.sanitize_name(name);
                 self.option_value_vars.contains(&san)
+            }
+            // Member access on a class instance: check if the field is Optional in the class definition
+            Expr::Member { object, property } => {
+                // Get the variable type from var_types
+                if let Expr::Identifier(var_name) = object.as_ref() {
+                    let san = self.sanitize_name(var_name);
+                    if let Some(type_name) = self.var_types.get(&san) {
+                        // Look up the class in class_optional_fields
+                        let sanitized_prop = self.sanitize_name(property);
+                        if let Some(optionals) = self.class_optional_fields.get(type_name) {
+                            return optionals.contains(&sanitized_prop);
+                        }
+                    }
+                }
+                false
             }
             // Function call to an optional-returning function
             Expr::Call(call) => {

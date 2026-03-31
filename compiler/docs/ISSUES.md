@@ -310,3 +310,38 @@ if token.kind == TokenKind.LParen { ... }  // en vez de switch
 ```liva
 let copy = clone(originalValue)
 ```
+
+---
+
+## Codegen Bootstrap Fixes — Phase 2.1
+
+> Fixes aplicados al compilador Rust durante el desarrollo de semantic.liva.
+
+### SH-011: Switch expression mutation scanner
+- **Tipo:** BUG (codegen bootstrap)
+- **Archivo:** `src/codegen.rs` — `collect_mutated_vars_in_expr()`
+- **Descripción:** `fields.push(...)` dentro de arms de `let _ = switch x { ... }` no
+  marcaba `fields` como mutada, generando `let fields: Vec<T> = vec![]` sin `mut`.
+- **Causa raíz:** `collect_mutated_vars_in_expr()` tenía `_ => {}` catch-all que
+  ignoraba `Expr::Switch`. Los arms no se recorrían para buscar mutaciones.
+- **Fix:** Añadido handler para `Expr::Switch` que recorre `SwitchBody::Block`/`Expr`.
+- **Estado:** ✅ FIXED — 518 tests verdes
+
+### SH-012: init_is_already_optional() no detecta Expr::Member
+- **Tipo:** BUG (codegen bootstrap)
+- **Archivo:** `src/codegen.rs` — `init_is_already_optional()`
+- **Descripción:** `ParamSig(name, p.typeRef, ...)` generaba `Some(p.type_ref)` aunque
+  `p.type_ref` ya es `Option<TypeRef>`. La función no manejaba `Expr::Member`.
+- **Causa raíz:** `init_is_already_optional()` solo chequeaba `Identifier`, `Call`,
+  `MethodCall`, `OptionalChain`. No comprobaba member access como `p.typeRef`.
+- **Fix:** Añadido handler `Expr::Member` que busca el tipo del objeto en `var_types`
+  y verifica si el campo es Optional en `class_optional_fields`.
+- **Estado:** ✅ FIXED — 518 tests verdes
+
+### SH-013: For-loop variables no registradas en var_types
+- **Tipo:** BUG (codegen bootstrap)
+- **Archivo:** `src/codegen.rs` — for-loop class instance tracking
+- **Descripción:** `for p in decl.params` → `p` se registraba en `class_instance_vars`
+  pero NO en `var_types`, impidiendo que SH-012 detectara el tipo de `p`.
+- **Fix:** Añadido `var_types.insert(var_name, element_type)` junto al `class_instance_vars.insert()`.
+- **Estado:** ✅ FIXED — 518 tests verdes

@@ -1,8 +1,8 @@
 # Self-Hosting: Compilador de Liva escrito en Liva
 
-> **Estado:** Fase 1 completada ✅ (4 módulos reescritos idiomáticamente)
+> **Estado:** Fase 2.1 completada ✅ (semantic.liva — TypeContext + Scope tracker)
 > **Última actualización:** 2026-03-31
-> **Próximo:** Fase 2 — Semantic Analyzer
+> **Próximo:** Fase 2.2 — Type resolver
 
 ---
 
@@ -153,6 +153,7 @@ Los 4 módulos han sido reescritos idiomáticamente:
 > **Objetivo:** Anotar cada nodo del AST con su tipo resuelto.
 > **Estimación:** 5-8 sesiones
 > **Dependencia:** Fase 0 completada (necesitamos switch y params arreglados)
+> **Estado:** 2.1 completada ✅
 
 Esta es la pieza que el compilador Rust NO tiene y por la que el codegen es un
 monstruo de 19K líneas. El semantic analyzer nuevo produce un `TypeContext`:
@@ -176,13 +177,42 @@ enum ParamMode { Owned, Borrow }
 
 | # | Componente | Descripción |
 |---|-----------|-------------|
-| 2.1 | **Scope tracker** | Variables declaradas, sus tipos, scope enter/leave |
+| 2.1 | **Scope tracker** ✅ | Variables declaradas, sus tipos, scope enter/leave |
 | 2.2 | **Type resolver** | `TypeRef.Simple("string")` → tipo concreto con toda su info |
 | 2.3 | **Expr typing** | Cada `Expr` recibe su tipo: `x.length` → `int` (sabemos que `x: string`) |
 | 2.4 | **Function signatures** | Return types, param types, fallibility, async |
 | 2.5 | **Class/Enum metadata** | Fields con tipos, variant fields, methods |
 | 2.6 | **Import resolution** | Tipos de símbolos importados de otros módulos |
 | 2.7 | **Liveness analysis** | Último uso → move, no-último → borrow/clone |
+
+#### Fase 2.1 — Completada ✅ (2026-03-31)
+
+**Módulo:** `compiler/src/semantic.liva` (647 líneas)
+
+**Qué incluye:**
+- Tipos: `Symbol`, `SymbolKind` (enum), `FunctionSig`, `ParamSig`, `ClassInfo`, `FieldInfo`,
+  `EnumInfo`, `VariantInfo`, `EnumFieldInfo`, `TypeAliasInfo`, `Diagnostic`, `DiagnosticLevel` (enum)
+- Output: `TypeContext` (scopes + functions + classes + enums + typeAliases + diagnostics)
+- `SemanticAnalyzer` class:
+  - Flat symbol table (`"scopeId:name"` → Symbol) — evita acceso anidado a Maps
+  - Scope management (`_enterScope`/`_leaveScope` con `_scopeParents: [number]`)
+  - Registration pass (recolecta declaraciones top-level: funciones, clases, enums, type aliases, constantes)
+  - Analysis pass (recorre AST declarando variables en sus scopes)
+  - Helpers: `_analyzeBlockOpt(BlockStmt?)`, `_analyzeIfBodyOpt(IfBody?)`, `_declareVarOpt(string?)`
+- Factory functions (`makeParamSig`, `makeFunctionSig`, `makeFieldInfo`)
+  — evitan double Some() wrapping en constructores
+
+**Bootstrap codegen fixes (3 parches, 518 tests verdes):**
+- **SH-011**: `collect_mutated_vars_in_expr` ahora recorre `Expr::Switch` arms
+- **SH-012**: `init_is_already_optional()` handler para `Expr::Member` (detecta campos Optional)
+- **SH-013**: For-loop `var_types` tracking (loop vars registradas en `var_types`)
+
+**Workarounds documentados (limitaciones del bootstrap):**
+- Factory functions para pasar Optional values a constructores (evita double `Some()`)
+- `if x != null` genera `if let Some(x) = x` (auto-unwrap, no necesita `or` keyword)
+- `let thisType: TypeRef? = TypeRef.Simple(...)` para pasar a params `TypeRef?`
+- `_ => { 0 }` en todos los arms de switch expression (consistencia de tipos)
+- Single-char loop vars para structs importados (heurística `len==1`)
 
 ### Fase 3: Codegen Limpio
 
@@ -371,7 +401,7 @@ Fase 1: Frontend ✅ (idiomatic rewrite done)
   [x] parser.liva — 2254 líneas, idiomatic
 
 Fase 2: Semantic Analyzer
-  [ ] 2.1: TypeContext struct + scope tracker
+  [x] 2.1: TypeContext struct + scope tracker (semantic.liva — 647 líneas)
   [ ] 2.2: Type resolver (Simple/Array/Map/Optional → info concreta)
   [ ] 2.3: Expr typing (cada expresión anotada con su tipo)
   [ ] 2.4: Function signatures registry

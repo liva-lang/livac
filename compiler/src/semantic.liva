@@ -1,0 +1,647 @@
+// ============================================================================
+// semantic.liva — Semantic Analyzer for the Liva self-hosting compiler
+// ============================================================================
+// Phase 2.1: TypeContext + Scope tracker
+//
+// The bootstrap compiler (Rust) has NO type system — codegen uses ~20 HashSets
+// to "guess" types. This module replaces that with a proper semantic analysis
+// that annotates every expression with its resolved type BEFORE codegen sees it.
+//
+// Architecture:
+//   AST (from parser) -> SemanticAnalyzer.analyze() -> TypeContext
+//   TypeContext is then passed to codegen, which generates Rust mechanically.
+//
+// Codegen compat notes (bootstrap limitations):
+//   - Single-char loop vars for imported struct arrays (heuristic: len==1)
+//   - Map<K,V> fields directly on the class (so codegen tracks map_vars)
+//   - Flat symbol table ("scopeId:name" -> Symbol) avoids nested Map access
+//   - All standalone enum switches use "let _ = switch ..." (expression form)
+//   - Switch arms returning void wrapped as { method(); 0 } for type consistency
+//   - Lookup methods return bool (Map.get adds unwrap_or_default in codegen)
+//   - Factory functions for struct construction with Optional fields
+//     (avoids double Some() wrapping from constructor arg rewriting)
+//   - Helper methods for passing Optional values to non-Optional params
+
+import { TokenKind, Token } from "./token.liva"
+import {
+    TypeRef, Expr, Stmt, BlockStmt, TopLevel, Program,
+    FunctionDecl, ClassDecl, EnumDecl, EnumVariant, EnumField,
+    MethodDecl, FieldDecl, Param, Member, Visibility,
+    VarDeclStmt, VarBinding, ConstDecl, AssignStmt,
+    IfStmt, IfBody, WhileStmt, ForStmt, SwitchStmt, TryCatchStmt,
+    LambdaExpr, LambdaParam, LambdaBody, BindingPattern,
+    SwitchArm, Pattern, Literal, BinOp, UnOp, ExecPolicy,
+    TypeParameter, TypeAliasDecl
+} from "./ast.liva"
+
+// =====================================================================
+//  Symbol -- what we know about a declared name
+// =====================================================================
+
+enum SymbolKind {
+    Variable,
+    Constant,
+    Function,
+    Method,
+    Parameter,
+    ForVariable,
+    CatchVariable
+}
+
+Symbol {
+    name: string
+    kind: SymbolKind
+    typeRef: TypeRef?
+    isMutable: bool
+}
+
+// =====================================================================
+//  FunctionSig -- signature of a function or method
+// =====================================================================
+
+FunctionSig {
+    name: string
+    params: [ParamSig]
+    returnType: TypeRef?
+    isAsync: bool
+    isFallible: bool
+    typeParams: [string]
+}
+
+ParamSig {
+    name: string
+    typeRef: TypeRef?
+    hasDefault: bool
+}
+
+// =====================================================================
+//  ClassInfo -- metadata about a class declaration
+// =====================================================================
+
+ClassInfo {
+    name: string
+    fields: [FieldInfo]
+    methods: [FunctionSig]
+    typeParams: [string]
+    implements: [string]
+}
+
+FieldInfo {
+    name: string
+    typeRef: TypeRef?
+    isOptional: bool
+    visibility: Visibility
+}
+
+// =====================================================================
+//  EnumInfo -- metadata about an enum declaration
+// =====================================================================
+
+EnumInfo {
+    name: string
+    variants: [VariantInfo]
+    typeParams: [string]
+    isUnit: bool
+}
+
+VariantInfo {
+    name: string
+    fields: [EnumFieldInfo]
+}
+
+EnumFieldInfo {
+    name: string
+    typeRef: TypeRef
+}
+
+// =====================================================================
+//  TypeAliasInfo -- metadata about a type alias
+// =====================================================================
+
+TypeAliasInfo {
+    name: string
+    typeParams: [string]
+    targetType: TypeRef
+}
+
+// =====================================================================
+//  Diagnostic -- semantic error or warning
+// =====================================================================
+
+enum DiagnosticLevel {
+    Error,
+    Warning,
+    Info
+}
+
+Diagnostic {
+    level: DiagnosticLevel
+    message: string
+    line: number
+    col: number
+}
+
+// =====================================================================
+//  Scope -- lexical scope with parent chain (output type)
+// =====================================================================
+
+Scope {
+    id: number
+    parentId: number
+    symbols: Map<string, Symbol>
+}
+
+// =====================================================================
+//  TypeContext -- the output of semantic analysis
+// =====================================================================
+
+TypeContext {
+    scopes: [Scope]
+    functions: Map<string, FunctionSig>
+    classes: Map<string, ClassInfo>
+    enums: Map<string, EnumInfo>
+    typeAliases: Map<string, TypeAliasInfo>
+    diagnostics: [Diagnostic]
+}
+
+// =====================================================================
+//  Factory functions — route Optional fields through function params
+//  so codegen tracks them in option_value_vars and avoids double Some()
+// =====================================================================
+
+makeParamSig(name: string, typeRef: TypeRef?, hasDefault: bool): ParamSig {
+    return ParamSig(name, typeRef, hasDefault)
+}
+
+makeFunctionSig(name: string, params: [ParamSig], returnType: TypeRef?,
+                isAsync: bool, isFallible: bool, typeParams: [string]): FunctionSig {
+    return FunctionSig(name, params, returnType, isAsync, isFallible, typeParams)
+}
+
+makeFieldInfo(name: string, typeRef: TypeRef?, isOptional: bool, visibility: Visibility): FieldInfo {
+    return FieldInfo(name, typeRef, isOptional, visibility)
+}
+
+
+
+// =====================================================================
+//  SemanticAnalyzer -- walks the AST and builds TypeContext
+// =====================================================================
+// Design: Maps and arrays are direct fields (not nested inside TypeContext)
+// so the bootstrap codegen tracks them as map_vars / array_vars.
+// The flat symbol table avoids nested scope.symbols.has/set calls.
+
+SemanticAnalyzer {
+    _scopeParents: [number]
+    _symbols: Map<string, Symbol>
+    _functions: Map<string, FunctionSig>
+    _classes: Map<string, ClassInfo>
+    _enums: Map<string, EnumInfo>
+    _typeAliases: Map<string, TypeAliasInfo>
+    _diagnostics: [Diagnostic]
+    _currentScopeId: number
+    _nextScopeId: number
+
+    constructor() {
+        this._scopeParents = [-1]
+        this._symbols = Map {}
+        this._functions = Map {}
+        this._classes = Map {}
+        this._enums = Map {}
+        this._typeAliases = Map {}
+        this._diagnostics = []
+        this._currentScopeId = 0
+        this._nextScopeId = 1
+    }
+
+    // -- Scope management --
+
+    _enterScope(): number {
+        let newId = this._nextScopeId
+        this._nextScopeId += 1
+        this._scopeParents.push(this._currentScopeId)
+        this._currentScopeId = newId
+        return newId
+    }
+
+    _leaveScope() {
+        let pid = this._scopeParents[this._currentScopeId]
+        this._currentScopeId = pid
+    }
+
+    _symKey(scopeId: number, name: string): string {
+        return $"{scopeId}:{name}"
+    }
+
+    // -- Symbol declaration --
+
+    _declareSymbol(name: string, kind: SymbolKind, typeRef: TypeRef?, isMutable: bool) {
+        let key = this._symKey(this._currentScopeId, name)
+
+        if this._symbols.has(key) {
+            this._error($"Variable '{name}' is already declared in this scope", 0, 0)
+            return
+        }
+
+        let sym = Symbol(name, kind, typeRef, isMutable)
+        this._symbols.set(key, sym)
+    }
+
+    declareVar(name: string, typeRef: TypeRef?) {
+        this._declareSymbol(name, SymbolKind.Variable, typeRef, true)
+    }
+
+    // Helper: declare a var from an Optional name (e.g. ArrayPat elements, ForStmt variable2)
+    _declareVarOpt(optName: string?, typeRef: TypeRef?) {
+        if optName != null {
+            this._declareSymbol(optName, SymbolKind.Variable, typeRef, true)
+        }
+    }
+
+    declareConst(name: string, typeRef: TypeRef?) {
+        this._declareSymbol(name, SymbolKind.Constant, typeRef, false)
+    }
+
+    declareParam(name: string, typeRef: TypeRef?) {
+        this._declareSymbol(name, SymbolKind.Parameter, typeRef, false)
+    }
+
+    declareFunction(name: string, sig: FunctionSig) {
+        this._functions.set(name, sig)
+    }
+
+    // -- Symbol lookup (walks parent chain) --
+    // Phase 2.1: returns bool. Value-returning variants in Phase 2.2.
+
+    lookupVar(name: string): bool {
+        let scopeId = this._currentScopeId
+        while scopeId >= 0 {
+            let key = this._symKey(scopeId, name)
+            if this._symbols.has(key) => return true
+            scopeId = this._scopeParents[scopeId]
+        }
+        return false
+    }
+
+    lookupFunction(name: string): bool => this._functions.has(name)
+
+    lookupClass(name: string): bool => this._classes.has(name)
+
+    lookupEnum(name: string): bool => this._enums.has(name)
+
+    // -- Diagnostic helpers --
+
+    _error(message: string, line: number, col: number) {
+        this._diagnostics.push(Diagnostic(DiagnosticLevel.Error, message, line, col))
+    }
+
+    _warning(message: string, line: number, col: number) {
+        this._diagnostics.push(Diagnostic(DiagnosticLevel.Warning, message, line, col))
+    }
+
+    hasErrors(): bool {
+        for d in this._diagnostics {
+            if d.level == DiagnosticLevel.Error => return true
+        }
+        return false
+    }
+
+    // -- Registration pass (collect declarations) --
+
+    registerDeclarations(program: Program) {
+        for item in program.items {
+            let _ = switch item {
+                TopLevel.Function(decl) => { this._registerFunction(decl); 0 },
+                TopLevel.Class(decl) => { this._registerClass(decl); 0 },
+                TopLevel.Enum(decl) => { this._registerEnum(decl); 0 },
+                TopLevel.TypeAlias(decl) => { this._registerTypeAlias(decl); 0 },
+                TopLevel.ConstDecl(decl) => { this._registerConst(decl); 0 },
+                _ => { 0 }
+            }
+        }
+    }
+
+    _registerFunction(decl: FunctionDecl) {
+        let params: [ParamSig] = []
+        for p in decl.params {
+            let paramName = switch p.pattern {
+                BindingPattern.Identifier(n) => n,
+                _ => "_"
+            }
+            let hasDefault = p.defaultVal != null
+            params.push(makeParamSig(paramName, p.typeRef, hasDefault))
+        }
+
+        let typeParamNames: [string] = []
+        for t in decl.typeParams {
+            typeParamNames.push(t.name)
+        }
+        let sig = makeFunctionSig(
+            decl.name,
+            params,
+            decl.returnType,
+            decl.isAsyncInferred,
+            decl.containsFail,
+            typeParamNames
+        )
+
+        this.declareFunction(decl.name, sig)
+    }
+
+    _registerClass(decl: ClassDecl) {
+        let fields: [FieldInfo] = []
+        let methods: [FunctionSig] = []
+
+        for m in decl.members {
+            let _ = switch m {
+                Member.Field(f) => {
+                    fields.push(makeFieldInfo(f.name, f.typeRef, f.isOptional, f.visibility))
+                    0
+                },
+                Member.Method(d) => {
+                    let mParams: [ParamSig] = []
+                    for p in d.params {
+                        let paramName = switch p.pattern {
+                            BindingPattern.Identifier(n) => n,
+                            _ => "_"
+                        }
+                        let hasDefault = p.defaultVal != null
+                        mParams.push(makeParamSig(paramName, p.typeRef, hasDefault))
+                    }
+
+                    let mTypeParams: [string] = []
+                    for t in d.typeParams {
+                        mTypeParams.push(t.name)
+                    }
+                    methods.push(makeFunctionSig(
+                        d.name, mParams, d.returnType,
+                        d.isAsyncInferred, d.containsFail, mTypeParams
+                    ))
+                    0
+                }
+            }
+        }
+
+        let typeParamNames: [string] = []
+        for t in decl.typeParams {
+            typeParamNames.push(t.name)
+        }
+
+        let info = ClassInfo(decl.name, fields, methods, typeParamNames, decl.implements)
+        this._classes.set(decl.name, info)
+    }
+
+    _registerEnum(decl: EnumDecl) {
+        let variants: [VariantInfo] = []
+        let isUnit = true
+
+        for v in decl.variants {
+            let vFields: [EnumFieldInfo] = []
+            for f in v.fields {
+                vFields.push(EnumFieldInfo(f.name, f.typeRef))
+                isUnit = false
+            }
+            variants.push(VariantInfo(v.name, vFields))
+        }
+
+        let typeParamNames: [string] = []
+        for t in decl.typeParams {
+            typeParamNames.push(t.name)
+        }
+
+        let info = EnumInfo(decl.name, variants, typeParamNames, isUnit)
+        this._enums.set(decl.name, info)
+    }
+
+    _registerTypeAlias(decl: TypeAliasDecl) {
+        let typeParamNames: [string] = []
+        for t in decl.typeParams {
+            typeParamNames.push(t.name)
+        }
+
+        let info = TypeAliasInfo(decl.name, typeParamNames, decl.targetType)
+        this._typeAliases.set(decl.name, info)
+    }
+
+    _registerConst(decl: ConstDecl) {
+        this.declareConst(decl.name, decl.typeRef)
+    }
+
+    // -- Main analysis entry point --
+
+    analyze(program: Program): TypeContext {
+        this.registerDeclarations(program)
+        for item in program.items {
+            this._analyzeTopLevel(item)
+        }
+        return this._buildContext()
+    }
+
+    _buildContext(): TypeContext {
+        let scopes: [Scope] = []
+        let i = 0
+        while i < this._nextScopeId {
+            let pid = this._scopeParents[i]
+            let scopeSyms: Map<string, Symbol> = Map {}
+            scopes.push(Scope(i, pid, scopeSyms))
+            i += 1
+        }
+
+        return TypeContext(
+            scopes,
+            this._functions,
+            this._classes,
+            this._enums,
+            this._typeAliases,
+            this._diagnostics
+        )
+    }
+
+    // -- Top-level analysis --
+
+    _analyzeTopLevel(item: TopLevel) {
+        let _ = switch item {
+            TopLevel.Function(decl) => { this._analyzeFunction(decl); 0 },
+            TopLevel.Class(decl) => { this._analyzeClass(decl); 0 },
+            TopLevel.ConstDecl(decl) => { this._analyzeConstDecl(decl); 0 },
+            TopLevel.Test(decl) => { this._analyzeBlock(decl.body); 0 },
+            _ => { 0 }
+        }
+    }
+
+    _analyzeFunction(decl: FunctionDecl) {
+        this._enterScope()
+
+        for p in decl.params {
+            let paramName = switch p.pattern {
+                BindingPattern.Identifier(n) => n,
+                _ => "_"
+            }
+            this.declareParam(paramName, p.typeRef)
+        }
+
+        this._analyzeBlockOpt(decl.body)
+
+        this._leaveScope()
+    }
+
+    _analyzeClass(decl: ClassDecl) {
+        for m in decl.members {
+            let _ = switch m {
+                Member.Method(d) => {
+                    this._enterScope()
+
+                    let thisType: TypeRef? = TypeRef.Simple(decl.name)
+                    this._declareSymbol("this", SymbolKind.Variable, thisType, false)
+
+                    for p in d.params {
+                        let paramName = switch p.pattern {
+                            BindingPattern.Identifier(n) => n,
+                            _ => "_"
+                        }
+                        this.declareParam(paramName, p.typeRef)
+                    }
+
+                    this._analyzeBlockOpt(d.body)
+
+                    this._leaveScope()
+                    0
+                },
+                _ => { 0 }
+            }
+        }
+    }
+
+    _analyzeConstDecl(decl: ConstDecl) {
+        this.declareConst(decl.name, decl.typeRef)
+    }
+
+    // -- Block & statement analysis --
+
+    _analyzeBlock(block: BlockStmt) {
+        this._enterScope()
+        for s in block.stmts {
+            this._analyzeStmt(s)
+        }
+        this._leaveScope()
+    }
+
+    // Helper: analyze an Optional block (e.g. decl.body which is BlockStmt?)
+    _analyzeBlockOpt(body: BlockStmt?) {
+        if body != null {
+            this._analyzeBlock(body)
+        }
+    }
+
+    _analyzeStmt(stmt: Stmt) {
+        let _ = switch stmt {
+            Stmt.VarDecl(decl) => { this._analyzeVarDecl(decl); 0 },
+            Stmt.ConstDecl(decl) => { this._analyzeConstDecl(decl); 0 },
+            Stmt.Assign(s) => { 0 },
+            Stmt.If(s) => { this._analyzeIf(s); 0 },
+            Stmt.While(s) => { this._analyzeWhile(s); 0 },
+            Stmt.For(s) => { this._analyzeFor(s); 0 },
+            Stmt.Switch(s) => { 0 },
+            Stmt.TryCatch(s) => { this._analyzeTryCatch(s); 0 },
+            Stmt.Block(block) => { this._analyzeBlock(block); 0 },
+            _ => { 0 }
+        }
+    }
+
+    _analyzeVarDecl(decl: VarDeclStmt) {
+        for b in decl.bindings {
+            let _ = switch b.pattern {
+                BindingPattern.Identifier(name) => {
+                    this.declareVar(name, b.typeRef)
+                    0
+                },
+                BindingPattern.ObjectPat(fields) => {
+                    for f in fields {
+                        this.declareVar(f.binding, null)
+                    }
+                    0
+                },
+                BindingPattern.ArrayPat(elements, rest) => {
+                    for e in elements {
+                        this._declareVarOpt(e, null)
+                    }
+                    if rest != "" => this.declareVar(rest, null)
+                    0
+                },
+                BindingPattern.TuplePat(elements) => {
+                    for e in elements {
+                        this.declareVar(e, null)
+                    }
+                    0
+                }
+            }
+        }
+    }
+
+    _analyzeIf(stmt: IfStmt) {
+        let _ = switch stmt.thenBranch {
+            IfBody.Block(block) => { this._analyzeBlock(block); 0 },
+            IfBody.SingleStmt(stmts) => {
+                for s in stmts {
+                    this._analyzeStmt(s)
+                }
+                0
+            }
+        }
+
+        this._analyzeIfBodyOpt(stmt.elseBranch)
+    }
+
+    // Helper: analyze an Optional IfBody (for else branches)
+    _analyzeIfBodyOpt(body: IfBody?) {
+        if body != null {
+            let _ = switch body {
+                IfBody.Block(block) => { this._analyzeBlock(block); 0 },
+                IfBody.SingleStmt(stmts) => {
+                    for s in stmts {
+                        this._analyzeStmt(s)
+                    }
+                    0
+                }
+            }
+        }
+    }
+
+    _analyzeWhile(stmt: WhileStmt) {
+        this._analyzeBlock(stmt.body)
+    }
+
+    _analyzeFor(stmt: ForStmt) {
+        this._enterScope()
+        this.declareVar(stmt.variable, null)
+        this._declareVarOpt(stmt.variable2, null)
+        for s in stmt.body.stmts {
+            this._analyzeStmt(s)
+        }
+        this._leaveScope()
+    }
+
+    _analyzeTryCatch(stmt: TryCatchStmt) {
+        this._analyzeBlock(stmt.tryBlock)
+        this._enterScope()
+        let catchType: TypeRef? = TypeRef.Simple("string")
+        this.declareVar(stmt.catchVar, catchType)
+        for s in stmt.catchBlock.stmts {
+            this._analyzeStmt(s)
+        }
+        this._leaveScope()
+    }
+}
+
+// =====================================================================
+//  Public API
+// =====================================================================
+
+analyzeProgram(program: Program): TypeContext {
+    let analyzer = SemanticAnalyzer()
+    return analyzer.analyze(program)
+}
+
+main() {
+    print("semantic module loaded")
+}
