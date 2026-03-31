@@ -374,6 +374,16 @@
 - [x] Bootstrap fix SH-013: For-loop var_types tracking
 - [x] 518 tests verdes
 
+### Self-hosting — Fase 2.6: Import resolution ✅
+
+- [x] semantic.liva — 1708 líneas (+62), compila a Rust sin errores
+- [x] Import registration: _registerImport processes TopLevel.Import
+- [x] Shallow type stubs for imported uppercase names
+- [x] TypeContext: importedSymbols + importSources
+- [x] Query methods: isImportedSymbol, getImportSource
+- [x] ImportDecl added to imports
+- [x] 518 tests verdes
+
 ### Self-hosting — Fase 2.5: Class/Enum metadata ✅
 
 - [x] semantic.liva — 1646 líneas (+140), compila a Rust sin errores

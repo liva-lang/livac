@@ -1,8 +1,8 @@
 # Self-Hosting: Compilador de Liva escrito en Liva
 
-> **Estado:** Fase 2.5 completada ✅ (semantic.liva — Class/Enum metadata)
+> **Estado:** Fase 2.6 completada ✅ (semantic.liva — Import resolution)
 > **Última actualización:** 2026-03-31
-> **Próximo:** Fase 2.6 — Import resolution
+> **Próximo:** Fase 2.7 — Liveness analysis
 
 ---
 
@@ -182,7 +182,7 @@ enum ParamMode { Owned, Borrow }
 | 2.3 | **Expr typing** ✅ | Cada `Expr` recibe su tipo: `x.length` → `int` (sabemos que `x: string`) |
 | 2.4 | **Function signatures** ✅ | Return types, param types, fallibility, async |
 | 2.5 | **Class/Enum metadata** ✅ | Fields con tipos, variant fields, methods |
-| 2.6 | **Import resolution** | Tipos de símbolos importados de otros módulos |
+| 2.6 | **Import resolution** ✅ | Tipos de símbolos importados de otros módulos |
 | 2.7 | **Liveness analysis** | Último uso → move, no-último → borrow/clone |
 
 #### Fase 2.1 — Completada ✅ (2026-03-31)
@@ -460,7 +460,7 @@ Fase 2: Semantic Analyzer
   [x] 2.3: Expr typing (cada expresión anotada con su tipo)
   [x] 2.4: Function signatures registry
   [x] 2.5: Class/Enum metadata registry
-  [ ] 2.6: Import resolution (tipos de otros módulos)
+  [x] 2.6: Import resolution (tipos de otros módulos)
   [ ] 2.7: Liveness analysis (move/borrow/clone)
   [ ] Tests: semantic_typing_tests
 

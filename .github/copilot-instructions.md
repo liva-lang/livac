@@ -4,7 +4,7 @@
 > **Versión:** v2.0.0-dev (tag: v1.2.0)  
 > **Lenguaje:** Rust  
 > **Tests:** 518 passing  
-> **Próximo objetivo:** v2.0 — Fase 2.6 Import resolution (self-hosting)  
+> **Próximo objetivo:** v2.0 — Fase 2.7 Liveness analysis (self-hosting)  
 > **Última actualización:** 2026-04-01
 
 ---
@@ -160,7 +160,7 @@ skills/liva-lang/
 ### Dogfooding
 - **90/90 bugs corregidos** (Dogfooding v1: 9 bugs #63-#74, v2: 8 bugs #75-#82, v3: 7 bugs #83-#89, Self-hosting: 4 bugs #90-#94)
 - **518 tests** totales
-- **Self-hosting:** Fase 2.5 completada — `compiler/src/semantic.liva` (1646 líneas) Class/Enum metadata + Map/Set type tables + metadata queries
+- **Self-hosting:** Fase 2.6 completada — `compiler/src/semantic.liva` (1708 líneas) Import resolution + shallow type stubs + import queries
 - **63 Liva assertion tests** (28 string + 26 array + 9 math) — cobertura completa de stdlib
 - **File (11 funciones):** read, write, append, exists, delete, copy, move, size, extension, readLines, writeLines
 - **Dir (7 funciones):** list, isDir, exists, create, delete, listRecursive, walk

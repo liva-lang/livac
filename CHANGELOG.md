@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.0-dev] - 2026-03-31
 
 ### Added
+- **Self-hosting Phase 2.6: Import Resolution** — `compiler/src/semantic.liva` (1708 lines, +62)
+  - Import registration: `_registerImport` processes TopLevel.Import items
+  - Shallow type stubs: uppercase imported names get stub ClassInfo for type resolution
+  - TypeContext enriched: importedSymbols + importSources for codegen
+  - Query methods: isImportedSymbol, getImportSource
+
+## [2.0.0-dev] - 2026-03-31
+
+### Added
 - **Self-hosting Phase 2.5: Class/Enum Metadata** — `compiler/src/semantic.liva` (1646 lines, +140)
   - Constructor validation: `_validateStructLiteral` checks field count vs ClassInfo
   - Map method type table: 10 methods (has/get/set/delete/keys/values/entries/size/isEmpty/clear)

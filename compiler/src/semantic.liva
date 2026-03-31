@@ -1,7 +1,7 @@
 // ============================================================================
 // semantic.liva — Semantic Analyzer for the Liva self-hosting compiler
 // ============================================================================
-// Phase 2.5: Class/Enum metadata (builds on Phase 2.4 Function signatures)
+// Phase 2.6: Import resolution (builds on Phase 2.5 Class/Enum metadata)
 //
 // The bootstrap compiler (Rust) has NO type system — codegen uses ~20 HashSets
 // to "guess" types. This module replaces that with a proper semantic analysis
@@ -33,7 +33,7 @@ import {
     IfStmt, IfBody, WhileStmt, ForStmt, SwitchStmt, TryCatchStmt,
     LambdaExpr, LambdaParam, LambdaBody, BindingPattern,
     SwitchArm, Pattern, Literal, BinOp, UnOp, ExecPolicy,
-    TypeParameter, TypeAliasDecl, ObjField
+    TypeParameter, TypeAliasDecl, ObjField, ImportDecl
 } from "./ast.liva"
 
 // =====================================================================
@@ -169,6 +169,8 @@ TypeContext {
     funcRetTypes: Map<string, number>
     fieldTypes: Map<string, number>
     methodRetTypes: Map<string, number>
+    importedSymbols: [string]
+    importSources: Map<string, string>
 }
 
 // =====================================================================
@@ -215,6 +217,8 @@ SemanticAnalyzer {
     _methodRetTypeIdx: Map<string, number>
     _currentFuncName: string
     _currentFuncFallible: bool
+    _importedSymbols: [string]
+    _importSources: Map<string, string>
 
     constructor() {
         this._scopeParents = [-1]
@@ -233,6 +237,8 @@ SemanticAnalyzer {
         this._methodRetTypeIdx = Map {}
         this._currentFuncName = ""
         this._currentFuncFallible = false
+        this._importedSymbols = []
+        this._importSources = Map {}
     }
 
     // -- Scope management --
@@ -881,6 +887,21 @@ SemanticAnalyzer {
 
     lookupEnum(name: string): bool => this._enums.has(name)
 
+    // Phase 2.6: imported symbol queries
+    isImportedSymbol(name: string): bool {
+        for s in this._importedSymbols {
+            if s == name => return true
+        }
+        return false
+    }
+
+    getImportSource(name: string): string {
+        if this._importSources.has(name) {
+            return this._importSources.get(name)
+        }
+        return ""
+    }
+
     // -- Diagnostic helpers --
 
     _error(message: string, line: number, col: number) {
@@ -903,12 +924,51 @@ SemanticAnalyzer {
     registerDeclarations(program: Program) {
         for item in program.items {
             let _ = switch item {
+                TopLevel.Import(decl) => { this._registerImport(decl); 0 },
                 TopLevel.Function(decl) => { this._registerFunction(decl); 0 },
                 TopLevel.Class(decl) => { this._registerClass(decl); 0 },
                 TopLevel.Enum(decl) => { this._registerEnum(decl); 0 },
                 TopLevel.TypeAlias(decl) => { this._registerTypeAlias(decl); 0 },
                 TopLevel.ConstDecl(decl) => { this._registerConst(decl); 0 },
                 _ => { 0 }
+            }
+        }
+    }
+
+    // -- Phase 2.6: Import registration --
+    // Registers imported symbol names so type inference can reference them.
+    // Since we analyze one module at a time, we create "shallow" entries:
+    // - Each imported name is added to _importedSymbols
+    // - A source mapping is stored so codegen knows where symbols come from
+    // - Imported names that look like types (start with uppercase) get stub ClassInfo
+    //   so lookupClass/inferCallByName works on them
+
+    _registerImport(decl: ImportDecl) {
+        let source = $"{decl.source}"
+        for sym in decl.imports {
+            this._importedSymbols.push($"{sym}")
+            this._importSources.set($"{sym}", source)
+
+            // Heuristic: uppercase first char = type (class/enum)
+            // Register a stub ClassInfo so type inference can resolve it
+            if sym.length > 0 {
+                let firstChar = sym.charAt(0)
+                // Check if uppercase: A-Z range (char codes 65-90)
+                if firstChar >= "A" {
+                    if firstChar <= "Z" {
+                        if this._classes.has(sym) == false {
+                            if this._enums.has(sym) == false {
+                                // Stub class: no fields, no methods — just makes lookupClass return true
+                                let stubFields: [FieldInfo] = []
+                                let stubMethods: [FunctionSig] = []
+                                let stubTypeParams: [string] = []
+                                let stubImplements: [string] = []
+                                let stubInfo = ClassInfo(sym, stubFields, stubMethods, stubTypeParams, stubImplements)
+                                this._classes.set($"{sym}", stubInfo)
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -1105,7 +1165,9 @@ SemanticAnalyzer {
             this._varTypeIdx,
             this._funcRetTypeIdx,
             this._fieldTypeIdx,
-            this._methodRetTypeIdx
+            this._methodRetTypeIdx,
+            this._importedSymbols,
+            this._importSources
         )
     }
 
