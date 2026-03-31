@@ -123,9 +123,7 @@ enum Visibility {
 }
 
 visibilityFromName(name: string): Visibility {
-    if name.startsWith("_") {
-        return Visibility.Private
-    }
+    if name.startsWith("_") => return Visibility.Private
     return Visibility.Public
 }
 
@@ -422,25 +420,23 @@ enum BinOp {
     RangeInclusive
 }
 
-binOpToString(op: BinOp): string {
-    return switch op {
-        BinOp.Add            => "+",
-        BinOp.Sub            => "-",
-        BinOp.Mul            => "*",
-        BinOp.Div            => "/",
-        BinOp.Mod            => "%",
-        BinOp.Lt             => "<",
-        BinOp.Le             => "<=",
-        BinOp.Gt             => ">",
-        BinOp.Ge             => ">=",
-        BinOp.Eq             => "==",
-        BinOp.Ne             => "!=",
-        BinOp.And            => "&&",
-        BinOp.Or             => "||",
-        BinOp.Range          => "..",
-        BinOp.RangeInclusive => "..=",
-        _                    => "?"
-    }
+binOpToString(op: BinOp): string => switch op {
+    BinOp.Add            => "+",
+    BinOp.Sub            => "-",
+    BinOp.Mul            => "*",
+    BinOp.Div            => "/",
+    BinOp.Mod            => "%",
+    BinOp.Lt             => "<",
+    BinOp.Le             => "<=",
+    BinOp.Gt             => ">",
+    BinOp.Ge             => ">=",
+    BinOp.Eq             => "==",
+    BinOp.Ne             => "!=",
+    BinOp.And            => "&&",
+    BinOp.Or             => "||",
+    BinOp.Range          => "..",
+    BinOp.RangeInclusive => "..=",
+    _                    => "?"
 }
 
 enum UnOp {
@@ -449,7 +445,6 @@ enum UnOp {
     Await
 }
 
-// Dummy main for standalone build verification
 main() {
     print("ast module")
 }
