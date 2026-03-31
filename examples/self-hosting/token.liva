@@ -1,0 +1,315 @@
+// ============================================================================
+// token.liva — Token types for the Liva self-hosting compiler
+// ============================================================================
+// Maps the Rust Token enum from src/lexer.rs to Liva enums.
+// The lexer produces a list of Token values; the parser consumes them.
+
+// ---------------------------------------------------------------------
+// TokenKind — All possible token types
+// ---------------------------------------------------------------------
+// Liva enums support data variants, so we can attach payloads where needed.
+
+enum TokenKind {
+    // ── Keywords ──────────────────────────────────────────────────────
+    KwLet,
+    KwConst,
+    KwImport,
+    KwFrom,
+    KwUse,
+    KwRust,
+    KwType,
+    KwEnum,
+    KwTest,
+    KwIf,
+    KwElse,
+    KwWhile,
+    KwFor,
+    KwIn,
+    KwSwitch,
+    KwCase,
+    KwDefault,
+    KwThrow,
+    KwTry,
+    KwCatch,
+    KwReturn,
+    KwBreak,
+    KwContinue,
+    KwAsync,
+    KwParallel,
+    KwPar,
+    KwTask,
+    KwAwait,
+    KwFail,
+    KwDefer,
+    KwMove,
+    KwSeq,
+    KwVec,
+    KwParVec,
+    KwWith,
+    KwOrdered,
+    KwChunk,
+    KwThreads,
+    KwSimdWidth,
+    KwPrefetch,
+    KwReduction,
+    KwSchedule,
+    KwDetect,
+    KwAuto,
+    KwSafe,
+    KwFast,
+    KwStatic,
+    KwDynamic,
+    KwAs,
+    KwTrue,
+    KwFalse,
+    KwNull,
+
+    // ── Logical operators (word form) ─────────────────────────────────
+    KwAnd,
+    KwOr,
+    KwNot,
+
+    // ── Type keywords ─────────────────────────────────────────────────
+    KwNumber,
+    KwFloat,
+    KwBool,
+    KwChar,
+    KwString,
+    KwBytes,
+
+    // ── Operators ─────────────────────────────────────────────────────
+    Assign,
+    PlusAssign,
+    MinusAssign,
+    StarAssign,
+    SlashAssign,
+    PercentAssign,
+    Plus,
+    Minus,
+    Star,
+    Slash,
+    Percent,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    EqEq,
+    Ne,
+    AndAnd,
+    Pipe,
+    OrOr,
+    Bang,
+
+    // ── Delimiters ────────────────────────────────────────────────────
+    LParen,
+    RParen,
+    LBrace,
+    RBrace,
+    LBracket,
+    RBracket,
+    Comma,
+    Colon,
+    DoubleColon,
+    Semicolon,
+    Underscore,
+    Dot,
+    DotDotDot,
+    DotDotEq,
+    DotDot,
+    Question,
+    QuestionDot,
+    Arrow,
+
+    // ── Literals ──────────────────────────────────────────────────────
+    IntLit(value: number),
+    FloatLit(value: float),
+    StringLit(value: string),
+    CharLit(value: string),
+    StringTemplate(value: string),
+
+    // ── Identifiers ───────────────────────────────────────────────────
+    Ident(name: string),
+    PrivateIdent(name: string),
+
+    // ── Special ───────────────────────────────────────────────────────
+    RustBlock(code: string),
+
+    // ── Sentinel ──────────────────────────────────────────────────────
+    EOF
+}
+
+// ---------------------------------------------------------------------
+// Token — A token with its source position
+// ---------------------------------------------------------------------
+
+Token {
+    kind: TokenKind
+    start: number
+    end: number
+    line: number
+    col: number
+
+    constructor(kind: TokenKind, start: number, end: number, line: number, col: number) {
+        this.kind = kind
+        this.start = start
+        this.end = end
+        this.line = line
+        this.col = col
+    }
+}
+
+// ---------------------------------------------------------------------
+// Keyword lookup — maps identifier strings to keyword TokenKinds
+// Returns null if the string is not a keyword.
+// ---------------------------------------------------------------------
+
+lookupKeyword(name: string): TokenKind? {
+    let result = switch name {
+        "let"       => TokenKind.KwLet,
+        "const"     => TokenKind.KwConst,
+        "import"    => TokenKind.KwImport,
+        "from"      => TokenKind.KwFrom,
+        "use"       => TokenKind.KwUse,
+        "rust"      => TokenKind.KwRust,
+        "type"      => TokenKind.KwType,
+        "enum"      => TokenKind.KwEnum,
+        "test"      => TokenKind.KwTest,
+        "if"        => TokenKind.KwIf,
+        "else"      => TokenKind.KwElse,
+        "while"     => TokenKind.KwWhile,
+        "for"       => TokenKind.KwFor,
+        "in"        => TokenKind.KwIn,
+        "switch"    => TokenKind.KwSwitch,
+        "case"      => TokenKind.KwCase,
+        "default"   => TokenKind.KwDefault,
+        "throw"     => TokenKind.KwThrow,
+        "try"       => TokenKind.KwTry,
+        "catch"     => TokenKind.KwCatch,
+        "return"    => TokenKind.KwReturn,
+        "break"     => TokenKind.KwBreak,
+        "continue"  => TokenKind.KwContinue,
+        "async"     => TokenKind.KwAsync,
+        "parallel"  => TokenKind.KwParallel,
+        "par"       => TokenKind.KwPar,
+        "task"      => TokenKind.KwTask,
+        "await"     => TokenKind.KwAwait,
+        "fail"      => TokenKind.KwFail,
+        "defer"     => TokenKind.KwDefer,
+        "move"      => TokenKind.KwMove,
+        "seq"       => TokenKind.KwSeq,
+        "vec"       => TokenKind.KwVec,
+        "parvec"    => TokenKind.KwParVec,
+        "with"      => TokenKind.KwWith,
+        "ordered"   => TokenKind.KwOrdered,
+        "chunk"     => TokenKind.KwChunk,
+        "threads"   => TokenKind.KwThreads,
+        "simdWidth" => TokenKind.KwSimdWidth,
+        "prefetch"  => TokenKind.KwPrefetch,
+        "reduction" => TokenKind.KwReduction,
+        "schedule"  => TokenKind.KwSchedule,
+        "detect"    => TokenKind.KwDetect,
+        "auto"      => TokenKind.KwAuto,
+        "safe"      => TokenKind.KwSafe,
+        "fast"      => TokenKind.KwFast,
+        "static"    => TokenKind.KwStatic,
+        "dynamic"   => TokenKind.KwDynamic,
+        "as"        => TokenKind.KwAs,
+        "true"      => TokenKind.KwTrue,
+        "false"     => TokenKind.KwFalse,
+        "null"      => TokenKind.KwNull,
+        "and"       => TokenKind.KwAnd,
+        "or"        => TokenKind.KwOr,
+        "not"       => TokenKind.KwNot,
+        "number"    => TokenKind.KwNumber,
+        "float"     => TokenKind.KwFloat,
+        "bool"      => TokenKind.KwBool,
+        "char"      => TokenKind.KwChar,
+        "string"    => TokenKind.KwString,
+        "bytes"     => TokenKind.KwBytes,
+        _           => TokenKind.EOF
+    }
+    if result == TokenKind.EOF { return null }
+    return result
+}
+
+// ---------------------------------------------------------------------
+// tokenKindName — debug name for a TokenKind (for error messages)
+// ---------------------------------------------------------------------
+
+tokenKindName(kind: TokenKind): string {
+    return switch kind {
+        TokenKind.KwLet       => "let",
+        TokenKind.KwConst     => "const",
+        TokenKind.KwImport    => "import",
+        TokenKind.KwFrom      => "from",
+        TokenKind.KwUse       => "use",
+        TokenKind.KwRust      => "rust",
+        TokenKind.KwType      => "type",
+        TokenKind.KwEnum      => "enum",
+        TokenKind.KwTest      => "test",
+        TokenKind.KwIf        => "if",
+        TokenKind.KwElse      => "else",
+        TokenKind.KwWhile     => "while",
+        TokenKind.KwFor       => "for",
+        TokenKind.KwIn        => "in",
+        TokenKind.KwSwitch    => "switch",
+        TokenKind.KwCase      => "case",
+        TokenKind.KwDefault   => "default",
+        TokenKind.KwReturn    => "return",
+        TokenKind.KwBreak     => "break",
+        TokenKind.KwContinue  => "continue",
+        TokenKind.KwAsync     => "async",
+        TokenKind.KwPar       => "par",
+        TokenKind.KwTask      => "task",
+        TokenKind.KwAwait     => "await",
+        TokenKind.KwFail      => "fail",
+        TokenKind.KwDefer     => "defer",
+        TokenKind.KwTrue      => "true",
+        TokenKind.KwFalse     => "false",
+        TokenKind.KwNull      => "null",
+        TokenKind.KwAnd       => "and",
+        TokenKind.KwOr        => "or",
+        TokenKind.KwNot       => "not",
+        TokenKind.Plus        => "+",
+        TokenKind.Minus       => "-",
+        TokenKind.Star        => "*",
+        TokenKind.Slash       => "/",
+        TokenKind.Percent     => "%",
+        TokenKind.Assign      => "=",
+        TokenKind.EqEq        => "==",
+        TokenKind.Ne          => "!=",
+        TokenKind.Lt          => "<",
+        TokenKind.Le          => "<=",
+        TokenKind.Gt          => ">",
+        TokenKind.Ge          => ">=",
+        TokenKind.LParen      => "(",
+        TokenKind.RParen      => ")",
+        TokenKind.LBrace      => "{",
+        TokenKind.RBrace      => "}",
+        TokenKind.LBracket    => "[",
+        TokenKind.RBracket    => "]",
+        TokenKind.Comma       => ",",
+        TokenKind.Colon       => ":",
+        TokenKind.DoubleColon => "::",
+        TokenKind.Semicolon   => ";",
+        TokenKind.Dot         => ".",
+        TokenKind.DotDot      => "..",
+        TokenKind.DotDotEq    => "..=",
+        TokenKind.DotDotDot   => "...",
+        TokenKind.Arrow       => "=>",
+        TokenKind.Question    => "?",
+        TokenKind.QuestionDot => "?.",
+        TokenKind.Underscore  => "_",
+        TokenKind.Pipe        => "|",
+        TokenKind.AndAnd      => "&&",
+        TokenKind.OrOr        => "||",
+        TokenKind.Bang        => "!",
+        TokenKind.EOF         => "<EOF>",
+        _                     => "<token>"
+    }
+}
+
+// Dummy main for standalone build verification
+main() {
+    print("token module")
+}

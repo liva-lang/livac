@@ -38,11 +38,9 @@ pub mod error;
 pub mod error_codes;
 pub mod formatter;
 pub mod hints;
-pub mod ir;
 pub mod lexer;
 pub mod linter;
 pub mod liva_rt;
-pub mod lowering;
 pub mod lsp;
 pub mod module;
 pub mod parser;
@@ -159,10 +157,8 @@ fn compile_source_with_filename(
     desugar_ctx.source_filename = filename.to_string();
 
     // 5. Code generation
-    let ir_module = lowering::lower_program(&analyzed_ast);
-
     let (rust_code, cargo_toml) =
-        codegen::generate_from_ir(&ir_module, &analyzed_ast, desugar_ctx)?;
+        codegen::generate_with_ast(&analyzed_ast, desugar_ctx)?;
 
     // 6. Write output files if output directory specified
     let output_dir = if let Some(out_dir) = &options.output {

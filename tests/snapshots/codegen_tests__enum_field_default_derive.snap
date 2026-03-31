@@ -386,7 +386,7 @@ mod liva_rt {
     
 }
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 enum Priority {
     #[default]
     High,

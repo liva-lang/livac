@@ -1,0 +1,455 @@
+// ============================================================================
+// ast.liva — Abstract Syntax Tree for the Liva self-hosting compiler
+// ============================================================================
+// Translates src/ast.rs to Liva. The AST structure stays the same per PLAN.md.
+// Uses enums for sum types (Expr, Stmt, TypeRef, Pattern) and data classes
+// for product types (FunctionDecl, ClassDecl, etc.).
+
+import { TokenKind, Token } from "./token.liva"
+
+// =====================================================================
+//  Top-level declarations
+// =====================================================================
+
+// A program is a list of top-level items.
+Program { items: [TopLevel] }
+
+enum TopLevel {
+    Import(decl: ImportDecl),
+    UseRust(decl: UseRustDecl),
+    TypeAlias(decl: TypeAliasDecl),
+    Class(decl: ClassDecl),
+    Enum(decl: EnumDecl),
+    Function(decl: FunctionDecl),
+    Test(decl: TestDecl),
+    ConstDecl(decl: ConstDecl),
+    ExprStmt(expr: Expr)
+}
+
+// =====================================================================
+//  Import / UseRust
+// =====================================================================
+
+ImportDecl {
+    imports: [string]
+    source: string
+    isWildcard: bool
+    alias: string?
+}
+
+UseRustDecl {
+    crateName: string
+    alias: string?
+    version: string?
+    features: [string]
+}
+
+// =====================================================================
+//  Type references
+// =====================================================================
+
+enum TypeRef {
+    Simple(name: string),
+    Generic(base: string, args: [TypeRef]),
+    Array(inner: TypeRef),
+    MapType(key: TypeRef, value: TypeRef),
+    SetType(inner: TypeRef),
+    OptionalType(inner: TypeRef),
+    Fallible(inner: TypeRef),
+    Tuple(elements: [TypeRef]),
+    Union(types: [TypeRef])
+}
+
+// =====================================================================
+//  Type parameters (generics)
+// =====================================================================
+
+TypeParameter {
+    name: string
+    constraints: [string]
+}
+
+// =====================================================================
+//  Type alias
+// =====================================================================
+
+TypeAliasDecl {
+    name: string
+    typeParams: [TypeParameter]
+    targetType: TypeRef
+}
+
+// =====================================================================
+//  Classes / Interfaces
+// =====================================================================
+
+ClassDecl {
+    name: string
+    typeParams: [TypeParameter]
+    implements: [string]
+    members: [Member]
+    needsSerde: bool
+    isData: bool
+}
+
+enum Member {
+    Field(decl: FieldDecl),
+    Method(decl: MethodDecl)
+}
+
+FieldDecl {
+    name: string
+    visibility: Visibility
+    typeRef: TypeRef?
+    init: Expr?
+    isOptional: bool
+}
+
+MethodDecl {
+    name: string
+    visibility: Visibility
+    typeParams: [TypeParameter]
+    params: [Param]
+    returnType: TypeRef?
+    body: BlockStmt?
+    exprBody: Expr?
+    isAsyncInferred: bool
+    containsFail: bool
+}
+
+enum Visibility {
+    Public,
+    Private
+}
+
+visibilityFromName(name: string): Visibility {
+    if name.startsWith("_") {
+        return Visibility.Private
+    }
+    return Visibility.Public
+}
+
+// =====================================================================
+//  Functions
+// =====================================================================
+
+FunctionDecl {
+    name: string
+    typeParams: [TypeParameter]
+    params: [Param]
+    returnType: TypeRef?
+    body: BlockStmt?
+    exprBody: Expr?
+    isAsyncInferred: bool
+    containsFail: bool
+}
+
+Param {
+    pattern: BindingPattern
+    typeRef: TypeRef?
+    defaultVal: Expr?
+}
+
+// =====================================================================
+//  Enums
+// =====================================================================
+
+EnumDecl {
+    name: string
+    typeParams: [TypeParameter]
+    variants: [EnumVariant]
+}
+
+EnumVariant {
+    name: string
+    fields: [EnumField]
+}
+
+EnumField {
+    name: string
+    typeRef: TypeRef
+}
+
+// =====================================================================
+//  Tests
+// =====================================================================
+
+TestDecl {
+    name: string
+    body: BlockStmt
+}
+
+// =====================================================================
+//  Binding patterns (destructuring)
+// =====================================================================
+
+enum BindingPattern {
+    Identifier(name: string),
+    ObjectPat(fields: [ObjectPatternField]),
+    ArrayPat(elements: [string?], rest: string),
+    TuplePat(elements: [string])
+}
+
+ObjectPatternField {
+    key: string
+    binding: string
+}
+
+// =====================================================================
+//  Statements
+// =====================================================================
+
+enum Stmt {
+    VarDecl(decl: VarDeclStmt),
+    ConstDecl(decl: ConstDecl),
+    Assign(stmt: AssignStmt),
+    If(stmt: IfStmt),
+    While(stmt: WhileStmt),
+    For(stmt: ForStmt),
+    Switch(stmt: SwitchStmt),
+    TryCatch(stmt: TryCatchStmt),
+    Throw(expr: Expr),
+    Fail(expr: Expr, line: number),
+    Return(expr: Expr?),
+    Defer(body: Stmt),
+    Break,
+    Continue,
+    ExprStmt(expr: Expr),
+    Block(block: BlockStmt)
+}
+
+BlockStmt { stmts: [Stmt] }
+
+// ── Variable declarations ──
+
+VarDeclStmt {
+    bindings: [VarBinding]
+    init: Expr
+    isFallible: bool
+    orFailMsg: Expr?
+    orValue: Expr?
+    orFailLine: number
+}
+
+VarBinding {
+    pattern: BindingPattern
+    typeRef: TypeRef?
+}
+
+ConstDecl {
+    name: string
+    typeRef: TypeRef?
+    init: Expr
+}
+
+// ── Assignment ──
+
+AssignStmt {
+    target: Expr
+    value: Expr
+    op: BinOp?
+}
+
+// ── Control flow ──
+
+IfStmt {
+    condition: Expr
+    thenBranch: IfBody
+    elseBranch: IfBody?
+}
+
+enum IfBody {
+    Block(block: BlockStmt),
+    SingleStmt(stmts: [Stmt])
+}
+
+WhileStmt {
+    condition: Expr
+    body: BlockStmt
+}
+
+ForStmt {
+    variable: string
+    variable2: string?
+    iterable: Expr
+    body: BlockStmt
+}
+
+SwitchStmt {
+    discriminant: Expr
+    cases: [CaseClause]
+    defaultBody: [Stmt]?
+}
+
+CaseClause {
+    value: Expr
+    body: [Stmt]
+}
+
+TryCatchStmt {
+    tryBlock: BlockStmt
+    catchVar: string
+    catchBlock: BlockStmt
+}
+
+// =====================================================================
+//  Expressions
+// =====================================================================
+
+enum Expr {
+    Literal(lit: Literal),
+    Identifier(name: string),
+    Binary(op: BinOp, left: Expr, right: Expr),
+    Unary(op: UnOp, operand: Expr),
+    Ternary(condition: Expr, thenExpr: Expr, elseExpr: Expr),
+    Call(callee: Expr, args: [Expr], execPolicy: ExecPolicy, typeArgs: [TypeRef]),
+    MemberAccess(object: Expr, property: string),
+    Index(object: Expr, index: Expr),
+    ObjectLiteral(fields: [ObjField]),
+    StructLiteral(typeName: string, fields: [ObjField]),
+    ArrayLiteral(elements: [Expr]),
+    MapLiteral(entries: [MapEntry]),
+    SetLiteral(elements: [Expr]),
+    TupleLiteral(elements: [Expr]),
+    Lambda(lambda: LambdaExpr),
+    StringTemplate(parts: [StringTemplatePart]),
+    Fail(expr: Expr),
+    MethodCall(object: Expr, method: string, args: [Expr]),
+    SwitchExpr(discriminant: Expr, arms: [SwitchArm]),
+    MethodRef(object: string, method: string),
+    Unwrap(expr: Expr),
+    OptionalChain(object: Expr, property: string),
+    RustBlock(code: string)
+}
+
+// ── Helper types for expressions ──
+
+ObjField { key: string; value: Expr }
+
+MapEntry { key: Expr; value: Expr }
+
+// CallExpr inlined into Expr.Call
+
+enum ExecPolicy {
+    Normal,
+    Async,
+    Par,
+    TaskAsync,
+    TaskPar
+}
+
+// MethodCallExpr inlined into Expr.MethodCall
+
+LambdaExpr {
+    isMove: bool
+    params: [LambdaParam]
+    returnType: TypeRef?
+    body: LambdaBody
+}
+
+LambdaParam {
+    pattern: BindingPattern
+    typeRef: TypeRef?
+}
+
+enum LambdaBody {
+    Expr(exprs: [Expr]),
+    Block(block: BlockStmt)
+}
+
+// ── Switch expressions (pattern matching) ──
+
+// SwitchExprData inlined into Expr.SwitchExpr
+
+SwitchArm {
+    pattern: Pattern
+    guard: Expr?
+    body: SwitchArmBody
+}
+
+enum SwitchArmBody {
+    Expr(expr: Expr),
+    Block(stmts: [Stmt])
+}
+
+enum Pattern {
+    LiteralPat(lit: Literal),
+    Wildcard,
+    Binding(name: string),
+    Typed(name: string, typeRef: TypeRef),
+    Range(rangeStart: Expr?, rangeEnd: Expr?, inclusive: bool),
+    TuplePat(patterns: [Pattern]),
+    ArrayPat(patterns: [Pattern]),
+    OrPat(patterns: [Pattern]),
+    EnumVariant(enumName: string, variantName: string, bindings: [string])
+}
+
+// ── String templates ──
+
+enum StringTemplatePart {
+    Text(text: string),
+    ExprPart(expr: Expr)
+}
+
+// =====================================================================
+//  Literals and operators
+// =====================================================================
+
+enum Literal {
+    Int(value: number),
+    Float(value: float),
+    Str(value: string),
+    Char(value: string),
+    Bool(value: bool),
+    Null
+}
+
+enum BinOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    Eq,
+    Ne,
+    And,
+    Or,
+    Range,
+    RangeInclusive
+}
+
+binOpToString(op: BinOp): string {
+    return switch op {
+        BinOp.Add            => "+",
+        BinOp.Sub            => "-",
+        BinOp.Mul            => "*",
+        BinOp.Div            => "/",
+        BinOp.Mod            => "%",
+        BinOp.Lt             => "<",
+        BinOp.Le             => "<=",
+        BinOp.Gt             => ">",
+        BinOp.Ge             => ">=",
+        BinOp.Eq             => "==",
+        BinOp.Ne             => "!=",
+        BinOp.And            => "&&",
+        BinOp.Or             => "||",
+        BinOp.Range          => "..",
+        BinOp.RangeInclusive => "..=",
+        _                    => "?"
+    }
+}
+
+enum UnOp {
+    Neg,
+    Not,
+    Await
+}
+
+// Dummy main for standalone build verification
+main() {
+    print("ast module")
+}

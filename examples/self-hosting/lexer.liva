@@ -1,0 +1,653 @@
+// ============================================================================
+// lexer.liva — Hand-rolled lexer for the Liva self-hosting compiler
+// ============================================================================
+// Replaces the logos-based lexer from src/lexer.rs with a manual scanner.
+// Scans source code character by character, producing Token values.
+
+import { TokenKind, Token, lookupKeyword } from "./token.liva"
+
+// ─────────────────────────────────────────────────────────────────────
+// Lexer state
+// ─────────────────────────────────────────────────────────────────────
+
+Lexer {
+    source: string
+    chars: [string]
+    pos: number
+    line: number
+    col: number
+    tokens: [Token]
+
+    constructor(source: string) {
+        this.chars = source.chars()
+        this.source = source
+        this.pos = 0
+        this.line = 1
+        this.col = 1
+        this.tokens = []
+    }
+
+    // ── Character helpers ─────────────────────────────────────────
+
+    _isAtEnd(): bool => this.pos >= this.chars.length
+
+    _peek(): string {
+        if this._isAtEnd() {
+            return ""
+        }
+        return this.chars[this.pos]
+    }
+
+    _peekNext(): string {
+        if this.pos + 1 >= this.chars.length {
+            return ""
+        }
+        return this.chars[this.pos + 1]
+    }
+
+    _advance(): string {
+        let ch = this.chars[this.pos]
+        this.pos = this.pos + 1
+        if ch == "\n" {
+            this.line = this.line + 1
+            this.col = 1
+        } else {
+            this.col = this.col + 1
+        }
+        return ch
+    }
+
+    _match(expected: string): bool {
+        if this._isAtEnd() {
+            return false
+        }
+        if this.chars[this.pos] != expected {
+            return false
+        }
+        this._advance()
+        return true
+    }
+
+    // ── Character classification ──────────────────────────────────
+
+    _isDigit(ch: string): bool {
+        return ch >= "0" and ch <= "9"
+    }
+
+    _isAlpha(ch: string): bool {
+        return (ch >= "a" and ch <= "z") or (ch >= "A" and ch <= "Z") or ch == "_"
+    }
+
+    _isAlphaNumeric(ch: string): bool {
+        return this._isAlpha(ch) or this._isDigit(ch)
+    }
+
+    _isWhitespace(ch: string): bool {
+        return ch == " " or ch == "\t" or ch == "\r" or ch == "\n"
+    }
+
+    // ── Token emitting ────────────────────────────────────────────
+
+    _addToken(kind: TokenKind, start: number, startLine: number, startCol: number) {
+        this.tokens.push(Token(kind, start, this.pos, startLine, startCol))
+    }
+
+    // ── Main tokenize loop ────────────────────────────────────────
+
+    tokenize(): [Token] {
+        while not this._isAtEnd() {
+            this._skipWhitespaceAndComments()
+            if this._isAtEnd() {
+                break
+            }
+            this._scanToken()
+        }
+        // Append EOF
+        this.tokens.push(Token(TokenKind.EOF, this.pos, this.pos, this.line, this.col))
+        return this.tokens
+    }
+
+    // ── Whitespace and comments ───────────────────────────────────
+
+    _skipWhitespaceAndComments() {
+        while not this._isAtEnd() {
+            let ch = this._peek()
+
+            // Whitespace
+            if this._isWhitespace(ch) {
+                this._advance()
+                continue
+            }
+
+            // Line comment: //
+            if ch == "/" and this._peekNext() == "/" {
+                this._advance()
+                this._advance()
+                while not this._isAtEnd() and this._peek() != "\n" {
+                    this._advance()
+                }
+                continue
+            }
+
+            // Block comment: /* ... */
+            if ch == "/" and this._peekNext() == "*" {
+                this._advance()
+                this._advance()
+                while not this._isAtEnd() {
+                    if this._peek() == "*" and this._peekNext() == "/" {
+                        this._advance()
+                        this._advance()
+                        break
+                    }
+                    this._advance()
+                }
+                continue
+            }
+
+            // Not whitespace or comment — done
+            break
+        }
+    }
+
+    // ── Main token dispatch ───────────────────────────────────────
+
+    _scanToken() {
+        let startPos = this.pos
+        let startLine = this.line
+        let startCol = this.col
+        let ch = this._advance()
+
+        // ── Single-char tokens ────────────────────────────────────
+        if ch == "(" {
+            this._addToken(TokenKind.LParen, startPos, startLine, startCol)
+            return
+        }
+        if ch == ")" {
+            this._addToken(TokenKind.RParen, startPos, startLine, startCol)
+            return
+        }
+        if ch == "{" {
+            this._addToken(TokenKind.LBrace, startPos, startLine, startCol)
+            return
+        }
+        if ch == "}" {
+            this._addToken(TokenKind.RBrace, startPos, startLine, startCol)
+            return
+        }
+        if ch == "[" {
+            this._addToken(TokenKind.LBracket, startPos, startLine, startCol)
+            return
+        }
+        if ch == "]" {
+            this._addToken(TokenKind.RBracket, startPos, startLine, startCol)
+            return
+        }
+        if ch == "," {
+            this._addToken(TokenKind.Comma, startPos, startLine, startCol)
+            return
+        }
+        if ch == ";" {
+            this._addToken(TokenKind.Semicolon, startPos, startLine, startCol)
+            return
+        }
+        if ch == "|" {
+            if this._match("|") {
+                this._addToken(TokenKind.OrOr, startPos, startLine, startCol)
+            } else {
+                this._addToken(TokenKind.Pipe, startPos, startLine, startCol)
+            }
+            return
+        }
+
+        // ── Multi-char operators ──────────────────────────────────
+
+        // =, ==, =>
+        if ch == "=" {
+            if this._match("=") {
+                this._addToken(TokenKind.EqEq, startPos, startLine, startCol)
+            } else if this._match(">") {
+                this._addToken(TokenKind.Arrow, startPos, startLine, startCol)
+            } else {
+                this._addToken(TokenKind.Assign, startPos, startLine, startCol)
+            }
+            return
+        }
+
+        // !, !=
+        if ch == "!" {
+            if this._match("=") {
+                this._addToken(TokenKind.Ne, startPos, startLine, startCol)
+            } else {
+                this._addToken(TokenKind.Bang, startPos, startLine, startCol)
+            }
+            return
+        }
+
+        // <, <=
+        if ch == "<" {
+            if this._match("=") {
+                this._addToken(TokenKind.Le, startPos, startLine, startCol)
+            } else {
+                this._addToken(TokenKind.Lt, startPos, startLine, startCol)
+            }
+            return
+        }
+
+        // >, >=
+        if ch == ">" {
+            if this._match("=") {
+                this._addToken(TokenKind.Ge, startPos, startLine, startCol)
+            } else {
+                this._addToken(TokenKind.Gt, startPos, startLine, startCol)
+            }
+            return
+        }
+
+        // +, +=
+        if ch == "+" {
+            if this._match("=") {
+                this._addToken(TokenKind.PlusAssign, startPos, startLine, startCol)
+            } else {
+                this._addToken(TokenKind.Plus, startPos, startLine, startCol)
+            }
+            return
+        }
+
+        // -, -=
+        if ch == "-" {
+            if this._match("=") {
+                this._addToken(TokenKind.MinusAssign, startPos, startLine, startCol)
+            } else {
+                this._addToken(TokenKind.Minus, startPos, startLine, startCol)
+            }
+            return
+        }
+
+        // *, *=
+        if ch == "*" {
+            if this._match("=") {
+                this._addToken(TokenKind.StarAssign, startPos, startLine, startCol)
+            } else {
+                this._addToken(TokenKind.Star, startPos, startLine, startCol)
+            }
+            return
+        }
+
+        // /, /=  (comments already handled above)
+        if ch == "/" {
+            if this._match("=") {
+                this._addToken(TokenKind.SlashAssign, startPos, startLine, startCol)
+            } else {
+                this._addToken(TokenKind.Slash, startPos, startLine, startCol)
+            }
+            return
+        }
+
+        // %, %=
+        if ch == "%" {
+            if this._match("=") {
+                this._addToken(TokenKind.PercentAssign, startPos, startLine, startCol)
+            } else {
+                this._addToken(TokenKind.Percent, startPos, startLine, startCol)
+            }
+            return
+        }
+
+        // &&
+        if ch == "&" {
+            if this._match("&") {
+                this._addToken(TokenKind.AndAnd, startPos, startLine, startCol)
+            }
+            // Single & not used in Liva — ignore or error
+            return
+        }
+
+        // :, ::
+        if ch == ":" {
+            if this._match(":") {
+                this._addToken(TokenKind.DoubleColon, startPos, startLine, startCol)
+            } else {
+                this._addToken(TokenKind.Colon, startPos, startLine, startCol)
+            }
+            return
+        }
+
+        // ., .., ..=, ...
+        if ch == "." {
+            if this._match(".") {
+                if this._match("=") {
+                    this._addToken(TokenKind.DotDotEq, startPos, startLine, startCol)
+                } else if this._match(".") {
+                    this._addToken(TokenKind.DotDotDot, startPos, startLine, startCol)
+                } else {
+                    this._addToken(TokenKind.DotDot, startPos, startLine, startCol)
+                }
+            } else {
+                this._addToken(TokenKind.Dot, startPos, startLine, startCol)
+            }
+            return
+        }
+
+        // ?, ?.
+        if ch == "?" {
+            if this._match(".") {
+                this._addToken(TokenKind.QuestionDot, startPos, startLine, startCol)
+            } else {
+                this._addToken(TokenKind.Question, startPos, startLine, startCol)
+            }
+            return
+        }
+
+        // _ (underscore as token — only if not followed by alphanumeric)
+        if ch == "_" and not this._isAlphaNumeric(this._peek()) {
+            this._addToken(TokenKind.Underscore, startPos, startLine, startCol)
+            return
+        }
+
+        // ── String template: $"..." ───────────────────────────────
+        if ch == "$" and this._peek() == "\"" {
+            this._scanStringTemplate(startPos, startLine, startCol)
+            return
+        }
+
+        // ── String literal: "..." ─────────────────────────────────
+        if ch == "\"" {
+            this._scanString(startPos, startLine, startCol)
+            return
+        }
+
+        // ── Char literal: '...' ───────────────────────────────────
+        if ch == "'" {
+            this._scanChar(startPos, startLine, startCol)
+            return
+        }
+
+        // ── Number literal ────────────────────────────────────────
+        if this._isDigit(ch) {
+            this._scanNumber(ch, startPos, startLine, startCol)
+            return
+        }
+
+        // ── Identifier or keyword ─────────────────────────────────
+        if this._isAlpha(ch) or ch == "_" {
+            this._scanIdentifier(ch, startPos, startLine, startCol)
+            return
+        }
+
+        // Unknown character — skip (could add error reporting)
+    }
+
+    // ── String literal scanner ────────────────────────────────────
+
+    _scanString(startPos: number, startLine: number, startCol: number) {
+        let value = ""
+        while not this._isAtEnd() and this._peek() != "\"" {
+            if this._peek() == "\\" {
+                this._advance()
+                if not this._isAtEnd() {
+                    let escaped = this._advance()
+                    if escaped == "n" {
+                        value = value + "\n"
+                    } else if escaped == "t" {
+                        value = value + "\t"
+                    } else if escaped == "r" {
+                        value = value + "\r"
+                    } else if escaped == "\\" {
+                        value = value + "\\"
+                    } else if escaped == "\"" {
+                        value = value + "\""
+                    } else if escaped == "0" {
+                        value = value + "\0"
+                    } else {
+                        value = value + escaped
+                    }
+                }
+            } else {
+                value = value + this._advance()
+            }
+        }
+        // Consume closing "
+        if not this._isAtEnd() {
+            this._advance()
+        }
+        this._addToken(TokenKind.StringLit(value), startPos, startLine, startCol)
+    }
+
+    // ── String template scanner ($"...{expr}...") ─────────────────
+
+    _scanStringTemplate(startPos: number, startLine: number, startCol: number) {
+        // Skip the opening "
+        this._advance()
+
+        let content = ""
+        let braceDepth = 0
+
+        while not this._isAtEnd() {
+            let ch = this._peek()
+
+            if braceDepth > 0 {
+                // Inside {…} interpolation — track nesting
+                if ch == "{" {
+                    braceDepth = braceDepth + 1
+                } else if ch == "}" {
+                    braceDepth = braceDepth - 1
+                } else if ch == "\"" {
+                    // String inside interpolation — skip it
+                    content = content + this._advance()
+                    while not this._isAtEnd() and this._peek() != "\"" {
+                        if this._peek() == "\\" {
+                            content = content + this._advance()
+                            if not this._isAtEnd() {
+                                content = content + this._advance()
+                            }
+                        } else {
+                            content = content + this._advance()
+                        }
+                    }
+                    if not this._isAtEnd() {
+                        content = content + this._advance()
+                    }
+                    continue
+                }
+                content = content + this._advance()
+            } else {
+                // At template level
+                if ch == "{" {
+                    braceDepth = braceDepth + 1
+                    content = content + this._advance()
+                } else if ch == "\\" {
+                    content = content + this._advance()
+                    if not this._isAtEnd() {
+                        content = content + this._advance()
+                    }
+                } else if ch == "\"" {
+                    // Closing quote
+                    this._advance()
+                    break
+                } else {
+                    content = content + this._advance()
+                }
+            }
+        }
+
+        this._addToken(TokenKind.StringTemplate(content), startPos, startLine, startCol)
+    }
+
+    // ── Char literal scanner ──────────────────────────────────────
+
+    _scanChar(startPos: number, startLine: number, startCol: number) {
+        let value = ""
+        if not this._isAtEnd() and this._peek() == "\\" {
+            this._advance()
+            if not this._isAtEnd() {
+                let escaped = this._advance()
+                if escaped == "n" {
+                    value = "\n"
+                } else if escaped == "t" {
+                    value = "\t"
+                } else if escaped == "r" {
+                    value = "\r"
+                } else if escaped == "\\" {
+                    value = "\\"
+                } else if escaped == "'" {
+                    value = "'"
+                } else if escaped == "0" {
+                    value = "\0"
+                } else {
+                    value = escaped
+                }
+            }
+        } else if not this._isAtEnd() {
+            value = this._advance()
+        }
+        // Consume closing '
+        if not this._isAtEnd() and this._peek() == "'" {
+            this._advance()
+        }
+        this._addToken(TokenKind.CharLit(value), startPos, startLine, startCol)
+    }
+
+    // ── Number scanner ────────────────────────────────────────────
+
+    _scanNumber(firstDigit: string, startPos: number, startLine: number, startCol: number) {
+        let numStr = firstDigit
+
+        // Integer part — consume digits and underscores
+        while not this._isAtEnd() and (this._isDigit(this._peek()) or this._peek() == "_") {
+            let ch = this._advance()
+            if ch != "_" {
+                numStr = numStr + ch
+            }
+        }
+
+        // Check for decimal point (float)
+        if not this._isAtEnd() and this._peek() == "." and this._peekNext() != "." {
+            // It's a float only if after . there's a digit
+            if this.pos + 1 < this.chars.length and this._isDigit(this._peekNext()) {
+                numStr = numStr + this._advance()  // consume .
+                while not this._isAtEnd() and (this._isDigit(this._peek()) or this._peek() == "_") {
+                    let ch = this._advance()
+                    if ch != "_" {
+                        numStr = numStr + ch
+                    }
+                }
+                let floatVal, err = parseFloat(numStr)
+                if err {
+                    this._addToken(TokenKind.FloatLit(0.0), startPos, startLine, startCol)
+                } else {
+                    this._addToken(TokenKind.FloatLit(floatVal), startPos, startLine, startCol)
+                }
+                return
+            }
+        }
+
+        // Integer
+        let intVal, err = parseInt(numStr)
+        if err {
+            this._addToken(TokenKind.IntLit(0), startPos, startLine, startCol)
+        } else {
+            this._addToken(TokenKind.IntLit(intVal), startPos, startLine, startCol)
+        }
+    }
+
+    // ── Identifier / keyword scanner ──────────────────────────────
+
+    _scanIdentifier(firstChar: string, startPos: number, startLine: number, startCol: number) {
+        let isPrivate = firstChar == "_"
+        let name = firstChar
+
+        while not this._isAtEnd() and this._isAlphaNumeric(this._peek()) {
+            name = name + this._advance()
+        }
+
+        // Check for keyword
+        let kw = lookupKeyword(name)
+        if kw != null {
+            this._addToken(kw, startPos, startLine, startCol)
+            return
+        }
+
+        // Check for `rust { ... }` block
+        if name == "rust" and not this._isAtEnd() {
+            this._skipWhitespaceAndComments()
+            if not this._isAtEnd() and this._peek() == "{" {
+                this._scanRustBlock(startPos, startLine, startCol)
+                return
+            }
+        }
+
+        // Regular identifier
+        if isPrivate {
+            this._addToken(TokenKind.PrivateIdent(name), startPos, startLine, startCol)
+        } else {
+            this._addToken(TokenKind.Ident(name), startPos, startLine, startCol)
+        }
+    }
+
+    // ── Rust block scanner ────────────────────────────────────────
+
+    _scanRustBlock(startPos: number, startLine: number, startCol: number) {
+        // Skip opening {
+        this._advance()
+
+        let content = ""
+        let depth = 1
+
+        while not this._isAtEnd() and depth > 0 {
+            let ch = this._peek()
+
+            if ch == "{" {
+                depth = depth + 1
+                content = content + this._advance()
+            } else if ch == "}" {
+                depth = depth - 1
+                if depth > 0 {
+                    content = content + this._advance()
+                } else {
+                    this._advance()  // consume closing }
+                }
+            } else if ch == "\"" {
+                // String inside rust block — skip
+                content = content + this._advance()
+                while not this._isAtEnd() {
+                    if this._peek() == "\\" {
+                        content = content + this._advance()
+                        if not this._isAtEnd() {
+                            content = content + this._advance()
+                        }
+                    } else if this._peek() == "\"" {
+                        content = content + this._advance()
+                        break
+                    } else {
+                        content = content + this._advance()
+                    }
+                }
+            } else if ch == "/" and this._peekNext() == "/" {
+                // Line comment inside rust block
+                content = content + this._advance()
+                content = content + this._advance()
+                while not this._isAtEnd() and this._peek() != "\n" {
+                    content = content + this._advance()
+                }
+            } else {
+                content = content + this._advance()
+            }
+        }
+
+        this._addToken(TokenKind.RustBlock(content), startPos, startLine, startCol)
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Public API
+// ─────────────────────────────────────────────────────────────────────
+
+tokenize(source: string): [Token] {
+    let lexer = Lexer(source)
+    return lexer.tokenize()
+}
+
+// Dummy main for standalone build verification
+main() {
+    print("lexer module")
+}

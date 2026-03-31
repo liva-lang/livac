@@ -5034,7 +5034,8 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // Enum should derive Default with #[default] on first variant
-    assert!(rust_code.contains("#[derive(Debug, Clone, PartialEq, Default)]"), "Enum should derive Default: {}", rust_code);
+    // FIX-5: Unit enums also derive Copy
+    assert!(rust_code.contains("#[derive(Debug, Clone, Copy, PartialEq, Default)]"), "Enum should derive Copy + Default: {}", rust_code);
     assert!(rust_code.contains("#[default]"), "First variant should have #[default]: {}", rust_code);
     assert_snapshot!("enum_field_default_derive", rust_code);
 }

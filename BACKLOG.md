@@ -345,6 +345,17 @@
 - [x] Tests (4 snapshot + 1 assertion)
 - [x] Docs (QUICK_REFERENCE, CHANGELOG)
 
+### Self-hosting — Fase 0: Bootstrap fixes 🔧
+
+> Arreglar el compilador Rust para que escribir Liva sea cómodo (prerequisito de Fase 2).
+
+- [x] **FIX-5**: `#[derive(Copy)]` para enums unitarios — evita move errors en BinOp, Visibility, etc.
+- [x] **FIX-6**: Borrar `IrCodeGenerator` dead code — eliminadas ~4.400 líneas (ir.rs, lowering.rs, IrCodeGenerator, codegen_ir_tests)
+- [ ] **FIX-1**: `let x: T? = value` → generar `Some(value)` automáticamente
+- [ ] **FIX-2**: Reassignment de enum sin `Some()` espurio
+- [ ] **FIX-3**: `switch` genera `match &expr` si variable se usa después (BLOCKER)
+- [ ] **FIX-4**: Parámetros no-Copy por referencia `&T` (BLOCKER)
+
 ### Self-hosting (parcial) — experimento completado
 
 - [x] Implementar lexer de Liva en Liva (~660 líneas)
