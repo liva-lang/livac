@@ -1,0 +1,247 @@
+// ============================================================================
+// module.liva — Module Resolver for the Liva self-hosting compiler
+// ============================================================================
+// Phase 4.2: Handles multi-file compilation.
+//
+// Given an entry point .liva file, recursively resolves all imports,
+// builds a dependency graph, performs topological sort, and provides
+// the compilation order for the codegen phase.
+//
+// Codegen compat notes (bootstrap limitations):
+//   - W-001: No return inside switch arm blocks
+//   - W-002: Variable name collisions across switch arms — use unique names
+//   - W-003: $"{field}" for string copies to avoid move
+
+import {
+    TopLevel, ImportDecl, Program
+} from "./ast.liva"
+import {
+    Token
+} from "./token.liva"
+
+// =====================================================================
+//  LivaModule — represents a single .liva source file
+// =====================================================================
+
+LivaModule {
+    path: string
+    source: string
+    imports: [string]
+    publicNames: [string]
+    // AST stored separately in ModuleResolver.moduleAsts
+}
+
+// =====================================================================
+//  ModuleResolver — recursively loads and resolves imports
+// =====================================================================
+// Design: BFS traversal from entry point. Discovers all transitively
+// imported modules. Builds adjacency list for topological sort.
+
+ModuleResolver {
+    _basePath: string
+    _entryPath: string
+    _modules: Map<string, LivaModule>
+    _moduleOrder: [string]
+    _adjacency: Map<string, [string]>
+    _resolved: Map<string, bool>
+
+    constructor(entryPath: string) {
+        // Extract base directory from entry path
+        let lastSlash = entryPath.lastIndexOf("/")
+        let basePath = "."
+        if lastSlash >= 0 {
+            basePath = entryPath.substring(0, lastSlash)
+        }
+        this._basePath = basePath
+        this._entryPath = entryPath
+        this._modules = Map {}
+        this._moduleOrder = []
+        this._adjacency = Map {}
+        this._resolved = Map {}
+    }
+
+    // -- Resolve an import path to a .liva file path --
+    // Handles: relative paths (./foo, ../bar), extensionless imports
+
+    resolveImportPath(currentFile: string, importPath: string): string {
+        // Get directory of current file
+        let lastSlash = currentFile.lastIndexOf("/")
+        let currentDir = "."
+        if lastSlash >= 0 {
+            currentDir = currentFile.substring(0, lastSlash)
+        }
+
+        // Virtual modules (liva/test, liva/http, etc.) → skip
+        if importPath.startsWith("liva/") {
+            return "<virtual:" + importPath + ">"
+        }
+
+        // Build resolved path
+        let resolved = currentDir + "/" + importPath
+
+        // Add .liva extension if not present
+        if !resolved.endsWith(".liva") {
+            resolved = resolved + ".liva"
+        }
+
+        return resolved
+    }
+
+    // -- Extract imports from a parsed program --
+
+    extractImports(program: Program): [string] {
+        let imports: [string] = []
+        for item in program.items {
+            let _ = switch item {
+                TopLevel.Import(decl) => {
+                    imports.push($"{decl.source}")
+                    0
+                },
+                _ => { 0 }
+            }
+        }
+        return imports
+    }
+
+    // -- Extract public symbol names from a parsed program --
+    // Names starting with _ are private
+
+    extractPublicNames(program: Program): [string] {
+        let names: [string] = []
+        for item in program.items {
+            let _ = switch item {
+                TopLevel.Function(decl) => {
+                    let fname = $"{decl.name}"
+                    if !fname.startsWith("_") {
+                        names.push(fname)
+                    }
+                    0
+                },
+                TopLevel.Class(decl) => {
+                    names.push($"{decl.name}")
+                    0
+                },
+                TopLevel.Enum(decl) => {
+                    names.push($"{decl.name}")
+                    0
+                },
+                TopLevel.ConstDecl(decl) => {
+                    let cname = $"{decl.name}"
+                    if !cname.startsWith("_") {
+                        names.push(cname)
+                    }
+                    0
+                },
+                TopLevel.TypeAlias(decl) => {
+                    names.push($"{decl.name}")
+                    0
+                },
+                _ => { 0 }
+            }
+        }
+        return names
+    }
+
+    // -- Register a module (after parsing) --
+
+    registerModule(path: string, source: string, program: Program) {
+        let imports = this.extractImports(program)
+        let publicNames = this.extractPublicNames(program)
+        let mod = LivaModule(path, source, imports, publicNames)
+        this._modules.set(path, mod)
+        this._adjacency.set(path, imports)
+    }
+
+    // -- Topological sort (Kahn's algorithm) --
+    // Returns files in dependency order (dependencies first)
+
+    topologicalSort(): [string] {
+        let sorted: [string] = []
+        let inDegree: Map<string, number> = Map {}
+
+        // Initialize in-degrees
+        let allPaths = this._adjacency.keys()
+        for p in allPaths {
+            if !inDegree.has(p) {
+                inDegree.set(p, 0)
+            }
+        }
+
+        // Calculate in-degrees
+        for p in allPaths {
+            let deps = this._adjacency.get(p)
+            for d in deps {
+                // Only count known (non-virtual) modules
+                if !d.startsWith("<virtual:") {
+                    if this._adjacency.has(d) {
+                        let current = inDegree.get(d)
+                        inDegree.set(d, current + 1)
+                    }
+                }
+            }
+        }
+
+        // Start with modules that have no dependencies on them
+        let queue: [string] = []
+        for p in allPaths {
+            if inDegree.get(p) == 0 {
+                queue.push(p)
+            }
+        }
+
+        while queue.length > 0 {
+            let current = queue.pop()
+            sorted.push(current)
+
+            // For each module that depends on current, reduce in-degree
+            for p in allPaths {
+                let deps = this._adjacency.get(p)
+                let dependsOnCurrent = false
+                for d in deps {
+                    if d == current {
+                        dependsOnCurrent = true
+                    }
+                }
+                if dependsOnCurrent {
+                    let deg = inDegree.get(p) - 1
+                    inDegree.set(p, deg)
+                    if deg == 0 {
+                        queue.push(p)
+                    }
+                }
+            }
+        }
+
+        return sorted
+    }
+
+    // -- Get module info --
+
+    getModule(path: string): LivaModule {
+        return this._modules.get(path)
+    }
+
+    getAllPaths(): [string] {
+        return this._adjacency.keys()
+    }
+
+    // -- Generate module name from file path --
+    // e.g., "compiler/src/token.liva" → "token"
+
+    pathToModName(path: string): string {
+        let lastSlash = path.lastIndexOf("/")
+        let fileName = path
+        if lastSlash >= 0 {
+            fileName = path.substring(lastSlash + 1, path.length)
+        }
+        // Remove .liva extension
+        if fileName.endsWith(".liva") {
+            fileName = fileName.substring(0, fileName.length - 5)
+        }
+        return fileName
+    }
+}
+
+main() {
+    print("module resolver loaded")
+}

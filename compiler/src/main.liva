@@ -1,0 +1,449 @@
+// ============================================================================
+// main.liva — CLI entry point for the Liva self-hosting compiler
+// ============================================================================
+// Phase 4.1: Simplified CLI that handles build/run/check subcommands.
+//
+// Usage:
+//   livac build <input.liva> [--output <dir>] [--verbose] [--release]
+//   livac run <input.liva> [-- args...]
+//   livac check <input.liva>
+//
+// Pipeline:
+//   1. Read source file(s)
+//   2. Lex → tokens
+//   3. Parse → AST
+//   4. Semantic analysis → TypeContext
+//   5. Liveness analysis → LivenessContext
+//   6. Codegen → Rust source
+//   7. Write output files
+//   8. cargo build (for build/run)
+//   9. Execute binary (for run)
+//
+// Codegen compat notes (bootstrap limitations):
+//   - W-001: No return inside switch arm blocks
+//   - W-002: Variable name collisions across switch arms
+
+import { TokenKind, Token, lookupKeyword, tokenKindName } from "./token.liva"
+import {
+    TypeRef, Expr, Stmt, BlockStmt, TopLevel, Program,
+    FunctionDecl, ClassDecl, EnumDecl, Param,
+    ImportDecl
+} from "./ast.liva"
+import { Lexer, tokenize } from "./lexer.liva"
+import { Parser, parse } from "./parser.liva"
+import { SemanticAnalyzer, TypeContext, analyzeProgram } from "./semantic.liva"
+import { LivenessAnalyzer, LivenessContext, analyzeLiveness } from "./liveness.liva"
+import { RustEmitter, generateRust } from "./codegen.liva"
+import { ModuleResolver, LivaModule } from "./module.liva"
+
+// =====================================================================
+//  CLI Argument Parsing
+// =====================================================================
+// Manual arg parsing (no clap equivalent in Liva).
+// Reads from process.args or equivalent.
+
+CliOptions {
+    command: string
+    inputFile: string
+    outputDir: string
+    verbose: bool
+    release: bool
+    checkOnly: bool
+}
+
+parseCliArgs(args: [string]): CliOptions {
+    let command = "build"
+    let inputFile = ""
+    let outputDir = ""
+    let verbose = false
+    let release = false
+    let checkOnly = false
+
+    if args.length < 2 {
+        printUsage()
+        return CliOptions(command, inputFile, outputDir, verbose, release, checkOnly)
+    }
+
+    command = args[1]
+
+    if command == "check" {
+        checkOnly = true
+    }
+
+    // Parse remaining args
+    let i = 2
+    while i < args.length {
+        let arg = args[i]
+        if arg == "--output" {
+            if i + 1 < args.length {
+                i += 1
+                outputDir = args[i]
+            }
+        } else if arg == "--verbose" {
+            verbose = true
+        } else if arg == "--release" {
+            release = true
+        } else if arg == "--" {
+            // Stop parsing, rest are program args
+            i = args.length
+        } else if !arg.startsWith("-") {
+            if inputFile == "" {
+                inputFile = arg
+            }
+        }
+        i += 1
+    }
+
+    return CliOptions(command, inputFile, outputDir, verbose, release, checkOnly)
+}
+
+printUsage() {
+    println("Usage: livac <command> <input.liva> [options]")
+    println("")
+    println("Commands:")
+    println("  build   Compile to native binary")
+    println("  run     Compile and run")
+    println("  check   Check for errors without compiling")
+    println("")
+    println("Options:")
+    println("  --output <dir>   Output directory")
+    println("  --verbose        Verbose output")
+    println("  --release        Build in release mode")
+}
+
+// =====================================================================
+//  File I/O helpers
+// =====================================================================
+
+readFile(path: string): string {
+    // Uses Liva's File.read stdlib function
+    return File.read(path)
+}
+
+writeFile(path: string, content: string) {
+    File.write(path, content)
+}
+
+ensureDir(path: string) {
+    Dir.create(path)
+}
+
+// =====================================================================
+//  Compilation Pipeline
+// =====================================================================
+
+CompilationResult {
+    success: bool
+    rustCode: string
+    cargoToml: string
+    errors: [string]
+    moduleFiles: Map<string, string>
+}
+
+// -- Single file compilation --
+
+compileSingleFile(source: string, fileName: string, checkOnly: bool): CompilationResult {
+    let errors: [string] = []
+    let moduleFiles: Map<string, string> = Map {}
+
+    // Step 1: Lex
+    let tokens = tokenize(source)
+
+    // Step 2: Parse
+    let program = parse(tokens, source)
+
+    // Step 3: Semantic analysis
+    let typeCtx = analyzeProgram(program)
+
+    // Check for semantic errors
+    for diag in typeCtx.diagnostics {
+        errors.push($"{diag.message}")
+    }
+
+    if errors.length > 0 {
+        return CompilationResult(false, "", "", errors, moduleFiles)
+    }
+
+    if checkOnly {
+        return CompilationResult(true, "", "", errors, moduleFiles)
+    }
+
+    // Step 4: Liveness analysis
+    let liveCtx = analyzeLiveness(program)
+
+    // Step 5: Codegen
+    let rustCode = generateRust(program, typeCtx, liveCtx)
+
+    // Step 6: Cargo.toml (no special deps for basic projects)
+    let projectName = fileToProjectName(fileName)
+    let emitter = RustEmitter(typeCtx, liveCtx)
+    let cargoToml = emitter.generateCargoToml(
+        projectName, false, false, false, false, false, false, false, false, false
+    )
+
+    return CompilationResult(true, rustCode, cargoToml, errors, moduleFiles)
+}
+
+// -- Multi-file compilation --
+
+compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): CompilationResult {
+    let errors: [string] = []
+    let moduleFiles: Map<string, string> = Map {}
+
+    // Step 1: Resolve all modules
+    let resolver = ModuleResolver(entryPath)
+
+    // Read and parse entry file
+    let entrySource = readFile(entryPath)
+    let entryTokens = tokenize(entrySource)
+    let entryProgram = parse(entryTokens, entrySource)
+    resolver.registerModule(entryPath, entrySource, entryProgram)
+
+    // BFS: resolve all imported modules
+    let queue: [string] = []
+    let entryImports = resolver.extractImports(entryProgram)
+    for imp in entryImports {
+        let resolved = resolver.resolveImportPath(entryPath, imp)
+        if !resolved.startsWith("<virtual:") {
+            queue.push(resolved)
+        }
+    }
+
+    let visited: Map<string, bool> = Map {}
+    visited.set(entryPath, true)
+
+    while queue.length > 0 {
+        let modPath = queue.pop()
+
+        if visited.has(modPath) {
+            // Already visited, skip (avoid cycles)
+        } else {
+            visited.set(modPath, true)
+
+            if verbose {
+                println($"  Loading module: {modPath}")
+            }
+
+            let modSource = readFile(modPath)
+            let modTokens = tokenize(modSource)
+            let modProgram = parse(modTokens, modSource)
+            resolver.registerModule(modPath, modSource, modProgram)
+
+            // Queue transitive imports
+            let modImports = resolver.extractImports(modProgram)
+            for imp in modImports {
+                let resolved = resolver.resolveImportPath(modPath, imp)
+                if !resolved.startsWith("<virtual:") {
+                    if !visited.has(resolved) {
+                        queue.push(resolved)
+                    }
+                }
+            }
+        }
+    }
+
+    // Step 2: Topological sort
+    let compileOrder = resolver.topologicalSort()
+
+    if verbose {
+        println($"  Compilation order: {compileOrder.length} modules")
+    }
+
+    if checkOnly {
+        // Just analyze each module for errors
+        for modPath in compileOrder {
+            let mod = resolver.getModule(modPath)
+            let modTokens = tokenize(mod.source)
+            let modProgram = parse(modTokens, mod.source)
+            let typeCtx = analyzeProgram(modProgram)
+            for diag in typeCtx.diagnostics {
+                errors.push($"{modPath}: {diag.message}")
+            }
+        }
+        return CompilationResult(errors.length == 0, "", "", errors, moduleFiles)
+    }
+
+    // Step 3: Compile each module in order
+    let modDeclarations: [string] = []
+
+    for modPath in compileOrder {
+        let mod = resolver.getModule(modPath)
+        let modTokens = tokenize(mod.source)
+        let modProgram = parse(modTokens, mod.source)
+        let typeCtx = analyzeProgram(modProgram)
+        let liveCtx = analyzeLiveness(modProgram)
+        let rustCode = generateRust(modProgram, typeCtx, liveCtx)
+
+        let modName = resolver.pathToModName(modPath)
+        moduleFiles.set(modName + ".rs", rustCode)
+        modDeclarations.push($"mod {modName};")
+    }
+
+    // Step 4: Generate main module that declares all sub-modules
+    let mainRs = modDeclarations.join("\n") + "\n\nfn main() {\n    // Entry point\n}\n"
+
+    // Step 5: Cargo.toml
+    let projectName = fileToProjectName(entryPath)
+    // Create a temporary emitter just for Cargo.toml generation
+    let emptyTypeCtx = TypeContext(
+        [], Map {}, Map {}, Map {}, Map {}, [], [], Map {}, Map {}, Map {}, Map {}, [], Map {}
+    )
+    let emptyLiveCtx = LivenessContext(Map {}, Map {}, Map {})
+    let emitter = RustEmitter(emptyTypeCtx, emptyLiveCtx)
+    let cargoToml = emitter.generateCargoToml(
+        projectName, false, false, false, false, false, false, false, false, false
+    )
+
+    return CompilationResult(true, mainRs, cargoToml, errors, moduleFiles)
+}
+
+// =====================================================================
+//  Output & Build
+// =====================================================================
+
+writeOutputFiles(result: CompilationResult, outputDir: string) {
+    ensureDir(outputDir)
+    ensureDir(outputDir + "/src")
+
+    // Write Cargo.toml
+    writeFile(outputDir + "/Cargo.toml", result.cargoToml)
+
+    if result.moduleFiles.keys().length > 0 {
+        // Multi-file: write each module + main
+        writeFile(outputDir + "/src/main.rs", result.rustCode)
+        let modNames = result.moduleFiles.keys()
+        for modName in modNames {
+            let content = result.moduleFiles.get(modName)
+            writeFile(outputDir + "/src/" + modName, content)
+        }
+    } else {
+        // Single file: write main.rs
+        writeFile(outputDir + "/src/main.rs", result.rustCode)
+    }
+}
+
+runCargoBuild(outputDir: string, release: bool): bool {
+    let releaseFlag = ""
+    if release {
+        releaseFlag = " --release"
+    }
+    let exitCode = Process.run("cargo build" + releaseFlag, outputDir)
+    return exitCode == 0
+}
+
+runBinary(outputDir: string, release: bool, projectName: string) {
+    let profile = "debug"
+    if release {
+        profile = "release"
+    }
+    let binaryPath = outputDir + "/target/" + profile + "/" + projectName
+    Process.run(binaryPath, ".")
+}
+
+// =====================================================================
+//  Helpers
+// =====================================================================
+
+fileToProjectName(filePath: string): string {
+    let lastSlash = filePath.lastIndexOf("/")
+    let fileName = filePath
+    if lastSlash >= 0 {
+        fileName = filePath.substring(lastSlash + 1, filePath.length)
+    }
+    if fileName.endsWith(".liva") {
+        fileName = fileName.substring(0, fileName.length - 5)
+    }
+    // Replace non-alphanumeric chars with underscore
+    return fileName.replace("-", "_")
+}
+
+hasImports(source: string): bool {
+    return source.contains("import ")
+}
+
+// =====================================================================
+//  Main Entry Point
+// =====================================================================
+
+main() {
+    let args = Process.args()
+    let opts = parseCliArgs(args)
+
+    if opts.inputFile == "" {
+        println("Error: No input file specified")
+        printUsage()
+        return
+    }
+
+    if opts.verbose {
+        println($"Liva Compiler (self-hosting)")
+        println($"Input: {opts.inputFile}")
+    }
+
+    // Determine output directory
+    let outputDir = opts.outputDir
+    if outputDir == "" {
+        outputDir = "target/liva_build"
+    }
+
+    // Read source to determine single vs multi-file
+    let source = readFile(opts.inputFile)
+    let isMultiFile = hasImports(source)
+
+    // Compile
+    let result = CompilationResult(false, "", "", [], Map {})
+    if isMultiFile {
+        if opts.verbose {
+            println("  Multi-file compilation mode")
+        }
+        result = compileMultiFile(opts.inputFile, opts.checkOnly, opts.verbose)
+    } else {
+        if opts.verbose {
+            println("  Single-file compilation mode")
+        }
+        result = compileSingleFile(source, opts.inputFile, opts.checkOnly)
+    }
+
+    // Report errors
+    if !result.success {
+        for err in result.errors {
+            println($"error: {err}")
+        }
+        return
+    }
+
+    if opts.checkOnly {
+        println("Check passed: no errors found")
+        return
+    }
+
+    // Write output
+    writeOutputFiles(result, outputDir)
+
+    if opts.verbose {
+        println($"  Output written to {outputDir}")
+    }
+
+    // Build
+    if opts.command == "build" {
+        if opts.verbose {
+            println("  Running cargo build...")
+        }
+        let buildOk = runCargoBuild(outputDir, opts.release)
+        if buildOk {
+            println("Build successful")
+        } else {
+            println("Build failed")
+        }
+    }
+
+    if opts.command == "run" {
+        let buildOk = runCargoBuild(outputDir, opts.release)
+        if buildOk {
+            let projectName = fileToProjectName(opts.inputFile)
+            runBinary(outputDir, opts.release, projectName)
+        } else {
+            println("Build failed")
+        }
+    }
+}
