@@ -1,0 +1,11 @@
+// Error Test: E0902 — Non-exhaustive integer switch (needs _ wildcard)
+// EXPECT: E0902
+main() {
+    let code = 42
+    let msg = switch code {
+        1 => "one",
+        2 => "two",
+        3 => "three"
+    }
+    print(msg)
+}

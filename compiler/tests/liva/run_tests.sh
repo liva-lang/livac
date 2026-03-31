@@ -66,10 +66,10 @@ run_syntax_tests() {
         name="$(basename "$f")"
         if $LIVAC check "$f" > /dev/null 2>&1; then
             echo -e "  ${GREEN}✓${NC} $name"
-            ((PASS++))
+            PASS=$((PASS + 1))
         else
             echo -e "  ${RED}✗${NC} $name"
-            ((FAIL++))
+            FAIL=$((FAIL + 1))
             ERRORS+=("syntax/$name: livac check failed")
         fi
     done
@@ -91,10 +91,10 @@ run_compile_tests() {
         rm -rf "$out_dir"
         if $LIVAC build "$f" --output "$out_dir" > /dev/null 2>&1; then
             echo -e "  ${GREEN}✓${NC} $name"
-            ((PASS++))
+            PASS=$((PASS + 1))
         else
             echo -e "  ${RED}✗${NC} $name"
-            ((FAIL++))
+            FAIL=$((FAIL + 1))
             ERRORS+=("compile/$name: livac build failed")
         fi
     done
@@ -115,7 +115,7 @@ run_e2e_tests() {
         expected="$dir/$base.expected"
         if [[ ! -f "$expected" ]]; then
             echo -e "  ${YELLOW}⊘${NC} $name (missing .expected)"
-            ((SKIP++))
+            SKIP=$((SKIP + 1))
             continue
         fi
         out_dir="$BUILD_DIR/e2e_$base"
@@ -123,7 +123,7 @@ run_e2e_tests() {
         # Build
         if ! $LIVAC build "$f" --output "$out_dir" > /dev/null 2>&1; then
             echo -e "  ${RED}✗${NC} $name (build failed)"
-            ((FAIL++))
+            FAIL=$((FAIL + 1))
             ERRORS+=("e2e/$name: build failed")
             continue
         fi
@@ -132,7 +132,7 @@ run_e2e_tests() {
         binary=$(find "$out_dir/target/debug" -maxdepth 1 -type f -executable ! -name "*.d" 2>/dev/null | head -1)
         if [[ -z "$binary" ]]; then
             echo -e "  ${RED}✗${NC} $name (no binary found)"
-            ((FAIL++))
+            FAIL=$((FAIL + 1))
             ERRORS+=("e2e/$name: no binary found after build")
             continue
         fi
@@ -142,10 +142,10 @@ run_e2e_tests() {
         expected_content=$(cat "$expected")
         if [[ "$actual" == "$expected_content" ]]; then
             echo -e "  ${GREEN}✓${NC} $name"
-            ((PASS++))
+            PASS=$((PASS + 1))
         else
             echo -e "  ${RED}✗${NC} $name (output mismatch)"
-            ((FAIL++))
+            FAIL=$((FAIL + 1))
             ERRORS+=("e2e/$name: output mismatch")
             echo -e "    ${YELLOW}Expected:${NC} $(head -3 "$expected")"
             echo -e "    ${YELLOW}Actual:${NC}   $(echo "$actual" | head -3)"
@@ -168,14 +168,14 @@ run_stdlib_tests() {
         expected="$dir/$base.expected"
         if [[ ! -f "$expected" ]]; then
             echo -e "  ${YELLOW}⊘${NC} $name (missing .expected)"
-            ((SKIP++))
+            SKIP=$((SKIP + 1))
             continue
         fi
         out_dir="$BUILD_DIR/stdlib_$base"
         rm -rf "$out_dir"
         if ! $LIVAC build "$f" --output "$out_dir" > /dev/null 2>&1; then
             echo -e "  ${RED}✗${NC} $name (build failed)"
-            ((FAIL++))
+            FAIL=$((FAIL + 1))
             ERRORS+=("stdlib/$name: build failed")
             continue
         fi
@@ -183,7 +183,7 @@ run_stdlib_tests() {
         binary=$(find "$out_dir/target/debug" -maxdepth 1 -type f -executable ! -name "*.d" 2>/dev/null | head -1)
         if [[ -z "$binary" ]]; then
             echo -e "  ${RED}✗${NC} $name (no binary found)"
-            ((FAIL++))
+            FAIL=$((FAIL + 1))
             ERRORS+=("stdlib/$name: no binary found")
             continue
         fi
@@ -192,10 +192,10 @@ run_stdlib_tests() {
         expected_content=$(cat "$expected")
         if [[ "$actual" == "$expected_content" ]]; then
             echo -e "  ${GREEN}✓${NC} $name"
-            ((PASS++))
+            PASS=$((PASS + 1))
         else
             echo -e "  ${RED}✗${NC} $name (output mismatch)"
-            ((FAIL++))
+            FAIL=$((FAIL + 1))
             ERRORS+=("stdlib/$name: output mismatch")
             echo -e "    ${YELLOW}Expected:${NC} $(head -3 "$expected")"
             echo -e "    ${YELLOW}Actual:${NC}   $(echo "$actual" | head -3)"
@@ -218,14 +218,14 @@ run_stdlib_io_tests() {
         expected="$dir/$base.expected"
         if [[ ! -f "$expected" ]]; then
             echo -e "  ${YELLOW}⊘${NC} $name (missing .expected)"
-            ((SKIP++))
+            SKIP=$((SKIP + 1))
             continue
         fi
         out_dir="$BUILD_DIR/stdlib_io_$base"
         rm -rf "$out_dir"
         if ! $LIVAC build "$f" --output "$out_dir" > /dev/null 2>&1; then
             echo -e "  ${RED}✗${NC} $name (build failed)"
-            ((FAIL++))
+            FAIL=$((FAIL + 1))
             ERRORS+=("stdlib-io/$name: build failed")
             continue
         fi
@@ -233,7 +233,7 @@ run_stdlib_io_tests() {
         binary=$(find "$out_dir/target/debug" -maxdepth 1 -type f -executable ! -name "*.d" 2>/dev/null | head -1)
         if [[ -z "$binary" ]]; then
             echo -e "  ${RED}✗${NC} $name (no binary found)"
-            ((FAIL++))
+            FAIL=$((FAIL + 1))
             ERRORS+=("stdlib-io/$name: no binary found")
             continue
         fi
@@ -242,10 +242,10 @@ run_stdlib_io_tests() {
         expected_content=$(cat "$expected")
         if [[ "$actual" == "$expected_content" ]]; then
             echo -e "  ${GREEN}✓${NC} $name"
-            ((PASS++))
+            PASS=$((PASS + 1))
         else
             echo -e "  ${RED}✗${NC} $name (output mismatch)"
-            ((FAIL++))
+            FAIL=$((FAIL + 1))
             ERRORS+=("stdlib-io/$name: output mismatch")
         fi
     done
@@ -263,29 +263,29 @@ run_error_tests() {
         local name base
         name="$(basename "$f")"
         base="${name%.liva}"
-        # First line can have // EXPECT: <error code or substring>
+        # Extract expected error code from // EXPECT: Exxxx comment (any line)
         local expect_pattern
-        expect_pattern=$(head -1 "$f" | grep -oP '// EXPECT: \K.*' || echo "")
+        expect_pattern=$(grep -oP '// EXPECT: \K\S+' "$f" | head -1 || echo "")
         local output
         output=$($LIVAC check "$f" 2>&1 || true)
         local exit_code
         $LIVAC check "$f" > /dev/null 2>&1 && exit_code=0 || exit_code=$?
         if [[ $exit_code -eq 0 ]]; then
             echo -e "  ${RED}✗${NC} $name (should have failed but passed)"
-            ((FAIL++))
+            FAIL=$((FAIL + 1))
             ERRORS+=("errors/$name: should have failed but passed check")
         elif [[ -n "$expect_pattern" ]]; then
             if echo "$output" | grep -qi "$expect_pattern"; then
                 echo -e "  ${GREEN}✓${NC} $name (error: $expect_pattern)"
-                ((PASS++))
+                PASS=$((PASS + 1))
             else
                 echo -e "  ${RED}✗${NC} $name (expected '$expect_pattern' in error output)"
-                ((FAIL++))
+                FAIL=$((FAIL + 1))
                 ERRORS+=("errors/$name: expected '$expect_pattern' not found in output")
             fi
         else
             echo -e "  ${GREEN}✓${NC} $name (correctly fails)"
-            ((PASS++))
+            PASS=$((PASS + 1))
         fi
     done
 }

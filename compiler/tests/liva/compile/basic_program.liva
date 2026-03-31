@@ -1,0 +1,62 @@
+// Compile Test: Basic Program
+// Covers: hello world, variables, simple functions, string templates, compound assignment
+
+const VERSION: number = 1
+
+add(a: number, b: number): number => a + b
+
+double(x: number) => x * 2
+
+classify(n: number): string {
+    if n < 0 {
+        return "negative"
+    }
+    if n == 0 {
+        return "zero"
+    }
+    return "positive"
+}
+
+main() {
+    print("Hello, Liva!")
+
+    // Variables
+    let x = 42
+    let name = "World"
+    let active = true
+    let pi = 3.14
+
+    // String templates
+    print($"x is {x}")
+    print($"Hello, {name}!")
+    print($"active: {active}, pi: {pi}")
+    print($"Version: {VERSION}")
+
+    // Function calls
+    print($"add(3, 4) = {add(3, 4)}")
+    print($"double(5) = {double(5)}")
+    print($"classify(-1) = {classify(-1)}")
+    print($"classify(0) = {classify(0)}")
+    print($"classify(7) = {classify(7)}")
+
+    // Compound assignment
+    let counter = 0
+    counter += 10
+    counter -= 3
+    counter *= 2
+    print($"counter = {counter}")
+
+    // Control flow
+    if x > 40 {
+        print("x is big")
+    } else {
+        print("x is small")
+    }
+
+    // For loop
+    let sum = 0
+    for i in 1..=5 {
+        sum += i
+    }
+    print($"sum 1..=5 = {sum}")
+}

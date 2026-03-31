@@ -1,0 +1,11 @@
+// Error Test: E0904 — Non-exhaustive enum switch (missing variants)
+// EXPECT: E0904
+enum Color { Red, Green, Blue }
+
+main() {
+    let c = Color.Red
+    let name = switch c {
+        Color.Red => "red"
+    }
+    print(name)
+}

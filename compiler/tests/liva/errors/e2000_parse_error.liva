@@ -1,0 +1,5 @@
+// Error Test: E2000 — Parse error (missing closing brace)
+// EXPECT: E2000
+main() {
+    let x = 10
+    print(x)

@@ -1,0 +1,95 @@
+// Compile Test: Classes
+// Covers: class with constructor, methods, data class, field access, this binding
+
+// Data class (no constructor → auto-generated)
+Point { x: number; y: number }
+
+// Data class with method
+Color {
+    r: number
+    g: number
+    b: number
+
+    brightness(): number => this.r + this.g + this.b
+}
+
+// Regular class with constructor
+Animal {
+    name: string
+    legs: number
+
+    constructor(name: string, legs: number) {
+        this.name = name
+        this.legs = legs
+    }
+
+    describe(): string => $"{this.name} has {this.legs} legs"
+}
+
+// Class with mutable state
+Counter {
+    _count: number
+
+    constructor() {
+        this._count = 0
+    }
+
+    increment() {
+        this._count = this._count + 1
+    }
+
+    getCount(): number => this._count
+}
+
+// Class using another class type
+Zoo {
+    _name: string
+    _count: number
+
+    constructor(name: string) {
+        this._name = name
+        this._count = 0
+    }
+
+    addAnimal() {
+        this._count = this._count + 1
+    }
+
+    summary(): string => $"{this._name}: {this._count} animals"
+}
+
+main() {
+    // Data class
+    let p = Point(10, 20)
+    print($"Point: {p}")
+    print($"p.x = {p.x}, p.y = {p.y}")
+
+    // Data class equality
+    let p2 = Point(10, 20)
+    print($"p == p2: {p == p2}")
+
+    // Data class with method
+    let c = Color(255, 128, 0)
+    print($"Color: {c}")
+    print($"Brightness: {c.brightness()}")
+
+    // Regular class
+    let dog = Animal("Rex", 4)
+    print(dog.describe())
+
+    let cat = Animal("Whiskers", 4)
+    print(cat.describe())
+
+    // Mutable state
+    let counter = Counter()
+    counter.increment()
+    counter.increment()
+    counter.increment()
+    print($"Counter: {counter.getCount()}")
+
+    // Class using methods
+    let zoo = Zoo("City Zoo")
+    zoo.addAnimal()
+    zoo.addAnimal()
+    print(zoo.summary())
+}

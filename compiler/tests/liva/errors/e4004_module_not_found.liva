@@ -1,0 +1,7 @@
+// Error Test: E4004 — Module file not found
+// EXPECT: E4004
+import { helper } from "nonexistent_module"
+
+main() {
+    print(helper())
+}

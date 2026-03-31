@@ -1,0 +1,6 @@
+// Error Test: E1000 — Lexer error (unclosed string literal)
+// EXPECT: E1000
+main() {
+    let s = "this string is never closed
+    print(s)
+}

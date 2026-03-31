@@ -1,0 +1,87 @@
+// Compile Test: Closures & Lambdas
+// Covers: lambdas as arguments, map/filter/reduce/forEach, chaining,
+//         find/some/every, closure variable capture
+
+showItem(item: number) {
+    print($"  show: {item}")
+}
+
+main() {
+    let nums = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+    // ── map ─────────────────────────────────────────────
+
+    let doubled = nums.map(x => x * 2)
+    print($"doubled: {doubled}")
+
+    let squares = nums.map(x => x * x)
+    print($"squares: {squares}")
+
+    // ── filter ──────────────────────────────────────────
+
+    let evens = nums.filter(x => x % 2 == 0)
+    print($"evens: {evens}")
+
+    let bigNums = nums.filter(x => x > 5)
+    print($"big: {bigNums}")
+
+    // ── reduce ──────────────────────────────────────────
+
+    let total = nums.reduce(0, (acc, x) => acc + x)
+    print($"sum: {total}")
+
+    let product = nums.reduce(1, (acc, x) => acc * x)
+    print($"product: {product}")
+
+    // ── forEach ─────────────────────────────────────────
+
+    print("forEach:")
+    let small = [10, 20, 30]
+    small.forEach(x => print($"  val: {x}"))
+
+    // Point-free reference
+    print("point-free:")
+    let big = [100, 200, 300]
+    big.forEach(showItem)
+
+    // ── find ────────────────────────────────────────────
+
+    let found = nums.find(x => x > 7)
+    print($"find > 7: {found}")
+
+    // ── some / every ────────────────────────────────────
+
+    let hasEven = nums.some(x => x % 2 == 0)
+    print($"some even: {hasEven}")
+
+    let allPositive = nums.every(x => x > 0)
+    print($"every positive: {allPositive}")
+
+    let allBig = nums.every(x => x > 5)
+    print($"every > 5: {allBig}")
+
+    // ── Chaining ────────────────────────────────────────
+
+    let result = nums
+        .filter(x => x % 2 == 0)
+        .map(x => x * x)
+        .reduce(0, (acc, x) => acc + x)
+    print($"sum of even squares: {result}")
+
+    let data = [1, 2, 3, 4, 5, 6, 7, 8]
+    let filtered = data
+        .filter(x => x > 2)
+        .filter(x => x < 7)
+        .map(x => x * 10)
+    print($"double filtered: {filtered}")
+
+    // ── Closure capturing outer variable ────────────────
+
+    let multiplier = 10
+    let scaled = nums.map(x => x * multiplier)
+    print($"scaled by {multiplier}: {scaled}")
+
+    let threshold = 5
+    let above = nums.filter(x => x > threshold)
+    print($"above {threshold}: {above}")
+}

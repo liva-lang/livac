@@ -1,0 +1,120 @@
+// Compile Test: Pattern Matching
+// Covers: switch expressions, range patterns, or-patterns (numeric),
+//         enum destructuring, wildcard, guards, value binding
+
+enum Shape {
+    Circle(radius: number),
+    Rectangle(width: number, height: number),
+    Point
+}
+
+enum Priority { Critical, High, Normal, Low }
+
+// Enum switch with destructuring
+describeShape(s: Shape): string {
+    return switch s {
+        Shape.Circle(r) => $"circle r={r}",
+        Shape.Rectangle(w, h) => $"rect {w}x{h}",
+        Shape.Point => "point"
+    }
+}
+
+// Exhaustive enum switch
+priorityLabel(p: Priority): string {
+    return switch p {
+        Priority.Critical => "CRITICAL",
+        Priority.High => "HIGH",
+        Priority.Normal => "NORMAL",
+        Priority.Low => "LOW"
+    }
+}
+
+// Wildcard in enum destructuring
+shapeType(s: Shape): string {
+    return switch s {
+        Shape.Circle(_) => "circle",
+        Shape.Rectangle(_, _) => "rectangle",
+        Shape.Point => "point"
+    }
+}
+
+main() {
+    // ── Range patterns ──────────────────────────────────
+
+    let score = 87
+    let grade = switch score {
+        90..=100 => "A",
+        80..=89 => "B",
+        70..=79 => "C",
+        60..=69 => "D",
+        _ => "F"
+    }
+    print($"Score {score} => Grade {grade}")
+
+    // ── Or-patterns (numeric) ───────────────────────────
+
+    let code = 200
+    let tier = switch code {
+        200 | 201 | 204 => "Success",
+        400 | 404 => "Client error",
+        500 => "Server error",
+        _ => "Other"
+    }
+    print($"HTTP {code} => {tier}")
+
+    let num = 3
+    let size = switch num {
+        1 | 2 | 3 => "small",
+        4 | 5 | 6 => "medium",
+        _ => "large"
+    }
+    print($"num {num} => {size}")
+
+    // ── Guards ──────────────────────────────────────────
+
+    let x = -5
+    let kind = switch x {
+        0 => "zero",
+        n if n < 0 => $"negative ({n})",
+        n if n > 100 => "big positive",
+        _ => "small positive"
+    }
+    print($"x={x} => {kind}")
+
+    let age = 25
+    let category = switch age {
+        n if n < 13 => "child",
+        n if n < 20 => "teenager",
+        n if n < 65 => "adult",
+        _ => "senior"
+    }
+    print($"age {age} => {category}")
+
+    // ── Value binding ───────────────────────────────────
+
+    let val = 42
+    let label = switch val {
+        0 => "zero",
+        n => $"nonzero: {n}"
+    }
+    print($"label: {label}")
+
+    // ── Enum destructuring ──────────────────────────────
+
+    let c = Shape.Circle(10)
+    let r = Shape.Rectangle(3, 4)
+    let p = Shape.Point
+
+    print($"c: {describeShape(c)}")
+    print($"r: {describeShape(r)}")
+    print($"p: {describeShape(p)}")
+
+    // Exhaustive enum
+    print($"priority: {priorityLabel(Priority.Critical)}")
+    print($"priority: {priorityLabel(Priority.Low)}")
+
+    // Wildcard destructuring
+    print($"type: {shapeType(Shape.Circle(5))}")
+    print($"type: {shapeType(Shape.Rectangle(2, 3))}")
+    print($"type: {shapeType(Shape.Point)}")
+}

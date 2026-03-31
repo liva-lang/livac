@@ -1,0 +1,11 @@
+// Error Test: E0701 — Fallible function called without error handling
+// EXPECT: E0701
+divide(a: number, b: number): number {
+    if b == 0 => fail "division by zero"
+    return a / b
+}
+
+main() {
+    let result = divide(10, 0)
+    print(result)
+}

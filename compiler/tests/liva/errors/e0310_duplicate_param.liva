@@ -1,0 +1,7 @@
+// Error Test: E0310 — Duplicate function parameter name
+// EXPECT: E0310
+add(x: number, x: number): number => x + x
+
+main() {
+    print(add(1, 2))
+}

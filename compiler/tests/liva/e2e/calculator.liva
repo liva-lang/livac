@@ -1,0 +1,52 @@
+// E2E Test: Calculator
+// Class with methods for add, subtract, multiply
+
+Calculator {
+    _result: number
+
+    constructor() {
+        this._result = 0
+    }
+
+    add(n: number) {
+        this._result = this._result + n
+    }
+
+    subtract(n: number) {
+        this._result = this._result - n
+    }
+
+    multiply(n: number) {
+        this._result = this._result * n
+    }
+
+    getResult(): number => this._result
+
+    reset() {
+        this._result = 0
+    }
+}
+
+main() {
+    let calc = Calculator()
+
+    calc.add(10)
+    print($"After add(10): {calc.getResult()}")
+
+    calc.add(5)
+    print($"After add(5): {calc.getResult()}")
+
+    calc.subtract(3)
+    print($"After subtract(3): {calc.getResult()}")
+
+    calc.multiply(4)
+    print($"After multiply(4): {calc.getResult()}")
+
+    calc.reset()
+    print($"After reset: {calc.getResult()}")
+
+    calc.add(100)
+    calc.subtract(25)
+    calc.multiply(2)
+    print($"Final: {calc.getResult()}")
+}

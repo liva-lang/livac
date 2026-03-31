@@ -1,0 +1,75 @@
+// Compile Test: Generics
+// Covers: generic functions with Numeric, Comparable, Number bounds,
+//         turbofish syntax, generic class with single type param
+
+// Generic identity function
+identity<T: Numeric>(x: T): T => x
+
+// Generic sum of three values
+addThree<T: Numeric>(a: T, b: T, c: T): T => a + b + c
+
+// Generic max using Comparable
+maxVal<T: Comparable>(a: T, b: T): T {
+    if a > b {
+        return a
+    }
+    return b
+}
+
+// Generic clamp using Number (Numeric + Comparable)
+clamp<T: Number>(value: T, lo: T, hi: T): T {
+    if value < lo { return lo }
+    if value > hi { return hi }
+    return value
+}
+
+// Generic min using Number
+minVal<T: Number>(a: T, b: T): T {
+    if a < b {
+        return a
+    }
+    return b
+}
+
+// Generic absolute difference
+absDiff<T: Number>(a: T, b: T): T {
+    if a > b {
+        return a - b
+    }
+    return b - a
+}
+
+main() {
+    // Numeric operations
+    let a = identity<int>(42)
+    print($"identity<int>(42) = {a}")
+
+    let b = identity<float>(3.14)
+    print($"identity<float>(3.14) = {b}")
+
+    let s = addThree<int>(10, 20, 30)
+    print($"addThree<int>(10, 20, 30) = {s}")
+
+    // Comparable operations
+    let m = maxVal<int>(10, 20)
+    print($"maxVal<int>(10, 20) = {m}")
+
+    let mf = maxVal<float>(1.5, 2.7)
+    print($"maxVal<float>(1.5, 2.7) = {mf}")
+
+    // Number operations (combined)
+    let c = clamp<int>(150, 0, 100)
+    print($"clamp<int>(150, 0, 100) = {c}")
+
+    let c2 = clamp<int>(-5, 0, 100)
+    print($"clamp<int>(-5, 0, 100) = {c2}")
+
+    let c3 = clamp<int>(50, 0, 100)
+    print($"clamp<int>(50, 0, 100) = {c3}")
+
+    let mn = minVal<int>(42, 17)
+    print($"minVal<int>(42, 17) = {mn}")
+
+    let d = absDiff<int>(10, 25)
+    print($"absDiff<int>(10, 25) = {d}")
+}

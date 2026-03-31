@@ -1,0 +1,9 @@
+// Error Test: E0901 — Non-exhaustive bool switch (missing false)
+// EXPECT: E0901
+main() {
+    let flag = true
+    let msg = switch flag {
+        true => "yes"
+    }
+    print(msg)
+}

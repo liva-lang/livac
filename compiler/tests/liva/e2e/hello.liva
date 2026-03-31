@@ -1,0 +1,6 @@
+// E2E Test: Hello World
+// Minimal program
+
+main() {
+    print("Hello, Liva!")
+}

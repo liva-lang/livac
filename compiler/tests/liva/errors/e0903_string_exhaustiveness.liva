@@ -1,0 +1,10 @@
+// Error Test: E0903 — Non-exhaustive string switch (needs _ wildcard)
+// EXPECT: E0903
+main() {
+    let day = "Monday"
+    let msg = switch day {
+        "Monday" => "start of week",
+        "Friday" => "end of week"
+    }
+    print(msg)
+}

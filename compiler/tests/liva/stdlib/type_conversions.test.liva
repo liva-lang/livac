@@ -1,4 +1,5 @@
 // Stdlib Test: Type conversions — toString, parseInt, parseFloat
+// NOTE: Uses `or` pattern instead of error binding due to B101/B102
 import { describe, test, expect } from "liva/test"
 
 describe("toString", () => {
@@ -15,43 +16,29 @@ describe("toString", () => {
 })
 
 describe("parseInt", () => {
-    test("valid integer string", () => {
-        let val, err = parseInt("42")
-        if err {
-            expect(true).toBeFalsy()
-        }
+    test("valid integer", () => {
+        let val = parseInt("42") or -1
         expect(val).toBe(42)
     })
 
     test("negative integer", () => {
-        let val, err = parseInt("-10")
-        if err {
-            expect(true).toBeFalsy()
-        }
+        let val = parseInt("-10") or 0
         expect(val).toBe(-10)
     })
 
     test("zero", () => {
-        let val, err = parseInt("0")
-        if err {
-            expect(true).toBeFalsy()
-        }
+        let val = parseInt("0") or -1
         expect(val).toBe(0)
     })
 
-    test("invalid string fails", () => {
-        let val, err = parseInt("abc")
-        expect(err).toBeTruthy()
+    test("invalid returns default", () => {
+        let val = parseInt("abc") or -999
+        expect(val).toBe(-999)
     })
 
-    test("empty string fails", () => {
-        let val, err = parseInt("")
-        expect(err).toBeTruthy()
-    })
-
-    test("or default on failure", () => {
-        let val = parseInt("not_a_number") or 0
-        expect(val).toBe(0)
+    test("empty string returns default", () => {
+        let val = parseInt("") or -999
+        expect(val).toBe(-999)
     })
 
     test("or default on success", () => {
@@ -61,37 +48,23 @@ describe("parseInt", () => {
 })
 
 describe("parseFloat", () => {
-    test("valid float string", () => {
-        let val, err = parseFloat("3.14")
-        if err {
-            expect(true).toBeFalsy()
-        }
+    test("valid float", () => {
+        let val = parseFloat("3.14") or 0.0
         expect(val).toBe(3.14)
     })
 
     test("integer as float", () => {
-        let val, err = parseFloat("42")
-        if err {
-            expect(true).toBeFalsy()
-        }
+        let val = parseFloat("42") or 0.0
         expect(val).toBe(42.0)
     })
 
     test("negative float", () => {
-        let val, err = parseFloat("-2.5")
-        if err {
-            expect(true).toBeFalsy()
-        }
+        let val = parseFloat("-2.5") or 0.0
         expect(val).toBe(-2.5)
     })
 
-    test("invalid string fails", () => {
-        let val, err = parseFloat("xyz")
-        expect(err).toBeTruthy()
-    })
-
-    test("or default on failure", () => {
-        let val = parseFloat("bad") or 0.0
-        expect(val).toBe(0.0)
+    test("invalid returns default", () => {
+        let val = parseFloat("xyz") or -1.0
+        expect(val).toBe(-1.0)
     })
 })

@@ -1,0 +1,103 @@
+// Compile Test: Error Handling
+// Covers: fail, error binding, or value, or fail propagation, if err
+
+// Fallible function using fail
+divide(a: number, b: number): number {
+    if b == 0 {
+        fail "Division by zero"
+    }
+    return a / b
+}
+
+// Another fallible function
+parsePositive(s: string): number {
+    let val, err = parseInt(s)
+    if err {
+        fail $"Cannot parse: {s}"
+    }
+    if val < 0 {
+        fail "Value must be positive"
+    }
+    return val
+}
+
+// or fail — propagation with message
+safeDivide(a: number, b: number): number {
+    let result = divide(a, b) or fail "Division failed in safeDivide"
+    return result
+}
+
+// or value — default fallback
+safeParse(s: string): number {
+    let val = parseInt(s) or 0
+    return val
+}
+
+// Chained error propagation
+compute(a: number, b: number): number {
+    let d = safeDivide(a, b) or fail "Compute failed"
+    return d * 2
+}
+
+main() {
+    // Success case
+    let val1, err1 = divide(10, 2)
+    if err1 {
+        print($"Error: {err1}")
+    } else {
+        print($"10 / 2 = {val1}")
+    }
+
+    // Failure case
+    let val2, err2 = divide(10, 0)
+    if err2 {
+        print($"Expected error: {err2}")
+    } else {
+        print($"Unexpected: {val2}")
+    }
+
+    // or value — default on failure
+    let p1 = safeParse("42")
+    print($"safeParse 42: {p1}")
+
+    let p2 = safeParse("abc")
+    print($"safeParse abc: {p2}")
+
+    // or fail — propagation
+    let val3, err3 = safeDivide(100, 5)
+    if err3 {
+        print($"Error: {err3}")
+    } else {
+        print($"safeDivide(100, 5) = {val3}")
+    }
+
+    let val4, err4 = safeDivide(100, 0)
+    if err4 {
+        print($"safeDivide error caught")
+    }
+
+    // Chained propagation
+    let val5, err5 = compute(20, 4)
+    if err5 {
+        print($"compute error: {err5}")
+    } else {
+        print($"compute(20, 4) = {val5}")
+    }
+
+    // Ignore error with _
+    let val6, _ = divide(10, 3)
+    print($"Ignoring error: {val6}")
+
+    // parsePositive
+    let val7, err7 = parsePositive("25")
+    if err7 {
+        print($"Error: {err7}")
+    } else {
+        print($"parsePositive 25: {val7}")
+    }
+
+    let val8, err8 = parsePositive("-5")
+    if err8 {
+        print($"parsePositive -5 error caught")
+    }
+}

@@ -1,0 +1,7 @@
+// Error Test: E0001 — Variable already defined in scope
+// EXPECT: E0001
+main() {
+    let x = 10
+    let x = 20
+    print(x)
+}
