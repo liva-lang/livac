@@ -4,8 +4,8 @@
 > **Versión:** v2.0.0-dev (tag: v1.2.0)  
 > **Lenguaje:** Rust (bootstrap) + Liva (self-hosting)  
 > **Tests:** 520 passing (518 + 2 ignored)  
-> **Próximo objetivo:** v2.0 — Self-hosting refinement (codegen/main Rust errors)  
-> **Última actualización:** 2026-04-01
+> **Próximo objetivo:** Liva Test Suite — ~65 archivos .liva validando toda la sintaxis y features  
+> **Última actualización:** 2026-03-31
 
 ---
 

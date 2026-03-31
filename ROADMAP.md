@@ -38,6 +38,7 @@ The roadmap is organized into focused phases:
 - **Phase 13:** 🗺️ Map<K,V> & Set<T> Collections - Dictionaries & unique sets (v1.3.0) ✅
 - **Dogfooding v2:** 🏗️ Inventory Manager - 8 bugs fixed, 7 regression tests ✅
 - **Stdlib P0:** 📚 String/Array/Math - 38 new methods, 341 tests ✅
+- **Liva Test Suite:** 🧪 Archivos .liva que validan toda la sintaxis y features documentadas (~65 tests, 6 capas)
 
 ---
 
