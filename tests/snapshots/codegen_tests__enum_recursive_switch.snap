@@ -398,13 +398,13 @@ fn eval(e: Expr) -> i32 {
     return match &e {
         Expr::Num { value: v } => v,
         Expr::Add { left: l, right: r } => {
-            let l = *l;
-            let r = *r;
+            let l = *l.clone();
+            let r = *r.clone();
             eval(l.clone()) + eval(r.clone())
         },
         Expr::Mul { left: l, right: r } => {
-            let l = *l;
-            let r = *r;
+            let l = *l.clone();
+            let r = *r.clone();
             eval(l.clone()) * eval(r.clone())
         },
     };

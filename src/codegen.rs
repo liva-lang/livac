@@ -6863,8 +6863,16 @@ impl CodeGenerator {
                     self.output.push_str(" => {\n");
                     self.indent();
                     // Auto-dereference boxed bindings
+                    // When matching by reference (needs_borrow), binding is &Box<T>,
+                    // so *binding gives Box<T> — need .clone() first to get Box<T>,
+                    // then deref to get T: `*binding.clone()`
+                    // When matching by value, binding is Box<T>, so `*binding` gives T directly.
                     for binding in &boxed_deref_bindings {
-                        self.writeln(&format!("let {} = *{};", binding, binding));
+                        if needs_borrow {
+                            self.writeln(&format!("let {} = *{}.clone();", binding, binding));
+                        } else {
+                            self.writeln(&format!("let {} = *{};", binding, binding));
+                        }
                     }
                     // FIX-3: Clone bindings when matching by reference (&expr)
                     // In `match &expr { Variant { field } => ... }`, field is &T.
@@ -8689,7 +8697,13 @@ impl CodeGenerator {
                 for binding in &boxed_bindings {
                     self.output.push('\n');
                     self.write_indent();
-                    write!(self.output, "let {} = *{};", binding, binding).unwrap();
+                    // When matching by reference (needs_ref), binding is &Box<T>,
+                    // clone to Box<T>, then deref to T: `*binding.clone()`
+                    if needs_ref {
+                        write!(self.output, "let {} = *{}.clone();", binding, binding).unwrap();
+                    } else {
+                        write!(self.output, "let {} = *{};", binding, binding).unwrap();
+                    }
                 }
                 // FIX-3: Clone ref bindings to get owned values
                 for binding in &ref_clone_bindings {

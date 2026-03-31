@@ -5423,8 +5423,8 @@ main() {
     let rust_code = compile_and_generate(source);
     // Auto-boxing in definition
     assert!(rust_code.contains("Box<Expr>"), "Should auto-box recursive fields: {}", rust_code);
-    // Auto-dereference in match arms
-    assert!(rust_code.contains("let l = *l;"), "Should auto-deref boxed bindings: {}", rust_code);
+    // Auto-dereference in match arms (with clone for match-by-reference)
+    assert!(rust_code.contains("let l = *l.clone();"), "Should auto-deref boxed bindings with clone: {}", rust_code);
     assert_snapshot!("enum_recursive_switch", rust_code);
 }
 
