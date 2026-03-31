@@ -2373,7 +2373,10 @@ RustEmitter {
     //  Phase 3.7 — Cargo.toml generation
     // =====================================================================
 
-    generateCargoToml(projectName: string): string {
+    generateCargoToml(projectName: string, usesAsync: bool, usesRegex: bool,
+                      usesHttp: bool, usesDb: bool, usesJson: bool,
+                      usesChrono: bool, usesRandom: bool, usesCrypto: bool,
+                      usesRayon: bool): string {
         let lines: [string] = []
         lines.push("[package]")
         lines.push($"name = \"{projectName}\"")
@@ -2381,7 +2384,61 @@ RustEmitter {
         lines.push("edition = \"2021\"")
         lines.push("")
         lines.push("[dependencies]")
-        // Dependencies will be determined by analyzing imports and features used
+
+        // Core async runtime
+        if usesAsync {
+            lines.push("tokio = { version = \"1\", features = [\"full\"] }")
+        }
+
+        // HTTP server
+        if usesHttp {
+            lines.push("axum = \"0.7\"")
+            lines.push("tower = \"0.4\"")
+            lines.push("tower-http = { version = \"0.5\", features = [\"cors\"] }")
+            // HTTP implies async
+            if !usesAsync {
+                lines.push("tokio = { version = \"1\", features = [\"full\"] }")
+            }
+        }
+
+        // Database
+        if usesDb {
+            lines.push("rusqlite = { version = \"0.31\", features = [\"bundled\"] }")
+        }
+
+        // JSON
+        if usesJson {
+            lines.push("serde = { version = \"1\", features = [\"derive\"] }")
+            lines.push("serde_json = \"1\"")
+        }
+
+        // Regex
+        if usesRegex {
+            lines.push("regex = \"1\"")
+        }
+
+        // Date/Time
+        if usesChrono {
+            lines.push("chrono = \"0.4\"")
+        }
+
+        // Random
+        if usesRandom {
+            lines.push("rand = \"0.8\"")
+        }
+
+        // Crypto
+        if usesCrypto {
+            lines.push("sha2 = \"0.10\"")
+            lines.push("hmac = \"0.12\"")
+            lines.push("hex = \"0.4\"")
+        }
+
+        // Parallel
+        if usesRayon {
+            lines.push("rayon = \"1\"")
+        }
+
         return lines.join("\n")
     }
 }
