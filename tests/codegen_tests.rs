@@ -6630,3 +6630,33 @@ main() {
     assert!(rust_code.contains("let n = n.clone()"), "String binding should be cloned: {}", rust_code);
     assert_snapshot!("switch_borrows_enum_data", rust_code);
 }
+
+#[test]
+fn test_enum_clone_at_call_site() {
+    // FIX-4 (ISSUE-004): Non-Copy enum variables should be cloned when passed to functions
+    // to prevent ownership moves in generated Rust code
+    let source = r#"
+enum Shape {
+    Circle(radius: number)
+    Rectangle(width: number, height: number)
+}
+
+show_shape(s: Shape): string {
+    return switch s {
+        Shape.Circle(r) => "circle"
+        Shape.Rectangle(w, h) => "rect"
+    }
+}
+
+main() {
+    let shape = Shape.Circle(3.14)
+    print(show_shape(shape))
+    print(show_shape(shape))
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // Both calls should clone shape since it's a non-Copy enum with data
+    assert!(rust_code.contains("show_shape(shape.clone())"),
+        "Enum variable should be cloned when passed to function: {}", rust_code);
+    assert_snapshot!("enum_clone_at_call_site", rust_code);
+}

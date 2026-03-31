@@ -387,30 +387,21 @@ mod liva_rt {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum Expr {
-    Num { value: i32 },
-    Add { left: Box<Expr>, right: Box<Expr> },
-    Mul { left: Box<Expr>, right: Box<Expr> },
+enum Shape {
+    Circle { radius: i32 },
+    Rectangle { width: i32, height: i32 },
 }
 
 
-fn eval(e: Expr) -> i32 {
-    return match &e {
-        Expr::Num { value: v } => v,
-        Expr::Add { left: l, right: r } => {
-            let l = *l;
-            let r = *r;
-            eval(l.clone()) + eval(r.clone())
-        },
-        Expr::Mul { left: l, right: r } => {
-            let l = *l;
-            let r = *r;
-            eval(l.clone()) * eval(r.clone())
-        },
+fn show_shape(s: Shape) -> String {
+    return match &s {
+        Shape::Circle { radius: r } => "circle".to_string(),
+        Shape::Rectangle { width: w, height: h } => "rect".to_string(),
     };
 }
 
 fn main() {
-    let expr = Expr::Add { left: Box::new(Expr::Num { value: 1 }), right: Box::new(Expr::Mul { left: Box::new(Expr::Num { value: 2 }), right: Box::new(Expr::Num { value: 3 }) }) };
-    println!("{}", eval(expr.clone()));
+    let shape = Shape::Circle { radius: 3.14_f64 };
+    println!("{}", show_shape(shape.clone()));
+    println!("{}", show_shape(shape.clone()));
 }

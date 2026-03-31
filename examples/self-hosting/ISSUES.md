@@ -37,7 +37,7 @@ let exprBodyOpt: Expr? = exprBody  // exprBody es Expr, no Expr?
 let exprBodyOpt: Expr? = null   // genera Option<Expr> = None;
 exprBodyOpt = exprBody           // genera expr_body_opt = Some(expr_body);
 ```
-- **Estado:** OPEN
+- **Estado:** ✅ FIXED (generates `Some(value)` in VarDecl for T? types)
 
 ---
 
@@ -58,7 +58,7 @@ if someCondition {
 if someCondition { return TypeRef.Array(innerType) }
 return TypeRef.Named("", [])
 ```
-- **Estado:** OPEN
+- **Estado:** ✅ FIXED (could not reproduce — codegen already handles correctly)
 
 ---
 
@@ -78,7 +78,7 @@ expr = Expr.MapLiteral(entries)  // Error: expr was moved
   2. Switch statement (no expression) donde TODOS los arms tienen return
   3. Pasar el valor a una función helper que lo consume en un único switch
   4. Trackear info adicional (bool flags, token indices) para evitar switches
-- **Estado:** OPEN
+- **Estado:** ✅ FIXED (generates `match &variable` for enum data switches)
 
 ---
 
@@ -96,7 +96,7 @@ exprBodyOpt = exprBody  // Error: value already moved
 ```liva
 let containsFail = this._rangeContainsFail(startPos, this.current)  // scan tokens instead
 ```
-- **Estado:** OPEN
+- **Estado:** ✅ FIXED (clone at call site for non-Copy types — enum/class/string/etc.)
 
 ---
 
@@ -170,7 +170,7 @@ opForStmt = switch this.tokens[compoundIdx].kind {  // switch duplicado idéntic
 ```
 - **Causa raíz:** Combinación de ISSUE-001 + ISSUE-003.
 - **Workaround:** Duplicar el switch.
-- **Estado:** OPEN — se resuelve automáticamente al fijar ISSUE-001 + ISSUE-003.
+- **Estado:** ✅ FIXED — resolved by ISSUE-001 + ISSUE-003 fixes.
 
 ---
 

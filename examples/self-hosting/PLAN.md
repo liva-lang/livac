@@ -1,6 +1,6 @@
 # Self-Hosting: Compilador de Liva escrito en Liva
 
-> **Estado:** Fase 0 en progreso (FIX-5 ✅, FIX-6 ✅ — quedan FIX-1/2/3/4)
+> **Estado:** Fase 0 completada ✅ (FIX-1 ✅, FIX-2 ✅, FIX-3 ✅, FIX-4 ✅, FIX-5 ✅, FIX-6 ✅)
 > **Última actualización:** 2026-03-31
 
 ---
@@ -75,14 +75,14 @@ COMPILADOR LIVA (nuevo):
 El compilador Rust solo necesita ser "lo bastante bueno" para compilar el compilador Liva.
 Estos son los bugs que bloquean la escritura cómoda de Liva:
 
-| # | Fix | Impacto | Dificultad |
-|---|-----|---------|------------|
-| FIX-1 | `let x: T? = value` → generar `Some(value)` (ISSUE-001) | Elimina 15+ workarounds | Media |
-| FIX-2 | Reassignment de enum sin `Some()` espurio (ISSUE-002) | Elimina 8 workarounds | Media |
-| FIX-3 | `switch` genera `match &expr` si variable se usa después (ISSUE-003) | **Blocker** — sin esto no hay pattern matching útil | Alta |
-| FIX-4 | Parámetros no-Copy por referencia `&T` (ISSUE-004) | **Blocker** — sin esto no puedes pasar structs a funciones | Alta |
-| FIX-5 | `#[derive(Copy)]` para enums unitarios (QF-1) | BinOp, Visibility, etc. dejan de dar move errors | Trivial |
-| FIX-6 | Borrar `IrCodeGenerator` dead code (~3.700 líneas) | Limpieza, menos confusión | Trivial |
+| # | Fix | Impacto | Estado |
+|---|-----|---------|--------|
+| FIX-1 | `let x: T? = value` → generar `Some(value)` (ISSUE-001) | Elimina 15+ workarounds | ✅ |
+| FIX-2 | Reassignment de enum sin `Some()` espurio (ISSUE-002) | Elimina 8 workarounds | ✅ No reproduce |
+| FIX-3 | `switch` genera `match &expr` si variable se usa después (ISSUE-003) | **Blocker** — sin esto no hay pattern matching útil | ✅ |
+| FIX-4 | Non-Copy params: clone at call site (ISSUE-004) | **Blocker** — sin esto no puedes pasar structs a funciones | ✅ |
+| FIX-5 | `#[derive(Copy)]` para enums unitarios (QF-1) | BinOp, Visibility, etc. dejan de dar move errors | ✅ |
+| FIX-6 | Borrar `IrCodeGenerator` dead code (~3.700 líneas) | Limpieza, menos confusión | ✅ |
 
 **Criterio de salida:** Los 520 tests actuales siguen verdes + los 4 módulos del
 self-hosting (token/ast/lexer/parser) se pueden reescribir sin workarounds.

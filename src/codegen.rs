@@ -6066,6 +6066,16 @@ impl CodeGenerator {
                             }
                             // Date.now() / Date.new() returns chrono::NaiveDateTime
                             if let Expr::Identifier(obj_name) = method_call.object.as_ref() {
+                                // FIX-4: Track variables assigned from enum variant construction
+                                // e.g., let expr = Expr.Identifier("x") → expr is of type Expr
+                                if self.enum_variants.contains_key(obj_name.as_str()) {
+                                    if let Some(name) = binding.name() {
+                                        let san = self.sanitize_name(name);
+                                        self.var_types.insert(san.clone(), obj_name.clone());
+                                        // Track as class instance for clone behavior
+                                        self.class_instance_vars.insert(san);
+                                    }
+                                }
                                 if obj_name == "Date" && matches!(method_call.method.as_str(), "now" | "new") {
                                     if let Some(name) = binding.name() {
                                         self.date_vars.insert(name.to_string());
@@ -9356,13 +9366,26 @@ impl CodeGenerator {
             } else if let Expr::Identifier(name) = arg {
                 // B17 fix: Clone non-Copy variables when passing to functions
                 // to avoid ownership issues (Rust moves String/struct/Vec/HashMap by default)
+                // FIX-4 (ISSUE-004): Broadened to clone ANY non-Copy variable, not just
+                // those tracked in specific HashSets. This prevents move errors for
+                // enum types, cross-module classes, and any other non-Copy types.
                 let sanitized = self.sanitize_name(name);
-                if self.class_instance_vars.contains(&sanitized)
-                    || self.string_vars.contains(&sanitized)
-                    || self.map_vars.contains(&sanitized)
-                    || self.array_vars.contains(&sanitized)
-                    || self.json_value_vars.contains(&sanitized)
+                let is_known_copy = self.is_copy_var(&sanitized);
+                if !is_known_copy
+                    && (self.class_instance_vars.contains(&sanitized)
+                        || self.string_vars.contains(&sanitized)
+                        || self.map_vars.contains(&sanitized)
+                        || self.array_vars.contains(&sanitized)
+                        || self.json_value_vars.contains(&sanitized)
+                        || self.var_types.contains_key(&sanitized)
+                        || self.mutated_vars.contains(&sanitized)
+                        || self.option_value_vars.contains(&sanitized))
                 {
+                    self.generate_expr(arg)?;
+                    self.output.push_str(".clone()");
+                } else if !is_known_copy && self.looks_like_non_copy_var(&sanitized) {
+                    // FIX-4: Catch-all for variables not tracked in any set
+                    // but that are likely non-Copy (not a known primitive identifier)
                     self.generate_expr(arg)?;
                     self.output.push_str(".clone()");
                 } else {
@@ -14894,6 +14917,42 @@ impl CodeGenerator {
             BinOp::Or => 50,
             BinOp::Range | BinOp::RangeInclusive => 40,
         }
+    }
+
+    /// FIX-4: Check if a variable is known to be a Copy type (doesn't need cloning)
+    fn is_copy_var(&self, name: &str) -> bool {
+        // If we know the variable's Liva type, check directly
+        if let Some(type_name) = self.var_types.get(name) {
+            if matches!(type_name.as_str(), "int" | "float" | "number" | "bool" | "f32" | "f64") {
+                return true;
+            }
+            // Check if it's a unit enum (Copy from FIX-5)
+            if let Some(variants) = self.enum_variants.get(type_name.as_str()) {
+                if variants.values().all(|fields| fields.is_empty()) {
+                    return true;
+                }
+            }
+        }
+        // Known integer/bool literals get inferred as Copy
+        false
+    }
+
+    /// FIX-4: Heuristic to detect likely non-Copy variables not tracked in any HashSet.
+    /// Returns true only if the variable is a known non-Copy type from var_types
+    /// or enum_variants that wasn't caught by the primary HashSet checks.
+    fn looks_like_non_copy_var(&self, name: &str) -> bool {
+        // Check if it's a known enum variable (from enum construction tracking)
+        if let Some(type_name) = self.var_types.get(name) {
+            // Check if it's an enum with data (non-Copy)
+            if let Some(variants) = self.enum_variants.get(type_name.as_str()) {
+                return !variants.values().all(|fields| fields.is_empty());
+            }
+            // If it's in var_types and not a known Copy type, it's likely non-Copy
+            return !matches!(type_name.as_str(),
+                "int" | "float" | "number" | "bool" | "f32" | "f64" | "i32" | "i64"
+            );
+        }
+        false
     }
 
     fn block_has_return(&self, block: &BlockStmt) -> bool {

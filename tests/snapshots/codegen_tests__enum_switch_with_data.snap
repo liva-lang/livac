@@ -405,6 +405,6 @@ fn area(shape: Shape) -> i32 {
 fn main() {
     let circle = Shape::Circle { radius: 5_f64 };
     let rect = Shape::Rectangle { width: 10_f64, height: 20_f64 };
-    println!("{}", area(circle));
-    println!("{}", area(rect));
+    println!("{}", area(circle.clone()));
+    println!("{}", area(rect.clone()));
 }
