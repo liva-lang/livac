@@ -1,0 +1,28 @@
+// Syntax Test: Defer
+// Covers: defer statement (inline), defer block, LIFO order
+
+cleanup(label: string) {
+    print($"Cleanup: {label}")
+}
+
+main() {
+    // Inline defer
+    print("1: start")
+    defer print("5: first defer (runs last)")
+    print("2: working")
+
+    // Second defer — LIFO order means this runs before the first
+    defer print("4: second defer")
+    print("3: still working")
+
+    // Defer with function call
+    defer cleanup("resources")
+
+    // Defer block
+    defer {
+        print("Defer block: cleaning up A")
+        print("Defer block: cleaning up B")
+    }
+
+    print("Main work done")
+}

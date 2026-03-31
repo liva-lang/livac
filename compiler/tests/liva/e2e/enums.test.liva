@@ -1,0 +1,94 @@
+// E2E Test: Enums — unit, data variants, pattern matching, recursive
+import { describe, test, expect } from "liva/test"
+
+enum Color { Red, Green, Blue }
+
+enum Shape {
+    Circle(radius: number),
+    Rectangle(width: number, height: number),
+    Point
+}
+
+enum Expr {
+    Num(value: number),
+    Add(left: Expr, right: Expr),
+    Neg(inner: Expr)
+}
+
+describeShape(s: Shape): string {
+    return switch s {
+        Shape.Circle(r) => $"Circle r={r}",
+        Shape.Rectangle(w, h) => $"Rect {w}x{h}",
+        Shape.Point => "Point"
+    }
+}
+
+eval(e: Expr): number {
+    return switch e {
+        Expr.Num(v) => v,
+        Expr.Add(l, r) => eval(l) + eval(r),
+        Expr.Neg(inner) => 0 - eval(inner)
+    }
+}
+
+describe("Unit Enums", () => {
+    test("enum variant identity", () => {
+        let c = Color.Red
+        let msg = switch c {
+            Color.Red => "red",
+            Color.Green => "green",
+            Color.Blue => "blue"
+        }
+        expect(msg).toBe("red")
+    })
+
+    test("all unit variants", () => {
+        expect(switch Color.Green { Color.Red => "r", Color.Green => "g", Color.Blue => "b" }).toBe("g")
+        expect(switch Color.Blue { Color.Red => "r", Color.Green => "g", Color.Blue => "b" }).toBe("b")
+    })
+})
+
+describe("Enums with Data", () => {
+    test("circle pattern matching", () => {
+        let s = Shape.Circle(5)
+        expect(describeShape(s)).toBe("Circle r=5")
+    })
+
+    test("rectangle pattern matching", () => {
+        let s = Shape.Rectangle(3, 4)
+        expect(describeShape(s)).toBe("Rect 3x4")
+    })
+
+    test("unit variant in data enum", () => {
+        expect(describeShape(Shape.Point)).toBe("Point")
+    })
+})
+
+describe("Recursive Enums", () => {
+    test("simple number", () => {
+        expect(eval(Expr.Num(42))).toBe(42)
+    })
+
+    test("addition", () => {
+        let expr = Expr.Add(Expr.Num(2), Expr.Num(3))
+        expect(eval(expr)).toBe(5)
+    })
+
+    test("negation", () => {
+        let expr = Expr.Neg(Expr.Num(7))
+        expect(eval(expr)).toBe(-7)
+    })
+
+    test("nested expression: (1 + -(3)) = -2", () => {
+        let expr = Expr.Add(Expr.Num(1), Expr.Neg(Expr.Num(3)))
+        expect(eval(expr)).toBe(-2)
+    })
+
+    test("deeply nested: (2 + 3) + 5 = 10", () => {
+        let expr = Expr.Add(
+            Expr.Add(Expr.Num(2), Expr.Num(3)),
+            Expr.Num(5)
+        )
+        expect(eval(expr)).toBe(10)
+    })
+})

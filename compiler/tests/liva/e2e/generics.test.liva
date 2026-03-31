@@ -1,0 +1,28 @@
+// E2E Test: Generics — generic functions
+// NOTE: Generic classes (Box<T>, Pair<A,B>) excluded due to codegen bugs:
+//   B103: auto-Display impl lacks Display bound on type params
+//   B104: get(): T => this.value moves from &self without .clone()
+import { describe, test, expect } from "liva/test"
+
+identity<T>(x: T): T => x
+
+firstOf<T>(a: T, b: T): T => a
+
+describe("Generic Functions", () => {
+    test("identity with number", () => {
+        expect(identity(42)).toBe(42)
+    })
+
+    test("identity with string", () => {
+        expect(identity("hello")).toBe("hello")
+    })
+
+    test("identity with bool", () => {
+        expect(identity(true)).toBeTruthy()
+    })
+
+    test("firstOf returns first argument", () => {
+        expect(firstOf(1, 2)).toBe(1)
+        expect(firstOf("x", "y")).toBe("x")
+    })
+})

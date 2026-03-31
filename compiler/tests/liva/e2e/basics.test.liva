@@ -1,0 +1,52 @@
+// E2E Test: Variables, constants, type inference, reassignment, string templates
+import { describe, test, expect } from "liva/test"
+
+describe("Variables", () => {
+    test("let and const", () => {
+        let x = 10
+        const MAX = 100
+        expect(x).toBe(10)
+        expect(MAX).toBe(100)
+    })
+
+    test("type inference", () => {
+        let n = 42
+        let s = "hello"
+        let b = true
+        let f = 3.14
+        expect(n).toBe(42)
+        expect(s).toBe("hello")
+        expect(b).toBe(true)
+        expect(f).toBe(3.14)
+    })
+
+    test("reassignment", () => {
+        let x = 1
+        x = 2
+        x = 3
+        expect(x).toBe(3)
+    })
+
+    test("string templates", () => {
+        let name = "Liva"
+        let version = 2
+        let msg = $"Hello, {name} v{version}!"
+        expect(msg).toBe("Hello, Liva v2!")
+    })
+
+    test("string template with expression", () => {
+        let a = 10
+        let b = 20
+        let result = $"Sum: {a + b}"
+        expect(result).toBe("Sum: 30")
+    })
+
+    test("explicit type annotation", () => {
+        let x: number = 42
+        let name: string = "Alice"
+        let flag: bool = false
+        expect(x).toBe(42)
+        expect(name).toBe("Alice")
+        expect(flag).toBe(false)
+    })
+})

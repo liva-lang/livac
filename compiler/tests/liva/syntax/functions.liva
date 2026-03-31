@@ -1,0 +1,70 @@
+// Syntax Test: Functions
+// Covers: arrow one-liner, block function, typed params/returns,
+//         default params, tuple return, functions calling functions
+
+// Arrow one-liner (implicit return)
+add(a: number, b: number): number => a + b
+
+// Arrow with type inference
+double(x: number) => x * 2
+
+// Block function with explicit return
+multiply(a: number, b: number): number {
+    let result = a * b
+    return result
+}
+
+// Default parameters
+greet(name: string = "World"): string => $"Hello, {name}!"
+
+// Typed parameters with multiple types
+formatEntry(key: string, value: number, prefix: string = ""): string {
+    if prefix == "" {
+        return $"{key}: {value}"
+    }
+    return $"{prefix} {key}: {value}"
+}
+
+// Tuple return
+getMinMax(a: number, b: number): (number, number) {
+    if a < b {
+        return (a, b)
+    }
+    return (b, a)
+}
+
+// Functions calling functions
+sumOfDoubles(a: number, b: number): number {
+    let da = double(a)
+    let db = double(b)
+    return add(da, db)
+}
+
+// Block function with multiple returns
+classify(n: number): string {
+    if n < 0 {
+        return "negative"
+    }
+    if n == 0 {
+        return "zero"
+    }
+    return "positive"
+}
+
+main() {
+    print($"add: {add(3, 4)}")
+    print($"double: {double(5)}")
+    print($"multiply: {multiply(6, 7)}")
+    print(greet())
+    print(greet("Alice"))
+    print(formatEntry("score", 95))
+    print(formatEntry("score", 95, ">>"))
+
+    let pair = getMinMax(20, 10)
+    print($"minmax: {pair}")
+
+    print($"sumOfDoubles: {sumOfDoubles(3, 4)}")
+    print($"classify -1: {classify(-1)}")
+    print($"classify 0: {classify(0)}")
+    print($"classify 5: {classify(5)}")
+}

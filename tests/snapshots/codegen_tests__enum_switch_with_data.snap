@@ -396,8 +396,15 @@ enum Shape {
 
 fn area(shape: Shape) -> i32 {
     return match &shape {
-        Shape::Circle { radius: r } => 3.14159_f64 * r * r,
-        Shape::Rectangle { width: w, height: h } => w * h,
+        Shape::Circle { radius: r } => {
+            let r = r.clone();
+            3.14159_f64 * r * r
+        },
+        Shape::Rectangle { width: w, height: h } => {
+            let w = w.clone();
+            let h = h.clone();
+            w * h
+        },
         Shape::Point => 0_f64,
     };
 }

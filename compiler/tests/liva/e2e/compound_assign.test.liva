@@ -1,0 +1,80 @@
+// E2E Test: Compound assignment operators
+import { describe, test, expect } from "liva/test"
+
+describe("Compound Assignment", () => {
+    test("add-assign", () => {
+        let x = 10
+        x += 5
+        expect(x).toBe(15)
+    })
+
+    test("sub-assign", () => {
+        let x = 20
+        x -= 8
+        expect(x).toBe(12)
+    })
+
+    test("mul-assign", () => {
+        let x = 3
+        x *= 4
+        expect(x).toBe(12)
+    })
+
+    test("div-assign", () => {
+        let x = 20
+        x /= 4
+        expect(x).toBe(5)
+    })
+
+    test("mod-assign", () => {
+        let x = 17
+        x %= 5
+        expect(x).toBe(2)
+    })
+})
+
+describe("Compound Assignment in Loops", () => {
+    test("sum accumulator in loop", () => {
+        let sum = 0
+        for i in 1..=10 {
+            sum += i
+        }
+        expect(sum).toBe(55)
+    })
+
+    test("product accumulator in loop", () => {
+        let product = 1
+        for i in 1..=5 {
+            product *= i
+        }
+        expect(product).toBe(120)
+    })
+
+    test("decrement in loop", () => {
+        let val = 100
+        for i in 0..5 {
+            val -= 10
+        }
+        expect(val).toBe(50)
+    })
+})
+
+describe("Compound Assignment with Floats", () => {
+    test("float add-assign", () => {
+        let x: float = 1.5
+        x += 2.5
+        expect(x).toBe(4.0)
+    })
+
+    test("float mul-assign", () => {
+        let x: float = 3.0
+        x *= 2.0
+        expect(x).toBe(6.0)
+    })
+
+    test("float div-assign", () => {
+        let x: float = 10.0
+        x /= 4.0
+        expect(x).toBe(2.5)
+    })
+})

@@ -1,0 +1,7 @@
+import { describe, test, expect } from "liva/test"
+
+describe("Smoke", () => {
+    test("basic arithmetic", () => {
+        expect(2 + 2).toBe(4)
+    })
+})

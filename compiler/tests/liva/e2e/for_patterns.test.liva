@@ -1,0 +1,95 @@
+// E2E Test: For loop patterns — range, inclusive, array, enumerate, map iteration
+import { describe, test, expect } from "liva/test"
+
+describe("For Range", () => {
+    test("exclusive range 0..5", () => {
+        let result: [number] = []
+        for i in 0..5 {
+            result.push(i)
+        }
+        expect(result).toBe([0, 1, 2, 3, 4])
+    })
+
+    test("range starts at non-zero", () => {
+        let result: [number] = []
+        for i in 3..6 {
+            result.push(i)
+        }
+        expect(result).toBe([3, 4, 5])
+    })
+})
+
+describe("For Inclusive Range", () => {
+    test("inclusive range 1..=3", () => {
+        let result: [number] = []
+        for i in 1..=3 {
+            result.push(i)
+        }
+        expect(result).toBe([1, 2, 3])
+    })
+
+    test("inclusive single element 5..=5", () => {
+        let result: [number] = []
+        for i in 5..=5 {
+            result.push(i)
+        }
+        expect(result).toBe([5])
+    })
+})
+
+describe("For Over Array", () => {
+    test("iterates all elements", () => {
+        let items = ["a", "b", "c"]
+        let result = ""
+        for item in items {
+            result += item
+        }
+        expect(result).toBe("abc")
+    })
+
+    test("empty array does nothing", () => {
+        let items: [number] = []
+        let count = 0
+        for item in items {
+            count += 1
+        }
+        expect(count).toBe(0)
+    })
+})
+
+describe("For Enumerate", () => {
+    test("provides index and item", () => {
+        let names = ["Alice", "Bob", "Carol"]
+        let indices: [number] = []
+        let values: [string] = []
+        for i, name in names {
+            indices.push(i)
+            values.push(name)
+        }
+        expect(indices).toBe([0, 1, 2])
+        expect(values).toBe(["Alice", "Bob", "Carol"])
+    })
+
+    test("enumerate with single element", () => {
+        let items = [42]
+        let idx = -1
+        let val = 0
+        for i, item in items {
+            idx = i
+            val = item
+        }
+        expect(idx).toBe(0)
+        expect(val).toBe(42)
+    })
+})
+
+describe("For Over Map", () => {
+    test("iterates key-value pairs", () => {
+        let m = Map { "a": 1, "b": 2 }
+        let count = 0
+        for key, value in m {
+            count += 1
+        }
+        expect(count).toBe(2)
+    })
+})

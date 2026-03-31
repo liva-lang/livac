@@ -395,8 +395,15 @@ enum Shape {
 
 fn show_shape(s: Shape) -> String {
     return match &s {
-        Shape::Circle { radius: r } => "circle".to_string(),
-        Shape::Rectangle { width: w, height: h } => "rect".to_string(),
+        Shape::Circle { radius: r } => {
+            let r = r.clone();
+            "circle".to_string()
+        },
+        Shape::Rectangle { width: w, height: h } => {
+            let w = w.clone();
+            let h = h.clone();
+            "rect".to_string()
+        },
     };
 }
 

@@ -1,0 +1,89 @@
+// Stdlib Test: Set methods
+import { describe, test, expect } from "liva/test"
+
+describe("Set Creation and Access", () => {
+    test("literal creation", () => {
+        let s = Set { "red", "green", "blue" }
+        expect(s.has("red")).toBeTruthy()
+        expect(s.has("green")).toBeTruthy()
+        expect(s.has("blue")).toBeTruthy()
+    })
+
+    test("length", () => {
+        let s = Set { 1, 2, 3 }
+        expect(s.length).toBe(3)
+    })
+
+    test("no duplicates", () => {
+        let s = Set { 1, 1, 2, 2, 3 }
+        expect(s.length).toBe(3)
+    })
+})
+
+describe("Set Mutation", () => {
+    test("add", () => {
+        let s = Set { "a", "b" }
+        s.add("c")
+        expect(s.has("c")).toBeTruthy()
+    })
+
+    test("delete", () => {
+        let s = Set { "a", "b", "c" }
+        s.delete("b")
+        expect(s.has("b")).toBeFalsy()
+        expect(s.has("a")).toBeTruthy()
+    })
+
+    test("clear", () => {
+        let s = Set { 1, 2, 3 }
+        s.clear()
+        expect(s.length).toBe(0)
+    })
+})
+
+describe("Set Operations", () => {
+    test("union", () => {
+        let a = Set { 1, 2, 3 }
+        let b = Set { 3, 4, 5 }
+        let u = a.union(b)
+        expect(u.has(1)).toBeTruthy()
+        expect(u.has(3)).toBeTruthy()
+        expect(u.has(5)).toBeTruthy()
+    })
+
+    test("intersection", () => {
+        let a = Set { 1, 2, 3, 4 }
+        let b = Set { 3, 4, 5, 6 }
+        let i = a.intersection(b)
+        expect(i.has(3)).toBeTruthy()
+        expect(i.has(4)).toBeTruthy()
+        expect(i.has(1)).toBeFalsy()
+        expect(i.has(5)).toBeFalsy()
+    })
+
+    test("difference", () => {
+        let a = Set { 1, 2, 3 }
+        let b = Set { 2, 3, 4 }
+        let d = a.difference(b)
+        expect(d.has(1)).toBeTruthy()
+        expect(d.has(2)).toBeFalsy()
+        expect(d.has(3)).toBeFalsy()
+    })
+})
+
+describe("Set Iteration", () => {
+    test("values returns array", () => {
+        let s = Set { "x", "y", "z" }
+        let v = s.values()
+        expect(v.length()).toBe(3)
+    })
+
+    test("forEach iterates all elements", () => {
+        let s = Set { 10, 20, 30 }
+        let count = 0
+        s.forEach((item) => {
+            count += 1
+        })
+        expect(count).toBe(3)
+    })
+})

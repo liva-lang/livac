@@ -407,6 +407,6 @@ fn main() {
     println!("{}", double(5));
     println!("{}", square(4));
     println!("{}", greet("World".to_string()));
-    println!("{}", connect("localhost".to_string()));
+    println!("{}", connect("localhost".to_string(), 8080));
     println!("{}", connect("localhost".to_string(), 3000));
 }

@@ -23,15 +23,18 @@ AHORA (durante desarrollo):
   ├── src/              ← bootstrap compiler (Rust) — necesario para compilar
   ├── compiler/
   │   ├── src/          ← compilador Liva (en desarrollo)
+  │   ├── tests/
+  │   │   ├── liva/     ← Liva Test Suite (.liva files)
+  │   │   └── bootstrap_test.sh
   │   └── docs/         ← PLAN.md, ISSUES.md
-  ├── tests/            ← tests del bootstrap
+  ├── tests/            ← tests del bootstrap (Rust)
   └── Cargo.toml
 
-DESPUÉS (Fase 4 completada — self-hosting funcional):
+DESPUÉS (promoción — self-hosting funcional):
   livac/
   ├── src/              ← compilador Liva (promovido desde compiler/src/)
+  ├── tests/            ← Liva Test Suite (promovido desde compiler/tests/)
   ├── docs/
-  ├── tests/            ← tests del compilador Liva
   └── bootstrap/        ← compilador Rust (congelado, solo para primer build)
       ├── src/
       ├── tests/
@@ -380,23 +383,35 @@ fn generateMemberAccess(obj: Expr, prop: string, ctx: TypeContext) {
 > **Objetivo:** Crear suite completa de tests escritos EN Liva que validen toda la sintaxis y features documentadas en `docs/`.
 > **Estimación:** 2-3 sesiones
 > **Dependencia:** Compilador funcional (Fase 0-4)
-> **Directorio:** `tests/liva/`
-> **Runner:** `tests/liva/run_tests.sh` con filtros por capa
+> **Directorio:** `compiler/tests/liva/` (se promueve a `tests/liva/` con el resto del compiler)
+> **Runner:** `compiler/tests/liva/run_tests.sh` con filtros por capa
 
 Los 520 tests actuales son tests Rust que validan el compilador desde dentro.
 Pero no hay una suite de archivos `.liva` que valide sistemáticamente que el
 lenguaje funciona como está documentado. Esta fase llena ese gap.
 
+> **OBLIGATORIO:** Cada test `.liva` DEBE estar basado en la documentación de `livac/docs/`.
+> Antes de escribir cualquier test, consultar:
+> 1. `livac/docs/QUICK_REFERENCE.md` — sintaxis, gotchas, edge cases
+> 2. `livac/docs/README.md` — documentación completa del lenguaje
+> 3. `livac/skills/liva-lang/SKILL.md` — referencia compacta con reglas críticas
+> 4. `livac/docs/language-reference/` — referencia detallada por tema (variables, functions, etc.)
+> 5. `livac/docs/guides/` — guías de estilo, error handling, etc.
+>
+> Los tests son la **validación viva** de que la documentación es correcta.
+> Si un test falla, puede ser un bug del compilador O un error en la documentación.
+> Ambos deben investigarse.
+
 **6 capas de testing:**
 
 | # | Capa | Directorio | Validación | Método | Archivos |
 |---|------|-----------|------------|--------|----------|
-| 1 | **Syntax** | `tests/liva/syntax/` | Parse + semantic OK | `livac check` | ~15 |
-| 2 | **Compile** | `tests/liva/compile/` | Codegen → Rust válido | `livac build` + cargo check | ~8 |
-| 3 | **E2E Runtime** | `tests/liva/e2e/` | Pipeline completo + output correcto | build + run + comparar .expected | ~10 |
-| 4 | **Stdlib** | `tests/liva/stdlib/` | Cada módulo stdlib | build + run | ~18 |
-| 5 | **Stdlib-IO** | `tests/liva/stdlib-io/` | File, Dir, DB, HTTP (opt-in) | build + run | ~4 |
-| 6 | **Errors** | `tests/liva/errors/` | Errores esperados (negativos) | `livac check`, debe fallar | ~10 |
+| 1 | **Syntax** | `compiler/tests/liva/syntax/` | Parse + semantic OK | `livac check` | ~15 |
+| 2 | **Compile** | `compiler/tests/liva/compile/` | Codegen → Rust válido | `livac build` + cargo check | ~8 |
+| 3 | **E2E Runtime** | `compiler/tests/liva/e2e/` | Pipeline completo + output correcto | build + run + comparar .expected | ~10 |
+| 4 | **Stdlib** | `compiler/tests/liva/stdlib/` | Cada módulo stdlib | build + run | ~18 |
+| 5 | **Stdlib-IO** | `compiler/tests/liva/stdlib-io/` | File, Dir, DB, HTTP (opt-in) | build + run | ~4 |
+| 6 | **Errors** | `compiler/tests/liva/errors/` | Errores esperados (negativos) | `livac check`, debe fallar | ~10 |
 
 **Syntax catalog (~15 archivos):**
 - variables, functions, classes, enums, generics, control_flow
@@ -426,10 +441,10 @@ lenguaje funciona como está documentado. Esta fase llena ese gap.
 
 **Test runner:**
 ```bash
-./tests/liva/run_tests.sh              # todo menos stdlib-io
-./tests/liva/run_tests.sh --all        # incluye stdlib-io
-./tests/liva/run_tests.sh --only e2e   # solo una capa
-./tests/liva/run_tests.sh --only stdlib # solo stdlib
+./compiler/tests/liva/run_tests.sh              # todo menos stdlib-io
+./compiler/tests/liva/run_tests.sh --all        # incluye stdlib-io
+./compiler/tests/liva/run_tests.sh --only e2e   # solo una capa
+./compiler/tests/liva/run_tests.sh --only stdlib # solo stdlib
 ```
 
 ---

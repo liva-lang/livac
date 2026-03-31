@@ -1,0 +1,89 @@
+// E2E Test: Pattern matching — switch expressions, bindings, guards, or-patterns
+import { describe, test, expect } from "liva/test"
+
+enum Shape {
+    Circle(radius: number),
+    Rectangle(width: number, height: number),
+    Point
+}
+
+describeShape(s: Shape): string {
+    return switch s {
+        Shape.Circle(r) => $"circle:{r}",
+        Shape.Rectangle(w, h) => $"rect:{w}x{h}",
+        Shape.Point => "point"
+    }
+}
+
+classify(n: number): string {
+    return switch n {
+        0 => "zero",
+        1 | 2 | 3 => "small",
+        4..=10 => "medium",
+        n if n > 100 => "huge",
+        _ => "other"
+    }
+}
+
+describe("Value Binding", () => {
+    test("binds matched value", () => {
+        let label = switch 42 {
+            0 => "zero",
+            n => $"number:{n}"
+        }
+        expect(label).toBe("number:42")
+    })
+})
+
+describe("Or-Patterns", () => {
+    test("matches multiple values", () => {
+        expect(classify(1)).toBe("small")
+        expect(classify(2)).toBe("small")
+        expect(classify(3)).toBe("small")
+    })
+
+    test("weekend detection", () => {
+        let day = "Sunday"
+        let kind = switch day {
+            "Saturday" | "Sunday" => "Weekend",
+            _ => "Weekday"
+        }
+        expect(kind).toBe("Weekend")
+    })
+})
+
+describe("Range Patterns", () => {
+    test("inclusive range match", () => {
+        expect(classify(4)).toBe("medium")
+        expect(classify(7)).toBe("medium")
+        expect(classify(10)).toBe("medium")
+    })
+})
+
+describe("Wildcard", () => {
+    test("catches unmatched values", () => {
+        expect(classify(50)).toBe("other")
+        expect(classify(-5)).toBe("other")
+    })
+})
+
+describe("Guards", () => {
+    test("guard condition filters match", () => {
+        expect(classify(200)).toBe("huge")
+        expect(classify(101)).toBe("huge")
+    })
+})
+
+describe("Enum Destructuring", () => {
+    test("extracts circle radius", () => {
+        expect(describeShape(Shape.Circle(10))).toBe("circle:10")
+    })
+
+    test("extracts rectangle dimensions", () => {
+        expect(describeShape(Shape.Rectangle(5, 3))).toBe("rect:5x3")
+    })
+
+    test("matches unit variant", () => {
+        expect(describeShape(Shape.Point)).toBe("point")
+    })
+})

@@ -500,10 +500,10 @@
 ### Liva Test Suite — archivos .liva que validan el lenguaje
 
 > **Foco:** Crear suite completa de tests escritos EN Liva que validen toda la sintaxis y features documentadas.
-> **Directorio:** `tests/liva/`
-> **Runner:** `tests/liva/run_tests.sh` con filtros por capa
+> **Directorio:** `compiler/tests/liva/` (se promueve a `tests/liva/` con el resto del compiler)
+> **Runner:** `compiler/tests/liva/run_tests.sh` con filtros por capa
 
-**Capa 1: Syntax (`tests/liva/syntax/`)** — `livac check`, sin compilar
+**Capa 1: Syntax (`compiler/tests/liva/syntax/`)** — `livac check`, sin compilar
 - [ ] variables.liva — let, const, type inference, top-level const
 - [ ] functions.liva — block, one-liner `=>`, typed params/returns, default params
 - [ ] classes.liva — constructor, methods, visibility, data classes
@@ -520,7 +520,7 @@
 - [ ] compound_assign.liva — `+=`, `-=`, `*=`, `/=`, `%=`
 - [ ] rust_interop.liva — `rust { }` blocks, `use rust`
 
-**Capa 2: Compile (`tests/liva/compile/`)** — `livac build`, cargo check
+**Capa 2: Compile (`compiler/tests/liva/compile/`)** — `livac build`, cargo check
 - [ ] basic_program.liva — hello world, variables, functions
 - [ ] class_program.liva — class con métodos, constructores
 - [ ] enum_program.liva — enums con switch exhaustivo
@@ -530,7 +530,7 @@
 - [ ] closures.liva — lambdas como parámetros, map/filter/reduce
 - [ ] multifile/ — proyecto multi-archivo con imports
 
-**Capa 3: E2E Runtime (`tests/liva/e2e/`)** — build + run + comparar output
+**Capa 3: E2E Runtime (`compiler/tests/liva/e2e/`)** — build + run + comparar output
 - [ ] hello.liva + hello.expected — pipeline completo mínimo
 - [ ] fibonacci.liva + fibonacci.expected — recursión, expresiones
 - [ ] calculator.liva + calculator.expected — clases, switch, métodos
@@ -542,7 +542,7 @@
 - [ ] string_utils.liva + string_utils.expected — string processing intensivo
 - [ ] for_patterns.liva + for_patterns.expected — for i,v in array, for k,v in map, ranges
 
-**Capa 4: Stdlib (`tests/liva/stdlib/`)** — build + run, métodos stdlib
+**Capa 4: Stdlib (`compiler/tests/liva/stdlib/`)** — build + run, métodos stdlib
 - [ ] string_methods_1.liva — contains, replace, split, trim, case, indexOf, startsWith/endsWith
 - [ ] string_methods_2.liva — padStart/End, repeat, slice, chars, capitalize, removePrefix/Suffix
 - [ ] string_methods_3.liva — countMatches, isBlank, isEmpty, reverse, truncate, lastIndexOf
@@ -562,13 +562,13 @@
 - [ ] crypto_functions.liva — Crypto.hash, hmac, randomBytes, uuid
 - [ ] type_conversions.liva — toString, toInt, toFloat, parseInt, parseFloat
 
-**Capa 5: Stdlib-IO (`tests/liva/stdlib-io/`)** — opt-in, requiere filesystem/red
+**Capa 5: Stdlib-IO (`compiler/tests/liva/stdlib-io/`)** — opt-in, requiere filesystem/red
 - [ ] file_operations.liva — File.read, write, append, exists, delete, copy, move, size, ext, name, lines
 - [ ] dir_operations.liva — Dir.list, create, exists, remove, current, files, dirs
 - [ ] db_sqlite.liva — DB.open, exec, query, close
 - [ ] http_server.liva — Server.create, routes, Response helpers
 
-**Capa 6: Errors (`tests/liva/errors/`)** — `livac check`, deben fallar con error esperado
+**Capa 6: Errors (`compiler/tests/liva/errors/`)** — `livac check`, deben fallar con error esperado
 - [ ] E0101_undefined_var.liva — variable not defined
 - [ ] E0201_type_mismatch.liva — type mismatch assignment
 - [ ] E0301_undefined_function.liva — calling undefined function
@@ -581,7 +581,7 @@
 - [ ] W003_unreachable_code.liva — unreachable after return
 
 **Runner:**
-- [ ] `tests/liva/run_tests.sh` — test runner con filtros
+- [ ] `compiler/tests/liva/run_tests.sh` — test runner con filtros
   - `./run_tests.sh` — todo menos stdlib-io
   - `./run_tests.sh --all` — incluye stdlib-io
   - `./run_tests.sh --only syntax` — solo una capa

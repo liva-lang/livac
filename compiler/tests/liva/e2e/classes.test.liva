@@ -1,0 +1,87 @@
+// E2E Test: Classes — constructor, methods, data classes, field access
+import { describe, test, expect } from "liva/test"
+
+Person {
+    name: string
+    age: number
+
+    constructor(name: string, age: number) {
+        this.name = name
+        this.age = age
+    }
+
+    greet(): string => $"Hi, I'm {this.name}"
+    isAdult(): bool => this.age >= 18
+}
+
+Point { x: number; y: number }
+
+Counter {
+    value: number
+
+    constructor() {
+        this.value = 0
+    }
+
+    increment() {
+        this.value += 1
+    }
+
+    get(): number => this.value
+}
+
+describe("Class with Constructor", () => {
+    test("creates instance with fields", () => {
+        let p = Person("Alice", 30)
+        expect(p.name).toBe("Alice")
+        expect(p.age).toBe(30)
+    })
+
+    test("instance methods", () => {
+        let p = Person("Bob", 25)
+        expect(p.greet()).toBe("Hi, I'm Bob")
+    })
+
+    test("boolean method", () => {
+        let adult = Person("Alice", 20)
+        expect(adult.isAdult()).toBeTruthy()
+
+        let kid = Person("Child", 10)
+        expect(kid.isAdult()).toBeFalsy()
+    })
+})
+
+describe("Data Classes", () => {
+    test("auto-constructor", () => {
+        let p = Point(10, 20)
+        expect(p.x).toBe(10)
+        expect(p.y).toBe(20)
+    })
+
+    test("equality", () => {
+        let p1 = Point(10, 20)
+        let p2 = Point(10, 20)
+        expect(p1 == p2).toBeTruthy()
+    })
+
+    test("inequality", () => {
+        let p1 = Point(1, 2)
+        let p2 = Point(3, 4)
+        expect(p1 == p2).toBeFalsy()
+    })
+})
+
+describe("Mutable State", () => {
+    test("counter increment", () => {
+        let c = Counter()
+        c.increment()
+        c.increment()
+        c.increment()
+        expect(c.get()).toBe(3)
+    })
+
+    test("counter starts at zero", () => {
+        let c = Counter()
+        expect(c.get()).toBe(0)
+    })
+})

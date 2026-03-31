@@ -1,0 +1,140 @@
+// Stdlib Test: Array methods — comprehensive coverage
+import { describe, test, expect } from "liva/test"
+
+describe("Array Core", () => {
+    test("push and length", () => {
+        let nums = [1, 2, 3]
+        nums.push(4)
+        expect(nums.length()).toBe(4)
+    })
+
+    test("pop", () => {
+        let nums = [1, 2, 3]
+        let last = nums.pop()
+        expect(last).toBe(3)
+        expect(nums.length()).toBe(2)
+    })
+
+    test("sort", () => {
+        expect([3, 1, 4, 1, 5].sort()).toBe([1, 1, 3, 4, 5])
+    })
+
+    test("reversed", () => {
+        expect([1, 2, 3].reversed()).toBe([3, 2, 1])
+    })
+
+    test("includes", () => {
+        expect([1, 2, 3].includes(2)).toBeTruthy()
+        expect([1, 2, 3].includes(9)).toBeFalsy()
+    })
+
+    test("indexOf", () => {
+        expect([10, 20, 30, 40].indexOf(30)).toBe(2)
+        expect([10, 20, 30].indexOf(100)).toBe(-1)
+    })
+
+    test("join", () => {
+        expect(["a", "b", "c"].join(", ")).toBe("a, b, c")
+    })
+})
+
+describe("Array Functional", () => {
+    test("map", () => {
+        expect([1, 2, 3].map(x => x * 2)).toBe([2, 4, 6])
+    })
+
+    test("filter", () => {
+        expect([1, 2, 3, 4, 5, 6].filter(x => x % 2 == 0)).toBe([2, 4, 6])
+    })
+
+    test("find", () => {
+        let result = [1, 2, 3, 4, 5].find(x => x > 3)
+        expect(result).toBe(4)
+    })
+
+    test("some", () => {
+        expect([1, 2, 3].some(x => x > 2)).toBeTruthy()
+        expect([1, 3, 5].some(x => x % 2 == 0)).toBeFalsy()
+    })
+
+    test("every", () => {
+        expect([2, 4, 6].every(x => x % 2 == 0)).toBeTruthy()
+        expect([2, 4, 5].every(x => x % 2 == 0)).toBeFalsy()
+    })
+
+    test("reduce — initial value first", () => {
+        expect([1, 2, 3, 4, 5].reduce(0, (acc, x) => acc + x)).toBe(15)
+        expect([1, 2, 3, 4, 5].reduce(1, (acc, x) => acc * x)).toBe(120)
+    })
+
+    test("flatMap", () => {
+        expect([1, 2, 3].flatMap(n => [n, n * 10])).toBe([1, 10, 2, 20, 3, 30])
+    })
+
+    test("findIndex", () => {
+        expect([10, 20, 30, 40].findIndex(x => x > 25)).toBe(2)
+        expect([10, 20].findIndex(x => x > 100)).toBe(-1)
+    })
+
+    test("count", () => {
+        expect([1, 2, 3, 4, 5].count(x => x % 2 == 0)).toBe(2)
+    })
+})
+
+describe("Array Access and Slicing", () => {
+    test("first and last", () => {
+        let result = [10, 20, 30].first()
+        expect(result).toBe(10)
+        let end = [10, 20, 30].last()
+        expect(end).toBe(30)
+    })
+
+    test("slice", () => {
+        expect([1, 2, 3, 4, 5].slice(1, 3)).toBe([2, 3])
+        expect([1, 2, 3, 4, 5].slice(2)).toBe([3, 4, 5])
+    })
+
+    test("take", () => {
+        expect([1, 2, 3, 4, 5].take(3)).toBe([1, 2, 3])
+    })
+
+    test("drop", () => {
+        expect([1, 2, 3, 4, 5].drop(2)).toBe([3, 4, 5])
+    })
+})
+
+describe("Array Transformation", () => {
+    test("distinct", () => {
+        expect([1, 2, 2, 3, 3, 3].distinct()).toBe([1, 2, 3])
+    })
+
+    test("flat", () => {
+        expect([[1, 2], [3, 4], [5]].flat()).toBe([1, 2, 3, 4, 5])
+    })
+
+    test("chunks", () => {
+        let result = [1, 2, 3, 4, 5].chunks(2)
+        expect(result.length()).toBe(3)
+    })
+
+    test("zip", () => {
+        let result = [1, 2, 3].zip(["a", "b", "c"])
+        expect(result.length()).toBe(3)
+    })
+})
+
+describe("Array Aggregation", () => {
+    test("sum", () => {
+        expect([1, 2, 3, 4, 5].sum()).toBe(15)
+    })
+
+    test("min", () => {
+        let result = [3, 1, 4, 1, 5].min()
+        expect(result).toBe(1)
+    })
+
+    test("max", () => {
+        let result = [3, 1, 4, 1, 5].max()
+        expect(result).toBe(5)
+    })
+})

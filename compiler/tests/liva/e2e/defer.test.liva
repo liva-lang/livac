@@ -1,0 +1,15 @@
+// E2E Test: Defer — basic usage with function calls
+// NOTE: Multiple codegen issues prevent defer from working in tests:
+//   B108: Parser only supports `defer <expr>` not `defer <stmt>` (e.g. defer x += 1)
+//   B112: Defer with same-scope mutation causes Rust borrow errors (E0499/E0502)
+//         The DeferGuard closure captures mutable borrow, conflicting with later usage
+// Currently: defer works at top-level in real programs, but is hard to test with assertions
+// because the deferred code and the assertion code compete for the same mutable refs.
+import { describe, test, expect } from "liva/test"
+
+describe("Defer Smoke", () => {
+    test("basic value unchanged in body", () => {
+        let x = 10
+        expect(x).toBe(10)
+    })
+})

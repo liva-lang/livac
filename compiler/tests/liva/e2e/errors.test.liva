@@ -1,0 +1,54 @@
+// E2E Test: Error handling — fail, or value, or fail, error binding
+// Ref: livac/docs/QUICK_REFERENCE.md §4, livac/skills/liva-lang/SKILL.md §Error Handling
+import { describe, test, expect } from "liva/test"
+
+divide(a: number, b: number): number {
+    if b == 0 {
+        fail "division by zero"
+    }
+    return a / b
+}
+
+safeDivide(a: number, b: number): number {
+    let result = divide(a, b) or 0
+    return result
+}
+
+describe("Fallible Functions", () => {
+    test("success path returns value", () => {
+        let result = divide(10, 2) or -1
+        expect(result).toBe(5)
+    })
+
+    test("failure path returns default", () => {
+        let result = divide(10, 0) or -1
+        expect(result).toBe(-1)
+    })
+})
+
+describe("Or Default", () => {
+    test("returns default on error", () => {
+        expect(safeDivide(10, 0)).toBe(0)
+    })
+
+    test("returns value on success", () => {
+        expect(safeDivide(10, 2)).toBe(5)
+    })
+})
+
+describe("ParseInt", () => {
+    test("success", () => {
+        let val = parseInt("42") or 0
+        expect(val).toBe(42)
+    })
+
+    test("failure returns default", () => {
+        let val = parseInt("abc") or 0
+        expect(val).toBe(0)
+    })
+
+    test("or custom default", () => {
+        let port = parseInt("abc") or 3000
+        expect(port).toBe(3000)
+    })
+})

@@ -147,6 +147,8 @@ pub struct CodeGenerator {
     defer_counter: usize,
     /// SH-002: When true, we're inside a constructor body — `this.field` maps to local vars
     in_constructor: bool,
+    /// Default parameter values: function_name -> [(param_index, default_expr)]
+    function_defaults: std::collections::HashMap<String, Vec<(usize, Expr)>>,
 }
 
 impl CodeGenerator {
@@ -226,6 +228,7 @@ impl CodeGenerator {
             rust_block_uses: Vec::new(),
             defer_counter: 0,
             in_constructor: false,
+            function_defaults: std::collections::HashMap::new(),
         }
     }
 
@@ -4320,6 +4323,14 @@ impl CodeGenerator {
     fn generate_function(&mut self, func: &FunctionDecl) -> Result<()> {
         // Track current function name for error traces
         let prev_function_name = std::mem::replace(&mut self.current_function_name, func.name.clone());
+
+        // Register default parameter values for call-site injection
+        let defaults: Vec<(usize, Expr)> = func.params.iter().enumerate()
+            .filter_map(|(i, p)| p.default.as_ref().map(|d| (i, d.clone())))
+            .collect();
+        if !defaults.is_empty() {
+            self.function_defaults.insert(func.name.clone(), defaults);
+        }
 
         // Pre-analyze: collect variables that are mutated after declaration
         self.mutated_vars.clear();
@@ -8653,7 +8664,11 @@ impl CodeGenerator {
 
         // B96 fix: Detect string-based switch expressions (patterns are string literals)
         let is_string_switch = switch_expr.arms.iter().any(|arm| {
-            matches!(&arm.pattern, Pattern::Literal(Literal::String(_)))
+            match &arm.pattern {
+                Pattern::Literal(Literal::String(_)) => true,
+                Pattern::Or(patterns) => patterns.iter().any(|p| matches!(p, Pattern::Literal(Literal::String(_)))),
+                _ => false,
+            }
         });
 
         // B97 fix: When matching on self.field in a &self method, borrow to avoid move
@@ -8862,24 +8877,13 @@ impl CodeGenerator {
     /// FIX-3: Get bindings that need `.clone()` when matching by reference (`match &expr`).
     /// All non-wildcard, non-Copy bindings that aren't already handled by boxed deref need cloning.
     fn get_ref_clone_bindings(&self, pattern: &Pattern, boxed_bindings: &[String]) -> Vec<String> {
-        if let Pattern::EnumVariant { enum_name, variant_name, bindings } = pattern {
-            // Look up field types for this variant
-            let field_types = self.enum_variant_field_types
-                .get(enum_name)
-                .and_then(|v| v.get(variant_name));
-
-            bindings.iter().enumerate()
-                .filter(|(_, b)| *b != "_")
-                .filter(|(i, _)| {
-                    // Check if this field's type is Copy (no clone needed)
-                    if let Some(fields) = field_types {
-                        if let Some((_, type_ref)) = fields.get(*i) {
-                            return !self.is_copy_type(type_ref);
-                        }
-                    }
-                    true // If we can't determine the type, clone to be safe
-                })
-                .map(|(_, b)| self.sanitize_name(b))
+        if let Pattern::EnumVariant { bindings, .. } = pattern {
+            // When matching by reference (&e), ALL bindings are references.
+            // Both Copy and non-Copy types need to be owned: clone for non-Copy, *deref for Copy.
+            // Using .clone() works for both since Clone is supertrait of Copy.
+            bindings.iter()
+                .filter(|b| *b != "_")
+                .map(|b| self.sanitize_name(b))
                 .filter(|b| !boxed_bindings.contains(b))
                 .collect()
         } else {
@@ -9457,6 +9461,26 @@ impl CodeGenerator {
                 self.generate_expr(arg)?;
             }
         }
+
+        // Inject default parameter values for missing arguments
+        if let Expr::Identifier(func_name) = call.callee.as_ref() {
+            if let Some(defaults) = self.function_defaults.get(func_name).cloned() {
+                let num_provided = call.args.len();
+                for (param_idx, default_expr) in &defaults {
+                    if *param_idx >= num_provided {
+                        if num_provided > 0 || *param_idx > 0 {
+                            self.output.push_str(", ");
+                        }
+                        self.generate_expr(&default_expr)?;
+                        // Add .to_string() for string literal defaults
+                        if matches!(default_expr, Expr::Literal(Literal::String(_))) {
+                            self.output.push_str(".to_string()");
+                        }
+                    }
+                }
+            }
+        }
+
         self.output.push(')');
 
         // Add .await for async function calls

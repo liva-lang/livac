@@ -1,0 +1,56 @@
+// E2E Test: Error handling — fail, or value, or fail
+// Ref: livac/docs/QUICK_REFERENCE.md §4
+// NOTE: Tests use `or <default>` pattern to avoid codegen bugs with error binding + toBeTruthy
+// Known bugs: B101 (expect(err).toBeTruthy on Option<Error>), B102 (parseInt error binding type)
+import { describe, test, expect } from "liva/test"
+
+divide(a: number, b: number): number {
+    if b == 0 {
+        fail "division by zero"
+    }
+    return a / b
+}
+
+safeDivide(a: number, b: number): number {
+    let result = divide(a, b) or 0
+    return result
+}
+
+describe("Fallible Functions with Or", () => {
+    test("success returns value", () => {
+        let result = divide(10, 2) or -1
+        expect(result).toBe(5)
+    })
+
+    test("failure returns default", () => {
+        let result = divide(10, 0) or -1
+        expect(result).toBe(-1)
+    })
+})
+
+describe("Or Default Wrapper", () => {
+    test("safeDivide on error", () => {
+        expect(safeDivide(10, 0)).toBe(0)
+    })
+
+    test("safeDivide on success", () => {
+        expect(safeDivide(10, 2)).toBe(5)
+    })
+})
+
+describe("ParseInt with Or", () => {
+    test("valid number", () => {
+        let val = parseInt("42") or 0
+        expect(val).toBe(42)
+    })
+
+    test("invalid string returns default", () => {
+        let val = parseInt("abc") or 0
+        expect(val).toBe(0)
+    })
+
+    test("custom default", () => {
+        let port = parseInt("xyz") or 3000
+        expect(port).toBe(3000)
+    })
+})

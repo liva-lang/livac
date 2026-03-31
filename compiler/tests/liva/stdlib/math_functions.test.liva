@@ -1,0 +1,83 @@
+// Stdlib Test: Math functions (all use float = f64)
+import { describe, test, expect } from "liva/test"
+
+describe("Math Basic", () => {
+    test("abs", () => {
+        expect(Math.abs(-5.0)).toBe(5.0)
+        expect(Math.abs(3.0)).toBe(3.0)
+        expect(Math.abs(0.0)).toBe(0.0)
+    })
+
+    test("floor", () => {
+        expect(Math.floor(3.7)).toBe(3)
+        expect(Math.floor(-1.2)).toBe(-2)
+        expect(Math.floor(5.0)).toBe(5)
+    })
+
+    test("ceil", () => {
+        expect(Math.ceil(3.2)).toBe(4)
+        expect(Math.ceil(-1.8)).toBe(-1)
+        expect(Math.ceil(5.0)).toBe(5)
+    })
+
+    test("round", () => {
+        expect(Math.round(3.5)).toBe(4)
+        expect(Math.round(3.4)).toBe(3)
+        expect(Math.round(-2.5)).toBe(-3)
+    })
+})
+
+describe("Math Powers and Roots", () => {
+    test("pow", () => {
+        expect(Math.pow(2.0, 10.0)).toBe(1024.0)
+        expect(Math.pow(3.0, 2.0)).toBe(9.0)
+        expect(Math.pow(5.0, 0.0)).toBe(1.0)
+    })
+
+    test("sqrt", () => {
+        expect(Math.sqrt(16.0)).toBe(4.0)
+        expect(Math.sqrt(1.0)).toBe(1.0)
+        expect(Math.sqrt(0.0)).toBe(0.0)
+    })
+
+    test("log", () => {
+        let result = Math.log(1.0)
+        expect(result).toBe(0.0)
+    })
+})
+
+describe("Math Min/Max/Clamp", () => {
+    test("min", () => {
+        expect(Math.min(3.0, 7.0)).toBe(3.0)
+        expect(Math.min(-1.0, 1.0)).toBe(-1.0)
+    })
+
+    test("max", () => {
+        expect(Math.max(3.0, 7.0)).toBe(7.0)
+        expect(Math.max(-1.0, 1.0)).toBe(1.0)
+    })
+
+    test("clamp", () => {
+        expect(Math.clamp(15.0, 0.0, 10.0)).toBe(10.0)
+        expect(Math.clamp(5.0, 0.0, 10.0)).toBe(5.0)
+        expect(Math.clamp(-3.0, 0.0, 10.0)).toBe(0.0)
+    })
+
+    test("sign", () => {
+        expect(Math.sign(5.0)).toBe(1)
+        expect(Math.sign(-3.0)).toBe(-1)
+        expect(Math.sign(0.0)).toBe(0)
+    })
+})
+
+describe("Math Constants", () => {
+    test("PI", () => {
+        expect(Math.PI).toBeGreaterThan(3.14)
+        expect(Math.PI).toBeLessThan(3.15)
+    })
+
+    test("E", () => {
+        expect(Math.E).toBeGreaterThan(2.71)
+        expect(Math.E).toBeLessThan(2.72)
+    })
+})

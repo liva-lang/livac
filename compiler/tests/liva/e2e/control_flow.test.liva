@@ -1,0 +1,124 @@
+// E2E Test: Control flow — if/else, switch, for, while, break, continue
+import { describe, test, expect } from "liva/test"
+
+classify(score: number): string {
+    return switch score {
+        90..=100 => "A",
+        80..=89 => "B",
+        70..=79 => "C",
+        _ => "F"
+    }
+}
+
+describe("If/Else", () => {
+    test("basic if/else", () => {
+        let age = 20
+        let label = ""
+        if age >= 18 {
+            label = "adult"
+        } else {
+            label = "minor"
+        }
+        expect(label).toBe("adult")
+    })
+
+    test("else branch", () => {
+        let age = 10
+        let label = ""
+        if age >= 18 {
+            label = "adult"
+        } else {
+            label = "minor"
+        }
+        expect(label).toBe("minor")
+    })
+})
+
+describe("Switch Expressions", () => {
+    test("range patterns", () => {
+        expect(classify(95)).toBe("A")
+        expect(classify(85)).toBe("B")
+        expect(classify(75)).toBe("C")
+        expect(classify(50)).toBe("F")
+    })
+
+    test("or-patterns", () => {
+        let day = "Saturday"
+        let kind = switch day {
+            "Saturday" | "Sunday" => "Weekend",
+            _ => "Weekday"
+        }
+        expect(kind).toBe("Weekend")
+    })
+
+    test("wildcard catches all", () => {
+        expect(classify(0)).toBe("F")
+        expect(classify(69)).toBe("F")
+    })
+})
+
+describe("For Loops", () => {
+    test("for range 0..5", () => {
+        let sum = 0
+        for i in 0..5 {
+            sum += i
+        }
+        expect(sum).toBe(10)
+    })
+
+    test("for inclusive range 1..=5", () => {
+        let sum = 0
+        for i in 1..=5 {
+            sum += i
+        }
+        expect(sum).toBe(15)
+    })
+
+    test("for over array", () => {
+        let items = [10, 20, 30]
+        let total = 0
+        for item in items {
+            total += item
+        }
+        expect(total).toBe(60)
+    })
+
+    test("for enumerate", () => {
+        let names = ["a", "b", "c"]
+        let result = ""
+        for i, name in names {
+            result += $"{i}:{name} "
+        }
+        expect(result).toBe("0:a 1:b 2:c ")
+    })
+})
+
+describe("While Loop", () => {
+    test("basic while", () => {
+        let count = 0
+        while count < 5 {
+            count += 1
+        }
+        expect(count).toBe(5)
+    })
+})
+
+describe("Break and Continue", () => {
+    test("break exits loop", () => {
+        let last = 0
+        for i in 0..100 {
+            if i >= 3 => break
+            last = i
+        }
+        expect(last).toBe(2)
+    })
+
+    test("continue skips iteration", () => {
+        let sum = 0
+        for i in 0..5 {
+            if i == 2 => continue
+            sum += i
+        }
+        expect(sum).toBe(8)
+    })
+})

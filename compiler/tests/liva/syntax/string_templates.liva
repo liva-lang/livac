@@ -1,0 +1,60 @@
+// Syntax Test: String Templates
+// Covers: $"..." interpolation with expressions, nested expressions
+
+main() {
+    // Basic interpolation
+    let name = "Alice"
+    let age = 30
+    print($"Name: {name}")
+    print($"Age: {age}")
+
+    // Expression inside template
+    print($"2 + 3 = {2 + 3}")
+    print($"Double age: {age * 2}")
+
+    // Multiple expressions
+    let x = 10
+    let y = 20
+    print($"{x} + {y} = {x + y}")
+
+    // String method in template
+    let greeting = "hello"
+    print($"Upper: {greeting.toUpperCase()}")
+
+    // Boolean expression
+    let adult = age >= 18
+    print($"Is adult: {adult}")
+
+    // Conditional expression (ternary)
+    let label = age >= 18 ? "adult" : "minor"
+    print($"Status: {label}")
+
+    // Template with concatenation
+    let first = "John"
+    let last = "Doe"
+    print($"Full name: {first} {last}")
+
+    // Nested expression with function call
+    print($"Length of name: {name.length}")
+
+    // Template in variable
+    let msg = $"Hello, {name}! You are {age} years old."
+    print(msg)
+
+    // Empty template parts
+    print($"{name}")
+    print($"Start {name} End")
+
+    // Numeric formatting
+    let pi = 3.14
+    print($"Pi is approximately {pi}")
+
+    // Array length in template
+    let items = [1, 2, 3]
+    print($"Items count: {items.length}")
+
+    // Map access in template
+    let config = Map { "host": "localhost" }
+    let host = config.get("host") or "unknown"
+    print($"Host: {host}")
+}

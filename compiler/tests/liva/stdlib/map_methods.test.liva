@@ -1,0 +1,85 @@
+// Stdlib Test: Map methods
+import { describe, test, expect } from "liva/test"
+
+describe("Map Creation and Access", () => {
+    test("literal creation", () => {
+        let m = Map { "name": "Alice", "city": "Madrid" }
+        expect(m.get("name") or "").toBe("Alice")
+        expect(m.get("city") or "").toBe("Madrid")
+    })
+
+    test("get with or default", () => {
+        let m = Map { "a": 1 }
+        expect(m.get("a") or 0).toBe(1)
+        expect(m.get("missing") or 0).toBe(0)
+    })
+})
+
+describe("Map Mutation", () => {
+    test("set adds entry", () => {
+        let m = Map { "x": 10 }
+        m.set("y", 20)
+        expect(m.get("y") or 0).toBe(20)
+    })
+
+    test("set overwrites entry", () => {
+        let m = Map { "x": 10 }
+        m.set("x", 99)
+        expect(m.get("x") or 0).toBe(99)
+    })
+
+    test("delete removes entry", () => {
+        let m = Map { "a": 1, "b": 2 }
+        m.delete("a")
+        expect(m.has("a")).toBeFalsy()
+        expect(m.has("b")).toBeTruthy()
+    })
+
+    test("clear removes all entries", () => {
+        let m = Map { "a": 1, "b": 2 }
+        m.clear()
+        expect(m.length).toBe(0)
+    })
+})
+
+describe("Map Query", () => {
+    test("has checks existence", () => {
+        let m = Map { "key": 42 }
+        expect(m.has("key")).toBeTruthy()
+        expect(m.has("other")).toBeFalsy()
+    })
+
+    test("length", () => {
+        let m = Map { "a": 1, "b": 2, "c": 3 }
+        expect(m.length).toBe(3)
+    })
+})
+
+describe("Map Iteration", () => {
+    test("keys returns all keys", () => {
+        let m = Map { "x": 1, "y": 2 }
+        let k = m.keys()
+        expect(k.length()).toBe(2)
+    })
+
+    test("values returns all values", () => {
+        let m = Map { "x": 10, "y": 20 }
+        let v = m.values()
+        expect(v.length()).toBe(2)
+    })
+
+    test("entries returns key-value pairs", () => {
+        let m = Map { "a": 1, "b": 2 }
+        let e = m.entries()
+        expect(e.length()).toBe(2)
+    })
+
+    test("forEach iterates all entries", () => {
+        let m = Map { "a": 1, "b": 2 }
+        let count = 0
+        m.forEach((key, value) => {
+            count += 1
+        })
+        expect(count).toBe(2)
+    })
+})

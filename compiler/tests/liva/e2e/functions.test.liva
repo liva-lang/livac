@@ -1,0 +1,64 @@
+// E2E Test: Functions — arrow, block, defaults, tuple return, recursion
+import { describe, test, expect } from "liva/test"
+
+add(a: number, b: number): number => a + b
+
+multiply(a: number, b: number): number => a * b
+
+greet(name: string = "World"): string => $"Hello, {name}!"
+
+factorial(n: number): number {
+    if n <= 1 => return 1
+    return n * factorial(n - 1)
+}
+
+minMax(a: number, b: number): (number, number) {
+    if a < b => return (a, b)
+    return (b, a)
+}
+
+describe("Arrow Functions", () => {
+    test("simple addition", () => {
+        expect(add(2, 3)).toBe(5)
+        expect(add(-1, 1)).toBe(0)
+        expect(add(0, 0)).toBe(0)
+    })
+
+    test("multiplication", () => {
+        expect(multiply(3, 4)).toBe(12)
+        expect(multiply(-2, 5)).toBe(-10)
+    })
+})
+
+describe("Block Functions", () => {
+    test("recursion — factorial", () => {
+        expect(factorial(0)).toBe(1)
+        expect(factorial(1)).toBe(1)
+        expect(factorial(5)).toBe(120)
+        expect(factorial(10)).toBe(3628800)
+    })
+})
+
+describe("Default Parameters", () => {
+    test("uses default when omitted", () => {
+        expect(greet()).toBe("Hello, World!")
+    })
+
+    test("overrides default when provided", () => {
+        expect(greet("Liva")).toBe("Hello, Liva!")
+    })
+})
+
+describe("Tuple Return", () => {
+    test("returns ordered pair", () => {
+        let pair = minMax(30, 10)
+        expect(pair.0).toBe(10)
+        expect(pair.1).toBe(30)
+    })
+
+    test("already ordered", () => {
+        let pair = minMax(5, 20)
+        expect(pair.0).toBe(5)
+        expect(pair.1).toBe(20)
+    })
+})

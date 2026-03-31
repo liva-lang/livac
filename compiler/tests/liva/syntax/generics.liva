@@ -1,0 +1,73 @@
+// Syntax Test: Generics
+// Covers: generic function, generic class, multiple type params, trait aliases
+
+// Generic function with Numeric trait alias
+sum<T: Numeric>(a: T, b: T): T => a + b
+
+// Generic function with Comparable
+maxVal<T: Comparable>(a: T, b: T): T {
+    if a > b {
+        return a
+    }
+    return b
+}
+
+// Generic function with Number (Numeric + Comparable)
+clamp<T: Number>(value: T, lo: T, hi: T): T {
+    if value < lo { return lo }
+    if value > hi { return hi }
+    return value
+}
+
+// Generic class
+Pair<A: Number, B: Number> {
+    first: A
+    second: B
+
+    constructor(first: A, second: B) {
+        this.first = first
+        this.second = second
+    }
+
+    getFirst(): A => this.first
+    getSecond(): B => this.second
+}
+
+// Generic class with single param
+Container<T: Numeric> {
+    _value: T
+
+    constructor(value: T) {
+        this._value = value
+    }
+
+    getValue(): T => this._value
+
+    add(other: T): T {
+        this._value = this._value + other
+        return this._value
+    }
+}
+
+main() {
+    // Generic functions
+    let s1 = sum<int>(10, 20)
+    let s2 = sum<float>(1.5, 2.5)
+    print($"sum int: {s1}")
+    print($"sum float: {s2}")
+
+    let m = maxVal<int>(42, 17)
+    print($"max: {m}")
+
+    let c = clamp<int>(150, 0, 100)
+    print($"clamped: {c}")
+
+    // Generic class
+    let pair = Pair<int, int>(10, 20)
+    print($"pair: ({pair.getFirst()}, {pair.getSecond()})")
+
+    // Container
+    let box = Container<int>(5)
+    box.add(10)
+    print($"container: {box.getValue()}")
+}
