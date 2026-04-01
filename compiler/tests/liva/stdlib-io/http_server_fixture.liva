@@ -1,0 +1,17 @@
+// HTTP Server fixture — used by http_server.test.liva for compile-only verification
+// This file should pass livac check but is NOT meant to be run
+
+handleHello(req): string {
+    return Response.text("Hello from Liva!")
+}
+
+handleJson(req): string {
+    return Response.json("{\"status\": \"ok\"}")
+}
+
+main() {
+    let app = Server.create()
+    app.get("/hello", handleHello)
+    app.get("/api/status", handleJson)
+    app.listen(3000)
+}

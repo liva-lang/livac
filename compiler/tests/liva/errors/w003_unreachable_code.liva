@@ -1,0 +1,7 @@
+// Linter fixture: W003 — unreachable code after return
+// Expected: warning [W003]: Unreachable code
+getValue(): number {
+    return 42
+    let x = 10
+    return x
+}

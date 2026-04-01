@@ -139,6 +139,13 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Workaround:** Evitar esos métodos en tests. Los tests omiten esas funciones.
 - **Fix:** El codegen debería detectar cuándo el receptor ya es `&str` y omitir `.as_str()`, o generar un borrow `&*` en su lugar.
 
+### B115 — `Dir.exists()` / `Dir.isDir()` con expresión inline genera borrow de temporal 🔶
+- **Repro:** `Dir.exists(base + "/subdir")` — sin asignar a variable primero
+- **Problema:** El codegen genera `Path::new(&format!(...))` pero `format!()` crea un temporal que se libera antes de que `Path::new` lo use. Rust error: `E0716: temporary value dropped while borrowed`.
+- **Afecta:** `Dir.exists(expr)`, `Dir.isDir(expr)` cuando `expr` es una operación (no variable simple)
+- **Workaround:** Asignar a `let` primero: `let path = base + "/subdir"` → `Dir.exists(path)`
+- **Fix:** El codegen debería generar un `let __path = ...;` temporal antes de `Path::new(&__path)`.
+
 ---
 
 ## Carencias del lenguaje detectadas

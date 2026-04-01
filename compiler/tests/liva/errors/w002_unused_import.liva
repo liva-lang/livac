@@ -1,0 +1,7 @@
+// Linter fixture: W002 — unused import
+// Expected: warning [W002]: Unused import
+import { describe } from "liva/test"
+
+main() {
+    print("no imports used")
+}

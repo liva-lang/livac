@@ -1,0 +1,30 @@
+// Stdlib-IO Test: HTTP Server — compile-only verification
+// Server tests can't run in unit test context (would block on listen)
+// We verify the code compiles correctly via livac check
+import { describe, test, expect } from "liva/test"
+
+// Helper: Run livac check on a file and return output
+checkFile(filename: string): string {
+    let result = rust {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors().nth(6).expect("cannot find repo root");
+        let livac = root.join("target/release/livac");
+        let file = root.join("compiler/tests/liva/stdlib-io").join(&filename);
+        let out = std::process::Command::new(&livac)
+            .arg("check").arg(&file)
+            .output().expect("failed to run livac");
+        format!("{}{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr))
+    }
+    return result
+}
+
+describe("HTTP Server (compile-only)", () => {
+    test("server with routes compiles", () => {
+        let output = checkFile("http_server_fixture.liva")
+        // If check passes, output should NOT contain "Error"
+        let hasError = output.contains("Error")
+        expect(hasError).toBe(false)
+    })
+})

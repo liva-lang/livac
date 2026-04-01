@@ -1,0 +1,71 @@
+// Stdlib-IO Test: Dir — list, isDir, exists, create, delete
+// Uses rust {} for setup/cleanup within project directory
+import { describe, test, expect } from "liva/test"
+
+// Helper: get a test directory path inside the project
+getTestBaseDir(): string {
+    let dir = rust {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors().nth(6).expect("cannot find repo root");
+        let dir = root.join("compiler/tests/liva/stdlib-io/.test_data/dirs");
+        std::fs::create_dir_all(&dir).unwrap();
+        dir.to_string_lossy().to_string()
+    }
+    return dir
+}
+
+describe("Dir", () => {
+    test("create and exists", () => {
+        let base = getTestBaseDir()
+        let path = base + "/test_create"
+        let ok, err = Dir.create(path)
+        let found = Dir.exists(path)
+        expect(found).toBe(true)
+        let ok2, delErr = Dir.delete(path)
+    })
+
+    test("isDir returns true for directory", () => {
+        let base = getTestBaseDir()
+        let path = base + "/test_isdir"
+        let ok, err = Dir.create(path)
+        let isDir = Dir.isDir(path)
+        expect(isDir).toBe(true)
+        let ok2, delErr = Dir.delete(path)
+    })
+
+    test("isDir returns false for file", () => {
+        let base = getTestBaseDir()
+        let filePath = base + "/test_isdir_file.txt"
+        let ok, writeErr = File.write(filePath, "data")
+        let isDir = Dir.isDir(filePath)
+        expect(isDir).toBe(false)
+        let ok2, delErr = File.delete(filePath)
+    })
+
+    test("list returns directory contents", () => {
+        let base = getTestBaseDir()
+        let dir = base + "/test_list"
+        let ok, err = Dir.create(dir)
+        let ok2, w1 = File.write(dir + "/a.txt", "a")
+        let ok3, w2 = File.write(dir + "/b.txt", "b")
+        let entries, listErr = Dir.list(dir)
+        expect(entries.length).toBe(2)
+        let ok4, delErr = Dir.delete(dir)
+    })
+
+    test("delete removes directory", () => {
+        let base = getTestBaseDir()
+        let path = base + "/test_delete_dir"
+        let ok, err = Dir.create(path)
+        let ok2, delErr = Dir.delete(path)
+        let found = Dir.exists(path)
+        expect(found).toBe(false)
+    })
+
+    test("exists returns false for missing directory", () => {
+        let base = getTestBaseDir()
+        let missing = base + "/nonexistent_dir_xyz"
+        let found = Dir.exists(missing)
+        expect(found).toBe(false)
+    })
+})

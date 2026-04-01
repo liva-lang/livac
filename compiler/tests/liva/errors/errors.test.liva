@@ -22,6 +22,23 @@ checkError(filename: string): string {
     return result
 }
 
+// Helper: Run livac lint on a file and return combined stdout+stderr
+lintFile(filename: string): string {
+    let result = rust {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors().nth(6).expect("cannot find repo root");
+        let livac = root.join("target/release/livac");
+        let file = root.join("compiler/tests/liva/errors").join(&filename);
+        let out = std::process::Command::new(&livac)
+            .arg("lint").arg(&file)
+            .output().expect("failed to run livac");
+        format!("{}{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr))
+    }
+    return result
+}
+
 describe("Error Detection", () => {
     test("E0001: duplicate variable in scope", () => {
         let output = checkError("e0001_duplicate_variable.liva")
@@ -71,5 +88,20 @@ describe("Error Detection", () => {
     test("E4004: module not found", () => {
         let output = checkError("e4004_module_not_found.liva")
         expect(output).toContain("E4004")
+    })
+
+    test("W001: unused variable warning", () => {
+        let output = lintFile("w001_unused_var.liva")
+        expect(output).toContain("W001")
+    })
+
+    test("W002: unused import warning", () => {
+        let output = lintFile("w002_unused_import.liva")
+        expect(output).toContain("W002")
+    })
+
+    test("W003: unreachable code warning", () => {
+        let output = lintFile("w003_unreachable_code.liva")
+        expect(output).toContain("W003")
     })
 })

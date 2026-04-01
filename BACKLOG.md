@@ -570,10 +570,10 @@
 - [x] crypto_functions.test.liva — 8 assertions (sha256, md5, base64Encode, base64Decode, roundtrip)
 
 **Capa 5: Stdlib-IO (`compiler/tests/liva/stdlib-io/`)** — opt-in, requiere filesystem/red
-- [ ] file_operations.liva — File.read, write, append, exists, delete, copy, move, size, ext, name, lines
-- [ ] dir_operations.liva — Dir.list, create, exists, remove, current, files, dirs
-- [ ] db_sqlite.liva — DB.open, exec, query, close
-- [ ] http_server.liva — Server.create, routes, Response helpers
+- [x] file_operations.test.liva — 10 assertions (read, write, append, exists, delete, copy, move, size, extension, readLines)
+- [x] dir_operations.test.liva — 6 assertions (create, exists, isDir, list, delete)
+- [x] db_sqlite.test.liva — 5 assertions (open :memory:, exec create/insert, query, empty query)
+- [x] http_server.test.liva — 1 assertion (compile-only via livac check) + http_server_fixture.liva
 
 **Capa 6: Errors (`compiler/tests/liva/errors/`)** — `livac check`, deben fallar con error esperado
 - [x] e0001_duplicate_variable.liva — variable already defined (E0001)
@@ -586,9 +586,9 @@
 - [x] e1000_lexer_error.liva — unclosed string literal (E1000)
 - [x] e2000_parse_error.liva — missing closing brace (E2000)
 - [x] e4004_module_not_found.liva — module file not found (E4004)
-- [ ] W001_unused_var.liva — unused variable warning
-- [ ] W002_unused_import.liva — unused import warning
-- [ ] W003_unreachable_code.liva — unreachable after return
+- [x] w001_unused_var.liva — unused variable warning (W001)
+- [x] w002_unused_import.liva — unused import warning (W002)
+- [x] w003_unreachable_code.liva — unreachable after return (W003)
 
 **Runner:**
 - [x] `compiler/tests/liva/run_tests.sh` — test runner con 6 layers + filtros

@@ -1,0 +1,6 @@
+// Linter fixture: W001 — unused variable
+// Expected: warning [W001]: Unused variable
+main() {
+    let x = 5
+    print("hello")
+}
