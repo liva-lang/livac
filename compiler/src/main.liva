@@ -98,17 +98,17 @@ parseCliArgs(args: [string]): CliOptions {
 }
 
 printUsage() {
-    println("Usage: livac <command> <input.liva> [options]")
-    println("")
-    println("Commands:")
-    println("  build   Compile to native binary")
-    println("  run     Compile and run")
-    println("  check   Check for errors without compiling")
-    println("")
-    println("Options:")
-    println("  --output <dir>   Output directory")
-    println("  --verbose        Verbose output")
-    println("  --release        Build in release mode")
+    print("Usage: livac <command> <input.liva> [options]")
+    print("")
+    print("Commands:")
+    print("  build   Compile to native binary")
+    print("  run     Compile and run")
+    print("  check   Check for errors without compiling")
+    print("")
+    print("Options:")
+    print("  --output <dir>   Output directory")
+    print("  --verbose        Verbose output")
+    print("  --release        Build in release mode")
 }
 
 // =====================================================================
@@ -116,8 +116,8 @@ printUsage() {
 // =====================================================================
 
 readFile(path: string): string {
-    // Uses Liva's File.read stdlib function
-    return File.read(path)
+    let content = File.read(path) or ""
+    return content
 }
 
 writeFile(path: string, content: string) {
@@ -153,7 +153,7 @@ compileSingleFile(source: string, fileName: string, checkOnly: bool): Compilatio
     let program = parse(tokens, source)
 
     // Step 3: Semantic analysis
-    let typeCtx = analyzeProgram(program)
+    let typeCtx: TypeContext = analyzeProgram(program)
 
     // Check for semantic errors
     for diag in typeCtx.diagnostics {
@@ -172,11 +172,13 @@ compileSingleFile(source: string, fileName: string, checkOnly: bool): Compilatio
     let liveCtx = analyzeLiveness(program)
 
     // Step 5: Codegen
-    let rustCode = generateRust(program, typeCtx, liveCtx)
+    let liveCtxCopy = liveCtx
+    let rustCode = generateRust(program, typeCtx, liveCtxCopy)
 
     // Step 6: Cargo.toml (no special deps for basic projects)
     let projectName = fileToProjectName(fileName)
-    let emitter = RustEmitter(typeCtx, liveCtx)
+    let typeCtxCopy = typeCtx
+    let emitter = RustEmitter(typeCtxCopy, liveCtx)
     let cargoToml = emitter.generateCargoToml(
         projectName, false, false, false, false, false, false, false, false, false
     )
@@ -197,11 +199,11 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
     let entrySource = readFile(entryPath)
     let entryTokens = tokenize(entrySource)
     let entryProgram = parse(entryTokens, entrySource)
+    let entryImports = resolver.extractImports(entryProgram)
     resolver.registerModule(entryPath, entrySource, entryProgram)
 
     // BFS: resolve all imported modules
     let queue: [string] = []
-    let entryImports = resolver.extractImports(entryProgram)
     for imp in entryImports {
         let resolved = resolver.resolveImportPath(entryPath, imp)
         if !resolved.startsWith("<virtual:") {
@@ -218,21 +220,22 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
         if visited.has(modPath) {
             // Already visited, skip (avoid cycles)
         } else {
+            let currentPath = $"{modPath}"
             visited.set(modPath, true)
 
             if verbose {
-                println($"  Loading module: {modPath}")
+                print($"  Loading module: {currentPath}")
             }
 
-            let modSource = readFile(modPath)
+            let modSource = readFile(currentPath)
             let modTokens = tokenize(modSource)
             let modProgram = parse(modTokens, modSource)
-            resolver.registerModule(modPath, modSource, modProgram)
+            let modImports = resolver.extractImports(modProgram)
+            resolver.registerModule(currentPath, modSource, modProgram)
 
             // Queue transitive imports
-            let modImports = resolver.extractImports(modProgram)
             for imp in modImports {
-                let resolved = resolver.resolveImportPath(modPath, imp)
+                let resolved = resolver.resolveImportPath(currentPath, imp)
                 if !resolved.startsWith("<virtual:") {
                     if !visited.has(resolved) {
                         queue.push(resolved)
@@ -246,16 +249,17 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
     let compileOrder = resolver.topologicalSort()
 
     if verbose {
-        println($"  Compilation order: {compileOrder.length} modules")
+        print($"  Compilation order: {compileOrder.length} modules")
     }
 
     if checkOnly {
         // Just analyze each module for errors
         for modPath in compileOrder {
-            let mod = resolver.getModule(modPath)
-            let modTokens = tokenize(mod.source)
-            let modProgram = parse(modTokens, mod.source)
-            let typeCtx = analyzeProgram(modProgram)
+            let mod: LivaModule = resolver.getModule(modPath)
+            let modSrc = $"{mod.source}"
+            let modTokens = tokenize(modSrc)
+            let modProgram = parse(modTokens, modSrc)
+            let typeCtx: TypeContext = analyzeProgram(modProgram)
             for diag in typeCtx.diagnostics {
                 errors.push($"{modPath}: {diag.message}")
             }
@@ -267,12 +271,15 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
     let modDeclarations: [string] = []
 
     for modPath in compileOrder {
-        let mod = resolver.getModule(modPath)
-        let modTokens = tokenize(mod.source)
-        let modProgram = parse(modTokens, mod.source)
-        let typeCtx = analyzeProgram(modProgram)
-        let liveCtx = analyzeLiveness(modProgram)
-        let rustCode = generateRust(modProgram, typeCtx, liveCtx)
+        let mod: LivaModule = resolver.getModule(modPath)
+        let modSrc = $"{mod.source}"
+        let modTokens = tokenize(modSrc)
+        let modProgram = parse(modTokens, modSrc)
+        let modProgramCopy1 = modProgram
+        let modProgramCopy2 = modProgram
+        let typeCtx: TypeContext = analyzeProgram(modProgram)
+        let liveCtx = analyzeLiveness(modProgramCopy1)
+        let rustCode = generateRust(modProgramCopy2, typeCtx, liveCtx)
 
         let modName = resolver.pathToModName(modPath)
         moduleFiles.set(modName + ".rs", rustCode)
@@ -324,9 +331,8 @@ writeOutputFiles(result: CompilationResult, outputDir: string) {
 
 runCargoBuild(outputDir: string, release: bool): bool {
     let cmd = _buildCargoCmd(outputDir, release)
-    let result = Process.exec(cmd)
-    // Process.exec returns (Option<string>, string) — success if first is not null
-    return result[0] != null
+    let output = Process.exec(cmd) or "CARGO_BUILD_FAILED"
+    return output != "CARGO_BUILD_FAILED"
 }
 
 _buildCargoCmd(outputDir: string, release: bool): string {
@@ -378,12 +384,12 @@ _compileSource(source: string, inputFile: string, isMultiFile: bool,
                checkOnly: bool, verbose: bool): CompilationResult {
     if isMultiFile {
         if verbose {
-            println("  Multi-file compilation mode")
+            print("  Multi-file compilation mode")
         }
         return compileMultiFile(inputFile, checkOnly, verbose)
     }
     if verbose {
-        println("  Single-file compilation mode")
+        print("  Single-file compilation mode")
     }
     return compileSingleFile(source, inputFile, checkOnly)
 }
@@ -397,36 +403,37 @@ main() {
     let opts = parseCliArgs(args)
 
     if opts.inputFile == "" {
-        println("Error: No input file specified")
+        print("Error: No input file specified")
         printUsage()
         return
     }
 
     if opts.verbose {
-        println($"Liva Compiler (self-hosting)")
-        println($"Input: {opts.inputFile}")
+        print($"Liva Compiler (self-hosting)")
+        print($"Input: {opts.inputFile}")
     }
 
     // Determine output directory
     let outputDir = _resolveOutputDir(opts.outputDir)
 
     // Read source to determine single vs multi-file
-    let source = readFile(opts.inputFile)
+    let inputFile = $"{opts.inputFile}"
+    let source = readFile(inputFile)
     let isMultiFile = hasImports(source)
 
     // Compile
-    let result = _compileSource(source, opts.inputFile, isMultiFile, opts.checkOnly, opts.verbose)
+    let result = _compileSource(source, inputFile, isMultiFile, opts.checkOnly, opts.verbose)
 
     // Report errors
     if !result.success {
         for err in result.errors {
-            println($"error: {err}")
+            print($"error: {err}")
         }
         return
     }
 
     if opts.checkOnly {
-        println("Check passed: no errors found")
+        print("Check passed: no errors found")
         return
     }
 
@@ -434,29 +441,29 @@ main() {
     writeOutputFiles(result, outputDir)
 
     if opts.verbose {
-        println($"  Output written to {outputDir}")
+        print($"  Output written to {outputDir}")
     }
 
     // Build
     if opts.command == "build" {
         if opts.verbose {
-            println("  Running cargo build...")
+            print("  Running cargo build...")
         }
         let buildOk = runCargoBuild(outputDir, opts.release)
         if buildOk {
-            println("Build successful")
+            print("Build successful")
         } else {
-            println("Build failed")
+            print("Build failed")
         }
     }
 
     if opts.command == "run" {
         let buildOk = runCargoBuild(outputDir, opts.release)
         if buildOk {
-            let projectName = fileToProjectName(opts.inputFile)
+            let projectName = fileToProjectName(inputFile)
             runBinary(outputDir, opts.release, projectName)
         } else {
-            println("Build failed")
+            print("Build failed")
         }
     }
 }

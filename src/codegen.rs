@@ -1680,10 +1680,10 @@ impl CodeGenerator {
         }
 
         // Build class metadata maps
-        // Note: class_fields/class_optional_fields are NOT fully cleared here because
-        // they may contain pre-populated data from imported modules
+        // Note: class_fields/class_optional_fields/class_array_field_types are NOT
+        // fully cleared here because they may contain pre-populated data from imported modules
         // (generate_entry_point/generate_module_code) — BUG-003 fix
-        self.class_array_field_types.clear();
+        // self.class_array_field_types.clear();  // SH fix: Don't clear — imported data needed
         self.class_constructor_optionals.clear();
         // Note: enum_variant_optionals is NOT cleared here because it may contain
         // pre-populated data from imported modules (generate_entry_point/generate_module_code)
@@ -6283,23 +6283,24 @@ impl CodeGenerator {
                         else if let Expr::Call(call) = &var.init {
                             if let Expr::Identifier(class_name) = &*call.callee {
                                 if let Some(name) = binding.name() {
+                                    let san_name = self.sanitize_name(name);
                                     // BUG-007: Track variables assigned from optional-returning functions
                                     if self.optional_returning_functions.contains(class_name) {
-                                        self.option_value_vars.insert(name.to_string());
+                                        self.option_value_vars.insert(san_name.clone());
                                     }
                                     // Check if this is an array-returning function
                                     else if let Some(elem_type) = self.array_returning_functions.get(class_name).cloned() {
-                                        self.array_vars.insert(name.to_string());
+                                        self.array_vars.insert(san_name.clone());
                                         if !elem_type.is_empty() {
-                                            self.typed_array_vars.insert(name.to_string(), elem_type);
+                                            self.typed_array_vars.insert(san_name.clone(), elem_type);
                                         }
                                     }
                                     // Check if this is a string-returning function
                                     else if self.string_returning_functions.contains(class_name) {
-                                        self.string_vars.insert(name.to_string());
+                                        self.string_vars.insert(san_name.clone());
                                     } else {
-                                        self.class_instance_vars.insert(name.to_string());
-                                        self.var_types.insert(name.to_string(), class_name.clone());
+                                        self.class_instance_vars.insert(san_name.clone());
+                                        self.var_types.insert(san_name.clone(), class_name.clone());
                                     }
                                 }
                             }
@@ -6389,6 +6390,15 @@ impl CodeGenerator {
                                         .insert(var_name.clone(), type_name.clone());
                                 }
                             }
+
+                            // Track class instance vars from type annotation: let x: ClassName = ...
+                            // This ensures field access generates x.field instead of x.get_field("field")
+                            if let TypeRef::Simple(type_name) = type_ref {
+                                if self.class_fields.contains_key(type_name) {
+                                    self.class_instance_vars.insert(var_name.clone());
+                                    self.var_types.insert(var_name.clone(), type_name.clone());
+                                }
+                            }
                         }
 
                         // Set float literal suffix context for f32 types
@@ -6459,8 +6469,9 @@ impl CodeGenerator {
                             self.generate_expr(&var.init)?;
                             self.output.push_str(".0.unwrap_or_default()");
                         } else {
-                            // Auto-clone when assigning this.field to a local variable
-                            let needs_clone = self.expr_is_self_field(&var.init);
+                            // Auto-clone when assigning this.field or a class instance to a local variable
+                            let needs_clone = self.expr_is_self_field(&var.init)
+                                || self.expr_is_class_instance(&var.init);
                             self.generate_expr(&var.init)?;
                             if needs_clone {
                                 self.output.push_str(".clone()");
@@ -7347,6 +7358,16 @@ impl CodeGenerator {
                     return obj == "this" && self.in_method;
                 }
             }
+        }
+        false
+    }
+
+    /// Returns true if the expression is a simple Identifier that is a known class instance.
+    /// Used to auto-clone on assignment: `let copy = original` → `let copy = original.clone()`
+    fn expr_is_class_instance(&self, expr: &Expr) -> bool {
+        if let Expr::Identifier(name) = expr {
+            let sanitized = self.sanitize_name(name);
+            return self.class_instance_vars.contains(&sanitized);
         }
         false
     }
@@ -10248,8 +10269,8 @@ impl CodeGenerator {
             let is_map_var = if let Expr::Identifier(name) = method_call.object.as_ref() {
                 self.map_vars.contains(&self.sanitize_name(name))
             } else if let Expr::Member { object, property } = method_call.object.as_ref() {
-                // Bug #76 fix: Also check this._field for Map-typed class fields
-                if matches!(object.as_ref(), Expr::Identifier(name) if name == "this" || name == "self") {
+                // SH: Check any_var.field where field is a known Map-typed class field
+                if matches!(object.as_ref(), Expr::Identifier(_)) {
                     self.map_vars.contains(&self.sanitize_name(property))
                 } else if let Expr::Member { property: inner_prop, .. } = object.as_ref() {
                     // Deep member access: this._ctx.varTypes.has() — check innermost property
@@ -16240,6 +16261,14 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext, al
                                 array_field_types.insert(f.name.clone(), type_name.clone());
                             }
                         }
+                        // SH: Track Map-typed fields from imported classes for deep member access
+                        if matches!(&f.type_ref, Some(TypeRef::Map(_, _))) {
+                            codegen.map_vars.insert(codegen.sanitize_name(&f.name));
+                        }
+                        // SH: Track Set-typed fields from imported classes
+                        if matches!(&f.type_ref, Some(TypeRef::Set(_))) {
+                            codegen.set_vars.insert(codegen.sanitize_name(&f.name));
+                        }
                     }
                 }
                 codegen.class_fields.insert(class.name.clone(), fields);
@@ -16593,6 +16622,8 @@ fn generate_entry_point(
                 for m2 in &class.members {
                     if let crate::ast::Member::Field(f) = m2 {
                         fields.insert(f.name.clone());
+                        if class.name == "TypeContext" {
+                        }
                         if f.is_optional || matches!(&f.type_ref, Some(TypeRef::Optional(_))) {
                             optional_fields.insert(f.name.clone());
                         }
