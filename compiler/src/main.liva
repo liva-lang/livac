@@ -336,7 +336,9 @@ runCargoBuild(outputDir: string, release: bool): bool {
 }
 
 _buildCargoCmd(outputDir: string, release: bool): string {
-    if release => "cd " + outputDir + " && cargo build --release"
+    if release {
+        return "cd " + outputDir + " && cargo build --release"
+    }
     return "cd " + outputDir + " && cargo build"
 }
 
@@ -346,7 +348,9 @@ runBinary(outputDir: string, release: bool, projectName: string) {
 }
 
 _buildBinaryPath(outputDir: string, release: bool, projectName: string): string {
-    if release => outputDir + "/target/release/" + projectName
+    if release {
+        return outputDir + "/target/release/" + projectName
+    }
     return outputDir + "/target/debug/" + projectName
 }
 
@@ -362,12 +366,16 @@ fileToProjectName(filePath: string): string {
 
 _extractFileNameMain(filePath: string): string {
     let lastSlash = filePath.lastIndexOf("/")
-    if lastSlash >= 0 => filePath.substring(lastSlash + 1, filePath.length)
+    if lastSlash >= 0 {
+        return filePath.substring(lastSlash + 1, filePath.length)
+    }
     return filePath
 }
 
 _removeLivaExtMain(fileName: string): string {
-    if fileName.endsWith(".liva") => fileName.substring(0, fileName.length - 5)
+    if fileName.endsWith(".liva") {
+        return fileName.substring(0, fileName.length - 5)
+    }
     return fileName
 }
 
@@ -376,7 +384,9 @@ hasImports(source: string): bool {
 }
 
 _resolveOutputDir(outputDir: string): string {
-    if outputDir != "" => outputDir
+    if outputDir != "" {
+        return outputDir
+    }
     return "target/liva_build"
 }
 
