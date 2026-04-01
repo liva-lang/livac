@@ -1,0 +1,81 @@
+// Syntax Test: Functions — arrow, block, default params, tuple return
+import { describe, test, expect } from "liva/test"
+
+add(a: number, b: number): number => a + b
+double(x: number) => x * 2
+
+multiply(a: number, b: number): number {
+    let result = a * b
+    return result
+}
+
+greet(name: string = "World"): string => $"Hello, {name}!"
+
+formatEntry(key: string, value: number, prefix: string = ""): string {
+    if prefix == "" {
+        return $"{key}: {value}"
+    }
+    return $"{prefix} {key}: {value}"
+}
+
+getMinMax(a: number, b: number): (number, number) {
+    if a < b {
+        return (a, b)
+    }
+    return (b, a)
+}
+
+sumOfDoubles(a: number, b: number): number {
+    let da = double(a)
+    let db = double(b)
+    return add(da, db)
+}
+
+classify(n: number): string {
+    if n < 0 {
+        return "negative"
+    }
+    if n == 0 {
+        return "zero"
+    }
+    return "positive"
+}
+
+describe("Functions", () => {
+    test("arrow one-liner", () => {
+        expect(add(3, 4)).toBe(7)
+        expect(double(5)).toBe(10)
+    })
+
+    test("block function", () => {
+        expect(multiply(6, 7)).toBe(42)
+    })
+
+    test("default parameters", () => {
+        expect(greet()).toBe("Hello, World!")
+        expect(greet("Alice")).toBe("Hello, Alice!")
+    })
+
+    test("format with default prefix", () => {
+        expect(formatEntry("score", 95)).toBe("score: 95")
+        expect(formatEntry("score", 95, ">>")).toBe(">> score: 95")
+    })
+
+    test("tuple return", () => {
+        let pair = getMinMax(20, 10)
+        let a = pair.0
+        let b = pair.1
+        expect(a).toBe(10)
+        expect(b).toBe(20)
+    })
+
+    test("functions calling functions", () => {
+        expect(sumOfDoubles(3, 4)).toBe(14)
+    })
+
+    test("classify with multiple returns", () => {
+        expect(classify(-1)).toBe("negative")
+        expect(classify(0)).toBe("zero")
+        expect(classify(5)).toBe("positive")
+    })
+})

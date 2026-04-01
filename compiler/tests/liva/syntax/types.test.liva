@@ -1,0 +1,57 @@
+// Syntax Test: Types — type alias, optional T?, tuples, arrays, maps, sets
+import { describe, test, expect } from "liva/test"
+
+type IntList = [number]
+type Pair = (number, number)
+
+describe("Types", () => {
+    test("primitives", () => {
+        let n: number = 42
+        let f: float = 3.14
+        let s: string = "hello"
+        let b: bool = true
+        expect(n).toBe(42)
+        expect(f).toBe(3.14)
+        expect(s).toBe("hello")
+        expect(b).toBe(true)
+    })
+
+    test("rust numeric types", () => {
+        let i: i32 = 100
+        let u: u64 = 999
+        let fl: f64 = 2.718
+        expect(i).toBe(100)
+        expect(fl).toBe(2.718)
+    })
+
+    test("arrays", () => {
+        let nums: [number] = [1, 2, 3]
+        let strs: [string] = ["a", "b", "c"]
+        expect(nums.length).toBe(3)
+        expect(strs.length).toBe(3)
+    })
+
+    test("map", () => {
+        let ages: Map<string, number> = Map { "Alice": 30, "Bob": 25 }
+        expect(ages.has("Alice")).toBe(true)
+        expect(ages.has("Bob")).toBe(true)
+    })
+
+    test("set", () => {
+        let ids: Set<number> = Set { 1, 2, 3, 4 }
+        expect(ids.has(1)).toBe(true)
+        expect(ids.has(4)).toBe(true)
+    })
+
+    test("type alias usage", () => {
+        let list: IntList = [10, 20, 30]
+        expect(list.length).toBe(3)
+    })
+
+    test("type inference works", () => {
+        let inferred = [1, 2, 3]
+        let inferredMap = Map { "x": 1 }
+        expect(inferred.length).toBe(3)
+        expect(inferredMap.has("x")).toBe(true)
+    })
+})

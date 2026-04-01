@@ -1,0 +1,51 @@
+// Syntax Test: String Templates — interpolation, expressions, methods
+import { describe, test, expect } from "liva/test"
+
+describe("String Templates", () => {
+    test("basic interpolation", () => {
+        let name = "Alice"
+        let age = 30
+        expect($"Name: {name}").toBe("Name: Alice")
+        expect($"Age: {age}").toBe("Age: 30")
+    })
+
+    test("expression inside template", () => {
+        expect($"2 + 3 = {2 + 3}").toBe("2 + 3 = 5")
+        let age = 30
+        expect($"Double age: {age * 2}").toBe("Double age: 60")
+    })
+
+    test("multiple expressions", () => {
+        let x = 10
+        let y = 20
+        expect($"{x} + {y} = {x + y}").toBe("10 + 20 = 30")
+    })
+
+    test("string method in template", () => {
+        let greeting = "hello"
+        expect($"Upper: {greeting.toUpperCase()}").toBe("Upper: HELLO")
+    })
+
+    test("template concatenation", () => {
+        let first = "John"
+        let last = "Doe"
+        expect($"Full name: {first} {last}").toBe("Full name: John Doe")
+    })
+
+    test("template in variable", () => {
+        let name = "Alice"
+        let age = 30
+        let msg = $"Hello, {name}! You are {age} years old."
+        expect(msg).toBe("Hello, Alice! You are 30 years old.")
+    })
+
+    test("float in template", () => {
+        let pi = 3.14
+        expect($"Pi is approximately {pi}").toBe("Pi is approximately 3.14")
+    })
+
+    test("array length in template", () => {
+        let items = [1, 2, 3]
+        expect($"Items count: {items.length}").toBe("Items count: 3")
+    })
+})

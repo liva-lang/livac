@@ -1,0 +1,107 @@
+// Syntax Test: Pattern Matching — ranges, or-patterns, guards, enum destructuring
+import { describe, test, expect } from "liva/test"
+
+enum Shape {
+    Circle(radius: number),
+    Rectangle(width: number, height: number),
+    Point
+}
+
+enum Priority {
+    Critical,
+    High,
+    Normal,
+    Low
+}
+
+describeShape(s: Shape): string {
+    return switch s {
+        Shape.Circle(r) => $"circle r={r}",
+        Shape.Rectangle(w, h) => $"rect {w}x{h}",
+        Shape.Point => "point"
+    }
+}
+
+priorityLevel(p: Priority): string {
+    return switch p {
+        Priority.Critical => "urgent",
+        Priority.High => "important",
+        Priority.Normal => "standard",
+        Priority.Low => "optional"
+    }
+}
+
+describe("Pattern Matching", () => {
+    test("range patterns", () => {
+        let score = 87
+        let grade = switch score {
+            90..=100 => "A",
+            80..=89 => "B",
+            70..=79 => "C",
+            60..=69 => "D",
+            _ => "F"
+        }
+        expect(grade).toBe("B")
+    })
+
+    test("value binding", () => {
+        let num = 42
+        let label = switch num {
+            0 => "zero",
+            n => $"other: {n}"
+        }
+        expect(label).toBe("other: 42")
+    })
+
+    test("guards", () => {
+        let x = -5
+        let kind = switch x {
+            0 => "zero",
+            n if n < 0 => "negative",
+            n if n > 100 => "big positive",
+            _ => "small positive"
+        }
+        expect(kind).toBe("negative")
+    })
+
+    test("string or-patterns", () => {
+        let day = "Saturday"
+        let dayType = switch day {
+            "Saturday" | "Sunday" => "Weekend",
+            _ => "Weekday"
+        }
+        expect(dayType).toBe("Weekend")
+    })
+
+    test("numeric or-patterns", () => {
+        let code = 200
+        let tier = switch code {
+            200 | 201 | 204 => "Success",
+            400 | 404 => "Client error",
+            500 => "Server error",
+            _ => "Other"
+        }
+        expect(tier).toBe("Success")
+    })
+
+    test("enum destructuring", () => {
+        expect(describeShape(Shape.Circle(5))).toBe("circle r=5")
+        expect(describeShape(Shape.Rectangle(3, 4))).toBe("rect 3x4")
+        expect(describeShape(Shape.Point)).toBe("point")
+    })
+
+    test("wildcard catch-all", () => {
+        let val = 999
+        let msg = switch val {
+            1 => "one",
+            2 => "two",
+            _ => "many"
+        }
+        expect(msg).toBe("many")
+    })
+
+    test("exhaustive enum switch", () => {
+        expect(priorityLevel(Priority.Critical)).toBe("urgent")
+        expect(priorityLevel(Priority.Low)).toBe("optional")
+    })
+})

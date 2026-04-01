@@ -1,0 +1,51 @@
+// Syntax Test: Error Handling — fail, error binding, or value, or fail
+import { describe, test, expect } from "liva/test"
+
+divide(a: number, b: number): number {
+    if b == 0 {
+        fail "Division by zero"
+    }
+    return a / b
+}
+
+safeDivide(a: number, b: number): number {
+    let result = divide(a, b) or fail "Division failed"
+    return result
+}
+
+safeParse(s: string): number {
+    let val = parseInt(s) or 0
+    return val
+}
+
+describe("Error Handling", () => {
+    test("error binding success", () => {
+        let val, err = divide(10, 2)
+        expect(val).toBe(5)
+    })
+
+    test("error binding failure gives default", () => {
+        let val, err = divide(10, 0)
+        expect(val).toBe(0)
+    })
+
+    test("or value default on failure", () => {
+        expect(safeParse("abc")).toBe(0)
+        expect(safeParse("42")).toBe(42)
+    })
+
+    test("or fail propagation success", () => {
+        let val = safeDivide(100, 5) or 0
+        expect(val).toBe(20)
+    })
+
+    test("or fail propagation failure", () => {
+        let val = safeDivide(100, 0) or -1
+        expect(val).toBe(-1)
+    })
+
+    test("ignore error with underscore", () => {
+        let val, _ = divide(10, 3)
+        expect(val).toBe(3)
+    })
+})

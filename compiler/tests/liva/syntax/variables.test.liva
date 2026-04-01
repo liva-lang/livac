@@ -1,0 +1,68 @@
+// Syntax Test: Variables — let, const, types, optionals, collections, reassignment
+import { describe, test, expect } from "liva/test"
+
+const MAX_SIZE: number = 100
+const APP_NAME = "LivaApp"
+
+describe("Variables", () => {
+    test("type inference", () => {
+        let x = 42
+        let name = "Alice"
+        let active = true
+        let pi = 3.14
+        expect(x).toBe(42)
+        expect(name).toBe("Alice")
+        expect(active).toBe(true)
+        expect(pi).toBe(3.14)
+    })
+
+    test("explicit types", () => {
+        let count: number = 10
+        let label: string = "test"
+        let flag: bool = false
+        let ratio: float = 2.718
+        expect(count).toBe(10)
+        expect(label).toBe("test")
+        expect(flag).toBe(false)
+        expect(ratio).toBe(2.718)
+    })
+
+    test("reassignment", () => {
+        let score = 0
+        score = 95
+        expect(score).toBe(95)
+    })
+
+    test("top-level constants", () => {
+        expect(MAX_SIZE).toBe(100)
+        expect(APP_NAME).toBe("LivaApp")
+    })
+
+    test("arrays", () => {
+        let nums: [number] = [1, 2, 3]
+        let names = ["Alice", "Bob", "Carol"]
+        expect(nums.length).toBe(3)
+        expect(names.length).toBe(3)
+    })
+
+    test("map creation", () => {
+        let ages = Map { "Alice": 30, "Bob": 25 }
+        expect(ages.has("Alice")).toBe(true)
+        expect(ages.has("Bob")).toBe(true)
+    })
+
+    test("set creation", () => {
+        let colors = Set { "red", "green", "blue" }
+        expect(colors.has("red")).toBe(true)
+        expect(colors.has("green")).toBe(true)
+        expect(colors.has("blue")).toBe(true)
+    })
+
+    test("tuple", () => {
+        let pair: (number, number) = (10, 20)
+        let a = pair.0
+        let b = pair.1
+        expect(a).toBe(10)
+        expect(b).toBe(20)
+    })
+})

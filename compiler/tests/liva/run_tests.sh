@@ -52,23 +52,23 @@ fi
 
 
 #───────────────────────────────────────────────────────
-# Layer 1: Syntax — livac check must pass
+# Layer 1: Syntax — livac test (*.test.liva with assertions)
 #───────────────────────────────────────────────────────
 run_syntax_tests() {
     local dir="$SCRIPT_DIR/syntax"
     [[ ! -d "$dir" ]] && return
-    echo -e "\n${CYAN}${BOLD}═══ Layer 1: Syntax Tests (livac check) ═══${NC}"
-    for f in "$dir"/*.liva; do
+    echo -e "\n${CYAN}${BOLD}═══ Layer 1: Syntax Tests (livac test) ═══${NC}"
+    for f in "$dir"/*.test.liva; do
         [[ ! -f "$f" ]] && continue
         local name
         name="$(basename "$f")"
-        if $LIVAC check "$f" > /dev/null 2>&1; then
+        if $LIVAC test "$f" > /dev/null 2>&1; then
             echo -e "  ${GREEN}✓${NC} $name"
             PASS=$((PASS + 1))
         else
             echo -e "  ${RED}✗${NC} $name"
             FAIL=$((FAIL + 1))
-            ERRORS+=("syntax/$name: livac check failed")
+            ERRORS+=("syntax/$name: livac test failed")
         fi
     done
 }

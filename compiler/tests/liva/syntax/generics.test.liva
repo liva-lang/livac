@@ -1,0 +1,38 @@
+// Syntax Test: Generics — generic functions, classes, trait bounds
+import { describe, test, expect } from "liva/test"
+
+sum<T: Numeric>(a: T, b: T): T => a + b
+
+maxVal<T: Comparable>(a: T, b: T): T {
+    if a > b {
+        return a
+    }
+    return b
+}
+
+clamp<T: Number>(value: T, lo: T, hi: T): T {
+    if value < lo { return lo }
+    if value > hi { return hi }
+    return value
+}
+
+describe("Generics", () => {
+    test("sum with turbofish int", () => {
+        expect(sum<int>(10, 20)).toBe(30)
+    })
+
+    test("sum with turbofish float", () => {
+        expect(sum<float>(1.5, 2.5)).toBe(4.0)
+    })
+
+    test("maxVal", () => {
+        expect(maxVal<int>(42, 17)).toBe(42)
+        expect(maxVal<int>(5, 99)).toBe(99)
+    })
+
+    test("clamp to range", () => {
+        expect(clamp<int>(150, 0, 100)).toBe(100)
+        expect(clamp<int>(-5, 0, 100)).toBe(0)
+        expect(clamp<int>(50, 0, 100)).toBe(50)
+    })
+})

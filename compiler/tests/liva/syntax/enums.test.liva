@@ -1,0 +1,90 @@
+// Syntax Test: Enums — unit, tuple, struct, recursive, switch
+import { describe, test, expect } from "liva/test"
+
+enum Direction {
+    North,
+    South,
+    East,
+    West
+}
+
+enum Shape {
+    Circle(radius: number),
+    Rectangle(width: number, height: number),
+    Point
+}
+
+enum Expr {
+    Num(value: number),
+    Add(left: Expr, right: Expr),
+    Neg(inner: Expr)
+}
+
+directionLabel(d: Direction): string {
+    return switch d {
+        Direction.North => "N",
+        Direction.South => "S",
+        Direction.East => "E",
+        Direction.West => "W"
+    }
+}
+
+area(s: Shape): number {
+    return switch s {
+        Shape.Circle(r) => 3 * r * r,
+        Shape.Rectangle(w, h) => w * h,
+        Shape.Point => 0
+    }
+}
+
+eval(e: Expr): number {
+    return switch e {
+        Expr.Num(v) => v,
+        Expr.Add(l, r) => eval(l) + eval(r),
+        Expr.Neg(inner) => 0 - eval(inner)
+    }
+}
+
+makeShape(kind: string): Shape {
+    if kind == "circle" {
+        return Shape.Circle(10)
+    }
+    if kind == "rect" {
+        return Shape.Rectangle(5, 3)
+    }
+    return Shape.Point
+}
+
+describe("Enums", () => {
+    test("unit enum switch", () => {
+        expect(directionLabel(Direction.North)).toBe("N")
+        expect(directionLabel(Direction.South)).toBe("S")
+        expect(directionLabel(Direction.East)).toBe("E")
+        expect(directionLabel(Direction.West)).toBe("W")
+    })
+
+    test("tuple variant area", () => {
+        expect(area(Shape.Circle(5))).toBe(75)
+        expect(area(Shape.Rectangle(4, 6))).toBe(24)
+        expect(area(Shape.Point)).toBe(0)
+    })
+
+    test("recursive enum eval", () => {
+        let expr = Expr.Add(Expr.Num(1), Expr.Neg(Expr.Num(3)))
+        expect(eval(expr)).toBe(-2)
+    })
+
+    test("enum as return type", () => {
+        let s = makeShape("circle")
+        expect(area(s)).toBe(300)
+    })
+
+    test("wildcard switch", () => {
+        let dir = Direction.North
+        let label = switch dir {
+            Direction.North => "up",
+            _ => "other"
+        }
+        expect(label).toBe("up")
+    })
+})

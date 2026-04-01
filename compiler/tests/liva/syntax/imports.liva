@@ -1,8 +1,0 @@
-// Syntax Test: Imports
-// SKIPPED — This feature requires multi-file projects with separate modules.
-// See docs/language-reference/modules.md for full syntax reference.
-// This file is a minimal placeholder.
-
-main() {
-    print("Module tests require multi-file setup — skipped")
-}

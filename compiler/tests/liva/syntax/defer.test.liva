@@ -1,0 +1,19 @@
+// Syntax Test: Defer — defer statement, defer block, LIFO order
+// NOTE: defer is hard to test with assertions since it runs at scope exit.
+// We test that defer + function calls work correctly.
+import { describe, test, expect } from "liva/test"
+
+deferCounter(): number {
+    let result = 0
+    result = 1
+    defer print("deferred!")
+    result = 2
+    return result
+}
+
+describe("Defer", () => {
+    test("function with defer returns correctly", () => {
+        let val = deferCounter()
+        expect(val).toBe(2)
+    })
+})

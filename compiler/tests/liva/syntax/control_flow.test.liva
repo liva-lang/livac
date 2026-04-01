@@ -1,0 +1,132 @@
+// Syntax Test: Control Flow — if/else, switch, for, while, break, continue
+import { describe, test, expect } from "liva/test"
+
+describe("If Else", () => {
+    test("basic if else", () => {
+        let age = 25
+        let label = "unknown"
+        if age >= 18 {
+            label = "Adult"
+        } else {
+            label = "Minor"
+        }
+        expect(label).toBe("Adult")
+    })
+
+    test("if else if else", () => {
+        let score = 85
+        let grade = "?"
+        if score >= 90 {
+            grade = "A"
+        } else if score >= 80 {
+            grade = "B"
+        } else if score >= 70 {
+            grade = "C"
+        } else {
+            grade = "F"
+        }
+        expect(grade).toBe("B")
+    })
+})
+
+describe("Switch Expression", () => {
+    test("range patterns", () => {
+        let score = 87
+        let grade = switch score {
+            90..=100 => "A",
+            80..=89 => "B",
+            70..=79 => "C",
+            60..=69 => "D",
+            _ => "F"
+        }
+        expect(grade).toBe("B")
+    })
+
+    test("guards", () => {
+        let n = 42
+        let desc = switch n {
+            0 => "zero",
+            x if x < 0 => "negative",
+            x if x > 100 => "big",
+            _ => "normal"
+        }
+        expect(desc).toBe("normal")
+    })
+
+    test("string or-patterns", () => {
+        let day = "Saturday"
+        let dayType = switch day {
+            "Saturday" | "Sunday" => "Weekend",
+            _ => "Weekday"
+        }
+        expect(dayType).toBe("Weekend")
+    })
+})
+
+describe("For Loops", () => {
+    test("exclusive range", () => {
+        let sum = 0
+        for i in 0..5 {
+            sum += i
+        }
+        expect(sum).toBe(10)
+    })
+
+    test("inclusive range", () => {
+        let sum = 0
+        for i in 1..=3 {
+            sum += i
+        }
+        expect(sum).toBe(6)
+    })
+
+    test("for array", () => {
+        let fruits = ["apple", "banana", "cherry"]
+        let count = 0
+        for fruit in fruits {
+            count += 1
+        }
+        expect(count).toBe(3)
+    })
+
+    test("for enumerate", () => {
+        let result = ""
+        let items = ["a", "b", "c"]
+        for i, item in items {
+            result = $"{result}{i}:{item} "
+        }
+        expect(result).toBe("0:a 1:b 2:c ")
+    })
+})
+
+describe("While Loop", () => {
+    test("basic while", () => {
+        let count = 0
+        while count < 3 {
+            count = count + 1
+        }
+        expect(count).toBe(3)
+    })
+
+    test("break", () => {
+        let total = 0
+        for i in 0..100 {
+            if i >= 5 {
+                break
+            }
+            total = total + i
+        }
+        expect(total).toBe(10)
+    })
+
+    test("continue skips evens", () => {
+        let sum = 0
+        for i in 0..10 {
+            if i % 2 == 0 {
+                continue
+            }
+            sum += i
+        }
+        expect(sum).toBe(25)
+    })
+})

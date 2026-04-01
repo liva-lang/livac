@@ -1,0 +1,105 @@
+// Syntax Test: Classes — constructor, methods, visibility, data classes
+import { describe, test, expect } from "liva/test"
+
+Animal {
+    name: string
+    _sound: string
+    legs: number
+
+    constructor(name: string, sound: string, legs: number) {
+        this.name = name
+        this._sound = sound
+        this.legs = legs
+    }
+
+    speak(): string {
+        return $"{this.name} says {this._sound}"
+    }
+
+    describe(): string => $"{this.name} has {this.legs} legs"
+}
+
+Point { x: number; y: number }
+
+Color { r: number; g: number; b: number }
+
+Counter {
+    _count: number
+
+    constructor() {
+        this._count = 0
+    }
+
+    increment() {
+        this._count = this._count + 1
+    }
+
+    decrement() {
+        this._count = this._count - 1
+    }
+
+    getCount(): number => this._count
+}
+
+Zoo {
+    name: string
+    _animals: [string]
+
+    constructor(name: string) {
+        this.name = name
+        this._animals = []
+    }
+
+    addAnimal(animalName: string) {
+        this._animals.push(animalName)
+    }
+
+    count(): number => this._animals.length
+}
+
+describe("Classes", () => {
+    test("regular class with constructor", () => {
+        let dog = Animal("Rex", "Woof", 4)
+        expect(dog.speak()).toBe("Rex says Woof")
+        expect(dog.describe()).toBe("Rex has 4 legs")
+        expect(dog.name).toBe("Rex")
+        expect(dog.legs).toBe(4)
+    })
+
+    test("data class creation", () => {
+        let p = Point(10, 20)
+        expect(p.x).toBe(10)
+        expect(p.y).toBe(20)
+    })
+
+    test("data class equality", () => {
+        let p1 = Point(10, 20)
+        let p2 = Point(10, 20)
+        expect(p1 == p2).toBe(true)
+    })
+
+    test("data class with fields", () => {
+        let c = Color(255, 128, 0)
+        expect(c.r).toBe(255)
+        expect(c.g).toBe(128)
+        expect(c.b).toBe(0)
+    })
+
+    test("counter increment decrement", () => {
+        let counter = Counter()
+        counter.increment()
+        counter.increment()
+        counter.increment()
+        counter.decrement()
+        expect(counter.getCount()).toBe(2)
+    })
+
+    test("zoo with array field", () => {
+        let zoo = Zoo("City Zoo")
+        zoo.addAnimal("Lion")
+        zoo.addAnimal("Tiger")
+        zoo.addAnimal("Bear")
+        expect(zoo.count()).toBe(3)
+        expect(zoo.name).toBe("City Zoo")
+    })
+})

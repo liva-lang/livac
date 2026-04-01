@@ -1,0 +1,57 @@
+// Syntax Test: Compound Assignment — +=, -=, *=, /=, %=
+import { describe, test, expect } from "liva/test"
+
+describe("Compound Assignment", () => {
+    test("add assign", () => {
+        let a = 10
+        a += 5
+        expect(a).toBe(15)
+    })
+
+    test("subtract assign", () => {
+        let b = 20
+        b -= 7
+        expect(b).toBe(13)
+    })
+
+    test("multiply assign", () => {
+        let c = 3
+        c *= 4
+        expect(c).toBe(12)
+    })
+
+    test("divide assign", () => {
+        let d = 100
+        d /= 5
+        expect(d).toBe(20)
+    })
+
+    test("modulo assign", () => {
+        let e = 17
+        e %= 5
+        expect(e).toBe(2)
+    })
+
+    test("chained compound assignments", () => {
+        let x = 1
+        x += 10
+        x *= 2
+        x -= 3
+        expect(x).toBe(19)
+    })
+
+    test("compound in loop", () => {
+        let sum = 0
+        for i in 1..=10 {
+            sum += i
+        }
+        expect(sum).toBe(55)
+    })
+
+    test("float compound assignment", () => {
+        let f = 1.0
+        f += 0.5
+        f *= 2.0
+        expect(f).toBe(3.0)
+    })
+})

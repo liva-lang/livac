@@ -1,0 +1,50 @@
+// Syntax Test: Lambdas — closures, map/filter/reduce, point-free, chaining
+import { describe, test, expect } from "liva/test"
+
+describe("Lambdas", () => {
+    test("map with lambda", () => {
+        let nums = [1, 2, 3, 4, 5]
+        let doubled = nums.map(x => x * 2)
+        expect(doubled).toEqual([2, 4, 6, 8, 10])
+    })
+
+    test("filter with lambda", () => {
+        let nums = [1, 2, 3, 4, 5]
+        let evens = nums.filter(x => x % 2 == 0)
+        expect(evens).toEqual([2, 4])
+    })
+
+    test("reduce with initial value", () => {
+        let nums = [1, 2, 3, 4, 5]
+        let total = nums.reduce(0, (acc, x) => acc + x)
+        expect(total).toBe(15)
+    })
+
+    test("find", () => {
+        let nums = [1, 2, 3, 4, 5]
+        let found = nums.find(x => x > 3) or 0
+        expect(found).toBe(4)
+    })
+
+    test("some and every", () => {
+        let nums = [1, 2, 3, 4, 5]
+        expect(nums.some(x => x % 2 == 0)).toBe(true)
+        expect(nums.every(x => x > 0)).toBe(true)
+        expect(nums.every(x => x > 3)).toBe(false)
+    })
+
+    test("closure captures outer variable", () => {
+        let multiplier = 10
+        let nums = [1, 2, 3]
+        let scaled = nums.map(x => x * multiplier)
+        expect(scaled).toEqual([10, 20, 30])
+    })
+
+    test("chained operations", () => {
+        let result = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            .filter(x => x % 2 == 0)
+            .map(x => x * x)
+            .reduce(0, (acc, x) => acc + x)
+        expect(result).toBe(220)
+    })
+})

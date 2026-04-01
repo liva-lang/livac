@@ -1,0 +1,11 @@
+// Syntax Test: Imports
+// NOTE: Full multi-file imports require multi-module setup.
+// This tests that the test framework import itself works correctly.
+import { describe, test, expect } from "liva/test"
+
+describe("Imports", () => {
+    test("liva test framework imported", () => {
+        // If we get here, the import from liva/test worked
+        expect(true).toBe(true)
+    })
+})
