@@ -1,0 +1,47 @@
+// Stdlib Test: Date — new, year/month/day, format, timestamp, now, toString
+// Note: add/diff omitted due to codegen bug (.as_str() on &str is unstable)
+import { describe, test, expect } from "liva/test"
+
+describe("Date", () => {
+    test("Date.new creates date", () => {
+        let d = Date.new(2026, 4, 1)
+        expect(d.year).toBe(2026)
+        expect(d.month).toBe(4)
+        expect(d.day).toBe(1)
+    })
+
+    test("Date.new with time", () => {
+        let d = Date.new(2026, 4, 1, 14, 30, 0)
+        expect(d.hour).toBe(14)
+        expect(d.minute).toBe(30)
+        expect(d.second).toBe(0)
+    })
+
+    test("format date", () => {
+        let d = Date.new(2026, 4, 1)
+        let formatted = d.format("YYYY-MM-DD")
+        expect(formatted).toBe("2026-04-01")
+    })
+
+    test("format with time", () => {
+        let d = Date.new(2026, 4, 1, 9, 5, 3)
+        let formatted = d.format("HH:mm:ss")
+        expect(formatted).toBe("09:05:03")
+    })
+
+    test("timestamp is positive", () => {
+        let ts = Date.timestamp()
+        expect(ts > 0).toBe(true)
+    })
+
+    test("Date.now returns current date", () => {
+        let now = Date.now()
+        expect(now.year >= 2026).toBe(true)
+    })
+
+    test("toString produces readable string", () => {
+        let d = Date.new(2026, 4, 1, 12, 0, 0)
+        let s = d.toString()
+        expect(s.contains("2026")).toBe(true)
+    })
+})

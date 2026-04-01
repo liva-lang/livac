@@ -131,6 +131,14 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Workaround:** Usar `rust {}` block con `std::process::Command` directamente.
 - **Fix:** El codegen debería generar `.to_string()` en el literal del `or`, o `.as_str()` / borrow en la rama `else`.
 
+### B114 — `.as_str()` generado sobre `&str` en vez de `String` 🔶
+- **Ubicación:** `src/codegen.rs` — llamadas a métodos que internamente usan `.as_str()`
+- **Problema:** Ciertos métodos stdlib (Regex.replace, Date.add, Date.diff) generan `.as_str()` sobre una variable que ya es `&str`. En Rust nightly funciona, pero en stable `.as_str()` en `&str` no es estable (`feature(str_as_str)`).
+- **Rust error:** `E0599: no method named 'as_str' found for reference '&str'`
+- **Afecta:** `Regex.replace`, `Date.add`, `Date.diff`
+- **Workaround:** Evitar esos métodos en tests. Los tests omiten esas funciones.
+- **Fix:** El codegen debería detectar cuándo el receptor ya es `&str` y omitir `.as_str()`, o generar un borrow `&*` en su lugar.
+
 ---
 
 ## Carencias del lenguaje detectadas

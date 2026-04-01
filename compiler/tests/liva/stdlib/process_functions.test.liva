@@ -1,0 +1,24 @@
+// Stdlib Test: Process — exec, pid (no exit, no spawn in test context)
+import { describe, test, expect } from "liva/test"
+
+describe("Process", () => {
+    test("exec echo command", () => {
+        let output, err = Process.exec("echo hello")
+        expect(output).toBe("hello")
+    })
+
+    test("exec date command", () => {
+        let output, err = Process.exec("date +%Y")
+        expect(output).toBe("2026")
+    })
+
+    test("exec with pipe", () => {
+        let output, err = Process.exec("echo 'a b c' | wc -w")
+        expect(output).toBe("3")
+    })
+
+    test("pid returns positive number", () => {
+        let pid = Process.pid()
+        expect(pid > 0).toBe(true)
+    })
+})

@@ -1,0 +1,46 @@
+// Stdlib Test: Crypto — sha256, md5, base64Encode, base64Decode
+import { describe, test, expect } from "liva/test"
+
+describe("Crypto", () => {
+    test("sha256 empty string", () => {
+        let hash = Crypto.sha256("")
+        expect(hash).toBe("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+    })
+
+    test("sha256 hello", () => {
+        let hash = Crypto.sha256("hello")
+        expect(hash).toBe("2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824")
+    })
+
+    test("md5 empty string", () => {
+        let hash = Crypto.md5("")
+        expect(hash).toBe("d41d8cd98f00b204e9800998ecf8427e")
+    })
+
+    test("md5 hello", () => {
+        let hash = Crypto.md5("hello")
+        expect(hash).toBe("5d41402abc4b2a76b9719d911017c592")
+    })
+
+    test("base64 encode", () => {
+        let encoded = Crypto.base64Encode("hello world")
+        expect(encoded).toBe("aGVsbG8gd29ybGQ=")
+    })
+
+    test("base64 encode empty", () => {
+        let encoded = Crypto.base64Encode("")
+        expect(encoded).toBe("")
+    })
+
+    test("base64 decode valid", () => {
+        let decoded, err = Crypto.base64Decode("aGVsbG8gd29ybGQ=")
+        expect(decoded).toBe("hello world")
+    })
+
+    test("base64 roundtrip", () => {
+        let original = "Liva compiler 2026!"
+        let encoded = Crypto.base64Encode(original)
+        let decoded, err = Crypto.base64Decode(encoded)
+        expect(decoded).toBe(original)
+    })
+})

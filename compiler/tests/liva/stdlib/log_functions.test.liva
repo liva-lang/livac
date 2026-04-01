@@ -1,0 +1,31 @@
+// Stdlib Test: Log — verify log functions compile and don't crash
+// Log outputs to stderr with no return values, so we can only test compilation
+import { describe, test, expect } from "liva/test"
+
+describe("Log", () => {
+    test("log info compiles", () => {
+        Log.info("test info message")
+        expect(true).toBe(true)
+    })
+
+    test("log warn compiles", () => {
+        Log.warn("test warning")
+        expect(true).toBe(true)
+    })
+
+    test("log error compiles", () => {
+        Log.error("test error")
+        expect(true).toBe(true)
+    })
+
+    test("log debug compiles", () => {
+        Log.debug("test debug")
+        expect(true).toBe(true)
+    })
+
+    test("log with multiple args", () => {
+        Log.info("count:", 42)
+        Log.info("name:", "Alice", "age:", 30)
+        expect(true).toBe(true)
+    })
+})

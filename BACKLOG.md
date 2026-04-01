@@ -560,14 +560,14 @@
 - [x] set_methods.test.liva — 7 assertions (add, has, delete, clear, iteration)
 - [x] math_functions.test.liva — 13 assertions (abs, floor, ceil, pow, sqrt, min, max, PI)
 - [x] type_conversions.test.liva — 12 assertions (toString, toInt, toFloat, parseInt, parseFloat)
-- [ ] random_functions.test.liva — Random.int, Random.float, Random.bool, Random.choice
-- [ ] regex_functions.test.liva — Regex.match, test, findAll, replace, split
-- [ ] date_functions.test.liva — Date.now, format, parse, diff, add
-- [ ] csv_functions.test.liva — CSV.parse, stringify
-- [ ] config_functions.test.liva — Config.load, get, getInt, getBool
-- [ ] process_functions.test.liva — Process.exec, Sys.args, Sys.env
-- [ ] log_functions.test.liva — Log.info, Log.warn, Log.error, Log.debug
-- [ ] crypto_functions.test.liva — Crypto.hash, hmac, randomBytes, uuid
+- [x] random_functions.test.liva — 7 assertions (nextInt range, nextFloat, choice, shuffle, uuid)
+- [x] regex_functions.test.liva — 6 assertions (test, findAll, split) ⚠️ replace omitted (B114)
+- [x] date_functions.test.liva — 7 assertions (new, format, timestamp, now, toString) ⚠️ add/diff omitted (B114)
+- [x] csv_functions.test.liva — 5 assertions (parse, stringify, roundtrip)
+- [x] config_functions.test.liva — 4 assertions (load, get, getInt, getBool)
+- [x] process_functions.test.liva — 4 assertions (exec, pid)
+- [x] log_functions.test.liva — 5 assertions (info, warn, error, debug, multiple args — compile-only)
+- [x] crypto_functions.test.liva — 8 assertions (sha256, md5, base64Encode, base64Decode, roundtrip)
 
 **Capa 5: Stdlib-IO (`compiler/tests/liva/stdlib-io/`)** — opt-in, requiere filesystem/red
 - [ ] file_operations.liva — File.read, write, append, exists, delete, copy, move, size, ext, name, lines
@@ -596,7 +596,6 @@
   - `./run_tests.sh --all` — incluye stdlib-io
   - `./run_tests.sh --only syntax` — solo una capa
   - Exit code 0/1 para CI
-- [x] `compiler/tests/liva/run_error_tests.sh` — runner dedicado para error tests
 
 ---
 

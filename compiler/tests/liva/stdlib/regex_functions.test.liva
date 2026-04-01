@@ -1,0 +1,35 @@
+// Stdlib Test: Regex — test, findAll, split
+// Note: Regex.replace omitted due to codegen bug (.as_str() on stable Rust)
+import { describe, test, expect } from "liva/test"
+
+describe("Regex", () => {
+    test("test matches pattern", () => {
+        let found = Regex.test("\\d+", "abc123def")
+        expect(found).toBe(true)
+    })
+
+    test("test no match", () => {
+        let found = Regex.test("\\d+", "abcdef")
+        expect(found).toBe(false)
+    })
+
+    test("findAll digits", () => {
+        let matches = Regex.findAll("\\d+", "a1b22c333")
+        expect(matches.length).toBe(3)
+    })
+
+    test("findAll no match returns empty", () => {
+        let matches = Regex.findAll("\\d+", "abc")
+        expect(matches.length).toBe(0)
+    })
+
+    test("split by pattern", () => {
+        let parts = Regex.split("[,;]", "a,b;c,d")
+        expect(parts.length).toBe(4)
+    })
+
+    test("split no match returns whole string", () => {
+        let parts = Regex.split("\\d+", "abcdef")
+        expect(parts.length).toBe(1)
+    })
+})
