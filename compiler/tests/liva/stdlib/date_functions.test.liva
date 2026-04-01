@@ -1,5 +1,4 @@
-// Stdlib Test: Date — new, year/month/day, format, timestamp, now, toString
-// Note: add/diff omitted due to codegen bug (.as_str() on &str is unstable)
+// Stdlib Test: Date — new, year/month/day, format, timestamp, now, toString, add, diff
 import { describe, test, expect } from "liva/test"
 
 describe("Date", () => {
@@ -43,5 +42,18 @@ describe("Date", () => {
         let d = Date.new(2026, 4, 1, 12, 0, 0)
         let s = d.toString()
         expect(s.contains("2026")).toBe(true)
+    })
+
+    test("add days", () => {
+        let d = Date.new(2026, 4, 1)
+        let d2 = d.add(10, "days")
+        expect(d2.day).toBe(11)
+    })
+
+    test("diff in days", () => {
+        let d1 = Date.new(2026, 4, 1)
+        let d2 = Date.new(2026, 4, 11)
+        let days = d2.diff(d1, "days")
+        expect(days).toBe(10)
     })
 })

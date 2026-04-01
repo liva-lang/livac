@@ -387,7 +387,7 @@ mod liva_rt {
 }
 
 fn main() {
-    if { let p = std::path::Path::new(&"./output"); p.exists() && p.is_dir() } {
+    if { let __arg = ("./output").to_string(); let p = std::path::Path::new(&__arg); p.exists() && p.is_dir() } {
         println!("{}", "Output dir exists");
     }
     let (ok, create_err) = { let (opt, err) = match std::fs::create_dir_all(&"./output/subdir") { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!("Dir.create error: {}", e)) }; (opt.unwrap_or_default(), err) };

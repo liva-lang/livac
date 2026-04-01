@@ -131,20 +131,17 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Workaround:** Usar `rust {}` block con `std::process::Command` directamente.
 - **Fix:** El codegen debería generar `.to_string()` en el literal del `or`, o `.as_str()` / borrow en la rama `else`.
 
-### B114 — `.as_str()` generado sobre `&str` en vez de `String` 🔶
+### B114 — `.as_str()` generado sobre `&str` en vez de `String` ✅ FIXED
 - **Ubicación:** `src/codegen.rs` — llamadas a métodos que internamente usan `.as_str()`
 - **Problema:** Ciertos métodos stdlib (Regex.replace, Date.add, Date.diff) generan `.as_str()` sobre una variable que ya es `&str`. En Rust nightly funciona, pero en stable `.as_str()` en `&str` no es estable (`feature(str_as_str)`).
-- **Rust error:** `E0599: no method named 'as_str' found for reference '&str'`
-- **Afecta:** `Regex.replace`, `Date.add`, `Date.diff`
-- **Workaround:** Evitar esos métodos en tests. Los tests omiten esas funciones.
-- **Fix:** El codegen debería detectar cuándo el receptor ya es `&str` y omitir `.as_str()`, o generar un borrow `&*` en su lugar.
+- **Fix aplicado:** Se genera `let __repl = (EXPR).to_string()` / `let __liva_unit = (EXPR).to_string()` para garantizar que el valor es un `String` owned antes de llamar `.as_str()`.
+- **Tests añadidos:** Regex.replace (2 tests), Date.add (1 test), Date.diff (1 test)
 
-### B115 — `Dir.exists()` / `Dir.isDir()` con expresión inline genera borrow de temporal 🔶
+### B115 — `Dir.exists()` / `Dir.isDir()` con expresión inline genera borrow de temporal ✅ FIXED
 - **Repro:** `Dir.exists(base + "/subdir")` — sin asignar a variable primero
-- **Problema:** El codegen genera `Path::new(&format!(...))` pero `format!()` crea un temporal que se libera antes de que `Path::new` lo use. Rust error: `E0716: temporary value dropped while borrowed`.
-- **Afecta:** `Dir.exists(expr)`, `Dir.isDir(expr)` cuando `expr` es una operación (no variable simple)
-- **Workaround:** Asignar a `let` primero: `let path = base + "/subdir"` → `Dir.exists(path)`
-- **Fix:** El codegen debería generar un `let __path = ...;` temporal antes de `Path::new(&__path)`.
+- **Problema:** El codegen genera `Path::new(&format!(...))` pero `format!()` crea un temporal que se libera antes de que `Path::new` lo use.
+- **Fix aplicado:** Se genera `let __arg = (EXPR).to_string(); Path::new(&__arg)` en todas las llamadas a File.exists, File.extension, Dir.isDir, Dir.exists, Dir.listRecursive/walk (5 ubicaciones).
+- **Tests verificados:** dir_operations.test.liva usa `Dir.exists(base + "/sub")` inline correctamente.
 
 ---
 

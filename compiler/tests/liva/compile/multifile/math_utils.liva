@@ -1,0 +1,15 @@
+// Utility module — exported functions for multifile test
+add(a: number, b: number): number => a + b
+
+subtract(a: number, b: number): number => a - b
+
+multiply(a: number, b: number): number => a * b
+
+clamp(value: number, min: number, max: number): number {
+    if value < min { return min }
+    if value > max { return max }
+    return value
+}
+
+// Private helper (underscore prefix = not exported)
+_internal(): number => 42

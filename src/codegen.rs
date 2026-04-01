@@ -12544,9 +12544,9 @@ impl CodeGenerator {
                     )));
                 }
 
-                self.output.push_str("std::path::Path::new(&");
+                self.output.push_str("{ let __arg = (");
                 self.generate_expr(&method_call.args[0])?;
-                self.output.push_str(").exists()");
+                self.output.push_str(").to_string(); std::path::Path::new(&__arg).exists() }");
             }
             "delete" => {
                 // File.delete(path) returns (Option<bool>, String)
@@ -12619,9 +12619,9 @@ impl CodeGenerator {
                     )));
                 }
 
-                self.output.push_str("std::path::Path::new(&");
+                self.output.push_str("{ let __arg = (");
                 self.generate_expr(&method_call.args[0])?;
-                self.output.push_str(").extension().and_then(|e| e.to_str()).unwrap_or(\"\").to_string()");
+                self.output.push_str(").to_string(); std::path::Path::new(&__arg).extension().and_then(|e| e.to_str()).unwrap_or(\"\").to_string() }");
             }
             "readLines" => {
                 // File.readLines(path) returns (Option<Vec<String>>, String)
@@ -12696,9 +12696,9 @@ impl CodeGenerator {
                     )));
                 }
 
-                self.output.push_str("std::path::Path::new(&");
+                self.output.push_str("{ let __arg = (");
                 self.generate_expr(&method_call.args[0])?;
-                self.output.push_str(").is_dir()");
+                self.output.push_str(").to_string(); std::path::Path::new(&__arg).is_dir() }");
             }
             "exists" => {
                 // Dir.exists(path) returns bool (no error binding)
@@ -12710,9 +12710,9 @@ impl CodeGenerator {
                     )));
                 }
 
-                self.output.push_str("{ let p = std::path::Path::new(&");
+                self.output.push_str("{ let __arg = (");
                 self.generate_expr(&method_call.args[0])?;
-                self.output.push_str("); p.exists() && p.is_dir() }");
+                self.output.push_str(").to_string(); let p = std::path::Path::new(&__arg); p.exists() && p.is_dir() }");
             }
             "create" => {
                 // Dir.create(path) returns (Option<bool>, String)
@@ -12753,9 +12753,9 @@ impl CodeGenerator {
                     )));
                 }
 
-                self.output.push_str("{ fn walk_dir(dir: &std::path::Path, result: &mut Vec<String>, base: &std::path::Path) -> Result<(), std::io::Error> { for entry in std::fs::read_dir(dir)? { let entry = entry?; let path = entry.path(); if let Some(rel) = path.strip_prefix(base).ok().and_then(|p| p.to_str()) { result.push(rel.to_string()); } if path.is_dir() { walk_dir(&path, result, base)?; } } Ok(()) } let base = std::path::Path::new(&");
+                self.output.push_str("{ fn walk_dir(dir: &std::path::Path, result: &mut Vec<String>, base: &std::path::Path) -> Result<(), std::io::Error> { for entry in std::fs::read_dir(dir)? { let entry = entry?; let path = entry.path(); if let Some(rel) = path.strip_prefix(base).ok().and_then(|p| p.to_str()) { result.push(rel.to_string()); } if path.is_dir() { walk_dir(&path, result, base)?; } } Ok(()) } let __arg = (");
                 self.generate_expr(&method_call.args[0])?;
-                self.output.push_str("); let mut names = Vec::new(); match walk_dir(base, &mut names, base) { Ok(_) => { names.sort(); (Some(names), String::new()) }, Err(e) => (None, format!(\"Dir.");
+                self.output.push_str(").to_string(); let base = std::path::Path::new(&__arg); let mut names = Vec::new(); match walk_dir(base, &mut names, base) { Ok(_) => { names.sort(); (Some(names), String::new()) }, Err(e) => (None, format!(\"Dir.");
                 self.output.push_str(method_call.method.as_str());
                 self.output.push_str(" error: {}\", e)) } }");
             }
@@ -13274,15 +13274,15 @@ impl CodeGenerator {
                     )));
                 }
 
-                self.output.push_str("regex::Regex::new(&");
+                self.output.push_str("{ let __repl = (");
+                self.generate_expr(&method_call.args[2])?;
+                self.output.push_str(").to_string(); regex::Regex::new(&");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(").map(|re| re.replace_all(&");
                 self.generate_expr(&method_call.args[1])?;
-                self.output.push_str(", ");
-                self.generate_expr(&method_call.args[2])?;
-                self.output.push_str(".as_str()).to_string()).unwrap_or_else(|_| ");
+                self.output.push_str(", __repl.as_str()).to_string()).unwrap_or_else(|_| ");
                 self.generate_expr(&method_call.args[1])?;
-                self.output.push_str(".to_string())");
+                self.output.push_str(".to_string()) }");
             }
             "split" => {
                 // Regex.split(pattern, text) → [string]
@@ -13432,9 +13432,9 @@ impl CodeGenerator {
                     )));
                 }
                 // Generate: d + chrono::Duration::days(n as i64) (etc.)
-                self.output.push_str("{ let __liva_unit = ");
+                self.output.push_str("{ let __liva_unit = (");
                 self.generate_expr(&method_call.args[1])?;
-                self.output.push_str("; let __liva_n = ");
+                self.output.push_str(").to_string(); let __liva_n = ");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(" as i64; let __liva_dur = match __liva_unit.as_str() { ");
                 self.output.push_str("\"days\" => chrono::Duration::days(__liva_n), ");
@@ -13459,9 +13459,9 @@ impl CodeGenerator {
                 self.generate_expr(&method_call.object)?;
                 self.output.push_str(".signed_duration_since(");
                 self.generate_expr(&method_call.args[0])?;
-                self.output.push_str("); let __liva_unit = ");
+                self.output.push_str("); let __liva_unit = (");
                 self.generate_expr(&method_call.args[1])?;
-                self.output.push_str("; (match __liva_unit.as_str() { ");
+                self.output.push_str(").to_string(); (match __liva_unit.as_str() { ");
                 self.output.push_str("\"days\" => __liva_diff.num_days(), ");
                 self.output.push_str("\"hours\" => __liva_diff.num_hours(), ");
                 self.output.push_str("\"minutes\" => __liva_diff.num_minutes(), ");

@@ -389,7 +389,7 @@ mod liva_rt {
 fn main() {
     let numbers = regex::Regex::new(&"\\d+").map(|re| re.find_iter(&"a1b22c333").map(|m| m.as_str().to_string()).collect::<Vec<String>>()).unwrap_or_default();
     println!("{}", format!("Found {} numbers", (numbers.len() as i32)));
-    let cleaned = regex::Regex::new(&"\\s+").map(|re| re.replace_all(&"  hello   world  ", " ".as_str()).to_string()).unwrap_or_else(|_| "  hello   world  ".to_string());
+    let cleaned = { let __repl = (" ").to_string(); regex::Regex::new(&"\\s+").map(|re| re.replace_all(&"  hello   world  ", __repl.as_str()).to_string()).unwrap_or_else(|_| "  hello   world  ".to_string()) };
     println!("{}", cleaned);
     let parts = regex::Regex::new(&"[,;]").map(|re| re.split(&"a,b;c,d").map(|s| s.to_string()).collect::<Vec<String>>()).unwrap_or_else(|_| vec!["a,b;c,d".to_string()]);
     println!("{}", format!("Parts: {}", (parts.len() as i32)));

@@ -64,8 +64,8 @@ describe("Dir", () => {
 
     test("exists returns false for missing directory", () => {
         let base = getTestBaseDir()
-        let missing = base + "/nonexistent_dir_xyz"
-        let found = Dir.exists(missing)
+        // Uses inline expression — previously failed with B115 (temporary borrow)
+        let found = Dir.exists(base + "/nonexistent_dir_xyz")
         expect(found).toBe(false)
     })
 })

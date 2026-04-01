@@ -396,6 +396,6 @@ fn main() {
     if size_err == "" {
         println!("{}", format!("File size: {{bytes}} bytes"));
     }
-    let ext = std::path::Path::new(&"photo.jpg").extension().and_then(|e| e.to_str()).unwrap_or("").to_string();
+    let ext = { let __arg = ("photo.jpg").to_string(); std::path::Path::new(&__arg).extension().and_then(|e| e.to_str()).unwrap_or("").to_string() };
     println!("{}", format!("Extension: {}", ext));
 }

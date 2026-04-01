@@ -1,0 +1,36 @@
+// Multifile Test — imports from sibling modules
+import { add, subtract, multiply, clamp } from "./math_utils"
+import { greet, repeat, capitalize } from "./string_utils"
+import { describe, test, expect } from "liva/test"
+
+describe("Multifile Imports", () => {
+    test("math add", () => {
+        expect(add(2, 3)).toBe(5)
+    })
+
+    test("math subtract", () => {
+        expect(subtract(10, 4)).toBe(6)
+    })
+
+    test("math multiply", () => {
+        expect(multiply(3, 7)).toBe(21)
+    })
+
+    test("math clamp", () => {
+        expect(clamp(15, 0, 10)).toBe(10)
+        expect(clamp(-5, 0, 10)).toBe(0)
+        expect(clamp(5, 0, 10)).toBe(5)
+    })
+
+    test("string greet", () => {
+        expect(greet("Liva")).toBe("Hello, Liva!")
+    })
+
+    test("string repeat", () => {
+        expect(repeat("ab", 3)).toBe("ababab")
+    })
+
+    test("string capitalize", () => {
+        expect(capitalize("hello")).toBe("HELLO")
+    })
+})

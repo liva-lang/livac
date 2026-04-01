@@ -529,7 +529,7 @@
 - [x] collections.liva — arrays, maps, sets, iteraciones
 - [x] closures.liva — lambdas como parámetros, map/filter/reduce
 - [x] pattern_matching.liva — switch patterns, destructuring
-- [ ] multifile/ — proyecto multi-archivo con imports
+- [x] multifile/ — 7 assertions (imports from sibling modules: math_utils + string_utils)
 
 **Capa 3: E2E Runtime (`compiler/tests/liva/e2e/`)** — build + run + compare OR livac test
 - [x] hello.liva + hello.expected — pipeline completo mínimo
@@ -550,7 +550,7 @@
 - [x] pattern_matching.test.liva — switch, destructuring (9 assertions)
 - [x] defer.test.liva — defer smoke test (1 assertion)
 - [x] smoke.test.liva — minimal sanity (1 assertion)
-- [ ] async_basic.liva + async_basic.expected — async/await básico
+- [x] async_basic.test.liva — 5 assertions (par map/filter/reduce, function ref, task async + await)
 - [ ] string_utils.liva + string_utils.expected — string processing intensivo
 
 **Capa 4: Stdlib (`compiler/tests/liva/stdlib/`)** — livac test, métodos stdlib
@@ -561,8 +561,8 @@
 - [x] math_functions.test.liva — 13 assertions (abs, floor, ceil, pow, sqrt, min, max, PI)
 - [x] type_conversions.test.liva — 12 assertions (toString, toInt, toFloat, parseInt, parseFloat)
 - [x] random_functions.test.liva — 7 assertions (nextInt range, nextFloat, choice, shuffle, uuid)
-- [x] regex_functions.test.liva — 6 assertions (test, findAll, split) ⚠️ replace omitted (B114)
-- [x] date_functions.test.liva — 7 assertions (new, format, timestamp, now, toString) ⚠️ add/diff omitted (B114)
+- [x] regex_functions.test.liva — 8 assertions (test, findAll, split, replace) ✅ B114 fixed
+- [x] date_functions.test.liva — 9 assertions (new, format, timestamp, now, toString, add, diff) ✅ B114 fixed
 - [x] csv_functions.test.liva — 5 assertions (parse, stringify, roundtrip)
 - [x] config_functions.test.liva — 4 assertions (load, get, getInt, getBool)
 - [x] process_functions.test.liva — 4 assertions (exec, pid)
