@@ -1,12 +1,17 @@
-// E2E Test: Generics — generic functions
-// NOTE: Generic classes (Box<T>, Pair<A,B>) excluded due to codegen bugs:
-//   B103: auto-Display impl lacks Display bound on type params
-//   B104: get(): T => this.value moves from &self without .clone()
+// E2E Test: Generics — generic functions and classes
+// B103 FIXED: auto-Display impl now includes Display bound on type params
+// B104 FIXED: get(): T => this.value now generates .clone()
 import { describe, test, expect } from "liva/test"
 
 identity<T>(x: T): T => x
 
 firstOf<T>(a: T, b: T): T => a
+
+// B103 + B104: Generic class — previously broken
+Container<T> {
+    value: T
+    get(): T => this.value
+}
 
 describe("Generic Functions", () => {
     test("identity with number", () => {
@@ -24,5 +29,17 @@ describe("Generic Functions", () => {
     test("firstOf returns first argument", () => {
         expect(firstOf(1, 2)).toBe(1)
         expect(firstOf("x", "y")).toBe("x")
+    })
+})
+
+describe("Generic Classes", () => {
+    test("Container holds and returns a number", () => {
+        let b = Container(42)
+        expect(b.get()).toBe(42)
+    })
+
+    test("Container holds and returns a string", () => {
+        let b = Container("hello")
+        expect(b.get()).toBe("hello")
     })
 })

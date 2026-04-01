@@ -8,13 +8,11 @@
 
 ## Codegen — Bugs en la generación de Rust
 
-### B101 — `expect(err).toBeTruthy()` falla con `Option<Error>` ⚡
+### B101 — `expect(err).toBeTruthy()` falla con `Option<Error>` ✅ FIXED
 - **Ubicación:** `src/codegen.rs` — generación de `toBeTruthy` en test framework
-- **Problema:** `expect(err).toBeTruthy()` genera `assert!(err)` en Rust, pero `err` es de tipo `Option<liva_rt::Error>` que no implementa `Not`. Debería generar `assert!(err.is_some())`.
-- **Afecta:** `toBeTruthy()` y `toBeFalsy()` sobre variables de error binding (`let val, err = fn()`)
-- **Rust error:** `E0600: cannot apply unary operator '!' to type 'Option<liva_rt::Error>'`
-- **Workaround:** Usar `or <default>` en lugar de error binding + expect
-- **Test afectado:** `error_handling.test.liva`
+- **Problema:** `expect(err).toBeTruthy()` genera `assert!(err)` en Rust, pero `err` es de tipo `Option<liva_rt::Error>` que no implementa `Not`.
+- **Fix aplicado:** Detecta si `actual_expr` es una variable de error binding (`error_binding_vars` / `option_value_vars`) y genera `.is_some()` / `.is_none()` en lugar de `assert!()`.
+- **Tests añadidos:** error_handling.test.liva (2 tests: successful call no error, failed call has error)
 
 ### B102 — `parseInt` error binding genera `String` en vez de `Option<Error>` 🔶
 - **Ubicación:** `src/codegen.rs` — `generate_call_expr` para `parseInt`
@@ -23,56 +21,47 @@
 - **Workaround:** Usar `parseInt("abc") or 0`
 - **Test afectado:** `error_handling.test.liva`
 
-### B103 — Generic classes: auto-Display impl carece de bound `Display` ⚡
-- **Ubicación:** `src/codegen.rs` — generación de `impl Display for Box<T>`
-- **Problema:** Cuando se genera el `impl Display` automático para una clase genérica `Box<T>`, el impl block solo tiene `impl<T: Clone>` pero necesita `impl<T: Clone + std::fmt::Display>`.
-- **Rust error:** `E0277: T doesn't implement std::fmt::Display`
-- **Workaround:** No usar clases genéricas en tests (funciones genéricas SÍ funcionan)
-- **Test afectado:** `generics.test.liva`
+### B103 — Generic classes: auto-Display impl carece de bound `Display` ✅ FIXED
+- **Ubicación:** `src/codegen.rs` — generación de `impl Display for ClassName<T>`
+- **Problema:** El impl block solo tenía `impl<T: Clone>` pero necesita `impl<T: Clone + std::fmt::Display>`.
+- **Fix aplicado:** Se genera `impl_display_type_params` separado que añade `+ std::fmt::Display` a cada tipo genérico.
+- **Tests añadidos:** generics.test.liva (2 tests: Container<T> con number y string)
 
-### B104 — Generic class method `get(): T` mueve valor desde `&self` ⚡
+### B104 — Generic class method `get(): T` mueve valor desde `&self` ✅ FIXED
 - **Ubicación:** `src/codegen.rs` — generación de métodos que retornan `T`
-- **Problema:** `get(): T => this.value` genera `self.value` que intenta mover `T` fuera de `&self`. Debería generar `self.value.clone()`.
-- **Rust error:** `E0507: cannot move out of 'self.value' which is behind a shared reference`
-- **Workaround:** No usar métodos que retornan `T` genérico
-- **Test afectado:** `generics.test.liva`
+- **Problema:** `get(): T => this.value` genera `self.value` que intenta mover `T` fuera de `&self`.
+- **Fix aplicado:** Cuando el return type es un type parameter genérico de la clase y el método es `&self`, se añade `.clone()` al expr_body.
+- **Tests añadidos:** generics.test.liva (Container<T>.get() works for number and string)
 
-### B105 — `toBe([])` con array vacío: inferencia de tipo falla 🔶
+### B105 — `toBe([])` con array vacío: inferencia de tipo falla ✅ FIXED
 - **Ubicación:** `src/codegen.rs` — generación de `assert_eq!` con `vec![]`
-- **Problema:** `expect([1,3,5].filter(x => x > 10)).toBe([])` genera `assert_eq!(..., vec![])` en Rust. El `vec![]` vacío no puede inferir tipo, y además hay ambigüedad de `PartialEq` con `serde_json::Value`.
-- **Rust error:** `E0282: type annotations needed` + `E0283: ambiguous PartialEq`
-- **Workaround:** Comparar `expect(arr.length()).toBe(0)` o usar `.filter(x => x > 20).toBe([30, 40])`
-- **Test afectado:** `lambdas.test.liva`
+- **Problema:** `expect(arr.filter(fn)).toBe([])` genera `assert_eq!(..., vec![])` con tipo ambiguo.
+- **Fix aplicado:** Cuando expected es un array literal vacío, se genera `assert!(<actual>.is_empty())` en lugar de `assert_eq!`.
+- **Tests añadidos:** lambdas.test.liva (2 tests: filter→empty, negated empty)
 
-### B106 — `reduce` con strings: tipo acumulador mismatch `&str` vs `String` 🔶
+### B106 — `reduce` con strings: tipo acumulador mismatch `&str` vs `String` ✅ FIXED
 - **Ubicación:** `src/codegen.rs` — generación de `.fold()` para `reduce`
-- **Problema:** `["a","b","c"].reduce("", (acc, s) => ...)` genera `.fold("", ...)` donde el acumulador inicial es `&str` pero el closure retorna `String` desde `format!()`.
-- **Rust error:** `E0308: mismatched types — expected &str, found String`
-- **Workaround:** Usar reduce solo con números
-- **Test afectado:** `lambdas.test.liva`
+- **Problema:** `["a","b"].reduce("", (acc, s) => ...)` genera `.fold("", ...)` donde el acumulador es `&str` pero el closure retorna `String`.
+- **Fix aplicado:** (1) Si el valor inicial de reduce es un string literal, se genera `.to_string()`. (2) El param del elemento no usa `&` cuando `will_use_cloned=true` (non-Copy types).
+- **Tests añadidos:** lambdas.test.liva (1 test: join with reduce)
 
-### B107 — Point-free filter: `&&i32` vs `i32` deref mismatch 🔶
+### B107 — Point-free filter: `&&i32` vs `i32` deref mismatch ✅ FIXED
 - **Ubicación:** `src/codegen.rs` — generación de point-free refs en `.filter()`
-- **Problema:** `[1,2,3].filter(isEven)` genera `filter(|_x| is_even(_x))` pero `_x` es `&&i32` (desde `.iter()` + closure ref), y `isEven` espera `i32`.
-- **Nota:** Point-free en `.map()` funciona correctamente. Solo falla en `.filter()`.
-- **Rust error:** `E0308: mismatched types — expected i32, found &&{integer}`  
-- **Workaround:** Usar lambda inline: `.filter(x => x % 2 == 0)`
-- **Test afectado:** `lambdas.test.liva`
+- **Problema:** `[1,2,3].filter(isEven)` genera `filter(|_x| is_even(_x))` pero `_x` es `&i32` y `isEven` espera `i32`.
+- **Fix aplicado:** Cuando `will_use_cloned=true` y el método es filter/find/some/every/count, se genera `func((*_x).clone())` para desreferenciar el argumento.
+- **Tests añadidos:** lambdas.test.liva (1 test: [1..6].filter(isEven))
 
-### B109 — Duplicate test names: sanitización colisiona ⚡
+### B109 — Duplicate test names: sanitización colisiona ✅ FIXED
 - **Ubicación:** `src/codegen.rs` — `generate_test_case`
-- **Problema:** `test("accumulator with +=", ...)` y `test("accumulator with *=", ...)` ambos se sanitizan a `test_accumulator_with___`. El codegen no detecta ni resuelve colisiones.
-- **Rust error:** `E0428: the name 'test_accumulator_with___' is defined multiple times`
-- **Workaround:** Usar nombres de test que sean únicos después de sanitización
-- **Test afectado:** `compound_assign.test.liva`
+- **Problema:** `test("accumulator with +=", ...)` y `test("accumulator with *=", ...)` ambos se sanitizan a `test_accumulator_with___`. El codegen no detectaba colisiones.
+- **Fix aplicado:** Se añadió `used_test_names: HashMap<String, usize>` al `CodeGenerator`. Si un nombre ya existe, se añade sufijo `_N`.
+- **Tests añadidos:** compound_assign.test.liva (2 tests con nombres que colisionan)
 
-### B110 — Set `.has()` no funciona sobre resultado de `.union()` / `.intersection()` 🔶
-- **Ubicación:** `src/codegen.rs` — generación de métodos sobre `HashSet` derivado
-- **Problema:** Cuando `.union(b)` o `.intersection(b)` retornan un nuevo `HashSet`, las llamadas subsecuentes a `.has()` generan `.has()` en Rust (no existe), en vez de `.contains()`.
-- **Nota:** `.has()` funciona correctamente sobre Sets creados directamente con `Set { ... }`.
-- **Rust error:** `E0599: no method named 'has' found for struct 'HashSet'`
-- **Workaround:** No encadenar `.has()` sobre resultados de union/intersection
-- **Test afectado:** `collections.test.liva`
+### B110 — Set `.has()` no funciona sobre resultado de `.union()` / `.intersection()` ✅ FIXED
+- **Ubicación:** `src/codegen.rs` — tracking de variables Set en VarDecl
+- **Problema:** `set.union(b)` retorna un `HashSet`, pero la variable resultado no se trackea como `set_vars`, por lo que `.has()` no se traduce a `.contains()`.
+- **Fix aplicado:** En VarDecl, cuando init es un MethodCall con método `union`/`intersection`/`difference`, se añade la variable a `set_vars`.
+- **Tests añadidos:** set_methods.test.liva (3 tests: union, intersection, difference con .has())
 
 ### B111 — Optional variable: `expect(maybe).toBe(42)` con `Option<i32>` 🔷
 - **Ubicación:** `src/codegen.rs` — generación de `assert_eq!` con `Option<T>` vs `T`
@@ -124,12 +113,11 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Problema:** `match &e { Expr::Num { value: v } => v }` — con `match &e`, `v` es `&i32` (referencia), pero el return espera `i32`. El codegen solo clonaba non-Copy types, omitiendo primitivos.
 - **Fix:** Se simplificó `get_ref_clone_bindings` para clonar TODOS los bindings cuando se hace match por referencia (`.clone()` funciona tanto para Copy como non-Copy).
 
-### B113 — `Process.exec` con `or "literal"` genera `&str` vs `String` mismatch 🔶
+### B113 — `Process.exec` con `or "literal"` genera `&str` vs `String` mismatch ✅ FIXED
 - **Repro:** `let output = Process.exec("cmd 2>&1 || true") or "EXEC_FAILED"`
-- **Problema:** `Process.exec` devuelve `(Option<String>, String)`. El codegen de `or "value"` genera `if !err_str.is_empty() { "EXEC_FAILED" } else { opt.unwrap_or_default() }` donde la rama `or` es `&str` (literal) pero la rama `else` es `String`.
-- **Rust error:** `E0308: if and else have incompatible types — expected &str, found String`
-- **Workaround:** Usar `rust {}` block con `std::process::Command` directamente.
-- **Fix:** El codegen debería generar `.to_string()` en el literal del `or`, o `.as_str()` / borrow en la rama `else`.
+- **Problema:** La rama `or` genera un `&str` literal pero la rama success es `String`.
+- **Fix aplicado:** Se añade `.to_string()` al literal del `or` cuando es string, en la ruta `is_file` de VarDecl.
+- **Tests añadidos:** process_functions.test.liva (1 test: exec with or default)
 
 ### B114 — `.as_str()` generado sobre `&str` en vez de `String` ✅ FIXED
 - **Ubicación:** `src/codegen.rs` — llamadas a métodos que internamente usan `.as_str()`

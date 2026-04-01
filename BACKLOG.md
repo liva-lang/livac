@@ -541,11 +541,11 @@
 - [x] classes.test.liva — constructors, methods, data classes (8 assertions)
 - [x] enums.test.liva — unit, tuple, struct, recursive (10 assertions)
 - [x] errors.test.liva — or value, or fail, try/catch (7 assertions)
-- [x] error_handling.test.liva — fallible flow (7 assertions)
+- [x] error_handling.test.liva — fallible flow (9 assertions) ✅ B101 fixed
 - [x] collections.test.liva — arrays, maps, sets (11 assertions)
-- [x] compound_assign.test.liva — +=, -=, etc. (11 assertions)
-- [x] generics.test.liva — generic functions (4 assertions)
-- [x] lambdas.test.liva — closures, map/filter (14 assertions)
+- [x] compound_assign.test.liva — +=, -=, etc. (13 assertions) ✅ B109 fixed
+- [x] generics.test.liva — generic functions (6 assertions) ✅ B103/B104 fixed
+- [x] lambdas.test.liva — closures, map/filter (18 assertions) ✅ B105/B106/B107 fixed
 - [x] for_patterns.test.liva — for i,v; for k,v (9 assertions)
 - [x] pattern_matching.test.liva — switch, destructuring (9 assertions)
 - [x] defer.test.liva — defer smoke test (1 assertion)
@@ -557,7 +557,7 @@
 - [x] string_methods.test.liva — 26 assertions (contains, replace, split, trim, case, etc.)
 - [x] array_methods.test.liva — 27 assertions (push, pop, map, filter, sort, etc.)
 - [x] map_methods.test.liva — 12 assertions (get, set, has, delete, keys, values, entries)
-- [x] set_methods.test.liva — 7 assertions (add, has, delete, clear, iteration)
+- [x] set_methods.test.liva — 10 assertions (add, has, delete, clear, iteration, union, intersection, difference) ✅ B110 fixed
 - [x] math_functions.test.liva — 13 assertions (abs, floor, ceil, pow, sqrt, min, max, PI)
 - [x] type_conversions.test.liva — 12 assertions (toString, toInt, toFloat, parseInt, parseFloat)
 - [x] random_functions.test.liva — 7 assertions (nextInt range, nextFloat, choice, shuffle, uuid)
@@ -565,7 +565,7 @@
 - [x] date_functions.test.liva — 9 assertions (new, format, timestamp, now, toString, add, diff) ✅ B114 fixed
 - [x] csv_functions.test.liva — 5 assertions (parse, stringify, roundtrip)
 - [x] config_functions.test.liva — 4 assertions (load, get, getInt, getBool)
-- [x] process_functions.test.liva — 4 assertions (exec, pid)
+- [x] process_functions.test.liva — 5 assertions (exec, pid, or default) ✅ B113 fixed
 - [x] log_functions.test.liva — 5 assertions (info, warn, error, debug, multiple args — compile-only)
 - [x] crypto_functions.test.liva — 8 assertions (sha256, md5, base64Encode, base64Decode, roundtrip)
 

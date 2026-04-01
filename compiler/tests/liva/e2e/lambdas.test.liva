@@ -1,11 +1,11 @@
 // E2E Test: Lambdas — closures, map/filter/reduce, forEach, find, some/every
-// NOTE: Excluded tests due to codegen bugs:
-//   B105: toBe([]) with empty vec — type inference fails (serde_json PartialEq ambiguity)
-//   B106: string reduce/fold — accumulator type mismatch &str vs String
-//   B107: point-free filter — &&i32 vs i32 deref mismatch
+// B105 FIXED: toBe([]) with empty vec now uses .is_empty()
+// B106 FIXED: string reduce/fold — initial value gets .to_string()
+// B107 FIXED: point-free filter — (*_x).clone() dereferences argument
 import { describe, test, expect } from "liva/test"
 
 double(x: number): number => x * 2
+isEven(n: number): bool => n % 2 == 0
 
 describe("Map", () => {
     test("transforms each element", () => {
@@ -79,5 +79,31 @@ describe("Closures", () => {
 describe("Point-Free Map", () => {
     test("function ref in map", () => {
         expect([1, 2, 3].map(double)).toBe([2, 4, 6])
+    })
+})
+
+// B105: toBe([]) with empty array — previously failed with E0282
+describe("Empty Array Comparison", () => {
+    test("filter returning empty array", () => {
+        expect([1, 3, 5].filter(x => x > 10)).toBe([])
+    })
+
+    test("negated empty array", () => {
+        expect([1, 2, 3].filter(x => x > 0)).not.toBe([])
+    })
+})
+
+// B106: reduce with string accumulator — previously &str vs String mismatch
+describe("String Reduce", () => {
+    test("join with reduce", () => {
+        let result = ["a", "b", "c"].reduce("", (acc, s) => $"{acc}{s}")
+        expect(result).toBe("abc")
+    })
+})
+
+// B107: point-free function reference in filter — previously &&i32 deref mismatch
+describe("Point-Free Filter", () => {
+    test("function ref in filter", () => {
+        expect([1, 2, 3, 4, 5, 6].filter(isEven)).toBe([2, 4, 6])
     })
 })

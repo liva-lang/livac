@@ -21,4 +21,10 @@ describe("Process", () => {
         let pid = Process.pid()
         expect(pid > 0).toBe(true)
     })
+
+    // B113 fix: or "literal" on Process.exec — previously &str vs String mismatch
+    test("exec with or default", () => {
+        let output = Process.exec("echo works") or "FAILED"
+        expect(output).toBe("works")
+    })
 })

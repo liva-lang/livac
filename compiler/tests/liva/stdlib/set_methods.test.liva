@@ -1,5 +1,5 @@
 // Stdlib Test: Set methods
-// NOTE: union/intersection/difference tests excluded due to B110 (.has() fails on derived HashSet)
+// B110 FIXED: union/intersection/difference results now tracked as Set — .has()/.size() work
 import { describe, test, expect } from "liva/test"
 
 describe("Set Creation and Access", () => {
@@ -53,5 +53,35 @@ describe("Set Iteration", () => {
             count += 1
         })
         expect(count).toBe(3)
+    })
+})
+
+// B110: Set operations — previously .has() failed on union/intersection/difference results
+describe("Set Operations", () => {
+    test("union combines sets", () => {
+        let a = Set { 1, 2, 3 }
+        let b = Set { 3, 4, 5 }
+        let combined = a.union(b)
+        expect(combined.has(1)).toBeTruthy()
+        expect(combined.has(4)).toBeTruthy()
+        expect(combined.has(3)).toBeTruthy()
+    })
+
+    test("intersection finds common elements", () => {
+        let a = Set { 1, 2, 3, 4 }
+        let b = Set { 3, 4, 5, 6 }
+        let common = a.intersection(b)
+        expect(common.has(3)).toBeTruthy()
+        expect(common.has(4)).toBeTruthy()
+        expect(common.has(1)).toBeFalsy()
+    })
+
+    test("difference finds unique elements", () => {
+        let a = Set { 1, 2, 3, 4 }
+        let b = Set { 3, 4, 5, 6 }
+        let diff = a.difference(b)
+        expect(diff.has(1)).toBeTruthy()
+        expect(diff.has(2)).toBeTruthy()
+        expect(diff.has(3)).toBeFalsy()
     })
 })

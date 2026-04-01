@@ -78,3 +78,19 @@ describe("Compound Assignment with Floats", () => {
         expect(x).toBe(2.5)
     })
 })
+
+// B109 fix test: These names sanitize to the same Rust identifier
+// Previously caused E0428 (duplicate definition). Now auto-deduped.
+describe("Duplicate name dedup", () => {
+    test("accumulator with +=", () => {
+        let x = 0
+        x += 5
+        expect(x).toBe(5)
+    })
+
+    test("accumulator with *=", () => {
+        let x = 1
+        x *= 6
+        expect(x).toBe(6)
+    })
+})

@@ -149,6 +149,8 @@ pub struct CodeGenerator {
     in_constructor: bool,
     /// Default parameter values: function_name -> [(param_index, default_expr)]
     function_defaults: std::collections::HashMap<String, Vec<(usize, Expr)>>,
+    /// B109: Track used test function names to avoid collisions
+    used_test_names: std::collections::HashMap<String, usize>,
 }
 
 impl CodeGenerator {
@@ -229,6 +231,7 @@ impl CodeGenerator {
             defer_counter: 0,
             in_constructor: false,
             function_defaults: std::collections::HashMap::new(),
+            used_test_names: std::collections::HashMap::new(),
         }
     }
 
@@ -3703,9 +3706,37 @@ impl CodeGenerator {
         // not just data classes. Classes with explicit constructors also need Display.
         if has_fields {
             self.output.push('\n');
+            // B103 fix: For Display impl, add Display bound to type parameters
+            let impl_display_type_params = if !class.type_params.is_empty() {
+                let params: Vec<String> = class.type_params.iter().map(|tp| {
+                    // Start with whatever bounds are already on impl_type_params
+                    let mut all_bounds = Vec::new();
+                    if !tp.constraints.is_empty() {
+                        let rust_bounds = self.trait_registry.generate_rust_bounds(&tp.constraints);
+                        let bounds_part = rust_bounds.trim_start_matches(": ");
+                        all_bounds.push(bounds_part.to_string());
+                    }
+                    if let Some(inferred) = inferred_bounds.get(&tp.name) {
+                        for bound in inferred {
+                            let bound_str = bound.as_str();
+                            if !all_bounds.iter().any(|b| b.contains(bound_str)) {
+                                all_bounds.push(bound.clone());
+                            }
+                        }
+                    }
+                    // Add Display bound if not already present
+                    if !all_bounds.iter().any(|b| b.contains("Display")) {
+                        all_bounds.push("std::fmt::Display".to_string());
+                    }
+                    format!("{}: {}", tp.name, all_bounds.join(" + "))
+                }).collect();
+                format!("<{}>", params.join(", "))
+            } else {
+                String::new()
+            };
             self.writeln(&format!(
                 "impl{} std::fmt::Display for {}{} {{",
-                impl_type_params, class.name, impl_type_args
+                impl_display_type_params, class.name, impl_type_args
             ));
             self.indent();
             self.writeln("fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {");
@@ -4157,12 +4188,25 @@ impl CodeGenerator {
             self.generate_param_destructuring(&method.params)?;
 
             self.write_indent();
+            // B104 fix: Detect if return type is a type parameter (T) and method is &self (not mut).
+            // If so, the expression accesses a field through &self and needs .clone() to avoid moving.
+            let class_type_param_names: std::collections::HashSet<String> = class
+                .map(|c| c.type_params.iter().map(|tp| tp.name.clone()).collect())
+                .unwrap_or_default();
+            let returns_type_param = method.return_type.as_ref().map_or(false, |rt| {
+                if let TypeRef::Simple(name) = rt {
+                    class_type_param_names.contains(name)
+                } else { false }
+            });
+            let needs_clone = returns_type_param && !self.current_method_is_mut;
             if method.contains_fail {
                 self.output.push_str("Ok(");
                 self.generate_expr(expr)?;
+                if needs_clone { self.output.push_str(".clone()"); }
                 self.output.push(')');
             } else {
                 self.generate_expr(expr)?;
+                if needs_clone { self.output.push_str(".clone()"); }
             }
             self.output.push('\n');
             self.dedent();
@@ -4699,10 +4743,19 @@ impl CodeGenerator {
             )));
         }
 
-        // Extract the name string
-        let test_name = match &call.args[0] {
-            Expr::Literal(Literal::String(s)) => self.sanitize_test_name(s),
-            _ => "unnamed".to_string(),
+        // Extract the name string — B109 fix: deduplicate collision
+        let test_name = {
+            let base = match &call.args[0] {
+                Expr::Literal(Literal::String(s)) => self.sanitize_test_name(s),
+                _ => "unnamed".to_string(),
+            };
+            let count = self.used_test_names.entry(base.clone()).or_insert(0);
+            *count += 1;
+            if *count > 1 {
+                format!("{}_{}", base, count)
+            } else {
+                base
+            }
         };
 
         // Extract the lambda body
@@ -4906,22 +4959,56 @@ impl CodeGenerator {
 
         let result = match matcher.as_str() {
             "toBe" | "toEqual" => {
-                let expected = gen_expected(self)?;
-                if is_negated {
-                    format!("assert_ne!({}, {})", actual_code, expected)
+                // B105 fix: If expected is an empty array literal [], use .is_empty() instead of assert_eq!(_, vec![])
+                let expected_is_empty_array = if !method_call.args.is_empty() {
+                    matches!(&method_call.args[0], Expr::ArrayLiteral(elements) if elements.is_empty())
+                } else { false };
+                if expected_is_empty_array {
+                    if is_negated {
+                        format!("assert!(!{}.is_empty())", actual_code)
+                    } else {
+                        format!("assert!({}.is_empty())", actual_code)
+                    }
                 } else {
-                    format!("assert_eq!({}, {})", actual_code, expected)
+                    let expected = gen_expected(self)?;
+                    if is_negated {
+                        format!("assert_ne!({}, {})", actual_code, expected)
+                    } else {
+                        format!("assert_eq!({}, {})", actual_code, expected)
+                    }
                 }
             }
             "toBeTruthy" => {
-                if is_negated {
+                // B101 fix: If actual_expr is an error binding var (Option<Error>) or option_value_var,
+                // generate .is_some() / .is_none() instead of assert!()
+                let is_option = if let Expr::Identifier(name) = actual_expr {
+                    let sname = self.sanitize_name(name);
+                    self.error_binding_vars.contains(&sname) || self.option_value_vars.contains(&sname)
+                } else { false };
+                if is_option {
+                    if is_negated {
+                        format!("assert!({}.is_none())", actual_code)
+                    } else {
+                        format!("assert!({}.is_some())", actual_code)
+                    }
+                } else if is_negated {
                     format!("assert!(!({}))", actual_code)
                 } else {
                     format!("assert!({})", actual_code)
                 }
             }
             "toBeFalsy" => {
-                if is_negated {
+                let is_option = if let Expr::Identifier(name) = actual_expr {
+                    let sname = self.sanitize_name(name);
+                    self.error_binding_vars.contains(&sname) || self.option_value_vars.contains(&sname)
+                } else { false };
+                if is_option {
+                    if is_negated {
+                        format!("assert!({}.is_some())", actual_code)
+                    } else {
+                        format!("assert!({}.is_none())", actual_code)
+                    }
+                } else if is_negated {
                     format!("assert!({})", actual_code)
                 } else {
                     format!("assert!(!({}))", actual_code)
@@ -5291,6 +5378,10 @@ impl CodeGenerator {
                         self.generate_expr(&var.init)?;
                         self.output.push_str("; if !err_str.is_empty() { ");
                         self.generate_expr(default_val)?;
+                        // B113 fix: String literal defaults need .to_string() to match String type of success arm
+                        if matches!(default_val.as_ref(), Expr::Literal(Literal::String(_))) {
+                            self.output.push_str(".to_string()");
+                        }
                         self.output.push_str(" } else { opt.unwrap_or_default() } };\n");
                     } else if is_json_parse {
                         write!(self.output, "let {} = {{ let (opt, err_str) = ", var_name).unwrap();
@@ -6077,6 +6168,12 @@ impl CodeGenerator {
                             else if method_call.method.as_str() == "groupBy" {
                                 if let Some(name) = binding.name() {
                                     self.map_vars.insert(name.to_string());
+                                }
+                            }
+                            // B110 fix: union/intersection/difference on Set return HashSet — track as set
+                            else if matches!(method_call.method.as_str(), "union" | "intersection" | "difference") {
+                                if let Some(name) = binding.name() {
+                                    self.set_vars.insert(self.sanitize_name(name));
                                 }
                             }
                             // Sys.args() returns Vec<String> - need direct indexing
@@ -10742,6 +10839,18 @@ impl CodeGenerator {
             if is_parallel_reduce && i == 0 {
                 self.output.push_str("|| ");
                 self.generate_expr(arg)?;
+                // B106 fix: String initial value needs .to_string() for parallel too
+                if matches!(arg, Expr::Literal(Literal::String(_))) {
+                    self.output.push_str(".to_string()");
+                }
+                continue;
+            }
+
+            // B106 fix: Sequential reduce initial value — string literal needs .to_string()
+            // so accumulator type is String (not &str) matching the lambda return type
+            if method_call.method == "reduce" && i == 0 && matches!(arg, Expr::Literal(Literal::String(_))) {
+                self.generate_expr(arg)?;
+                self.output.push_str(".to_string()");
                 continue;
             }
 
@@ -10898,6 +11007,12 @@ impl CodeGenerator {
                         // Generate the function call body based on built-in vs user function
                         self.output.push_str(&format!("|{}| ", param_pattern));
 
+                        // B107 fix: For filter/find/some/every/count with will_use_cloned,
+                        // _x is &T but the function expects T. Use (*_x).clone() to dereference.
+                        let needs_deref_clone = will_use_cloned && !is_json_value
+                            && matches!(method_call.method.as_str(),
+                                "filter" | "find" | "some" | "every" | "findIndex" | "count");
+
                         match func_name.as_str() {
                             "print" => {
                                 self.output.push_str("println!(\"{}\", _x)");
@@ -10908,7 +11023,11 @@ impl CodeGenerator {
                             _ => {
                                 // User-defined function: generate sanitized_name(_x)
                                 let sanitized = self.sanitize_name(func_name);
-                                write!(self.output, "{}(_x)", sanitized).unwrap();
+                                if needs_deref_clone {
+                                    write!(self.output, "{}((*_x).clone())", sanitized).unwrap();
+                                } else {
+                                    write!(self.output, "{}(_x)", sanitized).unwrap();
+                                }
                             }
                         }
 
@@ -11077,9 +11196,11 @@ impl CodeGenerator {
                             } else {
                                 // Element: dereference once for sequential (unless JsonValue or destructured)
                                 // For parallel with .copied(), no dereference needed
+                                // B106 fix: Don't add & for non-Copy types (will_use_cloned=true) — would try to move from &ref
                                 if !is_json_value
                                     && !param.is_destructuring()
                                     && !is_parallel_adapter
+                                    && !will_use_cloned
                                 {
                                     self.output.push('&');
                                 }
