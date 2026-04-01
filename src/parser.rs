@@ -1437,8 +1437,9 @@ impl Parser {
     }
 
     /// Parse the body of a `defer` statement.
-    /// Supports two forms:
+    /// Supports three forms:
     /// - `defer <expression>` — single expression (e.g., `defer DB.close(db)`)
+    /// - `defer <assignment>` — assignment or compound assignment (e.g., `defer log += "done"`)
     /// - `defer { ... }` — block of statements
     fn parse_defer_body(&mut self) -> Result<Stmt> {
         if self.check(&Token::LBrace) {
@@ -1448,9 +1449,22 @@ impl Parser {
             self.expect(Token::RBrace)?;
             Ok(Stmt::Block(block))
         } else {
-            // Expression form: defer expr
+            // B108 fix: Parse as expression, then check for assignment/compound-assignment
             let expr = self.parse_expression()?;
-            Ok(Stmt::Expr(ExprStmt { expr }))
+            if self.match_token(&Token::Assign) {
+                let value = self.parse_expression()?;
+                Ok(Stmt::Assign(AssignStmt { target: expr, value, op: None }))
+            } else if let Some(bin_op) = self.match_compound_assign() {
+                let rhs = self.parse_expression()?;
+                let value = Expr::Binary {
+                    op: bin_op,
+                    left: Box::new(expr.clone()),
+                    right: Box::new(rhs),
+                };
+                Ok(Stmt::Assign(AssignStmt { target: expr, value, op: Some(bin_op) }))
+            } else {
+                Ok(Stmt::Expr(ExprStmt { expr }))
+            }
         }
     }
 

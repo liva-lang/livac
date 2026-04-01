@@ -535,23 +535,23 @@
 - [x] hello.liva + hello.expected — pipeline completo mínimo
 - [x] fibonacci.liva + fibonacci.expected — recursión, expresiones
 - [x] calculator.liva + calculator.expected — clases, switch, métodos
-- [x] basics.test.liva — variables, constants, string templates (6 assertions)
+- [x] basics.test.liva — variables, constants, string templates (9 assertions) ✅ B111 fixed
 - [x] functions.test.liva — params, defaults, one-liners (7 assertions)
 - [x] control_flow.test.liva — if/else, switch, for, while (12 assertions)
 - [x] classes.test.liva — constructors, methods, data classes (8 assertions)
 - [x] enums.test.liva — unit, tuple, struct, recursive (10 assertions)
 - [x] errors.test.liva — or value, or fail, try/catch (7 assertions)
-- [x] error_handling.test.liva — fallible flow (9 assertions) ✅ B101 fixed
+- [x] error_handling.test.liva — fallible flow (13 assertions) ✅ B101/B102 fixed
 - [x] collections.test.liva — arrays, maps, sets (11 assertions)
 - [x] compound_assign.test.liva — +=, -=, etc. (13 assertions) ✅ B109 fixed
 - [x] generics.test.liva — generic functions (6 assertions) ✅ B103/B104 fixed
 - [x] lambdas.test.liva — closures, map/filter (18 assertions) ✅ B105/B106/B107 fixed
 - [x] for_patterns.test.liva — for i,v; for k,v (9 assertions)
 - [x] pattern_matching.test.liva — switch, destructuring (9 assertions)
-- [x] defer.test.liva — defer smoke test (1 assertion)
+- [x] defer.test.liva — defer smoke test + assignment (3 assertions) ✅ B108 fixed
 - [x] smoke.test.liva — minimal sanity (1 assertion)
 - [x] async_basic.test.liva — 5 assertions (par map/filter/reduce, function ref, task async + await)
-- [ ] string_utils.liva + string_utils.expected — string processing intensivo
+- [x] string_utils.test.liva — string processing intensive (14 assertions)
 
 **Capa 4: Stdlib (`compiler/tests/liva/stdlib/`)** — livac test, métodos stdlib
 - [x] string_methods.test.liva — 26 assertions (contains, replace, split, trim, case, etc.)

@@ -65,3 +65,18 @@ describe("Error Binding", () => {
         expect(err).toBeTruthy()
     })
 })
+
+// B102: parseInt error binding — previously String, now Option<Error> for consistency
+describe("ParseInt Error Binding", () => {
+    test("valid parseInt no error", () => {
+        let val, err = parseInt("42")
+        expect(val).toBe(42)
+        expect(err).toBeFalsy()
+    })
+
+    test("invalid parseInt has error", () => {
+        let val, err = parseInt("abc")
+        expect(val).toBe(0)
+        expect(err).toBeTruthy()
+    })
+})

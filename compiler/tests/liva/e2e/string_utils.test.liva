@@ -1,0 +1,95 @@
+// E2E Test: String processing intensive — real-world string manipulation patterns
+import { describe, test, expect } from "liva/test"
+
+// Utility: extract domain from email
+extractDomain(email: string): string {
+    let parts = email.split("@")
+    return parts[1]
+}
+
+// Utility: format name from "first last" to "Last, First"
+formatName(fullName: string): string {
+    let parts = fullName.trim().split(" ")
+    let first = parts[0]
+    let last = parts[1]
+    return last + ", " + first
+}
+
+// Utility: slug from title
+toSlug(title: string): string {
+    return title.toLowerCase().replace(" ", "-")
+}
+
+// Utility: mask all but last 4 characters
+maskString(s: string, visibleChars: number): string {
+    let len = s.length
+    if len <= visibleChars {
+        return s
+    }
+    let masked = "*".repeat(len - visibleChars)
+    let visible = s.substring(len - visibleChars, len)
+    return masked + visible
+}
+
+// Utility: count words in text
+countWords(text: string): number {
+    let words = text.trim().split(" ")
+    return words.length
+}
+
+describe("String Extraction", () => {
+    test("extract domain from email", () => {
+        expect(extractDomain("user@example.com")).toBe("example.com")
+        expect(extractDomain("admin@liva-lang.dev")).toBe("liva-lang.dev")
+    })
+
+    test("format name reversal", () => {
+        expect(formatName("John Doe")).toBe("Doe, John")
+        expect(formatName("  Alice Smith  ")).toBe("Smith, Alice")
+    })
+})
+
+describe("String Transformation", () => {
+    test("slug generation", () => {
+        expect(toSlug("Hello World")).toBe("hello-world")
+        expect(toSlug("Liva Programming Language")).toBe("liva-programming-language")
+    })
+
+    test("string masking", () => {
+        expect(maskString("1234567890", 4)).toBe("******7890")
+        expect(maskString("AB", 4)).toBe("AB")
+    })
+
+    test("word count", () => {
+        expect(countWords("hello world")).toBe(2)
+        expect(countWords("  one two three four  ")).toBe(4)
+    })
+})
+
+describe("String Chaining", () => {
+    test("chained transforms", () => {
+        let input = "  Hello, World!  "
+        let result = input.trim().toLowerCase().replace(",", "").replace("!", "")
+        expect(result).toBe("hello world")
+    })
+
+    test("split and rejoin", () => {
+        let csv = "apple,banana,cherry"
+        let items = csv.split(",")
+        let upper = items.map((s: string) => s.toUpperCase())
+        let result = upper.join(" | ")
+        expect(result).toBe("APPLE | BANANA | CHERRY")
+    })
+
+    test("padding for alignment", () => {
+        expect("42".padStart(5, "0")).toBe("00042")
+        expect("hi".padEnd(6, ".")).toBe("hi....")
+    })
+
+    test("substring extraction", () => {
+        let path = "/home/user/docs/file.txt"
+        let filename = path.split("/")
+        let last = filename[filename.length - 1]
+        expect(last).toBe("file.txt")
+    })
+})

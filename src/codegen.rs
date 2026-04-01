@@ -4963,11 +4963,35 @@ impl CodeGenerator {
                 let expected_is_empty_array = if !method_call.args.is_empty() {
                     matches!(&method_call.args[0], Expr::ArrayLiteral(elements) if elements.is_empty())
                 } else { false };
+                // B111 fix: If actual is Option<T> (option_value_vars or error_binding_vars),
+                // wrap expected in Some() or use is_none() for null comparisons
+                let actual_is_option = if let Expr::Identifier(name) = actual_expr {
+                    let sname = self.sanitize_name(name);
+                    self.option_value_vars.contains(&sname) || self.error_binding_vars.contains(&sname)
+                } else { false };
+                let expected_is_null = if !method_call.args.is_empty() {
+                    matches!(&method_call.args[0], Expr::Literal(Literal::Null))
+                } else { false };
                 if expected_is_empty_array {
                     if is_negated {
                         format!("assert!(!{}.is_empty())", actual_code)
                     } else {
                         format!("assert!({}.is_empty())", actual_code)
+                    }
+                } else if actual_is_option && expected_is_null {
+                    // expect(maybe).toBe(null) → assert!(maybe.is_none())
+                    if is_negated {
+                        format!("assert!({}.is_some())", actual_code)
+                    } else {
+                        format!("assert!({}.is_none())", actual_code)
+                    }
+                } else if actual_is_option {
+                    // expect(maybe).toBe(42) → assert_eq!(maybe, Some(42))
+                    let expected = gen_expected(self)?;
+                    if is_negated {
+                        format!("assert_ne!({}, Some({}))", actual_code, expected)
+                    } else {
+                        format!("assert_eq!({}, Some({}))", actual_code, expected)
                     }
                 } else {
                     let expected = gen_expected(self)?;
@@ -5563,11 +5587,18 @@ impl CodeGenerator {
                         }
                         // Do NOT add to option_value_vars - value is direct, not Option
                     } else if binding_names.len() == 2 && (returns_tuple || is_typed_json_parse) {
-                        // For tuple-returning functions AND typed JSON.parse: response is T (not Option), err is String
-                        // Don't add to option_value_vars or error_binding_vars
-
-                        // Track the error variable (second binding) as string_error_vars for `if err` sugar
-                        self.string_error_vars.insert(binding_names[1].clone());
+                        // B102 fix: parseInt/parseFloat now return (T, Option<Error>)
+                        // Track their error binding as error_binding_vars for consistent handling
+                        let is_parse_int_float = matches!(&var.init, Expr::Call(call) if matches!(call.callee.as_ref(), Expr::Identifier(n) if n == "parseInt" || n == "parseFloat"));
+                        if is_parse_int_float {
+                            self.error_binding_vars.insert(binding_names[1].clone());
+                            if let Some(scope) = self.error_binding_scope_stack.last_mut() {
+                                scope.push(binding_names[1].clone());
+                            }
+                        } else {
+                            // For other tuple-returning functions AND typed JSON.parse: err is String
+                            self.string_error_vars.insert(binding_names[1].clone());
+                        }
 
                         // Check if this is an HTTP call - mark first binding as rust_struct
                         if self.is_http_call(&var.init) {
@@ -9299,7 +9330,7 @@ impl CodeGenerator {
                 }
                 self.output.push_str("match ");
                 self.generate_expr(&call.args[0])?;
-                self.output.push_str(".parse::<i32>() { Ok(v) => (v, String::new()), Err(_) => (0, \"Invalid integer format\".to_string()) }");
+                self.output.push_str(".parse::<i32>() { Ok(v) => (v, None), Err(e) => (0, Some(liva_rt::Error::from(e.to_string()))) }");
                 return Ok(());
             }
 
@@ -9314,7 +9345,7 @@ impl CodeGenerator {
                 }
                 self.output.push_str("match ");
                 self.generate_expr(&call.args[0])?;
-                self.output.push_str(".parse::<f64>() { Ok(v) => (v, String::new()), Err(_) => (0.0_f64, \"Invalid float format\".to_string()) }");
+                self.output.push_str(".parse::<f64>() { Ok(v) => (v, None), Err(e) => (0.0_f64, Some(liva_rt::Error::from(e.to_string()))) }");
                 return Ok(());
             }
 

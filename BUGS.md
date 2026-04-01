@@ -14,12 +14,11 @@
 - **Fix aplicado:** Detecta si `actual_expr` es una variable de error binding (`error_binding_vars` / `option_value_vars`) y genera `.is_some()` / `.is_none()` en lugar de `assert!()`.
 - **Tests añadidos:** error_handling.test.liva (2 tests: successful call no error, failed call has error)
 
-### B102 — `parseInt` error binding genera `String` en vez de `Option<Error>` 🔶
+### B102 — `parseInt` error binding genera `String` en vez de `Option<Error>` ✅ FIXED
 - **Ubicación:** `src/codegen.rs` — `generate_call_expr` para `parseInt`
-- **Problema:** `let val, err = parseInt("abc")` genera `err` como `String` (de `.parse()` nativo Rust), pero `divide()` genera `err` como `Option<liva_rt::Error>`. Son tipos inconsistentes.
-- **Consecuencia:** `if err` genera `.is_some()` sobre `String` → error `E0599`
-- **Workaround:** Usar `parseInt("abc") or 0`
-- **Test afectado:** `error_handling.test.liva`
+- **Problema:** `let val, err = parseInt("abc")` generaba `err` como `String` (de `.parse()` nativo Rust), pero `divide()` generaba `err` como `Option<liva_rt::Error>`. Son tipos inconsistentes.
+- **Fix aplicado:** parseInt/parseFloat ahora retornan `(T, Option<liva_rt::Error>)` con `Error::from()`. El error binding se trackea como `error_binding_vars` para `if err` → `.is_some()`.
+- **Tests añadidos:** error_handling.test.liva (2 tests: valid parseInt no error, invalid parseInt has error)
 
 ### B103 — Generic classes: auto-Display impl carece de bound `Display` ✅ FIXED
 - **Ubicación:** `src/codegen.rs` — generación de `impl Display for ClassName<T>`
@@ -63,23 +62,21 @@
 - **Fix aplicado:** En VarDecl, cuando init es un MethodCall con método `union`/`intersection`/`difference`, se añade la variable a `set_vars`.
 - **Tests añadidos:** set_methods.test.liva (3 tests: union, intersection, difference con .has())
 
-### B111 — Optional variable: `expect(maybe).toBe(42)` con `Option<i32>` 🔷
+### B111 — Optional variable: `expect(maybe).toBe(42)` con `Option<i32>` ✅ FIXED
 - **Ubicación:** `src/codegen.rs` — generación de `assert_eq!` con `Option<T>` vs `T`
-- **Problema:** `let maybe: number? = null; maybe = 42; expect(maybe).toBe(42)` genera `assert_eq!(maybe, 42)` pero `maybe` es `Option<i32>` y `42` es `i32`.
-- **Rust error:** `E0308: mismatched types — expected Option<i32>, found integer`
-- **Workaround:** No usar optionals en test assertions
-- **Test afectado:** `basics.test.liva`
+- **Problema:** `let maybe: number? = null; maybe = 42; expect(maybe).toBe(42)` generaba `assert_eq!(maybe, 42)` pero `maybe` es `Option<i32>` y `42` es `i32`.
+- **Fix aplicado:** En toBe/toEqual, detecta si actual_expr es `option_value_vars` o `error_binding_vars`. Si expected es null → `.is_none()`. Si no → wrappea expected en `Some()`.
+- **Tests añadidos:** basics.test.liva (3 assertions: toBe(null), toBe(42), not.toBe(null))
 
 ---
 
 ## Parser — Bugs y limitaciones
 
-### B108 — `defer <statement>` no soportado, solo `defer <expr>` 🔶
+### B108 — `defer <statement>` no soportado, solo `defer <expr>` ✅ FIXED
 - **Ubicación:** `src/parser.rs` — parsing de `defer`
-- **Problema:** `defer log += "text"` causa `E2000: Parse Error` porque el parser solo acepta `defer <expression>`, no `defer <statement>` (assignments, compound assignments).
-- **Nota:** `defer arr.push(x)` funciona porque `.push()` es una expresión.
-- **Workaround:** Solo usar `defer` con llamadas a funciones/métodos, no con assignments
-- **Test afectado:** `defer.test.liva`
+- **Problema:** `defer log += "text"` causaba `E2000: Parse Error` porque el parser solo aceptaba `defer <expression>`, no `defer <statement>` (assignments, compound assignments).
+- **Fix aplicado:** `parse_defer_body()` ahora intenta parsear assignment/compound-assignment después de la expresión, igual que el statement parser principal.
+- **Tests añadidos:** defer.test.liva (2 tests: compound assignment `+=`, simple assignment `=`)
 
 ### B112 — `defer` con mutation del mismo scope: borrowing conflict ⚡
 - **Ubicación:** `src/codegen.rs` — generación de `_DeferGuard`
@@ -135,14 +132,14 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 
 ## Carencias del lenguaje detectadas
 
-### GAP-001 — No hay `toBeNull()` funcional en test framework 🔷
-- Los matchers del test framework no manejan correctamente `Option<T>`.
-- `expect(maybe).toBeNull()` debería generar `assert!(maybe.is_none())`.
-- Relacionado con B111.
+### GAP-001 — No hay `toBeNull()` funcional en test framework ✅ RESOLVED
+- `expect(maybe).toBeNull()` ya genera `assert!(maybe.is_none())` correctamente.
+- Con B111 fixed, `expect(maybe).toBe(null)` también funciona.
 
 ### GAP-002 — `or fail` en test functions no testeable 🔷
-- `propagate(a, b): number { let r = divide(a, b) or fail "msg"; return r }` — la función es fallible, pero testing de errores requiere error binding que tiene bugs (B101, B102).
-- Necesita un matcher `toThrow()` o `toFail()` funcional.
+- `propagate(a, b): number { let r = divide(a, b) or fail "msg"; return r }` — la función es fallible, pero testing de errores requiere error binding.
+- Con B101 y B102 fixed, el error binding ahora funciona. `toThrow()` existe para panic-based testing.
+- Pendiente: verificar que `or fail` + error binding funciona end-to-end.
 
 ### GAP-003 — `Set.union()` / `Set.intersection()` devuelve HashSet crudo 🔶
 - El resultado pierde los wrappers de Liva (`.has()`, `.size()`, etc.).
