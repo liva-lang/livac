@@ -162,40 +162,23 @@ run_stdlib_io_tests() {
 }
 
 #───────────────────────────────────────────────────────
-# Layer 6: Errors — livac check MUST fail
+# Layer 6: Errors — livac test (errors.test.liva invokes livac check)
 #───────────────────────────────────────────────────────
 run_error_tests() {
     local dir="$SCRIPT_DIR/errors"
     [[ ! -d "$dir" ]] && return
-    echo -e "\n${CYAN}${BOLD}═══ Layer 6: Error Tests (must fail with expected error) ═══${NC}"
-    for f in "$dir"/*.liva; do
+    echo -e "\n${CYAN}${BOLD}═══ Layer 6: Error Tests (livac test) ═══${NC}"
+    for f in "$dir"/*.test.liva; do
         [[ ! -f "$f" ]] && continue
-        local name base
+        local name
         name="$(basename "$f")"
-        base="${name%.liva}"
-        # Extract expected error code from // EXPECT: Exxxx comment (any line)
-        local expect_pattern
-        expect_pattern=$(grep -oP '// EXPECT: \K\S+' "$f" | head -1 || echo "")
-        local output
-        output=$($LIVAC check "$f" 2>&1 || true)
-        local exit_code
-        $LIVAC check "$f" > /dev/null 2>&1 && exit_code=0 || exit_code=$?
-        if [[ $exit_code -eq 0 ]]; then
-            echo -e "  ${RED}✗${NC} $name (should have failed but passed)"
-            FAIL=$((FAIL + 1))
-            ERRORS+=("errors/$name: should have failed but passed check")
-        elif [[ -n "$expect_pattern" ]]; then
-            if echo "$output" | grep -qi "$expect_pattern"; then
-                echo -e "  ${GREEN}✓${NC} $name (error: $expect_pattern)"
-                PASS=$((PASS + 1))
-            else
-                echo -e "  ${RED}✗${NC} $name (expected '$expect_pattern' in error output)"
-                FAIL=$((FAIL + 1))
-                ERRORS+=("errors/$name: expected '$expect_pattern' not found in output")
-            fi
-        else
-            echo -e "  ${GREEN}✓${NC} $name (correctly fails)"
+        if $LIVAC test "$f" > /dev/null 2>&1; then
+            echo -e "  ${GREEN}✓${NC} $name"
             PASS=$((PASS + 1))
+        else
+            echo -e "  ${RED}✗${NC} $name"
+            FAIL=$((FAIL + 1))
+            ERRORS+=("errors/$name: livac test failed")
         fi
     done
 }

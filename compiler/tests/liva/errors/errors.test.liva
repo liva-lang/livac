@@ -1,0 +1,75 @@
+// Error Detection Tests — verify compiler reports correct error codes
+// Uses rust {} block to invoke livac check and capture error output
+import { describe, test, expect } from "liva/test"
+
+// Helper: Run livac check on an error file and return combined stdout+stderr
+checkError(filename: string): string {
+    let result = rust {
+        // CARGO_MANIFEST_DIR = .liva_test_build/errors/
+        // Navigate up to repo root (livac/):
+        //   errors/ → .liva_test_build → errors → liva → tests → compiler → livac
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors().nth(6).expect("cannot find repo root");
+        let livac = root.join("target/release/livac");
+        let file = root.join("compiler/tests/liva/errors").join(&filename);
+        let out = std::process::Command::new(&livac)
+            .arg("check").arg(&file)
+            .output().expect("failed to run livac");
+        format!("{}{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr))
+    }
+    return result
+}
+
+describe("Error Detection", () => {
+    test("E0001: duplicate variable in scope", () => {
+        let output = checkError("e0001_duplicate_variable.liva")
+        expect(output).toContain("E0001")
+    })
+
+    test("E0310: duplicate function parameter", () => {
+        let output = checkError("e0310_duplicate_param.liva")
+        expect(output).toContain("E0310")
+    })
+
+    test("E0701: unhandled fallible call", () => {
+        let output = checkError("e0701_unhandled_fallible.liva")
+        expect(output).toContain("E0701")
+    })
+
+    test("E0901: non-exhaustive bool switch", () => {
+        let output = checkError("e0901_bool_exhaustiveness.liva")
+        expect(output).toContain("E0901")
+    })
+
+    test("E0902: non-exhaustive int switch", () => {
+        let output = checkError("e0902_int_exhaustiveness.liva")
+        expect(output).toContain("E0902")
+    })
+
+    test("E0903: non-exhaustive string switch", () => {
+        let output = checkError("e0903_string_exhaustiveness.liva")
+        expect(output).toContain("E0903")
+    })
+
+    test("E0904: non-exhaustive enum switch", () => {
+        let output = checkError("e0904_enum_exhaustiveness.liva")
+        expect(output).toContain("E0904")
+    })
+
+    test("E1000: lexer error", () => {
+        let output = checkError("e1000_lexer_error.liva")
+        expect(output).toContain("E1000")
+    })
+
+    test("E2000: parse error", () => {
+        let output = checkError("e2000_parse_error.liva")
+        expect(output).toContain("E2000")
+    })
+
+    test("E4004: module not found", () => {
+        let output = checkError("e4004_module_not_found.liva")
+        expect(output).toContain("E4004")
+    })
+})
