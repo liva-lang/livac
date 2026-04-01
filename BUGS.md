@@ -124,6 +124,13 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Problema:** `match &e { Expr::Num { value: v } => v }` — con `match &e`, `v` es `&i32` (referencia), pero el return espera `i32`. El codegen solo clonaba non-Copy types, omitiendo primitivos.
 - **Fix:** Se simplificó `get_ref_clone_bindings` para clonar TODOS los bindings cuando se hace match por referencia (`.clone()` funciona tanto para Copy como non-Copy).
 
+### B113 — `Process.exec` con `or "literal"` genera `&str` vs `String` mismatch 🔶
+- **Repro:** `let output = Process.exec("cmd 2>&1 || true") or "EXEC_FAILED"`
+- **Problema:** `Process.exec` devuelve `(Option<String>, String)`. El codegen de `or "value"` genera `if !err_str.is_empty() { "EXEC_FAILED" } else { opt.unwrap_or_default() }` donde la rama `or` es `&str` (literal) pero la rama `else` es `String`.
+- **Rust error:** `E0308: if and else have incompatible types — expected &str, found String`
+- **Workaround:** Usar `rust {}` block con `std::process::Command` directamente.
+- **Fix:** El codegen debería generar `.to_string()` en el literal del `or`, o `.as_str()` / borrow en la rama `else`.
+
 ---
 
 ## Carencias del lenguaje detectadas
