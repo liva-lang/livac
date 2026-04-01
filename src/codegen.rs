@@ -6800,7 +6800,7 @@ impl CodeGenerator {
                 // B45 fix: For self.field in &mut self methods where loop body mutates
                 // the loop variable, use .iter_mut() so mutations are not lost.
                 let needs_clone = match &for_stmt.iterable {
-                    Expr::Identifier(_) => true,
+                    Expr::Identifier(_) | Expr::Member { .. } => true,
                     _ => false,
                 };
                 let is_self_field = match &for_stmt.iterable {
@@ -8225,6 +8225,10 @@ impl CodeGenerator {
                         } else {
                             false
                         }
+                    } else if let Expr::Member { .. } = ma_obj.as_ref() {
+                        // SH: Deep member chain like self._type_ctx.type_pool[idx]
+                        // Can't determine element type — clone to be safe
+                        true
                     } else {
                         false
                     }
@@ -10247,6 +10251,11 @@ impl CodeGenerator {
                 // Bug #76 fix: Also check this._field for Map-typed class fields
                 if matches!(object.as_ref(), Expr::Identifier(name) if name == "this" || name == "self") {
                     self.map_vars.contains(&self.sanitize_name(property))
+                } else if let Expr::Member { property: inner_prop, .. } = object.as_ref() {
+                    // Deep member access: this._ctx.varTypes.has() — check innermost property
+                    self.map_vars.contains(&self.sanitize_name(inner_prop))
+                        && self.map_vars.contains(&self.sanitize_name(property))
+                        || self.map_vars.contains(&self.sanitize_name(property))
                 } else {
                     false
                 }
@@ -15221,19 +15230,16 @@ impl CodeGenerator {
     /// Returns the sanitized variable name if this is a null-check on an Option var.
     fn extract_option_null_check(&self, condition: &Expr) -> Option<String> {
         if let Expr::Binary { op: BinOp::Ne, left, right } = condition {
-            // x != null
+            // x != null → always generate if let Some(x) = x { ... }
+            // Any variable compared to null is Optional by definition
             if let (Expr::Identifier(name), Expr::Literal(Literal::Null)) = (left.as_ref(), right.as_ref()) {
                 let sanitized = self.sanitize_name(name);
-                if self.option_value_vars.contains(&sanitized) {
-                    return Some(sanitized);
-                }
+                return Some(sanitized);
             }
             // null != x
             if let (Expr::Literal(Literal::Null), Expr::Identifier(name)) = (left.as_ref(), right.as_ref()) {
                 let sanitized = self.sanitize_name(name);
-                if self.option_value_vars.contains(&sanitized) {
-                    return Some(sanitized);
-                }
+                return Some(sanitized);
             }
         }
         None
@@ -16595,6 +16601,14 @@ fn generate_entry_point(
                             if let TypeRef::Simple(type_name) = element_type.as_ref() {
                                 array_field_types.insert(f.name.clone(), type_name.clone());
                             }
+                        }
+                        // SH: Track Map-typed fields from imported classes for deep member access
+                        if matches!(&f.type_ref, Some(TypeRef::Map(_, _))) {
+                            codegen.map_vars.insert(codegen.sanitize_name(&f.name));
+                        }
+                        // SH: Track Set-typed fields from imported classes
+                        if matches!(&f.type_ref, Some(TypeRef::Set(_))) {
+                            codegen.set_vars.insert(codegen.sanitize_name(&f.name));
                         }
                     }
                 }

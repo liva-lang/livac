@@ -78,7 +78,7 @@ RustEmitter {
     _writeln(text: string) {
         this._writeIndent()
         this._currentLine += text
-        this._lines.push(this._currentLine)
+        this._lines.push($"{this._currentLine}")
         this._currentLine = ""
     }
 
@@ -87,7 +87,7 @@ RustEmitter {
     }
 
     _newline() {
-        this._lines.push(this._currentLine)
+        this._lines.push($"{this._currentLine}")
         this._currentLine = ""
     }
 
@@ -112,7 +112,7 @@ RustEmitter {
     _getOutput(): string {
         // Flush any remaining current line
         if this._currentLine != "" {
-            this._lines.push(this._currentLine)
+            this._lines.push($"{this._currentLine}")
             this._currentLine = ""
         }
         return this._lines.join("\n")
@@ -241,8 +241,9 @@ RustEmitter {
             },
             TypeRef.Union(types) => {
                 // Rust doesn't have union types; use first type as approximation
-                if types.length > 0 {
-                    result = this._emitType(types[0])
+                for t in types {
+                    result = this._emitType(t)
+                    break
                 }
                 0
             }
@@ -471,17 +472,17 @@ RustEmitter {
 
         let prevClass = $"{this._currentClassName}"
         let prevMethod = this._inMethod
-        this._currentClassName = className
+        this._currentClassName = $"{className}"
         this._inMethod = true
 
         // Emit constructor (if class has fields, generate new() method)
-        this._emitConstructor(className, decl)
+        this._emitConstructor($"{className}", decl)
 
         // Emit methods
         for m in decl.members {
             let _ = switch m {
                 Member.Method(md) => {
-                    this._emitMethod(className, md)
+                    this._emitMethod($"{className}", md)
                     0
                 },
                 _ => { 0 }
@@ -547,7 +548,7 @@ RustEmitter {
         // TODO: Phase 3.6 — use liveness to determine &mut self
 
         let paramList = this._buildParamList(decl.params)
-        let fullParams = selfParam
+        let fullParams = $"{selfParam}"
         if paramList != "" {
             fullParams = $"{selfParam}, {paramList}"
         }
@@ -606,9 +607,10 @@ RustEmitter {
             let fieldParts: [string] = []
             for f in v.fields {
                 let fname = this._sanitizeName(f.name)
+                // W-003: Call _emitType first, then check boxing via enum name lookup
+                // This avoids double-use of f.typeRef (move semantics)
                 let ftype = this._emitType(f.typeRef)
-                // Auto-box recursive enum fields
-                let needsBox = this._needsBoxing(f.typeRef)
+                let needsBox = this._typeCtx.enums.has(ftype)
                 if needsBox {
                     fieldParts.push($"{fname}: Box<{ftype}>")
                 } else {
@@ -678,7 +680,7 @@ RustEmitter {
     _emitStmt(stmt: Stmt) {
         let _ = switch stmt {
             Stmt.VarDecl(decl) => { this._emitVarDecl(decl); 0 },
-            Stmt.ConstDecl(cdecl) => { this._emitLocalConst(cdecl); 0 },
+            Stmt.ConstDecl(cdecl) => { this._emitConstDecl(cdecl); 0 },
             Stmt.Assign(asgn) => { this._emitAssign(asgn); 0 },
             Stmt.If(ifStmt) => { this._emitIf(ifStmt); 0 },
             Stmt.While(wStmt) => { this._emitWhile(wStmt); 0 },
@@ -764,7 +766,11 @@ RustEmitter {
                 let idx = 0
                 for e in elements {
                     if idx > 0 { this._write(", ") }
-                    this._write(this._sanitizeName(e))
+                    // W-010: e is string? — extract to local for null-check
+                    let eName = e
+                    if eName != null {
+                        this._write(this._sanitizeName(eName))
+                    }
                     idx += 1
                 }
                 this._write("] = ")
@@ -794,9 +800,10 @@ RustEmitter {
         // Handle fallible init (or fail / or value)
         if decl.isFallible {
             this._emitExpr(decl.init)
-            if decl.orValue != null {
+            let orVal = decl.orValue
+            if orVal != null {
                 this._write(".unwrap_or_else(|_| ")
-                this._emitExpr(decl.orValue)
+                this._emitExpr(orVal)
                 this._write(")")
             } else {
                 this._write("?")
@@ -830,8 +837,9 @@ RustEmitter {
         this._writeIndent()
         this._emitExpr(stmt.target)
 
-        if stmt.op != null {
-            let opStr = this._binOpToRust(stmt.op)
+        let assignOp = stmt.op
+        if assignOp != null {
+            let opStr = this._binOpToRust(assignOp)
             this._write($" {opStr}= ")
         } else {
             this._write(" = ")
@@ -854,10 +862,11 @@ RustEmitter {
         this._emitIfBody(stmt.thenBranch)
         this._dedent()
 
-        if stmt.elseBranch != null {
+        let elsePart = stmt.elseBranch
+        if elsePart != null {
             this._writeln("} else {")
             this._indent()
-            this._emitIfBody(stmt.elseBranch)
+            this._emitIfBody(elsePart)
             this._dedent()
         }
         this._writeln("}")
@@ -896,9 +905,11 @@ RustEmitter {
         let varName = this._sanitizeName(stmt.variable)
 
         // Check if there's an index variable (for i, item in array)
-        if stmt.variable2 != null {
-            let idxName = this._sanitizeName(stmt.variable)
-            let itemName = this._sanitizeName(stmt.variable2)
+        let var2 = stmt.variable2
+        if var2 != null {
+            // Two-variable for loop: use varName (already sanitized) as idx
+            let idxName = varName
+            let itemName = this._sanitizeName(var2)
             this._write($"for ({idxName}, {itemName}) in ")
             this._emitExpr(stmt.iterable)
             this._write(".iter().enumerate()")
@@ -931,10 +942,11 @@ RustEmitter {
         }
 
         // Default arm
-        if stmt.defaultBody != null {
+        let defBody = stmt.defaultBody
+        if defBody != null {
             this._writeln("_ => {")
             this._indent()
-            for s in stmt.defaultBody {
+            for s in defBody {
                 this._emitStmt(s)
             }
             this._dedent()
@@ -1289,46 +1301,36 @@ RustEmitter {
     // -- Function calls (with free function mapping) --
 
     _emitCall(callee: Expr, args: [Expr]) {
-        // Check for free function builtins
-        let handled = false
+        // Classify the call type without consuming args
+        let callType = ""
         let _ = switch callee {
             Expr.Identifier(fnName) => {
-                if fnName == "print" {
-                    handled = true
-                    this._emitPrintCall(args)
-                }
-                if fnName == "println" {
-                    handled = true
-                    this._emitPrintlnCall(args)
-                }
-                if fnName == "toString" {
-                    if args.length > 0 {
-                        handled = true
-                        this._write("format!(\"{}\", ")
-                        this._emitExpr(args[0])
-                        this._write(")")
-                    }
-                }
-                if fnName == "toInt" {
-                    if args.length > 0 {
-                        handled = true
-                        this._emitExpr(args[0])
-                        this._write(".to_string().parse::<i32>().unwrap_or(0)")
-                    }
-                }
-                if fnName == "toFloat" {
-                    if args.length > 0 {
-                        handled = true
-                        this._emitExpr(args[0])
-                        this._write(".to_string().parse::<f64>().unwrap_or(0.0)")
-                    }
-                }
+                if fnName == "print" { callType = "print" }
+                else if fnName == "println" { callType = "println" }
+                else if fnName == "toString" { callType = "toString" }
+                else if fnName == "toInt" { callType = "toInt" }
+                else if fnName == "toFloat" { callType = "toFloat" }
                 0
             },
             _ => { 0 }
         }
 
-        if !handled {
+        // Dispatch — args consumed in exactly one branch
+        if callType == "print" {
+            this._emitPrintCall(args)
+        } else if callType == "println" {
+            this._emitPrintlnCall(args)
+        } else if callType == "toString" && args.length > 0 {
+            this._write("format!(\"{}\", ")
+            this._emitExpr(args[0])
+            this._write(")")
+        } else if callType == "toInt" && args.length > 0 {
+            this._emitExpr(args[0])
+            this._write(".to_string().parse::<i32>().unwrap_or(0)")
+        } else if callType == "toFloat" && args.length > 0 {
+            this._emitExpr(args[0])
+            this._write(".to_string().parse::<f64>().unwrap_or(0.0)")
+        } else {
             this._emitExpr(callee)
             this._write("(")
             let aIdx = 0
@@ -1395,31 +1397,46 @@ RustEmitter {
     _emitMethodCall(obj: Expr, method: string, args: [Expr]) {
         let objTag = this._getExprTypeName(obj)
 
-        // Dispatch by receiver type
-        let dispatched = false
-        if objTag == "string" {
-            dispatched = this._emitStringMethod(obj, method, args)
-        }
-        if !dispatched {
-            if objTag == "array" {
-                dispatched = this._emitArrayMethod(obj, method, args)
-            }
-        }
-        if !dispatched {
-            if objTag == "map" {
-                dispatched = this._emitMapMethod(obj, method, args)
-            }
-        }
-        if !dispatched {
-            if objTag == "set" {
-                dispatched = this._emitSetMethod(obj, method, args)
-            }
+        // Classify method target without consuming args
+        let target = "generic"
+        if objTag == "string" && this._isKnownStringMethod(method) {
+            target = "string"
+        } else if objTag == "array" && this._isKnownArrayMethod(method) {
+            target = "array"
+        } else if objTag == "map" && this._isKnownMapMethod(method) {
+            target = "map"
+        } else if objTag == "set" && this._isKnownSetMethod(method) {
+            target = "set"
         }
 
-        // Fallback: generic method call (handles user-defined methods)
-        if !dispatched {
+        // Dispatch — args consumed in exactly ONE branch
+        if target == "string" {
+            this._emitStringMethod(obj, method, args)
+        } else if target == "array" {
+            this._emitArrayMethod(obj, method, args)
+        } else if target == "map" {
+            this._emitMapMethod(obj, method, args)
+        } else if target == "set" {
+            this._emitSetMethod(obj, method, args)
+        } else {
             this._emitGenericMethodCall(obj, method, args)
         }
+    }
+
+    _isKnownStringMethod(m: string): bool {
+        return m == "contains" || m == "replace" || m == "replaceAll" || m == "split" || m == "trim" || m == "trimStart" || m == "trimEnd" || m == "startsWith" || m == "endsWith" || m == "toUpperCase" || m == "toLowerCase" || m == "substring" || m == "indexOf" || m == "lastIndexOf" || m == "slice" || m == "padStart" || m == "padEnd" || m == "repeat" || m == "charAt" || m == "chars" || m == "capitalize" || m == "isBlank" || m == "isEmpty" || m == "removePrefix" || m == "removeSuffix" || m == "countMatches" || m == "truncate" || m == "reverse" || m == "toInt" || m == "toFloat" || m == "toString"
+    }
+
+    _isKnownArrayMethod(m: string): bool {
+        return m == "push" || m == "pop" || m == "map" || m == "filter" || m == "forEach" || m == "join" || m == "includes" || m == "indexOf" || m == "find" || m == "some" || m == "every" || m == "reduce" || m == "slice" || m == "concat" || m == "sort" || m == "reverse" || m == "reversed" || m == "flat" || m == "flatMap" || m == "flatten" || m == "first" || m == "last" || m == "count" || m == "min" || m == "max" || m == "isEmpty" || m == "contains" || m == "distinct" || m == "sum" || m == "take" || m == "drop" || m == "zip" || m == "chunks" || m == "insert" || m == "remove"
+    }
+
+    _isKnownMapMethod(m: string): bool {
+        return m == "get" || m == "set" || m == "has" || m == "delete" || m == "keys" || m == "values" || m == "entries" || m == "clear" || m == "forEach" || m == "isEmpty"
+    }
+
+    _isKnownSetMethod(m: string): bool {
+        return m == "add" || m == "has" || m == "delete" || m == "clear" || m == "values" || m == "forEach" || m == "union" || m == "intersection" || m == "difference" || m == "isEmpty"
     }
 
     _emitGenericMethodCall(obj: Expr, method: string, args: [Expr]) {
@@ -2200,7 +2217,7 @@ RustEmitter {
         let _ = switch lam.body {
             LambdaBody.Expr(lamExprs) => {
                 if lamExprs.length == 1 {
-                    this._emitExpr(lamExprs[0])
+                    for le in lamExprs { this._emitExpr(le); break }
                 } else {
                     this._write("{ ")
                     for e in lamExprs {
@@ -2279,9 +2296,10 @@ RustEmitter {
     _emitSwitchArm(arm: SwitchArm) {
         this._emitPattern(arm.pattern)
 
-        if arm.guard != null {
+        let guardExpr = arm.guard
+        if guardExpr != null {
             this._write(" if ")
-            this._emitExpr(arm.guard)
+            this._emitExpr(guardExpr)
         }
 
         this._write(" => ")
@@ -2316,13 +2334,15 @@ RustEmitter {
                 0
             },
             Pattern.Range(rangeStart, rangeEnd, inclusive) => {
-                if rangeStart != null { this._emitExpr(rangeStart) }
+                let rs = rangeStart
+                if rs != null { this._emitExpr(rs) }
                 if inclusive {
                     this._write("..=")
                 } else {
                     this._write("..")
                 }
-                if rangeEnd != null { this._emitExpr(rangeEnd) }
+                let re = rangeEnd
+                if re != null { this._emitExpr(re) }
                 0
             },
             Pattern.TuplePat(patterns) => {
