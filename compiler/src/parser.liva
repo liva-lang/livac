@@ -496,10 +496,10 @@ Parser {
                 this._expect(TokenKind.RBracket)
             }
 
-            let alias: string? = null
-            if this._match(TokenKind.KwAs) => alias = this._parseIdentifier()
+            let rustAlias: string? = null
+            if this._match(TokenKind.KwAs) => rustAlias = this._parseIdentifier()
 
-            return TopLevel.UseRust(UseRustDecl(crateName, alias, version, features))
+            return TopLevel.UseRust(UseRustDecl(crateName, rustAlias, version, features))
         }
 
         // ── type (alias or interface) ─────────────────────────────
