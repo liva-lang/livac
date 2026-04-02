@@ -1,0 +1,38 @@
+// E2E Test: Ternary Operator — conditional expressions  
+import { describe, test, expect } from "liva/test"
+
+abs(n: number): number => n < 0 ? -n : n
+maxOf(a: number, b: number): number => a > b ? a : b
+classify(n: number): string => n > 0 ? "positive" : "non-positive"
+
+ternStr(cond: bool): string => cond ? "yes" : "no"
+
+describe("Ternary Operator", () => {
+    test("basic true branch", () => {
+        let result = ternStr(true)
+        expect(result).toBe("yes")
+    })
+
+    test("basic false branch", () => {
+        let result = ternStr(false)
+        expect(result).toBe("no")
+    })
+
+    test("ternary in function — abs", () => {
+        expect(abs(-5)).toBe(5)
+        expect(abs(3)).toBe(3)
+        expect(abs(0)).toBe(0)
+    })
+
+    test("ternary with comparison — max", () => {
+        expect(maxOf(10, 20)).toBe(20)
+        expect(maxOf(30, 15)).toBe(30)
+        expect(maxOf(5, 5)).toBe(5)
+    })
+
+    test("ternary classify", () => {
+        expect(classify(5)).toBe("positive")
+        expect(classify(-3)).toBe("non-positive")
+        expect(classify(0)).toBe("non-positive")
+    })
+})

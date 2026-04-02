@@ -1,0 +1,89 @@
+// E2E Test: Arithmetic and Comparison — all operators, modulo, negative
+import { describe, test, expect } from "liva/test"
+
+describe("Integer Arithmetic", () => {
+    test("addition", () => {
+        expect(3 + 4).toBe(7)
+        expect(0 + 0).toBe(0)
+    })
+
+    test("subtraction", () => {
+        expect(10 - 3).toBe(7)
+        expect(3 - 10).toBe(-7)
+    })
+
+    test("multiplication", () => {
+        expect(6 * 7).toBe(42)
+        expect(0 * 1000).toBe(0)
+    })
+
+    test("division", () => {
+        expect(10 / 3).toBe(3)
+        expect(15 / 5).toBe(3)
+    })
+
+    test("modulo", () => {
+        expect(10 % 3).toBe(1)
+        expect(15 % 5).toBe(0)
+        expect(7 % 2).toBe(1)
+    })
+})
+
+describe("Comparison Operators", () => {
+    test("equality", () => {
+        expect(5 == 5).toBe(true)
+        expect(5 == 6).toBe(false)
+    })
+
+    test("inequality", () => {
+        expect(5 != 6).toBe(true)
+        expect(5 != 5).toBe(false)
+    })
+
+    test("less than", () => {
+        expect(3 < 5).toBe(true)
+        expect(5 < 3).toBe(false)
+        expect(5 < 5).toBe(false)
+    })
+
+    test("greater than", () => {
+        expect(5 > 3).toBe(true)
+        expect(3 > 5).toBe(false)
+    })
+
+    test("less than or equal", () => {
+        expect(3 <= 5).toBe(true)
+        expect(5 <= 5).toBe(true)
+        expect(6 <= 5).toBe(false)
+    })
+
+    test("greater than or equal", () => {
+        expect(5 >= 3).toBe(true)
+        expect(5 >= 5).toBe(true)
+        expect(4 >= 5).toBe(false)
+    })
+})
+
+describe("String Comparison", () => {
+    test("string equality", () => {
+        expect("hello" == "hello").toBe(true)
+        expect("hello" == "world").toBe(false)
+    })
+
+    test("string inequality", () => {
+        expect("abc" != "def").toBe(true)
+        expect("abc" != "abc").toBe(false)
+    })
+})
+
+describe("Negative Numbers", () => {
+    test("negative literals", () => {
+        let x = -5
+        expect(x).toBe(-5)
+    })
+
+    test("negative arithmetic", () => {
+        expect(-3 * 4).toBe(-12)
+        expect(-10 + 3).toBe(-7)
+    })
+})

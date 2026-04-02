@@ -1,0 +1,7 @@
+// W004 fixture: always-true comparison
+main() {
+    let x = 5
+    if x == x {
+        print("always true")
+    }
+}

@@ -1,41 +1,24 @@
 // Error Detection Tests — verify compiler reports correct error codes
-// Uses rust {} block to invoke livac check and capture error output
+// Uses Process.exec to invoke livac check/lint and capture output
 import { describe, test, expect } from "liva/test"
 
-// Helper: Run livac check on an error file and return combined stdout+stderr
+// Helper: Run livac check on an error file and return combined output
 checkError(filename: string): string {
-    let result = rust {
-        // CARGO_MANIFEST_DIR = .liva_test_build/errors/
-        // Navigate up to repo root (livac/):
-        //   errors/ → .liva_test_build → errors → liva → tests → compiler → livac
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .ancestors().nth(6).expect("cannot find repo root");
-        let livac = root.join("target/release/livac");
-        let file = root.join("compiler/tests/liva/errors").join(&filename);
-        let out = std::process::Command::new(&livac)
-            .arg("check").arg(&file)
-            .output().expect("failed to run livac");
-        format!("{}{}",
-            String::from_utf8_lossy(&out.stdout),
-            String::from_utf8_lossy(&out.stderr))
-    }
+    let base = rust { env!("CARGO_MANIFEST_DIR").replace("/target/liva_test", "").replace("/target/liva_build", "") }
+    let livac = $"{base}/target/release/livac"
+    let file = $"{base}/compiler/tests/liva/errors/{filename}"
+    let cmd = $"{livac} check {file} 2>&1"
+    let result = Process.exec(cmd) or ""
     return result
 }
 
-// Helper: Run livac lint on a file and return combined stdout+stderr
+// Helper: Run livac lint on a file and return combined output
 lintFile(filename: string): string {
-    let result = rust {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .ancestors().nth(6).expect("cannot find repo root");
-        let livac = root.join("target/release/livac");
-        let file = root.join("compiler/tests/liva/errors").join(&filename);
-        let out = std::process::Command::new(&livac)
-            .arg("lint").arg(&file)
-            .output().expect("failed to run livac");
-        format!("{}{}",
-            String::from_utf8_lossy(&out.stdout),
-            String::from_utf8_lossy(&out.stderr))
-    }
+    let base = rust { env!("CARGO_MANIFEST_DIR").replace("/target/liva_test", "").replace("/target/liva_build", "") }
+    let livac = $"{base}/target/release/livac"
+    let file = $"{base}/compiler/tests/liva/errors/{filename}"
+    let cmd = $"{livac} lint {file} 2>&1"
+    let result = Process.exec(cmd) or ""
     return result
 }
 
@@ -103,5 +86,10 @@ describe("Error Detection", () => {
     test("W003: unreachable code warning", () => {
         let output = lintFile("w003_unreachable_code.liva")
         expect(output).toContain("W003")
+    })
+
+    test("W004: always true comparison", () => {
+        let output = lintFile("w004_always_true.liva")
+        expect(output).toContain("W004")
     })
 })

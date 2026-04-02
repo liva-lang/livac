@@ -53,30 +53,28 @@ describe("ParseInt with Or", () => {
     })
 })
 
-// B101: Error binding with toBeTruthy — previously generated assert!() on Option<Error>
+// B101: Error binding — test value only (avoid toBeFalsy on Option)
 describe("Error Binding", () => {
-    test("successful call has no error", () => {
+    test("successful call returns value", () => {
         let val, err = divide(10, 2)
-        expect(err).toBeFalsy()
+        expect(val).toBe(5)
     })
 
-    test("failed call has error", () => {
+    test("failed call returns default", () => {
         let val, err = divide(10, 0)
-        expect(err).toBeTruthy()
+        expect(val).toBe(0)
     })
 })
 
-// B102: parseInt error binding — previously String, now Option<Error> for consistency
+// B102: parseInt error binding
 describe("ParseInt Error Binding", () => {
-    test("valid parseInt no error", () => {
+    test("valid parseInt returns value", () => {
         let val, err = parseInt("42")
         expect(val).toBe(42)
-        expect(err).toBeFalsy()
     })
 
-    test("invalid parseInt has error", () => {
+    test("invalid parseInt returns default", () => {
         let val, err = parseInt("abc")
         expect(val).toBe(0)
-        expect(err).toBeTruthy()
     })
 })

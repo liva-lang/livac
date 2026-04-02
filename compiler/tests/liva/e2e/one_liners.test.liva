@@ -1,0 +1,33 @@
+// E2E Test: One-Liner Syntax — if =>, for =>
+import { describe, test, expect } from "liva/test"
+
+describe("One-Liner If", () => {
+    test("if => executes body", () => {
+        let result = 0
+        let x = 10
+        if x > 5 => result = 1
+        expect(result).toBe(1)
+    })
+
+    test("if => skips when false", () => {
+        let result = 0
+        let x = 3
+        if x > 5 => result = 1
+        expect(result).toBe(0)
+    })
+})
+
+describe("One-Liner For", () => {
+    test("for => accumulate", () => {
+        let sum = 0
+        for i in 1..=5 => sum += i
+        expect(sum).toBe(15)
+    })
+
+    test("for over array => one-liner", () => {
+        let count = 0
+        let items = [1, 2, 3]
+        for item in items => count += 1
+        expect(count).toBe(3)
+    })
+})

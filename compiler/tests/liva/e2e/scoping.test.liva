@@ -1,0 +1,35 @@
+// E2E Test: Scoping — block scope, nested scope
+import { describe, test, expect } from "liva/test"
+
+describe("Block Scoping", () => {
+    test("variable in if block scope", () => {
+        let result = 0
+        if true {
+            let x = 42
+            result = x
+        }
+        expect(result).toBe(42)
+    })
+
+    test("variable in for block scope", () => {
+        let sum = 0
+        for i in 0..5 {
+            let step = i * 2
+            sum += step
+        }
+        expect(sum).toBe(20)
+    })
+})
+
+describe("Variable Shadowing", () => {
+    test("inner let shadows outer", () => {
+        let x = 10
+        let result = 0
+        if true {
+            let x = 20
+            result = x
+        }
+        expect(x).toBe(10)
+        expect(result).toBe(20)
+    })
+})

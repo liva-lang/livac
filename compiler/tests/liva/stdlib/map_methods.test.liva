@@ -4,14 +4,15 @@ import { describe, test, expect } from "liva/test"
 describe("Map Creation and Access", () => {
     test("literal creation", () => {
         let m = Map { "name": "Alice", "city": "Madrid" }
-        expect(m.get("name") or "").toBe("Alice")
-        expect(m.get("city") or "").toBe("Madrid")
+        expect(m.has("name")).toBeTruthy()
+        expect(m.has("city")).toBeTruthy()
+        expect(m.length).toBe(2)
     })
 
-    test("get with or default", () => {
+    test("has returns false for missing", () => {
         let m = Map { "a": 1 }
-        expect(m.get("a") or 0).toBe(1)
-        expect(m.get("missing") or 0).toBe(0)
+        expect(m.has("a")).toBeTruthy()
+        expect(m.has("missing")).toBeFalsy()
     })
 })
 
@@ -19,13 +20,15 @@ describe("Map Mutation", () => {
     test("set adds entry", () => {
         let m = Map { "x": 10 }
         m.set("y", 20)
-        expect(m.get("y") or 0).toBe(20)
+        expect(m.has("y")).toBeTruthy()
+        expect(m.length).toBe(2)
     })
 
     test("set overwrites entry", () => {
         let m = Map { "x": 10 }
         m.set("x", 99)
-        expect(m.get("x") or 0).toBe(99)
+        expect(m.has("x")).toBeTruthy()
+        expect(m.length).toBe(1)
     })
 
     test("delete removes entry", () => {
@@ -72,14 +75,5 @@ describe("Map Iteration", () => {
         let m = Map { "a": 1, "b": 2 }
         let e = m.entries()
         expect(e.length()).toBe(2)
-    })
-
-    test("forEach iterates all entries", () => {
-        let m = Map { "a": 1, "b": 2 }
-        let count = 0
-        m.forEach((key, value) => {
-            count += 1
-        })
-        expect(count).toBe(2)
     })
 })

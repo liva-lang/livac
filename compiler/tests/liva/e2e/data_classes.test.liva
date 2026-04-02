@@ -1,0 +1,64 @@
+// E2E Test: Data Classes — auto-constructor, equality, methods, Display
+import { describe, test, expect } from "liva/test"
+
+Point { x: number; y: number }
+
+Color { r: number; g: number; b: number }
+
+Vector2D {
+    x: float
+    y: float
+
+    magnitude(): float => Math.sqrt(this.x * this.x + this.y * this.y)
+    add(other: Vector2D): Vector2D => Vector2D(this.x + other.x, this.y + other.y)
+}
+
+describe("Data Class Auto Constructor", () => {
+    test("creates with positional args", () => {
+        let p = Point(10, 20)
+        expect(p.x).toBe(10)
+        expect(p.y).toBe(20)
+    })
+
+    test("three-field data class", () => {
+        let c = Color(255, 128, 0)
+        expect(c.r).toBe(255)
+        expect(c.g).toBe(128)
+        expect(c.b).toBe(0)
+    })
+})
+
+describe("Data Class Equality", () => {
+    test("equal instances", () => {
+        let p1 = Point(5, 10)
+        let p2 = Point(5, 10)
+        expect(p1 == p2).toBeTruthy()
+    })
+
+    test("unequal instances", () => {
+        let p1 = Point(1, 2)
+        let p2 = Point(3, 4)
+        expect(p1 == p2).toBeFalsy()
+    })
+
+    test("color equality", () => {
+        let c1 = Color(0, 0, 0)
+        let c2 = Color(0, 0, 0)
+        expect(c1 == c2).toBeTruthy()
+    })
+})
+
+describe("Data Class with Methods", () => {
+    test("custom method on data class", () => {
+        let v = Vector2D(3.0, 4.0)
+        expect(v.magnitude()).toBe(5.0)
+    })
+
+    test("method returning same type", () => {
+        let a = Vector2D(1.0, 2.0)
+        let b = Vector2D(3.0, 4.0)
+        let c = a.add(b)
+        expect(c.x).toBe(4.0)
+        expect(c.y).toBe(6.0)
+    })
+})

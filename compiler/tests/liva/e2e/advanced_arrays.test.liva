@@ -1,0 +1,102 @@
+// E2E Test: Advanced Arrays — isEmpty, first/last, chaining, slice, aggregation
+import { describe, test, expect } from "liva/test"
+
+double(x: number): number => x * 2
+isEven(x: number): bool => x % 2 == 0
+
+describe("Array isEmpty and first/last", () => {
+    test("isEmpty on empty array", () => {
+        let empty: [number] = []
+        expect(empty.isEmpty()).toBe(true)
+    })
+
+    test("isEmpty on non-empty array", () => {
+        let nums = [1, 2, 3]
+        expect(nums.isEmpty()).toBe(false)
+    })
+
+    test("first and last", () => {
+        let nums = [10, 20, 30]
+        expect(nums.first()).toBe(10)
+        expect(nums.last()).toBe(30)
+    })
+})
+
+describe("Array Chaining", () => {
+    test("filter then map", () => {
+        let nums = [1, 2, 3, 4, 5, 6]
+        let result = nums.filter(x => x % 2 == 0).map(x => x * 10)
+        expect(result.length).toBe(3)
+    })
+
+    test("map then filter then reduce", () => {
+        let nums = [1, 2, 3, 4, 5]
+        let result = nums.map(x => x * 2).filter(x => x > 4).reduce(0, (acc, x) => acc + x)
+        expect(result).toBe(24)
+    })
+
+    test("point-free with double", () => {
+        let nums = [1, 2, 3]
+        let result = nums.map(double)
+        expect(result.length).toBe(3)
+    })
+
+    test("point-free with filter", () => {
+        let nums = [1, 2, 3, 4, 5, 6]
+        let evens = nums.filter(isEven)
+        expect(evens.length).toBe(3)
+    })
+})
+
+describe("Array Slice and Take", () => {
+    test("slice extracts subarray", () => {
+        let nums = [10, 20, 30, 40, 50]
+        let sliced = nums.slice(1, 4)
+        expect(sliced.length).toBe(3)
+    })
+
+    test("take first n elements", () => {
+        let nums = [1, 2, 3, 4, 5]
+        let taken = nums.take(3)
+        expect(taken.length).toBe(3)
+    })
+
+    test("drop first n elements", () => {
+        let nums = [1, 2, 3, 4, 5]
+        let rest = nums.drop(2)
+        expect(rest.length).toBe(3)
+    })
+})
+
+describe("Array Aggregation", () => {
+    test("sum of integers", () => {
+        let nums = [1, 2, 3, 4, 5]
+        expect(nums.sum()).toBe(15)
+    })
+
+    test("min and max", () => {
+        let nums = [5, 3, 8, 1, 9]
+        expect(nums.min()).toBe(1)
+        expect(nums.max()).toBe(9)
+    })
+
+    test("distinct removes duplicates", () => {
+        let nums = [1, 2, 2, 3, 3, 3]
+        let unique = nums.distinct()
+        expect(unique.length).toBe(3)
+    })
+})
+
+describe("Array flat and chunks", () => {
+    test("flat nested arrays", () => {
+        let nested = [[1, 2], [3, 4], [5]]
+        let flat = nested.flat()
+        expect(flat.length).toBe(5)
+    })
+
+    test("chunks", () => {
+        let nums = [1, 2, 3, 4, 5, 6]
+        let chunked = nums.chunks(2)
+        expect(chunked.length).toBe(3)
+    })
+})

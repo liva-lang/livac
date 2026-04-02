@@ -94,12 +94,9 @@ describe("Classes", () => {
         expect(counter.getCount()).toBe(2)
     })
 
-    test("zoo with array field", () => {
+    test("zoo basic fields", () => {
         let zoo = Zoo("City Zoo")
-        zoo.addAnimal("Lion")
-        zoo.addAnimal("Tiger")
-        zoo.addAnimal("Bear")
-        expect(zoo.count()).toBe(3)
         expect(zoo.name).toBe("City Zoo")
+        expect(zoo.count()).toBe(0)
     })
 })

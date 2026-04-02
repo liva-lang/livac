@@ -1,0 +1,107 @@
+// E2E Test: Advanced Collections — Map/Set operations, set math
+import { describe, test, expect } from "liva/test"
+
+describe("Map Operations", () => {
+    test("create and has", () => {
+        let m = Map { "a": 1, "b": 2, "c": 3 }
+        expect(m.has("a")).toBe(true)
+        expect(m.has("d")).toBe(false)
+    })
+
+    test("set overwrites", () => {
+        let m = Map { "x": 10 }
+        m.set("x", 20)
+        expect(m.has("x")).toBe(true)
+    })
+
+    test("has and delete", () => {
+        let m = Map { "key": 42 }
+        expect(m.has("key")).toBe(true)
+        m.delete("key")
+        expect(m.has("key")).toBe(false)
+    })
+
+    test("keys returns all keys", () => {
+        let m = Map { "a": 1, "b": 2 }
+        let k = m.keys()
+        expect(k.length).toBe(2)
+    })
+
+    test("values returns all values", () => {
+        let m = Map { "x": 10, "y": 20 }
+        let v = m.values()
+        expect(v.length).toBe(2)
+    })
+
+    test("length", () => {
+        let m = Map { "a": 1, "b": 2, "c": 3 }
+        expect(m.length).toBe(3)
+    })
+
+    test("clear empties map", () => {
+        let m = Map { "a": 1, "b": 2 }
+        m.clear()
+        expect(m.length).toBe(0)
+    })
+})
+
+describe("Set Operations", () => {
+    test("create and has", () => {
+        let s = Set { "red", "green", "blue" }
+        expect(s.has("red")).toBe(true)
+        expect(s.has("purple")).toBe(false)
+    })
+
+    test("add new element", () => {
+        let s = Set { "a" }
+        s.add("b")
+        expect(s.has("b")).toBe(true)
+        expect(s.length).toBe(2)
+    })
+
+    test("add duplicate no effect", () => {
+        let s = Set { "x" }
+        s.add("x")
+        expect(s.length).toBe(1)
+    })
+
+    test("delete element", () => {
+        let s = Set { "a", "b", "c" }
+        s.delete("b")
+        expect(s.has("b")).toBe(false)
+        expect(s.length).toBe(2)
+    })
+
+    test("clear empties set", () => {
+        let s = Set { "a", "b" }
+        s.clear()
+        expect(s.length).toBe(0)
+    })
+
+    test("union", () => {
+        let a = Set { "x", "y" }
+        let b = Set { "y", "z" }
+        let u = a.union(b)
+        expect(u.has("x")).toBe(true)
+        expect(u.has("y")).toBe(true)
+        expect(u.has("z")).toBe(true)
+    })
+
+    test("intersection", () => {
+        let a = Set { "x", "y", "z" }
+        let b = Set { "y", "z", "w" }
+        let i = a.intersection(b)
+        expect(i.has("y")).toBe(true)
+        expect(i.has("z")).toBe(true)
+        expect(i.has("x")).toBe(false)
+    })
+
+    test("difference", () => {
+        let a = Set { "x", "y", "z" }
+        let b = Set { "y" }
+        let d = a.difference(b)
+        expect(d.has("x")).toBe(true)
+        expect(d.has("z")).toBe(true)
+        expect(d.has("y")).toBe(false)
+    })
+})

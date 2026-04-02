@@ -1,0 +1,30 @@
+// E2E Test: Constants — const declarations, types
+import { describe, test, expect } from "liva/test"
+
+const MAX_VALUE: number = 1000
+const PI_APPROX: float = 3.14159
+const IS_DEBUG: bool = true
+
+describe("Constants", () => {
+    test("integer constant", () => {
+        expect(MAX_VALUE).toBe(1000)
+    })
+
+    test("float constant", () => {
+        expect(PI_APPROX).toBe(3.14159)
+    })
+
+    test("bool constant", () => {
+        expect(IS_DEBUG).toBe(true)
+    })
+
+    test("constant in expression", () => {
+        let half = MAX_VALUE / 2
+        expect(half).toBe(500)
+    })
+
+    test("constant in comparison", () => {
+        let x = 500
+        expect(x < MAX_VALUE).toBe(true)
+    })
+})

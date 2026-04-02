@@ -1,0 +1,42 @@
+// Syntax Test: Destructuring — tuple from function
+import { describe, test, expect } from "liva/test"
+
+getPoint(): (number, number) => (10, 20)
+getTriple(): (number, number, number) => (1, 2, 3)
+swap(a: number, b: number): (number, number) => (b, a)
+
+describe("Tuple Destructuring", () => {
+    test("tuple from function", () => {
+        let (x, y) = getPoint()
+        expect(x).toBe(10)
+        expect(y).toBe(20)
+    })
+
+    test("triple tuple", () => {
+        let (a, b, c) = getTriple()
+        expect(a).toBe(1)
+        expect(b).toBe(2)
+        expect(c).toBe(3)
+    })
+
+    test("swap via tuple", () => {
+        let (a, b) = swap(1, 2)
+        expect(a).toBe(2)
+        expect(b).toBe(1)
+    })
+})
+
+describe("Tuple Access", () => {
+    test("dot access on tuple", () => {
+        let p = (100, 200)
+        expect(p.0).toBe(100)
+        expect(p.1).toBe(200)
+    })
+
+    test("tuple from function dot access", () => {
+        let t = getTriple()
+        expect(t.0).toBe(1)
+        expect(t.1).toBe(2)
+        expect(t.2).toBe(3)
+    })
+})

@@ -1,0 +1,17 @@
+// E2E Test: Rust Interop — rust blocks basic
+// NOTE: rust {} codegen generates inline code (no wrapping braces)
+// so we test simple single-expression blocks.
+import { describe, test, expect } from "liva/test"
+
+describe("Rust Block Simple", () => {
+    test("rust block integer", () => {
+        let result = rust { 42 }
+        expect(result).toBe(42)
+    })
+
+    test("liva variable in rust block", () => {
+        let x = 10
+        let result = rust { x * 3 }
+        expect(result).toBe(30)
+    })
+})

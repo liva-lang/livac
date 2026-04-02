@@ -1,0 +1,62 @@
+// Syntax Test: Optionals — or default, error binding, fallible functions
+import { describe, test, expect } from "liva/test"
+
+findUser(name: string): string {
+    if name == "Alice" {
+        return "Alice Smith"
+    }
+    fail "User not found"
+}
+
+getAge(name: string): number {
+    if name == "Alice" {
+        return 30
+    }
+    fail "Unknown user"
+}
+
+describe("Or Default", () => {
+    test("or provides fallback on fail", () => {
+        let user = findUser("nobody") or "Guest"
+        expect(user).toBe("Guest")
+    })
+
+    test("or keeps value on success", () => {
+        let user = findUser("Alice") or "Guest"
+        expect(user).toBe("Alice Smith")
+    })
+
+    test("parseInt or default", () => {
+        let val = parseInt("not_a_number") or -1
+        expect(val).toBe(-1)
+    })
+
+    test("parseInt or zero", () => {
+        let val = parseInt("abc") or 0
+        expect(val).toBe(0)
+    })
+
+    test("success value preserved", () => {
+        let val = parseInt("42") or -1
+        expect(val).toBe(42)
+    })
+})
+
+describe("Error Binding", () => {
+    test("success path value correct", () => {
+        let val, err = findUser("Alice")
+        expect(val).toBe("Alice Smith")
+    })
+
+    test("failure path default value", () => {
+        let val, err = getAge("nobody")
+        expect(val).toBe(0)
+    })
+
+    test("multiple error bindings", () => {
+        let v1, e1 = getAge("Alice")
+        let v2, e2 = getAge("Alice")
+        expect(v1).toBe(30)
+        expect(v2).toBe(30)
+    })
+})

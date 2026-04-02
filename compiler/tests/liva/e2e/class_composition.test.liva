@@ -1,0 +1,47 @@
+// E2E Test: Class Composition — nested classes, class fields as other classes
+import { describe, test, expect } from "liva/test"
+
+Address {
+    city: string
+    zip: string
+
+    constructor(city: string, zip: string) {
+        this.city = city
+        this.zip = zip
+    }
+
+    full(): string => $"{this.city} {this.zip}"
+}
+
+Employee {
+    name: string
+    address: Address
+
+    constructor(name: string, address: Address) {
+        this.name = name
+        this.address = address
+    }
+
+    info(): string => $"{this.name} from {this.address.city}"
+}
+
+describe("Class Composition", () => {
+    test("class field is another class", () => {
+        let addr = Address("NYC", "10001")
+        let emp = Employee("Alice", addr)
+        expect(emp.name).toBe("Alice")
+        expect(emp.address.city).toBe("NYC")
+        expect(emp.address.zip).toBe("10001")
+    })
+
+    test("method accesses nested class", () => {
+        let addr = Address("London", "SW1A")
+        let emp = Employee("Bob", addr)
+        expect(emp.info()).toBe("Bob from London")
+    })
+
+    test("nested class method call", () => {
+        let addr = Address("Paris", "75001")
+        expect(addr.full()).toBe("Paris 75001")
+    })
+})

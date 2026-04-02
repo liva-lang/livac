@@ -1,0 +1,117 @@
+// E2E Test: Advanced Enums — recursive, methods, complex matching
+import { describe, test, expect } from "liva/test"
+
+enum Color {
+    Red,
+    Green,
+    Blue,
+    Custom(r: number, g: number, b: number)
+}
+
+colorName(c: Color): string {
+    return switch c {
+        Color.Red => "red",
+        Color.Green => "green",
+        Color.Blue => "blue",
+        Color.Custom(r, g, b) => $"rgb({r},{g},{b})"
+    }
+}
+
+enum List {
+    Cons(head: number, tail: List),
+    Nil
+}
+
+listLength(l: List): number {
+    return switch l {
+        List.Nil => 0,
+        List.Cons(h, t) => 1 + listLength(t)
+    }
+}
+
+listSum(l: List): number {
+    return switch l {
+        List.Nil => 0,
+        List.Cons(h, t) => h + listSum(t)
+    }
+}
+
+enum Expr {
+    Num(value: number),
+    Add(left: Expr, right: Expr),
+    Mul(left: Expr, right: Expr)
+}
+
+eval(e: Expr): number {
+    return switch e {
+        Expr.Num(v) => v,
+        Expr.Add(l, r) => eval(l) + eval(r),
+        Expr.Mul(l, r) => eval(l) * eval(r)
+    }
+}
+
+describe("Enum with Mixed Variants", () => {
+    test("unit variants", () => {
+        expect(colorName(Color.Red)).toBe("red")
+        expect(colorName(Color.Green)).toBe("green")
+        expect(colorName(Color.Blue)).toBe("blue")
+    })
+
+    test("tuple variant with data", () => {
+        let c = Color.Custom(255, 128, 0)
+        expect(colorName(c)).toBe("rgb(255,128,0)")
+    })
+})
+
+describe("Recursive Enum — Linked List", () => {
+    test("empty list", () => {
+        expect(listLength(List.Nil)).toBe(0)
+        expect(listSum(List.Nil)).toBe(0)
+    })
+
+    test("single element", () => {
+        let l = List.Cons(42, List.Nil)
+        expect(listLength(l)).toBe(1)
+        expect(listSum(l)).toBe(42)
+    })
+
+    test("multiple elements", () => {
+        let l = List.Cons(1, List.Cons(2, List.Cons(3, List.Nil)))
+        expect(listLength(l)).toBe(3)
+        expect(listSum(l)).toBe(6)
+    })
+})
+
+describe("Recursive Enum — Expr Tree", () => {
+    test("single number", () => {
+        expect(eval(Expr.Num(42))).toBe(42)
+    })
+
+    test("addition", () => {
+        let e = Expr.Add(Expr.Num(3), Expr.Num(4))
+        expect(eval(e)).toBe(7)
+    })
+
+    test("multiplication", () => {
+        let e = Expr.Mul(Expr.Num(5), Expr.Num(6))
+        expect(eval(e)).toBe(30)
+    })
+
+    test("nested expression", () => {
+        // (2 + 3) * 4 = 20
+        let e = Expr.Mul(
+            Expr.Add(Expr.Num(2), Expr.Num(3)),
+            Expr.Num(4)
+        )
+        expect(eval(e)).toBe(20)
+    })
+
+    test("deeply nested", () => {
+        // (1 + 2) + (3 * 4) = 3 + 12 = 15
+        let e = Expr.Add(
+            Expr.Add(Expr.Num(1), Expr.Num(2)),
+            Expr.Mul(Expr.Num(3), Expr.Num(4))
+        )
+        expect(eval(e)).toBe(15)
+    })
+})

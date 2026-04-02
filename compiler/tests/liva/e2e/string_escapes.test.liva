@@ -1,0 +1,46 @@
+// E2E Test: String Escapes and Edge Cases
+import { describe, test, expect } from "liva/test"
+
+describe("String Escapes", () => {
+    test("newline escape", () => {
+        let s = "hello\nworld"
+        expect(s.contains("\n")).toBe(true)
+    })
+
+    test("tab escape", () => {
+        let s = "col1\tcol2"
+        expect(s.contains("\t")).toBe(true)
+    })
+})
+
+describe("String Edge Cases", () => {
+    test("empty string", () => {
+        let s = ""
+        expect(s.length).toBe(0)
+        expect(s.isEmpty()).toBe(true)
+    })
+
+    test("single character", () => {
+        let s = "x"
+        expect(s.length).toBe(1)
+        expect(s.charAt(0)).toBe("x")
+    })
+
+    test("string template with arithmetic", () => {
+        let x = 10
+        let y = 20
+        let msg = $"{x} + {y} = {x + y}"
+        expect(msg).toBe("10 + 20 = 30")
+    })
+
+    test("nested expressions in template", () => {
+        let items = [1, 2, 3]
+        let msg = $"count: {items.length}"
+        expect(msg).toBe("count: 3")
+    })
+
+    test("empty string trim", () => {
+        let s = "   "
+        expect(s.trim()).toBe("")
+    })
+})

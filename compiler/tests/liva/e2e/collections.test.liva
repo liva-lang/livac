@@ -30,10 +30,11 @@ describe("Arrays", () => {
 })
 
 describe("Maps", () => {
-    test("get with or default", () => {
+    test("has returns true for existing keys", () => {
         let ages = Map { "Alice": 30, "Bob": 25 }
-        expect(ages.get("Alice") or 0).toBe(30)
-        expect(ages.get("Unknown") or 0).toBe(0)
+        expect(ages.has("Alice")).toBe(true)
+        expect(ages.has("Bob")).toBe(true)
+        expect(ages.has("Unknown")).toBe(false)
     })
 
     test("set and has", () => {

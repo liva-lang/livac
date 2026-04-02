@@ -1,30 +1,24 @@
 // Stdlib-IO Test: HTTP Server — compile-only verification
-// Server tests can't run in unit test context (would block on listen)
-// We verify the code compiles correctly via livac check
+// Server tests can't actually start/listen (would block forever in cargo test)
+// We verify ALL server API patterns compile correctly with livac check
 import { describe, test, expect } from "liva/test"
 
-// Helper: Run livac check on a file and return output
-checkFile(filename: string): string {
-    let result = rust {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .ancestors().nth(6).expect("cannot find repo root");
-        let livac = root.join("target/release/livac");
-        let file = root.join("compiler/tests/liva/stdlib-io").join(&filename);
-        let out = std::process::Command::new(&livac)
-            .arg("check").arg(&file)
-            .output().expect("failed to run livac");
-        format!("{}{}",
-            String::from_utf8_lossy(&out.stdout),
-            String::from_utf8_lossy(&out.stderr))
-    }
+// Helper: Run livac check on the fixture file
+checkFixture(): string {
+    let base = rust { env!("CARGO_MANIFEST_DIR").replace("/target/liva_test", "").replace("/target/liva_build", "") }
+    let livac = $"{base}/target/release/livac"
+    let file = $"{base}/compiler/tests/liva/stdlib-io/http_server_fixture.liva"
+    let cmd = $"{livac} check {file} 2>&1"
+    let result = Process.exec(cmd) or "EXEC_FAILED"
     return result
 }
 
-describe("HTTP Server (compile-only)", () => {
-    test("server with routes compiles", () => {
-        let output = checkFile("http_server_fixture.liva")
-        // If check passes, output should NOT contain "Error"
-        let hasError = output.contains("Error")
-        expect(hasError).toBe(false)
+describe("HTTP Server Compile-Only", () => {
+    test("fixture covers all API patterns and compiles", () => {
+        let output = checkFixture()
+        // livac check should NOT contain "Error"
+        expect(output.contains("Error")).toBe(false)
+        // Should report check passed
+        expect(output.contains("Check passed")).toBe(true)
     })
 })

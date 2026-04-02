@@ -1,0 +1,55 @@
+// E2E Test: Closures — variable capture, closure in higher-order functions
+import { describe, test, expect } from "liva/test"
+
+makeAdder(n: number): number {
+    // Returns n + 10 as a simple demo
+    return n + 10
+}
+
+describe("Closure Variable Capture", () => {
+    test("captures outer variable in map", () => {
+        let multiplier = 3
+        let nums = [1, 2, 3]
+        let result = nums.map(x => x * multiplier)
+        expect(result.length).toBe(3)
+    })
+
+    test("captures string variable", () => {
+        let prefix = "item"
+        let nums = [1, 2, 3]
+        let labels = nums.map(x => $"{prefix}_{x}")
+        expect(labels.length).toBe(3)
+    })
+
+    test("captures number in filter", () => {
+        let threshold = 3
+        let nums = [1, 2, 3, 4, 5]
+        let above = nums.filter(x => x > threshold)
+        expect(above.length).toBe(2)
+    })
+})
+
+describe("Closure in Find", () => {
+    test("find with captured target", () => {
+        let target = 3
+        let nums = [1, 2, 3, 4, 5]
+        let found = nums.find(x => x == target) or -1
+        expect(found).toBe(3)
+    })
+
+    test("find returns default on miss", () => {
+        let target = 99
+        let nums = [1, 2, 3]
+        let found = nums.find(x => x == target) or -1
+        expect(found).toBe(-1)
+    })
+})
+
+describe("Closure in Reduce", () => {
+    test("reduce with captured initial", () => {
+        let base = 100
+        let nums = [1, 2, 3]
+        let total = nums.reduce(base, (acc, x) => acc + x)
+        expect(total).toBe(106)
+    })
+})

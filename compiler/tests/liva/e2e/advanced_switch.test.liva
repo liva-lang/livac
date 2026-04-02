@@ -1,0 +1,117 @@
+// E2E Test: Advanced Switch — guards on enums, complex return, nested patterns
+import { describe, test, expect } from "liva/test"
+
+enum Shape {
+    Circle(radius: number),
+    Rectangle(width: number, height: number),
+    Point
+}
+
+describeShape(s: Shape): string {
+    return switch s {
+        Shape.Circle(r) => $"circle r={r}",
+        Shape.Rectangle(w, h) => $"rect {w}x{h}",
+        Shape.Point => "point"
+    }
+}
+
+area(s: Shape): number {
+    return switch s {
+        Shape.Circle(r) => r * r * 3,
+        Shape.Rectangle(w, h) => w * h,
+        Shape.Point => 0
+    }
+}
+
+classify(score: number): string {
+    return switch score {
+        90..=100 => "A",
+        80..=89 => "B",
+        70..=79 => "C",
+        60..=69 => "D",
+        _ => "F"
+    }
+}
+
+dayType(day: string): string {
+    return switch day {
+        "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" => "Weekday",
+        "Saturday" | "Sunday" => "Weekend",
+        _ => "Unknown"
+    }
+}
+
+describe("Switch with Enum Destructuring", () => {
+    test("circle pattern", () => {
+        let s = Shape.Circle(5)
+        expect(describeShape(s)).toBe("circle r=5")
+    })
+
+    test("rectangle pattern", () => {
+        let s = Shape.Rectangle(3, 4)
+        expect(describeShape(s)).toBe("rect 3x4")
+    })
+
+    test("point pattern", () => {
+        expect(describeShape(Shape.Point)).toBe("point")
+    })
+
+    test("area calculation via switch", () => {
+        expect(area(Shape.Circle(10))).toBe(300)
+        expect(area(Shape.Rectangle(5, 6))).toBe(30)
+        expect(area(Shape.Point)).toBe(0)
+    })
+})
+
+describe("Switch with Ranges", () => {
+    test("grade classification", () => {
+        expect(classify(95)).toBe("A")
+        expect(classify(85)).toBe("B")
+        expect(classify(75)).toBe("C")
+        expect(classify(65)).toBe("D")
+        expect(classify(50)).toBe("F")
+    })
+
+    test("boundary values", () => {
+        expect(classify(90)).toBe("A")
+        expect(classify(100)).toBe("A")
+        expect(classify(89)).toBe("B")
+        expect(classify(80)).toBe("B")
+    })
+})
+
+describe("Switch with Or-Patterns", () => {
+    test("weekday detection", () => {
+        expect(dayType("Monday")).toBe("Weekday")
+        expect(dayType("Friday")).toBe("Weekday")
+    })
+
+    test("weekend detection", () => {
+        expect(dayType("Saturday")).toBe("Weekend")
+        expect(dayType("Sunday")).toBe("Weekend")
+    })
+
+    test("unknown day", () => {
+        expect(dayType("Holiday")).toBe("Unknown")
+    })
+})
+
+describe("Switch with Value Binding", () => {
+    test("bind and use matched value", () => {
+        let x = 42
+        let label = switch x {
+            0 => "zero",
+            n => $"value: {n}"
+        }
+        expect(label).toBe("value: 42")
+    })
+
+    test("bind zero specifically", () => {
+        let x = 0
+        let label = switch x {
+            0 => "zero",
+            n => $"value: {n}"
+        }
+        expect(label).toBe("zero")
+    })
+})

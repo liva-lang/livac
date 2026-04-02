@@ -1,0 +1,59 @@
+// E2E Test: Point-Free References — function refs, method refs, :: syntax
+import { describe, test, expect } from "liva/test"
+
+double(x: number): number => x * 2
+triple(x: number): number => x * 3
+isPositive(x: number): bool => x > 0
+isEven(x: number): bool => x % 2 == 0
+negate(x: number): number => -x
+
+describe("Point-Free Map", () => {
+    test("function reference with map", () => {
+        let nums = [1, 2, 3]
+        let doubled = nums.map(double)
+        expect(doubled.length).toBe(3)
+    })
+
+    test("triple function reference", () => {
+        let nums = [10, 20, 30]
+        let tripled = nums.map(triple)
+        expect(tripled.length).toBe(3)
+    })
+
+    test("negate function reference", () => {
+        let nums = [1, 2, 3]
+        let negated = nums.map(negate)
+        expect(negated.length).toBe(3)
+    })
+})
+
+describe("Point-Free Filter", () => {
+    test("filter with predicate ref", () => {
+        let nums = [1, -2, 3, -4, 5]
+        let pos = nums.filter(isPositive)
+        expect(pos.length).toBe(3)
+    })
+
+    test("filter evens", () => {
+        let nums = [1, 2, 3, 4, 5, 6]
+        let evens = nums.filter(isEven)
+        expect(evens.length).toBe(3)
+    })
+})
+
+describe("Point-Free Some and Every", () => {
+    test("some with function ref", () => {
+        let nums = [-1, -2, 3]
+        expect(nums.some(isPositive)).toBe(true)
+    })
+
+    test("every with function ref", () => {
+        let nums = [2, 4, 6]
+        expect(nums.every(isEven)).toBe(true)
+    })
+
+    test("every false case", () => {
+        let nums = [2, 3, 6]
+        expect(nums.every(isEven)).toBe(false)
+    })
+})

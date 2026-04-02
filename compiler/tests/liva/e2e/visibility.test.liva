@@ -1,0 +1,40 @@
+// E2E Test: Visibility — _ prefix private, exported vs private functions
+import { describe, test, expect } from "liva/test"
+
+// Public function
+add(a: number, b: number): number => a + b
+
+// Private function (not exported in multi-file)
+_double(x: number): number => x * 2
+
+Container {
+    _value: number
+
+    constructor(val: number) {
+        this._value = val
+    }
+
+    getValue(): number => this._value
+
+    _internal(): number => this._value * 10
+}
+
+describe("Visibility Convention", () => {
+    test("public function accessible", () => {
+        expect(add(3, 4)).toBe(7)
+    })
+
+    test("private function accessible in same file", () => {
+        expect(_double(5)).toBe(10)
+    })
+
+    test("private field accessible via method", () => {
+        let c = Container(42)
+        expect(c.getValue()).toBe(42)
+    })
+
+    test("private method accessible in same file", () => {
+        let c = Container(5)
+        expect(c._internal()).toBe(50)
+    })
+})

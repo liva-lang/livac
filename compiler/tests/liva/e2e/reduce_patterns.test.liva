@@ -1,0 +1,36 @@
+// E2E Test: Reduce patterns — initial value first, various accumulators
+import { describe, test, expect } from "liva/test"
+
+describe("Reduce Basics", () => {
+    test("sum with zero initial", () => {
+        let nums = [1, 2, 3, 4, 5]
+        let sum = nums.reduce(0, (acc, x) => acc + x)
+        expect(sum).toBe(15)
+    })
+
+    test("product with one initial", () => {
+        let nums = [1, 2, 3, 4]
+        let prod = nums.reduce(1, (acc, x) => acc * x)
+        expect(prod).toBe(24)
+    })
+})
+
+describe("Reduce with Transform", () => {
+    test("count evens via reduce", () => {
+        let nums = [1, 2, 3, 4, 5, 6]
+        let count = nums.reduce(0, (acc, x) => x % 2 == 0 ? acc + 1 : acc)
+        expect(count).toBe(3)
+    })
+
+    test("sum of squared", () => {
+        let nums = [1, 2, 3]
+        let result = nums.map(x => x * x).reduce(0, (acc, x) => acc + x)
+        expect(result).toBe(14)
+    })
+
+    test("reduce with large initial", () => {
+        let nums = [1, 2, 3]
+        let result = nums.reduce(100, (acc, x) => acc + x)
+        expect(result).toBe(106)
+    })
+})

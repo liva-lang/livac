@@ -1,0 +1,72 @@
+// Syntax Test: Interfaces — class with multiple method contracts
+import { describe, test, expect } from "liva/test"
+
+Box {
+    label: string
+    width: number
+
+    constructor(label: string, width: number) {
+        this.label = label
+        this.width = width
+    }
+
+    display(): string => $"Box({this.label})"
+    area(): number => this.width * this.width
+    describe(): string => $"{this.label}: {this.width}x{this.width}"
+}
+
+Widget {
+    name: string
+    enabled: bool
+
+    constructor(name: string) {
+        this.name = name
+        this.enabled = true
+    }
+
+    toggle() {
+        this.enabled = !this.enabled
+    }
+
+    isActive(): bool => this.enabled
+    getName(): string => this.name
+}
+
+describe("Class with Multiple Methods", () => {
+    test("display method", () => {
+        let b = Box("cargo", 10)
+        expect(b.display()).toBe("Box(cargo)")
+    })
+
+    test("area method", () => {
+        let b = Box("mail", 3)
+        expect(b.area()).toBe(9)
+    })
+
+    test("describe method", () => {
+        let b = Box("test", 5)
+        expect(b.describe()).toBe("test: 5x5")
+    })
+
+    test("field access", () => {
+        let b = Box("pkg", 7)
+        expect(b.label).toBe("pkg")
+        expect(b.width).toBe(7)
+    })
+})
+
+describe("Class with State Toggle", () => {
+    test("initial state", () => {
+        let w = Widget("button")
+        expect(w.isActive()).toBe(true)
+        expect(w.getName()).toBe("button")
+    })
+
+    test("toggle changes state", () => {
+        let w = Widget("toggle")
+        w.toggle()
+        expect(w.isActive()).toBe(false)
+        w.toggle()
+        expect(w.isActive()).toBe(true)
+    })
+})

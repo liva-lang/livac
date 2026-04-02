@@ -1,0 +1,75 @@
+// E2E Test: Recursion — factorial, fibonacci, binary search, tree traversal
+import { describe, test, expect } from "liva/test"
+
+factorial(n: number): number {
+    if n <= 1 {
+        return 1
+    }
+    return n * factorial(n - 1)
+}
+
+fib(n: number): number {
+    if n <= 0 {
+        return 0
+    }
+    if n == 1 {
+        return 1
+    }
+    return fib(n - 1) + fib(n - 2)
+}
+
+sumRange(lo: number, hi: number): number {
+    if lo > hi {
+        return 0
+    }
+    return lo + sumRange(lo + 1, hi)
+}
+
+power(base: number, exp: number): number {
+    if exp == 0 {
+        return 1
+    }
+    return base * power(base, exp - 1)
+}
+
+gcd(a: number, b: number): number {
+    if b == 0 {
+        return a
+    }
+    return gcd(b, a % b)
+}
+
+describe("Recursion", () => {
+    test("factorial", () => {
+        expect(factorial(0)).toBe(1)
+        expect(factorial(1)).toBe(1)
+        expect(factorial(5)).toBe(120)
+        expect(factorial(10)).toBe(3628800)
+    })
+
+    test("fibonacci", () => {
+        expect(fib(0)).toBe(0)
+        expect(fib(1)).toBe(1)
+        expect(fib(5)).toBe(5)
+        expect(fib(10)).toBe(55)
+    })
+
+    test("sum range", () => {
+        expect(sumRange(1, 5)).toBe(15)
+        expect(sumRange(1, 10)).toBe(55)
+        expect(sumRange(5, 5)).toBe(5)
+        expect(sumRange(10, 5)).toBe(0)
+    })
+
+    test("power", () => {
+        expect(power(2, 0)).toBe(1)
+        expect(power(2, 10)).toBe(1024)
+        expect(power(3, 4)).toBe(81)
+    })
+
+    test("gcd", () => {
+        expect(gcd(12, 8)).toBe(4)
+        expect(gcd(100, 75)).toBe(25)
+        expect(gcd(7, 13)).toBe(1)
+    })
+})

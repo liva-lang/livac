@@ -1,0 +1,89 @@
+// E2E Test: Advanced Error Handling — deep chains, or fail, or default
+import { describe, test, expect } from "liva/test"
+
+parsePort(s: string): number {
+    let val = parseInt(s) or -1
+    if val == -1 {
+        fail "Invalid port number"
+    }
+    if val < 1 || val > 65535 {
+        fail "Port out of range"
+    }
+    return val
+}
+
+loadConfig(filename: string): string {
+    if filename == "" {
+        fail "Empty filename"
+    }
+    return filename
+}
+
+initApp(configFile: string, port: string): string {
+    let cfg = loadConfig(configFile) or fail "Config load failed"
+    let p = parsePort(port) or fail "Port parse failed"
+    return $"{cfg}:{p}"
+}
+
+describe("Or Fail Propagation", () => {
+    test("success through chain", () => {
+        let result = initApp("app.toml", "8080") or "FAILED"
+        expect(result).toBe("app.toml:8080")
+    })
+
+    test("failure at first level", () => {
+        let result = initApp("", "8080") or "FAILED"
+        expect(result).toBe("FAILED")
+    })
+
+    test("failure at second level", () => {
+        let result = initApp("app.toml", "abc") or "FAILED"
+        expect(result).toBe("FAILED")
+    })
+
+    test("failure with out of range port", () => {
+        let result = initApp("app.toml", "99999") or "FAILED"
+        expect(result).toBe("FAILED")
+    })
+})
+
+describe("Or Default Patterns", () => {
+    test("or default on failure", () => {
+        let port = parsePort("invalid") or 3000
+        expect(port).toBe(3000)
+    })
+
+    test("or default keeps success", () => {
+        let port = parsePort("9090") or 3000
+        expect(port).toBe(9090)
+    })
+
+    test("parseInt with or", () => {
+        let val = parseInt("abc") or 0
+        expect(val).toBe(0)
+    })
+
+    test("parseInt success", () => {
+        let val = parseInt("42") or 0
+        expect(val).toBe(42)
+    })
+})
+
+describe("Error Binding Patterns", () => {
+    test("error binding success", () => {
+        let val, err = parsePort("3000")
+        expect(val).toBe(3000)
+    })
+
+    test("error binding failure default", () => {
+        let val, err = parsePort("abc")
+        expect(val).toBe(0)
+    })
+
+    test("multiple error bindings", () => {
+        let p1, err1 = parsePort("80")
+        let p2, err2 = parsePort("443")
+        expect(p1).toBe(80)
+        expect(p2).toBe(443)
+    })
+})

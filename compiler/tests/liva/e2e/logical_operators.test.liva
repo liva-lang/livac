@@ -1,0 +1,74 @@
+// E2E Test: Logical Operators — &&, ||, !, combined conditions
+import { describe, test, expect } from "liva/test"
+
+describe("Boolean AND", () => {
+    test("true and true", () => {
+        expect(true && true).toBe(true)
+    })
+
+    test("true and false", () => {
+        expect(true && false).toBe(false)
+    })
+
+    test("false and true", () => {
+        expect(false && true).toBe(false)
+    })
+
+    test("false and false", () => {
+        expect(false && false).toBe(false)
+    })
+})
+
+describe("Boolean OR", () => {
+    test("true or true", () => {
+        expect(true || true).toBe(true)
+    })
+
+    test("true or false", () => {
+        expect(true || false).toBe(true)
+    })
+
+    test("false or true", () => {
+        expect(false || true).toBe(true)
+    })
+
+    test("false or false", () => {
+        expect(false || false).toBe(false)
+    })
+})
+
+describe("Boolean NOT", () => {
+    test("not true", () => {
+        expect(!true).toBe(false)
+    })
+
+    test("not false", () => {
+        expect(!false).toBe(true)
+    })
+})
+
+describe("Combined Logical", () => {
+    test("compound AND condition", () => {
+        let x = 15
+        let result = x > 10 && x < 20
+        expect(result).toBe(true)
+    })
+
+    test("compound OR condition", () => {
+        let x = 5
+        let result = x < 0 || x > 3
+        expect(result).toBe(true)
+    })
+
+    test("false compound AND", () => {
+        let x = 25
+        let result = x > 10 && x < 20
+        expect(result).toBe(false)
+    })
+
+    test("false compound OR", () => {
+        let x = 5
+        let result = x < 0 || x > 10
+        expect(result).toBe(false)
+    })
+})

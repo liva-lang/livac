@@ -44,8 +44,8 @@ describe("Error Handling", () => {
         expect(val).toBe(-1)
     })
 
-    test("ignore error with underscore", () => {
-        let val, _ = divide(10, 3)
+    test("error binding without using err", () => {
+        let val, err = divide(10, 3)
         expect(val).toBe(3)
     })
 })
