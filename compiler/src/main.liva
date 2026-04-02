@@ -104,6 +104,7 @@ printUsage() {
     print("  build   Compile to native binary")
     print("  run     Compile and run")
     print("  check   Check for errors without compiling")
+    print("  test    Run test files (*.test.liva)")
     print("")
     print("Options:")
     print("  --output <dir>   Output directory")
@@ -384,17 +385,38 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
         moduleFiles.set("main.rs", header + mainCode)
     }
 
-    // Step 4: Cargo.toml (mainRs is already in moduleFiles["main.rs"])
+    // Step 4: Cargo.toml — detect deps from generated code
     let mainRs = ""
     let projectName = fileToProjectName(entryPath)
-    // Create a temporary emitter just for Cargo.toml generation
+    // Scan all generated code for stdlib usage
+    let usesRandom = false
+    let usesRegex = false
+    let usesAsync = false
+    let usesHttp = false
+    let usesDb = false
+    let usesJson = false
+    let usesChrono = false
+    let usesCrypto = false
+    let usesRayon = false
+    for key in moduleFiles.keys() {
+        let code = moduleFiles.get(key)
+        if code.contains("rand::") { usesRandom = true }
+        if code.contains("regex::") { usesRegex = true }
+        if code.contains("tokio::") || code.contains(".await") { usesAsync = true }
+        if code.contains("axum::") { usesHttp = true }
+        if code.contains("rusqlite::") { usesDb = true }
+        if code.contains("serde") || code.contains("serde_json") { usesJson = true }
+        if code.contains("chrono::") { usesChrono = true }
+        if code.contains("sha2::") || code.contains("hmac::") { usesCrypto = true }
+        if code.contains("rayon::") { usesRayon = true }
+    }
     let emptyTypeCtx = TypeContext(
         [], Map {}, Map {}, Map {}, Map {}, [], [], Map {}, Map {}, Map {}, Map {}, [], Map {}
     )
     let emptyLiveCtx = LivenessContext(Map {}, Map {}, Map {})
     let emitter = RustEmitter(emptyTypeCtx, emptyLiveCtx)
     let cargoToml = emitter.generateCargoToml(
-        projectName, false, false, false, false, false, false, false, false, false
+        projectName, usesAsync, usesRegex, usesHttp, usesDb, usesJson, usesChrono, usesRandom, usesCrypto, usesRayon
     )
 
     return CompilationResult(true, mainRs, cargoToml, errors, moduleFiles)
@@ -472,10 +494,14 @@ _extractFileNameMain(filePath: string): string {
 }
 
 _removeLivaExtMain(fileName: string): string {
-    if fileName.endsWith(".liva") {
-        return fileName.substring(0, fileName.length - 5)
+    let result = fileName
+    if result.endsWith(".liva") {
+        result = result.substring(0, result.length - 5)
     }
-    return fileName
+    if result.endsWith(".test") {
+        result = result.substring(0, result.length - 5)
+    }
+    return result
 }
 
 hasImports(source: string): bool {
@@ -504,6 +530,120 @@ _compileSource(source: string, inputFile: string, isMultiFile: bool,
 }
 
 // =====================================================================
+//  Test Runner
+// =====================================================================
+
+_findTestFiles(path: string): [string] {
+    // For now, if the path is a single .test.liva file, return just that
+    // If it's a directory, we'd need to walk it (Dir.list not available yet)
+    let result: [string] = []
+    if path.endsWith(".test.liva") || path.endsWith(".liva") {
+        result.push(path)
+    }
+    return result
+}
+
+_runTestCommand(opts: CliOptions) {
+    print("🧪 Liva Test Runner (self-hosted)")
+    print("")
+
+    let testFiles = _findTestFiles(opts.inputFile)
+
+    if testFiles.length == 0 {
+        print("No test files found")
+        return
+    }
+
+    print($"  → Found {testFiles.length} test file(s)")
+    print("")
+
+    let passCount = 0
+    let failCount = 0
+
+    for testFile in testFiles {
+        let outputDir = "target/liva_test"
+
+        // Read source
+        let tfCopy = $"{testFile}"
+        let source = readFile(tfCopy)
+        let isMultiFile = hasImports(source)
+
+        // Compile
+        let result = _compileSource(source, tfCopy, isMultiFile, false, opts.verbose)
+
+        if !result.success {
+            print($" FAIL {tfCopy} (compilation error)")
+            for err in result.errors {
+                print($"  error: {err}")
+            }
+            failCount += 1
+        } else {
+            // Write output
+            writeOutputFiles(result, outputDir)
+
+            // Run cargo test instead of cargo build
+            let cargoCmd = "cd " + outputDir + " && cargo test 2>&1"
+            let testOutput = Process.exec(cargoCmd) or "CARGO_TEST_FAILED"
+
+            if testOutput.contains("test result: ok") {
+                // Count passed tests
+                let numTests = _extractTestCount(testOutput)
+                print($" PASS {tfCopy} ({numTests} tests)")
+                passCount += 1
+            } else if testOutput == "CARGO_TEST_FAILED" {
+                print($" FAIL {tfCopy} (cargo test failed)")
+                failCount += 1
+            } else {
+                // Check for test failures
+                if testOutput.contains("FAILED") || testOutput.contains("panicked") {
+                    print($" FAIL {tfCopy}")
+                    // Extract failure info
+                    let outputLines = testOutput.split("\n")
+                    for line in outputLines {
+                        if line.contains("FAILED") || line.contains("panicked") || line.contains("assertion") {
+                            print($"  {line}")
+                        }
+                    }
+                    failCount += 1
+                } else {
+                    let numTests = _extractTestCount(testOutput)
+                    print($" PASS {tfCopy} ({numTests} tests)")
+                    passCount += 1
+                }
+            }
+        }
+    }
+
+    print("")
+    print("──────────────────────────────────────────────────")
+    let total = passCount + failCount
+    print($"Tests:  {passCount} passed, {failCount} failed, {total} total")
+}
+
+_extractTestCount(output: string): int {
+    // Look for "test result: ok. N passed"
+    let idx = output.indexOf("passed")
+    if idx >= 0 {
+        // Walk backwards to find the number
+        let numStr = ""
+        let i = idx - 2
+        while i >= 0 {
+            let ch = output.charAt(i)
+            if ch >= "0" && ch <= "9" {
+                numStr = ch + numStr
+            } else if numStr.length > 0 {
+                return numStr.toInt()
+            }
+            i -= 1
+        }
+        if numStr.length > 0 {
+            return numStr.toInt()
+        }
+    }
+    return 0
+}
+
+// =====================================================================
 //  Main Entry Point
 // =====================================================================
 
@@ -523,7 +663,8 @@ main() {
     }
 
     // Determine output directory
-    let outputDir = _resolveOutputDir(opts.outputDir)
+    let outputDirValue = $"{opts.outputDir}"
+    let outputDir = _resolveOutputDir(outputDirValue)
 
     // Read source to determine single vs multi-file
     let inputFile = $"{opts.inputFile}"
@@ -574,5 +715,9 @@ main() {
         } else {
             print("Build failed")
         }
+    }
+
+    if opts.command == "test" {
+        _runTestCommand(opts)
     }
 }
