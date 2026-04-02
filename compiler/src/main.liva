@@ -179,12 +179,27 @@ compileSingleFile(source: string, fileName: string, checkOnly: bool): Compilatio
     let emptyEnumFieldOptional: Map<string, [bool]> = Map {}
     let rustCode = generateRust(program, typeCtx, liveCtxCopy, emptyEnumFields, emptyEnumFieldBoxed, emptyEnumFieldOptional)
 
-    // Step 6: Cargo.toml (no special deps for basic projects)
+    // Step 6: Cargo.toml — detect deps from generated code
     let projectName = fileToProjectName(fileName)
     let typeCtxCopy = typeCtx
     let emitter = RustEmitter(typeCtxCopy, liveCtx)
+    // Scan main code for stdlib usage
+    let sfUsesAsync = rustCode.contains("tokio::")
+    if rustCode.contains(".await") { sfUsesAsync = true }
+    let sfUsesRegex = rustCode.contains("regex::")
+    let sfUsesHttp = rustCode.contains("axum::")
+    let sfUsesDb = rustCode.contains("rusqlite::")
+    let sfUsesJson = rustCode.contains("serde")
+    if rustCode.contains("serde_json") { sfUsesJson = true }
+    let sfUsesChrono = rustCode.contains("chrono::")
+    let sfUsesRandom = rustCode.contains("rand::")
+    if rustCode.contains("uuid::") { sfUsesRandom = true }
+    let sfUsesCrypto = rustCode.contains("sha2::")
+    if rustCode.contains("md5::") { sfUsesCrypto = true }
+    if rustCode.contains("base64::") { sfUsesCrypto = true }
+    let sfUsesRayon = rustCode.contains("rayon::")
     let cargoToml = emitter.generateCargoToml(
-        projectName, false, false, false, false, false, false, false, false, false
+        projectName, sfUsesAsync, sfUsesRegex, sfUsesHttp, sfUsesDb, sfUsesJson, sfUsesChrono, sfUsesRandom, sfUsesCrypto, sfUsesRayon
     )
 
     return CompilationResult(true, rustCode, cargoToml, errors, moduleFiles)
@@ -402,13 +417,19 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
         let code = moduleFiles.get(key)
         if code.contains("rand::") { usesRandom = true }
         if code.contains("regex::") { usesRegex = true }
-        if code.contains("tokio::") || code.contains(".await") { usesAsync = true }
+        if code.contains("tokio::") { usesAsync = true }
+        if code.contains(".await") { usesAsync = true }
         if code.contains("axum::") { usesHttp = true }
         if code.contains("rusqlite::") { usesDb = true }
-        if code.contains("serde") || code.contains("serde_json") { usesJson = true }
+        if code.contains("serde") { usesJson = true }
+        if code.contains("serde_json") { usesJson = true }
         if code.contains("chrono::") { usesChrono = true }
-        if code.contains("sha2::") || code.contains("hmac::") { usesCrypto = true }
+        if code.contains("sha2::") { usesCrypto = true }
+        if code.contains("hmac::") { usesCrypto = true }
+        if code.contains("md5::") { usesCrypto = true }
+        if code.contains("base64::") { usesCrypto = true }
         if code.contains("rayon::") { usesRayon = true }
+        if code.contains("uuid::") { usesRandom = true }
     }
     let emptyTypeCtx = TypeContext(
         [], Map {}, Map {}, Map {}, Map {}, [], [], Map {}, Map {}, Map {}, Map {}, [], Map {}

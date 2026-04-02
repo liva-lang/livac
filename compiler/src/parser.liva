@@ -1086,7 +1086,19 @@ Parser {
             this._expect(TokenKind.RBrace)
             return Stmt.Block(block)
         }
+        // Parse expression, then check for assignment/compound-assignment
         let expr = this._parseExpression()
+        if this._match(TokenKind.Assign) {
+            let value = this._parseExpression()
+            return Stmt.Assign(AssignStmt(expr, value, null))
+        }
+        let compoundOp = this._matchCompoundAssign()
+        if compoundOp != null {
+            let rhs = this._parseExpression()
+            let binExpr = Expr.Binary(compoundOp, expr, rhs)
+            let cOp: BinOp? = compoundOp
+            return Stmt.Assign(AssignStmt(expr, binExpr, cOp))
+        }
         return Stmt.ExprStmt(expr)
     }
 
@@ -1095,7 +1107,7 @@ Parser {
         if this._match(TokenKind.KwLet) {
             let bindings = this._parseLetBindings()
             this._expect(TokenKind.Assign)
-            // Parse init at _parseAnd level to NOT consume `or <value>` as Binary(Or)
+            // Parse up to `and`/`&&` — stops before `or`/`||`
             let init = this._parseAnd()
 
             // Check for `or fail "msg"` or `or <value>`
@@ -1103,7 +1115,8 @@ Parser {
             let orValue: Expr? = null
             let orFailLine = 0
 
-            if this._check(TokenKind.KwOr) or this._check(TokenKind.OrOr) {
+            // Handle `or` keyword: either `or fail` or `or <default>` (fallible)
+            if this._check(TokenKind.KwOr) {
                 if this._peekToken(1) == TokenKind.KwFail {
                     this._advance()  // consume `or`
                     this._advance()  // consume `fail`
@@ -1123,16 +1136,19 @@ Parser {
                         }
                     }
                 } else {
-                    // `or <value>` — consume `or` and parse default value
+                    // `or <value>` — fallible default
                     this._advance()  // consume `or`
-                    orValue = this._parseExpression()
+                    orValue = this._parseAnd()
                 }
             }
+
+            // Handle `||` operator: regular boolean OR (build chain)
+            let finalInit = this._finishOrChain(init)
 
             this._match(TokenKind.Semicolon)
 
             let isFallible = bindings.length > 1 or orFailMsg != null or orValue != null
-            return Stmt.VarDecl(VarDeclStmt(bindings, init, isFallible, orFailMsg, orValue, orFailLine))
+            return Stmt.VarDecl(VarDeclStmt(bindings, finalInit, isFallible, orFailMsg, orValue, orFailLine))
         }
 
         // ── const ─────────────────────────────────────────────────
@@ -2103,6 +2119,61 @@ Parser {
             Expr.Index(obj, idx) => this._exprContainsFail(obj) or this._exprContainsFail(idx),
             _ => false
         }
+    }
+
+    // Try to split `callExpr or value` into separate init + orValue
+    // Returns right side of Binary(Or, Call, right) if applicable, else null
+    _trySplitOrRight(expr: Expr): Expr? {
+        let result: Expr? = null
+        let _ = switch expr {
+            Expr.Binary(bop, bLeft, bRight) => {
+                let isOr = false
+                let _ = switch bop {
+                    BinOp.Or => { isOr = true; 0 },
+                    _ => { 0 }
+                }
+                if isOr {
+                    let leftIsCall = false
+                    let _ = switch bLeft {
+                        Expr.Call(_, _, _, _) => { leftIsCall = true; 0 },
+                        _ => { 0 }
+                    }
+                    if leftIsCall {
+                        result = bRight
+                    }
+                }
+                0
+            },
+            _ => { 0 }
+        }
+        return result
+    }
+
+    // Returns left side of Binary(_, left, _) — the Call expr
+    _trySplitOrLeft(expr: Expr): Expr {
+        let result: Expr? = null
+        let _ = switch expr {
+            Expr.Binary(_, bLeft, _) => {
+                result = bLeft
+                0
+            },
+            _ => { 0 }
+        }
+        if result != null {
+            return result
+        }
+        return expr
+    }
+
+    // Consume `||` (OrOr) tokens and build Binary(Or, ...) chain
+    // Uses recursion to avoid re-assigning to an Expr variable
+    _finishOrChain(left: Expr): Expr {
+        if this._match(TokenKind.OrOr) {
+            let right = this._parseAnd()
+            let combined = Expr.Binary(BinOp.Or, left, right)
+            return this._finishOrChain(combined)
+        }
+        return left
     }
 }
 

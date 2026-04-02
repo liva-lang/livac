@@ -524,20 +524,20 @@ Lexer {
             name += this._advance()
         }
 
-        // Check for keyword
-        let kw = lookupKeyword(name)
-        if kw != null {
-            this._addToken(kw, startPos, startLine, startCol)
-            return
-        }
-
-        // Check for `rust { ... }` block
+        // Check for `rust { ... }` block BEFORE keyword lookup
         if name == "rust" and not this._isAtEnd() {
             this._skipWhitespaceAndComments()
             if not this._isAtEnd() and this._peek() == "{" {
                 this._scanRustBlock(startPos, startLine, startCol)
                 return
             }
+        }
+
+        // Check for keyword
+        let kw = lookupKeyword(name)
+        if kw != null {
+            this._addToken(kw, startPos, startLine, startCol)
+            return
         }
 
         // Regular identifier

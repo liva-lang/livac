@@ -77,6 +77,8 @@ RustEmitter {
     _derefClosureParams: bool
     _inAssignTarget: bool
     _usedTestNames: Map<string, int>
+    _functionParamCount: Map<string, int>
+    _functionDefaultStrs: Map<string, string>
 
     constructor(typeCtx: TypeContext, liveCtx: LivenessContext) {
         this._lines = []
@@ -107,6 +109,8 @@ RustEmitter {
         this._derefClosureParams = false
         this._inAssignTarget = false
         this._usedTestNames = Map {}
+        this._functionParamCount = Map {}
+        this._functionDefaultStrs = Map {}
     }
 
     setIsMainModule(isMain: bool) {
@@ -655,6 +659,34 @@ RustEmitter {
         let prevRetFail = this._currentReturnFallible
         this._currentReturnOptional = false
         this._currentReturnFallible = false
+
+        // Register default parameter values for call-site injection
+        this._functionParamCount.set(funcName, decl.params.length)
+        let dIdx = 0
+        for dp in decl.params {
+            let dv = dp.defaultVal
+            if dv != null {
+                // Detect if default is a string literal via AST tag
+                let isStrLit = false
+                let _ = switch dv {
+                    Expr.Literal(lit) => {
+                        let _ = switch lit {
+                            Literal.Str(_) => { isStrLit = true; 0 },
+                            _ => { 0 }
+                        }
+                        0
+                    },
+                    _ => { 0 }
+                }
+                let dvStr = this._exprToString(dv)
+                if isStrLit {
+                    dvStr = dvStr + ".to_string()"
+                }
+                let key = funcName + ":" + dIdx.toString()
+                this._functionDefaultStrs.set(key, dvStr)
+            }
+            dIdx += 1
+        }
 
         // Build parameter list
         let paramList = this._buildParamList(decl.params)
@@ -1342,6 +1374,37 @@ RustEmitter {
     // -- Variable declaration --
 
     _emitVarDecl(decl: VarDeclStmt) {
+        // Special case: let val, err = fallibleFn() — 2 Identifier bindings with isFallible
+        if decl.isFallible && decl.bindings.length == 2 {
+            let bName0 = ""
+            let bName1 = ""
+            let bIdx = 0
+            for b in decl.bindings {
+                let _ = switch b.pattern {
+                    BindingPattern.Identifier(bn) => {
+                        if bIdx == 0 { bName0 = bn }
+                        else { bName1 = bn }
+                        0
+                    },
+                    _ => { 0 }
+                }
+                bIdx += 1
+            }
+            if bName0 != "" && bName1 != "" {
+                let valName = this._sanitizeName(bName0)
+                let errName = this._sanitizeName(bName1)
+                this._writeIndent()
+                this._write("let (mut ")
+                this._write(valName)
+                this._write(", mut ")
+                this._write(errName)
+                this._write(") = match ")
+                this._emitExpr(decl.init)
+                this._write(" { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };")
+                this._newline()
+                return
+            }
+        }
         for b in decl.bindings {
             this._emitBinding(b, decl)
         }
@@ -1791,10 +1854,15 @@ RustEmitter {
 
         // Check if there's an index variable (for i, item in array)
         let var2 = stmt.variable2
+        let hasVar2 = var2 != null
+        let var2Name = ""
         if var2 != null {
+            var2Name = this._sanitizeName(var2)
+        }
+        if hasVar2 {
             // Two-variable for loop
-            let idxName = varName
-            let itemName = this._sanitizeName(var2)
+            let idxName = $"{varName}"
+            let itemName = $"{var2Name}"
             // Detect Map iteration: for key, value in map → .iter()
             let isMapIteration = false
             let _ = switch iterableExpr {
@@ -1825,6 +1893,12 @@ RustEmitter {
         this._write(" {")
         this._newline()
         this._indent()
+        // If two-variable enumerate loop, shadow index var as i32
+        if hasVar2 {
+            this._writeln($"let {varName} = {varName} as i32;")
+            // Clone item to avoid move issues
+            this._writeln($"let {var2Name} = {var2Name}.clone();")
+        }
         this._emitBlock(stmt.body)
         this._dedent()
         this._writeln("}")
@@ -2222,32 +2296,11 @@ RustEmitter {
 
     _emitBinary(op: BinOp, left: Expr, right: Expr) {
         let opStr = this._binOpToRust(op)
-        // Special handling for `or` — might be Option fallback, not boolean OR
+        // `||` is always logical OR now — `or <value>` is handled at parser level
         if opStr == "||" {
-            let leftStr = this._exprToString(left)
-            if leftStr.endsWith(".unwrap()") {
-                // Option access: strip .unwrap() and use .unwrap_or()
-                let stripped = leftStr.substring(0, leftStr.length - 9)
-                this._write(stripped)
-                this._write(".unwrap_or(")
-                this._emitExpr(right)
-                this._write(")")
-                return
-            }
-            // Check if right is clearly not boolean → also use .unwrap_or()
-            let rightStr = this._exprToString(right)
-            if rightStr != "true" && rightStr != "false" && !rightStr.contains(" == ") && !rightStr.contains(" != ") && !rightStr.contains(" && ") && !rightStr.contains(" || ") && !rightStr.contains(" < ") && !rightStr.contains(" > ") && !leftStr.contains(" == ") && !leftStr.contains(" != ") && !leftStr.contains(" && ") && !leftStr.contains(" || ") && !leftStr.contains(" < ") && !leftStr.contains(" > ") && leftStr != "true" && leftStr != "false" {
-                // Non-boolean context: use .unwrap_or()
-                this._write(leftStr)
-                this._write(".unwrap_or(")
-                this._write(rightStr)
-                this._write(")")
-                return
-            }
-            // Regular boolean OR
-            this._write(leftStr)
+            this._emitExpr(left)
             this._write(" || ")
-            this._write(rightStr)
+            this._emitExpr(right)
             return
         }
         // Delegate to helper that classifies + emits right in ONE switch
@@ -2665,6 +2718,27 @@ RustEmitter {
                 this._emitClonedArg(a)
                 aIdx += 1
             }
+            // Inject default parameter values for missing arguments
+            let calleeFnName = ""
+            let _ = switch callee {
+                Expr.Identifier(fn2) => { calleeFnName = this._sanitizeName(fn2); 0 },
+                _ => { 0 }
+            }
+            if calleeFnName != "" && this._functionParamCount.has(calleeFnName) {
+                let totalParams = this._functionParamCount.get(calleeFnName)
+                let provided = args.length
+                let fillIdx = provided
+                while fillIdx < totalParams {
+                    let dKey = calleeFnName + ":" + fillIdx.toString()
+                    if this._functionDefaultStrs.has(dKey) {
+                        if provided > 0 || fillIdx > 0 {
+                            this._write(", ")
+                        }
+                        this._write(this._functionDefaultStrs.get(dKey))
+                    }
+                    fillIdx += 1
+                }
+            }
             this._write(")")
         }
     }
@@ -2964,10 +3038,14 @@ RustEmitter {
             if method == "pow" { this._write("("); this._emitExpr(args[0]); this._write(" as f64).powf("); this._emitExpr(args[1]); this._write(" as f64)"); return }
             if method == "max" { this._emitExpr(args[0]); this._write("_f64.max("); this._emitExpr(args[1]); this._write(" as f64)"); return }
             if method == "min" { this._emitExpr(args[0]); this._write("_f64.min("); this._emitExpr(args[1]); this._write(" as f64)"); return }
+            if method == "clamp" { this._emitExpr(args[0]); this._write("_f64.max("); this._emitExpr(args[1]); this._write(" as f64).min("); this._emitExpr(args[2]); this._write(" as f64)"); return }
             if method == "random" { this._write("rand::random::<f64>()"); return }
-            if method == "PI" { this._write("std::f64::consts::PI"); return }
-            if method == "E" { this._write("std::f64::consts::E"); return }
-            if method == "sign" { this._write("("); this._emitExpr(args[0]); this._write(" as f64).signum() as i32"); return }
+            if method == "sign" {
+                this._write("{ let __v: f64 = ")
+                this._emitExpr(args[0])
+                this._write(" as f64; if __v > 0.0 { 1 } else if __v < 0.0 { -1 } else { 0 } }")
+                return
+            }
             if method == "log" { this._write("("); this._emitExpr(args[0]); this._write(" as f64).ln()"); return }
             if method == "log2" { this._write("("); this._emitExpr(args[0]); this._write(" as f64).log2()"); return }
             if method == "log10" { this._write("("); this._emitExpr(args[0]); this._write(" as f64).log10()"); return }
@@ -2994,23 +3072,147 @@ RustEmitter {
         }
         // Random module
         if stdlibName == "Random" {
+            if method == "nextInt" {
+                this._write("{ use rand::Rng; rand::thread_rng().gen_range(")
+                this._emitExpr(args[0])
+                this._write("..=")
+                this._emitExpr(args[1])
+                this._write(") }")
+                return
+            }
+            if method == "nextFloat" {
+                if args.length >= 2 {
+                    this._write("{ use rand::Rng; let __min: f64 = ")
+                    this._emitExpr(args[0])
+                    this._write(" as f64; let __max: f64 = ")
+                    this._emitExpr(args[1])
+                    this._write(" as f64; rand::thread_rng().gen_range(__min..__max) }")
+                } else {
+                    this._write("rand::random::<f64>()")
+                }
+                return
+            }
+            if method == "bool" { this._write("rand::random::<bool>()"); return }
+            if method == "choice" {
+                this._write("{ use rand::Rng; let __arr = &")
+                this._emitExpr(args[0])
+                this._write("; if __arr.is_empty() { panic!(\"Random.choice: empty array\") } else { __arr[rand::thread_rng().gen_range(0..__arr.len())].clone() } }")
+                return
+            }
+            if method == "shuffle" {
+                this._write("{ use rand::seq::SliceRandom; let mut __v = ")
+                this._emitExpr(args[0])
+                this._write(".clone(); __v.shuffle(&mut rand::thread_rng()); __v }")
+                return
+            }
+            if method == "uuid" {
+                this._write("uuid::Uuid::new_v4().to_string()")
+                return
+            }
             if method == "int" { this._write("(rand::random::<i32>() % "); this._emitExpr(args[1]); this._write(").abs()"); return }
             if method == "float" { this._write("rand::random::<f64>()"); return }
-            if method == "bool" { this._write("rand::random::<bool>()"); return }
-            if method == "choice" { this._write("{ let __arr = "); this._emitExpr(args[0]); this._write("; __arr[rand::random::<usize>() % __arr.len()].clone() }"); return }
         }
         // Crypto module
         if stdlibName == "Crypto" {
+            if method == "sha256" {
+                this._write("{ use sha2::Digest; let mut hasher = sha2::Sha256::new(); hasher.update(")
+                this._emitExpr(args[0])
+                this._write(".as_bytes()); format!(\"{:x}\", hasher.finalize()) }")
+                return
+            }
+            if method == "md5" {
+                this._write("{ use md5::Digest; let mut hasher = md5::Md5::new(); hasher.update(")
+                this._emitExpr(args[0])
+                this._write(".as_bytes()); format!(\"{:x}\", hasher.finalize()) }")
+                return
+            }
+            if method == "base64Encode" {
+                this._write("{ use base64::Engine; base64::engine::general_purpose::STANDARD.encode(")
+                this._emitExpr(args[0])
+                this._write(".as_bytes()) }")
+                return
+            }
+            if method == "base64Decode" {
+                this._write("{ let (opt, err) = { use base64::Engine; match base64::engine::general_purpose::STANDARD.decode(")
+                this._emitExpr(args[0])
+                this._write(".as_bytes()) { Ok(bytes) => match String::from_utf8(bytes) { Ok(s) => (Some(s), String::new()), Err(e) => (None, format!(\"Crypto.base64Decode UTF-8 error: {}\", e)) }, Err(e) => (None, format!(\"Crypto.base64Decode error: {}\", e)) } }; (opt.unwrap_or_default(), err) }")
+                return
+            }
             if method == "uuid" { this._write("format!(\"{:x}\", rand::random::<u128>())"); return }
             if method == "hash" { this._write("format!(\"{:x}\", { let mut __h: u64 = 5381; for __b in "); this._emitExpr(args[0]); this._write(".as_bytes() { __h = __h.wrapping_mul(33).wrapping_add(*__b as u64); } __h })"); return }
         }
         // Date module
         if stdlibName == "Date" {
-            if method == "now" { this._write("std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64"); return }
+            if method == "now" {
+                this._write("chrono::Local::now().naive_local()")
+                return
+            }
+            if method == "new" {
+                this._write("chrono::NaiveDate::from_ymd_opt(")
+                this._emitExpr(args[0])
+                this._write(", ")
+                this._emitExpr(args[1])
+                this._write(" as u32, ")
+                this._emitExpr(args[2])
+                this._write(" as u32).unwrap()")
+                if args.length >= 6 {
+                    this._write(".and_hms_opt(")
+                    this._emitExpr(args[3])
+                    this._write(" as u32, ")
+                    this._emitExpr(args[4])
+                    this._write(" as u32, ")
+                    this._emitExpr(args[5])
+                    this._write(" as u32).unwrap()")
+                } else {
+                    this._write(".and_hms_opt(0, 0, 0).unwrap()")
+                }
+                return
+            }
+            if method == "timestamp" {
+                this._write("(chrono::Local::now().timestamp_millis() as i32)")
+                return
+            }
         }
         // Regex module
         if stdlibName == "Regex" {
-            if method == "isMatch" { this._write("regex::Regex::new(&"); this._emitExpr(args[0]); this._write(").unwrap().is_match(&"); this._emitExpr(args[1]); this._write(")"); return }
+            if method == "isMatch" || method == "test" {
+                this._write("regex::Regex::new(&")
+                this._emitExpr(args[0])
+                this._write(").map(|re| re.is_match(&")
+                this._emitExpr(args[1])
+                this._write(")).unwrap_or(false)")
+                return
+            }
+            if method == "findAll" {
+                this._write("regex::Regex::new(&")
+                this._emitExpr(args[0])
+                this._write(").map(|re| re.find_iter(&")
+                this._emitExpr(args[1])
+                this._write(").map(|m| m.as_str().to_string()).collect::<Vec<String>>()).unwrap_or_default()")
+                return
+            }
+            if method == "split" {
+                this._write("regex::Regex::new(&")
+                this._emitExpr(args[0])
+                this._write(").map(|re| re.split(&")
+                this._emitExpr(args[1])
+                this._write(").map(|s| s.to_string()).collect::<Vec<String>>()).unwrap_or_else(|_| vec![")
+                this._emitExpr(args[1])
+                this._write(".to_string()])")
+                return
+            }
+            if method == "replace" {
+                this._write("{ let __repl = (")
+                this._emitExpr(args[2])
+                this._write(").to_string(); regex::Regex::new(&")
+                this._emitExpr(args[0])
+                this._write(").map(|re| re.replace_all(&")
+                this._emitExpr(args[1])
+                this._write(", __repl.as_str()).to_string()).unwrap_or_else(|_| ")
+                this._emitExpr(args[1])
+                this._write(".to_string()) }")
+                return
+            }
         }
 
         // Enum variant constructor: EnumName.Variant(args) → EnumName::Variant(args)
@@ -3149,7 +3351,7 @@ RustEmitter {
     }
 
     _isKnownArrayMethod(m: string): bool {
-        return m == "push" || m == "pop" || m == "map" || m == "filter" || m == "forEach" || m == "join" || m == "includes" || m == "indexOf" || m == "find" || m == "some" || m == "every" || m == "reduce" || m == "slice" || m == "concat" || m == "sort" || m == "reverse" || m == "reversed" || m == "flat" || m == "flatMap" || m == "flatten" || m == "first" || m == "last" || m == "count" || m == "min" || m == "max" || m == "isEmpty" || m == "contains" || m == "distinct" || m == "sum" || m == "take" || m == "drop" || m == "zip" || m == "chunks" || m == "insert" || m == "remove"
+        return m == "push" || m == "pop" || m == "map" || m == "filter" || m == "forEach" || m == "join" || m == "includes" || m == "indexOf" || m == "find" || m == "findIndex" || m == "some" || m == "every" || m == "reduce" || m == "slice" || m == "concat" || m == "sort" || m == "reverse" || m == "reversed" || m == "flat" || m == "flatMap" || m == "flatten" || m == "first" || m == "last" || m == "count" || m == "min" || m == "max" || m == "isEmpty" || m == "contains" || m == "distinct" || m == "sum" || m == "take" || m == "drop" || m == "zip" || m == "chunks" || m == "insert" || m == "remove"
     }
 
     _isKnownMapMethod(m: string): bool {
@@ -3161,6 +3363,35 @@ RustEmitter {
     }
 
     _emitGenericMethodCall(obj: Expr, method: string, args: [Expr]) {
+        // Date instance methods: d.format(), d.toString(), d.add(), d.diff()
+        if method == "format" && args.length >= 1 {
+            this._emitExpr(obj)
+            this._write(".format(&")
+            this._emitExpr(args[0])
+            this._write(".replace(\"YYYY\", \"%Y\").replace(\"MM\", \"%m\").replace(\"DD\", \"%d\").replace(\"HH\", \"%H\").replace(\"mm\", \"%M\").replace(\"ss\", \"%S\")).to_string()")
+            return
+        }
+        if method == "add" && args.length >= 2 {
+            this._write("{ let __liva_unit = (")
+            this._emitExpr(args[1])
+            this._write(").to_string(); let __liva_n = ")
+            this._emitExpr(args[0])
+            this._write(" as i64; let __liva_dur = match __liva_unit.as_str() { \"days\" => chrono::Duration::days(__liva_n), \"hours\" => chrono::Duration::hours(__liva_n), \"minutes\" => chrono::Duration::minutes(__liva_n), \"seconds\" => chrono::Duration::seconds(__liva_n), \"weeks\" => chrono::Duration::weeks(__liva_n), _ => chrono::Duration::days(__liva_n), }; ")
+            this._emitExpr(obj)
+            this._write(" + __liva_dur }")
+            return
+        }
+        if method == "diff" && args.length >= 2 {
+            this._write("{ let __liva_diff = ")
+            this._emitExpr(obj)
+            this._write(".signed_duration_since(")
+            this._emitExpr(args[0])
+            this._write("); let __liva_unit = (")
+            this._emitExpr(args[1])
+            this._write(").to_string(); (match __liva_unit.as_str() { \"days\" => __liva_diff.num_days(), \"hours\" => __liva_diff.num_hours(), \"minutes\" => __liva_diff.num_minutes(), \"seconds\" => __liva_diff.num_seconds(), \"weeks\" => __liva_diff.num_weeks(), \"years\" => __liva_diff.num_days() / 365, \"months\" => __liva_diff.num_days() / 30, _ => __liva_diff.num_days(), }) as i32 }")
+            return
+        }
+
         // Fallback translations for Map/Set methods when type detection fails
         if method == "keys" {
             this._emitExpr(obj)
@@ -3798,16 +4029,23 @@ RustEmitter {
         }
         if method == "flatMap" {
             this._emitExpr(obj)
-            this._write(".iter().flat_map(")
+            this._write(".iter().flat_map(|x| ")
             if args.length > 0 { this._emitExpr(args[0]) }
-            this._write(").collect::<Vec<_>>()")
+            this._write("(x.clone())).collect::<Vec<_>>()")
+            return true
+        }
+        if method == "findIndex" {
+            this._emitExpr(obj)
+            this._write(".iter().position(|x| { let x = x.clone(); ")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write("(x) }).map(|i| i as i32).unwrap_or(-1)")
             return true
         }
         if method == "count" {
             this._emitExpr(obj)
-            this._write(".iter().filter(")
+            this._write(".iter().filter(|x| { let x = (*x).clone(); ")
             if args.length > 0 { this._emitExpr(args[0]) }
-            this._write(").count() as i32")
+            this._write("(x) }).count() as i32")
             return true
         }
         if method == "distinct" {
@@ -4002,6 +4240,23 @@ RustEmitter {
 
     _emitMemberAccess(obj: Expr, prop: string) {
         let objTag = this._getExprTypeName(obj)
+
+        // Stdlib module property access before generic enum/class handling
+        let stdlibPropName = ""
+        let _ = switch obj {
+            Expr.Identifier(sn) => { stdlibPropName = sn; 0 },
+            _ => { 0 }
+        }
+        // Math constants: Math.PI, Math.E
+        if stdlibPropName == "Math" && prop == "PI" { this._write("std::f64::consts::PI"); return }
+        if stdlibPropName == "Math" && prop == "E" { this._write("std::f64::consts::E"); return }
+        // Date property access: d.year, d.month, d.day, d.hour, d.minute, d.second
+        if prop == "year" { this._write("(chrono::Datelike::year(&"); this._emitExpr(obj); this._write(") as i32)"); return }
+        if prop == "month" { this._write("(chrono::Datelike::month(&"); this._emitExpr(obj); this._write(") as i32)"); return }
+        if prop == "day" { this._write("(chrono::Datelike::day(&"); this._emitExpr(obj); this._write(") as i32)"); return }
+        if prop == "hour" { this._write("(chrono::Timelike::hour(&"); this._emitExpr(obj); this._write(") as i32)"); return }
+        if prop == "minute" { this._write("(chrono::Timelike::minute(&"); this._emitExpr(obj); this._write(") as i32)"); return }
+        if prop == "second" { this._write("(chrono::Timelike::second(&"); this._emitExpr(obj); this._write(") as i32)"); return }
 
         // Enum variant access: EnumName.Variant → EnumName::Variant
         // Heuristic: PascalCase identifier = enum/class → use :: syntax
@@ -4617,9 +4872,10 @@ RustEmitter {
             lines.push("chrono = \"0.4\"")
         }
 
-        // Random
+        // Random (includes uuid)
         if usesRandom {
             lines.push("rand = \"0.8\"")
+            lines.push("uuid = { version = \"1\", features = [\"v4\"] }")
         }
 
         // Crypto
@@ -4627,6 +4883,8 @@ RustEmitter {
             lines.push("sha2 = \"0.10\"")
             lines.push("hmac = \"0.12\"")
             lines.push("hex = \"0.4\"")
+            lines.push("md5 = \"0.7\"")
+            lines.push("base64 = \"0.22\"")
         }
 
         // Parallel
