@@ -1,0 +1,74 @@
+add(a: int, b: int): int {
+    return a + b
+}
+
+multiply(a: int, b: int): number {
+    return a * b
+}
+
+greet(name: string): string {
+    return "Hello, " + name + "!"
+}
+
+fibonacci(n: int): int {
+    if n <= 1 {
+        return n
+    }
+    return fibonacci(n - 1) + fibonacci(n - 2)
+}
+
+Point {
+    x: int
+    y: int
+
+    distanceTo(other: Point): number {
+        let dx = this.x - other.x
+        let dy = this.y - other.y
+        return dx * dx + dy * dy
+    }
+
+    toString(): string {
+        return "(" + this.x.toString() + ", " + this.y.toString() + ")"
+    }
+}
+
+main() {
+    print("=== Self-Hosted Compiler Test Suite ===")
+
+    let sum = add(3, 4)
+    print("3 + 4 = " + sum.toString())
+
+    let product = multiply(6, 7)
+    print("6 * 7 = " + product.toString())
+
+    let msg = greet("Liva")
+    print(msg)
+
+    let name = "World"
+    print("Hello, " + name + "!")
+
+    let numbers = [1, 2, 3, 4, 5]
+    let total = 0
+    for n in numbers {
+        total += n
+    }
+    print("Sum of [1..5] = " + total.toString())
+
+    let fib10 = fibonacci(10)
+    print("fib(10) = " + fib10.toString())
+
+    let p1 = Point(3, 4)
+    let p2 = Point(0, 0)
+    print("P1 = " + p1.toString())
+    print("P2 = " + p2.toString())
+    let dist = p1.distanceTo(p2)
+    print("Distance^2 = " + dist.toString())
+
+    let count = 0
+    while count < 3 {
+        print("count = " + count.toString())
+        count += 1
+    }
+
+    print("=== All tests completed ===")
+}

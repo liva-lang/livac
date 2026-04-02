@@ -43,9 +43,9 @@ Parser {
     //  Helpers
     // ═════════════════════════════════════════════════════════════════
 
-    _peek(): Token => this.tokens[this.current]
+    _peek(): Token { return this.tokens[this.current] }
 
-    _peekKind(): TokenKind => this.tokens[this.current].kind
+    _peekKind(): TokenKind { return this.tokens[this.current].kind }
 
     _peekToken(offset: number): TokenKind {
         let idx = this.current + offset
@@ -59,7 +59,7 @@ Parser {
         return tok
     }
 
-    _previous(): Token => this.tokens[this.current - 1]
+    _previous(): Token { return this.tokens[this.current - 1] }
 
     _isAtEnd(): bool {
         return switch this.tokens[this.current].kind {
@@ -75,71 +75,71 @@ Parser {
     }
 
     // Check if current token is any Ident (regardless of name)
-    _isIdent(): bool => switch this._peekKind() {
+    _isIdent(): bool { return switch this._peekKind() {
         TokenKind.Ident(_) => true,
         _ => false
-    }
+    } }
 
-    _isPrivateIdent(): bool => switch this._peekKind() {
+    _isPrivateIdent(): bool { return switch this._peekKind() {
         TokenKind.PrivateIdent(_) => true,
         _ => false
-    }
+    } }
 
-    _isIntLit(): bool => switch this._peekKind() {
+    _isIntLit(): bool { return switch this._peekKind() {
         TokenKind.IntLit(_) => true,
         _ => false
-    }
+    } }
 
-    _isFloatLit(): bool => switch this._peekKind() {
+    _isFloatLit(): bool { return switch this._peekKind() {
         TokenKind.FloatLit(_) => true,
         _ => false
-    }
+    } }
 
-    _isStringLit(): bool => switch this._peekKind() {
+    _isStringLit(): bool { return switch this._peekKind() {
         TokenKind.StringLit(_) => true,
         _ => false
-    }
+    } }
 
-    _isCharLit(): bool => switch this._peekKind() {
+    _isCharLit(): bool { return switch this._peekKind() {
         TokenKind.CharLit(_) => true,
         _ => false
-    }
+    } }
 
-    _isStringTemplate(): bool => switch this._peekKind() {
+    _isStringTemplate(): bool { return switch this._peekKind() {
         TokenKind.StringTemplate(_) => true,
         _ => false
-    }
+    } }
 
-    _isRustBlock(): bool => switch this._peekKind() {
+    _isRustBlock(): bool { return switch this._peekKind() {
         TokenKind.RustBlock(_) => true,
         _ => false
-    }
+    } }
 
     // Check if current is Ident with specific name
-    _checkIdent(name: string): bool => switch this._peekKind() {
+    _checkIdent(name: string): bool { return switch this._peekKind() {
         TokenKind.Ident(n) => n == name,
         _ => false
-    }
+    } }
 
     // Check if token at offset is a specific simple kind
-    _checkTokenAt(offset: number, kind: TokenKind): bool => this._peekToken(offset) == kind
+    _checkTokenAt(offset: number, kind: TokenKind): bool { return this._peekToken(offset) == kind }
 
     // Check if token at offset is any Ident
-    _isIdentAt(offset: number): bool => switch this._peekToken(offset) {
+    _isIdentAt(offset: number): bool { return switch this._peekToken(offset) {
         TokenKind.Ident(_) => true,
         TokenKind.PrivateIdent(_) => true,
         _ => false
-    }
+    } }
 
-    _isStringLitAt(offset: number): bool => switch this._peekToken(offset) {
+    _isStringLitAt(offset: number): bool { return switch this._peekToken(offset) {
         TokenKind.StringLit(_) => true,
         _ => false
-    }
+    } }
 
-    _isIntLitAt(offset: number): bool => switch this._peekToken(offset) {
+    _isIntLitAt(offset: number): bool { return switch this._peekToken(offset) {
         TokenKind.IntLit(_) => true,
         _ => false
-    }
+    } }
 
     // Match and advance if current token matches a simple kind
     _match(kind: TokenKind): bool {
@@ -209,7 +209,7 @@ Parser {
     //  Lambda detection (lookahead)
     // ═════════════════════════════════════════════════════════════════
 
-    _isLambdaStart(): bool => this._isLambdaStartFrom(0)
+    _isLambdaStart(): bool { return this._isLambdaStartFrom(0) }
 
     _isLambdaStartFrom(offset: number): bool {
         let tok = this._peekToken(offset)
@@ -344,53 +344,53 @@ Parser {
     //  Data extraction helpers (switch expressions)
     // ═════════════════════════════════════════════════════════════════
 
-    _getIdentName(): string => switch this._peekKind() {
+    _getIdentName(): string { return switch this._peekKind() {
         TokenKind.Ident(n) => n,
         TokenKind.PrivateIdent(n) => n,
         _ => ""
-    }
+    } }
 
-    _getIdentNameAt(idx: number): string => switch this.tokens[idx].kind {
+    _getIdentNameAt(idx: number): string { return switch this.tokens[idx].kind {
         TokenKind.Ident(n) => n,
         TokenKind.PrivateIdent(n) => n,
         _ => ""
-    }
+    } }
 
-    _isIdentKindAt(idx: number): bool => switch this.tokens[idx].kind {
+    _isIdentKindAt(idx: number): bool { return switch this.tokens[idx].kind {
         TokenKind.Ident(_) => true,
         TokenKind.PrivateIdent(_) => true,
         _ => false
-    }
+    } }
 
-    _getIntLitValue(): number => switch this._peekKind() {
+    _getIntLitValue(): number { return switch this._peekKind() {
         TokenKind.IntLit(n) => n,
         _ => 0
-    }
+    } }
 
-    _getFloatLitValue(): float => switch this._peekKind() {
+    _getFloatLitValue(): float { return switch this._peekKind() {
         TokenKind.FloatLit(f) => f,
         _ => 0.0
-    }
+    } }
 
-    _getStringLitValue(): string => switch this._peekKind() {
+    _getStringLitValue(): string { return switch this._peekKind() {
         TokenKind.StringLit(s) => s,
         _ => ""
-    }
+    } }
 
-    _getCharLitValue(): string => switch this._peekKind() {
+    _getCharLitValue(): string { return switch this._peekKind() {
         TokenKind.CharLit(c) => c,
         _ => ""
-    }
+    } }
 
-    _getStringTemplateValue(): string => switch this._peekKind() {
+    _getStringTemplateValue(): string { return switch this._peekKind() {
         TokenKind.StringTemplate(s) => s,
         _ => ""
-    }
+    } }
 
-    _getRustBlockCode(): string => switch this._peekKind() {
+    _getRustBlockCode(): string { return switch this._peekKind() {
         TokenKind.RustBlock(c) => c,
         _ => ""
-    }
+    } }
 
     // ═════════════════════════════════════════════════════════════════
     //  Identifier parsing
@@ -1074,8 +1074,7 @@ Parser {
                 _ => BinOp.Mod
             }
             let rhs = this._parseExpression()
-            let value = Expr.Binary(op, target, rhs)
-            return Stmt.Assign(AssignStmt(target, value, opForStmt))
+            return Stmt.Assign(AssignStmt(target, rhs, opForStmt))
         }
         return Stmt.ExprStmt(target)
     }
@@ -1364,9 +1363,8 @@ Parser {
                 _ => BinOp.Mod
             }
             let rhs = this._parseExpression()
-            let value = Expr.Binary(op2, expr, rhs)
             this._match(TokenKind.Semicolon)
-            return Stmt.Assign(AssignStmt(expr, value, op2ForStmt))
+            return Stmt.Assign(AssignStmt(expr, rhs, op2ForStmt))
         }
         this._match(TokenKind.Semicolon)
         return Stmt.ExprStmt(expr)
@@ -1376,9 +1374,9 @@ Parser {
     //  Expressions
     // ═════════════════════════════════════════════════════════════════
 
-    _parseExpression(): Expr => this._parseLambdaExpression()
+    _parseExpression(): Expr { return this._parseLambdaExpression() }
 
-    _parseExpressionNoLambda(): Expr => this._parseAssignment()
+    _parseExpressionNoLambda(): Expr { return this._parseAssignment() }
 
     // ── Lambda ────────────────────────────────────────────────────
 
@@ -1901,7 +1899,7 @@ Parser {
     //  Patterns
     // ═════════════════════════════════════════════════════════════════
 
-    _parsePattern(): Pattern => this._parseOrPattern()
+    _parsePattern(): Pattern { return this._parseOrPattern() }
 
     _parseOrPattern(): Pattern {
         let first = this._parseSinglePattern()
@@ -2250,5 +2248,5 @@ parse(tokens: [Token], source: string): Program {
 
 // Entry point for standalone build testing
 main() {
-    Log.info("parser module loaded")
+    print("parser module loaded")
 }

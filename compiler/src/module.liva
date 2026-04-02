@@ -37,23 +37,31 @@ LivaModule {
 
 _extractDir(filePath: string): string {
     let lastSlash = filePath.lastIndexOf("/")
-    if lastSlash >= 0 => filePath.substring(0, lastSlash)
+    if lastSlash >= 0 {
+        return filePath.substring(0, lastSlash)
+    }
     return "."
 }
 
 _addLivaExtension(pathStr: string): string {
-    if pathStr.endsWith(".liva") => $"{pathStr}"
+    if pathStr.endsWith(".liva") {
+        return pathStr
+    }
     return pathStr + ".liva"
 }
 
 _extractFileName(path: string): string {
     let lastSlash = path.lastIndexOf("/")
-    if lastSlash >= 0 => path.substring(lastSlash + 1, path.length)
+    if lastSlash >= 0 {
+        return path.substring(lastSlash + 1, path.length)
+    }
     return path
 }
 
 _removeLivaExtension(fileName: string): string {
-    if fileName.endsWith(".liva") => fileName.substring(0, fileName.length - 5)
+    if fileName.endsWith(".liva") {
+        return fileName.substring(0, fileName.length - 5)
+    }
     return fileName
 }
 

@@ -33,7 +33,7 @@ import { Lexer, tokenize } from "./lexer.liva"
 import { Parser, parse } from "./parser.liva"
 import { SemanticAnalyzer, TypeContext, analyzeProgram } from "./semantic.liva"
 import { LivenessAnalyzer, LivenessContext, analyzeLiveness } from "./liveness.liva"
-import { RustEmitter, generateRust, generateModuleRust, sanitizeFieldName } from "./codegen.liva"
+import { RustEmitter, generateRust } from "./codegen.liva"
 import { ModuleResolver, LivaModule } from "./module.liva"
 
 // =====================================================================
@@ -116,8 +116,8 @@ printUsage() {
 // =====================================================================
 
 readFile(path: string): string {
-    let content = File.read(path) or ""
-    return content
+    // Uses Liva's File.read stdlib function
+    return File.read(path)
 }
 
 writeFile(path: string, content: string) {
@@ -172,16 +172,11 @@ compileSingleFile(source: string, fileName: string, checkOnly: bool): Compilatio
     let liveCtx = analyzeLiveness(program)
 
     // Step 5: Codegen
-    let liveCtxCopy = liveCtx
-    let emptyEnumFields: Map<string, [string]> = Map {}
-    let emptyEnumFieldBoxed: Map<string, [bool]> = Map {}
-    let emptyEnumFieldOptional: Map<string, [bool]> = Map {}
-    let rustCode = generateRust(program, typeCtx, liveCtxCopy, emptyEnumFields, emptyEnumFieldBoxed, emptyEnumFieldOptional)
+    let rustCode = generateRust(program, typeCtx, liveCtx)
 
     // Step 6: Cargo.toml (no special deps for basic projects)
     let projectName = fileToProjectName(fileName)
-    let typeCtxCopy = typeCtx
-    let emitter = RustEmitter(typeCtxCopy, liveCtx)
+    let emitter = RustEmitter(typeCtx, liveCtx)
     let cargoToml = emitter.generateCargoToml(
         projectName, false, false, false, false, false, false, false, false, false
     )
@@ -202,11 +197,11 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
     let entrySource = readFile(entryPath)
     let entryTokens = tokenize(entrySource)
     let entryProgram = parse(entryTokens, entrySource)
-    let entryImports = resolver.extractImports(entryProgram)
     resolver.registerModule(entryPath, entrySource, entryProgram)
 
     // BFS: resolve all imported modules
     let queue: [string] = []
+    let entryImports = resolver.extractImports(entryProgram)
     for imp in entryImports {
         let resolved = resolver.resolveImportPath(entryPath, imp)
         if !resolved.startsWith("<virtual:") {
@@ -223,22 +218,21 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
         if visited.has(modPath) {
             // Already visited, skip (avoid cycles)
         } else {
-            let currentPath = $"{modPath}"
             visited.set(modPath, true)
 
             if verbose {
-                print($"  Loading module: {currentPath}")
+                print($"  Loading module: {modPath}")
             }
 
-            let modSource = readFile(currentPath)
+            let modSource = readFile(modPath)
             let modTokens = tokenize(modSource)
             let modProgram = parse(modTokens, modSource)
-            let modImports = resolver.extractImports(modProgram)
-            resolver.registerModule(currentPath, modSource, modProgram)
+            resolver.registerModule(modPath, modSource, modProgram)
 
             // Queue transitive imports
+            let modImports = resolver.extractImports(modProgram)
             for imp in modImports {
-                let resolved = resolver.resolveImportPath(currentPath, imp)
+                let resolved = resolver.resolveImportPath(modPath, imp)
                 if !resolved.startsWith("<virtual:") {
                     if !visited.has(resolved) {
                         queue.push(resolved)
@@ -259,9 +253,8 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
         // Just analyze each module for errors
         for modPath in compileOrder {
             let mod: LivaModule = resolver.getModule(modPath)
-            let modSrc = $"{mod.source}"
-            let modTokens = tokenize(modSrc)
-            let modProgram = parse(modTokens, modSrc)
+            let modTokens = tokenize(mod.source)
+            let modProgram = parse(modTokens, mod.source)
             let typeCtx: TypeContext = analyzeProgram(modProgram)
             for diag in typeCtx.diagnostics {
                 errors.push($"{modPath}: {diag.message}")
@@ -270,122 +263,26 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
         return CompilationResult(errors.length == 0, "", "", errors, moduleFiles)
     }
 
-    // Step 3: Two-pass compilation
-    // Pass 1a: Collect all enum type names (for boxing detection)
-    let allEnumNames: [string] = []
-    let parsedModules: Map<string, [Program]> = Map {}
-
-    for modPath in compileOrder {
-        let mod: LivaModule = resolver.getModule(modPath)
-        let modSrc = $"{mod.source}"
-        let modTokens = tokenize(modSrc)
-        let modProgram = parse(modTokens, modSrc)
-        let modProgramCopy1 = modProgram
-        let modProgramCopy2 = modProgram
-        let modProgramCopy3 = modProgram
-        parsedModules.set(modPath, [modProgramCopy1, modProgramCopy2, modProgramCopy3])
-        // Collect enum names from a fresh program parse
-        let modTokensE = tokenize($"{modSrc}")
-        let enumProgram = parse(modTokensE, $"{modSrc}")
-        for item in enumProgram.items {
-            let _ = switch item {
-                TopLevel.Enum(decl) => {
-                    allEnumNames.push(decl.name)
-                    0
-                },
-                _ => { 0 }
-            }
-        }
-    }
-
-    // Pass 1b: Collect field names, boxing info, and optional info
-    let allEnumFields: Map<string, [string]> = Map {}
-    let allEnumFieldBoxed: Map<string, [bool]> = Map {}
-    let allEnumFieldOptional: Map<string, [bool]> = Map {}
-
-    for modPath in compileOrder {
-        let mod2: LivaModule = resolver.getModule(modPath)
-        let modSrc2 = $"{mod2.source}"
-        let modTokens2 = tokenize(modSrc2)
-        let modProgram2 = parse(modTokens2, modSrc2)
-        for item in modProgram2.items {
-            let _ = switch item {
-                TopLevel.Enum(decl) => {
-                    let enumName = $"{decl.name}"
-                    for v in decl.variants {
-                        let key = enumName + "::" + v.name
-                        let fieldNames: [string] = []
-                        let fieldBoxed: [bool] = []
-                        let fieldOptional: [bool] = []
-                        for f in v.fields {
-                            fieldNames.push(sanitizeFieldName(f.name))
-                            // Check boxing and optional in a single switch
-                            let isBoxed = false
-                            let isOpt = false
-                            let _ = switch f.typeRef {
-                                TypeRef.Simple(typeName) => {
-                                    if allEnumNames.includes(typeName) {
-                                        isBoxed = true
-                                    }
-                                    0
-                                },
-                                TypeRef.OptionalType(_) => { isOpt = true; 0 },
-                                _ => { 0 }
-                            }
-                            fieldBoxed.push(isBoxed)
-                            fieldOptional.push(isOpt)
-                        }
-                        allEnumFields.set(key, fieldNames)
-                        allEnumFieldBoxed.set(key, fieldBoxed)
-                        allEnumFieldOptional.set(key, fieldOptional)
-                    }
-                    0
-                },
-                _ => { 0 }
-            }
-        }
-    }
-
-    // Pass 2: Generate Rust for each module with all enum fields available
+    // Step 3: Compile each module in order
     let modDeclarations: [string] = []
 
     for modPath in compileOrder {
-        let programs = parsedModules.get(modPath)
-        let programForAnalysis = programs[0]
-        let programForLiveness = programs[1]
-        let programForCodegen = programs[2]
-        let typeCtx: TypeContext = analyzeProgram(programForAnalysis)
-        let liveCtx = analyzeLiveness(programForLiveness)
-
-        let isEntry = modPath == entryPath
-        // ALL modules use generateModuleRust (no mod declarations)
-        // mod declarations are all provided in the header
-        let rustCode = generateModuleRust(programForCodegen, typeCtx, liveCtx, allEnumFields, allEnumFieldBoxed, allEnumFieldOptional)
+        let mod: LivaModule = resolver.getModule(modPath)
+        let modTokens = tokenize(mod.source)
+        let modProgram = parse(modTokens, mod.source)
+        let typeCtx: TypeContext = analyzeProgram(modProgram)
+        let liveCtx = analyzeLiveness(modProgram)
+        let rustCode = generateRust(modProgram, typeCtx, liveCtx)
 
         let modName = resolver.pathToModName(modPath)
-        if isEntry {
-            moduleFiles.set("main.rs", rustCode)
-        } else {
-            moduleFiles.set(modName + ".rs", rustCode)
-        }
-        // Collect mod declarations for all sub-modules (not entry), deduplicated
-        if !isEntry {
-            let modDecl = "mod " + modName + ";"
-            if !modDeclarations.includes(modDecl) {
-                modDeclarations.push(modDecl)
-            }
-        }
+        moduleFiles.set(modName + ".rs", rustCode)
+        modDeclarations.push($"mod {modName};")
     }
 
-    // Prepend mod declarations to main.rs
-    if modDeclarations.length > 0 {
-        let header = modDeclarations.join("\n") + "\n\n"
-        let mainCode = moduleFiles.get("main.rs")
-        moduleFiles.set("main.rs", header + mainCode)
-    }
+    // Step 4: Generate main module that declares all sub-modules
+    let mainRs = modDeclarations.join("\n") + "\n\nfn main() {\n    // Entry point\n}\n"
 
-    // Step 4: Cargo.toml (mainRs is already in moduleFiles["main.rs"])
-    let mainRs = ""
+    // Step 5: Cargo.toml
     let projectName = fileToProjectName(entryPath)
     // Create a temporary emitter just for Cargo.toml generation
     let emptyTypeCtx = TypeContext(
@@ -427,29 +324,23 @@ writeOutputFiles(result: CompilationResult, outputDir: string) {
 
 runCargoBuild(outputDir: string, release: bool): bool {
     let cmd = _buildCargoCmd(outputDir, release)
-    let output = Process.exec(cmd) or "CARGO_BUILD_FAILED"
-    return output != "CARGO_BUILD_FAILED"
+    let result = Process.exec(cmd)
+    // Process.exec returns (Option<string>, string) — success if first is not null
+    return result[0] != null
 }
 
 _buildCargoCmd(outputDir: string, release: bool): string {
-    if release {
-        return "cd " + outputDir + " && cargo build --release"
-    }
+    if release => "cd " + outputDir + " && cargo build --release"
     return "cd " + outputDir + " && cargo build"
 }
 
 runBinary(outputDir: string, release: bool, projectName: string) {
     let binaryPath = _buildBinaryPath(outputDir, release, projectName)
-    let output = Process.exec(binaryPath) or ""
-    if output != "" {
-        print(output)
-    }
+    Process.exec(binaryPath)
 }
 
 _buildBinaryPath(outputDir: string, release: bool, projectName: string): string {
-    if release {
-        return outputDir + "/target/release/" + projectName
-    }
+    if release => outputDir + "/target/release/" + projectName
     return outputDir + "/target/debug/" + projectName
 }
 
@@ -465,16 +356,12 @@ fileToProjectName(filePath: string): string {
 
 _extractFileNameMain(filePath: string): string {
     let lastSlash = filePath.lastIndexOf("/")
-    if lastSlash >= 0 {
-        return filePath.substring(lastSlash + 1, filePath.length)
-    }
+    if lastSlash >= 0 => filePath.substring(lastSlash + 1, filePath.length)
     return filePath
 }
 
 _removeLivaExtMain(fileName: string): string {
-    if fileName.endsWith(".liva") {
-        return fileName.substring(0, fileName.length - 5)
-    }
+    if fileName.endsWith(".liva") => fileName.substring(0, fileName.length - 5)
     return fileName
 }
 
@@ -483,9 +370,7 @@ hasImports(source: string): bool {
 }
 
 _resolveOutputDir(outputDir: string): string {
-    if outputDir != "" {
-        return outputDir
-    }
+    if outputDir != "" => outputDir
     return "target/liva_build"
 }
 
@@ -526,12 +411,11 @@ main() {
     let outputDir = _resolveOutputDir(opts.outputDir)
 
     // Read source to determine single vs multi-file
-    let inputFile = $"{opts.inputFile}"
-    let source = readFile(inputFile)
+    let source = readFile(opts.inputFile)
     let isMultiFile = hasImports(source)
 
     // Compile
-    let result = _compileSource(source, inputFile, isMultiFile, opts.checkOnly, opts.verbose)
+    let result = _compileSource(source, opts.inputFile, isMultiFile, opts.checkOnly, opts.verbose)
 
     // Report errors
     if !result.success {
@@ -569,7 +453,7 @@ main() {
     if opts.command == "run" {
         let buildOk = runCargoBuild(outputDir, opts.release)
         if buildOk {
-            let projectName = fileToProjectName(inputFile)
+            let projectName = fileToProjectName(opts.inputFile)
             runBinary(outputDir, opts.release, projectName)
         } else {
             print("Build failed")

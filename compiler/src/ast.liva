@@ -420,7 +420,7 @@ enum BinOp {
     RangeInclusive
 }
 
-binOpToString(op: BinOp): string => switch op {
+binOpToString(op: BinOp): string { return switch op {
     BinOp.Add            => "+",
     BinOp.Sub            => "-",
     BinOp.Mul            => "*",
@@ -437,7 +437,7 @@ binOpToString(op: BinOp): string => switch op {
     BinOp.Range          => "..",
     BinOp.RangeInclusive => "..=",
     _                    => "?"
-}
+} }
 
 enum UnOp {
     Neg,

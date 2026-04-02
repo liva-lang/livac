@@ -882,11 +882,11 @@ SemanticAnalyzer {
         return false
     }
 
-    lookupFunction(name: string): bool => this._functions.has(name)
+    lookupFunction(name: string): bool { return this._functions.has(name) }
 
-    lookupClass(name: string): bool => this._classes.has(name)
+    lookupClass(name: string): bool { return this._classes.has(name) }
 
-    lookupEnum(name: string): bool => this._enums.has(name)
+    lookupEnum(name: string): bool { return this._enums.has(name) }
 
     // Phase 2.6: imported symbol queries
     isImportedSymbol(name: string): bool {
@@ -1227,7 +1227,7 @@ SemanticAnalyzer {
                     this._currentFuncName = $"{decl.name}.{d.name}"
                     this._currentFuncFallible = false
 
-                    let thisType: TypeRef? = TypeRef.Simple(decl.name)
+                    let thisType: TypeRef? = TypeRef.Simple($"{decl.name}")
                     this._declareSymbol("this", SymbolKind.Variable, thisType, false)
 
                     for p in d.params {

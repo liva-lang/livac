@@ -57,6 +57,16 @@ RustEmitter {
     _currentFunc: string
     _inMethod: bool
     _currentClassName: string
+    _isMainModule: bool
+    _inCompoundAdd: bool
+    _suppressToString: bool
+    _enumVariantFields: Map<string, [string]>
+    _enumVariantFieldBoxed: Map<string, [bool]>
+    _enumVariantFieldOptional: Map<string, [bool]>
+    _pendingDerefs: [string]
+    _optionalVars: Map<string, bool>
+    _currentReturnOptional: bool
+    _inIfCondition: bool
 
     constructor(typeCtx: TypeContext, liveCtx: LivenessContext) {
         this._lines = []
@@ -67,6 +77,20 @@ RustEmitter {
         this._currentFunc = ""
         this._inMethod = false
         this._currentClassName = ""
+        this._isMainModule = true
+        this._inCompoundAdd = false
+        this._suppressToString = false
+        this._enumVariantFields = Map {}
+        this._enumVariantFieldBoxed = Map {}
+        this._enumVariantFieldOptional = Map {}
+        this._pendingDerefs = []
+        this._optionalVars = Map {}
+        this._currentReturnOptional = false
+        this._inIfCondition = false
+    }
+
+    setIsMainModule(isMain: bool) {
+        this._isMainModule = isMain
     }
 
     // -- Output primitives --
@@ -141,58 +165,21 @@ RustEmitter {
     }
 
     _toSnakeCase(name: string): string {
-        // Simple camelCase to snake_case conversion
-        // Walks chars: if uppercase and not first, insert underscore + lowercase
+        // camelCase → snake_case: insert _ before uppercase, then lowercase
         let result = ""
         let i = 0
         for ch in name {
-            if ch >= "A" {
-                if ch <= "Z" {
-                    if i > 0 {
-                        result += "_"
-                    }
-                    // Convert uppercase to lowercase: offset by 32 in ASCII
-                    // Bootstrap limitation: no char arithmetic, use manual mapping
-                    result += this._toLower(ch)
-                } else {
-                    result += ch
+            if ch >= "A" && ch <= "Z" {
+                if i > 0 {
+                    result += "_"
                 }
+                result += ch.toLowerCase()
             } else {
                 result += ch
             }
             i += 1
         }
         return result
-    }
-
-    _toLower(ch: string): string {
-        if ch == "A" { return "a" }
-        if ch == "B" { return "b" }
-        if ch == "C" { return "c" }
-        if ch == "D" { return "d" }
-        if ch == "E" { return "e" }
-        if ch == "F" { return "f" }
-        if ch == "G" { return "g" }
-        if ch == "H" { return "h" }
-        if ch == "I" { return "i" }
-        if ch == "J" { return "j" }
-        if ch == "K" { return "k" }
-        if ch == "L" { return "l" }
-        if ch == "M" { return "m" }
-        if ch == "N" { return "n" }
-        if ch == "O" { return "o" }
-        if ch == "P" { return "p" }
-        if ch == "Q" { return "q" }
-        if ch == "R" { return "r" }
-        if ch == "S" { return "s" }
-        if ch == "T" { return "t" }
-        if ch == "U" { return "u" }
-        if ch == "V" { return "v" }
-        if ch == "W" { return "w" }
-        if ch == "X" { return "x" }
-        if ch == "Y" { return "y" }
-        if ch == "Z" { return "z" }
-        return ch
     }
 
     // -- Type emission --
@@ -284,6 +271,18 @@ RustEmitter {
     // -- Top-level generation --
 
     generate(program: Program): string {
+        // Pre-populate enum variant field registry from AST items
+        // This registers field names for all enums defined in this module
+        for item in program.items {
+            let _ = switch item {
+                TopLevel.Enum(decl) => {
+                    this._registerEnumDeclFields(decl)
+                    0
+                },
+                _ => { 0 }
+            }
+        }
+
         // Preamble: standard imports
         this._writeln("use std::collections::{HashMap, HashSet};")
         this._writeln("use std::fmt::Write;")
@@ -295,6 +294,44 @@ RustEmitter {
         }
 
         return this._getOutput()
+    }
+
+    _registerEnumDeclFields(decl: EnumDecl) {
+        let enumName = $"{decl.name}"
+        for v in decl.variants {
+            let key = enumName + "::" + v.name
+            let fieldNames: [string] = []
+            let fieldBoxed: [bool] = []
+            let fieldOptional: [bool] = []
+            for f in v.fields {
+                fieldNames.push(this._sanitizeName(f.name))
+                // Check boxing and optional in a single pass
+                let needsBox = false
+                let isOpt = false
+                let _ = switch f.typeRef {
+                    TypeRef.Simple(typeName) => {
+                        if this._typeCtx.enums.has(typeName) {
+                            needsBox = true
+                        }
+                        0
+                    },
+                    TypeRef.OptionalType(_) => { isOpt = true; 0 },
+                    _ => { 0 }
+                }
+                fieldBoxed.push(needsBox)
+                fieldOptional.push(isOpt)
+            }
+            this._enumVariantFields.set(key, fieldNames)
+            this._enumVariantFieldBoxed.set(key, fieldBoxed)
+            this._enumVariantFieldOptional.set(key, fieldOptional)
+        }
+    }
+
+    // Register enum variant fields for cross-module enums
+    // Called externally before generate() for enums defined in other modules
+    registerExternalEnumFields(enumName: string, variantName: string, fieldNames: [string]) {
+        let key = enumName + "::" + variantName
+        this._enumVariantFields.set(key, fieldNames)
     }
 
     _emitTopLevel(item: TopLevel) {
@@ -319,19 +356,36 @@ RustEmitter {
 
     _emitImport(decl: ImportDecl) {
         // Imports become mod/use statements in Rust
-        // For self-hosting: imports from sibling .liva files become mod + use
+        // Only main module should emit 'mod X;' declarations
         let modName = this._extractModuleName(decl.source)
-        this._writeln($"mod {modName};")
+        if this._isMainModule {
+            this._writeln("mod " + modName + ";")
+        }        // Sub-modules need crate:: prefix to reference sibling modules
+        let usePrefix = "crate::"
+        if this._isMainModule {
+            usePrefix = ""
+        }
         if decl.isWildcard {
-            this._writeln($"use {modName}::*;")
+            this._writeln("use " + usePrefix + modName + "::*;")
         } else {
             let names: [string] = []
             for n in decl.imports {
-                names.push(n)
+                // Sanitize function names (lowercase start) to snake_case
+                // Keep type/class names (uppercase start) as-is
+                if n.length > 0 {
+                    let fc = n.charAt(0)
+                    if fc >= "A" && fc <= "Z" {
+                        names.push(n)
+                    } else {
+                        names.push(this._sanitizeName(n))
+                    }
+                } else {
+                    names.push(n)
+                }
             }
             if names.length > 0 {
                 let joined = names.join(", ")
-                this._writeln($"use {modName}::{joined};")
+                this._writeln("use " + usePrefix + modName + "::{" + joined + "};")
             }
         }
         this._writeRaw("")
@@ -366,25 +420,44 @@ RustEmitter {
         let funcName = this._sanitizeName(decl.name)
         let prevFunc = $"{this._currentFunc}"
         this._currentFunc = $"{decl.name}"
+        let prevRetOpt = this._currentReturnOptional
+        this._currentReturnOptional = false
 
         // Build parameter list
         let paramList = this._buildParamList(decl.params)
 
-        // Build return type
+        // Build return type and detect Optional return
         let retStr = this._buildReturnType(decl.returnType, decl.containsFail)
+        if retStr.contains("Option<") {
+            this._currentReturnOptional = true
+        }
 
         // Emit function signature
         this._writeln("pub fn " + funcName + "(" + paramList + ")" + retStr + " {")
         this._indent()
 
-        // Emit body
-        this._emitBlockOpt(decl.body)
+        // Handle one-liner functions (=> expr)
+        let feb = decl.exprBody
+        if feb != null {
+            this._writeIndent()
+            this._write("return ")
+            if this._currentReturnOptional {
+                this._emitSomeWrapped(feb)
+            } else {
+                this._emitExpr(feb)
+            }
+            this._write(";")
+            this._newline()
+        } else {
+            this._emitBlockOpt(decl.body)
+        }
 
         this._dedent()
         this._writeln("}")
         this._writeRaw("")
 
         this._currentFunc = prevFunc
+        this._currentReturnOptional = prevRetOpt
     }
 
     _buildParamList(params: [Param]): string {
@@ -440,8 +513,8 @@ RustEmitter {
     }
 
     _emitClassStruct(className: string, decl: ClassDecl) {
-        // Derive clause
-        this._writeln("#[derive(Clone, Debug)]")
+        // Derive clause — include PartialEq so enum variants containing this struct support ==
+        this._writeln("#[derive(Clone, Debug, PartialEq)]")
         this._writeln("pub struct " + className + " {")
         this._indent()
 
@@ -498,54 +571,128 @@ RustEmitter {
     }
 
     _emitConstructor(className: string, decl: ClassDecl) {
-        // Collect fields for the constructor
+        // Find all fields
         let fields: [FieldDecl] = []
         for m in decl.members {
             let _ = switch m {
-                Member.Field(f) => {
-                    fields.push(f)
-                    0
-                },
+                Member.Field(f) => { fields.push(f); 0 },
                 _ => { 0 }
             }
         }
 
         if fields.length == 0 { return }
 
-        // Build constructor params
-        let paramParts: [string] = []
-        for f in fields {
-            let fname = this._sanitizeName(f.name)
-            let ftype = this._buildParamType(f.typeRef)
-            paramParts.push($"{fname}: {ftype}")
+        // Find constructor method (if exists)
+        let hasConstructor = false
+        let ctorParams: [Param] = []
+        let ctorStmts: [Stmt] = []
+        for m in decl.members {
+            let _ = switch m {
+                Member.Method(md) => {
+                    if md.name == "constructor" {
+                        hasConstructor = true
+                        ctorParams = md.params
+                        let body = md.body
+                        if body != null {
+                            ctorStmts = this._blockStmts(body)
+                        }
+                    }
+                    0
+                },
+                _ => { 0 }
+            }
         }
-        let paramStr = paramParts.join(", ")
 
-        this._writeln("pub fn new(" + paramStr + ") -> Self {")
-        this._indent()
-        this._writeln("Self {")
-        this._indent()
+        if hasConstructor {
+            // Class has explicit constructor — use ctor params and body
+            let paramStr = this._buildParamList(ctorParams)
 
-        for f in fields {
-            let fname = this._sanitizeName(f.name)
-            this._writeln($"{fname},")
+            this._writeln("pub fn new(" + paramStr + ") -> Self {")
+            this._indent()
+
+            // Emit constructor body as __field__ declarations
+            for stmt in ctorStmts {
+                let _ = switch stmt {
+                    Stmt.Assign(asgn) => {
+                        let _ = switch asgn.target {
+                            Expr.MemberAccess(obj, prop) => {
+                                let isThis = false
+                                let _ = switch obj {
+                                    Expr.Identifier(name) => {
+                                        if name == "this" || name == "self" {
+                                            isThis = true
+                                        }
+                                        0
+                                    },
+                                    _ => { 0 }
+                                }
+                                if isThis {
+                                    let fname = this._sanitizeName(prop)
+                                    this._writeIndent()
+                                    this._write($"let __field__{fname} = ")
+                                    this._emitExpr(asgn.value)
+                                    this._write(";")
+                                    this._newline()
+                                }
+                                // Non-this assignments skipped (shouldn't appear in constructors)
+                                0
+                            },
+                            _ => { 0 }
+                        }
+                        0
+                    },
+                    _ => { 0 }
+                }
+            }
+
+            // Emit Self { ... } initializer
+            this._writeln("Self {")
+            this._indent()
+            for f in fields {
+                let fname = this._sanitizeName(f.name)
+                this._writeln($"{fname}: __field__{fname},")
+            }
+            this._dedent()
+            this._writeln("}")
+
+            this._dedent()
+            this._writeln("}")
+            this._writeRaw("")
+        } else {
+            // No explicit constructor — generate new() with all fields as params
+            let paramParts: [string] = []
+            for f in fields {
+                let fname = this._sanitizeName(f.name)
+                let ftype = this._buildParamType(f.typeRef)
+                paramParts.push($"{fname}: {ftype}")
+            }
+            let paramStr = paramParts.join(", ")
+
+            this._writeln("pub fn new(" + paramStr + ") -> Self {")
+            this._indent()
+            this._writeln("Self {")
+            this._indent()
+            for f in fields {
+                let fname = this._sanitizeName(f.name)
+                this._writeln($"{fname},")
+            }
+            this._dedent()
+            this._writeln("}")
+            this._dedent()
+            this._writeln("}")
+            this._writeRaw("")
         }
-
-        this._dedent()
-        this._writeln("}")
-        this._dedent()
-        this._writeln("}")
-        this._writeRaw("")
     }
 
     _emitMethod(className: string, decl: MethodDecl) {
         let methodName = this._sanitizeName(decl.name)
         let prevFunc = $"{this._currentFunc}"
         this._currentFunc = $"{className}.{decl.name}"
+        let prevRetOpt = this._currentReturnOptional
+        this._currentReturnOptional = false
 
-        // Determine self receiver (all methods get &self or &mut self)
-        let selfParam = "&self"
-        // TODO: Phase 3.6 — use liveness to determine &mut self
+        // Determine self receiver (all methods get &mut self to allow field mutations)
+        let selfParam = "&mut self"
 
         let paramList = this._buildParamList(decl.params)
         let fullParams = $"{selfParam}"
@@ -554,17 +701,35 @@ RustEmitter {
         }
 
         let retStr = this._buildReturnType(decl.returnType, decl.containsFail)
+        if retStr.contains("Option<") {
+            this._currentReturnOptional = true
+        }
 
         this._writeln("pub fn " + methodName + "(" + fullParams + ")" + retStr + " {")
         this._indent()
 
-        this._emitBlockOpt(decl.body)
+        // Handle one-liner methods (=> expr)
+        let eb = decl.exprBody
+        if eb != null {
+            this._writeIndent()
+            this._write("return ")
+            if this._currentReturnOptional {
+                this._emitSomeWrapped(eb)
+            } else {
+                this._emitExpr(eb)
+            }
+            this._write(";")
+            this._newline()
+        } else {
+            this._emitBlockOpt(decl.body)
+        }
 
         this._dedent()
         this._writeln("}")
         this._writeRaw("")
 
         this._currentFunc = prevFunc
+        this._currentReturnOptional = prevRetOpt
     }
 
     // -- Enum declaration --
@@ -578,14 +743,14 @@ RustEmitter {
         if allUnit {
             this._writeln("#[derive(Clone, Copy, Debug, PartialEq)]")
         } else {
-            this._writeln("#[derive(Clone, Debug)]")
+            this._writeln("#[derive(Clone, Debug, PartialEq)]")
         }
 
         this._writeln("pub enum " + enumName + " {")
         this._indent()
 
         for v in decl.variants {
-            this._emitVariant(v)
+            this._emitVariant(enumName, v)
         }
 
         this._dedent()
@@ -600,13 +765,18 @@ RustEmitter {
         return true
     }
 
-    _emitVariant(v: EnumVariant) {
+    _emitVariant(enumName: string, v: EnumVariant) {
         if v.fields.length == 0 {
             this._writeln($"{v.name},")
+            // Register empty variant
+            let key = enumName + "::" + v.name
+            this._enumVariantFields.set(key, [])
         } else {
             let fieldParts: [string] = []
+            let fieldNames: [string] = []
             for f in v.fields {
                 let fname = this._sanitizeName(f.name)
+                fieldNames.push(fname)
                 // W-003: Call _emitType first, then check boxing via enum name lookup
                 // This avoids double-use of f.typeRef (move semantics)
                 let ftype = this._emitType(f.typeRef)
@@ -619,6 +789,9 @@ RustEmitter {
             }
             let fieldsStr = fieldParts.join(", ")
             this._writeln(v.name + " { " + fieldsStr + " },")
+            // Register variant field names
+            let key2 = enumName + "::" + v.name
+            this._enumVariantFields.set(key2, fieldNames)
         }
     }
 
@@ -665,6 +838,10 @@ RustEmitter {
     //  Phase 3.3 — Statements
     // =====================================================================
 
+    // Helper: check if an expression is a simple non-reserved identifier
+    // NOTE: This helper is not used inline due to move semantics.
+    // Instead, .clone() is added unconditionally to match discriminants.
+
     _emitBlockOpt(body: BlockStmt?) {
         if body != null {
             this._emitBlock(body)
@@ -675,6 +852,10 @@ RustEmitter {
         for s in block.stmts {
             this._emitStmt(s)
         }
+    }
+
+    _blockStmts(block: BlockStmt): [Stmt] {
+        return block.stmts
     }
 
     _emitStmt(stmt: Stmt) {
@@ -769,7 +950,8 @@ RustEmitter {
                     // W-010: e is string? — extract to local for null-check
                     let eName = e
                     if eName != null {
-                        this._write(this._sanitizeName(eName))
+                        let sn = this._sanitizeName(eName)
+                        this._write(sn)
                     }
                     idx += 1
                 }
@@ -786,30 +968,71 @@ RustEmitter {
         let sanitized = this._sanitizeName(name)
         this._writeIndent()
 
-        // Determine mutability — for now, emit mut for all (conservative)
-        this._write($"let mut {sanitized}")
+        // Determine mutability — skip mut for _ (Rust doesn't allow let mut _)
+        if sanitized == "_" {
+            this._write("let _")
+        } else {
+            this._write($"let mut {sanitized}")
+        }
 
-        // Emit type annotation if present
+        // Emit type annotation if present, and detect Optional types in one pass
+        let isOptionalType = false
         if optTypeRef != null {
             let typeStr = this._emitType(optTypeRef)
             this._write($": {typeStr}")
+            // Check if type string indicates Optional
+            if typeStr.startsWith("Option<") {
+                isOptionalType = true
+            }
+        }
+        if isOptionalType {
+            this._optionalVars.set(sanitized, true)
         }
 
         this._write(" = ")
 
         // Handle fallible init (or fail / or value)
         if decl.isFallible {
-            this._emitExpr(decl.init)
             let orVal = decl.orValue
             if orVal != null {
-                this._write(".unwrap_or_else(|_| ")
-                this._emitExpr(orVal)
-                this._write(")")
+                // Detect if this is a true fallible call (File.read, Process.exec) or boolean or
+                // Heuristic: if or-value is a literal (string/number), it's likely a fallible unwrap
+                // If or-value is a method call or identifier, it's likely boolean or
+                let isTrueFallible = false
+                let _ = switch orVal {
+                    Expr.Literal(_) => { isTrueFallible = true; 0 },
+                    _ => { 0 }
+                }
+                if isTrueFallible {
+                    // True fallible: expr.unwrap_or_else(|_| fallback)
+                    this._emitExpr(decl.init)
+                    this._write(".unwrap_or_else(|_| ")
+                    this._emitExpr(orVal)
+                    this._write(")")
+                } else {
+                    // Boolean or: expr || fallback
+                    this._emitExpr(decl.init)
+                    this._write(" || ")
+                    this._emitExpr(orVal)
+                }
             } else {
+                // or fail → expr?
+                this._emitExpr(decl.init)
                 this._write("?")
             }
         } else {
-            this._emitExpr(decl.init)
+            // Wrap non-null init with Some() if type is Optional
+            if isOptionalType {
+                this._emitSomeWrapped(decl.init)
+            } else {
+                this._emitExpr(decl.init)
+            }
+        }
+
+        // Clone all let binding inits to avoid move issues (E0382, E0507)
+        // Safe because .clone() on any Clone type returns the same type
+        if sanitized != "_" {
+            this._write(".clone()")
         }
 
         this._write(";")
@@ -822,7 +1045,8 @@ RustEmitter {
         let idx = 0
         for e in elements {
             if idx > 0 { this._write(", ") }
-            this._write(this._sanitizeName(e))
+            let sn = this._sanitizeName(e)
+            this._write(sn)
             idx += 1
         }
         this._write(") = ")
@@ -831,23 +1055,227 @@ RustEmitter {
         this._newline()
     }
 
+    // -- Some() wrapping for optional values --
+    // Emits expression wrapped with Some() unless it's a Null literal (emits None)
+    // Handles each Expr variant in ONE pass to avoid double-consume
+
+    _emitSomeWrapped(expr: Expr) {
+        let _ = switch expr {
+            Expr.Literal(lit) => {
+                let _ = switch lit {
+                    Literal.Null => { this._write("None"); 0 },
+                    _ => { this._write("Some("); this._emitLiteral(lit); this._write(")"); 0 }
+                }
+                0
+            },
+            Expr.Identifier(iName) => {
+                let san = this._sanitizeName(iName)
+                if san == "null" or san == "None" {
+                    this._write("None")
+                } else if this._optionalVars.has(san) {
+                    // Already Optional — don't double-wrap
+                    this._write($"{san}.clone()")
+                } else {
+                    this._write($"Some({san}.clone())")
+                }
+                0
+            },
+            Expr.Binary(op, left, right) => {
+                this._write("Some(")
+                this._emitBinary(op, left, right)
+                this._write(")")
+                0
+            },
+            Expr.Call(callee, args, ep, ta) => {
+                this._write("Some(")
+                this._emitExpr(Expr.Call(callee, args, ep, ta))
+                this._write(")")
+                0
+            },
+            Expr.MethodCall(mcObj, mcMethod, mcArgs) => {
+                this._write("Some(")
+                this._emitExpr(Expr.MethodCall(mcObj, mcMethod, mcArgs))
+                this._write(")")
+                0
+            },
+            Expr.MemberAccess(maObj, maProp) => {
+                this._write("Some(")
+                this._emitExpr(Expr.MemberAccess(maObj, maProp))
+                this._write(")")
+                0
+            },
+            Expr.StructLiteral(slName, slFields) => {
+                this._write("Some(")
+                this._emitExpr(Expr.StructLiteral(slName, slFields))
+                this._write(")")
+                0
+            },
+            Expr.StringTemplate(parts) => {
+                this._write("Some(")
+                this._emitExpr(Expr.StringTemplate(parts))
+                this._write(")")
+                0
+            },
+            Expr.Unary(op, operand) => {
+                this._write("Some(")
+                this._emitExpr(Expr.Unary(op, operand))
+                this._write(")")
+                0
+            },
+            Expr.ArrayLiteral(elements) => {
+                this._write("Some(")
+                this._emitExpr(Expr.ArrayLiteral(elements))
+                this._write(")")
+                0
+            },
+            Expr.SwitchExpr(disc, arms) => {
+                this._write("Some(")
+                this._emitExpr(Expr.SwitchExpr(disc, arms))
+                this._write(")")
+                0
+            },
+            Expr.Lambda(lam) => {
+                this._write("Some(")
+                this._emitExpr(Expr.Lambda(lam))
+                this._write(")")
+                0
+            },
+            Expr.Index(idxObj, idxExpr) => {
+                this._write("Some(")
+                this._emitExpr(Expr.Index(idxObj, idxExpr))
+                this._write(")")
+                0
+            },
+            Expr.Ternary(cond, thenE, elseE) => {
+                this._write("Some(")
+                this._emitExpr(Expr.Ternary(cond, thenE, elseE))
+                this._write(")")
+                0
+            },
+            _ => {
+                // Rare cases — emit without wrapping (may need manual fix)
+                this._write("Some(todo!(\"optional\"))")
+                0
+            }
+        }
+    }
+
     // -- Assignment --
 
     _emitAssign(stmt: AssignStmt) {
         this._writeIndent()
-        this._emitExpr(stmt.target)
 
         let assignOp = stmt.op
         if assignOp != null {
             let opStr = this._binOpToRust(assignOp)
-            this._write($" {opStr}= ")
+            if opStr == "+" {
+                this._emitCompoundAdd(stmt.target, stmt.value)
+            } else {
+                this._emitExpr(stmt.target)
+                this._write($" {opStr}= ")
+                this._emitExpr(stmt.value)
+            }
         } else {
-            this._write(" = ")
+            // Handle assignment — check if target is an optional variable
+            // We destructure stmt.target in ONE pass to avoid double-consume
+            let _ = switch stmt.target {
+                Expr.Identifier(varName) => {
+                    let vnCopy = $"{varName}"
+                    let san = this._sanitizeName(varName)
+                    this._write(san)
+                    this._write(" = ")
+                    if this._optionalVars.has(san) {
+                        this._emitSomeWrapped(stmt.value)
+                    } else {
+                        // Fallback: check type context for Optional
+                        let varTypeRef = this._lookupVarTypeRef(vnCopy)
+                        let varTag = this._typeRefToTag(varTypeRef)
+                        if varTag == "optional" {
+                            this._optionalVars.set(san, true)
+                            this._emitSomeWrapped(stmt.value)
+                        } else {
+                            this._emitExpr(stmt.value)
+                        }
+                    }
+                    0
+                },
+                Expr.MemberAccess(maObj, maProp) => {
+                    this._emitExpr(maObj)
+                    let snProp = this._sanitizeName(maProp)
+                    this._write($".{snProp}")
+                    this._write(" = ")
+                    this._emitExpr(stmt.value)
+                    0
+                },
+                Expr.Index(idxObj, idxExpr) => {
+                    this._emitExpr(idxObj)
+                    this._write("[(")
+                    this._emitExpr(idxExpr)
+                    this._write(") as usize]")
+                    this._write(" = ")
+                    this._emitExpr(stmt.value)
+                    0
+                },
+                _ => {
+                    // Fallback — emit without Some wrapping
+                    this._write("/* assign */ ")
+                    this._emitExpr(stmt.value)
+                    0
+                }
+            }
         }
 
-        this._emitExpr(stmt.value)
         this._write(";")
         this._newline()
+    }
+
+    _emitCompoundAdd(target: Expr, value: Expr) {
+        // Check type of value expression to determine string vs numeric +=
+        let isNumeric = false
+        let _ = switch value {
+            Expr.Literal(lit) => {
+                let _ = switch lit {
+                    Literal.Int(_) => { isNumeric = true; 0 },
+                    Literal.Float(_) => { isNumeric = true; 0 },
+                    _ => { 0 }
+                }
+                0
+            },
+            _ => { 0 }
+        }
+
+        if isNumeric {
+            this._emitExpr(target)
+            this._write(" += ")
+            this._emitExpr(value)
+        } else {
+            // String compound add: target.push_str(&value) or target.push_str(value) for literals
+            this._emitExpr(target)
+            let isLitStr = false
+            let _ = switch value {
+                Expr.Literal(lit2) => {
+                    let _ = switch lit2 {
+                        Literal.Str(_) => { isLitStr = true; 0 },
+                        _ => { 0 }
+                    }
+                    0
+                },
+                _ => { 0 }
+            }
+            if isLitStr {
+                this._write(".push_str(")
+                this._inCompoundAdd = true
+                this._emitExpr(value)
+                this._inCompoundAdd = false
+                this._write(")")
+            } else {
+                this._write(".push_str(&")
+                this._inCompoundAdd = true
+                this._emitExpr(value)
+                this._inCompoundAdd = false
+                this._write(")")
+            }
+        }
     }
 
     // -- If statement --
@@ -855,7 +1283,9 @@ RustEmitter {
     _emitIf(stmt: IfStmt) {
         this._writeIndent()
         this._write("if ")
+        this._inIfCondition = true
         this._emitExpr(stmt.condition)
+        this._inIfCondition = false
         this._write(" {")
         this._newline()
         this._indent()
@@ -889,7 +1319,9 @@ RustEmitter {
     _emitWhile(stmt: WhileStmt) {
         this._writeIndent()
         this._write("while ")
+        this._inIfCondition = true
         this._emitExpr(stmt.condition)
+        this._inIfCondition = false
         this._write(" {")
         this._newline()
         this._indent()
@@ -912,11 +1344,12 @@ RustEmitter {
             let itemName = this._sanitizeName(var2)
             this._write($"for ({idxName}, {itemName}) in ")
             this._emitExpr(stmt.iterable)
-            this._write(".iter().enumerate()")
+            this._write(".iter().cloned().enumerate()")
         } else {
             this._write($"for {varName} in ")
-            this._emitExpr(stmt.iterable)
-            this._write(".iter()")
+            // Emit iterable with appropriate iterator suffix
+            // Use _emitForIterable which handles all cases in one pass
+            this._emitForIterable(stmt.iterable)
         }
 
         this._write(" {")
@@ -927,18 +1360,74 @@ RustEmitter {
         this._writeln("}")
     }
 
+    // Helper: emit iterable expression with appropriate iteration suffix
+    // Handles iterator methods (.keys/.values) and default (array) cases
+    // Everything in one switch to avoid double-consuming the value
+    _emitForIterable(iterable: Expr) {
+        let _ = switch iterable {
+            Expr.Identifier(name) => {
+                // Check if variable is a string type → use .chars() instead of .iter()
+                let varType = this._lookupVarTypeRef(name)
+                let tag = this._typeRefToTag(varType)
+                let sanitized = this._sanitizeName(name)
+                if tag == "string" {
+                    this._write(sanitized)
+                    this._write(".chars().map(|c| c.to_string())")
+                } else {
+                    this._write(sanitized)
+                    this._write(".iter().cloned()")
+                }
+                0
+            },
+            Expr.MethodCall(obj, m, args) => {
+                if m == "keys" {
+                    // map.keys() already returns an iterator
+                    this._emitExpr(obj)
+                    this._write(".keys().cloned()")
+                } else if m == "values" {
+                    this._emitExpr(obj)
+                    this._write(".values().cloned()")
+                } else if m == "chars" {
+                    this._emitExpr(obj)
+                    this._write(".chars().map(|c| c.to_string())")
+                } else {
+                    // Other method call returns a collection
+                    this._emitMethodCall(obj, m, args)
+                    this._write(".iter().cloned()")
+                }
+                0
+            },
+            _ => {
+                this._emitExpr(iterable)
+                this._write(".iter().cloned()")
+                0
+            }
+        }
+    }
+
     // -- Switch statement (match) --
+
+    _isStringSwitchStmt(cases: [CaseClause]): bool {
+        // NOTE: this method does NOT consume 'cases' — it only checks the first element
+        if cases.length > 0 {
+            let isStr = false
+            // Using a simple heuristic: we'll check after we know
+            return false  // Determined below from first case
+        }
+        return false
+    }
 
     _emitSwitch(stmt: SwitchStmt) {
         this._writeIndent()
         this._write("match ")
         this._emitExpr(stmt.discriminant)
+        this._write(".clone()")
         this._write(" {")
         this._newline()
         this._indent()
 
         for c in stmt.cases {
-            this._emitCaseClause(c)
+            this._emitCaseClause(c, false)
         }
 
         // Default arm
@@ -957,7 +1446,7 @@ RustEmitter {
         this._writeln("}")
     }
 
-    _emitCaseClause(c: CaseClause) {
+    _emitCaseClause(c: CaseClause, isStrSwitch: bool) {
         this._writeIndent()
         this._emitExpr(c.value)
         this._write(" => {")
@@ -998,7 +1487,11 @@ RustEmitter {
         if optExpr != null {
             this._writeIndent()
             this._write("return ")
-            this._emitExpr(optExpr)
+            if this._currentReturnOptional {
+                this._emitSomeWrapped(optExpr)
+            } else {
+                this._emitExpr(optExpr)
+            }
             this._write(";")
             this._newline()
         } else {
@@ -1046,9 +1539,9 @@ RustEmitter {
             },
             Expr.Index(idxObj, idxExpr) => {
                 this._emitExpr(idxObj)
-                this._write("[")
+                this._write("[(")
                 this._emitExpr(idxExpr)
-                this._write(" as usize]")
+                this._write(") as usize].clone()")
                 0
             },
             Expr.ObjectLiteral(objFields) => {
@@ -1107,7 +1600,8 @@ RustEmitter {
             },
             Expr.OptionalChain(ocObj, ocProp) => {
                 this._emitExpr(ocObj)
-                this._write($".as_ref().map(|v| v.{this._sanitizeName(ocProp)})")
+                let snOc = this._sanitizeName(ocProp)
+                this._write($".as_ref().map(|v| v.{snOc})")
                 0
             },
             Expr.RustBlock(code) => {
@@ -1115,6 +1609,30 @@ RustEmitter {
                 0
             }
         }
+    }
+
+    // -- Escape helpers for Rust output --
+
+    _escapeRustStr(s: string): string {
+        let result = s
+        result = result.replace("\\", "\\\\")
+        result = result.replace("\"", "\\\"")
+        result = result.replace("\n", "\\n")
+        result = result.replace("\t", "\\t")
+        result = result.replace("\r", "\\r")
+        result = result.replace("\0", "\\0")
+        return result
+    }
+
+    _escapeRustChar(s: string): string {
+        let result = s
+        result = result.replace("\\", "\\\\")
+        result = result.replace("'", "\\'")
+        result = result.replace("\n", "\\n")
+        result = result.replace("\t", "\\t")
+        result = result.replace("\r", "\\r")
+        result = result.replace("\0", "\\0")
+        return result
     }
 
     // -- Literals --
@@ -1126,15 +1644,25 @@ RustEmitter {
                 0
             },
             Literal.Float(v) => {
-                this._write($"{v}")
+                let floatStr = $"{v}"
+                if not floatStr.contains(".") {
+                    floatStr += ".0"
+                }
+                this._write(floatStr)
                 0
             },
             Literal.Str(v) => {
-                this._write($"\"{v}\".to_string()")
+                let escaped = this._escapeRustStr(v)
+                if this._inCompoundAdd || this._suppressToString {
+                    this._write("\"" + escaped + "\"")
+                } else {
+                    this._write("\"" + escaped + "\".to_string()")
+                }
                 0
             },
             Literal.Char(v) => {
-                this._write($"'{v}'")
+                let escaped = this._escapeRustChar(v)
+                this._write("'" + escaped + "'")
                 0
             },
             Literal.Bool(v) => {
@@ -1158,7 +1686,8 @@ RustEmitter {
         if name == "this" {
             this._write("self")
         } else {
-            this._write(this._sanitizeName(name))
+            let sn = this._sanitizeName(name)
+            this._write(sn)
         }
     }
 
@@ -1166,12 +1695,217 @@ RustEmitter {
 
     _emitBinary(op: BinOp, left: Expr, right: Expr) {
         let opStr = this._binOpToRust(op)
+        // Delegate to helper that classifies + emits right in ONE switch
+        this._emitBinaryWithRight(opStr, left, right)
+    }
 
-        // String concatenation: + on strings → format!
-        // For now, use the simple operator
-        this._emitExpr(left)
-        this._write($" {opStr} ")
-        this._emitExpr(right)
+    _emitBinaryWithRight(opStr: string, left: Expr, right: Expr) {
+        // Single switch on right that both classifies and handles output
+        let _ = switch right {
+            Expr.Literal(rLit) => {
+                // Check if right is null
+                let rIsNull = false
+                let rIsString = false
+                let _ = switch rLit {
+                    Literal.Null => { rIsNull = true; 0 },
+                    Literal.Str(_) => { rIsString = true; 0 },
+                    _ => { 0 }
+                }
+                if rIsNull && opStr == "==" {
+                    this._emitExpr(left)
+                    this._write(".is_none()")
+                } else if rIsNull && opStr == "!=" {
+                    // Detect variable for if-let narrowing (x != null → let Some(x) = x)
+                    // ONLY valid directly in if/while conditions
+                    if this._inIfCondition {
+                        let _ = switch left {
+                            Expr.Identifier(lName) => {
+                                let san = this._sanitizeName(lName)
+                                this._write($"let Some({san}) = {san}")
+                                0
+                            },
+                            Expr.MemberAccess(maObj, maProp) => {
+                                this._emitExpr(Expr.MemberAccess(maObj, maProp))
+                                this._write(".is_some()")
+                                0
+                            },
+                            _ => {
+                                this._write("true /* != null */")
+                                0
+                            }
+                        }
+                    } else {
+                        this._emitExpr(left)
+                        this._write(".is_some()")
+                    }
+                } else if rIsString && opStr == "+" {
+                    this._write("format!(\"{}{}\", ")
+                    this._emitExpr(left)
+                    this._write(", ")
+                    this._emitLiteral(rLit)
+                    this._write(")")
+                } else {
+                    // Right is a non-null, non-string literal — check left for null
+                    this._emitBinaryLeftCheck(opStr, left, rLit)
+                }
+                0
+            },
+            Expr.StringTemplate(rParts) => {
+                // Right is a string template — string concat
+                if opStr == "+" {
+                    this._write("format!(\"{}{}\", ")
+                    this._emitExpr(left)
+                    this._write(", ")
+                    this._emitStringTemplate(rParts)
+                    this._write(")")
+                } else {
+                    this._emitExpr(left)
+                    this._write($" {opStr} ")
+                    this._emitStringTemplate(rParts)
+                }
+                0
+            },
+            _ => {
+                // Right is a general expression — check left for null/string
+                this._emitBinaryLeftDefault(opStr, left, right)
+                0
+            }
+        }
+    }
+
+    _emitBinaryLeftCheck(opStr: string, left: Expr, rightLit: Literal) {
+        // Right was a normal literal. Check left for null.
+        let leftIsNull = false
+        let _ = switch left {
+            Expr.Literal(lLit) => {
+                let _ = switch lLit {
+                    Literal.Null => { leftIsNull = true; 0 },
+                    _ => { 0 }
+                }
+                0
+            },
+            _ => { 0 }
+        }
+        if leftIsNull && opStr == "==" {
+            this._emitLiteral(rightLit)
+            this._write(".is_none()")
+        } else if leftIsNull && opStr == "!=" {
+            this._emitLiteral(rightLit)
+            this._write(".is_some()")
+        } else {
+            this._emitExpr(left)
+            this._write($" {opStr} ")
+            this._emitLiteral(rightLit)
+        }
+    }
+
+    _emitBinaryLeftDefault(opStr: string, left: Expr, right: Expr) {
+        // Right is a general expr. Check left for null/string.
+        let _ = switch left {
+            Expr.Literal(lLit) => {
+                let lIsNull = false
+                let lIsString = false
+                let _ = switch lLit {
+                    Literal.Null => { lIsNull = true; 0 },
+                    Literal.Str(_) => { lIsString = true; 0 },
+                    _ => { 0 }
+                }
+                if lIsNull && opStr == "==" {
+                    this._emitExpr(right)
+                    this._write(".is_none()")
+                } else if lIsNull && opStr == "!=" {
+                    this._emitExpr(right)
+                    this._write(".is_some()")
+                } else if lIsString && opStr == "+" {
+                    this._write("format!(\"{}{}\", ")
+                    this._emitLiteral(lLit)
+                    this._write(", ")
+                    this._emitExpr(right)
+                    this._write(")")
+                } else {
+                    this._emitLiteral(lLit)
+                    this._write($" {opStr} ")
+                    this._emitExpr(right)
+                }
+                0
+            },
+            Expr.StringTemplate(lParts) => {
+                if opStr == "+" {
+                    this._write("format!(\"{}{}\", ")
+                    this._emitStringTemplate(lParts)
+                    this._write(", ")
+                    this._emitExpr(right)
+                    this._write(")")
+                } else {
+                    this._emitStringTemplate(lParts)
+                    this._write($" {opStr} ")
+                    this._emitExpr(right)
+                }
+                0
+            },
+            _ => {
+                if opStr == "+" and (this._isStringExpr(left) or this._isStringExpr(right)) {
+                    // String concat: left + right → format!("{}{}", left, right)
+                    this._write("format!(\"{}{}\", ")
+                    this._emitExpr(left)
+                    this._write(", ")
+                    this._emitExpr(right)
+                    this._write(")")
+                } else {
+                    this._emitExpr(left)
+                    this._write($" {opStr} ")
+                    this._emitExpr(right)
+                }
+                0
+            }
+        }
+    }
+
+    _isNullExpr(expr: Expr): bool {
+        let result = false
+        let _ = switch expr {
+            Expr.Literal(lit) => {
+                let _ = switch lit {
+                    Literal.Null => { result = true; 0 },
+                    _ => { 0 }
+                }
+                0
+            },
+            _ => { 0 }
+        }
+        return result
+    }
+
+    _isStringExpr(expr: Expr): bool {
+        let result = false
+        let _ = switch expr {
+            Expr.Literal(lit) => {
+                let _ = switch lit {
+                    Literal.Str(_) => { result = true; 0 },
+                    _ => { 0 }
+                }
+                0
+            },
+            Expr.StringTemplate(_) => { result = true; 0 },
+            Expr.Binary(op, left, right) => {
+                let opCheck = this._binOpToRust(op)
+                if opCheck == "+" && (this._isStringExpr(left) || this._isStringExpr(right)) {
+                    result = true
+                }
+                0
+            },
+            Expr.MethodCall(_, method, _) => {
+                if method == "toString" { result = true }
+                0
+            },
+            Expr.Identifier(name) => {
+                let tag = this._getExprTypeName(expr)
+                if tag == "string" { result = true }
+                0
+            },
+            _ => { 0 }
+        }
+        return result
     }
 
     _binOpToRust(op: BinOp): string {
@@ -1331,12 +2065,32 @@ RustEmitter {
             this._emitExpr(args[0])
             this._write(".to_string().parse::<f64>().unwrap_or(0.0)")
         } else {
-            this._emitExpr(callee)
-            this._write("(")
+            // Check if this is a constructor call (class name starts with uppercase)
+            let isConstructor = false
+            let className = ""
+            let _ = switch callee {
+                Expr.Identifier(fnName) => {
+                    if fnName.length > 0 {
+                        let firstChar = fnName.substring(0, 1)
+                        if firstChar >= "A" && firstChar <= "Z" {
+                            isConstructor = true
+                            className = fnName
+                        }
+                    }
+                    0
+                },
+                _ => { 0 }
+            }
+            if isConstructor {
+                this._write(className + "::new(")
+            } else {
+                this._emitExpr(callee)
+                this._write("(")
+            }
             let aIdx = 0
             for a in args {
                 if aIdx > 0 { this._write(", ") }
-                this._emitExpr(a)
+                this._emitClonedArg(a)
                 aIdx += 1
             }
             this._write(")")
@@ -1345,9 +2099,9 @@ RustEmitter {
 
     _emitPrintCall(args: [Expr]) {
         if args.length == 0 {
-            this._write("print!(\"\")")
+            this._write("println!()")
         } else if args.length == 1 {
-            this._write("print!(\"{}\", ")
+            this._write("println!(\"{}\", ")
             this._emitExpr(args[0])
             this._write(")")
         } else {
@@ -1359,7 +2113,7 @@ RustEmitter {
                 fmtParts += "{}"
                 pIdx += 1
             }
-            this._write("print!(\"" + fmtParts + "\"")
+            this._write("println!(\"" + fmtParts + "\"")
             for a in args {
                 this._write(", ")
                 this._emitExpr(a)
@@ -1392,9 +2146,161 @@ RustEmitter {
         }
     }
 
+    // -- Self method call with extracted args (avoids E0499 double mutable borrow) --
+
+    _emitSelfMethodExtracted(method: string, args: [Expr]) {
+        // For self.method(args) where args might contain self.other() calls,
+        // use block expression: {let __t0 = arg0; let __t1 = arg1; self.method(__t0, __t1)}
+        this._write("{ ")
+        let tempNames: [string] = []
+        let idx = 0
+        for a in args {
+            let tempName = $"__self_arg_{idx}"
+            this._write($"let {tempName} = ")
+            this._emitExpr(a)
+            this._write("; ")
+            tempNames.push(tempName)
+            idx += 1
+        }
+        let sanitized = this._sanitizeName(method)
+        this._write($"self.{sanitized}(")
+        let i2 = 0
+        for t in tempNames {
+            if i2 > 0 { this._write(", ") }
+            this._write(t)
+            i2 += 1
+        }
+        this._write(") }")
+    }
+
     // -- Method calls (type-directed dispatch) --
 
     _emitMethodCall(obj: Expr, method: string, args: [Expr]) {
+        // Handle stdlib type static calls (File, Dir, Process, Sys)
+        let stdlibName = ""
+        let _ = switch obj {
+            Expr.Identifier(sn) => { stdlibName = sn; 0 },
+            _ => { 0 }
+        }
+        if stdlibName == "File" and method == "read" {
+            this._write("std::fs::read_to_string(&")
+            this._emitExpr(args[0])
+            this._write(").map_err(|e| e.to_string())")
+            return
+        }
+        if stdlibName == "File" and method == "write" {
+            this._write("{ std::fs::write(&")
+            this._emitExpr(args[0])
+            this._write(", &")
+            this._emitExpr(args[1])
+            this._write(").ok(); }")
+            return
+        }
+        if stdlibName == "Dir" and method == "create" {
+            this._write("{ std::fs::create_dir_all(&")
+            this._emitExpr(args[0])
+            this._write(").ok(); }")
+            return
+        }
+        if stdlibName == "Process" and method == "exec" {
+            this._write("std::process::Command::new(\"sh\").arg(\"-c\").arg(&")
+            this._emitExpr(args[0])
+            this._write(").output().map_err(|e| e.to_string()).map(|o| String::from_utf8_lossy(&o.stdout).to_string())")
+            return
+        }
+        if stdlibName == "Sys" and method == "args" {
+            this._write("std::env::args().collect::<Vec<String>>()")
+            return
+        }
+
+        // Enum variant constructor: EnumName.Variant(args) → EnumName::Variant(args)
+        let isEnumVariant = false
+        let enumNameMC = ""
+        let _ = switch obj {
+            Expr.Identifier(name) => {
+                if name.length > 0 {
+                    let fc = name.charAt(0)
+                    if fc >= "A" && fc <= "Z" {
+                        isEnumVariant = true
+                        enumNameMC = name
+                    }
+                }
+                0
+            },
+            _ => { 0 }
+        }
+        if isEnumVariant {
+            // Look up field names for struct-style variant constructor
+            let variantKey = enumNameMC + "::" + method
+            if this._enumVariantFields.has(variantKey) {
+                let fieldNames = this._enumVariantFields.get(variantKey)
+                // Check boxing and optional info
+                let fieldBoxed: [bool] = []
+                let fieldOptional: [bool] = []
+                if this._enumVariantFieldBoxed.has(variantKey) {
+                    fieldBoxed = this._enumVariantFieldBoxed.get(variantKey)
+                }
+                if this._enumVariantFieldOptional.has(variantKey) {
+                    fieldOptional = this._enumVariantFieldOptional.get(variantKey)
+                }
+                this._write(enumNameMC + "::" + method + " { ")
+                let mcIdx = 0
+                for a in args {
+                    if mcIdx > 0 { this._write(", ") }
+                    if mcIdx < fieldNames.length {
+                        this._write(fieldNames[mcIdx] + ": ")
+                    }
+                    // Check if field is boxed or optional
+                    let isBoxed = false
+                    if mcIdx < fieldBoxed.length {
+                        isBoxed = fieldBoxed[mcIdx]
+                    }
+                    let isOptional = false
+                    if mcIdx < fieldOptional.length {
+                        isOptional = fieldOptional[mcIdx]
+                    }
+                    // Check if arg is already null (None) — don't wrap with Some
+                    let isNullArg = this._isNullExpr(a)
+                    if isBoxed && isOptional {
+                        if isNullArg {
+                            this._write("None")
+                        } else {
+                            this._write("Some(Box::new(")
+                            this._emitExpr(a)
+                            this._write("))")
+                        }
+                    } else if isBoxed {
+                        this._write("Box::new(")
+                        this._emitExpr(a)
+                        this._write(")")
+                    } else if isOptional {
+                        if isNullArg {
+                            this._write("None")
+                        } else {
+                            this._write("Some(")
+                            this._emitExpr(a)
+                            this._write(")")
+                        }
+                    } else {
+                        this._emitExpr(a)
+                    }
+                    mcIdx += 1
+                }
+                this._write(" }")
+            } else {
+                // Fallback: tuple-style (for unknown variants or unit variants)
+                this._write(enumNameMC + "::" + method + "(")
+                let mcIdx = 0
+                for a in args {
+                    if mcIdx > 0 { this._write(", ") }
+                    this._emitExpr(a)
+                    mcIdx += 1
+                }
+                this._write(")")
+            }
+            return
+        }
+
         let objTag = this._getExprTypeName(obj)
 
         // Classify method target without consuming args
@@ -1440,13 +2346,165 @@ RustEmitter {
     }
 
     _emitGenericMethodCall(obj: Expr, method: string, args: [Expr]) {
+        // Fallback translations for Map/Set methods when type detection fails
+        if method == "keys" {
+            this._emitExpr(obj)
+            this._write(".keys().cloned().collect::<Vec<_>>()")
+            return
+        }
+        if method == "values" {
+            this._emitExpr(obj)
+            this._write(".values().cloned().collect::<Vec<_>>()")
+            return
+        }
+        if method == "get" {
+            this._emitExpr(obj)
+            this._write(".get(&(")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(")).cloned().unwrap()")
+            return
+        }
+        if method == "has" {
+            this._emitExpr(obj)
+            this._write(".contains_key(&(")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write("))")
+            return
+        }
+        if method == "set" {
+            this._emitExpr(obj)
+            this._write(".insert(")
+            if args.length > 0 {
+                this._emitExpr(args[0])
+                this._write(".clone()")
+            }
+            this._write(", ")
+            if args.length > 1 {
+                this._emitExpr(args[1])
+                this._write(".clone()")
+            }
+            this._write(")")
+            return
+        }
+
+        // String methods that need &str arguments — fallback when type detection fails
+        if method == "contains" || method == "starts_with" || method == "ends_with" {
+            let sanitizedMethod = this._sanitizeName(method)
+            this._emitExpr(obj)
+            this._write($".{sanitizedMethod}(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            this._write(")")
+            return
+        }
+        if method == "replace" || method == "replaceAll" {
+            this._emitExpr(obj)
+            this._write(".replace(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            this._write(", ")
+            if args.length > 1 { this._emitRefArg(args[1]) }
+            this._write(")")
+            return
+        }
+        if method == "startsWith" {
+            this._emitExpr(obj)
+            this._write(".starts_with(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            this._write(")")
+            return
+        }
+        if method == "endsWith" {
+            this._emitExpr(obj)
+            this._write(".ends_with(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            this._write(")")
+            return
+        }
+        if method == "split" {
+            this._emitExpr(obj)
+            this._write(".split(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            this._write(").map(|s| s.to_string()).collect::<Vec<String>>()")
+            return
+        }
+        if method == "join" {
+            this._emitExpr(obj)
+            this._write(".join(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            this._write(")")
+            return
+        }
+        if method == "indexOf" {
+            this._emitExpr(obj)
+            this._write(".find(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            this._write(").map(|i| i as i32).unwrap_or(-1)")
+            return
+        }
+        if method == "charAt" {
+            this._emitExpr(obj)
+            this._write(".chars().nth((")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(") as usize).map(|c| c.to_string()).unwrap_or_default()")
+            return
+        }
+        if method == "substring" {
+            this._emitExpr(obj)
+            this._write("[(")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(") as usize..(")
+            if args.length > 1 { this._emitExpr(args[1]) }
+            this._write(") as usize].to_string()")
+            return
+        }
+        if method == "push" {
+            this._emitExpr(obj)
+            this._write(".push(")
+            if args.length > 0 { this._emitClonedArg(args[0]) }
+            this._write(")")
+            return
+        }
+        if method == "includes" {
+            this._emitExpr(obj)
+            this._write(".iter().any(|__x| __x == &(")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write("))")
+            return
+        }
+        if method == "some" {
+            this._emitExpr(obj)
+            this._write(".iter().any(")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(")")
+            return
+        }
+        if method == "toLowerCase" {
+            this._emitExpr(obj)
+            this._write(".to_lowercase()")
+            return
+        }
+        if method == "toUpperCase" {
+            this._emitExpr(obj)
+            this._write(".to_uppercase()")
+            return
+        }
+        if method == "trim" {
+            this._emitExpr(obj)
+            this._write(".trim().to_string()")
+            return
+        }
+        if method == "length" || method == "len" {
+            this._emitExpr(obj)
+            this._write(".len() as i32")
+            return
+        }
+
         let sanitizedMethod = this._sanitizeName(method)
         this._emitExpr(obj)
         this._write($".{sanitizedMethod}(")
         let aIdx = 0
         for a in args {
             if aIdx > 0 { this._write(", ") }
-            this._emitExpr(a)
+            this._emitClonedArg(a)
             aIdx += 1
         }
         this._write(")")
@@ -1685,7 +2743,7 @@ RustEmitter {
         if method == "push" {
             this._emitExpr(obj)
             this._write(".push(")
-            if args.length > 0 { this._emitExpr(args[0]) }
+            if args.length > 0 { this._emitClonedArg(args[0]) }
             this._write(")")
             return true
         }
@@ -1923,7 +2981,7 @@ RustEmitter {
             this._emitExpr(obj)
             this._write(".get(&(")
             if args.length > 0 { this._emitExpr(args[0]) }
-            this._write(")).cloned().unwrap_or_default()")
+            this._write(")).cloned().unwrap()")
             return true
         }
         if method == "set" {
@@ -2067,6 +3125,28 @@ RustEmitter {
     _emitMemberAccess(obj: Expr, prop: string) {
         let objTag = this._getExprTypeName(obj)
 
+        // Enum variant access: EnumName.Variant → EnumName::Variant
+        // Heuristic: PascalCase identifier = enum/class → use :: syntax
+        let isEnumAccess = false
+        let enumName = ""
+        let _ = switch obj {
+            Expr.Identifier(name) => {
+                if name.length > 0 {
+                    let firstChar = name.charAt(0)
+                    if firstChar >= "A" && firstChar <= "Z" {
+                        isEnumAccess = true
+                        enumName = name
+                    }
+                }
+                0
+            },
+            _ => { 0 }
+        }
+        if isEnumAccess {
+            this._write(enumName + "::" + prop)
+            return
+        }
+
         // .length → .len() as i32 for strings and arrays
         if prop == "length" {
             this._write("(")
@@ -2093,7 +3173,8 @@ RustEmitter {
 
         // Default: emit as field access
         this._emitExpr(obj)
-        this._write($".{this._sanitizeName(prop)}")
+        let snField = this._sanitizeName(prop)
+        this._write($".{snField}")
     }
 
     // =====================================================================
@@ -2104,7 +3185,7 @@ RustEmitter {
     // emit &arg. For literals, emit directly (refs created automatically).
 
     _emitRefArg(argExpr: Expr) {
-        // String literals don't need & prefix (auto-refs)
+        // String literals don't need & prefix (auto-refs) but must suppress .to_string()
         let isLiteral = false
         let _ = switch argExpr {
             Expr.Literal(_) => { isLiteral = true; 0 },
@@ -2112,10 +3193,32 @@ RustEmitter {
             _ => { 0 }
         }
         if isLiteral {
+            this._suppressToString = true
             this._emitExpr(argExpr)
+            this._suppressToString = false
         } else {
             this._write("&")
             this._emitExpr(argExpr)
+        }
+    }
+
+    // Emit expression with .clone() for non-Copy types (identifiers, member access)
+    _emitClonedArg(argExpr: Expr) {
+        let needsClone = false
+        let _ = switch argExpr {
+            Expr.Identifier(name) => {
+                // Don't clone literals-like identifiers (this is handled by emitExpr)
+                if name != "true" && name != "false" && name != "null" {
+                    needsClone = true
+                }
+                0
+            },
+            Expr.MemberAccess(_, _) => { needsClone = true; 0 },
+            _ => { 0 }
+        }
+        this._emitExpr(argExpr)
+        if needsClone {
+            this._write(".clone()")
         }
     }
 
@@ -2126,7 +3229,7 @@ RustEmitter {
         let fIdx = 0
         for f in fields {
             if fIdx > 0 { this._write(", ") }
-            this._emitExpr(f.value)
+            this._emitClonedArg(f.value)
             fIdx += 1
         }
         this._write(")")
@@ -2210,7 +3313,8 @@ RustEmitter {
                 BindingPattern.Identifier(n) => n,
                 _ => "_"
             }
-            this._write(this._sanitizeName(pName))
+            let snP = this._sanitizeName(pName)
+            this._write(snP)
             pIdx += 1
         }
         this._write("| ")
@@ -2251,7 +3355,12 @@ RustEmitter {
         for p in parts {
             let _ = switch p {
                 StringTemplatePart.Text(text) => {
-                    fmtStr += text
+                    // Escape inner double quotes and braces for format!
+                    let escaped = text.replace("\\", "\\\\")
+                    escaped = escaped.replace("\"", "\\\"")
+                    escaped = escaped.replace("{", "{{")
+                    escaped = escaped.replace("}", "}}")
+                    fmtStr += escaped
                     0
                 },
                 StringTemplatePart.ExprPart(spExpr) => {
@@ -2281,9 +3390,52 @@ RustEmitter {
 
     // -- Switch expression (match) --
 
+    _isStringSwitch(arms: [SwitchArm]): bool {
+        if arms.length > 0 {
+            let firstArm = arms[0]
+            let isStr = false
+            let _ = switch firstArm.pattern {
+                Pattern.LiteralPat(lit) => {
+                    let _ = switch lit {
+                        Literal.Str(_) => { isStr = true; 0 },
+                        _ => { 0 }
+                    }
+                    0
+                },
+                _ => { 0 }
+            }
+            return isStr
+        }
+        return false
+    }
+
     _emitSwitchExpr(disc: Expr, arms: [SwitchArm]) {
+        // Detect string switch from first arm pattern
+        let stringSwitch = false
+        if arms.length > 0 {
+            let firstArm = arms[0]
+            let _ = switch firstArm.pattern {
+                Pattern.LiteralPat(lit) => {
+                    let _ = switch lit {
+                        Literal.Str(_) => { stringSwitch = true; 0 },
+                        _ => { 0 }
+                    }
+                    0
+                },
+                _ => { 0 }
+            }
+        }
+
+        let cloneDisc = true
         this._write("match ")
-        this._emitExpr(disc)
+        if stringSwitch {
+            this._emitExpr(disc)
+            this._write(".as_str()")
+            cloneDisc = false
+        } else {
+            this._emitExpr(disc)
+            this._write(".clone()")
+        }
         this._write(" { ")
 
         for arm in arms {
@@ -2294,6 +3446,8 @@ RustEmitter {
     }
 
     _emitSwitchArm(arm: SwitchArm) {
+        // Clear pending derefs before emitting pattern
+        this._pendingDerefs = []
         this._emitPattern(arm.pattern)
 
         let guardExpr = arm.guard
@@ -2304,14 +3458,29 @@ RustEmitter {
 
         this._write(" => ")
 
+        // If there are pending derefs from boxed pattern fields, wrap in block
+        let hasDerefs = this._pendingDerefs.length > 0
+        let derefs = this._pendingDerefs
         let _ = switch arm.body {
             SwitchArmBody.Expr(armExpr) => {
-                this._emitExpr(armExpr)
-                this._write(", ")
+                if hasDerefs {
+                    this._write("{ ")
+                    for d in derefs {
+                        this._write("let " + d + " = *" + d + "; ")
+                    }
+                    this._emitExpr(armExpr)
+                    this._write(" }, ")
+                } else {
+                    this._emitExpr(armExpr)
+                    this._write(", ")
+                }
                 0
             },
             SwitchArmBody.Block(armStmts) => {
                 this._write("{ ")
+                for d2 in derefs {
+                    this._write("let " + d2 + " = *" + d2 + "; ")
+                }
                 for s in armStmts {
                     this._emitStmt(s)
                 }
@@ -2321,16 +3490,41 @@ RustEmitter {
         }
     }
 
+    // Emit literal in pattern context — no .to_string() for strings
+    _emitLiteralPattern(lit: Literal) {
+        let _ = switch lit {
+            Literal.Int(v) => { this._write($"{v}"); 0 },
+            Literal.Float(v) => { this._write($"{v}"); 0 },
+            Literal.Str(v) => {
+                let escaped = this._escapeRustStr(v)
+                this._write("\"" + escaped + "\"")
+                0
+            },
+            Literal.Char(v) => {
+                let escaped = this._escapeRustChar(v)
+                this._write("'" + escaped + "'")
+                0
+            },
+            Literal.Bool(v) => {
+                if v { this._write("true") } else { this._write("false") }
+                0
+            },
+            Literal.Null => { this._write("None"); 0 }
+        }
+    }
+
     _emitPattern(pat: Pattern) {
         let _ = switch pat {
-            Pattern.LiteralPat(lit) => { this._emitLiteral(lit); 0 },
+            Pattern.LiteralPat(lit) => { this._emitLiteralPattern(lit); 0 },
             Pattern.Wildcard => { this._write("_"); 0 },
             Pattern.Binding(name) => {
-                this._write(this._sanitizeName(name))
+                let snBind = this._sanitizeName(name)
+                this._write(snBind)
                 0
             },
             Pattern.Typed(name, typeRef) => {
-                this._write(this._sanitizeName(name))
+                let snTyped = this._sanitizeName(name)
+                this._write(snTyped)
                 0
             },
             Pattern.Range(rangeStart, rangeEnd, inclusive) => {
@@ -2379,14 +3573,60 @@ RustEmitter {
             Pattern.EnumVariant(enumName, variantName, bindings) => {
                 this._write($"{enumName}::{variantName}")
                 if bindings.length > 0 {
-                    this._write(" { ")
-                    let bIdx = 0
+                    // Check if all bindings are wildcards
+                    let allWildcard = true
                     for bnd in bindings {
-                        if bIdx > 0 { this._write(", ") }
-                        this._write(this._sanitizeName(bnd))
-                        bIdx += 1
+                        if bnd != "_" { allWildcard = false }
                     }
-                    this._write(" }")
+                    if allWildcard {
+                        this._write(" { .. }")
+                    } else {
+                        // Look up field names and boxing info
+                        let variantKey = enumName + "::" + variantName
+                        let fieldNames: [string] = []
+                        let fieldBoxed: [bool] = []
+                        if this._enumVariantFields.has(variantKey) {
+                            fieldNames = this._enumVariantFields.get(variantKey)
+                        }
+                        if this._enumVariantFieldBoxed.has(variantKey) {
+                            fieldBoxed = this._enumVariantFieldBoxed.get(variantKey)
+                        }
+                        this._write(" { ")
+                        let bIdx = 0
+                        for bnd in bindings {
+                            if bIdx > 0 { this._write(", ") }
+                            if bnd == "_" {
+                                // Use field_name: _ if we know the field name
+                                if bIdx < fieldNames.length {
+                                    this._write(fieldNames[bIdx] + ": _")
+                                } else {
+                                    this._write("_")
+                                }
+                            } else {
+                                let sanitized = this._sanitizeName(bnd)
+                                if bIdx < fieldNames.length {
+                                    let fieldName = fieldNames[bIdx]
+                                    if fieldName != sanitized {
+                                        this._write(fieldName + ": " + sanitized)
+                                    } else {
+                                        this._write(sanitized)
+                                    }
+                                } else {
+                                    this._write(sanitized)
+                                }
+                                // Register pending deref if field is boxed
+                                let isBoxed = false
+                                if bIdx < fieldBoxed.length {
+                                    isBoxed = fieldBoxed[bIdx]
+                                }
+                                if isBoxed {
+                                    this._pendingDerefs.push(sanitized)
+                                }
+                            }
+                            bIdx += 1
+                        }
+                        this._write(" }")
+                    }
                 }
                 0
             }
@@ -2471,9 +3711,40 @@ RustEmitter {
 //  Public API
 // =====================================================================
 
-generateRust(program: Program, typeCtx: TypeContext, liveCtx: LivenessContext): string {
+generateRust(program: Program, typeCtx: TypeContext, liveCtx: LivenessContext, enumFields: Map<string, [string]>, enumFieldBoxed: Map<string, [bool]>, enumFieldOptional: Map<string, [bool]>): string {
     let emitter = RustEmitter(typeCtx, liveCtx)
+    emitter._enumVariantFields = enumFields
+    emitter._enumVariantFieldBoxed = enumFieldBoxed
+    emitter._enumVariantFieldOptional = enumFieldOptional
     return emitter.generate(program)
+}
+
+generateModuleRust(program: Program, typeCtx: TypeContext, liveCtx: LivenessContext, enumFields: Map<string, [string]>, enumFieldBoxed: Map<string, [bool]>, enumFieldOptional: Map<string, [bool]>): string {
+    let emitter = RustEmitter(typeCtx, liveCtx)
+    emitter.setIsMainModule(false)
+    emitter._enumVariantFields = enumFields
+    emitter._enumVariantFieldBoxed = enumFieldBoxed
+    emitter._enumVariantFieldOptional = enumFieldOptional
+    return emitter.generate(program)
+}
+
+// Reusable name sanitization: camelCase → snake_case + keyword escaping
+sanitizeFieldName(name: string): string {
+    // camelCase → snake_case: insert _ before uppercase, then lowercase
+    let result = ""
+    let i = 0
+    for ch in name {
+        if ch >= "A" && ch <= "Z" {
+            if i > 0 {
+                result += "_"
+            }
+            result += ch.toLowerCase()
+        } else {
+            result += ch
+        }
+        i += 1
+    }
+    return result
 }
 
 main() {

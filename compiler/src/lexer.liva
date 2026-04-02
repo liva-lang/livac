@@ -29,7 +29,7 @@ Lexer {
 
     // ── Character helpers ─────────────────────────────────────────
 
-    _isAtEnd(): bool => this.pos >= this.chars.length
+    _isAtEnd(): bool { return this.pos >= this.chars.length }
 
     _peek(): string {
         if this._isAtEnd() => return ""
@@ -62,13 +62,13 @@ Lexer {
 
     // ── Character classification ──────────────────────────────────
 
-    _isDigit(ch: string): bool => ch >= "0" and ch <= "9"
+    _isDigit(ch: string): bool { return ch >= "0" and ch <= "9" }
 
-    _isAlpha(ch: string): bool => (ch >= "a" and ch <= "z") or (ch >= "A" and ch <= "Z") or ch == "_"
+    _isAlpha(ch: string): bool { return (ch >= "a" and ch <= "z") or (ch >= "A" and ch <= "Z") or ch == "_" }
 
-    _isAlphaNumeric(ch: string): bool => this._isAlpha(ch) or this._isDigit(ch)
+    _isAlphaNumeric(ch: string): bool { return this._isAlpha(ch) or this._isDigit(ch) }
 
-    _isWhitespace(ch: string): bool => ch == " " or ch == "\t" or ch == "\r" or ch == "\n"
+    _isWhitespace(ch: string): bool { return ch == " " or ch == "\t" or ch == "\r" or ch == "\n" }
 
     // ── Token emitting ────────────────────────────────────────────
 
@@ -86,7 +86,8 @@ Lexer {
         }
         // Append EOF
         this.tokens.push(Token(TokenKind.EOF, this.pos, this.pos, this.line, this.col))
-        return this.tokens
+        let result = this.tokens
+        return result
     }
 
     // ── Whitespace and comments ───────────────────────────────────
@@ -321,7 +322,8 @@ Lexer {
         }
 
         // _ (underscore as token — only if not followed by alphanumeric)
-        if ch == "_" and not this._isAlphaNumeric(this._peek()) {
+        let peekCh = this._peek()
+        if ch == "_" and not this._isAlphaNumeric(peekCh) {
             this._addToken(TokenKind.Underscore, startPos, startLine, startCol)
             return
         }
@@ -480,36 +482,34 @@ Lexer {
         let numStr = firstDigit
 
         // Integer part — consume digits and underscores
-        while not this._isAtEnd() and (this._isDigit(this._peek()) or this._peek() == "_") {
+        while not this._isAtEnd() {
+            let pc = this._peek()
+            if not (this._isDigit(pc) or pc == "_") { break }
             let ch = this._advance()
             if ch != "_" => numStr += ch
         }
-
         // Check for decimal point (float)
         if not this._isAtEnd() and this._peek() == "." and this._peekNext() != "." {
-            if this.pos + 1 < this.chars.length and this._isDigit(this._peekNext()) {
-                numStr += this._advance()  // consume .
-                while not this._isAtEnd() and (this._isDigit(this._peek()) or this._peek() == "_") {
-                    let ch = this._advance()
-                    if ch != "_" => numStr += ch
-                }
-                let floatVal, err = parseFloat(numStr)
-                if err {
-                    this._addToken(TokenKind.FloatLit(0.0), startPos, startLine, startCol)
-                } else {
+            if this.pos + 1 < this.chars.length {
+                let pn = this._peekNext()
+                if this._isDigit(pn) {
+                    numStr += this._advance()  // consume .
+                    while not this._isAtEnd() {
+                        let pc2 = this._peek()
+                        if not (this._isDigit(pc2) or pc2 == "_") { break }
+                        let ch = this._advance()
+                        if ch != "_" => numStr += ch
+                    }
+                    let floatVal = numStr.toFloat()
                     this._addToken(TokenKind.FloatLit(floatVal), startPos, startLine, startCol)
+                    return
                 }
-                return
             }
         }
 
         // Integer
-        let intVal, err = parseInt(numStr)
-        if err {
-            this._addToken(TokenKind.IntLit(0), startPos, startLine, startCol)
-        } else {
-            this._addToken(TokenKind.IntLit(intVal), startPos, startLine, startCol)
-        }
+        let intVal = numStr.toInt()
+        this._addToken(TokenKind.IntLit(intVal), startPos, startLine, startCol)
     }
 
     // ── Identifier / keyword scanner ──────────────────────────────
@@ -518,7 +518,9 @@ Lexer {
         let isPrivate = firstChar == "_"
         let name = firstChar
 
-        while not this._isAtEnd() and this._isAlphaNumeric(this._peek()) {
+        while not this._isAtEnd() {
+            let peeked = this._peek()
+            if not this._isAlphaNumeric(peeked) { break }
             name += this._advance()
         }
 

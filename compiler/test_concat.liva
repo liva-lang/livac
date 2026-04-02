@@ -1,0 +1,7 @@
+main() {
+    let a = "hello"
+    let b = "world"
+    print(a + " " + b)
+    let x = 42
+    print("value = " + x.toString())
+}

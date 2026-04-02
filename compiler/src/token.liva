@@ -219,7 +219,7 @@ lookupKeyword(name: string): TokenKind? {
 // ── tokenKindName ─────────────────────────────────────────────────────
 // Debug name for error messages.
 
-tokenKindName(kind: TokenKind): string => switch kind {
+tokenKindName(kind: TokenKind): string { return switch kind {
     TokenKind.KwLet       => "let",
     TokenKind.KwConst     => "const",
     TokenKind.KwImport    => "import",
@@ -305,7 +305,7 @@ tokenKindName(kind: TokenKind): string => switch kind {
     TokenKind.Underscore  => "_",
     TokenKind.EOF         => "<EOF>",
     _                     => "<token>"
-}
+} }
 
 main() {
     print("token module")
