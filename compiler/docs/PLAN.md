@@ -261,6 +261,30 @@ Also: added `usesHttpClient` detection + `reqwest` to Cargo.toml generator.
 > **Fixtures:** 12 nuevos archivos .liva + 1 helper module (import_helper)
 > **Untestable:** E0005, E0006-E0007, E0301, E0602, E4008-E4009 (parser/check limitations)
 
+### 6.7 — AST caching: eliminar re-parseos redundantes
+
+> **Objetivo:** Parsear cada módulo 1 sola vez después del BFS (actualmente 4)
+> **Esfuerzo:** Bajo — refactor de `compileMultiFile()` en main.liva
+> **Prioridad:** 🟡 MEDIA — mejora rendimiento en proyectos multi-archivo
+
+Problema actual en `compileMultiFile()`:
+```
+BFS:     tokenize + parse (extrae imports)        → 1 parse/módulo ✓
+Pass 1a: tokenize + parse + OTRO tokenize + parse  → 2 parses/módulo ✗
+Pass 1b: tokenize + parse (enum fields)            → 1 parse/módulo ✗
+Pass 2:  usa copias de Pass 1a                     → 0 parses ✓
+                                            TOTAL:  4 parses/módulo
+```
+
+Optimización: unificar Pass 1a + 1b en un solo loop que parsea una vez,
+recolecta enum info, y cachea copias del Program para Pass 2.
+```
+BFS:     tokenize + parse              → 1 parse/módulo ✓
+Unified: tokenize + parse → enums + cache → 1 parse/módulo ✓
+Pass 2:  usa copias cacheadas          → 0 parses ✓
+                                 TOTAL: 2 parses/módulo (4x → 2x)
+```
+
 ---
 
 ## Orden de ejecución recomendado
@@ -313,6 +337,7 @@ Fase 6: Madurez
   [x] 6.4: Stdlib faltante (File ext, Dir ext, Process ext, Sys ext, Config, CSV, JSON, DB, Server, Http, Response)
   [x] 6.5: Eliminar rust {} de tests
   [x] 6.6: Error codes cobertura completa (26/42+ codes, 12 nuevos)
+  [ ] 6.7: AST caching — eliminar re-parseos redundantes (4x → 2x)
 ```
 
 ---

@@ -287,24 +287,18 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
         return CompilationResult(errors.length == 0, "", "", errors, moduleFiles)
     }
 
-    // Step 3: Two-pass compilation
-    // Pass 1a: Collect all enum type names (for boxing detection)
+    // Step 3: Two-pass compilation with AST caching
+    // Pass 1: Single parse per module — collect enum names + fields + cache ASTs
+    //
+    // Sub-pass A: collect all enum type names (needed for boxing detection)
     let allEnumNames: [string] = []
-    let parsedModules: Map<string, [Program]> = Map {}
 
     for modPath in compileOrder {
         let mod: LivaModule = resolver.getModule(modPath)
         let modSrc = $"{mod.source}"
         let modTokens = tokenize(modSrc)
         let modProgram = parse(modTokens, modSrc)
-        let modProgramCopy1 = modProgram
-        let modProgramCopy2 = modProgram
-        let modProgramCopy3 = modProgram
-        parsedModules.set(modPath, [modProgramCopy1, modProgramCopy2, modProgramCopy3])
-        // Collect enum names from a fresh program parse
-        let modTokensE = tokenize($"{modSrc}")
-        let enumProgram = parse(modTokensE, $"{modSrc}")
-        for item in enumProgram.items {
+        for item in modProgram.items {
             let _ = switch item {
                 TopLevel.Enum(decl) => {
                     allEnumNames.push(decl.name)
@@ -315,16 +309,19 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
         }
     }
 
-    // Pass 1b: Collect field names, boxing info, and optional info
+    // Sub-pass B: collect enum fields (with boxing info) + cache 3 AST copies per module
     let allEnumFields: Map<string, [string]> = Map {}
     let allEnumFieldBoxed: Map<string, [bool]> = Map {}
     let allEnumFieldOptional: Map<string, [bool]> = Map {}
+    let parsedModules: Map<string, [Program]> = Map {}
 
     for modPath in compileOrder {
         let mod2: LivaModule = resolver.getModule(modPath)
         let modSrc2 = $"{mod2.source}"
         let modTokens2 = tokenize(modSrc2)
         let modProgram2 = parse(modTokens2, modSrc2)
+
+        // Extract enum field info from this parse
         for item in modProgram2.items {
             let _ = switch item {
                 TopLevel.Enum(decl) => {
@@ -336,7 +333,6 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
                         let fieldOptional: [bool] = []
                         for f in v.fields {
                             fieldNames.push(sanitizeFieldName(f.name))
-                            // Check boxing and optional in a single switch
                             let isBoxed = false
                             let isOpt = false
                             let _ = switch f.typeRef {
@@ -361,6 +357,12 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
                 _ => { 0 }
             }
         }
+
+        // Cache 3 copies of the program for Pass 2 (semantic, liveness, codegen)
+        let copy1 = modProgram2
+        let copy2 = modProgram2
+        let copy3 = modProgram2
+        parsedModules.set(modPath, [copy1, copy2, copy3])
     }
 
     // Pass 2: Generate Rust for each module with all enum fields available
