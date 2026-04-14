@@ -2,24 +2,32 @@
 // Uses Process.exec to invoke livac check/lint and capture output
 import { describe, test, expect } from "liva/test"
 
+// Resolve project root: env var or pwd-based fallback
+_resolveBase(): string {
+    let envBase = Sys.env("LIVAC_PROJECT_ROOT")
+    if envBase.length > 0 { return envBase }
+    let pwd = Sys.env("PWD")
+    return pwd.replace("/target/liva_test", "").replace("/target/liva_build", "").trim()
+}
+
 // Helper: Run livac check on an error file and return combined output
 checkError(filename: string): string {
-    let base = rust { std::env::var("LIVAC_PROJECT_ROOT").unwrap_or_else(|_| env!("CARGO_MANIFEST_DIR").replace("/target/liva_test", "").replace("/target/liva_build", "").to_string()) }
+    let base = _resolveBase()
     let livac = $"{base}/target/release/livac"
     let file = $"{base}/compiler/tests/liva/errors/{filename}"
     let cmd = $"{livac} check {file} 2>&1"
-    let result = Process.exec(cmd) or ""
-    return result
+    let output = Process.exec(cmd) or ""
+    return output
 }
 
 // Helper: Run livac lint on a file and return combined output
 lintFile(filename: string): string {
-    let base = rust { std::env::var("LIVAC_PROJECT_ROOT").unwrap_or_else(|_| env!("CARGO_MANIFEST_DIR").replace("/target/liva_test", "").replace("/target/liva_build", "").to_string()) }
+    let base = _resolveBase()
     let livac = $"{base}/target/release/livac"
     let file = $"{base}/compiler/tests/liva/errors/{filename}"
     let cmd = $"{livac} lint {file} 2>&1"
-    let result = Process.exec(cmd) or ""
-    return result
+    let output = Process.exec(cmd) or ""
+    return output
 }
 
 describe("Error Detection", () => {

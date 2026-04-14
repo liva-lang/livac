@@ -3,14 +3,22 @@
 // We verify ALL server API patterns compile correctly with livac check
 import { describe, test, expect } from "liva/test"
 
+// Resolve project root: env var or pwd-based fallback
+_resolveBase(): string {
+    let envBase = Sys.env("LIVAC_PROJECT_ROOT")
+    if envBase.length > 0 { return envBase }
+    let pwd = Sys.env("PWD")
+    return pwd.replace("/target/liva_test", "").replace("/target/liva_build", "").trim()
+}
+
 // Helper: Run livac check on the fixture file
 checkFixture(): string {
-    let base = rust { std::env::var("LIVAC_PROJECT_ROOT").unwrap_or_else(|_| env!("CARGO_MANIFEST_DIR").replace("/target/liva_test", "").replace("/target/liva_build", "").to_string()) }
+    let base = _resolveBase()
     let livac = $"{base}/target/release/livac"
     let file = $"{base}/compiler/tests/liva/stdlib-io/http_server_fixture.liva"
     let cmd = $"{livac} check {file} 2>&1"
-    let result = Process.exec(cmd) or "EXEC_FAILED"
-    return result
+    let output = Process.exec(cmd) or ""
+    return output
 }
 
 describe("HTTP Server Compile-Only", () => {
