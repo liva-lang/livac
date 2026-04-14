@@ -8,7 +8,7 @@
 //   lambda → range/ternary → or → and → equality → comparison →
 //   term (+,-) → factor (*,/,%) → unary → call/postfix → primary
 
-import { TokenKind, Token, lookupKeyword, tokenKindName } from "./token.liva"
+import { TokenKind, Token, lookupKeyword, tokenKindName } from "./token"
 import {
     Program, TopLevel, ImportDecl, UseRustDecl, TypeAliasDecl,
     ClassDecl, EnumDecl, EnumVariant, EnumField, FunctionDecl,
@@ -22,7 +22,7 @@ import {
     SwitchArm, SwitchArmBody,
     Pattern, StringTemplatePart,
     Literal, BinOp, UnOp
-} from "./ast.liva"
+} from "./ast"
 
 // ─────────────────────────────────────────────────────────────────────
 // Parser state
@@ -2310,7 +2310,7 @@ _normalizeTemplateStrings(input: string): string {
 // ─────────────────────────────────────────────────────────────────────
 
 // Need to import Lexer for template expression parsing
-import { Lexer } from "./lexer.liva"
+import { Lexer } from "./lexer"
 
 parse(tokens: [Token], source: string): Program {
     let parser = Parser(tokens, source)

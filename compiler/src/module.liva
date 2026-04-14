@@ -15,10 +15,10 @@
 
 import {
     TopLevel, ImportDecl, Program
-} from "./ast.liva"
+} from "./ast"
 import {
     Token
-} from "./token.liva"
+} from "./token"
 
 // =====================================================================
 //  LivaModule — represents a single .liva source file

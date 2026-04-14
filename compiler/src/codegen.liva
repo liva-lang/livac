@@ -20,7 +20,7 @@
 //   - W-005: option_value_vars leak — use unique param names for Optional
 //   - W-006: No bare return after => — use { return } blocks
 
-import { TokenKind, Token } from "./token.liva"
+import { TokenKind, Token } from "./token"
 import {
     TypeRef, Expr, Stmt, BlockStmt, TopLevel, Program,
     FunctionDecl, ClassDecl, EnumDecl, EnumVariant, EnumField,
@@ -31,15 +31,15 @@ import {
     SwitchArm, SwitchArmBody, Pattern, Literal, BinOp, UnOp,
     ExecPolicy, TypeParameter, TypeAliasDecl, ObjField, MapEntry,
     StringTemplatePart, ImportDecl, CaseClause
-} from "./ast.liva"
+} from "./ast"
 import {
     TypeContext, SemanticAnalyzer, FunctionSig, ParamSig,
     ClassInfo, FieldInfo, EnumInfo, VariantInfo, EnumFieldInfo,
     TypeAliasInfo, Symbol, SymbolKind, DiagnosticLevel, Diagnostic
-} from "./semantic.liva"
+} from "./semantic"
 import {
     LivenessContext, isCopyTypeName
-} from "./liveness.liva"
+} from "./liveness"
 
 // =====================================================================
 //  RustEmitter — accumulates Rust source code with indent management

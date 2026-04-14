@@ -23,18 +23,18 @@
 //   - W-001: No return inside switch arm blocks
 //   - W-002: Variable name collisions across switch arms
 
-import { TokenKind, Token, lookupKeyword, tokenKindName } from "./token.liva"
+import { TokenKind, Token, lookupKeyword, tokenKindName } from "./token"
 import {
     TypeRef, Expr, Stmt, BlockStmt, TopLevel, Program,
     FunctionDecl, ClassDecl, EnumDecl, Param,
     ImportDecl
-} from "./ast.liva"
-import { Lexer, tokenize } from "./lexer.liva"
-import { Parser, parse } from "./parser.liva"
-import { SemanticAnalyzer, TypeContext, analyzeProgram } from "./semantic.liva"
-import { LivenessAnalyzer, LivenessContext, analyzeLiveness } from "./liveness.liva"
-import { RustEmitter, generateRust, generateModuleRust, sanitizeFieldName } from "./codegen.liva"
-import { ModuleResolver, LivaModule } from "./module.liva"
+} from "./ast"
+import { Lexer, tokenize } from "./lexer"
+import { Parser, parse } from "./parser"
+import { SemanticAnalyzer, TypeContext, analyzeProgram } from "./semantic"
+import { LivenessAnalyzer, LivenessContext, analyzeLiveness } from "./liveness"
+import { RustEmitter, generateRust, generateModuleRust, sanitizeFieldName } from "./codegen"
+import { ModuleResolver, LivaModule } from "./module"
 
 // =====================================================================
 //  CLI Argument Parsing

@@ -25,7 +25,7 @@
 //     (avoids double Some() wrapping from constructor arg rewriting)
 //   - Helper methods for passing Optional values to non-Optional params
 
-import { TokenKind, Token } from "./token.liva"
+import { TokenKind, Token } from "./token"
 import {
     TypeRef, Expr, Stmt, BlockStmt, TopLevel, Program,
     FunctionDecl, ClassDecl, EnumDecl, EnumVariant, EnumField,
@@ -35,7 +35,7 @@ import {
     LambdaExpr, LambdaParam, LambdaBody, BindingPattern,
     SwitchArm, Pattern, Literal, BinOp, UnOp, ExecPolicy,
     TypeParameter, TypeAliasDecl, ObjField, ImportDecl
-} from "./ast.liva"
+} from "./ast"
 
 // =====================================================================
 //  Symbol -- what we know about a declared name

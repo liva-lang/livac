@@ -4,7 +4,7 @@
 // Replaces the logos-based lexer from src/lexer.rs with a manual scanner.
 // Scans source code character by character, producing Token values.
 
-import { TokenKind, Token, lookupKeyword } from "./token.liva"
+import { TokenKind, Token, lookupKeyword } from "./token"
 
 // ─────────────────────────────────────────────────────────────────────
 // Lexer state

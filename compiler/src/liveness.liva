@@ -40,7 +40,7 @@ import {
     IfStmt, IfBody, WhileStmt, ForStmt, SwitchStmt, TryCatchStmt,
     LambdaExpr, LambdaBody, BindingPattern,
     SwitchArm, SwitchArmBody, ObjField, MapEntry, StringTemplatePart
-} from "./ast.liva"
+} from "./ast"
 
 // =====================================================================
 //  LivenessContext — the output of liveness analysis

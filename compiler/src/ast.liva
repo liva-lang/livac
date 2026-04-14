@@ -5,7 +5,7 @@
 // Uses enums for sum types (Expr, Stmt, TypeRef, Pattern) and data classes
 // for product types (FunctionDecl, ClassDecl, etc.).
 
-import { TokenKind, Token } from "./token.liva"
+import { TokenKind, Token } from "./token"
 
 // =====================================================================
 //  Top-level declarations
