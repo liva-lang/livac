@@ -387,7 +387,7 @@ mod liva_rt {
 }
 
 fn main() {
-    let (output, err) = { let (opt, err) = { let __cmd = &"echo hello"; match std::process::Command::new("sh").arg("-c").arg(__cmd).output() { Ok(output) => { if output.status.success() { (Some(String::from_utf8_lossy(&output.stdout).trim().to_string()), String::new()) } else { let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string(); (None, if stderr.is_empty() { format!("Process.exec failed with exit code: {}", output.status) } else { stderr }) } }, Err(e) => (None, format!("Process.exec error: {}", e)) } }; (opt.unwrap_or_default(), err) };
+    let (output, err) = { let (opt, err) = { let __cmd = &"echo hello"; match std::process::Command::new("sh").arg("-c").arg(__cmd).output() { Ok(output) => { let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string(); let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string(); let combined = if !stdout.is_empty() && !stderr.is_empty() { format!("{}{}", stdout, stderr) } else if !stdout.is_empty() { stdout } else { stderr }; (Some(combined), String::new()) }, Err(e) => (None, format!("Process.exec error: {}", e)) } }; (opt.unwrap_or_default(), err) };
     if err == "" {
         println!("{}", output);
     }

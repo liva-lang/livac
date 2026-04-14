@@ -1,0 +1,98 @@
+// E2E Test: Class advanced — inheritance, method override, self methods
+import { describe, test, expect } from "liva/test"
+
+Animal {
+    name: string
+    sound: string
+
+    constructor(name: string, sound: string) {
+        this.name = name
+        this.sound = sound
+    }
+
+    speak(): string => $"{this.name} says {this.sound}"
+    getName(): string => this.name
+}
+
+// Class with computed method
+Calculator {
+    _history: [number]
+
+    constructor() {
+        this._history = []
+    }
+
+    add(a: number, b: number): number {
+        let result = a + b
+        return result
+    }
+
+    multiply(a: number, b: number): number {
+        let result = a * b
+        return result
+    }
+}
+
+// Class with multiple methods calling each other
+StringHelper {
+    prefix: string
+    suffix: string
+
+    constructor(prefix: string, suffix: string) {
+        this.prefix = prefix
+        this.suffix = suffix
+    }
+
+    wrap(s: string): string => $"{this.prefix}{s}{this.suffix}"
+    wrapBrackets(s: string): string => this.wrap($"[{s}]")
+}
+
+describe("Class with Constructor Methods", () => {
+    test("animal speak method", () => {
+        let cat = Animal("Cat", "meow")
+        expect(cat.speak()).toBe("Cat says meow")
+    })
+
+    test("animal getName", () => {
+        let dog = Animal("Dog", "woof")
+        expect(dog.getName()).toBe("Dog")
+    })
+
+    test("multiple animals", () => {
+        let cat = Animal("Cat", "meow")
+        let dog = Animal("Dog", "woof")
+        expect(cat.speak()).toContain("Cat")
+        expect(dog.speak()).toContain("Dog")
+    })
+})
+
+describe("Calculator Class", () => {
+    test("add method", () => {
+        let calc = Calculator()
+        expect(calc.add(3, 4)).toBe(7)
+    })
+
+    test("multiply method", () => {
+        let calc = Calculator()
+        expect(calc.multiply(5, 6)).toBe(30)
+    })
+
+    test("chained operations", () => {
+        let calc = Calculator()
+        let sum = calc.add(10, 20)
+        let product = calc.multiply(sum, 2)
+        expect(product).toBe(60)
+    })
+})
+
+describe("Method Calling Method", () => {
+    test("wrap basic", () => {
+        let h = StringHelper("<", ">")
+        expect(h.wrap("hello")).toBe("<hello>")
+    })
+
+    test("wrapBrackets calls wrap", () => {
+        let h = StringHelper("(", ")")
+        expect(h.wrapBrackets("test")).toBe("([test])")
+    })
+})

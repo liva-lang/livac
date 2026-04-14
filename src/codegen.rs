@@ -4418,7 +4418,7 @@ impl CodeGenerator {
         // Handle fallibility - wrap return type in Result if function contains fail
         let return_type = if func.contains_fail {
             if let Some(ret) = &func.return_type {
-                format!(" -> Result<{}, liva_rt::Error>", ret.to_rust_type())
+                format!(" -> Result<{}, liva_rt::Error>", self.expand_type_alias(ret))
             } else if let Some(expr) = &func.expr_body {
                 let inner_type = self
                     .infer_expr_type(expr, None)
@@ -4431,7 +4431,7 @@ impl CodeGenerator {
             }
         } else {
             if let Some(ret) = &func.return_type {
-                format!(" -> {}", ret.to_rust_type())
+                format!(" -> {}", self.expand_type_alias(ret))
             } else if let Some(expr) = &func.expr_body {
                 // For expression-bodied functions without explicit return type, infer from the expression
                 self.infer_expr_type(expr, None)
@@ -5151,7 +5151,7 @@ impl CodeGenerator {
             };
 
             let type_str = if let Some(type_ref) = &param.type_ref {
-                let rust_type = type_ref.to_rust_type();
+                let rust_type = self.expand_type_alias(type_ref);
 
                 // Register parameter as class instance if its type is a known class
                 if !param.is_destructuring() {
@@ -14589,7 +14589,7 @@ impl CodeGenerator {
                 }
                 self.output.push_str("{ let __cmd = &");
                 self.generate_expr(&method_call.args[0])?;
-                self.output.push_str("; match std::process::Command::new(\"sh\").arg(\"-c\").arg(__cmd).output() { Ok(output) => { if output.status.success() { (Some(String::from_utf8_lossy(&output.stdout).trim().to_string()), String::new()) } else { let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string(); (None, if stderr.is_empty() { format!(\"Process.exec failed with exit code: {}\", output.status) } else { stderr }) } }, Err(e) => (None, format!(\"Process.exec error: {}\", e)) } }");
+                self.output.push_str("; match std::process::Command::new(\"sh\").arg(\"-c\").arg(__cmd).output() { Ok(output) => { let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string(); let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string(); let combined = if !stdout.is_empty() && !stderr.is_empty() { format!(\"{}{}\", stdout, stderr) } else if !stdout.is_empty() { stdout } else { stderr }; (Some(combined), String::new()) }, Err(e) => (None, format!(\"Process.exec error: {}\", e)) } }");
             }
             "spawn" => {
                 // Process.spawn(cmd) → (Option<i64>, String) — fallible, returns PID

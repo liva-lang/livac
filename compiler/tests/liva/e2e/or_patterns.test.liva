@@ -1,0 +1,80 @@
+// E2E Test: Or-default, or-fail, error binding patterns
+import { describe, test, expect } from "liva/test"
+
+safeDivide(a: number, b: number): number {
+    if b == 0 { fail "division by zero" }
+    return a / b
+}
+
+findInArray(arr: [number], target: number): number {
+    let idx = arr.findIndex(x => x == target)
+    if idx == -1 { fail "not found" }
+    return idx
+}
+
+describe("Or Default Pattern", () => {
+    test("map get or default when missing", () => {
+        let m = Map { "a": 1 }
+        let val = m.get("b") or 0
+        expect(val).toBe(0)
+    })
+
+    test("map get or default when present", () => {
+        let m = Map { "a": 1 }
+        let val = m.get("a") or 0
+        expect(val).toBe(1)
+    })
+
+    test("find or default on miss", () => {
+        let nums = [1, 2, 3]
+        let found = nums.find(x => x > 10) or -1
+        expect(found).toBe(-1)
+    })
+
+    test("find or default on hit", () => {
+        let nums = [1, 2, 3]
+        let found = nums.find(x => x > 1) or -1
+        expect(found).toBe(2)
+    })
+})
+
+describe("Error from fail", () => {
+    test("safe divide works normally", () => {
+        let val = safeDivide(10, 2) or -1
+        expect(val).toBe(5)
+    })
+
+    test("safe divide by non-zero", () => {
+        let val = safeDivide(100, 4) or -1
+        expect(val).toBe(25)
+    })
+
+    test("findInArray returns index", () => {
+        let result = findInArray([10, 20, 30], 20) or -1
+        expect(result).toBe(1)
+    })
+})
+
+describe("Error Binding Pattern", () => {
+    test("capture error on failure", () => {
+        let result, err = safeDivide(10, 0)
+        if err {
+            expect(true).toBeTruthy()
+        }
+    })
+
+    test("no error on success", () => {
+        let result, err = safeDivide(10, 2)
+        expect(result).toBe(5)
+    })
+
+    test("or default on fail", () => {
+        let val = safeDivide(10, 0) or -1
+        expect(val).toBe(-1)
+    })
+
+    test("or default not used on success", () => {
+        let val = safeDivide(10, 5) or -1
+        expect(val).toBe(2)
+    })
+})

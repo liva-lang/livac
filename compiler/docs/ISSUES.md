@@ -1,202 +1,131 @@
-# Issues — Self-Hosting v4
+# Issues — Self-Hosting Compiler
 
-> Bugs, carencias del lenguaje y feature requests encontrados durante el self-hosting.  
-> Cada issue se documenta aquí para corregirlo después en el compilador Rust.
-
----
-
-<!-- Template:
-### ISSUE-NNN: Título descriptivo
-- **Tipo:** BUG | LANGUAGE_GAP | FEATURE_REQUEST
-- **Severidad:** BLOCKER | HIGH | LOW
-- **Descripción:** Qué pasa
-- **Código que falla:**
-```liva
-// snippet
-```
-- **Error:** mensaje de error o comportamiento incorrecto
-- **Workaround:** si existe
-- **Estado:** OPEN | FIXED | WONTFIX
--->
-
-(Ningún issue registrado todavía — se irán añadiendo durante el desarrollo)
+> Bugs, limitaciones y feature requests encontrados durante el self-hosting.  
+> **Última actualización:** 2026-04-14
 
 ---
 
-### ISSUE-001: `let x: T? = nonOptionalValue` no genera `Some(value)`
-- **Tipo:** BUG
-- **Severidad:** HIGH
-- **Descripción:** Cuando se declara una variable opcional y se asigna un valor no-opcional directamente, el codegen Rust genera `let x: Option<T> = value;` en lugar de `let x: Option<T> = Some(value);`
-- **Código que falla:**
-```liva
-let exprBodyOpt: Expr? = exprBody  // exprBody es Expr, no Expr?
-```
-- **Error:** `E0308: expected Option<Expr>, found Expr`
-- **Workaround:** Usar patrón de dos pasos:
-```liva
-let exprBodyOpt: Expr? = null   // genera Option<Expr> = None;
-exprBodyOpt = exprBody           // genera expr_body_opt = Some(expr_body);
-```
-- **Estado:** ✅ FIXED (generates `Some(value)` in VarDecl for T? types)
+## Resumen
+
+| Estado | Cantidad |
+|--------|----------|
+| ✅ FIXED | 8 |
+| 🔴 OPEN (bugs codegen) | 5 (RC2, RC3, RC6, RC7, RC9) |
+| 🟡 OPEN (language gaps) | 4 (ISSUE-005, 006, 007, 009) |
+| ⚠️ ARCH | 3 (dispatch tables, error propagation, generic fallback) |
 
 ---
 
-### ISSUE-002: Reassignment de variable enum genera `Some(Variant {...})` en lugar de `Variant {...}`
-- **Tipo:** BUG
-- **Severidad:** HIGH
-- **Descripción:** Al reasignar una variable enum con un variant diferente, el codegen envuelve el nuevo variant en `Some()`, generando código Rust inválido.
-- **Código que falla:**
-```liva
-let base: TypeRef = TypeRef.Named("", [])
-if someCondition {
-    base = TypeRef.Array(innerType)  // genera Some(TypeRef::Array {...})
-}
-```
-- **Error:** `E0308: mismatched types — expected TypeRef, found Option<TypeRef>`
-- **Workaround:** Usar `return` temprano en lugar de reasignación:
-```liva
-if someCondition { return TypeRef.Array(innerType) }
-return TypeRef.Named("", [])
-```
-- **Estado:** ✅ FIXED (could not reproduce — codegen already handles correctly)
+## Issues del bootstrap (compilador Rust → compilando Liva)
+
+### ISSUE-001: `let x: T? = nonOptionalValue` no genera `Some(value)` — ✅ FIXED
+- **Tipo:** BUG — **Severidad:** HIGH
+- **Fix:** Generates `Some(value)` in VarDecl for T? types
+
+### ISSUE-002: Reassignment de variable enum genera `Some(Variant{})` — ✅ FIXED
+- **Tipo:** BUG — **Severidad:** HIGH
+- **Fix:** Could not reproduce — codegen already handles correctly
+
+### ISSUE-003: `switch expr` consume la variable (Rust move semantics) — ✅ FIXED
+- **Tipo:** LANGUAGE_GAP — **Severidad:** BLOCKER
+- **Fix:** Generates `match &variable` for enum data switches
+
+### ISSUE-004: Parámetros de función toman ownership (no borrow) — ✅ FIXED
+- **Tipo:** LANGUAGE_GAP — **Severidad:** HIGH
+- **Fix:** Clone at call site for non-Copy types (enum/class/string/etc.)
+
+### ISSUE-005: Field access de cross-module types genera `.get_field("name")` — 🟡 OPEN
+- **Tipo:** BUG — **Severidad:** HIGH
+- **Descripción:** Acceder a campos de tipos definidos en otro módulo genera `.get_field("name")` en vez de `.name`
+- **Workaround:** Acceder al campo vía la fuente directa: `this.tokens[this.current].line`
+
+### ISSUE-006: Enum Optional field en constructores genera `Some(Some(..))` — 🟡 OPEN
+- **Tipo:** BUG — **Severidad:** MEDIUM
+- **Descripción:** Cuando un enum variant tiene campo `T?` y se pasa `T?`, genera `Some(variable)` → `Some(Option<T>)`
+- **Workaround:** Cambiar campo de `T?` a `T` con sentinel value
+
+### ISSUE-007: `string` push a `[string?]` no genera `Some()` wrapping — 🟡 OPEN
+- **Tipo:** BUG — **Severidad:** MEDIUM
+- **Descripción:** `push(stringValue)` en `[string?]` no wrappea en `Some()`
+- **Workaround:** Usar variable intermedia con tipo explícito
+
+### ISSUE-008: Switch expression con valor reutilizado — ✅ FIXED
+- **Tipo:** LANGUAGE_GAP — **Severidad:** MEDIUM
+- **Fix:** Resolved by ISSUE-001 + ISSUE-003 fixes
+
+### ISSUE-009: Constructor field order importa para move semantics — 🟡 OPEN
+- **Tipo:** LANGUAGE_GAP — **Severidad:** MEDIUM
+- **Descripción:** Operaciones como `source.chars()` consumen `source` por move. El orden de asignación de campos importa.
+- **Workaround:** Reordenar campos manualmente
+
+### ISSUE-010: `default` como nombre de campo colisiona con keyword Rust — ✅ FIXED
+- **Tipo:** BUG — **Severidad:** LOW
+- **Workaround aplicado:** Renombrado a `defaultVal` en ast.liva
 
 ---
 
-### ISSUE-003: `switch expr` consume la variable (Rust move semantics)
-- **Tipo:** LANGUAGE_GAP
-- **Severidad:** BLOCKER
-- **Descripción:** Todo `switch variable { ... }` genera un `match variable { ... }` en Rust que toma ownership del valor. Después del switch, la variable está "moved" y no se puede usar. El arm `default:` no bind el valor original (genera `_ => {}`), por lo que el valor se pierde incluso en el arm por defecto.
-- **Código que falla:**
-```liva
-let typeName = switch expr { Expr.Identifier(n) => n, _ => "" }
-// expr ya no es usable aquí - fue consumida por el match
-expr = Expr.MapLiteral(entries)  // Error: expr was moved
-```
-- **Error:** `E0382: use of moved value`
-- **Workaround:** Múltiples estrategias:
-  1. Extraer info sin switch (usar tokens/índices en vez de pattern matching sobre AST)
-  2. Switch statement (no expression) donde TODOS los arms tienen return
-  3. Pasar el valor a una función helper que lo consume en un único switch
-  4. Trackear info adicional (bool flags, token indices) para evitar switches
-- **Estado:** ✅ FIXED (generates `match &variable` for enum data switches)
+## Root Cause bugs del codegen self-hosted (codegen.liva)
+
+> Estos son bugs en el codegen del compilador self-hosted, no del bootstrap.
+> Se detectaron al escribir la Test Suite (Fase 5).
+
+### RC2: `toBeTruthy`/`toBeFalsy` en `Option<T>` — 🔴 OPEN
+- **Severidad:** MEDIA
+- **Descripción:** Las assertions `expect(x).toBeTruthy()` y `.toBeFalsy()` generan `assert!({actual})` / `assert!(!({actual}))`. Funciona para `bool`, pero para `Option<T>` debería generar `.is_some()` / `.is_none()`.
+- **Ubicación:** `codegen.liva` ~L2928-2932
+- **Fix propuesto:** Detectar tipo Option en `_tryEmitExpectChain()` y generar `.is_some()`/`.is_none()`
+- **Esfuerzo:** Bajo (~10 líneas)
+
+### RC3: `self.field.clone().push(x)` muta el clon — 🔴 OPEN
+- **Severidad:** ALTA
+- **Descripción:** Todo acceso a `self.field` genera `.clone()` (L4547). Esto significa que `self.items.push(x)` realmente empuja al clon, no al campo original.
+- **Fix propuesto:** Detección de lvalue — si el method call muta (push, pop, insert, remove, clear), no clonar `self`.
+- **Esfuerzo:** Medio (~30 líneas, necesita lista de métodos mutadores)
+
+### RC6: `.par()` no implementado — 🔴 OPEN
+- **Severidad:** BAJA
+- **Descripción:** No hay dispatch para `.par()`. Debería generar `.par_iter()` (rayon).
+- **Fix propuesto:** Añadir case en `_emitMethodCall()` para `.par()` → `.par_iter()`
+- **Esfuerzo:** Bajo (~20 líneas)
+
+### RC7: `async fn` nunca se emite — 🔴 OPEN
+- **Severidad:** ALTA
+- **Descripción:** `UnOp.Await` (L2555) genera `.await` incondicionalmente, pero las funciones nunca se emiten como `async fn`. Todo código async/HTTP falla.
+- **Fix propuesto:** Tracking de funciones async + emitir `pub async fn` cuando corresponde. Requiere también `#[tokio::main]` en main.
+- **Esfuerzo:** Medio (~50 líneas)
+
+### RC9: `!(expr)` pierde paréntesis — 🔴 OPEN
+- **Severidad:** MEDIA
+- **Descripción:** `_emitUnary` para `UnOp.Not` (L2549) escribe `!` sin paréntesis. `!a == b` genera `!a == b` en vez de `!(a == b)`.
+- **Fix propuesto:** Añadir paréntesis para operandos que no sean simples (Identifier, Literal, MemberAccess).
+- **Esfuerzo:** Bajo (~5 líneas)
+
+### RCs corregidos
+
+| RC | Descripción | Estado |
+|----|-------------|--------|
+| RC1 | Map.get `or <value>` generaba `\|\|` en vez de `unwrap_or` | ✅ FIXED en codegen.liva L1494-1505 |
+| RC5 | `rust {}` multi-statement blocks | ✅ FIXED — lexer captura contenido completo |
+| RC8 | `const` con string generaba `to_string()` no-const | ✅ FIXED en codegen.liva L1275-1284 |
 
 ---
 
-### ISSUE-004: Parámetros de función toman ownership (no borrow)
-- **Tipo:** LANGUAGE_GAP
-- **Severidad:** HIGH
-- **Descripción:** Todos los parámetros de función en Liva se pasan by-value (move) en el código Rust generado. No hay forma de pasar por referencia. Esto significa que llamar `myFunc(value)` mueve `value` y no se puede usar después.
-- **Código que falla:**
-```liva
-let containsFail = this._exprContainsFail(exprBody)  // mueve exprBody
-exprBodyOpt = exprBody  // Error: value already moved
-```
-- **Error:** `E0382: use of moved value`
-- **Workaround:** Evitar funciones que inspeccionan valores. Usar token scanning u otras técnicas que no necesiten el valor AST:
-```liva
-let containsFail = this._rangeContainsFail(startPos, this.current)  // scan tokens instead
-```
-- **Estado:** ✅ FIXED (clone at call site for non-Copy types — enum/class/string/etc.)
+## Debilidades arquitectónicas
 
----
+### ARCH-001: Stdlib dispatch es if-else chain
+- **Impacto:** `_emitStringMethod()`, `_emitArrayMethod()`, `_emitGenericMethodCall()` son ~200 líneas cada uno de if-else. Añadir un método nuevo requiere encontrar el lugar correcto en la cadena.
+- **Fix propuesto:** Reemplazar con `Map<string, fn>` dispatch tables. Cada método es una entrada en un map.
+- **Esfuerzo:** Medio (refactor, no cambia comportamiento)
 
-### ISSUE-005: Field access de cross-module types genera `.get_field("name")`
-- **Tipo:** BUG
-- **Severidad:** HIGH
-- **Descripción:** Acceder a campos de tipos definidos en otro módulo genera `.get_field("name")` en vez del acceso directo `.name`. Esto causa E0599 ya que `get_field` no existe.
-- **Código que falla:**
-```liva
-let tok = this._peek()
-let line = tok.line  // genera tok.get_field("line") en vez de tok.line
-```
-- **Error:** `E0599: no method named get_field found`
-- **Workaround:** Acceder al campo vía la fuente directa:
-```liva
-let line = this.tokens[this.current].line  // acceso directo funciona
-```
-- **Estado:** OPEN
+### ARCH-002: `_emitGenericMethodCall()` duplica lógica
+- **Impacto:** Fallback para tipos desconocidos que duplica los métodos tipados. Si se arregla un bug en `_emitStringMethod()`, hay que arreglarlo también en `_emitGenericMethodCall()`.
+- **Fix propuesto:** Unificar — si tipo desconocido, intentar resolver primero; si imposible, emitir Rust directo (`.method(args)`) sin try-all-types.
+- **Esfuerzo:** Medio
 
----
-
-### ISSUE-006: Enum Optional field en constructores genera `Some(Some(..))`
-- **Tipo:** BUG
-- **Severidad:** MEDIUM
-- **Descripción:** Cuando un enum variant tiene un campo `T?` y se le pasa una variable `T?`, el codegen genera `Some(variable)` que crea `Some(Option<T>)` en lugar de solo pasar `variable` directamente.
-- **Código que falla:**
-```liva
-let rest: string? = null
-rest = this._parseIdentifier()
-return BindingPattern.ArrayPat(elements, rest)  // genera rest: Some(rest) → Some(Option<String>)
-```
-- **Error:** `E0308: expected String, found Option<String>`
-- **Workaround:** Cambiar el campo de `T?` a `T` con sentinel value (ej: `""` para strings).
-- **Estado:** OPEN
-
----
-
-### ISSUE-007: `string` push a `[string?]` no genera `Some()` wrapping
-- **Tipo:** BUG  
-- **Severidad:** MEDIUM
-- **Descripción:** Hacer `push(stringValue)` en un array declarado como `[string?]` no wrappea el valor en `Some()`.
-- **Código que falla:**
-```liva
-let elements: [string?] = []
-elements.push(this._parseIdentifier())  // expects Option<String>, got String
-```
-- **Error:** `E0308: expected Option<String>, found String`
-- **Workaround:** Usar variable intermedia:
-```liva
-let elemName: string? = null
-elemName = this._parseIdentifier()
-elements.push(elemName)
-```
-- **Estado:** OPEN
-
----
-
-### ISSUE-008: Switch expression con valor reutilizado requiere switch duplicado
-- **Tipo:** LANGUAGE_GAP
-- **Severidad:** MEDIUM
-- **Descripción:** Cuando necesitas el resultado de un switch expression como dos tipos distintos (ej: `BinOp` para `Expr.Binary` y `BinOp?` para `AssignStmt.op`), no puedes reusar la variable porque el switch la consume (ISSUE-003) y no puedes hacer `let x: T? = y` (ISSUE-001). Se necesitan dos switches idénticos.
-- **Código que falla:**
-```liva
-let op = switch this.tokens[compoundIdx].kind {
-    TokenKind.PlusAssign => BinOp.Add, ...
-}
-let opForStmt: BinOp? = null
-opForStmt = switch this.tokens[compoundIdx].kind {  // switch duplicado idéntico
-    TokenKind.PlusAssign => BinOp.Add, ...
-}
-```
-- **Causa raíz:** Combinación de ISSUE-001 + ISSUE-003.
-- **Workaround:** Duplicar el switch.
-- **Estado:** ✅ FIXED — resolved by ISSUE-001 + ISSUE-003 fixes.
-
----
-
-### ISSUE-009: Constructor field order importa para move semantics
-- **Tipo:** LANGUAGE_GAP
-- **Severidad:** MEDIUM
-- **Descripción:** En constructores, el orden de asignación de campos importa porque operaciones como `source.chars()` consumen `source` por move. Si `this.source = source` va después de `this.chars = source.chars()`, el Rust generado falla con E0382.
-- **Código que falla:**
-```liva
-constructor(source: string) {
-    this.source = source         // Si va después de chars → ERROR
-    this.chars = source.chars()  // Consume source por move
-}
-```
-- **Error:** `E0382: use of moved value: source`
-- **Workaround:** Reordenar campos manualmente para que el uso que consume vaya último.
-- **Estado:** OPEN — fix futuro: análisis de dependencias en constructor.
-
----
-
-### ISSUE-010: `default` como nombre de campo colisiona con keyword Rust
-- **Tipo:** BUG
-- **Severidad:** LOW
-- **Descripción:** El campo `default` de `Param` (para valores por defecto) es keyword de Rust. El sanitizer de nombres (`sanitize_name`) no lo cubre en todos los contextos (struct fields, pattern bindings).
-- **Workaround:** Renombrar a `defaultVal` en ast.liva.
-- **Estado:** OPEN
+### ARCH-003: Sin error propagation en codegen
+- **Impacto:** Codegen escribe `/* unknown */` o `todo!()` para casos no manejados. Los errores los detecta el compilador Rust downstream, no Liva.
+- **Fix propuesto:** Acumular errores en `[Diagnostic]` y reportarlos con ubicación. El usuario ve qué feature de Liva no se pudo compilar.
+- **Esfuerzo:** Medio
 
 ---
 

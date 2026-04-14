@@ -1,0 +1,79 @@
+// E2E Test: Higher-order functions — lambdas, chaining, function refs
+import { describe, test, expect } from "liva/test"
+
+double(x: number): number => x * 2
+triple(x: number): number => x * 3
+isPositive(x: number): bool => x > 0
+
+describe("Lambda Expressions", () => {
+    test("map with lambda", () => {
+        let result = [1, 2, 3].map(x => x * 10)
+        expect(result.length).toBe(3)
+    })
+
+    test("reduce with lambda", () => {
+        let sum = [1, 2, 3, 4].reduce(0, (acc, x) => acc + x)
+        expect(sum).toBe(10)
+    })
+
+    test("filter with lambda", () => {
+        let evens = [1, 2, 3, 4, 5, 6].filter(x => x % 2 == 0)
+        expect(evens.length).toBe(3)
+    })
+
+    test("find with lambda", () => {
+        let found = [10, 20, 30].find(x => x > 15) or -1
+        expect(found).toBe(20)
+    })
+
+    test("some with lambda", () => {
+        expect([1, 2, 3].some(x => x > 2)).toBe(true)
+    })
+
+    test("every with lambda", () => {
+        expect([2, 4, 6].every(x => x % 2 == 0)).toBe(true)
+    })
+})
+
+describe("Chained Operations", () => {
+    test("map then filter", () => {
+        let result = [1, 2, 3, 4, 5]
+            .map(x => x * 2)
+            .filter(x => x > 4)
+        expect(result.length).toBe(3)
+    })
+
+    test("filter then map", () => {
+        let result = [1, 2, 3, 4, 5]
+            .filter(x => x > 2)
+            .map(x => x * 10)
+        expect(result.length).toBe(3)
+    })
+
+    test("filter then reduce", () => {
+        let sum = [1, 2, 3, 4, 5]
+            .filter(x => x % 2 == 0)
+            .reduce(0, (acc, x) => acc + x)
+        expect(sum).toBe(6)
+    })
+})
+
+describe("Named Function References", () => {
+    test("pass function to map", () => {
+        let nums = [1, 2, 3]
+        let results = nums.map(double)
+        expect(results.length).toBe(3)
+    })
+
+    test("pass function to filter", () => {
+        let nums = [-1, 2, -3, 4]
+        let pos = nums.filter(isPositive)
+        expect(pos.length).toBe(2)
+    })
+
+    test("triple as function ref", () => {
+        let nums = [1, 2, 3]
+        let tripled = nums.map(triple)
+        expect(tripled.length).toBe(3)
+    })
+})

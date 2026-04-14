@@ -1,0 +1,54 @@
+// Stdlib Test: Extended date methods
+import { describe, test, expect } from "liva/test"
+
+describe("Date Creation", () => {
+    test("Date.now returns a date", () => {
+        let d = Date.now()
+        let year = d.year
+        expect(year).toBeGreaterThan(2025)
+    })
+
+    test("Date.new creates specific date", () => {
+        let d = Date.new(2026, 4, 14)
+        expect(d.year).toBe(2026)
+        expect(d.month).toBe(4)
+        expect(d.day).toBe(14)
+    })
+})
+
+describe("Date Format", () => {
+    test("format with pattern", () => {
+        let d = Date.new(2026, 1, 15)
+        let formatted = d.format("%Y-%m-%d")
+        expect(formatted).toBe("2026-01-15")
+    })
+})
+
+describe("Date Properties", () => {
+    test("hour minute second default to zero", () => {
+        let d = Date.new(2026, 6, 15)
+        expect(d.hour).toBe(0)
+        expect(d.minute).toBe(0)
+        expect(d.second).toBe(0)
+    })
+})
+
+describe("Date Arithmetic", () => {
+    test("add days", () => {
+        let d = Date.new(2026, 1, 1)
+        let d2 = d.add(10, "days")
+        expect(d2.day).toBe(11)
+    })
+
+    test("diff in days is non-zero", () => {
+        let d1 = Date.new(2026, 1, 1)
+        let d2 = Date.new(2026, 1, 11)
+        let diff = d1.diff(d2, "days")
+        // diff might be positive or negative depending on direction
+        if diff > 0 {
+            expect(diff).toBe(10)
+        } else {
+            expect(diff).toBe(-10)
+        }
+    })
+})

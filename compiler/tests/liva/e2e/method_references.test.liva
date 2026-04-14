@@ -1,0 +1,40 @@
+// E2E Test: Method references — :: syntax, instance method refs as callbacks
+// NOTE: :: method refs may have codegen issues (missing main). 
+// Testing basic forms that compile.
+import { describe, test, expect } from "liva/test"
+
+Formatter {
+    prefix: string
+
+    constructor(prefix: string) {
+        this.prefix = prefix
+    }
+
+    format(s: string): string => $"{this.prefix}: {s}"
+}
+
+describe("Instance Method Direct Call", () => {
+    test("format method works", () => {
+        let fmt = Formatter("Hello")
+        expect(fmt.format("Alice")).toBe("Hello: Alice")
+    })
+
+    test("different prefix", () => {
+        let fmt = Formatter("Hi")
+        expect(fmt.format("Bob")).toBe("Hi: Bob")
+    })
+
+    test("empty prefix", () => {
+        let fmt = Formatter("")
+        expect(fmt.format("Test")).toBe(": Test")
+    })
+})
+
+describe("Map with Lambda Calling Method", () => {
+    test("lambda wrapping method call", () => {
+        let fmt = Formatter("Greet")
+        let names = ["Alice", "Bob", "Carol"]
+        let greetings = names.map(n => fmt.format(n))
+        expect(greetings.length).toBe(3)
+    })
+})

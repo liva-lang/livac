@@ -1,0 +1,82 @@
+// E2E Test: Enum with wildcard, return types, and complex patterns
+import { describe, test, expect } from "liva/test"
+
+enum Result {
+    Ok(value: number),
+    Err(message: string)
+}
+
+enum Direction { North, South, East, West }
+
+isHorizontal(d: Direction): bool {
+    return switch d {
+        Direction.East => true,
+        Direction.West => true,
+        _ => false
+    }
+}
+
+getMessage(r: Result): string {
+    return switch r {
+        Result.Ok(v) => $"success: {v}",
+        Result.Err(m) => $"error: {m}"
+    }
+}
+
+getValue(r: Result): number {
+    return switch r {
+        Result.Ok(v) => v,
+        Result.Err(_) => -1
+    }
+}
+
+describe("Enum as Return Type", () => {
+    test("Ok variant", () => {
+        let r = Result.Ok(42)
+        expect(getMessage(r)).toBe("success: 42")
+    })
+
+    test("Err variant", () => {
+        let r = Result.Err("not found")
+        expect(getMessage(r)).toBe("error: not found")
+    })
+
+    test("getValue from Ok", () => {
+        expect(getValue(Result.Ok(100))).toBe(100)
+    })
+
+    test("getValue from Err", () => {
+        expect(getValue(Result.Err("fail"))).toBe(-1)
+    })
+})
+
+describe("Unit Enum with Wildcard", () => {
+    test("horizontal detection", () => {
+        expect(isHorizontal(Direction.East)).toBeTruthy()
+        expect(isHorizontal(Direction.West)).toBeTruthy()
+    })
+
+    test("vertical uses wildcard", () => {
+        expect(isHorizontal(Direction.North)).toBeFalsy()
+        expect(isHorizontal(Direction.South)).toBeFalsy()
+    })
+})
+
+describe("Enum Construction", () => {
+    test("data enum with fields", () => {
+        let r = Result.Ok(99)
+        let msg = getMessage(r)
+        expect(msg).toContain("99")
+    })
+
+    test("unit enum comparison", () => {
+        let d = Direction.North
+        let label = switch d {
+            Direction.North => "N",
+            Direction.South => "S",
+            Direction.East => "E",
+            Direction.West => "W"
+        }
+        expect(label).toBe("N")
+    })
+})

@@ -1,0 +1,77 @@
+// E2E Test: Switch guards and variable binding
+import { describe, test, expect } from "liva/test"
+
+classifyNumber(n: number): string {
+    return switch n {
+        0 => "zero",
+        n if n > 0 => "positive",
+        _ => "negative"
+    }
+}
+
+classifyScore(score: number): string {
+    return switch score {
+        n if n >= 90 => "A",
+        n if n >= 80 => "B",
+        n if n >= 70 => "C",
+        _ => "F"
+    }
+}
+
+describe("Switch with Guards", () => {
+    test("guard positive", () => {
+        expect(classifyNumber(5)).toBe("positive")
+    })
+
+    test("guard negative", () => {
+        expect(classifyNumber(-3)).toBe("negative")
+    })
+
+    test("guard zero", () => {
+        expect(classifyNumber(0)).toBe("zero")
+    })
+
+    test("score classification A", () => {
+        expect(classifyScore(95)).toBe("A")
+    })
+
+    test("score classification B", () => {
+        expect(classifyScore(85)).toBe("B")
+    })
+
+    test("score classification C", () => {
+        expect(classifyScore(75)).toBe("C")
+    })
+
+    test("score classification F", () => {
+        expect(classifyScore(50)).toBe("F")
+    })
+})
+
+describe("Switch Variable Binding", () => {
+    test("variable captures matched value", () => {
+        let label = switch 42 {
+            0 => "zero",
+            n => $"other: {n}"
+        }
+        expect(label).toBe("other: 42")
+    })
+
+    test("or-patterns with numbers", () => {
+        let tier = switch 200 {
+            200 | 201 | 204 => "Success",
+            400 | 404 => "Client error",
+            _ => "Other"
+        }
+        expect(tier).toBe("Success")
+    })
+
+    test("or-patterns client error", () => {
+        let tier = switch 404 {
+            200 | 201 | 204 => "Success",
+            400 | 404 => "Client error",
+            _ => "Other"
+        }
+        expect(tier).toBe("Client error")
+    })
+})

@@ -1,0 +1,94 @@
+// E2E Test: Recursive enums — auto-boxing, nested construction, pattern matching
+import { describe, test, expect } from "liva/test"
+
+enum Expr {
+    Num(value: number),
+    Add(left: Expr, right: Expr),
+    Neg(inner: Expr)
+}
+
+eval(e: Expr): number {
+    return switch e {
+        Expr.Num(v) => v,
+        Expr.Add(l, r) => eval(l) + eval(r),
+        Expr.Neg(inner) => -eval(inner)
+    }
+}
+
+enum IntList {
+    Cons(head: number, tail: IntList),
+    Nil
+}
+
+listSum(l: IntList): number {
+    return switch l {
+        IntList.Cons(h, t) => h + listSum(t),
+        IntList.Nil => 0
+    }
+}
+
+listLength(l: IntList): number {
+    return switch l {
+        IntList.Cons(_, t) => 1 + listLength(t),
+        IntList.Nil => 0
+    }
+}
+
+describe("Recursive Expr Enum", () => {
+    test("simple Num", () => {
+        let e = Expr.Num(42)
+        expect(eval(e)).toBe(42)
+    })
+
+    test("Add two numbers", () => {
+        let e = Expr.Add(Expr.Num(3), Expr.Num(4))
+        expect(eval(e)).toBe(7)
+    })
+
+    test("Neg of number", () => {
+        let e = Expr.Neg(Expr.Num(5))
+        expect(eval(e)).toBe(-5)
+    })
+
+    test("nested Add(Add, Num)", () => {
+        let e = Expr.Add(
+            Expr.Add(Expr.Num(1), Expr.Num(2)),
+            Expr.Num(3)
+        )
+        expect(eval(e)).toBe(6)
+    })
+
+    test("complex expression tree", () => {
+        // (1 + 2) + (-(3))
+        let e = Expr.Add(
+            Expr.Add(Expr.Num(1), Expr.Num(2)),
+            Expr.Neg(Expr.Num(3))
+        )
+        expect(eval(e)).toBe(0)
+    })
+})
+
+describe("Recursive IntList", () => {
+    test("Nil sum is 0", () => {
+        expect(listSum(IntList.Nil)).toBe(0)
+    })
+
+    test("single element", () => {
+        let l = IntList.Cons(42, IntList.Nil)
+        expect(listSum(l)).toBe(42)
+    })
+
+    test("three elements sum", () => {
+        let l = IntList.Cons(1, IntList.Cons(2, IntList.Cons(3, IntList.Nil)))
+        expect(listSum(l)).toBe(6)
+    })
+
+    test("length of list", () => {
+        let l = IntList.Cons(10, IntList.Cons(20, IntList.Cons(30, IntList.Nil)))
+        expect(listLength(l)).toBe(3)
+    })
+
+    test("Nil length is 0", () => {
+        expect(listLength(IntList.Nil)).toBe(0)
+    })
+})

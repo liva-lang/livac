@@ -1,0 +1,56 @@
+// E2E Test: Destructuring — array, nested, rest spread
+import { describe, test, expect } from "liva/test"
+
+describe("Array Destructuring", () => {
+    test("basic array destructure", () => {
+        let [a, b, c] = [10, 20, 30]
+        expect(a).toBe(10)
+        expect(b).toBe(20)
+        expect(c).toBe(30)
+    })
+
+    test("two element destructure", () => {
+        let [x, y] = [100, 200]
+        expect(x).toBe(100)
+        expect(y).toBe(200)
+    })
+
+    test("destructure from function return", () => {
+        let pair = [42, 99]
+        let [first, second] = pair
+        expect(first).toBe(42)
+        expect(second).toBe(99)
+    })
+})
+
+describe("Tuple-style Destructuring", () => {
+    test("variable swap pattern", () => {
+        let a = 1
+        let b = 2
+        let [x, y] = [b, a]
+        expect(x).toBe(2)
+        expect(y).toBe(1)
+    })
+
+    test("computed values in array", () => {
+        let base = 10
+        let [doubled, tripled] = [base * 2, base * 3]
+        expect(doubled).toBe(20)
+        expect(tripled).toBe(30)
+    })
+})
+
+describe("Rest Spread in Destructuring", () => {
+    test("rest captures remaining elements", () => {
+        let [head, ...tail] = [1, 2, 3, 4, 5]
+        expect(head).toBe(1)
+        expect(tail.length).toBe(4)
+    })
+
+    test("rest with two leading elements", () => {
+        let [a, b, ...rest] = [10, 20, 30, 40, 50]
+        expect(a).toBe(10)
+        expect(b).toBe(20)
+        expect(rest.length).toBe(3)
+    })
+})

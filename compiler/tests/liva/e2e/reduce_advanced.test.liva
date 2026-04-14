@@ -1,0 +1,54 @@
+// E2E Test: Reduce patterns — various accumulator patterns, chained
+import { describe, test, expect } from "liva/test"
+
+describe("Numeric Reduce", () => {
+    test("sum", () => {
+        let sum = [1, 2, 3, 4, 5].reduce(0, (acc, x) => acc + x)
+        expect(sum).toBe(15)
+    })
+
+    test("product", () => {
+        let product = [1, 2, 3, 4].reduce(1, (acc, x) => acc * x)
+        expect(product).toBe(24)
+    })
+
+    test("sum of squares", () => {
+        let result = [1, 2, 3].reduce(0, (acc, x) => acc + x * x)
+        expect(result).toBe(14)
+    })
+
+    test("accumulate with offset", () => {
+        let result = [10, 20, 30].reduce(100, (acc, x) => acc + x)
+        expect(result).toBe(160)
+    })
+})
+
+describe("String Reduce", () => {
+    test("concatenate strings", () => {
+        let result = ["a", "b", "c"].reduce("start", (acc, x) => $"{acc}-{x}")
+        expect(result).toBe("start-a-b-c")
+    })
+})
+
+describe("Reduce After Filter", () => {
+    test("sum of even numbers", () => {
+        let sum = [1, 2, 3, 4, 5, 6]
+            .filter(x => x % 2 == 0)
+            .reduce(0, (acc, x) => acc + x)
+        expect(sum).toBe(12)
+    })
+
+    test("product of positives", () => {
+        let product = [2, 3, 4]
+            .filter(x => x > 0)
+            .reduce(1, (acc, x) => acc * x)
+        expect(product).toBe(24)
+    })
+
+    test("map then reduce", () => {
+        let sum = [1, 2, 3]
+            .map(x => x * 10)
+            .reduce(0, (acc, x) => acc + x)
+        expect(sum).toBe(60)
+    })
+})

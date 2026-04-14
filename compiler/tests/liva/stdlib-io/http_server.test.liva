@@ -5,7 +5,7 @@ import { describe, test, expect } from "liva/test"
 
 // Helper: Run livac check on the fixture file
 checkFixture(): string {
-    let base = rust { env!("CARGO_MANIFEST_DIR").replace("/target/liva_test", "").replace("/target/liva_build", "") }
+    let base = rust { std::env::var("LIVAC_PROJECT_ROOT").unwrap_or_else(|_| env!("CARGO_MANIFEST_DIR").replace("/target/liva_test", "").replace("/target/liva_build", "").to_string()) }
     let livac = $"{base}/target/release/livac"
     let file = $"{base}/compiler/tests/liva/stdlib-io/http_server_fixture.liva"
     let cmd = $"{livac} check {file} 2>&1"

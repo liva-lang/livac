@@ -1,0 +1,33 @@
+// E2E Test: Generics — generic functions with various types
+import { describe, test, expect } from "liva/test"
+
+identity<T>(x: T): T => x
+
+arrayLength<T>(arr: [T]): number => arr.length
+
+describe("Generic Functions", () => {
+    test("identity with number", () => {
+        expect(identity(42)).toBe(42)
+    })
+
+    test("identity with string", () => {
+        expect(identity("hello")).toBe("hello")
+    })
+
+    test("identity with bool", () => {
+        expect(identity(true)).toBeTruthy()
+    })
+
+    test("arrayLength with numbers", () => {
+        expect(arrayLength([1, 2, 3])).toBe(3)
+    })
+
+    test("arrayLength with strings", () => {
+        expect(arrayLength(["a", "b"])).toBe(2)
+    })
+
+    test("arrayLength empty", () => {
+        let empty: [number] = []
+        expect(arrayLength(empty)).toBe(0)
+    })
+})

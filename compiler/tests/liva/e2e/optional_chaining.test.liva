@@ -1,0 +1,78 @@
+// E2E Test: Optional chaining (?.), unwrap (!), or default
+import { describe, test, expect } from "liva/test"
+
+findUser(name: string): string? {
+    if name == "admin" {
+        return "Administrator"
+    }
+    return null
+}
+
+findAge(name: string): number? {
+    if name == "admin" {
+        return 42
+    }
+    return null
+}
+
+describe("Or Default on Optional", () => {
+    test("or provides fallback when null", () => {
+        let name = findUser("nobody") or "Guest"
+        expect(name).toBe("Guest")
+    })
+
+    test("or returns value when present", () => {
+        let name = findUser("admin") or "Guest"
+        expect(name).toBe("Administrator")
+    })
+
+    test("or with number default", () => {
+        let age = findAge("nobody") or 0
+        expect(age).toBe(0)
+    })
+
+    test("or with number present", () => {
+        let age = findAge("admin") or 0
+        expect(age).toBe(42)
+    })
+})
+
+describe("Unwrap Operator", () => {
+    test("unwrap present value", () => {
+        let user = findUser("admin")
+        let name = user!
+        expect(name).toBe("Administrator")
+    })
+
+    test("unwrap present number", () => {
+        let age = findAge("admin")
+        let val = age!
+        expect(val).toBe(42)
+    })
+})
+
+describe("Chained Or Default", () => {
+    test("find in array or default", () => {
+        let nums = [1, 2, 3, 4, 5]
+        let found = nums.find(x => x > 3) or -1
+        expect(found).toBe(4)
+    })
+
+    test("find miss or default", () => {
+        let nums = [1, 2, 3]
+        let found = nums.find(x => x > 10) or -1
+        expect(found).toBe(-1)
+    })
+
+    test("map get or default", () => {
+        let m = Map { "a": 1, "b": 2 }
+        let val = m.get("c") or 0
+        expect(val).toBe(0)
+    })
+
+    test("map get present or default", () => {
+        let m = Map { "a": 1, "b": 2 }
+        let val = m.get("a") or 0
+        expect(val).toBe(1)
+    })
+})

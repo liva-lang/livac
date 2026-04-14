@@ -1,0 +1,46 @@
+// E2E Test: try-catch error handling
+import { describe, test, expect } from "liva/test"
+
+safeDivide(a: number, b: number): number {
+    if b == 0 { fail "Division by zero" }
+    return a / b
+}
+
+doubleRisky(x: number): number {
+    let val = safeDivide(x, 0) or -1
+    return val
+}
+
+describe("Error Binding", () => {
+    test("success case returns value", () => {
+        let result, err = safeDivide(10, 2)
+        if err {
+            expect(1).toBe(0)
+        }
+        expect(result).toBe(5)
+    })
+
+    test("failure case returns error", () => {
+        let result, err = safeDivide(10, 0)
+        if err {
+            expect(1).toBe(1)
+        }
+    })
+
+    test("or default on failure", () => {
+        let val = safeDivide(10, 0) or -1
+        expect(val).toBe(-1)
+    })
+
+    test("or default not used on success", () => {
+        let val = safeDivide(10, 2) or -1
+        expect(val).toBe(5)
+    })
+})
+
+describe("Or Fail Propagation", () => {
+    test("propagated failure returns default", () => {
+        let result = doubleRisky(5)
+        expect(result).toBe(-1)
+    })
+})

@@ -1,0 +1,45 @@
+// Stdlib Test: Extended regex methods
+import { describe, test, expect } from "liva/test"
+
+describe("Regex Test", () => {
+    test("test on matching string", () => {
+        let result = Regex.test("\\d+", "hello 123 world")
+        expect(result).toBeTruthy()
+    })
+
+    test("test on non-matching", () => {
+        let result = Regex.test("\\d+", "hello world")
+        expect(result).toBeFalsy()
+    })
+})
+
+describe("Regex FindAll", () => {
+    test("findAll returns all matches", () => {
+        let matches = Regex.findAll("\\d+", "a1b2c3")
+        expect(matches.length).toBe(3)
+        expect(matches[0]).toBe("1")
+        expect(matches[1]).toBe("2")
+        expect(matches[2]).toBe("3")
+    })
+
+    test("findAll no matches returns empty", () => {
+        let matches = Regex.findAll("\\d+", "abc")
+        expect(matches.length).toBe(0)
+    })
+})
+
+describe("Regex Split", () => {
+    test("split by pattern", () => {
+        let parts = Regex.split("[,;]", "a,b;c,d")
+        expect(parts.length).toBe(4)
+        expect(parts[0]).toBe("a")
+        expect(parts[3]).toBe("d")
+    })
+})
+
+describe("Regex Replace", () => {
+    test("replace first match", () => {
+        let result = Regex.replace("\\d+", "foo123bar456", "NUM")
+        expect(result).toContain("NUM")
+    })
+})

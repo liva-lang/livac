@@ -1,0 +1,80 @@
+// Stdlib Test: Extended set methods — clear, isEmpty, forEach, for-in
+import { describe, test, expect } from "liva/test"
+
+describe("Set Clear and Empty", () => {
+    test("isEmpty on empty set", () => {
+        let s: Set<string> = Set {}
+        expect(s.isEmpty()).toBeTruthy()
+    })
+
+    test("isEmpty on non-empty set", () => {
+        let s = Set { "a", "b" }
+        expect(s.isEmpty()).toBeFalsy()
+    })
+
+    test("clear removes all elements", () => {
+        let s = Set { "a", "b", "c" }
+        s.clear()
+        expect(s.isEmpty()).toBeTruthy()
+    })
+})
+
+describe("Set Operations Extended", () => {
+    test("values returns array", () => {
+        let s = Set { "x", "y" }
+        let v = s.values()
+        expect(v.length).toBe(2)
+    })
+
+    test("add and has", () => {
+        let s = Set { "a" }
+        s.add("b")
+        expect(s.has("a")).toBeTruthy()
+        expect(s.has("b")).toBeTruthy()
+        expect(s.has("c")).toBeFalsy()
+    })
+
+    test("delete removes element", () => {
+        let s = Set { "a", "b", "c" }
+        s.delete("b")
+        expect(s.has("b")).toBeFalsy()
+        expect(s.has("a")).toBeTruthy()
+    })
+})
+
+describe("Set Iteration", () => {
+    test("for item in set", () => {
+        let s = Set { "x", "y", "z" }
+        let count = 0
+        for item in s {
+            count = count + 1
+        }
+        expect(count).toBe(3)
+    })
+})
+
+describe("Set Algebra", () => {
+    test("union", () => {
+        let a = Set { 1, 2, 3 }
+        let b = Set { 3, 4, 5 }
+        let u = a.union(b)
+        expect(u.has(1)).toBeTruthy()
+        expect(u.has(5)).toBeTruthy()
+    })
+
+    test("intersection", () => {
+        let a = Set { 1, 2, 3 }
+        let b = Set { 2, 3, 4 }
+        let i = a.intersection(b)
+        expect(i.has(2)).toBeTruthy()
+        expect(i.has(1)).toBeFalsy()
+    })
+
+    test("difference", () => {
+        let a = Set { 1, 2, 3 }
+        let b = Set { 2, 3, 4 }
+        let d = a.difference(b)
+        expect(d.has(1)).toBeTruthy()
+        expect(d.has(2)).toBeFalsy()
+    })
+})

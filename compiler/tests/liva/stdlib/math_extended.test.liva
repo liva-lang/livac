@@ -1,0 +1,78 @@
+// Stdlib Test: Extended math methods — log, sqrt, pow, abs, clamp
+import { describe, test, expect } from "liva/test"
+
+describe("Math Constants", () => {
+    test("PI is approximately 3.14", () => {
+        expect(Math.PI).toBeGreaterThan(3.14)
+        expect(Math.PI).toBeLessThan(3.15)
+    })
+
+    test("E is approximately 2.71", () => {
+        expect(Math.E).toBeGreaterThan(2.71)
+        expect(Math.E).toBeLessThan(2.72)
+    })
+})
+
+describe("Math Logarithms", () => {
+    test("log of E is approximately 1", () => {
+        let result = Math.log(Math.E)
+        expect(result).toBeGreaterThan(0.99)
+        expect(result).toBeLessThan(1.01)
+    })
+
+    test("log of 1 is 0", () => {
+        let result = Math.log(1.0)
+        expect(result).toBeGreaterThan(-0.01)
+        expect(result).toBeLessThan(0.01)
+    })
+})
+
+describe("Math Power and Root", () => {
+    test("sqrt of 16", () => {
+        expect(Math.sqrt(16.0)).toBe(4.0)
+    })
+
+    test("sqrt of 9", () => {
+        expect(Math.sqrt(9.0)).toBe(3.0)
+    })
+
+    test("pow 2^3", () => {
+        expect(Math.pow(2.0, 3.0)).toBe(8.0)
+    })
+
+    test("pow 5^2", () => {
+        expect(Math.pow(5.0, 2.0)).toBe(25.0)
+    })
+})
+
+describe("Math Abs", () => {
+    test("abs of negative", () => {
+        expect(Math.abs(-5.5)).toBe(5.5)
+    })
+
+    test("abs of positive", () => {
+        expect(Math.abs(3.14)).toBe(3.14)
+    })
+})
+
+describe("Math Min and Max", () => {
+    test("min of two floats", () => {
+        expect(Math.min(3.5, 7.2)).toBe(3.5)
+    })
+
+    test("max of two floats", () => {
+        expect(Math.max(3.5, 7.2)).toBe(7.2)
+    })
+
+    test("clamp within range", () => {
+        expect(Math.clamp(5.0, 0.0, 10.0)).toBe(5.0)
+    })
+
+    test("clamp below min", () => {
+        expect(Math.clamp(-5.0, 0.0, 10.0)).toBe(0.0)
+    })
+
+    test("clamp above max", () => {
+        expect(Math.clamp(15.0, 0.0, 10.0)).toBe(10.0)
+    })
+})

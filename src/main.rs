@@ -1249,6 +1249,11 @@ fn run_tests(input: Option<&PathBuf>, filter: Option<&str>, verbose: bool) -> i3
             .arg("--color=always")
             .current_dir(&build_dir);
 
+        // Set LIVAC_PROJECT_ROOT so tests can find the project directory
+        if let Ok(cwd) = std::env::current_dir() {
+            cmd.env("LIVAC_PROJECT_ROOT", &cwd);
+        }
+
         // Add filter if specified
         if let Some(filter) = filter {
             cmd.arg("--").arg(filter);

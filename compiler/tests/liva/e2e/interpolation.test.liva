@@ -1,0 +1,66 @@
+// E2E Test: String interpolation — $"...", nested expressions, escapes
+import { describe, test, expect } from "liva/test"
+
+greet(name: string): string => $"Hello, {name}!"
+
+describe("Basic Interpolation", () => {
+    test("variable in string", () => {
+        let name = "World"
+        expect($"Hello, {name}").toBe("Hello, World")
+    })
+
+    test("number in string", () => {
+        let x = 42
+        expect($"Value: {x}").toBe("Value: 42")
+    })
+
+    test("expression in string", () => {
+        let a = 3
+        let b = 4
+        expect($"{a + b}").toBe("7")
+    })
+
+    test("multiple interpolations", () => {
+        let first = "Alice"
+        let last = "Smith"
+        expect($"{first} {last}").toBe("Alice Smith")
+    })
+
+    test("function result in string", () => {
+        expect(greet("Liva")).toBe("Hello, Liva!")
+    })
+})
+
+describe("Interpolation with Methods", () => {
+    test("method call in interpolation", () => {
+        let name = "hello"
+        expect($"{name.toUpperCase()}").toBe("HELLO")
+    })
+
+    test("length in interpolation", () => {
+        let items = [1, 2, 3]
+        expect($"Count: {items.length}").toBe("Count: 3")
+    })
+
+    test("chained calls in interpolation", () => {
+        let s = "  hello  "
+        expect($"[{s.trim()}]").toBe("[hello]")
+    })
+})
+
+describe("Empty and Edge Cases", () => {
+    test("no interpolation", () => {
+        expect($"plain text").toBe("plain text")
+    })
+
+    test("adjacent interpolations", () => {
+        let a = "AB"
+        let b = "CD"
+        expect($"{a}{b}").toBe("ABCD")
+    })
+
+    test("empty string variable", () => {
+        let empty = ""
+        expect($"[{empty}]").toBe("[]")
+    })
+})

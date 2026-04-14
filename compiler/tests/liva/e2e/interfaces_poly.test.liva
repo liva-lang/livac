@@ -1,0 +1,78 @@
+// E2E Test: Interfaces — single, multiple, polymorphic dispatch
+import { describe, test, expect } from "liva/test"
+
+Describable {
+    describe(): string
+}
+
+Measurable {
+    measure(): number
+}
+
+Box : Describable, Measurable {
+    width: number
+    height: number
+
+    constructor(width: number, height: number) {
+        this.width = width
+        this.height = height
+    }
+
+    describe(): string => $"Box({this.width}x{this.height})"
+    measure(): number => this.width * this.height
+}
+
+Circle : Describable, Measurable {
+    radius: number
+
+    constructor(radius: number) {
+        this.radius = radius
+    }
+
+    describe(): string => $"Circle(r={this.radius})"
+    measure(): number => this.radius * this.radius * 3
+}
+
+describe("Single Interface", () => {
+    test("class implements describe", () => {
+        let b = Box(10, 5)
+        expect(b.describe()).toBe("Box(10x5)")
+    })
+
+    test("class implements measure", () => {
+        let b = Box(10, 5)
+        expect(b.measure()).toBe(50)
+    })
+})
+
+describe("Multiple Interfaces", () => {
+    test("circle implements both", () => {
+        let c = Circle(7)
+        expect(c.describe()).toBe("Circle(r=7)")
+        expect(c.measure()).toBe(147)
+    })
+
+    test("box implements both", () => {
+        let b = Box(3, 4)
+        expect(b.describe()).toBe("Box(3x4)")
+        expect(b.measure()).toBe(12)
+    })
+})
+
+describe("Polymorphic Usage", () => {
+    test("different classes same interface", () => {
+        let b = Box(2, 3)
+        let c = Circle(5)
+        expect(b.measure()).toBe(6)
+        expect(c.measure()).toBe(75)
+    })
+
+    test("describe works on both", () => {
+        let b = Box(1, 1)
+        let c = Circle(10)
+        let bd = b.describe()
+        let cd = c.describe()
+        expect(bd).toContain("Box")
+        expect(cd).toContain("Circle")
+    })
+})

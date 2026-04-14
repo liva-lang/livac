@@ -1,0 +1,65 @@
+// Stdlib Test: Extended map methods — clear, isEmpty, length, for-in
+import { describe, test, expect } from "liva/test"
+
+describe("Map Clear and Empty", () => {
+    test("isEmpty on empty map", () => {
+        let m: Map<string, number> = Map {}
+        expect(m.isEmpty()).toBeTruthy()
+    })
+
+    test("isEmpty on non-empty map", () => {
+        let m = Map { "a": 1 }
+        expect(m.isEmpty()).toBeFalsy()
+    })
+
+    test("clear removes all entries", () => {
+        let m = Map { "a": 1, "b": 2 }
+        m.clear()
+        expect(m.isEmpty()).toBeTruthy()
+    })
+})
+
+describe("Map Keys and Values", () => {
+    test("keys returns all keys", () => {
+        let m = Map { "x": 10, "y": 20 }
+        let k = m.keys()
+        expect(k.length).toBe(2)
+    })
+
+    test("values returns all values", () => {
+        let m = Map { "x": 10, "y": 20 }
+        let v = m.values()
+        expect(v.length).toBe(2)
+    })
+
+    test("entries returns pairs", () => {
+        let m = Map { "x": 10 }
+        let e = m.entries()
+        expect(e.length).toBe(1)
+    })
+})
+
+describe("Map Iteration", () => {
+    test("for key value in map", () => {
+        let m = Map { "a": 1, "b": 2 }
+        let count = 0
+        for key, value in m {
+            count = count + 1
+        }
+        expect(count).toBe(2)
+    })
+})
+
+describe("Map Get with Or", () => {
+    test("get with or default", () => {
+        let m = Map { "hello": 42 }
+        let val = m.get("hello") or 0
+        expect(val).toBe(42)
+    })
+
+    test("missing key uses default", () => {
+        let m = Map { "hello": 42 }
+        let val = m.get("missing") or 0
+        expect(val).toBe(0)
+    })
+})

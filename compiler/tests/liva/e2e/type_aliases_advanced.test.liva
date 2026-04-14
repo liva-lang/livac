@@ -1,0 +1,32 @@
+// E2E Test: Type aliases — simple, generic, and compound
+import { describe, test, expect } from "liva/test"
+
+type IntList = [number]
+type StringMap = Map<string, string>
+type Matrix = [[number]]
+
+sumList(items: IntList): number {
+    return items.reduce(0, (acc, x) => acc + x)
+}
+
+describe("Simple Type Aliases", () => {
+    test("IntList as array of numbers", () => {
+        let nums: IntList = [1, 2, 3, 4, 5]
+        expect(sumList(nums)).toBe(15)
+    })
+
+    test("StringMap as map of strings", () => {
+        let m: StringMap = Map { "name": "Alice", "role": "dev" }
+        let val = m.get("name") or ""
+        expect(val).toBe("Alice")
+    })
+})
+
+describe("Nested Type Aliases", () => {
+    test("Matrix as nested array", () => {
+        let m: Matrix = [[1, 2], [3, 4]]
+        expect(m.length).toBe(2)
+        expect(m[0][0]).toBe(1)
+        expect(m[1][1]).toBe(4)
+    })
+})

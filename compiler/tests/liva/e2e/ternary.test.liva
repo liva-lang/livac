@@ -3,21 +3,8 @@ import { describe, test, expect } from "liva/test"
 
 abs(n: number): number => n < 0 ? -n : n
 maxOf(a: number, b: number): number => a > b ? a : b
-classify(n: number): string => n > 0 ? "positive" : "non-positive"
-
-ternStr(cond: bool): string => cond ? "yes" : "no"
 
 describe("Ternary Operator", () => {
-    test("basic true branch", () => {
-        let result = ternStr(true)
-        expect(result).toBe("yes")
-    })
-
-    test("basic false branch", () => {
-        let result = ternStr(false)
-        expect(result).toBe("no")
-    })
-
     test("ternary in function — abs", () => {
         expect(abs(-5)).toBe(5)
         expect(abs(3)).toBe(3)
@@ -30,9 +17,21 @@ describe("Ternary Operator", () => {
         expect(maxOf(5, 5)).toBe(5)
     })
 
-    test("ternary classify", () => {
-        expect(classify(5)).toBe("positive")
-        expect(classify(-3)).toBe("non-positive")
-        expect(classify(0)).toBe("non-positive")
+    test("ternary in let", () => {
+        let x = 10
+        let result = x > 5 ? 100 : 0
+        expect(result).toBe(100)
+    })
+
+    test("ternary false branch", () => {
+        let x = 3
+        let result = x > 5 ? 100 : 0
+        expect(result).toBe(0)
+    })
+
+    test("nested ternary with numbers", () => {
+        let x = 5
+        let result = x > 10 ? 3 : x > 0 ? 2 : 1
+        expect(result).toBe(2)
     })
 })

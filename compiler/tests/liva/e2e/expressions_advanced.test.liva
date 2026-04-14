@@ -1,0 +1,92 @@
+// E2E Test: Multiline expressions — chained calls, complex conditions
+import { describe, test, expect } from "liva/test"
+
+describe("Multiline Chains", () => {
+    test("chained array operations", () => {
+        let result = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            .filter(x => x % 2 == 0)
+            .map(x => x * x)
+            .reduce(0, (acc, x) => acc + x)
+        expect(result).toBe(220)
+    })
+
+    test("chained string operations", () => {
+        let s = "  Hello World  "
+        let result = s.trim().toLowerCase()
+        expect(result).toBe("hello world")
+    })
+
+    test("chained filter and length", () => {
+        let count = [1, 2, 3, 4, 5]
+            .filter(x => x > 2)
+            .length
+        expect(count).toBe(3)
+    })
+})
+
+describe("Complex Expressions", () => {
+    test("ternary in variable", () => {
+        let x = 10
+        let label = x > 5 ? "big" : "small"
+        expect(label).toBe("big")
+    })
+
+    test("nested ternary", () => {
+        let x = 5
+        let label = x > 10 ? "high" : x > 0 ? "low" : "zero"
+        expect(label).toBe("low")
+    })
+
+    test("switch expression as value", () => {
+        let code = 200
+        let status = switch code {
+            200 => "OK",
+            404 => "Not Found",
+            _ => "Unknown"
+        }
+        expect(status).toBe("OK")
+    })
+
+    test("if-else as flow", () => {
+        let x = 42
+        let result = ""
+        if x > 40 {
+            result = "high"
+        } else {
+            result = "low"
+        }
+        expect(result).toBe("high")
+    })
+})
+
+describe("Compound Assignment", () => {
+    test("+= operator", () => {
+        let x = 10
+        x += 5
+        expect(x).toBe(15)
+    })
+
+    test("-= operator", () => {
+        let x = 10
+        x -= 3
+        expect(x).toBe(7)
+    })
+
+    test("*= operator", () => {
+        let x = 10
+        x *= 4
+        expect(x).toBe(40)
+    })
+
+    test("/= operator", () => {
+        let x = 20
+        x /= 5
+        expect(x).toBe(4)
+    })
+
+    test("%= operator", () => {
+        let x = 17
+        x %= 5
+        expect(x).toBe(2)
+    })
+})

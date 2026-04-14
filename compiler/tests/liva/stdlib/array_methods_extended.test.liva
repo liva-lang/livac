@@ -1,0 +1,86 @@
+// Stdlib Test: Extended array methods not covered in array_methods.test.liva
+import { describe, test, expect } from "liva/test"
+
+describe("Array Take and Drop", () => {
+    test("take first N elements", () => {
+        let nums = [1, 2, 3, 4, 5]
+        let first3 = nums.take(3)
+        expect(first3.length).toBe(3)
+        expect(first3[0]).toBe(1)
+        expect(first3[2]).toBe(3)
+    })
+
+    test("drop first N elements", () => {
+        let nums = [1, 2, 3, 4, 5]
+        let last2 = nums.drop(3)
+        expect(last2.length).toBe(2)
+        expect(last2[0]).toBe(4)
+        expect(last2[1]).toBe(5)
+    })
+})
+
+describe("Array Zip", () => {
+    test("zip two arrays", () => {
+        let names = ["Alice", "Bob"]
+        let ages = [30, 25]
+        let pairs = names.zip(ages)
+        expect(pairs.length).toBe(2)
+    })
+})
+
+describe("Array Chunks", () => {
+    test("split into chunks", () => {
+        let nums = [1, 2, 3, 4, 5, 6]
+        let chunked = nums.chunks(2)
+        expect(chunked.length).toBe(3)
+    })
+})
+
+describe("Array FindIndex and Count", () => {
+    test("findIndex finds position", () => {
+        let nums = [10, 20, 30, 40]
+        let idx = nums.findIndex(x => x == 30)
+        expect(idx).toBe(2)
+    })
+
+    test("findIndex returns -1 on miss", () => {
+        let nums = [10, 20, 30]
+        let idx = nums.findIndex(x => x == 99)
+        expect(idx).toBe(-1)
+    })
+
+    test("count matching elements", () => {
+        let nums = [1, 2, 3, 4, 5, 6]
+        let even = nums.count(x => x > 3)
+        expect(even).toBe(3)
+    })
+})
+
+describe("Array FlatMap", () => {
+    test("flatMap expands and flattens", () => {
+        let nums = [1, 2, 3]
+        let doubled = nums.flatMap(x => [x, x * 10])
+        expect(doubled.length).toBe(6)
+        expect(doubled[0]).toBe(1)
+        expect(doubled[1]).toBe(10)
+    })
+})
+
+describe("Array Distinct and Sum", () => {
+    test("distinct removes duplicates", () => {
+        let nums = [1, 2, 2, 3, 3, 3]
+        let unique = nums.distinct()
+        expect(unique.length).toBe(3)
+    })
+
+    test("sum of numbers", () => {
+        let nums = [1, 2, 3, 4, 5]
+        expect(nums.sum()).toBe(15)
+    })
+
+    test("min and max", () => {
+        let nums = [3, 1, 4, 1, 5, 9]
+        expect(nums.min()).toBe(1)
+        expect(nums.max()).toBe(9)
+    })
+})

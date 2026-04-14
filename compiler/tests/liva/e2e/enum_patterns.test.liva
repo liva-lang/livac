@@ -1,0 +1,91 @@
+// E2E Test: Enum patterns — exhaustive switch, data variants, wildcard _
+import { describe, test, expect } from "liva/test"
+
+enum Color {
+    Red,
+    Green,
+    Blue,
+    Custom(r: number, g: number, b: number)
+}
+
+colorName(c: Color): string {
+    return switch c {
+        Color.Red => "red",
+        Color.Green => "green",
+        Color.Blue => "blue",
+        Color.Custom(r, g, b) => $"rgb({r},{g},{b})"
+    }
+}
+
+isWarm(c: Color): bool {
+    return switch c {
+        Color.Red => true,
+        Color.Custom(r, _, _) => r > 200,
+        _ => false
+    }
+}
+
+enum Shape {
+    Circle(radius: number),
+    Rectangle(width: number, height: number),
+    Triangle(base: number, height: number)
+}
+
+area(s: Shape): number {
+    return switch s {
+        Shape.Circle(r) => r * r * 3,
+        Shape.Rectangle(w, h) => w * h,
+        Shape.Triangle(b, h) => b * h / 2
+    }
+}
+
+describe("Simple Enum Variants", () => {
+    test("Red color name", () => {
+        expect(colorName(Color.Red)).toBe("red")
+    })
+
+    test("Green color name", () => {
+        expect(colorName(Color.Green)).toBe("green")
+    })
+
+    test("Blue color name", () => {
+        expect(colorName(Color.Blue)).toBe("blue")
+    })
+})
+
+describe("Data Variant Enum", () => {
+    test("Custom color with data", () => {
+        let c = Color.Custom(255, 128, 0)
+        expect(colorName(c)).toBe("rgb(255,128,0)")
+    })
+
+    test("isWarm for Red", () => {
+        expect(isWarm(Color.Red)).toBe(true)
+    })
+
+    test("isWarm for Blue", () => {
+        expect(isWarm(Color.Blue)).toBe(false)
+    })
+
+    test("isWarm for warm Custom", () => {
+        expect(isWarm(Color.Custom(250, 0, 0))).toBe(true)
+    })
+
+    test("isWarm for cool Custom", () => {
+        expect(isWarm(Color.Custom(100, 0, 0))).toBe(false)
+    })
+})
+
+describe("Shape with Area", () => {
+    test("circle area", () => {
+        expect(area(Shape.Circle(10))).toBe(300)
+    })
+
+    test("rectangle area", () => {
+        expect(area(Shape.Rectangle(5, 8))).toBe(40)
+    })
+
+    test("triangle area", () => {
+        expect(area(Shape.Triangle(6, 4))).toBe(12)
+    })
+})

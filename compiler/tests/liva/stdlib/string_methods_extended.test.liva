@@ -1,0 +1,80 @@
+// Stdlib Test: Extended string methods not covered in string_methods.test.liva
+import { describe, test, expect } from "liva/test"
+
+describe("String Trim Variants", () => {
+    test("trimStart", () => {
+        expect("  hello".trimStart()).toBe("hello")
+        expect("  hello  ".trimStart()).toBe("hello  ")
+    })
+
+    test("trimEnd", () => {
+        expect("hello  ".trimEnd()).toBe("hello")
+        expect("  hello  ".trimEnd()).toBe("  hello")
+    })
+})
+
+describe("String Slice and Chars", () => {
+    test("slice with start and end", () => {
+        expect("Hello World".slice(0, 5)).toBe("Hello")
+        expect("Hello World".slice(6, 11)).toBe("World")
+    })
+
+    test("chars returns array of chars", () => {
+        let chars = "abc".chars()
+        expect(chars.length).toBe(3)
+    })
+})
+
+describe("String replaceAll", () => {
+    test("replaces all occurrences", () => {
+        expect("aabaa".replaceAll("a", "x")).toBe("xxbxx")
+    })
+
+    test("no match returns same string", () => {
+        expect("hello".replaceAll("z", "x")).toBe("hello")
+    })
+})
+
+describe("String Prefix and Suffix", () => {
+    test("removePrefix", () => {
+        expect("pre_hello".removePrefix("pre_")).toBe("hello")
+    })
+
+    test("removePrefix no match", () => {
+        expect("hello".removePrefix("pre_")).toBe("hello")
+    })
+
+    test("removeSuffix", () => {
+        expect("file.txt".removeSuffix(".txt")).toBe("file")
+    })
+
+    test("removeSuffix no match", () => {
+        expect("file.txt".removeSuffix(".md")).toBe("file.txt")
+    })
+})
+
+describe("String Utility", () => {
+    test("capitalize", () => {
+        expect("hello".capitalize()).toBe("Hello")
+    })
+
+    test("isBlank on empty", () => {
+        expect("".isBlank()).toBeTruthy()
+    })
+
+    test("isBlank on whitespace", () => {
+        expect("   ".isBlank()).toBeTruthy()
+    })
+
+    test("isBlank on content", () => {
+        expect("hello".isBlank()).toBeFalsy()
+    })
+
+    test("truncate", () => {
+        expect("Hello World".truncate(5)).toBe("Hello")
+    })
+
+    test("truncate longer than string", () => {
+        expect("Hi".truncate(10)).toBe("Hi")
+    })
+})

@@ -388,7 +388,7 @@ mod liva_rt {
 
 
 
-fn get_user(id: UserId) -> Username {
+fn get_user(id: i32) -> String {
     return format!("{}{}", "user_", id);
 }
 
