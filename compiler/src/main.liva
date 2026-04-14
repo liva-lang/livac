@@ -198,8 +198,9 @@ compileSingleFile(source: string, fileName: string, checkOnly: bool): Compilatio
     if rustCode.contains("md5::") { sfUsesCrypto = true }
     if rustCode.contains("base64::") { sfUsesCrypto = true }
     let sfUsesRayon = rustCode.contains("rayon::")
+    let sfUsesHttpClient = rustCode.contains("reqwest::")
     let cargoToml = emitter.generateCargoToml(
-        projectName, sfUsesAsync, sfUsesRegex, sfUsesHttp, sfUsesDb, sfUsesJson, sfUsesChrono, sfUsesRandom, sfUsesCrypto, sfUsesRayon
+        projectName, sfUsesAsync, sfUsesRegex, sfUsesHttp, sfUsesDb, sfUsesJson, sfUsesChrono, sfUsesRandom, sfUsesCrypto, sfUsesRayon, sfUsesHttpClient
     )
 
     return CompilationResult(true, rustCode, cargoToml, errors, moduleFiles)
@@ -413,6 +414,7 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
     let usesChrono = false
     let usesCrypto = false
     let usesRayon = false
+    let usesHttpClient = false
     for key in moduleFiles.keys() {
         let code = moduleFiles.get(key)
         if code.contains("rand::") { usesRandom = true }
@@ -430,6 +432,7 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
         if code.contains("base64::") { usesCrypto = true }
         if code.contains("rayon::") { usesRayon = true }
         if code.contains("uuid::") { usesRandom = true }
+        if code.contains("reqwest::") { usesHttpClient = true }
     }
     let emptyTypeCtx = TypeContext(
         [], Map {}, Map {}, Map {}, Map {}, [], [], Map {}, Map {}, Map {}, Map {}, [], Map {}
@@ -437,7 +440,7 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
     let emptyLiveCtx = LivenessContext(Map {}, Map {}, Map {})
     let emitter = RustEmitter(emptyTypeCtx, emptyLiveCtx)
     let cargoToml = emitter.generateCargoToml(
-        projectName, usesAsync, usesRegex, usesHttp, usesDb, usesJson, usesChrono, usesRandom, usesCrypto, usesRayon
+        projectName, usesAsync, usesRegex, usesHttp, usesDb, usesJson, usesChrono, usesRandom, usesCrypto, usesRayon, usesHttpClient
     )
 
     return CompilationResult(true, mainRs, cargoToml, errors, moduleFiles)

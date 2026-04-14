@@ -126,19 +126,9 @@ CLI: build/run/check/test subcommands. 7/9 módulos compilan a Rust válido.
 
 **RCs ya corregidos:** RC1 (Map.get or), RC5 (rust {} multistatement), RC8 (const string)
 
-#### B. Stdlib sin codegen en self-hosted (7 módulos, ~1,400 líneas)
+#### B. Stdlib codegen ✅ COMPLETO
 
-| Módulo | Funciones faltantes | Esfuerzo |
-|--------|---------------------|----------|
-| Config | load, get, getInt, getBool, getAll | Bajo (~50 loc) |
-| CSV | read, readTable, write, writeTable, parse, parseTable, toTable, fromTable | Medio (~150 loc) |
-| JSON | parse (typed + untyped), stringify + serde derives | Alto (~300 loc) |
-| DB (SQLite) | open, exec, query, close | Medio (~200 loc) |
-| HTTP Server | Server.create, app.get/post/put/delete, app.listen, Response.* | Alto (~400 loc) |
-| HTTP Client | get, post, put, delete | Medio (~200 loc) |
-| File/Dir/Process (extendido) | 9 + 6 + 3 funciones extras | Bajo (~100 loc) |
-
-**Stdlib que SÍ tiene codegen:** String (28), Array (31), Map (10), Set (10), Math (14), Log (4), Date (8), Regex (4), Random (6), Crypto (5), Process.exec, File.read/write, Dir.create, Sys.args.
+Todos los módulos stdlib tienen codegen en el self-hosted: String (28), Array (31), Map (10), Set (10), Math (14), Log (4), Date (8), Regex (5), Random (6), Crypto (6), Process (4), File (11), Dir (7), Sys (3), Config (5), CSV (8), JSON (2), DB (4), Server (1), Http (4), Response (3).
 
 #### C. Debilidades arquitectónicas (3 puntos)
 
@@ -235,25 +225,26 @@ Tests nuevos para features que codegen.liva ya maneja:
 | 3 | **Error propagation** | Añadido `_warnings: [string]`, `getWarnings()`, `_warn()`. Warnings en Union type approximation y Optional wrapping fallback | ✅ |
 | 4 | **Liveness-based clone reduction** | `_emitClonedArg()` consulta `_liveCtx.useCounts` — si variable se usa 1 vez (last use), omite `.clone()` y mueve | ✅ |
 
-### 6.4 — Codegen para stdlib faltante
+### 6.4 — Codegen para stdlib faltante ✅ DONE
 
 > **Objetivo:** Agregar codegen en codegen.liva para los 7 módulos ausentes
-> **Esfuerzo:** Alto — ~1,400 líneas nuevas
-> **Prioridad:** 🟡 MEDIA — solo necesario si quieres compilar programas que usen estos módulos
+> **Estado:** ✅ COMPLETADO — 7/7 módulos implementados, compilación exitosa, todos los tests verdes
 
-**Orden por dependencia y utilidad:**
+| Orden | Módulo | Funciones | Estado |
+|-------|--------|-----------|--------|
+| 1 | **File** (extendido) | read, write, append, exists, delete, copy, move, size, extension, readLines, writeLines (11) | ✅ |
+| 2 | **Dir** (extendido) | create, list, exists, isDir, delete, listRecursive/walk (7) | ✅ |
+| 3 | **Process** (extendido) | exec, spawn, pid, exit (4) | ✅ |
+| 4 | **Sys** (extendido) | args, env, exit (3) | ✅ |
+| 5 | **Config** | load, get, getInt, getBool, getAll (5) | ✅ |
+| 6 | **CSV** | read, write, readTable, writeTable, parse, stringify, headers, column (8) | ✅ |
+| 7 | **JSON** | parse, stringify (2) | ✅ |
+| 8 | **DB (SQLite)** | open, exec(±params), query(±params), close (4) | ✅ |
+| 9 | **Server** | create (1) | ✅ |
+| 10 | **Http Client** | get, post, put, delete (4) | ✅ |
+| 11 | **Response** | json(±status), text(±status), status (3) | ✅ |
 
-| Orden | Módulo | Líneas aprox | Dependencias |
-|-------|--------|-------------|-------------|
-| 1 | **File/Dir/Process extendido** | ~100 | Solo std::fs, std::process |
-| 2 | **Config** | ~50 | Solo std::fs (lee .env) |
-| 3 | **JSON** | ~300 | Crate `serde` + `serde_json`, serde derives en classes |
-| 4 | **CSV** | ~150 | Crate `csv` |
-| 5 | **DB (SQLite)** | ~200 | Crate `rusqlite`, connection tracking |
-| 6 | **HTTP Server** | ~400 | Crate `axum` + `tokio`, async main, route handlers |
-| 7 | **HTTP Client** | ~200 | Crate `reqwest`, async calls |
-
-**Nota:** HTTP Server y HTTP Client requieren que RC7 (async fn) esté arreglado primero.
+Also: added `usesHttpClient` detection + `reqwest` to Cargo.toml generator.
 
 ### 6.5 — Eliminar `rust {}` de tests
 
@@ -329,10 +320,10 @@ Fase 5: Liva Test Suite ✅
   [x] 6 capas: syntax(18), compile(8), e2e(43), stdlib(12), stdlib-io(1), errors(1+14)
 
 Fase 6: Madurez
-  [ ] 6.1: Tests de features existentes (~23 archivos nuevos)
+  [x] 6.1: Tests de features existentes (22 archivos nuevos)
   [x] 6.2: Fix RC bugs (RC2, RC3, RC6, RC7, RC9)
-  [ ] 6.3: Mejoras arquitectónicas (dispatch tables, error propagation)
-  [ ] 6.4: Stdlib faltante (File ext, Config, JSON, CSV, DB, HTTP Server, HTTP Client)
+  [x] 6.3: Mejoras arquitectónicas (dispatch, unification, warnings, liveness)
+  [x] 6.4: Stdlib faltante (File ext, Dir ext, Process ext, Sys ext, Config, CSV, JSON, DB, Server, Http, Response)
   [ ] 6.5: Eliminar rust {} de tests
   [ ] 6.6: Error codes cobertura completa
 ```

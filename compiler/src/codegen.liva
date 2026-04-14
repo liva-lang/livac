@@ -3102,41 +3102,428 @@ RustEmitter {
             }
         }
 
-        // Handle stdlib type static calls (File, Dir, Process, Sys)
+        // Handle stdlib type static calls (File, Dir, Process, Sys, Config, CSV, JSON, DB, Server, Http, Response)
         let stdlibName = ""
         let _ = switch obj {
             Expr.Identifier(sn) => { stdlibName = sn; 0 },
             _ => { 0 }
         }
-        if stdlibName == "File" and method == "read" {
-            this._write("std::fs::read_to_string(&")
-            this._emitExpr(args[0])
-            this._write(").map_err(|e| e.to_string())")
-            return
+
+        // ── File module (11 functions) ──
+        if stdlibName == "File" {
+            if method == "read" {
+                this._write("match std::fs::read_to_string(&")
+                this._emitExpr(args[0])
+                this._write(") { Ok(content) => (Some(content), String::new()), Err(e) => (None, format!(\"File read error: {}\", e)) }")
+                return
+            }
+            if method == "write" {
+                this._write("match std::fs::write(&")
+                this._emitExpr(args[0])
+                this._write(", &")
+                this._emitExpr(args[1])
+                this._write(") { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"File write error: {}\", e)) }")
+                return
+            }
+            if method == "append" {
+                this._write("match std::fs::OpenOptions::new().create(true).append(true).open(&")
+                this._emitExpr(args[0])
+                this._write(").and_then(|mut file| { use std::io::Write; file.write_all(")
+                this._emitExpr(args[1])
+                this._write(".as_bytes()) }) { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"File append error: {}\", e)) }")
+                return
+            }
+            if method == "exists" {
+                this._write("{ let __arg = (")
+                this._emitExpr(args[0])
+                this._write(").to_string(); std::path::Path::new(&__arg).exists() }")
+                return
+            }
+            if method == "delete" {
+                this._write("(match std::fs::remove_file(&")
+                this._emitExpr(args[0])
+                this._write(") { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"File delete error: {}\", e)) })")
+                return
+            }
+            if method == "copy" {
+                this._write("match std::fs::copy(&")
+                this._emitExpr(args[0])
+                this._write(", &")
+                this._emitExpr(args[1])
+                this._write(") { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"File copy error: {}\", e)) }")
+                return
+            }
+            if method == "move" {
+                this._write("match std::fs::rename(&")
+                this._emitExpr(args[0])
+                this._write(", &")
+                this._emitExpr(args[1])
+                this._write(") { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"File move error: {}\", e)) }")
+                return
+            }
+            if method == "size" {
+                this._write("match std::fs::metadata(&")
+                this._emitExpr(args[0])
+                this._write(") { Ok(m) => (Some(m.len() as i64), String::new()), Err(e) => (None, format!(\"File size error: {}\", e)) }")
+                return
+            }
+            if method == "extension" {
+                this._write("{ let __arg = (")
+                this._emitExpr(args[0])
+                this._write(").to_string(); std::path::Path::new(&__arg).extension().and_then(|e| e.to_str()).unwrap_or(\"\").to_string() }")
+                return
+            }
+            if method == "readLines" {
+                this._write("match std::fs::read_to_string(&")
+                this._emitExpr(args[0])
+                this._write(") { Ok(content) => (Some(content.lines().map(|l| l.to_string()).collect::<Vec<String>>()), String::new()), Err(e) => (None, format!(\"File readLines error: {}\", e)) }")
+                return
+            }
+            if method == "writeLines" {
+                this._write("match std::fs::write(&")
+                this._emitExpr(args[0])
+                this._write(", ")
+                this._emitExpr(args[1])
+                this._write(".join(\"\\n\")) { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"File writeLines error: {}\", e)) }")
+                return
+            }
         }
-        if stdlibName == "File" and method == "write" {
-            this._write("{ std::fs::write(&")
-            this._emitExpr(args[0])
-            this._write(", &")
-            this._emitExpr(args[1])
-            this._write(").ok(); }")
-            return
+
+        // ── Dir module (7 functions) ──
+        if stdlibName == "Dir" {
+            if method == "create" {
+                this._write("match std::fs::create_dir_all(&")
+                this._emitExpr(args[0])
+                this._write(") { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"Dir.create error: {}\", e)) }")
+                return
+            }
+            if method == "list" {
+                this._write("match std::fs::read_dir(&")
+                this._emitExpr(args[0])
+                this._write(") { Ok(entries) => { let mut names: Vec<String> = entries.filter_map(|e| e.ok().map(|e| e.file_name().to_string_lossy().to_string())).collect(); names.sort(); (Some(names), String::new()) }, Err(e) => (None, format!(\"Dir.list error: {}\", e)) }")
+                return
+            }
+            if method == "exists" {
+                this._write("{ let __arg = (")
+                this._emitExpr(args[0])
+                this._write(").to_string(); let p = std::path::Path::new(&__arg); p.exists() && p.is_dir() }")
+                return
+            }
+            if method == "isDir" {
+                this._write("{ let __arg = (")
+                this._emitExpr(args[0])
+                this._write(").to_string(); std::path::Path::new(&__arg).is_dir() }")
+                return
+            }
+            if method == "delete" {
+                this._write("match std::fs::remove_dir_all(&")
+                this._emitExpr(args[0])
+                this._write(") { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"Dir.delete error: {}\", e)) }")
+                return
+            }
+            if method == "listRecursive" || method == "walk" {
+                this._write("{ fn walk_dir(dir: &std::path::Path, result: &mut Vec<String>, base: &std::path::Path) -> Result<(), std::io::Error> { for entry in std::fs::read_dir(dir)? { let entry = entry?; let path = entry.path(); if let Some(rel) = path.strip_prefix(base).ok().and_then(|p| p.to_str()) { result.push(rel.to_string()); } if path.is_dir() { walk_dir(&path, result, base)?; } } Ok(()) } let __arg = (")
+                this._emitExpr(args[0])
+                this._write(").to_string(); let base = std::path::Path::new(&__arg); let mut names = Vec::new(); match walk_dir(base, &mut names, base) { Ok(_) => { names.sort(); (Some(names), String::new()) }, Err(e) => (None, format!(\"Dir.walk error: {}\", e)) } }")
+                return
+            }
         }
-        if stdlibName == "Dir" and method == "create" {
-            this._write("{ std::fs::create_dir_all(&")
-            this._emitExpr(args[0])
-            this._write(").ok(); }")
-            return
+
+        // ── Process module (4 functions) ──
+        if stdlibName == "Process" {
+            if method == "exec" {
+                this._write("{ let __cmd = &")
+                this._emitExpr(args[0])
+                this._write("; match std::process::Command::new(\"sh\").arg(\"-c\").arg(__cmd).output() { Ok(output) => { let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string(); let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string(); if !stderr.is_empty() { (Some(stdout), stderr) } else { (Some(stdout), String::new()) } }, Err(e) => (None, format!(\"Process.exec error: {}\", e)) } }")
+                return
+            }
+            if method == "spawn" {
+                this._write("match std::process::Command::new(\"sh\").arg(\"-c\").arg(&")
+                this._emitExpr(args[0])
+                this._write(").spawn() { Ok(child) => (Some(child.id() as i64), String::new()), Err(e) => (None, format!(\"Process.spawn error: {}\", e)) }")
+                return
+            }
+            if method == "pid" {
+                this._write("(std::process::id() as i64)")
+                return
+            }
+            if method == "exit" {
+                this._write("std::process::exit(")
+                this._emitExpr(args[0])
+                this._write(" as i32)")
+                return
+            }
         }
-        if stdlibName == "Process" and method == "exec" {
-            this._write("std::process::Command::new(\"sh\").arg(\"-c\").arg(&")
-            this._emitExpr(args[0])
-            this._write(").output().map_err(|e| e.to_string()).map(|o| String::from_utf8_lossy(&o.stdout).to_string())")
-            return
+
+        // ── Sys module ──
+        if stdlibName == "Sys" {
+            if method == "args" {
+                this._write("std::env::args().collect::<Vec<String>>()")
+                return
+            }
+            if method == "env" {
+                this._write("std::env::var(")
+                this._emitExpr(args[0])
+                this._write(").unwrap_or_default()")
+                return
+            }
+            if method == "exit" {
+                this._write("std::process::exit(")
+                this._emitExpr(args[0])
+                this._write(" as i32)")
+                return
+            }
         }
-        if stdlibName == "Sys" and method == "args" {
-            this._write("std::env::args().collect::<Vec<String>>()")
-            return
+
+        // ── Config module (5 functions) ──
+        if stdlibName == "Config" {
+            if method == "load" {
+                this._write("{ match std::fs::read_to_string(&")
+                this._emitExpr(args[0])
+                this._write(") { Ok(content) => { let mut map = std::collections::HashMap::<String, String>::new(); for line in content.lines() { let line = line.trim(); if line.is_empty() || line.starts_with('#') { continue; } if let Some(eq) = line.find('=') { let key = line[..eq].trim().to_string(); let mut val = line[eq+1..].trim().to_string(); if (val.starts_with('\"') && val.ends_with('\"')) || (val.starts_with('\\'') && val.ends_with('\\'')) { val = val[1..val.len()-1].to_string(); } map.insert(key, val); } } (Some(map), String::new()) }, Err(e) => (None, format!(\"Config.load error: {}\", e)) } }")
+                return
+            }
+            if method == "get" {
+                this._write("{ let __map = &")
+                this._emitExpr(args[0])
+                this._write("; let __key = ")
+                this._emitExpr(args[1])
+                this._write("; match __map.get(&__key) { Some(v) => (Some(v.clone()), String::new()), None => (None, format!(\"Key not found: {}\", __key)) } }")
+                return
+            }
+            if method == "getInt" {
+                this._write("{ let __map = &")
+                this._emitExpr(args[0])
+                this._write("; let __key = ")
+                this._emitExpr(args[1])
+                this._write("; match __map.get(&__key) { Some(v) => match v.parse::<i64>() { Ok(n) => (Some(n), String::new()), Err(_) => (None, format!(\"Not a number: {}\", v)) }, None => (None, format!(\"Key not found: {}\", __key)) } }")
+                return
+            }
+            if method == "getBool" {
+                this._write("{ let __map = &")
+                this._emitExpr(args[0])
+                this._write("; let __key = ")
+                this._emitExpr(args[1])
+                this._write("; match __map.get(&__key) { Some(v) => { let lower = v.to_lowercase(); (Some(lower == \"true\" || lower == \"1\" || lower == \"yes\"), String::new()) }, None => (None, format!(\"Key not found: {}\", __key)) } }")
+                return
+            }
+            if method == "getAll" {
+                this._write("{ let __src = &")
+                this._emitExpr(args[0])
+                this._write("; __src.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<std::collections::BTreeMap<String, String>>() }")
+                return
+            }
+        }
+
+        // ── CSV module (8 functions) ──
+        if stdlibName == "CSV" {
+            if method == "read" {
+                let hasSep = args.length >= 2
+                this._write("{ let __liva_sep: char = ")
+                if hasSep {
+                    this._emitExpr(args[1])
+                    this._write(".chars().next().unwrap_or(','); ")
+                } else {
+                    this._write("','; ")
+                }
+                this._write("match std::fs::read_to_string(&")
+                this._emitExpr(args[0])
+                this._write(") { Ok(content) => { let rows: Vec<Vec<String>> = content.lines().filter(|l| !l.is_empty()).map(|line| { let mut fields = Vec::new(); let mut current = String::new(); let mut in_quotes = false; let mut chars = line.chars().peekable(); while let Some(c) = chars.next() { if in_quotes { if c == '\"' { if chars.peek() == Some(&'\"') { current.push('\"'); chars.next(); } else { in_quotes = false; } } else { current.push(c); } } else if c == '\"' { in_quotes = true; } else if c == __liva_sep { fields.push(current.trim().to_string()); current = String::new(); } else { current.push(c); } } fields.push(current.trim().to_string()); fields }).collect(); (Some(rows), String::new()) }, Err(e) => (None, format!(\"CSV.read error: {}\", e)) } }")
+                return
+            }
+            if method == "write" {
+                this._write("{ let __csv_content: String = ")
+                this._emitExpr(args[1])
+                this._write(".iter().map(|row| { row.iter().map(|field| { if field.contains(',') || field.contains('\"') || field.contains('\\n') { format!(\"\\\"{}\\\"\" , field.replace('\"', \"\\\"\\\"\")) } else { field.clone() } }).collect::<Vec<_>>().join(\",\") }).collect::<Vec<_>>().join(\"\\n\"); match std::fs::write(&")
+                this._emitExpr(args[0])
+                this._write(", &__csv_content) { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"CSV.write error: {}\", e)) } }")
+                return
+            }
+            if method == "readTable" {
+                this._write("{ match std::fs::read_to_string(&")
+                this._emitExpr(args[0])
+                this._write(") { Ok(content) => { let __rows: Vec<Vec<String>> = content.lines().filter(|l| !l.is_empty()).map(|line| { let mut fields = Vec::new(); let mut current = String::new(); let mut in_quotes = false; let mut chars = line.chars().peekable(); while let Some(c) = chars.next() { if in_quotes { if c == '\"' { if chars.peek() == Some(&'\"') { current.push('\"'); chars.next(); } else { in_quotes = false; } } else { current.push(c); } } else if c == '\"' { in_quotes = true; } else if c == ',' { fields.push(current.trim().to_string()); current = String::new(); } else { current.push(c); } } fields.push(current.trim().to_string()); fields }).collect(); if __rows.is_empty() { (Some(Vec::new()), String::new()) } else { let headers = &__rows[0]; let table: Vec<std::collections::HashMap<String, String>> = __rows[1..].iter().map(|row| { let mut map = std::collections::HashMap::new(); for (i, header) in headers.iter().enumerate() { map.insert(header.clone(), row.get(i).cloned().unwrap_or_default()); } map }).collect(); (Some(table), String::new()) } }, Err(e) => (None, format!(\"CSV.readTable error: {}\", e)) } }")
+                return
+            }
+            if method == "writeTable" {
+                this._write("{ let __table = &")
+                this._emitExpr(args[1])
+                this._write("; if __table.is_empty() { match std::fs::write(&")
+                this._emitExpr(args[0])
+                this._write(", \"\") { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"CSV.writeTable error: {}\", e)) } } else { let mut __headers: Vec<String> = __table[0].keys().cloned().collect(); __headers.sort(); let mut __csv_lines: Vec<String> = vec![__headers.join(\",\")]; for row in __table.iter() { __csv_lines.push(__headers.iter().map(|h| { row.get(h).cloned().unwrap_or_default() }).collect::<Vec<_>>().join(\",\")); } let __csv_content = __csv_lines.join(\"\\n\"); match std::fs::write(&")
+                this._emitExpr(args[0])
+                this._write(", &__csv_content) { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"CSV.writeTable error: {}\", e)) } } }")
+                return
+            }
+            if method == "parse" {
+                this._write("{ let __text: &str = &")
+                this._emitExpr(args[0])
+                this._write("; __text.lines().filter(|l| !l.is_empty()).map(|line| { let mut fields = Vec::new(); let mut current = String::new(); let mut in_quotes = false; let mut chars = line.chars().peekable(); while let Some(c) = chars.next() { if in_quotes { if c == '\"' { if chars.peek() == Some(&'\"') { current.push('\"'); chars.next(); } else { in_quotes = false; } } else { current.push(c); } } else if c == '\"' { in_quotes = true; } else if c == ',' { fields.push(current.trim().to_string()); current = String::new(); } else { current.push(c); } } fields.push(current.trim().to_string()); fields }).collect::<Vec<Vec<String>>>() }")
+                return
+            }
+            if method == "stringify" {
+                this._emitExpr(args[0])
+                this._write(".iter().map(|row| { row.iter().map(|field| { if field.contains(',') || field.contains('\"') || field.contains('\\n') { format!(\"\\\"{}\\\"\" , field.replace('\"', \"\\\"\\\"\")) } else { field.clone() } }).collect::<Vec<_>>().join(\",\") }).collect::<Vec<_>>().join(\"\\n\")")
+                return
+            }
+            if method == "headers" {
+                this._write("{ let __t = &")
+                this._emitExpr(args[0])
+                this._write("; if __t.is_empty() { Vec::<String>::new() } else { let mut __h: Vec<String> = __t[0].keys().cloned().collect(); __h.sort(); __h } }")
+                return
+            }
+            if method == "column" {
+                this._write("{ let __col_name = &")
+                this._emitExpr(args[1])
+                this._write("; ")
+                this._emitExpr(args[0])
+                this._write(".iter().map(|row| row.get(__col_name.as_str()).cloned().unwrap_or_default()).collect::<Vec<String>>() }")
+                return
+            }
+        }
+
+        // ── JSON module (2 functions + serde) ──
+        if stdlibName == "JSON" {
+            if method == "parse" {
+                this._write("serde_json::from_str::<serde_json::Value>(&")
+                this._emitExpr(args[0])
+                this._write(").unwrap_or_default()")
+                return
+            }
+            if method == "stringify" {
+                this._write("serde_json::to_string(&")
+                this._emitExpr(args[0])
+                this._write(").unwrap_or_default()")
+                return
+            }
+        }
+
+        // ── DB/SQLite module (4 functions) ──
+        if stdlibName == "DB" {
+            if method == "open" {
+                this._write("{ let __path = ")
+                this._emitExpr(args[0])
+                this._write("; match rusqlite::Connection::open(&__path) { Ok(conn) => (Some(std::sync::Arc::new(std::sync::Mutex::new(conn))), String::new()), Err(e) => (None, format!(\"DB.open error: {}\", e)) } }")
+                return
+            }
+            if method == "exec" {
+                this._write("{ let __sql = ")
+                this._emitExpr(args[1])
+                this._write("; ")
+                if args.length >= 3 {
+                    this._write("let __params: Vec<String> = ")
+                    this._emitExpr(args[2])
+                    this._write(".iter().map(|s| s.to_string()).collect(); let __param_refs: Vec<&dyn rusqlite::types::ToSql> = __params.iter().map(|s| s as &dyn rusqlite::types::ToSql).collect(); match ")
+                    this._emitExpr(args[0])
+                    this._write(".lock().unwrap().execute(&__sql, __param_refs.as_slice()) { Ok(_) => (Some(String::new()), String::new()), Err(e) => (None, format!(\"DB.exec error: {}\", e)) } }")
+                } else {
+                    this._write("match ")
+                    this._emitExpr(args[0])
+                    this._write(".lock().unwrap().execute_batch(&__sql) { Ok(_) => (Some(String::new()), String::new()), Err(e) => (None, format!(\"DB.exec error: {}\", e)) } }")
+                }
+                return
+            }
+            if method == "query" {
+                this._write("{ let __sql = ")
+                this._emitExpr(args[1])
+                this._write("; ")
+                if args.length >= 3 {
+                    this._write("let __params: Vec<String> = ")
+                    this._emitExpr(args[2])
+                    this._write(".iter().map(|s| s.to_string()).collect(); let __param_refs: Vec<&dyn rusqlite::types::ToSql> = __params.iter().map(|s| s as &dyn rusqlite::types::ToSql).collect(); match ")
+                    this._emitExpr(args[0])
+                    this._write(".lock().unwrap().prepare(&__sql) { Ok(mut stmt) => { match stmt.query_map(__param_refs.as_slice(), |row| { let count = row.as_ref().column_count(); let mut map = std::collections::HashMap::<String, String>::new(); for i in 0..count { let col_name = row.as_ref().column_name(i).unwrap_or(\"\").to_string(); let val: String = row.get::<_, rusqlite::types::Value>(i).map(|v| match v { rusqlite::types::Value::Null => String::new(), rusqlite::types::Value::Integer(n) => n.to_string(), rusqlite::types::Value::Real(f) => f.to_string(), rusqlite::types::Value::Text(s) => s, rusqlite::types::Value::Blob(b) => format!(\"{:?}\", b), }).unwrap_or_default(); map.insert(col_name, val); } Ok(map) }) { Ok(rows) => { let result: Vec<std::collections::HashMap<String, String>> = rows.filter_map(|r| r.ok()).collect(); (Some(result), String::new()) }, Err(e) => (None, format!(\"DB.query error: {}\", e)) } }, Err(e) => (None, format!(\"DB.query error: {}\", e)) } }")
+                } else {
+                    this._write("match ")
+                    this._emitExpr(args[0])
+                    this._write(".lock().unwrap().prepare(&__sql) { Ok(mut stmt) => { match stmt.query_map([], |row| { let count = row.as_ref().column_count(); let mut map = std::collections::HashMap::<String, String>::new(); for i in 0..count { let col_name = row.as_ref().column_name(i).unwrap_or(\"\").to_string(); let val: String = row.get::<_, rusqlite::types::Value>(i).map(|v| match v { rusqlite::types::Value::Null => String::new(), rusqlite::types::Value::Integer(n) => n.to_string(), rusqlite::types::Value::Real(f) => f.to_string(), rusqlite::types::Value::Text(s) => s, rusqlite::types::Value::Blob(b) => format!(\"{:?}\", b), }).unwrap_or_default(); map.insert(col_name, val); } Ok(map) }) { Ok(rows) => { let result: Vec<std::collections::HashMap<String, String>> = rows.filter_map(|r| r.ok()).collect(); (Some(result), String::new()) }, Err(e) => (None, format!(\"DB.query error: {}\", e)) } }, Err(e) => (None, format!(\"DB.query error: {}\", e)) } }")
+                }
+                return
+            }
+            if method == "close" {
+                this._write("drop(")
+                this._emitExpr(args[0])
+                this._write(")")
+                return
+            }
+        }
+
+        // ── HTTP Server module ──
+        if stdlibName == "Server" {
+            if method == "create" {
+                this._write("axum::Router::new()")
+                return
+            }
+        }
+
+        // ── HTTP Client module (4 functions) ──
+        if stdlibName == "Http" {
+            if method == "get" {
+                this._write("{ let __url = ")
+                this._emitExpr(args[0])
+                this._write(".to_string(); match reqwest::blocking::get(&__url) { Ok(resp) => { let status = resp.status().as_u16() as i64; let body = resp.text().unwrap_or_default(); (Some(body), String::new()) }, Err(e) => (None, format!(\"Http.get error: {}\", e)) } }")
+                return
+            }
+            if method == "post" {
+                this._write("{ let __url = ")
+                this._emitExpr(args[0])
+                this._write(".to_string(); let __body = ")
+                this._emitExpr(args[1])
+                this._write(".to_string(); match reqwest::blocking::Client::new().post(&__url).body(__body).send() { Ok(resp) => { let body = resp.text().unwrap_or_default(); (Some(body), String::new()) }, Err(e) => (None, format!(\"Http.post error: {}\", e)) } }")
+                return
+            }
+            if method == "put" {
+                this._write("{ let __url = ")
+                this._emitExpr(args[0])
+                this._write(".to_string(); let __body = ")
+                this._emitExpr(args[1])
+                this._write(".to_string(); match reqwest::blocking::Client::new().put(&__url).body(__body).send() { Ok(resp) => { let body = resp.text().unwrap_or_default(); (Some(body), String::new()) }, Err(e) => (None, format!(\"Http.put error: {}\", e)) } }")
+                return
+            }
+            if method == "delete" {
+                this._write("{ let __url = ")
+                this._emitExpr(args[0])
+                this._write(".to_string(); match reqwest::blocking::Client::new().delete(&__url).send() { Ok(resp) => { let body = resp.text().unwrap_or_default(); (Some(body), String::new()) }, Err(e) => (None, format!(\"Http.delete error: {}\", e)) } }")
+                return
+            }
+        }
+
+        // ── Response module (3 functions) ──
+        if stdlibName == "Response" {
+            if method == "json" {
+                if args.length >= 2 {
+                    this._write("(axum::http::StatusCode::from_u16(")
+                    this._emitExpr(args[1])
+                    this._write(" as u16).unwrap_or(axum::http::StatusCode::OK), axum::Json(serde_json::json!(")
+                    this._emitExpr(args[0])
+                    this._write(")))")
+                } else {
+                    this._write("(axum::http::StatusCode::OK, axum::Json(serde_json::json!(")
+                    this._emitExpr(args[0])
+                    this._write(")))")
+                }
+                return
+            }
+            if method == "text" {
+                if args.length >= 2 {
+                    this._write("(axum::http::StatusCode::from_u16(")
+                    this._emitExpr(args[1])
+                    this._write(" as u16).unwrap_or(axum::http::StatusCode::OK), ")
+                    this._emitExpr(args[0])
+                    this._write(".to_string())")
+                } else {
+                    this._write("(axum::http::StatusCode::OK, ")
+                    this._emitExpr(args[0])
+                    this._write(".to_string())")
+                }
+                return
+            }
+            if method == "status" {
+                this._write("axum::http::StatusCode::from_u16(")
+                this._emitExpr(args[0])
+                this._write(" as u16).unwrap_or(axum::http::StatusCode::INTERNAL_SERVER_ERROR)")
+                return
+            }
         }
         // Math module
         if stdlibName == "Math" {
@@ -4875,7 +5262,7 @@ RustEmitter {
     generateCargoToml(projectName: string, usesAsync: bool, usesRegex: bool,
                       usesHttp: bool, usesDb: bool, usesJson: bool,
                       usesChrono: bool, usesRandom: bool, usesCrypto: bool,
-                      usesRayon: bool): string {
+                      usesRayon: bool, usesHttpClient: bool): string {
         let lines: [string] = []
         lines.push("[package]")
         lines.push($"name = \"{projectName}\"")
@@ -4939,6 +5326,11 @@ RustEmitter {
         // Parallel
         if usesRayon {
             lines.push("rayon = \"1\"")
+        }
+
+        // HTTP Client
+        if usesHttpClient {
+            lines.push("reqwest = { version = \"0.11\", features = [\"blocking\"] }")
         }
 
         return lines.join("\n")
