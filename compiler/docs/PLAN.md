@@ -210,21 +210,18 @@ Tests nuevos para features que codegen.liva ya maneja:
 - **Bug del self-hosted codegen** → se arregla en 6.2
 - **Feature no implementada** → se documenta y se mueve a 6.4
 
-### 6.2 — Fix RC bugs en codegen.liva
+### 6.2 — Fix RC bugs en codegen.liva ✅ DONE
 
 > **Objetivo:** Arreglar los 5 bugs activos del codegen self-hosted
-> **Esfuerzo:** Medio — ~100 líneas de cambios en codegen.liva
-> **Prioridad:** 🔴 ALTA — desbloquea tests que fallan por RC bugs
+> **Estado:** ✅ COMPLETADO — 5/5 RC bugs corregidos, compilación exitosa, tests pasan
 
-| Orden | RC | Fix | Líneas aprox |
-|-------|-----|-----|-------------|
-| 1 | RC9 | Añadir paréntesis en `_emitUnary` para Not con operandos compuestos | ~5 |
-| 2 | RC2 | Detectar Option en `toBeTruthy`/`toBeFalsy` → generar `.is_some()`/`.is_none()` | ~10 |
-| 3 | RC6 | Añadir dispatch para `.par()` → `.par_iter()` (rayon) | ~20 |
-| 4 | RC7 | Tracking de `async` en funciones → emitir `async fn` + `.await` | ~50 |
-| 5 | RC3 | Detección de lvalue en method calls sobre `self.field` — no clonar si es target de mutación | ~30 |
-
-**Proceso:** Cada fix se hace en codegen.liva → se recompila el self-hosted → se valida con tests existentes + test nuevo específico.
+| Orden | RC | Fix | Estado |
+|-------|-----|-----|--------|
+| 1 | RC9 | Paréntesis en `_emitUnary` para Not con operandos compuestos | ✅ |
+| 2 | RC2 | Detectar Option en `toBeTruthy`/`toBeFalsy` → `.is_some()`/`.is_none()` | ✅ |
+| 3 | RC6 | `_emitIterPrefix` para `.par()` → `.par_iter()` (rayon) | ✅ |
+| 4 | RC7 | `isAsyncInferred` → `pub async fn` + `#[tokio::main]` | ✅ |
+| 5 | RC3 | Detección de métodos mutadores en `self.field` — suprime `.clone()` | ✅ |
 
 ### 6.3 — Mejoras arquitectónicas
 
@@ -334,7 +331,7 @@ Fase 5: Liva Test Suite ✅
 
 Fase 6: Madurez
   [ ] 6.1: Tests de features existentes (~23 archivos nuevos)
-  [ ] 6.2: Fix RC bugs (RC2, RC3, RC6, RC7, RC9)
+  [x] 6.2: Fix RC bugs (RC2, RC3, RC6, RC7, RC9)
   [ ] 6.3: Mejoras arquitectónicas (dispatch tables, error propagation)
   [ ] 6.4: Stdlib faltante (File ext, Config, JSON, CSV, DB, HTTP Server, HTTP Client)
   [ ] 6.5: Eliminar rust {} de tests

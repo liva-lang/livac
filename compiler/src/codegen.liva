@@ -739,8 +739,16 @@ RustEmitter {
                     _ => { retStr = " -> i32"; 0 }
                 }
             }
+            // Determine async keyword
+            let asyncKw = ""
+            if decl.isAsyncInferred {
+                asyncKw = "async "
+                if funcName == "main" {
+                    this._writeln("#[tokio::main]")
+                }
+            }
             // Emit function signature
-            this._writeln("pub fn " + funcName + typeParamStr + "(" + paramList + ")" + retStr + " {")
+            this._writeln("pub " + asyncKw + "fn " + funcName + typeParamStr + "(" + paramList + ")" + retStr + " {")
             this._indent()
             // Emit one-liner body
             this._writeIndent()
@@ -754,7 +762,14 @@ RustEmitter {
             this._newline()
         } else {
             // Block-bodied function
-            this._writeln("pub fn " + funcName + typeParamStr + "(" + paramList + ")" + retStr + " {")
+            let asyncKw2 = ""
+            if decl.isAsyncInferred {
+                asyncKw2 = "async "
+                if funcName == "main" {
+                    this._writeln("#[tokio::main]")
+                }
+            }
+            this._writeln("pub " + asyncKw2 + "fn " + funcName + typeParamStr + "(" + paramList + ")" + retStr + " {")
             this._indent()
             this._emitBlockOpt(decl.body)
         }
@@ -1129,7 +1144,11 @@ RustEmitter {
             this._currentReturnFallible = true
         }
 
-        this._writeln("pub fn " + methodName + "(" + fullParams + ")" + retStr + " {")
+        let asyncKw = ""
+        if decl.isAsyncInferred {
+            asyncKw = "async "
+        }
+        this._writeln("pub " + asyncKw + "fn " + methodName + "(" + fullParams + ")" + retStr + " {")
         this._indent()
 
         // Handle one-liner methods (=> expr)
@@ -2548,8 +2567,22 @@ RustEmitter {
                 0
             },
             UnOp.Not => {
-                this._write("!")
-                this._emitExpr(operand)
+                // RC9 fix: wrap operand in parens if it's a compound expression
+                // to avoid `!a == b` instead of `!(a == b)`
+                let needsParens = switch operand {
+                    Expr.Binary(_, _, _) => true,
+                    Expr.Ternary(_, _, _) => true,
+                    Expr.Unary(_, _) => true,
+                    _ => false
+                }
+                if needsParens {
+                    this._write("!(")
+                    this._emitExpr(operand)
+                    this._write(")")
+                } else {
+                    this._write("!")
+                    this._emitExpr(operand)
+                }
                 0
             },
             UnOp.Await => {
@@ -2830,6 +2863,7 @@ RustEmitter {
         let actualCode = ""
         let isNegated = false
         let isExpect = false
+        let isOption = false
 
         // Direct: expect(x).toBe(y) — obj is Call(Identifier("expect"), [x])
         let _ = switch obj {
@@ -2841,7 +2875,22 @@ RustEmitter {
                 }
                 if fnName == "expect" and cArgs.length > 0 {
                     isExpect = true
-                    for ca in cArgs { actualCode = this._exprToString(ca); break }
+                    for ca in cArgs {
+                        // Check if actual expr is Option type BEFORE consuming expr
+                        let _ = switch ca {
+                            Expr.Identifier(varName) => {
+                                let vt = this._lookupVarTypeRef(varName)
+                                let _ = switch vt {
+                                    TypeRef.OptionalType(_) => { isOption = true; 0 },
+                                    _ => { 0 }
+                                }
+                                0
+                            },
+                            _ => { 0 }
+                        }
+                        actualCode = this._exprToString(ca)
+                        break
+                    }
                 }
                 0
             },
@@ -2858,7 +2907,21 @@ RustEmitter {
                             if fnName2 == "expect" and cArgs2.length > 0 {
                                 isExpect = true
                                 isNegated = true
-                                for ca2 in cArgs2 { actualCode = this._exprToString(ca2); break }
+                                for ca2 in cArgs2 {
+                                    let _ = switch ca2 {
+                                        Expr.Identifier(varName2) => {
+                                            let vt2 = this._lookupVarTypeRef(varName2)
+                                            let _ = switch vt2 {
+                                                TypeRef.OptionalType(_) => { isOption = true; 0 },
+                                                _ => { 0 }
+                                            }
+                                            0
+                                        },
+                                        _ => { 0 }
+                                    }
+                                    actualCode = this._exprToString(ca2)
+                                    break
+                                }
                             }
                             0
                         },
@@ -2896,7 +2959,7 @@ RustEmitter {
         }
 
         // Emit the appropriate assertion
-        this._emitExpectAssertion(method, actualCode, expectedCode, isNegated, expectedIsNull)
+        this._emitExpectAssertion(method, actualCode, expectedCode, isNegated, expectedIsNull, isOption)
         return true
     }
 
@@ -2915,7 +2978,7 @@ RustEmitter {
     }
 
     // Emit the correct assert_* macro
-    _emitExpectAssertion(method: string, actual: string, expected: string, neg: bool, isNull: bool) {
+    _emitExpectAssertion(method: string, actual: string, expected: string, neg: bool, isNull: bool, isOption: bool) {
         if method == "toBe" or method == "toEqual" {
             if isNull {
                 if neg { this._write($"assert!({actual}.is_some())") }
@@ -2926,11 +2989,21 @@ RustEmitter {
                 this._write($"assert_eq!({actual}, {expected})")
             }
         } else if method == "toBeTruthy" {
-            if neg { this._write($"assert!(!({actual}))") }
-            else { this._write($"assert!({actual})") }
+            if isOption {
+                if neg { this._write($"assert!({actual}.is_none())") }
+                else { this._write($"assert!({actual}.is_some())") }
+            } else {
+                if neg { this._write($"assert!(!({actual}))") }
+                else { this._write($"assert!({actual})") }
+            }
         } else if method == "toBeFalsy" {
-            if neg { this._write($"assert!({actual})") }
-            else { this._write($"assert!(!({actual}))") }
+            if isOption {
+                if neg { this._write($"assert!({actual}.is_some())") }
+                else { this._write($"assert!({actual}.is_none())") }
+            } else {
+                if neg { this._write($"assert!({actual})") }
+                else { this._write($"assert!(!({actual}))") }
+            }
         } else if method == "toBeGreaterThan" {
             if neg { this._write($"assert!({actual} <= {expected})") }
             else { this._write($"assert!({actual} > {expected})") }
@@ -2990,6 +3063,31 @@ RustEmitter {
         if isExpectChain {
             this._tryEmitExpectChain(obj, method, args)
             return
+        }
+
+        // RC3 fix: Detect mutating method calls on self.field → skip .clone()
+        // Methods like push/pop/insert/remove/clear/reverse/sort mutate the receiver.
+        // If obj is self.field, we must NOT clone it (otherwise mutation is lost).
+        let isMutatingCall = method == "push" or method == "pop" or method == "insert" or method == "remove" or method == "clear" or method == "reverse" or method == "sort" or method == "set"
+        if isMutatingCall {
+            // Check if obj is MemberAccess(Identifier("this"), _)
+            let isSelfField = false
+            let _ = switch obj {
+                Expr.MemberAccess(maInner, _) => {
+                    let _ = switch maInner {
+                        Expr.Identifier(iName) => {
+                            if iName == "this" { isSelfField = true }
+                            0
+                        },
+                        _ => { 0 }
+                    }
+                    0
+                },
+                _ => { 0 }
+            }
+            if isSelfField {
+                this._inAssignTarget = true
+            }
         }
 
         // Handle stdlib type static calls (File, Dir, Process, Sys)
@@ -3343,6 +3441,10 @@ RustEmitter {
             this._emitSetMethod(obj, method, args)
         } else {
             this._emitGenericMethodCall(obj, method, args)
+        }
+        // RC3: reset the mutating flag after dispatch
+        if isMutatingCall {
+            this._inAssignTarget = false
         }
     }
 
@@ -3821,6 +3923,31 @@ RustEmitter {
         return false
     }
 
+    // -- Helper: emit iterator prefix, detecting .par() chains --
+    _emitIterPrefix(obj: Expr, withCloned: bool) {
+        // Check if obj is arr.par() → use par_iter instead of iter
+        let isPar = false
+        let _ = switch obj {
+            Expr.MethodCall(inner, m, _) => {
+                if m == "par" {
+                    isPar = true
+                    this._emitExpr(inner)
+                }
+                0
+            },
+            _ => { 0 }
+        }
+        if !isPar {
+            this._emitExpr(obj)
+        }
+        if isPar {
+            this._write(".par_iter()")
+        } else {
+            this._write(".iter()")
+        }
+        if withCloned { this._write(".cloned()") }
+    }
+
     // -- Array methods → Rust equivalents --
 
     _emitArrayMethod(obj: Expr, method: string, args: [Expr]): bool {
@@ -3942,15 +4069,15 @@ RustEmitter {
         }
         // Iterator pipeline methods: map, filter, forEach, find, reduce, some, every, etc.
         if method == "map" {
-            this._emitExpr(obj)
-            this._write(".iter().cloned().map(")
+            this._emitIterPrefix(obj, true)
+            this._write(".map(")
             if args.length > 0 { this._emitExpr(args[0]) }
             this._write(").collect::<Vec<_>>()")
             return true
         }
         if method == "filter" {
-            this._emitExpr(obj)
-            this._write(".iter().cloned().filter(")
+            this._emitIterPrefix(obj, true)
+            this._write(".filter(")
             // Check if arg is a point-free function ref (Identifier) vs Lambda
             let filterArgIsRef = false
             if args.length > 0 {
@@ -3973,15 +4100,15 @@ RustEmitter {
             return true
         }
         if method == "forEach" {
-            this._emitExpr(obj)
-            this._write(".iter().cloned().for_each(")
+            this._emitIterPrefix(obj, true)
+            this._write(".for_each(")
             if args.length > 0 { this._emitExpr(args[0]) }
             this._write(")")
             return true
         }
         if method == "find" {
-            this._emitExpr(obj)
-            this._write(".iter().cloned().find(")
+            this._emitIterPrefix(obj, true)
+            this._write(".find(")
             this._derefClosureParams = true
             if args.length > 0 { this._emitExpr(args[0]) }
             this._derefClosureParams = false
@@ -4003,24 +4130,24 @@ RustEmitter {
             return true
         }
         if method == "some" {
-            this._emitExpr(obj)
-            this._write(".iter().cloned().any(")
+            this._emitIterPrefix(obj, true)
+            this._write(".any(")
             // any() passes T directly (not &T), so no deref needed
             if args.length > 0 { this._emitExpr(args[0]) }
             this._write(")")
             return true
         }
         if method == "every" {
-            this._emitExpr(obj)
-            this._write(".iter().cloned().all(")
+            this._emitIterPrefix(obj, true)
+            this._write(".all(")
             // all() passes T directly (not &T), so no deref needed
             if args.length > 0 { this._emitExpr(args[0]) }
             this._write(")")
             return true
         }
         if method == "reduce" {
-            this._emitExpr(obj)
-            this._write(".iter().fold(")
+            this._emitIterPrefix(obj, false)
+            this._write(".fold(")
             if args.length > 0 { this._emitExpr(args[0]) }
             this._write(", ")
             if args.length > 1 { this._emitExpr(args[1]) }
@@ -4028,8 +4155,8 @@ RustEmitter {
             return true
         }
         if method == "flatMap" {
-            this._emitExpr(obj)
-            this._write(".iter().flat_map(|x| ")
+            this._emitIterPrefix(obj, false)
+            this._write(".flat_map(|x| ")
             if args.length > 0 { this._emitExpr(args[0]) }
             this._write("(x.clone())).collect::<Vec<_>>()")
             return true

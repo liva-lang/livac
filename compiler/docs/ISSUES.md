@@ -9,8 +9,8 @@
 
 | Estado | Cantidad |
 |--------|----------|
-| ✅ FIXED | 8 |
-| 🔴 OPEN (bugs codegen) | 5 (RC2, RC3, RC6, RC7, RC9) |
+| ✅ FIXED | 13 |
+| 🔴 OPEN (bugs codegen) | 0 |
 | 🟡 OPEN (language gaps) | 4 (ISSUE-005, 006, 007, 009) |
 | ⚠️ ARCH | 3 (dispatch tables, error propagation, generic fallback) |
 
@@ -69,44 +69,43 @@
 > Estos son bugs en el codegen del compilador self-hosted, no del bootstrap.
 > Se detectaron al escribir la Test Suite (Fase 5).
 
-### RC2: `toBeTruthy`/`toBeFalsy` en `Option<T>` — 🔴 OPEN
+### RC2: `toBeTruthy`/`toBeFalsy` en `Option<T>` — ✅ FIXED
 - **Severidad:** MEDIA
-- **Descripción:** Las assertions `expect(x).toBeTruthy()` y `.toBeFalsy()` generan `assert!({actual})` / `assert!(!({actual}))`. Funciona para `bool`, pero para `Option<T>` debería generar `.is_some()` / `.is_none()`.
-- **Ubicación:** `codegen.liva` ~L2928-2932
-- **Fix propuesto:** Detectar tipo Option en `_tryEmitExpectChain()` y generar `.is_some()`/`.is_none()`
-- **Esfuerzo:** Bajo (~10 líneas)
+- **Descripción:** Las assertions `expect(x).toBeTruthy()` generaban `assert!(x)` para `Option<T>`.
+- **Fix:** `_tryEmitExpectChain` detecta tipo Option via `_lookupVarTypeRef` y emite `.is_some()`/`.is_none()`
 
-### RC3: `self.field.clone().push(x)` muta el clon — 🔴 OPEN
+### RC3: `self.field.clone().push(x)` muta el clon — ✅ FIXED
 - **Severidad:** ALTA
-- **Descripción:** Todo acceso a `self.field` genera `.clone()` (L4547). Esto significa que `self.items.push(x)` realmente empuja al clon, no al campo original.
-- **Fix propuesto:** Detección de lvalue — si el method call muta (push, pop, insert, remove, clear), no clonar `self`.
-- **Esfuerzo:** Medio (~30 líneas, necesita lista de métodos mutadores)
+- **Descripción:** Todo acceso a `self.field` generaba `.clone()`, perdiendo mutaciones.
+- **Fix:** `_emitMethodCall` detecta métodos mutadores (push/pop/insert/remove/clear/reverse/sort/set) en `self.field` y setea `_inAssignTarget=true` para suprimir `.clone()`
 
-### RC6: `.par()` no implementado — 🔴 OPEN
+### RC6: `.par()` no implementado — ✅ FIXED
 - **Severidad:** BAJA
-- **Descripción:** No hay dispatch para `.par()`. Debería generar `.par_iter()` (rayon).
-- **Fix propuesto:** Añadir case en `_emitMethodCall()` para `.par()` → `.par_iter()`
-- **Esfuerzo:** Bajo (~20 líneas)
+- **Descripción:** No había dispatch para `.par()`.
+- **Fix:** Nuevo helper `_emitIterPrefix(obj, withCloned)` detecta `.par()` chains y emite `.par_iter()` en vez de `.iter()`. Usado en map/filter/forEach/find/some/every/reduce/flatMap.
 
-### RC7: `async fn` nunca se emite — 🔴 OPEN
+### RC7: `async fn` nunca se emite — ✅ FIXED
 - **Severidad:** ALTA
-- **Descripción:** `UnOp.Await` (L2555) genera `.await` incondicionalmente, pero las funciones nunca se emiten como `async fn`. Todo código async/HTTP falla.
-- **Fix propuesto:** Tracking de funciones async + emitir `pub async fn` cuando corresponde. Requiere también `#[tokio::main]` en main.
-- **Esfuerzo:** Medio (~50 líneas)
+- **Descripción:** Las funciones nunca se emitían como `async fn`.
+- **Fix:** `_emitFunction` y `_emitMethod` ahora chequean `decl.isAsyncInferred` y emiten `pub async fn`. Para `main`, también emiten `#[tokio::main]`.
 
-### RC9: `!(expr)` pierde paréntesis — 🔴 OPEN
+### RC9: `!(expr)` pierde paréntesis — ✅ FIXED
 - **Severidad:** MEDIA
-- **Descripción:** `_emitUnary` para `UnOp.Not` (L2549) escribe `!` sin paréntesis. `!a == b` genera `!a == b` en vez de `!(a == b)`.
-- **Fix propuesto:** Añadir paréntesis para operandos que no sean simples (Identifier, Literal, MemberAccess).
-- **Esfuerzo:** Bajo (~5 líneas)
+- **Descripción:** `_emitUnary` para `UnOp.Not` generaba `!expr` sin paréntesis para operandos compuestos.
+- **Fix:** `_emitUnary` detecta Binary/Ternary/Unary operands y envuelve en `!(...)`
 
 ### RCs corregidos
 
 | RC | Descripción | Estado |
 |----|-------------|--------|
 | RC1 | Map.get `or <value>` generaba `\|\|` en vez de `unwrap_or` | ✅ FIXED en codegen.liva L1494-1505 |
+| RC2 | `toBeTruthy`/`toBeFalsy` en `Option<T>` generaba `assert!(x)` | ✅ FIXED — detecta Option → `.is_some()`/`.is_none()` |
+| RC3 | `self.field.clone().push(x)` mutaba el clon | ✅ FIXED — detecta métodos mutadores, suprime `.clone()` |
 | RC5 | `rust {}` multi-statement blocks | ✅ FIXED — lexer captura contenido completo |
+| RC6 | `.par()` no implementado | ✅ FIXED — `_emitIterPrefix` → `.par_iter()` |
+| RC7 | `async fn` nunca se emitía | ✅ FIXED — detecta `isAsyncInferred` → `pub async fn` + `#[tokio::main]` |
 | RC8 | `const` con string generaba `to_string()` no-const | ✅ FIXED en codegen.liva L1275-1284 |
+| RC9 | `!(expr)` pierde paréntesis | ✅ FIXED — detecta operandos compuestos → `!(...)` |
 
 ---
 
