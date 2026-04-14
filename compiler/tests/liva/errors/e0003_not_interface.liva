@@ -1,0 +1,20 @@
+// Error Test: E0003 — Implements a class instead of an interface
+// EXPECT: E0003
+Person {
+    name: string
+    constructor(name: string) {
+        this.name = name
+    }
+}
+
+Employee : Person {
+    id: int
+    constructor(id: int) {
+        this.id = id
+    }
+}
+
+main() {
+    let e = Employee(1)
+    print(e.id)
+}

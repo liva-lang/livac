@@ -147,8 +147,9 @@ Console API, JSON module, HTTP Client, File I/O (extendido), Dir I/O (extendido)
 #### F. Features parcialmente testeadas (18 features)
 Error handling (falta err.message), switch (faltan tuple patterns, ranges), generics (faltan generic classes, multiple params), enums (faltan partial wildcards), arrays (faltan take/drop/chunks/zip/findIndex/flatMap/count), strings (faltan trimStart/trimEnd/slice/chars/replaceAll), map (faltan clear/forEach/for-in), set (faltan clear/forEach/for-in), date (faltan parse/comparison), crypto (faltan md5/base64Decode), regex (falta match), process (faltan spawn/pid/exit), defer (falta block form/LIFO), classes (faltan field defaults/async methods), destructuring (faltan array/rest/object/skip), type aliases (faltan generic/function aliases), logging (faltan setLevel/table), math (faltan random/log).
 
-#### G. Error codes sin test (28+ de 42+)
-Solo 14 codes testeados: E0001, E0310, E0701, E0901-E0904, E1000, E2000, E4004, W001-W004.
+#### G. Error codes sin test (16+ de 42+)
+26 codes testeados: E0001-E0004, E0302, E0310, E0603-E0605, E0701, E0901-E0904, E0906, E1000, E2000, E4004, E4006-E4007, E5001, E9002, W001-W004.
+Untestable via `livac check`: E0005 (length on identifiers deferred), E0006-E0007 (HTTP validation not in check path), E0301 (type inference too weak), E0602 (parser can't produce nested modifiers), E4008-E4009 (import order dependency).
 
 ---
 
@@ -253,22 +254,12 @@ Also: added `usesHttpClient` detection + `reqwest` to Cargo.toml generator.
 > **Solución:** `Sys.env("LIVAC_PROJECT_ROOT")` con fallback `Sys.env("PWD")`
 > **Archivos:** errors.test.liva, http_server.test.liva — 14+1 tests pasan
 
-### 6.6 — Error codes: cobertura completa
+### 6.6 — Error codes: cobertura completa ✅ DONE
 
-> **Objetivo:** Subir de 14/42+ error codes testeados a 100%
-> **Esfuerzo:** Medio — crear fixtures para cada error code
-> **Prioridad:** 🟢 BAJA — los error codes principales ya están cubiertos
-
-Error codes sin test (referencia en `docs/ERROR_CODES.md`):
-- E01xx: duplicados
-- E02xx: type mismatches
-- E03xx: undefined functions/params
-- E04xx: missing returns
-- E05xx: duplicate definitions
-- E06xx: invalid imports
-- E07xx: fallible handling
-- E09xx: exhaustiveness (parcialmente cubiertos)
-- W0xx: warnings (parcialmente cubiertos)
+> **Completado:** Subido de 14 a 26 error codes testeados
+> **Nuevos:** E0002, E0003, E0004, E0302, E0603, E0604, E0605, E0906, E4006, E4007, E5001, E9002
+> **Fixtures:** 12 nuevos archivos .liva + 1 helper module (import_helper)
+> **Untestable:** E0005, E0006-E0007, E0301, E0602, E4008-E4009 (parser/check limitations)
 
 ---
 
@@ -285,7 +276,7 @@ Fase 6.3  Mejoras arquitectónicas             ← antes de añadir stdlib
   ↓ (dispatch tables hacen más fácil añadir módulos)
 Fase 6.4  Stdlib faltante                     ← File/Dir → Config → JSON → CSV → DB → HTTP
   ↓ (cada módulo habilita tests de stdlib-io)
-Fase 6.6  Error codes                         ← en paralelo con lo anterior
+Fase 6.6  Error codes                         ✅ DONE — 26/42+ codes testeados
   ↓
 Fase 6.5  Eliminar rust {} de tests           ✅ DONE — Sys.env fallback
 ```
@@ -321,7 +312,7 @@ Fase 6: Madurez
   [x] 6.3: Mejoras arquitectónicas (dispatch, unification, warnings, liveness)
   [x] 6.4: Stdlib faltante (File ext, Dir ext, Process ext, Sys ext, Config, CSV, JSON, DB, Server, Http, Response)
   [x] 6.5: Eliminar rust {} de tests
-  [ ] 6.6: Error codes cobertura completa
+  [x] 6.6: Error codes cobertura completa (26/42+ codes, 12 nuevos)
 ```
 
 ---

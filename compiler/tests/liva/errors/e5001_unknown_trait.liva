@@ -1,0 +1,7 @@
+// Error Test: E5001 — Unknown trait constraint
+// EXPECT: E5001
+process<T: Invalid>(x: T): T => x
+
+main() {
+    print(process(42))
+}

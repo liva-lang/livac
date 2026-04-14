@@ -1,0 +1,7 @@
+// Error Test: E4006 — Symbol not found in module
+// EXPECT: E4006
+import { nonexistent } from "./import_helper.liva"
+
+main() {
+    print(nonexistent())
+}

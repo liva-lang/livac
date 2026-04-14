@@ -1,0 +1,16 @@
+// Error Test: E0906 — Or-pattern with different bindings
+// EXPECT: E0906
+enum Shape {
+    Circle(radius: number),
+    Square(side: number),
+    Triangle
+}
+
+main() {
+    let s = Shape.Circle(5)
+    let label = switch s {
+        Shape.Circle(r) | Shape.Triangle => "round"
+        Shape.Square(s) => "square"
+    }
+    print(label)
+}

@@ -1,0 +1,8 @@
+// Helper module for import error tests
+greet(): string {
+    return "hello"
+}
+
+_secret(): string {
+    return "hidden"
+}

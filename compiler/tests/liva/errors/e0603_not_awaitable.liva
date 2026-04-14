@@ -1,0 +1,5 @@
+// Error Test: E0603 — Await on non-awaitable expression
+// EXPECT: E0603
+main() {
+    let x = await 42
+}

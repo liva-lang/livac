@@ -36,9 +36,44 @@ describe("Error Detection", () => {
         expect(output).toContain("E0001")
     })
 
+    test("E0002: constant already defined", () => {
+        let output = checkError("e0002_constant_redefined.liva")
+        expect(output).toContain("E0002")
+    })
+
+    test("E0003: implements a class instead of interface", () => {
+        let output = checkError("e0003_not_interface.liva")
+        expect(output).toContain("E0003")
+    })
+
+    test("E0004: circular type alias", () => {
+        let output = checkError("e0004_circular_type_alias.liva")
+        expect(output).toContain("E0004")
+    })
+
+    test("E0302: duplicate binding in destructuring", () => {
+        let output = checkError("e0302_duplicate_binding.liva")
+        expect(output).toContain("E0302")
+    })
+
     test("E0310: duplicate function parameter", () => {
         let output = checkError("e0310_duplicate_param.liva")
         expect(output).toContain("E0310")
+    })
+
+    test("E0603: await on non-awaitable expression", () => {
+        let output = checkError("e0603_not_awaitable.liva")
+        expect(output).toContain("E0603")
+    })
+
+    test("E0604: await same handle twice", () => {
+        let output = checkError("e0604_await_multiple.liva")
+        expect(output).toContain("E0604")
+    })
+
+    test("E0605: await inside parallel loop", () => {
+        let output = checkError("e0605_await_in_par.liva")
+        expect(output).toContain("E0605")
     })
 
     test("E0701: unhandled fallible call", () => {
@@ -66,6 +101,11 @@ describe("Error Detection", () => {
         expect(output).toContain("E0904")
     })
 
+    test("E0906: or-pattern with different bindings", () => {
+        let output = checkError("e0906_incompatible_or.liva")
+        expect(output).toContain("E0906")
+    })
+
     test("E1000: lexer error", () => {
         let output = checkError("e1000_lexer_error.liva")
         expect(output).toContain("E1000")
@@ -79,6 +119,26 @@ describe("Error Detection", () => {
     test("E4004: module not found", () => {
         let output = checkError("e4004_module_not_found.liva")
         expect(output).toContain("E4004")
+    })
+
+    test("E4006: imported symbol not found", () => {
+        let output = checkError("e4006_symbol_not_found.liva")
+        expect(output).toContain("E4006")
+    })
+
+    test("E4007: cannot import private symbol", () => {
+        let output = checkError("e4007_private_import.liva")
+        expect(output).toContain("E4007")
+    })
+
+    test("E5001: unknown trait constraint", () => {
+        let output = checkError("e5001_unknown_trait.liva")
+        expect(output).toContain("E5001")
+    })
+
+    test("E9002: internal crate version override", () => {
+        let output = checkError("e9002_internal_crate.liva")
+        expect(output).toContain("E9002")
     })
 
     test("W001: unused variable warning", () => {

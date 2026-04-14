@@ -1,0 +1,7 @@
+// Error Test: E0302 — Duplicate binding in destructuring pattern
+// EXPECT: E0302
+main() {
+    let arr = [1, 2, 3]
+    let [a, a, b] = arr
+    print(a)
+}

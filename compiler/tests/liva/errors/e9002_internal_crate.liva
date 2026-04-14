@@ -1,0 +1,7 @@
+// Error Test: E9002 — Override internal crate version
+// EXPECT: E9002
+use rust "tokio" version "2.0"
+
+main() {
+    print("should not compile")
+}

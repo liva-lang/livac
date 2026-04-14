@@ -1,0 +1,7 @@
+// Error Test: E0004 — Circular type alias
+// EXPECT: E0004
+type Node = Node
+
+main() {
+    print("unreachable")
+}

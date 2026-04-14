@@ -1,0 +1,11 @@
+// Error Test: E0605 — Await inside parallel loop
+// EXPECT: E0605
+fetch() => "data"
+
+main() {
+    let items = [1, 2, 3]
+    for par item in items {
+        let result = await fetch()
+        print(result)
+    }
+}

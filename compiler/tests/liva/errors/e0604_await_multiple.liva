@@ -1,0 +1,9 @@
+// Error Test: E0604 — Await same expression twice
+// EXPECT: E0604
+worker() => 1
+
+main() {
+    let handle = task async worker()
+    await handle
+    await handle
+}

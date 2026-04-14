@@ -1,0 +1,7 @@
+// Error Test: E0002 — Constant already defined in scope
+// EXPECT: E0002
+main() {
+    const MAX = 100
+    const MAX = 200
+    print(MAX)
+}

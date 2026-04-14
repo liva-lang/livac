@@ -1,0 +1,7 @@
+// Error Test: E4007 — Import private symbol
+// EXPECT: E4007
+import { _secret } from "./import_helper.liva"
+
+main() {
+    print(_secret())
+}
