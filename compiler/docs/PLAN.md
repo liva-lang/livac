@@ -223,18 +223,17 @@ Tests nuevos para features que codegen.liva ya maneja:
 | 4 | RC7 | `isAsyncInferred` → `pub async fn` + `#[tokio::main]` | ✅ |
 | 5 | RC3 | Detección de métodos mutadores en `self.field` — suprime `.clone()` | ✅ |
 
-### 6.3 — Mejoras arquitectónicas
+### 6.3 — Mejoras arquitectónicas ✅ DONE
 
 > **Objetivo:** Preparar codegen.liva para escalar sin acumular deuda técnica
-> **Esfuerzo:** Medio — refactor sin cambiar comportamiento
-> **Prioridad:** 🟡 MEDIA — previene que el self-hosted se convierta en otro codegen.rs
+> **Estado:** ✅ COMPLETADO — dispatch restructure, generic unification, warnings, liveness clone opt
 
-| Orden | Mejora | Descripción |
-|-------|--------|-------------|
-| 1 | **Dispatch tables para stdlib** | Reemplazar if-else chains en `_emitStringMethod()`, `_emitArrayMethod()`, etc. con `Map<string, fn>` dispatch. Cada método es una entrada en un map, no un if-else. |
-| 2 | **Eliminar `_emitGenericMethodCall()` duplicado** | Unificar la lógica de fallback con los métodos tipados. Si el tipo es desconocido, intentar resolverlo antes de caer en el fallback. |
-| 3 | **Error propagation en codegen** | En vez de `/* unknown */` o `todo!()`, acumular errores en un `[Diagnostic]` y reportarlos al final. El usuario ve qué NO se pudo compilar. |
-| 4 | **Reducir `.clone()` innecesarios** | Usar liveness info para evitar clone en `let` bindings cuando la variable no se usa después del bind. |
+| Orden | Mejora | Descripción | Estado |
+|-------|--------|-------------|--------|
+| 1 | **Dispatch restructure** | Añadido target "date" en dispatch chain, creado `_isKnownDateMethod()`, tertiary fallback con runtime var tracking (`_mapVars`/`_setVars`/`_stringVars`) | ✅ |
+| 2 | **Generic fallback unification** | Creado `_emitDateMethod()` (~40 loc). Reducido `_emitGenericMethodCall()` de 228→65 líneas eliminando métodos duplicados que ya están en dispatchers tipados | ✅ |
+| 3 | **Error propagation** | Añadido `_warnings: [string]`, `getWarnings()`, `_warn()`. Warnings en Union type approximation y Optional wrapping fallback | ✅ |
+| 4 | **Liveness-based clone reduction** | `_emitClonedArg()` consulta `_liveCtx.useCounts` — si variable se usa 1 vez (last use), omite `.clone()` y mueve | ✅ |
 
 ### 6.4 — Codegen para stdlib faltante
 

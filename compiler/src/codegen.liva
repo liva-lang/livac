@@ -79,6 +79,7 @@ RustEmitter {
     _usedTestNames: Map<string, int>
     _functionParamCount: Map<string, int>
     _functionDefaultStrs: Map<string, string>
+    _warnings: [string]
 
     constructor(typeCtx: TypeContext, liveCtx: LivenessContext) {
         this._lines = []
@@ -111,10 +112,19 @@ RustEmitter {
         this._usedTestNames = Map {}
         this._functionParamCount = Map {}
         this._functionDefaultStrs = Map {}
+        this._warnings = []
     }
 
     setIsMainModule(isMain: bool) {
         this._isMainModule = isMain
+    }
+
+    getWarnings(): [string] {
+        return this._warnings
+    }
+
+    _warn(msg: string) {
+        this._warnings.push(msg)
     }
 
     // -- Output primitives --
@@ -265,6 +275,7 @@ RustEmitter {
             },
             TypeRef.Union(types) => {
                 // Rust doesn't have union types; use first type as approximation
+                this._warn("Union type approximated to first variant")
                 for t in types {
                     result = this._emitType(t)
                     break
@@ -1687,6 +1698,7 @@ RustEmitter {
             },
             _ => {
                 // Rare cases — emit without wrapping (may need manual fix)
+                this._warn("Optional wrapping for complex expression may need review")
                 this._write("Some(todo!(\"optional\"))")
                 0
             }
@@ -3413,6 +3425,8 @@ RustEmitter {
             target = "map"
         } else if objTag == "set" && this._isKnownSetMethod(method) {
             target = "set"
+        } else if this._isKnownDateMethod(method) {
+            target = "date"
         }
         // Secondary dispatch: if target is still generic but method is a known array-only method,
         // assume array (type detection often fails for array variables)
@@ -3429,6 +3443,19 @@ RustEmitter {
                 target = "set"
             }
         }
+        // Tertiary: if still generic, try runtime variable tracking for Map/String fallback
+        if target == "generic" {
+            let objIdName = ""
+            let _ = switch obj {
+                Expr.Identifier(oName) => { objIdName = this._sanitizeName(oName); 0 },
+                _ => { 0 }
+            }
+            if objIdName != "" {
+                if this._mapVars.has(objIdName) && this._isKnownMapMethod(method) { target = "map" }
+                else if this._setVars.has(objIdName) && this._isKnownSetMethod(method) { target = "set" }
+                else if this._stringVars.has(objIdName) && this._isKnownStringMethod(method) { target = "string" }
+            }
+        }
 
         // Dispatch — args consumed in exactly ONE branch
         if target == "string" {
@@ -3439,6 +3466,8 @@ RustEmitter {
             this._emitMapMethod(obj, method, args)
         } else if target == "set" {
             this._emitSetMethod(obj, method, args)
+        } else if target == "date" {
+            this._emitDateMethod(obj, method, args)
         } else {
             this._emitGenericMethodCall(obj, method, args)
         }
@@ -3464,8 +3493,13 @@ RustEmitter {
         return m == "add" || m == "has" || m == "delete" || m == "clear" || m == "values" || m == "forEach" || m == "union" || m == "intersection" || m == "difference" || m == "isEmpty"
     }
 
-    _emitGenericMethodCall(obj: Expr, method: string, args: [Expr]) {
-        // Date instance methods: d.format(), d.toString(), d.add(), d.diff()
+    _isKnownDateMethod(m: string): bool {
+        return m == "format" || m == "add" || m == "diff"
+    }
+
+    // -- Date methods → Rust equivalents (chrono) --
+
+    _emitDateMethod(obj: Expr, method: string, args: [Expr]) {
         if method == "format" && args.length >= 1 {
             this._emitExpr(obj)
             this._write(".format(&")
@@ -3493,20 +3527,24 @@ RustEmitter {
             this._write(").to_string(); (match __liva_unit.as_str() { \"days\" => __liva_diff.num_days(), \"hours\" => __liva_diff.num_hours(), \"minutes\" => __liva_diff.num_minutes(), \"seconds\" => __liva_diff.num_seconds(), \"weeks\" => __liva_diff.num_weeks(), \"years\" => __liva_diff.num_days() / 365, \"months\" => __liva_diff.num_days() / 30, _ => __liva_diff.num_days(), }) as i32 }")
             return
         }
+        // Fallback — user method on a Date-like object
+        let sanitizedMethod = this._sanitizeName(method)
+        this._emitExpr(obj)
+        this._write($".{sanitizedMethod}(")
+        let aIdx = 0
+        for a in args {
+            if aIdx > 0 { this._write(", ") }
+            this._emitExpr(a)
+            aIdx += 1
+        }
+        this._write(")")
+    }
 
-        // Fallback translations for Map/Set methods when type detection fails
-        if method == "keys" {
-            this._emitExpr(obj)
-            this._write(".keys().cloned().collect::<Vec<_>>()")
-            return
-        }
-        if method == "values" {
-            this._emitExpr(obj)
-            this._write(".values().cloned().collect::<Vec<_>>()")
-            return
-        }
+    // -- Generic fallback for user-defined methods + unknown types --
+
+    _emitGenericMethodCall(obj: Expr, method: string, args: [Expr]) {
+        // Map/Set .get() with runtime tracking — can't resolve at dispatch time
         if method == "get" {
-            // Only use Map .get() if object is a known Map variable
             let getObjIdName = ""
             let _ = switch obj {
                 Expr.Identifier(gn) => { getObjIdName = this._sanitizeName(gn); 0 },
@@ -3518,7 +3556,6 @@ RustEmitter {
                 if args.length > 0 { this._emitExpr(args[0]) }
                 this._write(")).cloned().unwrap()")
             } else {
-                // User-defined method — pass through as normal call
                 this._emitExpr(obj)
                 this._write(".get(")
                 let gi = 0
@@ -3531,21 +3568,19 @@ RustEmitter {
             }
             return
         }
+        // Map/Set .has() with runtime tracking
         if method == "has" {
-            // Dispatch based on known type: Map→contains_key, Set/unknown→contains
             let objIdName = ""
             let _ = switch obj {
                 Expr.Identifier(hn) => { objIdName = this._sanitizeName(hn); 0 },
                 _ => { 0 }
             }
             if objIdName != "" && this._mapVars.has(objIdName) {
-                // Known Map variable → .contains_key()
                 this._emitExpr(obj)
                 this._write(".contains_key(&(")
                 if args.length > 0 { this._emitExpr(args[0]) }
                 this._write("))")
             } else {
-                // Set or unknown → .contains() (works for HashSet, the more common case in generic fallback)
                 this._emitExpr(obj)
                 this._write(".contains(&(")
                 if args.length > 0 { this._emitExpr(args[0]) }
@@ -3553,133 +3588,14 @@ RustEmitter {
             }
             return
         }
-        if method == "set" {
-            this._emitExpr(obj)
-            this._write(".insert(")
-            if args.length > 0 {
-                this._emitExpr(args[0])
-                this._write(".clone()")
-            }
-            this._write(", ")
-            if args.length > 1 {
-                this._emitExpr(args[1])
-                this._write(".clone()")
-            }
-            this._write(")")
-            return
-        }
-
-        // String methods that need &str arguments — fallback when type detection fails
-        if method == "contains" || method == "starts_with" || method == "ends_with" {
-            let sanitizedMethod = this._sanitizeName(method)
-            this._emitExpr(obj)
-            this._write($".{sanitizedMethod}(")
-            if args.length > 0 { this._emitRefArg(args[0]) }
-            this._write(")")
-            return
-        }
-        if method == "replace" || method == "replaceAll" {
-            this._emitExpr(obj)
-            this._write(".replace(")
-            if args.length > 0 { this._emitRefArg(args[0]) }
-            this._write(", ")
-            if args.length > 1 { this._emitRefArg(args[1]) }
-            this._write(")")
-            return
-        }
-        if method == "startsWith" {
-            this._emitExpr(obj)
-            this._write(".starts_with(")
-            if args.length > 0 { this._emitRefArg(args[0]) }
-            this._write(")")
-            return
-        }
-        if method == "endsWith" {
-            this._emitExpr(obj)
-            this._write(".ends_with(")
-            if args.length > 0 { this._emitRefArg(args[0]) }
-            this._write(")")
-            return
-        }
-        if method == "split" {
-            this._emitExpr(obj)
-            this._write(".split(")
-            if args.length > 0 { this._emitRefArg(args[0]) }
-            this._write(").map(|s| s.to_string()).collect::<Vec<String>>()")
-            return
-        }
-        if method == "join" {
-            this._emitExpr(obj)
-            this._write(".join(")
-            if args.length > 0 { this._emitRefArg(args[0]) }
-            this._write(")")
-            return
-        }
-        if method == "indexOf" {
-            this._emitExpr(obj)
-            this._write(".find(")
-            if args.length > 0 { this._emitRefArg(args[0]) }
-            this._write(").map(|i| i as i32).unwrap_or(-1)")
-            return
-        }
-        if method == "charAt" {
-            this._emitExpr(obj)
-            this._write(".chars().nth((")
-            if args.length > 0 { this._emitExpr(args[0]) }
-            this._write(") as usize).map(|c| c.to_string()).unwrap_or_default()")
-            return
-        }
-        if method == "substring" {
-            this._emitExpr(obj)
-            this._write("[(")
-            if args.length > 0 { this._emitExpr(args[0]) }
-            this._write(") as usize..(")
-            if args.length > 1 { this._emitExpr(args[1]) }
-            this._write(") as usize].to_string()")
-            return
-        }
-        if method == "push" {
-            this._emitExpr(obj)
-            this._write(".push(")
-            if args.length > 0 { this._emitClonedArg(args[0]) }
-            this._write(")")
-            return
-        }
-        if method == "includes" {
-            this._emitExpr(obj)
-            this._write(".iter().any(|__x| __x == &(")
-            if args.length > 0 { this._emitExpr(args[0]) }
-            this._write("))")
-            return
-        }
-        if method == "some" {
-            this._emitExpr(obj)
-            this._write(".iter().any(")
-            if args.length > 0 { this._emitExpr(args[0]) }
-            this._write(")")
-            return
-        }
-        if method == "toLowerCase" {
-            this._emitExpr(obj)
-            this._write(".to_lowercase()")
-            return
-        }
-        if method == "toUpperCase" {
-            this._emitExpr(obj)
-            this._write(".to_uppercase()")
-            return
-        }
-        if method == "trim" {
-            this._emitExpr(obj)
-            this._write(".trim().to_string()")
-            return
-        }
+        // .length/.len — works for any collection
         if method == "length" || method == "len" {
             this._emitExpr(obj)
             this._write(".len() as i32")
             return
         }
 
+        // Catch-all: user-defined method → obj.method(args...)
         let sanitizedMethod = this._sanitizeName(method)
         this._emitExpr(obj)
         this._write($".{sanitizedMethod}(")
@@ -4484,6 +4400,12 @@ RustEmitter {
                 // Don't clone literals-like identifiers (this is handled by emitExpr)
                 if name != "true" && name != "false" && name != "null" {
                     needsClone = true
+                    // Liveness optimization: if variable is used only once, move is safe
+                    let key = this._currentFunc + ":" + name
+                    if this._liveCtx.useCounts.has(key) {
+                        let count = this._liveCtx.useCounts.get(key)
+                        if count <= 1 { needsClone = false }
+                    }
                 }
                 0
             },

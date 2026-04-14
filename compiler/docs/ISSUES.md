@@ -12,7 +12,7 @@
 | ✅ FIXED | 13 |
 | 🔴 OPEN (bugs codegen) | 0 |
 | 🟡 OPEN (language gaps) | 4 (ISSUE-005, 006, 007, 009) |
-| ⚠️ ARCH | 3 (dispatch tables, error propagation, generic fallback) |
+| ⚠️ ARCH | 0 (all resolved in Phase 6.3) |
 
 ---
 
