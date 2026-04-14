@@ -86,7 +86,7 @@ parseCliArgs(args: [string]): CliOptions {
         } else if arg == "--" {
             // Stop parsing, rest are program args
             i = args.length
-        } else if !arg.startsWith("-") {
+        } else if not arg.startsWith("-") {
             if inputFile == "" {
                 inputFile = arg
             }
@@ -226,7 +226,7 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
     let queue: [string] = []
     for imp in entryImports {
         let resolved = resolver.resolveImportPath(entryPath, imp)
-        if !resolved.startsWith("<virtual:") {
+        if not resolved.startsWith("<virtual:") {
             queue.push(resolved)
         }
     }
@@ -256,8 +256,8 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
             // Queue transitive imports
             for imp in modImports {
                 let resolved = resolver.resolveImportPath(currentPath, imp)
-                if !resolved.startsWith("<virtual:") {
-                    if !visited.has(resolved) {
+                if not resolved.startsWith("<virtual:") {
+                    if not visited.has(resolved) {
                         queue.push(resolved)
                     }
                 }
@@ -388,9 +388,9 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
             moduleFiles.set(modName + ".rs", rustCode)
         }
         // Collect mod declarations for all sub-modules (not entry), deduplicated
-        if !isEntry {
+        if not isEntry {
             let modDecl = "mod " + modName + ";"
-            if !modDeclarations.includes(modDecl) {
+            if not modDeclarations.includes(modDecl) {
                 modDeclarations.push(modDecl)
             }
         }
@@ -597,7 +597,7 @@ _runTestCommand(opts: CliOptions) {
         // Compile
         let result = _compileSource(source, tfCopy, isMultiFile, false, opts.verbose)
 
-        if !result.success {
+        if not result.success {
             print($" FAIL {tfCopy} (compilation error)")
             for err in result.errors {
                 print($"  error: {err}")
@@ -701,7 +701,7 @@ main() {
     let result = _compileSource(source, inputFile, isMultiFile, opts.checkOnly, opts.verbose)
 
     // Report errors
-    if !result.success {
+    if not result.success {
         for err in result.errors {
             print($"error: {err}")
         }

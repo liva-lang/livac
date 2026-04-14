@@ -354,6 +354,7 @@ let id = rust {
 | `if x { doThing() }` | `if x => doThing()` | `=>` for single statements |
 | `items.forEach(x => print(x))` | `items.forEach(print)` | Point-free |
 | `if err != "" { ... }` | `if err { ... }` | Truthy check |
+| `!isValid` | `not isValid` | `not` reads better, matches `and`/`or` |
 | `Color::Red` | `Color.Red` | Dot syntax |
 | `fn add(a, b)` | `add(a, b) => a + b` | No `fn` keyword |
 | `"Hi " + name` | `$"Hi {name}"` | String templates |

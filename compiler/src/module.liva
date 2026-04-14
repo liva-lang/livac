@@ -123,7 +123,7 @@ ModuleResolver {
             let _ = switch item {
                 TopLevel.Function(decl) => {
                     let fname = $"{decl.name}"
-                    if !fname.startsWith("_") {
+                    if not fname.startsWith("_") {
                         names.push(fname)
                     }
                     0
@@ -138,7 +138,7 @@ ModuleResolver {
                 },
                 TopLevel.ConstDecl(decl) => {
                     let cname = $"{decl.name}"
-                    if !cname.startsWith("_") {
+                    if not cname.startsWith("_") {
                         names.push(cname)
                     }
                     0
@@ -180,7 +180,7 @@ ModuleResolver {
         for p in allPaths2 {
             let deps = this._adjacency.get(p)
             for d in deps {
-                if !d.startsWith("<virtual:") {
+                if not d.startsWith("<virtual:") {
                     if inDegree.has(d) {
                         let prev = inDegree.get(d)
                         inDegree.set($"{d}", prev + 1)

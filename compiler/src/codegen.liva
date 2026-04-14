@@ -205,7 +205,7 @@ RustEmitter {
             let isUpper = ch >= "A" && ch <= "Z"
             let isUnderscore = ch == "_"
             let isDigit = ch >= "0" && ch <= "9"
-            if !isUpper && !isUnderscore && !isDigit {
+            if not isUpper && not isUnderscore && not isDigit {
                 allCaps = false
             }
         }
@@ -1534,7 +1534,7 @@ RustEmitter {
             } else {
                 // or fail → In test blocks: match + panic (no Result return type)
                 // In normal functions: expr?
-                if this._inTestBlock || !this._currentReturnFallible {
+                if this._inTestBlock || not this._currentReturnFallible {
                     this._write("match ")
                     this._emitExpr(decl.init)
                     this._write(" { Ok(v) => v, Err(e) => panic!(\"{}\", e) }")
@@ -1781,7 +1781,7 @@ RustEmitter {
         // Default to numeric unless target is known to be a string
         let isString = this._isStringExpr(target)
         // Also check if VALUE is a string — implies target must be string too
-        if !isString {
+        if not isString {
             isString = this._isStringExpr(value)
         }
 
@@ -2945,7 +2945,7 @@ RustEmitter {
             _ => { 0 }
         }
 
-        if !isExpect { return false }
+        if not isExpect { return false }
 
         let expectedCode = ""
         if args.length > 0 {
@@ -4240,7 +4240,7 @@ RustEmitter {
             },
             _ => { 0 }
         }
-        if !isPar {
+        if not isPar {
             this._emitExpr(obj)
         }
         if isPar {
@@ -4749,7 +4749,7 @@ RustEmitter {
         this._emitExpr(obj)
         let snField = this._sanitizeName(prop)
         this._write($".{snField}")
-        if isSelfAccess && !this._inAssignTarget {
+        if isSelfAccess && not this._inAssignTarget {
             this._write(".clone()")
         }
     }
@@ -5282,7 +5282,7 @@ RustEmitter {
             lines.push("tower = \"0.4\"")
             lines.push("tower-http = { version = \"0.5\", features = [\"cors\"] }")
             // HTTP implies async
-            if !usesAsync {
+            if not usesAsync {
                 lines.push("tokio = { version = \"1\", features = [\"full\"] }")
             }
         }
