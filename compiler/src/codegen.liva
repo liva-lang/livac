@@ -1591,9 +1591,43 @@ RustEmitter {
             else if this._currentLine.contains("HashMap") { this._mapVars.set(sanitized, true) }
         }
 
-        // Clone all let binding inits to avoid move issues (E0382, E0507)
-        // Safe because .clone() on any Clone type returns the same type
+        // Clone let binding inits only for cases that need it (variables, field access)
+        // Skip clone for: Copy literals, already cloned, function calls (return owned),
+        // constructors, string literals, array/map literals, binary ops producing owned values
+        let skipClone = true
         if sanitized != "_" {
+            // Need clone: ends with a variable name or field access (not a call, literal, etc.)
+            // Don't clone if line already has .clone()
+            let line = this._currentLine
+            if line.endsWith(".clone()") {
+                skipClone = true
+            } else if line.endsWith(")") {
+                // Function call / constructor / Some() — returns owned value
+                skipClone = true
+            } else if line.endsWith("}") {
+                // Block expression, map literal — returns owned
+                skipClone = true
+            } else if line.endsWith("]") {
+                // Array literal — returns owned
+                skipClone = true
+            } else if line.endsWith("\"") {
+                // String literal
+                skipClone = true
+            } else if line.endsWith("= false") || line.endsWith("= true") || line.endsWith("= 0") || line.endsWith("= 1") {
+                // Copy literals
+                skipClone = true
+            } else if line.endsWith("_f64") || line.endsWith("_i32") || line.endsWith("as i32") || line.endsWith("as f64") {
+                // Numeric casts
+                skipClone = true
+            } else if line.endsWith(".to_string()") {
+                // String conversion — already owned
+                skipClone = true
+            } else {
+                // Identifier or member access — needs clone
+                skipClone = false
+            }
+        }
+        if not skipClone {
             this._write(".clone()")
         }
 
@@ -1944,10 +1978,10 @@ RustEmitter {
                 this._emitExpr(iterableExpr)
                 this._write(".iter()")
             } else {
-                // Array: for i, item → .iter().cloned().enumerate()
+                // Array: for i, item → .iter().enumerate()
                 this._write($"for ({idxName}, {itemName}) in ")
                 this._emitExpr(iterableExpr)
-                this._write(".iter().cloned().enumerate()")
+                this._write(".iter().enumerate()")
             }
         } else {
             this._write($"for {varName} in ")
@@ -1983,7 +2017,7 @@ RustEmitter {
                     this._write(".chars().map(|c| c.to_string())")
                 } else {
                     this._write(sanitized)
-                    this._write(".iter().cloned()")
+                    this._write(".clone()")
                 }
                 0
             },
@@ -2001,7 +2035,6 @@ RustEmitter {
                 } else {
                     // Other method call returns a collection
                     this._emitMethodCall(obj, m, args)
-                    this._write(".iter().cloned()")
                 }
                 0
             },
@@ -2024,19 +2057,24 @@ RustEmitter {
                     this._emitExpr(right)
                 } else {
                     this._emitExpr(iterable)
-                    this._write(".iter().cloned()")
+                    this._write(".clone()")
                 }
                 0
             },
             Expr.ArrayLiteral(_) => {
-                // Inline array literal: [1, 2, 3] → vec![...].iter().cloned()
+                // Inline array literal: [1, 2, 3] → vec![...] (already owned)
                 this._emitExpr(iterable)
-                this._write(".iter().cloned()")
+                0
+            },
+            Expr.MemberAccess(_, _) => {
+                // obj.field needs .clone() to avoid moving out of borrow
+                this._emitExpr(iterable)
+                this._write(".clone()")
                 0
             },
             _ => {
                 this._emitExpr(iterable)
-                this._write(".iter().cloned()")
+                this._write(".clone()")
                 0
             }
         }
@@ -2203,7 +2241,12 @@ RustEmitter {
                 0
             },
             Expr.Index(idxObj, idxExpr) => {
+                // Suppress self.field auto-clone for the base object
+                // We only need to clone the element, not the entire Vec
+                let savedAssignTarget = this._inAssignTarget
+                this._inAssignTarget = true
                 this._emitExpr(idxObj)
+                this._inAssignTarget = savedAssignTarget
                 this._write("[(")
                 this._emitExpr(idxExpr)
                 this._write(") as usize].clone()")
@@ -2538,6 +2581,24 @@ RustEmitter {
         let _ = switch expr {
             Expr.Literal(lit) => {
                 let _ = switch lit {
+                    Literal.Null => { result = true; 0 },
+                    _ => { 0 }
+                }
+                0
+            },
+            _ => { 0 }
+        }
+        return result
+    }
+
+    _isCopyLiteral(expr: Expr): bool {
+        let result = false
+        let _ = switch expr {
+            Expr.Literal(lit) => {
+                let _ = switch lit {
+                    Literal.Bool(_) => { result = true; 0 },
+                    Literal.Int(_) => { result = true; 0 },
+                    Literal.Float(_) => { result = true; 0 },
                     Literal.Null => { result = true; 0 },
                     _ => { 0 }
                 }
@@ -4928,24 +4989,33 @@ RustEmitter {
 
         // .length → .len() as i32 for strings and arrays
         if prop == "length" {
+            let savedAT = this._inAssignTarget
+            this._inAssignTarget = true
             this._write("(")
             this._emitExpr(obj)
             this._write(".len() as i32)")
+            this._inAssignTarget = savedAT
             return
         }
 
         // .size → .len() as i32 for maps and sets
         if prop == "size" {
             if objTag == "map" {
+                let savedAT = this._inAssignTarget
+                this._inAssignTarget = true
                 this._write("(")
                 this._emitExpr(obj)
                 this._write(".len() as i32)")
+                this._inAssignTarget = savedAT
                 return
             }
             if objTag == "set" {
+                let savedAT = this._inAssignTarget
+                this._inAssignTarget = true
                 this._write("(")
                 this._emitExpr(obj)
                 this._write(".len() as i32)")
+                this._inAssignTarget = savedAT
                 return
             }
         }
@@ -4965,6 +5035,9 @@ RustEmitter {
         this._emitExpr(obj)
         let snField = this._sanitizeName(prop)
         this._write($".{snField}")
+        // Clone self.field when accessed as a value (return, let binding, etc.)
+        // Note: this causes extra clones for self.field.len(), self.field[i] etc.
+        // but prevents E0507 for move-out-of-borrow cases like return self.field
         if isSelfAccess && not this._inAssignTarget {
             this._write(".clone()")
         }
@@ -5017,7 +5090,20 @@ RustEmitter {
                 }
                 0
             },
-            Expr.MemberAccess(_, _) => { needsClone = true; 0 },
+            Expr.MemberAccess(maObj, _) => {
+                // this.field is auto-cloned in _emitMemberAccess — skip here
+                // other.field needs clone when passed as arg
+                let isSelf = false
+                let _ = switch maObj {
+                    Expr.Identifier(oName) => {
+                        if oName == "this" { isSelf = true }
+                        0
+                    },
+                    _ => { 0 }
+                }
+                if not isSelf { needsClone = true }
+                0
+            },
             _ => { 0 }
         }
         this._emitExpr(argExpr)
