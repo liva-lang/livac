@@ -4,8 +4,9 @@
 > **Versión:** v2.0.0-dev (tag: v1.2.0)  
 > **Lenguaje:** Rust (bootstrap) + Liva (self-hosting)  
 > **Tests:** 520 passing (518 + 2 ignored)  
-> **Próximo objetivo:** Liva Test Suite — ~65 archivos .liva validando toda la sintaxis y features  
-> **Última actualización:** 2026-03-31
+> **Self-hosting:** Phase 7 COMPLETE — idempotente, 2000x perf fix  
+> **Próximo objetivo:** Optimización de clones en Rust generado  
+> **Última actualización:** 2026-04-15
 
 ---
 

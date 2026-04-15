@@ -1,8 +1,8 @@
 # Self-Hosting: Compilador de Liva escrito en Liva
 
-> **Estado:** Fase 6 completada ✅ — 84 test files, 83/83 passing, 11,854 líneas Liva  
+> **Estado:** Fase 7 completada ✅ — Self-hosting idempotente, 2000x perf fix  
 > **Última actualización:** 2026-04-15  
-> **Próximo:** Fase 7 — Self-compilation  
+> **Próximo:** Optimización de clones en Rust generado  
 > **Branch:** `feat/self-hosting-v2`
 
 ---
@@ -331,15 +331,18 @@ El paso 3 (idempotencia generacional) es la prueba final.
 4. **Iterar** hasta que gen-1 produce Rust válido para todos sus módulos
 5. **Compilar gen-2** y validar que produce el mismo output
 
-### 7.1 — Gen-1: compilar el compilador
+### 7.1 — Gen-1: compilar el compilador ✅ DONE
 
-> **Objetivo:** Que `livac-gen1 build compiler/src/main.liva` produzca Rust válido
-> **Método:** Compilar con bootstrap, ejecutar gen-1, diagnosticar, corregir, repetir
+> **Completado:** gen-1 produce Rust válido para los 9 módulos (253→0 errores cargo)
+> **Commit:** `01eaea3` — 12,226 líneas de Rust generado
+> **Fixes:** for-loop iteration, let-binding clones, self.field indexing, .length/.size property access
 
-### 7.2 — Gen-2: idempotencia generacional
+### 7.2 — Gen-2: idempotencia generacional ✅ DONE
 
-> **Objetivo:** Que gen-1 y gen-2 produzcan el mismo código Rust
-> **Método:** Comparar output de ambas generaciones
+> **Completado:** gen-1 output == gen-2 output (8/9 byte-identical, 1 mod-order diff)
+> **Commit:** `4cbb30a` — 2000x performance improvement (42s → 0.021s per file)
+> **Perf fix:** Suppress self.field auto-clone for indexing (`_inAssignTarget` flag)
+> **Idempotence:** Sorted comparison IDENTICAL — gen-2 is functionally equivalent to gen-1
 
 ---
 
@@ -375,9 +378,9 @@ Fase 6: Madurez
   [x] 6.6: Error codes cobertura completa (26/42+ codes, 12 nuevos)
   [x] 6.7: AST caching — eliminar re-parseos redundantes (4x → 2x)
 
-Fase 7: Self-Compilation
-  [ ] 7.1: Gen-1 compila el compilador (livac-gen1 build compiler/src/main.liva)
-  [ ] 7.2: Gen-2 idempotencia generacional (gen-1 output == gen-2 output)
+Fase 7: Self-Compilation ✅
+  [x] 7.1: Gen-1 compila el compilador — 0 cargo errors (commit 01eaea3)
+  [x] 7.2: Gen-2 idempotencia generacional — output idéntico (commit 4cbb30a)
 ```
 
 ---

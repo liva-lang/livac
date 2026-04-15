@@ -5,6 +5,38 @@ All notable changes to the Liva compiler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-dev] - 2026-04-15
+
+### Added
+- **Self-hosting Phase 7: Self-Compilation COMPLETE**
+  - **Phase 7.1:** Gen-1 (compiled by bootstrap) produces valid Rust for all 9 modules — 253→0 cargo errors
+  - **Phase 7.2:** Gen-2 (compiled by gen-1) produces identical output to gen-1 — idempotence verified
+  - 12,226 lines of generated Rust from 11,854 lines of Liva
+  - Full pipeline: bootstrap → gen-1 → gen-2 with byte-identical output (sorted)
+
+### Fixed
+- **Clone reduction:** gen-1 output 2830 → 1633 clones (42% reduction)
+  - Eliminated `EnumVariant.clone()` in function args — enum constructors are always owned
+  - Eliminated `None.clone()` in let-bindings — always Copy
+  - Skip clone for Binary expression results in let-bindings — owned values
+  - Skip clone for enum variant assignments (contains `::`)
+  - Expanded `self.field.clone()` suppression to ALL method calls (not just mutating)
+  - Smart `Map.set()` cloning via `_emitClonedArg` (skip for literals/single-use)
+  - Copy-type field detection via TypeContext (int/bool/float skip clone)
+- **String comparison optimization:** suppress `.to_string()` for `==` and `!=` with string literals
+  - `String == "literal"` now emits `name == "literal"` instead of `name == "literal".to_string()`
+  - Reduces allocations in hot paths like `_sanitizeName`, `_emitIdentifier`
+- **2000x performance improvement** in gen-2 binary (42s → 0.021s per file)
+  - Suppressed `self.field.clone()` for array indexing — was cloning entire Vec per access
+  - Suppressed `self.field.clone()` for `.length`/`.size` property access
+  - Changed for-loop iteration from `.iter().cloned()` to `.clone()` (clone Vec once, not each element)
+  - Smart let-binding cloning: skip clone for call results, blocks, literals, owned values
+
+### Known Issues
+- Gen-2 binary codegen is slow (~minutes) due to deeply nested match expressions in generated Rust
+  - Gen-2 `check` works fast (2s for full compiler)
+  - Root cause: Liva switch-in-switch generates deeply nested Rust matches (27 vs 3 in bootstrap)
+
 ## [2.0.0-dev] - 2026-04-01
 
 ### Added

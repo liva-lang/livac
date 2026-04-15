@@ -370,7 +370,6 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
     }
 
     // Pass 2: Generate Rust for each module with all enum fields available
-    let modDeclarations: [string] = []
 
     for modPath in compileOrder {
         let programs = parsedModules.get(modPath)
@@ -381,37 +380,20 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
         let liveCtx = analyzeLiveness(programForLiveness)
 
         let isEntry = modPath == entryPath
-        // ALL modules use generateModuleRust (no mod declarations)
-        // mod declarations are all provided in the header
-        let rustCode = generateModuleRust(programForCodegen, typeCtx, liveCtx, allEnumFields, allEnumFieldBoxed, allEnumFieldOptional)
+        // Entry module: generateRust() → includes #![allow] + use std + inline mod declarations
+        // Sub-modules: generateModuleRust() → includes use std only (no #![allow], no mod)
+        let rustCode = ""
+        if isEntry {
+            rustCode = generateRust(programForCodegen, typeCtx, liveCtx, allEnumFields, allEnumFieldBoxed, allEnumFieldOptional)
+        } else {
+            rustCode = generateModuleRust(programForCodegen, typeCtx, liveCtx, allEnumFields, allEnumFieldBoxed, allEnumFieldOptional)
+        }
 
         let modName = resolver.pathToModName(modPath)
         if isEntry {
             moduleFiles.set("main.rs", rustCode)
         } else {
             moduleFiles.set(modName + ".rs", rustCode)
-        }
-        // Collect mod declarations for all sub-modules (not entry), deduplicated
-        if not isEntry {
-            let modDecl = "mod " + modName + ";"
-            if not modDeclarations.includes(modDecl) {
-                modDeclarations.push(modDecl)
-            }
-        }
-    }
-
-    // Insert mod declarations into main.rs after the #![allow(...)] line
-    // Inner attributes must come before any items (mod, use, fn, etc.)
-    if modDeclarations.length > 0 {
-        let header = modDeclarations.join("\n") + "\n"
-        let mainCode = moduleFiles.get("main.rs")
-        let nlPos = mainCode.indexOf("\n")
-        if nlPos >= 0 {
-            let firstLine = mainCode.substring(0, nlPos + 1)
-            let rest = mainCode.substring(nlPos + 1, mainCode.length)
-            moduleFiles.set("main.rs", firstLine + header + rest)
-        } else {
-            moduleFiles.set("main.rs", header + mainCode)
         }
     }
 

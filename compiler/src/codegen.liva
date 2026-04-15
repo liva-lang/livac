@@ -332,7 +332,11 @@ RustEmitter {
         }
 
         // Preamble: suppress common warnings and standard imports
-        this._writeln("#![allow(unused_imports, unused_variables, unused_mut, unused_parens, dead_code, unused_assignments, unreachable_code, non_snake_case, while_true)]")
+        // Inner attributes (#![allow(...)]) only valid at crate root (main module)
+        // use statements needed in every module that uses HashMap/HashSet
+        if this._isMainModule {
+            this._writeln("#![allow(unused_imports, unused_variables, unused_mut, unused_parens, dead_code, unused_assignments, unreachable_code, non_snake_case, while_true)]")
+        }
         this._writeln("use std::collections::{HashMap, HashSet};")
         this._writeln("use std::fmt::Write;")
         this._writeRaw("")
@@ -1517,6 +1521,9 @@ RustEmitter {
 
         this._write(" = ")
 
+        // Track whether init produces an owned value (binary ops, calls, etc.)
+        let initIsOwned = false
+
         // Handle fallible init (or fail / or value)
         if decl.isFallible {
             let orVal = decl.orValue
@@ -1548,6 +1555,7 @@ RustEmitter {
             // All emission paths MUST be inside switch arms to avoid partial move
             let _ = switch decl.init {
                 Expr.Binary(op, left, right) => {
+                    initIsOwned = true
                     let isOr = false
                     let _ = switch op {
                         BinOp.Or => { isOr = true; 0 },
@@ -1622,9 +1630,20 @@ RustEmitter {
             } else if line.endsWith(".to_string()") {
                 // String conversion — already owned
                 skipClone = true
+            } else if line.endsWith("= None") {
+                // None is always Copy
+                skipClone = true
+            } else if initIsOwned {
+                // Binary ops, etc. produce owned values — no clone needed
+                skipClone = true
             } else {
                 // Identifier or member access — needs clone
-                skipClone = false
+                // But enum variants (contain ::) are value constructors, always owned
+                if line.contains("::") {
+                    skipClone = true
+                } else {
+                    skipClone = false
+                }
             }
         }
         if not skipClone {
@@ -2068,7 +2087,11 @@ RustEmitter {
             },
             Expr.MemberAccess(_, _) => {
                 // obj.field needs .clone() to avoid moving out of borrow
+                // Suppress auto-clone from _emitMemberAccess (we add our own .clone())
+                let savedAT = this._inAssignTarget
+                this._inAssignTarget = true
                 this._emitExpr(iterable)
+                this._inAssignTarget = savedAT
                 this._write(".clone()")
                 0
             },
@@ -2115,7 +2138,12 @@ RustEmitter {
         if isStringSwitch {
             this._write(".as_str()")
         } else {
-            this._write(".clone()")
+            // Add .clone() unless discriminant already produces an owned value
+            // (e.g., array indexing already adds .clone(), as do method calls)
+            let line = this._currentLine
+            if not line.endsWith(".clone()") && not line.endsWith(")") {
+                this._write(".clone()")
+            }
         }
         this._write(" {")
         this._newline()
@@ -2510,7 +2538,15 @@ RustEmitter {
         } else {
             this._emitExpr(left)
             this._write($" {opStr} ")
-            this._emitLiteral(rightLit)
+            // Suppress .to_string() for == and != — String implements PartialEq<str>
+            if opStr == "==" || opStr == "!=" {
+                let saved = this._suppressToString
+                this._suppressToString = true
+                this._emitLiteral(rightLit)
+                this._suppressToString = saved
+            } else {
+                this._emitLiteral(rightLit)
+            }
         }
     }
 
@@ -2538,7 +2574,15 @@ RustEmitter {
                     this._emitExpr(right)
                     this._write(")")
                 } else {
-                    this._emitLiteral(lLit)
+                    // Suppress .to_string() for == and != — String implements PartialEq<str>
+                    if opStr == "==" || opStr == "!=" {
+                        let saved = this._suppressToString
+                        this._suppressToString = true
+                        this._emitLiteral(lLit)
+                        this._suppressToString = saved
+                    } else {
+                        this._emitLiteral(lLit)
+                    }
                     this._write($" {opStr} ")
                     this._emitExpr(right)
                 }
@@ -3236,25 +3280,26 @@ RustEmitter {
         // Methods like push/pop/insert/remove/clear/reverse/sort mutate the receiver.
         // If obj is self.field, we must NOT clone it (otherwise mutation is lost).
         let isMutatingCall = method == "push" or method == "pop" or method == "insert" or method == "remove" or method == "clear" or method == "reverse" or method == "sort" or method == "set"
-        if isMutatingCall {
-            // Check if obj is MemberAccess(Identifier("this"), _)
-            let isSelfField = false
-            let _ = switch obj {
-                Expr.MemberAccess(maInner, _) => {
-                    let _ = switch maInner {
-                        Expr.Identifier(iName) => {
-                            if iName == "this" { isSelfField = true }
-                            0
-                        },
-                        _ => { 0 }
-                    }
-                    0
-                },
-                _ => { 0 }
-            }
-            if isSelfField {
-                this._inAssignTarget = true
-            }
+
+        // Optimization: suppress self.field auto-clone for ALL method calls.
+        // self._classes.clone().contains_key(x) → self._classes.contains_key(x)
+        // Borrowing &self means methods like .get(), .contains_key(), .len() work via &self.
+        let isSelfField = false
+        let _ = switch obj {
+            Expr.MemberAccess(maInner, _) => {
+                let _ = switch maInner {
+                    Expr.Identifier(iName) => {
+                        if iName == "this" { isSelfField = true }
+                        0
+                    },
+                    _ => { 0 }
+                }
+                0
+            },
+            _ => { 0 }
+        }
+        if isSelfField {
+            this._inAssignTarget = true
         }
 
         // Handle stdlib type static calls (File, Dir, Process, Sys, Config, CSV, JSON, DB, Server, Http, Response)
@@ -4013,8 +4058,8 @@ RustEmitter {
         } else {
             this._emitGenericMethodCall(obj, method, args)
         }
-        // RC3: reset the mutating flag after dispatch
-        if isMutatingCall {
+        // Reset the self.field auto-clone suppression after dispatch
+        if isSelfField {
             this._inAssignTarget = false
         }
     }
@@ -4811,13 +4856,11 @@ RustEmitter {
             this._emitExpr(obj)
             this._write(".insert(")
             if args.length > 0 {
-                this._emitExpr(args[0])
-                this._write(".clone()")
+                this._emitClonedArg(args[0])
             }
             this._write(", ")
             if args.length > 1 {
-                this._emitExpr(args[1])
-                this._write(".clone()")
+                this._emitClonedArg(args[1])
             }
             this._write(")")
             return true
@@ -5036,10 +5079,22 @@ RustEmitter {
         let snField = this._sanitizeName(prop)
         this._write($".{snField}")
         // Clone self.field when accessed as a value (return, let binding, etc.)
-        // Note: this causes extra clones for self.field.len(), self.field[i] etc.
-        // but prevents E0507 for move-out-of-borrow cases like return self.field
+        // Skip clone for Copy-type fields (int, bool, float) — they don't need it
+        // Skip clone when _inAssignTarget is set (indexing, .length, method call base)
         if isSelfAccess && not this._inAssignTarget {
-            this._write(".clone()")
+            // Check field type — skip clone for Copy types
+            let fieldTag = "unknown"
+            if this._currentClassName != "" {
+                let fkey = $"{this._currentClassName}.{prop}"
+                if this._typeCtx.fieldTypes.has(fkey) {
+                    let fidx = this._typeCtx.fieldTypes.get(fkey)
+                    let ftype = this._typeCtx.typePool[fidx]
+                    fieldTag = this._typeRefToTag(ftype)
+                }
+            }
+            if fieldTag != "number" && fieldTag != "bool" && fieldTag != "float" {
+                this._write(".clone()")
+            }
         }
     }
 
@@ -5092,16 +5147,22 @@ RustEmitter {
             },
             Expr.MemberAccess(maObj, _) => {
                 // this.field is auto-cloned in _emitMemberAccess — skip here
+                // Enum/type variant (PascalCase) is a value constructor — always owned, no clone
                 // other.field needs clone when passed as arg
                 let isSelf = false
+                let isEnumOrType = false
                 let _ = switch maObj {
                     Expr.Identifier(oName) => {
                         if oName == "this" { isSelf = true }
+                        if oName.length > 0 {
+                            let fc = oName.charAt(0)
+                            if fc >= "A" && fc <= "Z" { isEnumOrType = true }
+                        }
                         0
                     },
                     _ => { 0 }
                 }
-                if not isSelf { needsClone = true }
+                if not isSelf && not isEnumOrType { needsClone = true }
                 0
             },
             _ => { 0 }
@@ -5363,7 +5424,11 @@ RustEmitter {
             cloneDisc = false
         } else {
             this._emitExpr(disc)
-            this._write(".clone()")
+            // Add .clone() unless discriminant already produces an owned value
+            let line = this._currentLine
+            if not line.endsWith(".clone()") && not line.endsWith(")") {
+                this._write(".clone()")
+            }
         }
         this._write(" { ")
 

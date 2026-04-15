@@ -497,6 +497,11 @@
 - [x] **C6**: Closed (future enhancement, post-v2.0)
 - [x] **B1/B2**: Closed (design decisions, deferred post-v2.0)
 
+### Self-hosting — Fase 7: Self-Compilation ✅
+
+- [x] **7.1: Gen-1 compila el compilador** — `livac-gen1 build compiler/src/main.liva` produce Rust válido (253→0 errors, commit `01eaea3`)
+- [x] **7.2: Gen-2 idempotencia generacional** — gen-1 output == gen-2 output, 2000x perf fix (commit `4cbb30a`)
+
 ### Liva Test Suite — archivos .liva que validan el lenguaje
 
 > **Foco:** Crear suite completa de tests escritos EN Liva que validen toda la sintaxis y features documentadas.
