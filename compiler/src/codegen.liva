@@ -3859,12 +3859,12 @@ RustEmitter {
                             this._write("None")
                         } else {
                             this._write("Some(Box::new(")
-                            this._emitExpr(a)
+                            this._emitClonedArg(a)
                             this._write("))")
                         }
                     } else if isBoxed {
                         this._write("Box::new(")
-                        this._emitExpr(a)
+                        this._emitClonedArg(a)
                         this._write(")")
                     } else if isOptional {
                         if isNullArg {
@@ -3911,9 +3911,9 @@ RustEmitter {
         }
         // Secondary dispatch: if target is still generic but method is a known array-only method,
         // assume array (type detection often fails for array variables)
-        // Exclude methods that overlap with Map/Set/user (insert, remove, has, get, set, forEach, isEmpty, contains, clear, count)
+        // Exclude methods that overlap with Map/Set/user/String (insert, remove, has, get, set, forEach, isEmpty, contains, clear, count, slice, indexOf)
         if target == "generic" && this._isKnownArrayMethod(method) {
-            if method != "insert" && method != "remove" && method != "has" && method != "get" && method != "set" && method != "forEach" && method != "isEmpty" && method != "contains" && method != "clear" && method != "count" {
+            if method != "insert" && method != "remove" && method != "has" && method != "get" && method != "set" && method != "forEach" && method != "isEmpty" && method != "contains" && method != "clear" && method != "count" && method != "slice" && method != "indexOf" {
                 target = "array"
             }
         }
@@ -4181,6 +4181,20 @@ RustEmitter {
             this._write(".find(")
             if args.length > 0 { this._emitRefArg(args[0]) }
             this._write(").map(|i| i as i32).unwrap_or(-1)")
+            return
+        }
+        // slice — default to string semantics (.to_string()) when type unknown
+        if method == "slice" {
+            this._emitExpr(obj)
+            this._write("[(")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            if args.length > 1 {
+                this._write(") as usize..(")
+                this._emitExpr(args[1])
+                this._write(") as usize].to_string()")
+            } else {
+                this._write(") as usize..].to_string()")
+            }
             return
         }
 
@@ -4990,8 +5004,13 @@ RustEmitter {
                 if name != "true" && name != "false" && name != "null" {
                     needsClone = true
                     // Liveness optimization: if variable is used only once, move is safe
+                    // BUT: if variable is used inside a loop, always clone (loop body executes multiple times)
                     let key = this._currentFunc + ":" + name
-                    if this._liveCtx.useCounts.has(key) {
+                    let inLoop = false
+                    if this._liveCtx.loopUseCounts.has(key) {
+                        if this._liveCtx.loopUseCounts.get(key) > 0 { inLoop = true }
+                    }
+                    if not inLoop && this._liveCtx.useCounts.has(key) {
                         let count = this._liveCtx.useCounts.get(key)
                         if count <= 1 { needsClone = false }
                     }

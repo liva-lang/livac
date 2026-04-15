@@ -400,11 +400,19 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
         }
     }
 
-    // Prepend mod declarations to main.rs
+    // Insert mod declarations into main.rs after the #![allow(...)] line
+    // Inner attributes must come before any items (mod, use, fn, etc.)
     if modDeclarations.length > 0 {
-        let header = modDeclarations.join("\n") + "\n\n"
+        let header = modDeclarations.join("\n") + "\n"
         let mainCode = moduleFiles.get("main.rs")
-        moduleFiles.set("main.rs", header + mainCode)
+        let nlPos = mainCode.indexOf("\n")
+        if nlPos >= 0 {
+            let firstLine = mainCode.substring(0, nlPos + 1)
+            let rest = mainCode.substring(nlPos + 1, mainCode.length)
+            moduleFiles.set("main.rs", firstLine + header + rest)
+        } else {
+            moduleFiles.set("main.rs", header + mainCode)
+        }
     }
 
     // Step 4: Cargo.toml — detect deps from generated code
