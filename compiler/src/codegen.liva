@@ -66,6 +66,7 @@ RustEmitter {
     _enumVariantFieldBoxed: Map<string, [bool]>
     _enumVariantFieldOptional: Map<string, [bool]>
     _pendingDerefs: [string]
+    _pendingRefClones: [string]
     _optionalVars: Map<string, bool>
     _mapVars: Map<string, bool>
     _setVars: Map<string, bool>
@@ -99,6 +100,7 @@ RustEmitter {
         this._enumVariantFieldBoxed = Map {}
         this._enumVariantFieldOptional = Map {}
         this._pendingDerefs = []
+        this._pendingRefClones = []
         this._optionalVars = Map {}
         this._mapVars = Map {}
         this._setVars = Map {}
@@ -2133,17 +2135,15 @@ RustEmitter {
         }
 
         this._writeIndent()
-        this._write("match ")
-        this._emitExpr(stmt.discriminant)
         if isStringSwitch {
+            this._write("match ")
+            this._emitExpr(stmt.discriminant)
             this._write(".as_str()")
         } else {
-            // Add .clone() unless discriminant already produces an owned value
-            // (e.g., array indexing already adds .clone(), as do method calls)
-            let line = this._currentLine
-            if not line.endsWith(".clone()") && not line.endsWith(")") {
-                this._write(".clone()")
-            }
+            // Borrow discriminant with & to avoid O(n²) deep-clone on recursive types.
+            // Fields become references; individual clones happen inside each arm.
+            this._write("match &")
+            this._emitExpr(stmt.discriminant)
         }
         this._write(" {")
         this._newline()
@@ -2170,11 +2170,20 @@ RustEmitter {
     }
 
     _emitCaseClause(c: CaseClause, isStrSwitch: bool) {
+        this._pendingDerefs = []
+        this._pendingRefClones = []
         this._writeIndent()
         this._emitExpr(c.value)
         this._write(" => {")
         this._newline()
         this._indent()
+        // Emit clone/deref bindings for match-by-reference fields
+        for d in this._pendingDerefs {
+            this._writeln("let " + d + " = *" + d + ".clone();")
+        }
+        for rc in this._pendingRefClones {
+            this._writeln("let " + rc + " = " + rc + ".clone();")
+        }
         for s in c.body {
             this._emitStmt(s)
         }
@@ -5417,18 +5426,17 @@ RustEmitter {
         }
 
         let cloneDisc = true
-        this._write("match ")
         if stringSwitch {
+            this._write("match ")
             this._emitExpr(disc)
             this._write(".as_str()")
             cloneDisc = false
         } else {
+            // Borrow discriminant with & to avoid O(n²) deep-clone.
+            this._write("match &")
             this._emitExpr(disc)
-            // Add .clone() unless discriminant already produces an owned value
-            let line = this._currentLine
-            if not line.endsWith(".clone()") && not line.endsWith(")") {
-                this._write(".clone()")
-            }
+            // Borrow discriminant with & to avoid O(n²) deep-clone.
+            let doNothing = 0
         }
         this._write(" { ")
 
@@ -5440,8 +5448,9 @@ RustEmitter {
     }
 
     _emitSwitchArm(arm: SwitchArm) {
-        // Clear pending derefs before emitting pattern
+        // Clear pending derefs/clones before emitting pattern
         this._pendingDerefs = []
+        this._pendingRefClones = []
         this._emitPattern(arm.pattern)
 
         let guardExpr = arm.guard
@@ -5452,15 +5461,21 @@ RustEmitter {
 
         this._write(" => ")
 
-        // If there are pending derefs from boxed pattern fields, wrap in block
+        // Fields become references due to match &x.
+        // Boxed fields need *field.clone(), non-boxed need field.clone()
         let hasDerefs = this._pendingDerefs.length > 0
+        let hasClones = this._pendingRefClones.length > 0
         let derefs = this._pendingDerefs
+        let clones = this._pendingRefClones
         let _ = switch arm.body {
             SwitchArmBody.Expr(armExpr) => {
-                if hasDerefs {
+                if hasDerefs || hasClones {
                     this._write("{ ")
                     for d in derefs {
-                        this._write("let " + d + " = *" + d + "; ")
+                        this._write("let " + d + " = *" + d + ".clone(); ")
+                    }
+                    for c in clones {
+                        this._write("let " + c + " = " + c + ".clone(); ")
                     }
                     this._emitExpr(armExpr)
                     this._write(" }, ")
@@ -5473,7 +5488,10 @@ RustEmitter {
             SwitchArmBody.Block(armStmts) => {
                 this._write("{ ")
                 for d2 in derefs {
-                    this._write("let " + d2 + " = *" + d2 + "; ")
+                    this._write("let " + d2 + " = *" + d2 + ".clone(); ")
+                }
+                for c2 in clones {
+                    this._write("let " + c2 + " = " + c2 + ".clone(); ")
                 }
                 for s in armStmts {
                     this._emitStmt(s)
@@ -5615,6 +5633,9 @@ RustEmitter {
                                 }
                                 if isBoxed {
                                     this._pendingDerefs.push(sanitized)
+                                } else {
+                                    // Non-boxed field: needs .clone() when matching by reference
+                                    this._pendingRefClones.push(sanitized)
                                 }
                             }
                             bIdx += 1
