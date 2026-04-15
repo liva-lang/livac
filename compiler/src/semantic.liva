@@ -264,6 +264,10 @@ SemanticAnalyzer {
     // -- Symbol declaration --
 
     _declareSymbol(name: string, kind: SymbolKind, typeRef: TypeRef?, isMutable: bool) {
+        // Wildcard _ is not a real binding — skip declaration
+        if name == "_" {
+            return
+        }
         let key = this._symKey(this._currentScopeId, name)
 
         if this._symbols.has(key) {
@@ -1326,7 +1330,7 @@ SemanticAnalyzer {
         // Convert types to strings FIRST to avoid double-consumption of TypeRef
         let actualType = this.inferExprType(expr)
         let actualStr = this._typeToString(actualType)
-        if actualStr == "unknown" {
+        if actualStr == "unknown" or actualStr.contains("unknown") {
             return
         }
 
@@ -1342,6 +1346,10 @@ SemanticAnalyzer {
         }
 
         if actualStr != expectedStr {
+            // null is compatible with any optional type T?
+            if actualStr == "null" and expectedStr.endsWith("?") {
+                return
+            }
             this._warning($"Return type mismatch in '{this._currentFuncName}': expected {expectedStr}, got {actualStr}", 0, 0)
         }
     }

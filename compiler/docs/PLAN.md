@@ -1,8 +1,8 @@
 # Self-Hosting: Compilador de Liva escrito en Liva
 
-> **Estado:** Fase 5 completada ✅ — 84 test files, 83/83 passing  
-> **Última actualización:** 2026-04-14  
-> **Próximo:** Fase 6 — Madurez arquitectónica + cobertura 100%  
+> **Estado:** Fase 6 completada ✅ — 84 test files, 83/83 passing, 11,854 líneas Liva  
+> **Última actualización:** 2026-04-15  
+> **Próximo:** Fase 7 — Self-compilation  
 > **Branch:** `feat/self-hosting-v2`
 
 ---
@@ -261,11 +261,11 @@ Also: added `usesHttpClient` detection + `reqwest` to Cargo.toml generator.
 > **Fixtures:** 12 nuevos archivos .liva + 1 helper module (import_helper)
 > **Untestable:** E0005, E0006-E0007, E0301, E0602, E4008-E4009 (parser/check limitations)
 
-### 6.7 — AST caching: eliminar re-parseos redundantes
+### 6.7 — AST caching: eliminar re-parseos redundantes ✅ DONE
 
-> **Objetivo:** Parsear cada módulo 1 sola vez después del BFS (actualmente 4)
-> **Esfuerzo:** Bajo — refactor de `compileMultiFile()` en main.liva
-> **Prioridad:** 🟡 MEDIA — mejora rendimiento en proyectos multi-archivo
+> **Completado:** Unificadas Pass 1a + 1b en un solo loop: Sub-pass A (enum names) + Sub-pass B (enum fields + cache)
+> **Resultado:** 4 → 2 parses por módulo después del BFS
+> **Refactor:** `compileMultiFile()` en main.liva simplificado
 
 Problema actual en `compileMultiFile()`:
 ```
@@ -307,6 +307,42 @@ Fase 6.5  Eliminar rust {} de tests           ✅ DONE — Sys.env fallback
 
 ---
 
+## Roadmap: Fase 7 — Self-Compilation
+
+### Objetivo
+
+Que el compilador escrito en Liva (`compiler/src/*.liva`) sea capaz de compilarse
+a sí mismo. Es decir:
+
+```
+1. Bootstrap (Rust):  livac build compiler/src/main.liva  →  livac-gen1 (binario)
+2. Gen-1 (Liva):      livac-gen1 build compiler/src/main.liva  →  livac-gen2 (binario)
+3. Validación:         diff <(livac-gen1 output) <(livac-gen2 output)  →  idénticos
+```
+
+El paso 1 ya funciona. El paso 2 es el objetivo de esta fase.
+El paso 3 (idempotencia generacional) es la prueba final.
+
+### Estrategia
+
+1. **Compilar con bootstrap** — `./target/release/livac build compiler/src/main.liva`
+2. **Ejecutar gen-1 contra sí mismo** — ver qué errores produce
+3. **Clasificar errores** como: bug de codegen, feature faltante, o limitación del bootstrap
+4. **Iterar** hasta que gen-1 produce Rust válido para todos sus módulos
+5. **Compilar gen-2** y validar que produce el mismo output
+
+### 7.1 — Gen-1: compilar el compilador
+
+> **Objetivo:** Que `livac-gen1 build compiler/src/main.liva` produzca Rust válido
+> **Método:** Compilar con bootstrap, ejecutar gen-1, diagnosticar, corregir, repetir
+
+### 7.2 — Gen-2: idempotencia generacional
+
+> **Objetivo:** Que gen-1 y gen-2 produzcan el mismo código Rust
+> **Método:** Comparar output de ambas generaciones
+
+---
+
 ## Checklist de hitos
 
 ```
@@ -337,7 +373,11 @@ Fase 6: Madurez
   [x] 6.4: Stdlib faltante (File ext, Dir ext, Process ext, Sys ext, Config, CSV, JSON, DB, Server, Http, Response)
   [x] 6.5: Eliminar rust {} de tests
   [x] 6.6: Error codes cobertura completa (26/42+ codes, 12 nuevos)
-  [ ] 6.7: AST caching — eliminar re-parseos redundantes (4x → 2x)
+  [x] 6.7: AST caching — eliminar re-parseos redundantes (4x → 2x)
+
+Fase 7: Self-Compilation
+  [ ] 7.1: Gen-1 compila el compilador (livac-gen1 build compiler/src/main.liva)
+  [ ] 7.2: Gen-2 idempotencia generacional (gen-1 output == gen-2 output)
 ```
 
 ---

@@ -31,7 +31,7 @@ import {
 } from "./ast"
 import { Lexer, tokenize } from "./lexer"
 import { Parser, parse } from "./parser"
-import { SemanticAnalyzer, TypeContext, analyzeProgram } from "./semantic"
+import { SemanticAnalyzer, TypeContext, DiagnosticLevel, analyzeProgram } from "./semantic"
 import { LivenessAnalyzer, LivenessContext, analyzeLiveness } from "./liveness"
 import { RustEmitter, generateRust, generateModuleRust, sanitizeFieldName } from "./codegen"
 import { ModuleResolver, LivaModule } from "./module"
@@ -156,9 +156,11 @@ compileSingleFile(source: string, fileName: string, checkOnly: bool): Compilatio
     // Step 3: Semantic analysis
     let typeCtx: TypeContext = analyzeProgram(program)
 
-    // Check for semantic errors
+    // Check for semantic errors (skip warnings)
     for diag in typeCtx.diagnostics {
-        errors.push($"{diag.message}")
+        if diag.level == DiagnosticLevel.Error {
+            errors.push($"{diag.message}")
+        }
     }
 
     if errors.length > 0 {
@@ -281,7 +283,9 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
             let modProgram = parse(modTokens, modSrc)
             let typeCtx: TypeContext = analyzeProgram(modProgram)
             for diag in typeCtx.diagnostics {
-                errors.push($"{modPath}: {diag.message}")
+                if diag.level == DiagnosticLevel.Error {
+                    errors.push($"{modPath}: {diag.message}")
+                }
             }
         }
         return CompilationResult(errors.length == 0, "", "", errors, moduleFiles)

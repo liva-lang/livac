@@ -428,8 +428,22 @@ Lexer {
             } else {
                 // At template level
                 if ch == "{" {
-                    braceDepth += 1
-                    content += this._advance()
+                    // Check for {{ escaped literal brace
+                    if this._peekNext() == "{" {
+                        content += this._advance()  // first {
+                        content += this._advance()  // second {
+                    } else {
+                        braceDepth += 1
+                        content += this._advance()
+                    }
+                } else if ch == "}" {
+                    // Check for }} escaped literal brace
+                    if this._peekNext() == "}" {
+                        content += this._advance()  // first }
+                        content += this._advance()  // second }
+                    } else {
+                        content += this._advance()
+                    }
                 } else if ch == "\\" {
                     content += this._advance()
                     if not this._isAtEnd() => content += this._advance()
