@@ -1107,26 +1107,24 @@ Parser {
         if this._match(TokenKind.KwLet) {
             let bindings = this._parseLetBindings()
             this._expect(TokenKind.Assign)
-            // Parse full expression (handles `or` as logical OR in chains)
+
+            // Parse the full expression (handles `or` as logical OR)
             let init = this._parseExpression()
 
-            // Check for `or fail "msg"` after the init expression
             let orFailMsg: Expr? = null
             let orValue: Expr? = null
             let orFailLine = 0
 
+            // Check for `or fail` after expression
             if this._check(TokenKind.KwOr) {
                 if this._peekToken(1) == TokenKind.KwFail {
                     this._advance()  // consume `or`
                     this._advance()  // consume `fail`
                     let failLineNum = this.tokens[this.current - 1].line
                     orFailLine = failLineNum
-
-                    // Bare `or fail` (without message)
                     if this._isAtEnd() or this._check(TokenKind.Semicolon) or this._check(TokenKind.RBrace) {
                         orFailMsg = Expr.Literal(Literal.Str(""))
                     } else {
-                        // Check if next token is on a different line
                         let nextLine = this.tokens[this.current].line
                         if nextLine != failLineNum {
                             orFailMsg = Expr.Literal(Literal.Str(""))
@@ -1136,6 +1134,9 @@ Parser {
                     }
                 }
             }
+
+            // Note: `or <value>` detection is handled in codegen post-processing
+            // because Liva switch destructuring doesn't support mutation-free extraction.
 
             this._match(TokenKind.Semicolon)
 
@@ -2160,7 +2161,15 @@ Parser {
     // Consume `||` (OrOr) tokens and build Binary(Or, ...) chain
     // Uses recursion to avoid re-assigning to an Expr variable
     _finishOrChain(left: Expr): Expr {
+        // Handle `||` (OrOr) token
         if this._match(TokenKind.OrOr) {
+            let right = this._parseAnd()
+            let combined = Expr.Binary(BinOp.Or, left, right)
+            return this._finishOrChain(combined)
+        }
+        // Handle `or` keyword (but not `or fail`)
+        if this._check(TokenKind.KwOr) && this._peekToken(1) != TokenKind.KwFail {
+            this._advance()  // consume `or`
             let right = this._parseAnd()
             let combined = Expr.Binary(BinOp.Or, left, right)
             return this._finishOrChain(combined)

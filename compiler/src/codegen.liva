@@ -1544,11 +1544,44 @@ RustEmitter {
                 }
             }
         } else {
-            // Wrap non-null init with Some() if type is Optional
-            if isOptionalType {
-                this._emitSomeWrapped(decl.init)
-            } else {
-                this._emitExpr(decl.init)
+            // Check for or-value pattern: Binary(Or, Call/MethodCall, value)
+            // All emission paths MUST be inside switch arms to avoid partial move
+            let _ = switch decl.init {
+                Expr.Binary(op, left, right) => {
+                    let isOr = false
+                    let _ = switch op {
+                        BinOp.Or => { isOr = true; 0 },
+                        _ => { 0 }
+                    }
+                    if isOr {
+                        let isCall = false
+                        let _ = switch left {
+                            Expr.Call(_, _, _, _) => { isCall = true; 0 },
+                            Expr.MethodCall(_, _, _) => { isCall = true; 0 },
+                            _ => { 0 }
+                        }
+                        if isCall {
+                            this._write("{ let (opt, err_str) = ")
+                            this._emitExpr(left)
+                            this._write("; if !err_str.is_empty() { ")
+                            this._emitExpr(right)
+                            this._write(" } else { opt.unwrap_or_default() } }")
+                        } else {
+                            this._emitBinary(op, left, right)
+                        }
+                    } else {
+                        this._emitBinary(op, left, right)
+                    }
+                    0
+                },
+                _ => {
+                    if isOptionalType {
+                        this._emitSomeWrapped(decl.init)
+                    } else {
+                        this._emitExpr(decl.init)
+                    }
+                    0
+                }
             }
         }
 
@@ -2676,6 +2709,67 @@ RustEmitter {
                     if this._mapVars.has(sn) { tag = "map" }
                     else if this._setVars.has(sn) { tag = "set" }
                     else if this._stringVars.has(sn) { tag = "string" }
+                }
+                0
+            },
+            Expr.MemberAccess(maObj, prop) => {
+                // Handle this.field — look up field type in TypeContext
+                let isThis = false
+                let _ = switch maObj {
+                    Expr.Identifier(idn) => {
+                        if idn == "this" { isThis = true }
+                        0
+                    },
+                    _ => { 0 }
+                }
+                if isThis && this._currentClassName != "" {
+                    let fkey = $"{this._currentClassName}.{prop}"
+                    if this._typeCtx.fieldTypes.has(fkey) {
+                        let fidx = this._typeCtx.fieldTypes.get(fkey)
+                        let ftype = this._typeCtx.typePool[fidx]
+                        tag = this._typeRefToTag(ftype)
+                    }
+                }
+                // Chain resolution: this.field.subField
+                // If inner MemberAccess resolves to a class type, look up subfield on that class
+                if tag == "unknown" {
+                    let innerIsThis = false
+                    let innerField = ""
+                    let _ = switch maObj {
+                        Expr.MemberAccess(innerObj, iProp) => {
+                            let _ = switch innerObj {
+                                Expr.Identifier(inn) => {
+                                    if inn == "this" { innerIsThis = true }
+                                    0
+                                },
+                                _ => { 0 }
+                            }
+                            innerField = iProp
+                            0
+                        },
+                        _ => { 0 }
+                    }
+                    if innerIsThis && innerField != "" && this._currentClassName != "" {
+                        let innerKey = $"{this._currentClassName}.{innerField}"
+                        if this._typeCtx.fieldTypes.has(innerKey) {
+                            let innerIdx = this._typeCtx.fieldTypes.get(innerKey)
+                            let innerType = this._typeCtx.typePool[innerIdx]
+                            // If inner type is a class, look up prop on that class
+                            let innerClassName = ""
+                            let _ = switch innerType {
+                                TypeRef.Simple(cn) => { innerClassName = cn; 0 },
+                                _ => { 0 }
+                            }
+                            if innerClassName != "" && this._typeCtx.classes.has(innerClassName) {
+                                let subKey = $"{innerClassName}.{prop}"
+                                if this._typeCtx.fieldTypes.has(subKey) {
+                                    let subIdx = this._typeCtx.fieldTypes.get(subKey)
+                                    let subType = this._typeCtx.typePool[subIdx]
+                                    tag = this._typeRefToTag(subType)
+                                }
+                            }
+                        }
+                    }
                 }
                 0
             },
@@ -3930,19 +4024,28 @@ RustEmitter {
     // -- Generic fallback for user-defined methods + unknown types --
 
     _emitGenericMethodCall(obj: Expr, method: string, args: [Expr]) {
-        // Map/Set .get() with runtime tracking — can't resolve at dispatch time
+        // Use type detection for Map dispatch
+        let objTag = this._getExprTypeName(obj)
+
+        // Map/Set .get() with type detection or runtime tracking
         if method == "get" {
-            let getObjIdName = ""
-            let _ = switch obj {
-                Expr.Identifier(gn) => { getObjIdName = this._sanitizeName(gn); 0 },
-                _ => { 0 }
+            let isMap = objTag == "map"
+            if not isMap {
+                let getObjIdName = ""
+                let _ = switch obj {
+                    Expr.Identifier(gn) => { getObjIdName = this._sanitizeName(gn); 0 },
+                    _ => { 0 }
+                }
+                if getObjIdName != "" && this._mapVars.has(getObjIdName) {
+                    isMap = true
+                }
             }
-            if getObjIdName != "" && this._mapVars.has(getObjIdName) {
+            if isMap {
                 this._emitExpr(obj)
                 this._write(".get(&(")
                 if args.length > 0 { this._emitExpr(args[0]) }
                 this._write(")).cloned().unwrap()")
-            } else {
+            } else if objTag == "set" || objTag == "array" || objTag == "string" {
                 this._emitExpr(obj)
                 this._write(".get(")
                 let gi = 0
@@ -3952,24 +4055,42 @@ RustEmitter {
                     gi += 1
                 }
                 this._write(")")
+            } else {
+                // Default: assume Map-style get for unknown types
+                this._emitExpr(obj)
+                this._write(".get(&(")
+                if args.length > 0 { this._emitExpr(args[0]) }
+                this._write(")).cloned().unwrap()")
             }
             return
         }
-        // Map/Set .has() with runtime tracking
+        // Map/Set .has() with type detection or runtime tracking
         if method == "has" {
-            let objIdName = ""
-            let _ = switch obj {
-                Expr.Identifier(hn) => { objIdName = this._sanitizeName(hn); 0 },
-                _ => { 0 }
+            let isMap = objTag == "map"
+            if not isMap {
+                let objIdName = ""
+                let _ = switch obj {
+                    Expr.Identifier(hn) => { objIdName = this._sanitizeName(hn); 0 },
+                    _ => { 0 }
+                }
+                if objIdName != "" && this._mapVars.has(objIdName) {
+                    isMap = true
+                }
             }
-            if objIdName != "" && this._mapVars.has(objIdName) {
+            if isMap {
                 this._emitExpr(obj)
                 this._write(".contains_key(&(")
                 if args.length > 0 { this._emitExpr(args[0]) }
                 this._write("))")
-            } else {
+            } else if objTag == "set" {
                 this._emitExpr(obj)
                 this._write(".contains(&(")
+                if args.length > 0 { this._emitExpr(args[0]) }
+                this._write("))")
+            } else {
+                // Default: assume Map (has() is predominantly used on Maps)
+                this._emitExpr(obj)
+                this._write(".contains_key(&(")
                 if args.length > 0 { this._emitExpr(args[0]) }
                 this._write("))")
             }
@@ -3979,6 +4100,87 @@ RustEmitter {
         if method == "length" || method == "len" {
             this._emitExpr(obj)
             this._write(".len() as i32")
+            return
+        }
+
+        // String methods that require &str args — handle in generic fallback
+        // These methods are common on String but type detection may fail for local vars
+        if method == "contains" || method == "startsWith" || method == "endsWith" || method == "trim" || method == "trimStart" || method == "trimEnd" {
+            let rustMethod = ""
+            if method == "startsWith" { rustMethod = "starts_with" }
+            else if method == "endsWith" { rustMethod = "ends_with" }
+            else if method == "trimStart" { rustMethod = "trim_start" }
+            else if method == "trimEnd" { rustMethod = "trim_end" }
+            else if method == "contains" { rustMethod = "contains" }
+            else if method == "trim" { rustMethod = "trim" }
+            this._emitExpr(obj)
+            if method == "trim" || method == "trimStart" || method == "trimEnd" {
+                this._write($".{rustMethod}().to_string()")
+            } else {
+                this._write($".{rustMethod}(")
+                if args.length > 0 { this._emitRefArg(args[0]) }
+                this._write(")")
+            }
+            return
+        }
+        // split — collect into Vec for compatibility
+        if method == "split" {
+            this._emitExpr(obj)
+            this._write(".split(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            this._write(").map(|s| s.to_string()).collect::<Vec<_>>()")
+            return
+        }
+        // keys/values — collect into Vec (Map methods)
+        if method == "keys" {
+            this._emitExpr(obj)
+            this._write(".keys().cloned().collect::<Vec<_>>()")
+            return
+        }
+        if method == "values" {
+            this._emitExpr(obj)
+            this._write(".values().cloned().collect::<Vec<_>>()")
+            return
+        }
+        if method == "replace" || method == "replaceAll" {
+            this._emitExpr(obj)
+            this._write(".replace(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            if args.length > 1 {
+                this._write(", ")
+                this._emitRefArg(args[1])
+            }
+            this._write(")")
+            return
+        }
+        // Case/char methods — correct snake_case for Rust
+        if method == "toLowerCase" || method == "toUpperCase" {
+            this._emitExpr(obj)
+            if method == "toLowerCase" { this._write(".to_lowercase().to_string()") }
+            else { this._write(".to_uppercase().to_string()") }
+            return
+        }
+        if method == "charAt" {
+            this._emitExpr(obj)
+            this._write(".chars().nth((")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(") as usize).map(|c| c.to_string()).unwrap_or_default()")
+            return
+        }
+        if method == "substring" {
+            this._emitExpr(obj)
+            this._write("[(")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(") as usize..(")
+            if args.length > 1 { this._emitExpr(args[1]) }
+            this._write(") as usize].to_string()")
+            return
+        }
+        if method == "indexOf" {
+            this._emitExpr(obj)
+            this._write(".find(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            this._write(").map(|i| i as i32).unwrap_or(-1)")
             return
         }
 
