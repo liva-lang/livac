@@ -2441,10 +2441,13 @@ RustEmitter {
     _emitBinary(op: BinOp, left: Expr, right: Expr) {
         let opStr = this._binOpToRust(op)
         // `||` is always logical OR now — `or <value>` is handled at parser level
+        // Wrap in parens to preserve precedence when used as operand of &&
         if opStr == "||" {
+            this._write("(")
             this._emitExpr(left)
             this._write(" || ")
             this._emitExpr(right)
+            this._write(")")
             return
         }
         // Delegate to helper that classifies + emits right in ONE switch
@@ -3299,6 +3302,17 @@ RustEmitter {
                 let _ = switch maInner {
                     Expr.Identifier(iName) => {
                         if iName == "this" { isSelfField = true }
+                        0
+                    },
+                    // 2-level deep: this.field.subfield.method()
+                    Expr.MemberAccess(maInner2, _) => {
+                        let _ = switch maInner2 {
+                            Expr.Identifier(iName2) => {
+                                if iName2 == "this" { isSelfField = true }
+                                0
+                            },
+                            _ => { 0 }
+                        }
                         0
                     },
                     _ => { 0 }
@@ -5140,17 +5154,6 @@ RustEmitter {
                 // Don't clone literals-like identifiers (this is handled by emitExpr)
                 if name != "true" && name != "false" && name != "null" {
                     needsClone = true
-                    // Liveness optimization: if variable is used only once, move is safe
-                    // BUT: if variable is used inside a loop, always clone (loop body executes multiple times)
-                    let key = this._currentFunc + ":" + name
-                    let inLoop = false
-                    if this._liveCtx.loopUseCounts.has(key) {
-                        if this._liveCtx.loopUseCounts.get(key) > 0 { inLoop = true }
-                    }
-                    if not inLoop && this._liveCtx.useCounts.has(key) {
-                        let count = this._liveCtx.useCounts.get(key)
-                        if count <= 1 { needsClone = false }
-                    }
                 }
                 0
             },
