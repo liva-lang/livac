@@ -1644,7 +1644,28 @@ RustEmitter {
                 if line.contains("::") {
                     skipClone = true
                 } else {
-                    skipClone = false
+                    // Phase 8: Check if init is a numeric literal
+                    // A line like "let mut x = 50" ends with "= <digits>"
+                    // Detect by checking: init expression was a Copy literal
+                    // Safe approach: search for "= " and verify what follows is numeric
+                    let eqIdx = line.indexOf("= ")
+                    let isNumLiteral = false
+                    if eqIdx >= 0 {
+                        let afterEq = line.substring(eqIdx + 2, line.length)
+                        if afterEq.length > 0 {
+                            let firstCh = afterEq.substring(0, 1)
+                            let lastCh = afterEq.substring(afterEq.length - 1, afterEq.length)
+                            // Starts and ends with digit = numeric literal
+                            if firstCh >= "0" && firstCh <= "9" && lastCh >= "0" && lastCh <= "9" {
+                                isNumLiteral = true
+                            }
+                        }
+                    }
+                    if isNumLiteral {
+                        skipClone = true
+                    } else {
+                        skipClone = false
+                    }
                 }
             }
         }
@@ -2296,7 +2317,13 @@ RustEmitter {
                 this._inAssignTarget = savedAssignTarget
                 this._write("[(")
                 this._emitExpr(idxExpr)
-                this._write(") as usize].clone()")
+                // Phase 8: skip .clone() for Copy-type array elements
+                let elemCopy = this._isIndexExprCopyType(idxObj)
+                if elemCopy {
+                    this._write(") as usize]")
+                } else {
+                    this._write(") as usize].clone()")
+                }
                 0
             },
             Expr.ObjectLiteral(objFields) => {
@@ -2808,6 +2835,28 @@ RustEmitter {
             _ => { 0 }
         }
         return tag
+    }
+
+    // Phase 8: Check if array indexing expression has Copy-type elements
+    _isIndexExprCopyType(obj: Expr): bool {
+        let _ = switch obj {
+            Expr.Identifier(name) => {
+                let varType = this._lookupVarTypeRef(name)
+                let _ = switch varType {
+                    TypeRef.Array(elemType) => {
+                        let elemTag = this._typeRefToTag(elemType)
+                        if elemTag == "number" || elemTag == "float" || elemTag == "bool" || elemTag == "char" {
+                            return true
+                        }
+                        0
+                    },
+                    _ => { 0 }
+                }
+                0
+            },
+            _ => { 0 }
+        }
+        return false
     }
 
     _getLiteralTypeName(lit: Literal): string {
@@ -5200,18 +5249,25 @@ RustEmitter {
             Expr.Identifier(name) => {
                 // Don't clone literals-like identifiers (this is handled by emitExpr)
                 if name != "true" && name != "false" && name != "null" {
-                    // Phase 8: skip clone for single-use vars NOT in loops
-                    let isSingleUse = false
-                    let liveKey = $"{this._currentFunc}:{name}"
-                    if this._liveCtx.useCounts.has(liveKey) {
-                        let uc = this._liveCtx.useCounts.get(liveKey)
-                        let inLoop = this._liveCtx.loopUseCounts.has(liveKey)
-                        if uc <= 1 && not inLoop { isSingleUse = true }
-                    }
-                    if isSingleUse {
+                    // Phase 8: skip clone for Copy types (int, float, bool)
+                    let varType = this._lookupVarTypeRef(name)
+                    let varTag = this._typeRefToTag(varType)
+                    if varTag == "number" || varTag == "float" || varTag == "bool" || varTag == "char" {
                         needsClone = false
                     } else {
-                        needsClone = true
+                        // Phase 8: skip clone for single-use vars NOT in loops
+                        let isSingleUse = false
+                        let liveKey = $"{this._currentFunc}:{name}"
+                        if this._liveCtx.useCounts.has(liveKey) {
+                            let uc = this._liveCtx.useCounts.get(liveKey)
+                            let inLoop = this._liveCtx.loopUseCounts.has(liveKey)
+                            if uc <= 1 && not inLoop { isSingleUse = true }
+                        }
+                        if isSingleUse {
+                            needsClone = false
+                        } else {
+                            needsClone = true
+                        }
                     }
                 }
                 0
