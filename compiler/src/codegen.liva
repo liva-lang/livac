@@ -2038,7 +2038,17 @@ RustEmitter {
                     this._write(".chars().map(|c| c.to_string())")
                 } else {
                     this._write(sanitized)
-                    this._write(".clone()")
+                    // Phase 8: move instead of clone if var is single-use and NOT in a loop
+                    let isSingleUse = false
+                    let liveKey = $"{this._currentFunc}:{name}"
+                    if this._liveCtx.useCounts.has(liveKey) {
+                        let uc = this._liveCtx.useCounts.get(liveKey)
+                        let inLoop = this._liveCtx.loopUseCounts.has(liveKey)
+                        if uc <= 1 && not inLoop { isSingleUse = true }
+                    }
+                    if not isSingleUse {
+                        this._write(".clone()")
+                    }
                 }
                 0
             },
@@ -3003,9 +3013,28 @@ RustEmitter {
         if args.length == 0 {
             this._write("println!()")
         } else if args.length == 1 {
-            this._write("println!(\"{}\", ")
-            this._emitExpr(args[0])
-            this._write(")")
+            // Phase 8: print("literal") → println!("literal") without format! wrapper
+            let isLiteral = false
+            let litVal = ""
+            let _ = switch args[0] {
+                Expr.Literal(lit) => {
+                    let _ = switch lit {
+                        Literal.Str(s) => { isLiteral = true; litVal = s; 0 },
+                        _ => { 0 }
+                    }
+                    0
+                },
+                _ => { 0 }
+            }
+            if isLiteral {
+                // Escape braces for println! macro
+                let escaped = litVal.replaceAll("{", "{{").replaceAll("}", "}}")
+                this._write($"println!(\"{escaped}\")")
+            } else {
+                this._write("println!(\"{}\", ")
+                this._emitExpr(args[0])
+                this._write(")")
+            }
         } else {
             // Multiple args: print each separated by space
             let fmtParts = ""
@@ -3028,9 +3057,27 @@ RustEmitter {
         if args.length == 0 {
             this._write("println!()")
         } else if args.length == 1 {
-            this._write("println!(\"{}\", ")
-            this._emitExpr(args[0])
-            this._write(")")
+            // Phase 8: println("literal") → println!("literal") without format! wrapper
+            let isLiteral = false
+            let litVal = ""
+            let _ = switch args[0] {
+                Expr.Literal(lit) => {
+                    let _ = switch lit {
+                        Literal.Str(s) => { isLiteral = true; litVal = s; 0 },
+                        _ => { 0 }
+                    }
+                    0
+                },
+                _ => { 0 }
+            }
+            if isLiteral {
+                let escaped = litVal.replaceAll("{", "{{").replaceAll("}", "}}")
+                this._write($"println!(\"{escaped}\")")
+            } else {
+                this._write("println!(\"{}\", ")
+                this._emitExpr(args[0])
+                this._write(")")
+            }
         } else {
             let fmtParts = ""
             let pIdx = 0
@@ -5153,7 +5200,19 @@ RustEmitter {
             Expr.Identifier(name) => {
                 // Don't clone literals-like identifiers (this is handled by emitExpr)
                 if name != "true" && name != "false" && name != "null" {
-                    needsClone = true
+                    // Phase 8: skip clone for single-use vars NOT in loops
+                    let isSingleUse = false
+                    let liveKey = $"{this._currentFunc}:{name}"
+                    if this._liveCtx.useCounts.has(liveKey) {
+                        let uc = this._liveCtx.useCounts.get(liveKey)
+                        let inLoop = this._liveCtx.loopUseCounts.has(liveKey)
+                        if uc <= 1 && not inLoop { isSingleUse = true }
+                    }
+                    if isSingleUse {
+                        needsClone = false
+                    } else {
+                        needsClone = true
+                    }
                 }
                 0
             },

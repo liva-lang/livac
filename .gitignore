@@ -37,3 +37,4 @@ Cargo.lock
 Thumbs.db
 todos.db
 .liva_test_build/
+examples/benchmark/handwritten

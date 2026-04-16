@@ -1,0 +1,128 @@
+// Benchmark: Liva vs hand-written Rust
+// Tests string manipulation, array processing, map lookups, class methods
+// Run: livac run examples/benchmark/main.liva
+
+WordCounter {
+    counts: Map<string, number>
+    totalWords: number
+    uniqueWords: number
+
+    constructor() {
+        this.counts = Map {}
+        this.totalWords = 0
+        this.uniqueWords = 0
+    }
+
+    addWord(word: string) {
+        let current = this.counts.get(word) or 0
+        if current == 0 {
+            this.uniqueWords = this.uniqueWords + 1
+        }
+        this.counts.set(word, current + 1)
+        this.totalWords = this.totalWords + 1
+    }
+
+    getCount(word: string): number {
+        return this.counts.get(word) or 0
+    }
+}
+
+// Generate test data: N lines of text with repeated words
+generateLines(n: number): [string] {
+    let words = ["the", "quick", "brown", "fox", "jumps", "over", "lazy", "dog",
+                 "hello", "world", "foo", "bar", "baz", "liva", "rust", "code"]
+    let lines: [string] = []
+    for i in 0..n {
+        let line = ""
+        for j in 0..10 {
+            let idx = (i + j * 7) % words.length()
+            let word = words[idx]
+            if j > 0 {
+                line = line + " " + word
+            } else {
+                line = word
+            }
+        }
+        lines.push(line)
+    }
+    return lines
+}
+
+// Process: split lines, count words, build stats
+processLines(lines: [string]): WordCounter {
+    let counter = WordCounter()
+    for line in lines {
+        let words = line.split(" ")
+        for word in words {
+            let lower = word.toLowerCase()
+            let trimmed = lower.trim()
+            if trimmed.length() > 0 {
+                counter.addWord(trimmed)
+            }
+        }
+    }
+    return counter
+}
+
+// Transform: filter, map, reduce on arrays
+transformNumbers(n: number): number {
+    let nums: [number] = []
+    for i in 0..n {
+        nums.push(i)
+    }
+    let evens = nums.filter(x => x % 2 == 0)
+    let doubled = evens.map(x => x * 2)
+    let sum = doubled.reduce(0, (acc, x) => acc + x)
+    return sum
+}
+
+// String building: concatenation and templates
+buildReport(counter: WordCounter, n: number): string {
+    let report = "=== Word Count Report ===\n"
+    report = report + $"Total words: {counter.totalWords}\n"
+    report = report + $"Unique words: {counter.uniqueWords}\n"
+    report = report + $"Lines processed: {n}\n"
+    let theCount = counter.getCount("the")
+    let foxCount = counter.getCount("fox")
+    let helloCount = counter.getCount("hello")
+    report = report + $"  'the': {theCount}\n"
+    report = report + $"  'fox': {foxCount}\n"
+    report = report + $"  'hello': {helloCount}\n"
+    return report
+}
+
+main() {
+    let iterations = 50
+    let linesPerIter = 1000
+    let numTransform = 5000
+
+    print($"Running benchmark: {iterations} iterations")
+    print($"  Lines per iteration: {linesPerIter}")
+    print($"  Numbers to transform: {numTransform}")
+    print("")
+
+    let totalWords = 0
+    let totalSum = 0
+
+    for i in 0..iterations {
+        // String + Map + Class benchmark
+        let lines = generateLines(linesPerIter)
+        let counter = processLines(lines)
+        totalWords = totalWords + counter.totalWords
+
+        // Array transform benchmark
+        let sum = transformNumbers(numTransform)
+        totalSum = totalSum + sum
+
+        // String building benchmark
+        let report = buildReport(counter, linesPerIter)
+
+        if i == 0 {
+            print(report)
+        }
+    }
+
+    print($"Total words processed: {totalWords}")
+    print($"Total sum: {totalSum}")
+    print("Done.")
+}

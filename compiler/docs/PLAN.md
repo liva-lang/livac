@@ -1,8 +1,8 @@
 # Self-Hosting: Compilador de Liva escrito en Liva
 
-> **Estado:** Fase 7 completada ✅ — Self-hosting idempotente, 2000x perf fix  
+> **Estado:** Fase 8 en progreso — Optimización del Rust generado  
 > **Última actualización:** 2026-04-15  
-> **Próximo:** Optimización de clones en Rust generado  
+> **Próximo:** Que el Rust generado por Liva sea indistinguible de Rust escrito a mano  
 > **Branch:** `feat/self-hosting-v2`
 
 ---
@@ -344,6 +344,141 @@ El paso 3 (idempotencia generacional) es la prueba final.
 > **Perf fix:** Suppress self.field auto-clone for indexing (`_inAssignTarget` flag)
 > **Idempotence:** Sorted comparison IDENTICAL — gen-2 is functionally equivalent to gen-1
 
+### 7.3 — Clone reduction ✅ DONE
+
+> **Completado:** Reducción de clones innecesarios en Rust generado (2830→1633, -42%)
+> **Commit:** `a1d2711` — string comparison optimization, Copy-type detection
+
+### 7.4 — Match borrow optimization ✅ DONE
+
+> **Completado:** `match expr.clone()` → `match &expr` — eliminó O(n²) en switch de tipos recursivos
+> **Commit:** `b5f7b72` — gen-2 build de >300s (timeout) a 8.3s (36x+ más rápido)
+
+### 7.5 — Gen-3 fixes ✅ DONE
+
+> **Completado:** 3 fixes para que gen-3 compile correctamente:
+> 1. `||` envuelto en paréntesis en `_emitBinary` — corrige precedencia `a && (b || c)`
+> 2. Detección de `self.field.subfield.method()` a 2 niveles — suprime `.clone()` en cadenas
+> 3. Revert liveness en `_emitClonedArg` — causaba `self._live_ctx.clone()` O(n²) en gen-2+
+> **Commit:** `ebc9221` — gen-3 build funcional (36s), idempotencia gen-3=gen-4 verificada
+
+---
+
+## Roadmap: Fase 8 — Calidad del Rust Generado
+
+### Objetivo
+
+Que un programa escrito en Liva genere Rust **igual de eficiente** que Rust escrito a mano.
+El compilador ya funciona; ahora hay que hacer que el código que produce sea óptimo.
+
+**No es sobre la velocidad del compilador** — es sobre la velocidad de las aplicaciones
+que los usuarios construyen con Liva.
+
+> **⚠️ IMPORTANTE:** Todas las optimizaciones de esta fase se implementan en
+> **`compiler/src/codegen.liva`** (el compilador self-hosted), NO en `src/codegen.rs`
+> (el bootstrap Rust). El bootstrap solo existe para compilar el self-hosted la
+> primera vez. Las mejoras deben ir en el compilador que usarán los usuarios.
+
+### Situación actual (2026-04-15)
+
+Benchmark realizado contra un programa Liva real (REST API, 934 líneas) compilado a Rust:
+
+**Problemas identificados en el Rust generado:**
+
+| Patrón ineficiente | Ejemplo generado | Rust idiomático | Impacto |
+|--------------------|-----------------|------------------|---------|
+| Clone innecesario de args | `foo(x.clone())` | `foo(x)` / `foo(&x)` | ~1900 clones en 12K líneas |
+| `.to_string()` en literals | `"hello".to_string()` pasado a fn | `"hello"` con param `&str` | ~1350 allocations |
+| `for item in vec.clone()` | Clona vector entero para iterar | `for item in &vec` | O(n) alloc por loop |
+| `self.field.clone().method()` | Clona HashMap para hacer `.get()` | `self.field.get()` | O(n) por field access |
+| `format!("{}", x)` | Para cualquier string expression | `x` directamente | Alloc innecesaria |
+| `let mut x = value.clone()` | Clona al asignar a let binding | `let x = value` o `let x = &value` | Doble alloc |
+
+### Métricas actuales vs objetivo
+
+| Métrica | Ahora | Objetivo | Notas |
+|---------|-------|----------|-------|
+| `.clone()` por 1K líneas | ~155 | <20 | Rust a mano usa ~5-15 |
+| `.to_string()` por 1K líneas | ~110 | <30 | Mayoría eliminables con `&str` |
+| `format!("{}", x)` redundantes | ~200 | 0 | Solo usar format! para interpolación real |
+| `for x in vec.clone()` | ~190 | 0 | Siempre `for x in &vec` o move |
+| Binary size vs hand-written | ~same | ~same | Ya OK — 1.9M release |
+
+### Estrategia
+
+Cada optimización se mide con un benchmark real antes/después:
+
+1. **Escribir programa de benchmark en Liva** — algo realista que estrese strings, arrays,
+   maps, loops, clases. Ej: parser JSON, procesador CSV, mini-servidor.
+2. **Escribir el equivalente en Rust a mano** — idiomático, con borrows, sin clones innecesarios.
+3. **Compilar ambos, medir con `hyperfine` o `criterion`** — wall time, allocs, peak memory.
+4. **Identificar el patrón más costoso** → fix en codegen.liva → re-medir.
+5. **Iterar** hasta que la diferencia sea <10% wall time.
+
+### 8.1 — Borrow en vez de clone para params de función
+
+> **Estado:** Pendiente  
+> **Impacto esperado:** Eliminar ~60% de `.clone()` y ~80% de `.to_string()`
+
+Cuando un parámetro de función es `string`, generar `&str` en vez de `String`.
+Cuando un parámetro es `[T]`, generar `&[T]` en vez de `Vec<T>`.
+Solo generar ownership (`String`, `Vec<T>`) cuando el parámetro se almacena en un campo.
+
+**Prerequisito:** Análisis de uso de parámetros en semantic.liva — distinguir
+parámetros que se leen (→ `&str`) de los que se almacenan (→ `String`).
+
+### 8.2 — `for item in &vec` en vez de `for item in vec.clone()`
+
+> **Estado:** Pendiente  
+> **Impacto esperado:** Eliminar ~190 clones de vectores en for loops
+
+Si el vector se sigue usando después del for, emitir `for item in &vec`
+(borrow) en vez de `for item in vec.clone()` (copia completa).
+Si es el último uso, emitir `for item in vec` (move).
+
+### 8.3 — Eliminar `format!("{}", x)` redundante
+
+> **Estado:** Pendiente  
+> **Impacto esperado:** Eliminar ~200 allocations innecesarias
+
+Cuando `x` ya es `String`, `format!("{}", x)` es una copia innecesaria.
+Emitir `x` directamente. Solo usar `format!` cuando hay interpolación real
+(`format!("{} es {}", a, b)`).
+
+### 8.4 — Self.field sin clone para read-only
+
+> **Estado:** Parcialmente hecho (1 nivel, 2 niveles en method calls)  
+> **Impacto esperado:** Eliminar clones O(n) en accesos a HashMap/Vec
+
+Cuando `self.field` se usa en contexto read-only (comparación, `.get()`,
+`.contains()`, `.len()`), NO clonar. Solo clonar cuando se necesita ownership
+(return, asignar a variable, pasar a función que toma ownership).
+
+### 8.5 — Let bindings sin clone
+
+> **Estado:** Pendiente  
+> **Impacto esperado:** Eliminar ~30% de clones en asignaciones
+
+`let x = expr` donde `expr` es una llamada a función que devuelve owned value
+→ no necesita `.clone()`. Solo clonar cuando `expr` es una variable que se
+reutiliza después.
+
+### 8.6 — Benchmark suite: Liva vs Rust a mano
+
+> **Estado:** Pendiente  
+> **Impacto:** Métrica objetiva del progreso
+
+Crear 3 programas de benchmark:
+
+| Programa | Qué estresa | Métricas |
+|----------|-------------|----------|
+| JSON parser | Strings, recursión, pattern matching | Throughput MB/s, allocs |
+| CSV processor | Arrays, loops, Map operations | Throughput líneas/s, peak memory |
+| HTTP request handler | Clases, method dispatch, string concat | Requests/s, latency p99 |
+
+Cada uno se escribe en Liva y en Rust idiomático a mano.
+La meta: **<10% diferencia en throughput, <2x diferencia en allocations**.
+
 ---
 
 ## Checklist de hitos
@@ -381,6 +516,17 @@ Fase 6: Madurez
 Fase 7: Self-Compilation ✅
   [x] 7.1: Gen-1 compila el compilador — 0 cargo errors (commit 01eaea3)
   [x] 7.2: Gen-2 idempotencia generacional — output idéntico (commit 4cbb30a)
+  [x] 7.3: Clone reduction (2830→1633, -42%) (commit a1d2711)
+  [x] 7.4: Match borrow optimization — gen-2 build >300s→8s (commit b5f7b72)
+  [x] 7.5: Gen-3 fixes — || precedence, 2-level self.field, gen-3=gen-4 (commit ebc9221)
+
+Fase 8: Calidad del Rust Generado ← EN PROGRESO
+  [ ] 8.1: Borrow params (&str, &[T]) en vez de clone
+  [ ] 8.2: for item in &vec en vez de vec.clone()
+  [ ] 8.3: Eliminar format!("{}", x) redundante
+  [ ] 8.4: Self.field sin clone para read-only (parcial)
+  [ ] 8.5: Let bindings sin clone
+  [ ] 8.6: Benchmark suite: Liva vs Rust a mano (<10% diferencia)
 ```
 
 ---
@@ -390,6 +536,7 @@ Fase 7: Self-Compilation ✅
 > **OBLIGATORIO:** Todo código del self-hosting DEBE seguir `docs/guides/style-guide.md`.
 > Antes de escribir cualquier módulo nuevo, leer:
 > 1. `docs/guides/style-guide.md` — convenciones idiomáticas
-> 2. `docs/QUICK_REFERENCE.md` — features del lenguaje con gotchas
-> 3. `skills/liva-lang/SKILL.md` — reglas críticas y anti-patterns
+> 2. `docs/language-reference` — Guía de referencia del lenguaje
+> 3. `docs/QUICK_REFERENCE.md` — features del lenguaje con gotchas
+> 4. `skills/liva-lang/SKILL.md` — reglas críticas y anti-patterns
 
