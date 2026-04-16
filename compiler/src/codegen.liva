@@ -82,6 +82,8 @@ RustEmitter {
     _usedTestNames: Map<string, int>
     _functionParamCount: Map<string, int>
     _functionDefaultStrs: Map<string, string>
+    _borrowedParamIndices: Map<string, bool>
+    _suppressCloneForBorrow: bool
     _warnings: [string]
 
     constructor(typeCtx: TypeContext, liveCtx: LivenessContext) {
@@ -118,6 +120,8 @@ RustEmitter {
         this._usedTestNames = Map {}
         this._functionParamCount = Map {}
         this._functionDefaultStrs = Map {}
+        this._borrowedParamIndices = Map {}
+        this._suppressCloneForBorrow = false
         this._warnings = []
     }
 
@@ -711,6 +715,7 @@ RustEmitter {
 
         // Build parameter list
         let paramList = this._buildParamList(decl.params)
+        this._registerBorrowedParams(funcName, decl.params)
 
         // Build return type and detect Optional return
         let retStr = this._buildReturnType(decl.returnType, decl.containsFail)
@@ -850,7 +855,49 @@ RustEmitter {
         }
         let sanitized = this._sanitizeName(paramName)
         let typeStr = this._buildParamType(p.typeRef)
+        // Phase 8.5: if param is borrowable string and doesn't escape → &str
+        if typeStr == "String" {
+            let key = $"{this._currentFunc}:{paramName}"
+            let isBorrow = 0
+            if this._liveCtx.paramBorrow.has(key) {
+                isBorrow = this._liveCtx.paramBorrow.get(key)
+            }
+            let isEscape = 0
+            if this._liveCtx.paramEscapes.has(key) {
+                isEscape = this._liveCtx.paramEscapes.get(key)
+            }
+            if isBorrow == 1 && isEscape == 0 {
+                return $"{sanitized}: &str"
+            }
+        }
         return $"{sanitized}: {typeStr}"
+    }
+
+    _registerBorrowedParams(funcName: string, params: [Param]) {
+        let pIdx = 0
+        for p in params {
+            let paramName = switch p.pattern {
+                BindingPattern.Identifier(n) => n,
+                _ => "_"
+            }
+            let typeStr = this._buildParamType(p.typeRef)
+            if typeStr == "String" {
+                let key = $"{this._currentFunc}:{paramName}"
+                let isBorrow = 0
+                if this._liveCtx.paramBorrow.has(key) {
+                    isBorrow = this._liveCtx.paramBorrow.get(key)
+                }
+                let isEscape = 0
+                if this._liveCtx.paramEscapes.has(key) {
+                    isEscape = this._liveCtx.paramEscapes.get(key)
+                }
+                if isBorrow == 1 && isEscape == 0 {
+                    let bKey = $"{funcName}:{pIdx}"
+                    this._borrowedParamIndices.set(bKey, true)
+                }
+            }
+            pIdx += 1
+        }
     }
 
     _buildParamType(optRef: TypeRef?): string {
@@ -1152,6 +1199,8 @@ RustEmitter {
         let selfParam = "&mut self"
 
         let paramList = this._buildParamList(decl.params)
+        let emitFuncName = $"{className}.{methodName}"
+        this._registerBorrowedParams(emitFuncName, decl.params)
         let fullParams = $"{selfParam}"
         if paramList != "" {
             fullParams = $"{selfParam}, {paramList}"
@@ -2461,7 +2510,7 @@ RustEmitter {
             },
             Literal.Str(v) => {
                 let escaped = this._escapeRustStr(v)
-                if this._inCompoundAdd || this._suppressToString {
+                if this._inCompoundAdd || this._suppressToString || this._suppressCloneForBorrow {
                     this._write("\"" + escaped + "\"")
                 } else {
                     this._write("\"" + escaped + "\".to_string()")
@@ -3164,10 +3213,27 @@ RustEmitter {
                 this._emitExpr(callee)
                 this._write("(")
             }
+            // Phase 8.5: resolve callee for borrowed-param lookup
+            let calleeForBorrow = ""
+            if !isConstructor {
+                let _ = switch callee {
+                    Expr.Identifier(fnBorrow) => {
+                        calleeForBorrow = this._sanitizeName(fnBorrow)
+                        0
+                    },
+                    _ => { 0 }
+                }
+            }
             let aIdx = 0
             for a in args {
                 if aIdx > 0 { this._write(", ") }
-                this._emitClonedArg(a)
+                // Check if this arg position is a borrowed (&str) param
+                let bKey = calleeForBorrow + ":" + aIdx.toString()
+                if calleeForBorrow != "" && this._borrowedParamIndices.has(bKey) {
+                    this._emitBorrowedArg(a)
+                } else {
+                    this._emitClonedArg(a)
+                }
                 aIdx += 1
             }
             // Inject default parameter values for missing arguments
@@ -4589,10 +4655,26 @@ RustEmitter {
         let sanitizedMethod = this._sanitizeName(method)
         this._emitExpr(obj)
         this._write($".{sanitizedMethod}(")
+        // Phase 8.5: resolve callee for borrowed-param lookup on self methods
+        let methodCalleeForBorrow = ""
+        let _ = switch obj {
+            Expr.Identifier(oName) => {
+                if oName == "this" && this._currentClassName != "" {
+                    methodCalleeForBorrow = $"{this._currentClassName}.{sanitizedMethod}"
+                }
+                0
+            },
+            _ => { 0 }
+        }
         let aIdx = 0
         for a in args {
             if aIdx > 0 { this._write(", ") }
-            this._emitClonedArg(a)
+            let bKey = $"{methodCalleeForBorrow}:{aIdx}"
+            if methodCalleeForBorrow != "" && this._borrowedParamIndices.has(bKey) {
+                this._emitBorrowedArg(a)
+            } else {
+                this._emitClonedArg(a)
+            }
             aIdx += 1
         }
         this._write(")")
@@ -5401,6 +5483,35 @@ RustEmitter {
         } else {
             this._write("&")
             this._emitExpr(argExpr)
+        }
+    }
+
+    // Phase 8.5: Emit arg for &str param — string literals as-is, others with & prefix
+    _emitBorrowedArg(argExpr: Expr) {
+        let isStrLit = false
+        let _ = switch argExpr {
+            Expr.Literal(aLit) => {
+                let _ = switch aLit {
+                    Literal.Str(_) => { isStrLit = true; 0 },
+                    _ => { 0 }
+                }
+                0
+            },
+            _ => { 0 }
+        }
+        if isStrLit {
+            // String literal is already &str in Rust — just suppress .to_string()
+            this._suppressCloneForBorrow = true
+            this._emitExpr(argExpr)
+            this._suppressCloneForBorrow = false
+        } else {
+            // & prefix converts String → &str via Deref, &&str auto-derefs
+            // Suppress .clone() from _emitMemberAccess → direct borrow is cheaper
+            let savedAT = this._inAssignTarget
+            this._inAssignTarget = true
+            this._write("&")
+            this._emitExpr(argExpr)
+            this._inAssignTarget = savedAT
         }
     }
 

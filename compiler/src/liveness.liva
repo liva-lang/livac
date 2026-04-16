@@ -53,6 +53,7 @@ LivenessContext {
     useCounts: Map<string, number>
     loopUseCounts: Map<string, number>
     paramBorrow: Map<string, number>
+    paramEscapes: Map<string, number>
 }
 
 // =====================================================================
@@ -63,15 +64,19 @@ LivenessAnalyzer {
     _useCounts: Map<string, number>
     _loopUseCounts: Map<string, number>
     _paramBorrow: Map<string, number>
+    _paramEscapes: Map<string, number>
     _currentFunc: string
     _inLoop: bool
+    _currentParams: Map<string, bool>
 
     constructor() {
         this._useCounts = Map {}
         this._loopUseCounts = Map {}
         this._paramBorrow = Map {}
+        this._paramEscapes = Map {}
         this._currentFunc = ""
         this._inLoop = false
+        this._currentParams = Map {}
     }
 
     // -- Entry point --
@@ -83,7 +88,8 @@ LivenessAnalyzer {
         return LivenessContext(
             this._useCounts,
             this._loopUseCounts,
-            this._paramBorrow
+            this._paramBorrow,
+            this._paramEscapes
         )
     }
 
@@ -99,12 +105,15 @@ LivenessAnalyzer {
 
     _analyzeFunction(decl: FunctionDecl) {
         let prevFunc = $"{this._currentFunc}"
+        let prevParams = this._currentParams
         this._currentFunc = $"{decl.name}"
+        this._currentParams = Map {}
         for p in decl.params {
             this._analyzeParam(p)
         }
         this._analyzeBlockOpt(decl.body)
         this._currentFunc = prevFunc
+        this._currentParams = prevParams
     }
 
     _analyzeClassDecl(decl: ClassDecl) {
@@ -122,12 +131,15 @@ LivenessAnalyzer {
 
     _analyzeMethod(className: string, decl: MethodDecl) {
         let prevFunc = $"{this._currentFunc}"
+        let prevParams = this._currentParams
         this._currentFunc = $"{className}.{decl.name}"
+        this._currentParams = Map {}
         for p in decl.params {
             this._analyzeParam(p)
         }
         this._analyzeBlockOpt(decl.body)
         this._currentFunc = prevFunc
+        this._currentParams = prevParams
     }
 
     _analyzeParam(p: Param) {
@@ -138,6 +150,9 @@ LivenessAnalyzer {
         let borrow = this._shouldBorrowType(p.typeRef)
         let key = $"{this._currentFunc}:{paramName}"
         this._paramBorrow.set(key, borrow)
+        if borrow == 1 {
+            this._currentParams.set(paramName, true)
+        }
     }
 
     // -- Block and statement analysis --
@@ -161,6 +176,8 @@ LivenessAnalyzer {
             Stmt.Assign(asgn) => {
                 this._analyzeExpr(asgn.target)
                 this._analyzeExpr(asgn.value)
+                // Escape: this.field = param → param escapes into class field
+                this._checkAssignEscape(asgn)
                 0
             },
             Stmt.If(ifStmt) => { this._analyzeIf(ifStmt); 0 },
@@ -170,7 +187,12 @@ LivenessAnalyzer {
             Stmt.TryCatch(tcStmt) => { this._analyzeTryCatch(tcStmt); 0 },
             Stmt.Throw(throwExpr) => { this._analyzeExpr(throwExpr); 0 },
             Stmt.Fail(failExpr, line) => { this._analyzeExpr(failExpr); 0 },
-            Stmt.Return(retExpr) => { this._analyzeExprOpt(retExpr); 0 },
+            Stmt.Return(retExpr) => {
+                this._analyzeExprOpt(retExpr)
+                // Escape: return param → param escapes as return value
+                this._checkReturnEscape(retExpr)
+                0
+            },
             Stmt.Defer(deferStmt) => { this._analyzeStmt(deferStmt); 0 },
             Stmt.ExprStmt(expr) => { this._analyzeExpr(expr); 0 },
             Stmt.Block(blk) => { this._analyzeBlock(blk); 0 },
@@ -442,6 +464,80 @@ LivenessAnalyzer {
                 prevLoop = this._loopUseCounts.get(key)
             }
             this._loopUseCounts.set(key, prevLoop + 1)
+        }
+    }
+
+    // -- Param escape detection --
+    // Marks params that escape (need ownership, cannot be borrowed)
+
+    _markParamEscape(varName: string) {
+        let key = $"{this._currentFunc}:{varName}"
+        this._paramEscapes.set(key, 1)
+    }
+
+    _checkReturnEscape(retExpr: Expr?) {
+        if retExpr != null {
+            this._collectEscapingIdents(retExpr)
+        }
+    }
+
+    _checkAssignEscape(asgn: AssignStmt) {
+        // Compound assignment (+=, -=, etc.) borrows the value — doesn't escape
+        if asgn.op != null { return }
+        // Check if target is this.field — then value escapes into class field
+        let isMemberAssign = false
+        let _ = switch asgn.target {
+            Expr.MemberAccess(maObj, maProp) => {
+                let _ = switch maObj {
+                    Expr.Identifier(objName) => {
+                        if objName == "this" { isMemberAssign = true }
+                        0
+                    },
+                    _ => { 0 }
+                }
+                0
+            },
+            _ => { 0 }
+        }
+        if isMemberAssign {
+            this._collectEscapingIdents(asgn.value)
+        }
+    }
+
+    _collectEscapingIdents(expr: Expr) {
+        // Walk expression tree; any Identifier that is a current param → escapes
+        let _ = switch expr {
+            Expr.Identifier(name) => {
+                if this._currentParams.has(name) {
+                    this._markParamEscape(name)
+                }
+                0
+            },
+            Expr.Binary(op, left, right) => {
+                // Binary op creates a new value — operands are borrowed, not consumed
+                0
+            },
+            Expr.Call(callee, callArgs, policy, tArgs) => {
+                // All args passed to a call might escape (conservative)
+                for ca in callArgs {
+                    this._collectEscapingIdents(ca)
+                }
+                0
+            },
+            Expr.StringTemplate(parts) => {
+                // String interpolation doesn't consume — result is new string
+                0
+            },
+            Expr.MethodCall(mcObj, method, mcArgs) => {
+                // push/set/insert → value escapes into collection
+                if method == "push" || method == "set" || method == "insert" {
+                    for ma in mcArgs {
+                        this._collectEscapingIdents(ma)
+                    }
+                }
+                0
+            },
+            _ => { 0 }
         }
     }
 
