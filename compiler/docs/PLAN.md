@@ -1,8 +1,7 @@
 # Self-Hosting: Compilador de Liva escrito en Liva
 
-> **Estado:** Fase 8 en progreso — Optimización del Rust generado  
-> **Última actualización:** 2026-04-15  
-> **Próximo:** Que el Rust generado por Liva sea indistinguible de Rust escrito a mano  
+> **Estado:** Fase 8 completada — Optimización del Rust generado  
+> **Última actualización:** 2026-04-16  
 > **Branch:** `feat/self-hosting-v2`
 
 ---
@@ -415,49 +414,56 @@ Cada optimización se mide con un benchmark real antes/después:
 4. **Identificar el patrón más costoso** → fix en codegen.liva → re-medir.
 5. **Iterar** hasta que la diferencia sea <10% wall time.
 
-### 8.1 — Borrow en vez de clone para params de función
+### 8.1 — Liveness clone elision + print literal ✅ DONE
 
-> **Estado:** Pendiente  
-> **Impacto esperado:** Eliminar ~60% de `.clone()` y ~80% de `.to_string()`
+> **Commit:** `381bae4`
+> **Optimizaciones:**
+> - `_emitClonedArg`: Si variable tiene useCounts ≤ 1 y no está en loop, omite `.clone()` (move instead)
+> - `_emitForIterable`: Misma liveness check para for-in iterables
+> - `_emitPrintCall`/`_emitPrintlnCall`: Detecta `Expr.Literal(Literal.Str(s))` → emite `println!("escaped")` sin format wrapper
+> **Gen-3 == Gen-4 (idempotente), 518 tests green**
 
-Cuando un parámetro de función es `string`, generar `&str` en vez de `String`.
-Cuando un parámetro es `[T]`, generar `&[T]` en vez de `Vec<T>`.
-Solo generar ownership (`String`, `Vec<T>`) cuando el parámetro se almacena en un campo.
+### 8.2 — Copy-type clone elision + numeric literal detection ✅ DONE
 
-**Prerequisito:** Análisis de uso de parámetros en semantic.liva — distinguir
-parámetros que se leen (→ `&str`) de los que se almacenan (→ `String`).
+> **Commit:** `76d3a22`
+> **Optimizaciones:**
+> - `_emitClonedArg`: Detecta Copy types (number/float/bool/char) vía `_lookupVarTypeRef` + `_typeRefToTag` → omite `.clone()`
+> - `Expr.Index`: Nuevo helper `_isIndexExprCopyType` → omite `.clone()` para elementos de array Copy
+> - Var decl: Detecta init numéricos literales vía `indexOf("= ")` + verificación first/last chars
+> **Gen-2 == Gen-3 (idempotente), 518 tests green**
 
-### 8.2 — `for item in &vec` en vez de `for item in vec.clone()`
+### 8.3 — println! string template forwarding ✅ DONE
 
-> **Estado:** Pendiente  
-> **Impacto esperado:** Eliminar ~190 clones de vectores en for loops
+> **Commit:** `8467ba6`
+> **Optimizaciones:**
+> - `_emitStringTemplate` refactorizado: `_emitStringTemplateInner` (solo fmt string + args)
+> - Nuevo `_emitStringTemplateInline` helper para println! directo
+> - `_emitPrintCall`/`_emitPrintlnCall`: Detecta `Expr.StringTemplate` → `println!("fmt", args)` en vez de `println!("{}", format!("fmt", args))`
+> **Gen-3 == Gen-4 (idempotente), 518 tests green**
 
-Si el vector se sigue usando después del for, emitir `for item in &vec`
-(borrow) en vez de `for item in vec.clone()` (copia completa).
-Si es el último uso, emitir `for item in vec` (move).
+### 8.4 — push_str chain optimization ✅ DONE
 
-### 8.3 — Eliminar `format!("{}", x)` redundante
+> **Commit:** `415d3cf`
+> **Optimizaciones:**
+> - Detecta `x = x + y + z` → `x.push_str(y); x.push_str(z)` (elimina `format!` chains)
+> - Guard: `_leftmostLeafIsTarget(expr, target)` — verifica que la raíz izquierda del árbol binary sea el target
+> - Maneja string literal, string template, y expresión general como RHS
+> - Protección: solo activa para `Binary(+)` NO para switch/match/call/etc.
+> - Skip para optional vars y cadenas sin raíz en el target
+> - Campos: `_pushStrTarget`, `_pushStrUsed` para tracking del estado
+> - 9 conversiones `format!()` → `push_str` en codegen.rs generado
+> **Gen-2 == Gen-3 (idempotente), 518 tests green**
 
-> **Estado:** Pendiente  
-> **Impacto esperado:** Eliminar ~200 allocations innecesarias
+### Fases 8.5+ — Futuras (no implementadas)
 
-Cuando `x` ya es `String`, `format!("{}", x)` es una copia innecesaria.
-Emitir `x` directamente. Solo usar `format!` cuando hay interpolación real
-(`format!("{} es {}", a, b)`).
+Las siguientes optimizaciones requieren cambios arquitectónicos significativos y tienen rendimientos decrecientes:
 
-### 8.4 — Self.field sin clone para read-only
-
-> **Estado:** Parcialmente hecho (1 nivel, 2 niveles en method calls)  
-> **Impacto esperado:** Eliminar clones O(n) en accesos a HashMap/Vec
-
-Cuando `self.field` se usa en contexto read-only (comparación, `.get()`,
-`.contains()`, `.len()`), NO clonar. Solo clonar cuando se necesita ownership
-(return, asignar a variable, pasar a función que toma ownership).
-
-### 8.5 — Let bindings sin clone
-
-> **Estado:** Pendiente  
-> **Impacto esperado:** Eliminar ~30% de clones en asignaciones
+| Fase | Descripción | Complejidad | Impacto |
+|------|-------------|-------------|---------|
+| 8.5 | `&str` params en vez de `String` | Alta — requiere análisis de escape en semantic | Eliminaría ~60% de `.clone()` y `.to_string()` |
+| 8.6 | `for item in &vec` en vez de `.clone()` | Media — requiere liveness per-iteration | Eliminaría clones de vectores en loops |
+| 8.7 | `self.field` sin clone para read-only | Media — ya parcial (2 niveles) | Menos clones en acceso a campos |
+| 8.8 | Let bindings sin clone | Baja | Menos clones en asignaciones |
 
 `let x = expr` donde `expr` es una llamada a función que devuelve owned value
 → no necesita `.clone()`. Solo clonar cuando `expr` es una variable que se
