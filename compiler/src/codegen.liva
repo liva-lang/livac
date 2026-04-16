@@ -3080,9 +3080,22 @@ RustEmitter {
                 let escaped = litVal.replaceAll("{", "{{").replaceAll("}", "}}")
                 this._write($"println!(\"{escaped}\")")
             } else {
-                this._write("println!(\"{}\", ")
-                this._emitExpr(args[0])
-                this._write(")")
+                // Phase 8: check if arg is StringTemplate → emit format directly
+                let isTemplate = false
+                let _ = switch args[0] {
+                    Expr.StringTemplate(_) => { isTemplate = true; 0 },
+                    _ => { 0 }
+                }
+                if isTemplate {
+                    // println($"...") → println!("fmt", args) instead of println!("{}", format!(...))
+                    this._write("println!(")
+                    this._emitStringTemplateInline(args[0])
+                    this._write(")")
+                } else {
+                    this._write("println!(\"{}\", ")
+                    this._emitExpr(args[0])
+                    this._write(")")
+                }
             }
         } else {
             // Multiple args: print each separated by space
@@ -3123,9 +3136,21 @@ RustEmitter {
                 let escaped = litVal.replaceAll("{", "{{").replaceAll("}", "}}")
                 this._write($"println!(\"{escaped}\")")
             } else {
-                this._write("println!(\"{}\", ")
-                this._emitExpr(args[0])
-                this._write(")")
+                // Phase 8: check if arg is StringTemplate → emit format directly
+                let isTemplate2 = false
+                let _ = switch args[0] {
+                    Expr.StringTemplate(_) => { isTemplate2 = true; 0 },
+                    _ => { 0 }
+                }
+                if isTemplate2 {
+                    this._write("println!(")
+                    this._emitStringTemplateInline(args[0])
+                    this._write(")")
+                } else {
+                    this._write("println!(\"{}\", ")
+                    this._emitExpr(args[0])
+                    this._write(")")
+                }
             }
         } else {
             let fmtParts = ""
@@ -5433,6 +5458,24 @@ RustEmitter {
 
     _emitStringTemplate(parts: [StringTemplatePart]) {
         // Generate format!("...", args)
+        this._write("format!(")
+        this._emitStringTemplateInner(parts)
+        this._write(")")
+    }
+
+    // Phase 8: emit string template format string + args WITHOUT format!() wrapper
+    // Used for println!($"...") → println!("fmt", args) optimization
+    _emitStringTemplateInline(expr: Expr) {
+        let _ = switch expr {
+            Expr.StringTemplate(parts) => {
+                this._emitStringTemplateInner(parts)
+                0
+            },
+            _ => { this._emitExpr(expr); 0 }
+        }
+    }
+
+    _emitStringTemplateInner(parts: [StringTemplatePart]) {
         let fmtStr = ""
         let fmtArgs: [string] = []
 
@@ -5457,8 +5500,8 @@ RustEmitter {
             }
         }
 
-        // Actually emit format! with inline expressions
-        this._write($"format!(\"{fmtStr}\"")
+        // Emit format string and inline expressions
+        this._write($"\"{fmtStr}\"")
         for p in parts {
             let _ = switch p {
                 StringTemplatePart.ExprPart(spExpr) => {
@@ -5469,7 +5512,6 @@ RustEmitter {
                 _ => { 0 }
             }
         }
-        this._write(")")
     }
 
     // -- Switch expression (match) --
