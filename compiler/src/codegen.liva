@@ -62,6 +62,8 @@ RustEmitter {
     _isMainModule: bool
     _inCompoundAdd: bool
     _suppressToString: bool
+    _pushStrTarget: string
+    _pushStrUsed: bool
     _enumVariantFields: Map<string, [string]>
     _enumVariantFieldBoxed: Map<string, [bool]>
     _enumVariantFieldOptional: Map<string, [bool]>
@@ -96,6 +98,8 @@ RustEmitter {
         this._isMainModule = true
         this._inCompoundAdd = false
         this._suppressToString = false
+        this._pushStrTarget = ""
+        this._pushStrUsed = false
         this._enumVariantFields = Map {}
         this._enumVariantFieldBoxed = Map {}
         this._enumVariantFieldOptional = Map {}
@@ -1838,19 +1842,41 @@ RustEmitter {
                 Expr.Identifier(varName) => {
                     let vnCopy = $"{varName}"
                     let san = this._sanitizeName(varName)
-                    this._write(san)
-                    this._write(" = ")
-                    if this._optionalVars.has(san) {
-                        this._emitSomeWrapped(stmt.value)
+                    // Phase 8.4: detect x = x + y → push_str chain (only for Binary(+) rooted at target)
+                    let isStringVar = this._isStringExpr(stmt.target)
+                    let isPushStrCandidate = false
+                    if isStringVar && !this._optionalVars.has(san) {
+                        let _ = switch stmt.value {
+                            Expr.Binary(bop, left, _) => {
+                                let bopStr = this._binOpToRust(bop)
+                                if bopStr == "+" {
+                                    isPushStrCandidate = this._leftmostLeafIsTarget(left, san)
+                                }
+                                0
+                            },
+                            _ => { 0 }
+                        }
+                    }
+                    if isPushStrCandidate {
+                        this._pushStrTarget = $"{san}"
+                        this._pushStrUsed = false
+                        this._emitExpr(stmt.value)
+                        this._pushStrTarget = ""
                     } else {
-                        // Fallback: check type context for Optional
-                        let varTypeRef = this._lookupVarTypeRef(vnCopy)
-                        let varTag = this._typeRefToTag(varTypeRef)
-                        if varTag == "optional" {
-                            this._optionalVars.set(san, true)
+                        this._write(san)
+                        this._write(" = ")
+                        if this._optionalVars.has(san) {
                             this._emitSomeWrapped(stmt.value)
                         } else {
-                            this._emitExpr(stmt.value)
+                            // Fallback: check type context for Optional
+                            let varTypeRef = this._lookupVarTypeRef(vnCopy)
+                            let varTag = this._typeRefToTag(varTypeRef)
+                            if varTag == "optional" {
+                                this._optionalVars.set(san, true)
+                                this._emitSomeWrapped(stmt.value)
+                            } else {
+                                this._emitExpr(stmt.value)
+                            }
                         }
                     }
                     0
@@ -2531,11 +2557,43 @@ RustEmitter {
                         this._write(".is_some()")
                     }
                 } else if rIsString && opStr == "+" {
-                    this._write("format!(\"{}{}\", ")
-                    this._emitExpr(left)
-                    this._write(", ")
-                    this._emitLiteral(rLit)
-                    this._write(")")
+                    // Phase 8: push_str for string literal
+                    if this._pushStrTarget != "" {
+                        this._pushStrUsed = true
+                        let leftIsTarget2 = false
+                        let _ = switch left {
+                            Expr.Identifier(lName2) => {
+                                if this._sanitizeName(lName2) == this._pushStrTarget { leftIsTarget2 = true }
+                                0
+                            },
+                            _ => { 0 }
+                        }
+                        if leftIsTarget2 {
+                            this._write(this._pushStrTarget)
+                            this._write(".push_str(")
+                            this._inCompoundAdd = true
+                            this._emitLiteral(rLit)
+                            this._inCompoundAdd = false
+                            this._write(")")
+                        } else {
+                            this._emitExpr(left)
+                            this._write(";")
+                            this._newline()
+                            this._writeIndent()
+                            this._write(this._pushStrTarget)
+                            this._write(".push_str(")
+                            this._inCompoundAdd = true
+                            this._emitLiteral(rLit)
+                            this._inCompoundAdd = false
+                            this._write(")")
+                        }
+                    } else {
+                        this._write("format!(\"{}{}\", ")
+                        this._emitExpr(left)
+                        this._write(", ")
+                        this._emitLiteral(rLit)
+                        this._write(")")
+                    }
                 } else {
                     // Right is a non-null, non-string literal — check left for null
                     this._emitBinaryLeftCheck(opStr, left, rLit)
@@ -2545,11 +2603,38 @@ RustEmitter {
             Expr.StringTemplate(rParts) => {
                 // Right is a string template — string concat
                 if opStr == "+" {
-                    this._write("format!(\"{}{}\", ")
-                    this._emitExpr(left)
-                    this._write(", ")
-                    this._emitStringTemplate(rParts)
-                    this._write(")")
+                    if this._pushStrTarget != "" {
+                        this._pushStrUsed = true
+                        let leftIsTarget3 = false
+                        let _ = switch left {
+                            Expr.Identifier(lName3) => {
+                                if this._sanitizeName(lName3) == this._pushStrTarget { leftIsTarget3 = true }
+                                0
+                            },
+                            _ => { 0 }
+                        }
+                        if leftIsTarget3 {
+                            this._write(this._pushStrTarget)
+                            this._write(".push_str(&")
+                            this._emitStringTemplate(rParts)
+                            this._write(")")
+                        } else {
+                            this._emitExpr(left)
+                            this._write(";")
+                            this._newline()
+                            this._writeIndent()
+                            this._write(this._pushStrTarget)
+                            this._write(".push_str(&")
+                            this._emitStringTemplate(rParts)
+                            this._write(")")
+                        }
+                    } else {
+                        this._write("format!(\"{}{}\", ")
+                        this._emitExpr(left)
+                        this._write(", ")
+                        this._emitStringTemplate(rParts)
+                        this._write(")")
+                    }
                 } else {
                     this._emitExpr(left)
                     this._write($" {opStr} ")
@@ -2653,12 +2738,45 @@ RustEmitter {
             },
             _ => {
                 if opStr == "+" and (this._isStringExpr(left) or this._isStringExpr(right)) {
-                    // String concat: left + right → format!("{}{}", left, right)
-                    this._write("format!(\"{}{}\", ")
-                    this._emitExpr(left)
-                    this._write(", ")
-                    this._emitExpr(right)
-                    this._write(")")
+                    // Phase 8: push_str chain — x = x + y → x.push_str(&y)
+                    if this._pushStrTarget != "" {
+                        this._pushStrUsed = true
+                        // Check if left is the target identifier (1-level: x + y)
+                        let leftIsTarget = false
+                        let _ = switch left {
+                            Expr.Identifier(lName) => {
+                                if this._sanitizeName(lName) == this._pushStrTarget { leftIsTarget = true }
+                                0
+                            },
+                            _ => { 0 }
+                        }
+                        if leftIsTarget {
+                            // x + y → x.push_str(&y)
+                            this._write(this._pushStrTarget)
+                            this._write(".push_str(&(")
+                            this._emitExpr(right)
+                            this._write(").to_string())")
+                        } else {
+                            // Left is not the target (maybe nested: (x + a) + b)
+                            // Emit left (which recurses and may emit push_str for inner chain)
+                            this._emitExpr(left)
+                            // Now emit push_str for right
+                            this._write(";")
+                            this._newline()
+                            this._writeIndent()
+                            this._write(this._pushStrTarget)
+                            this._write(".push_str(&(")
+                            this._emitExpr(right)
+                            this._write(").to_string())")
+                        }
+                    } else {
+                        // Normal string concat: format!("{}{}", left, right)
+                        this._write("format!(\"{}{}\", ")
+                        this._emitExpr(left)
+                        this._write(", ")
+                        this._emitExpr(right)
+                        this._write(")")
+                    }
                 } else {
                     this._emitExpr(left)
                     this._write($" {opStr} ")
@@ -2695,6 +2813,25 @@ RustEmitter {
                     Literal.Null => { result = true; 0 },
                     _ => { 0 }
                 }
+                0
+            },
+            _ => { 0 }
+        }
+        return result
+    }
+
+    _leftmostLeafIsTarget(expr: Expr, target: string): bool {
+        let result = false
+        let _ = switch expr {
+            Expr.Binary(bop, left, _) => {
+                let bopStr = this._binOpToRust(bop)
+                if bopStr == "+" {
+                    result = this._leftmostLeafIsTarget(left, target)
+                }
+                0
+            },
+            Expr.Identifier(lName) => {
+                if this._sanitizeName(lName) == target { result = true }
                 0
             },
             _ => { 0 }
