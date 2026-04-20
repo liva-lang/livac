@@ -175,9 +175,9 @@ LivenessAnalyzer {
             Stmt.ConstDecl(cdecl) => { this._analyzeExpr(cdecl.init); 0 },
             Stmt.Assign(asgn) => {
                 this._analyzeExpr(asgn.target)
-                this._analyzeExpr(asgn.value)
-                // Escape: this.field = param → param escapes into class field
+                // Escape check BEFORE analyzing value to avoid partial move
                 this._checkAssignEscape(asgn)
+                this._analyzeExpr(asgn.value)
                 0
             },
             Stmt.If(ifStmt) => { this._analyzeIf(ifStmt); 0 },
@@ -194,7 +194,12 @@ LivenessAnalyzer {
                 0
             },
             Stmt.Defer(deferStmt) => { this._analyzeStmt(deferStmt); 0 },
-            Stmt.ExprStmt(expr) => { this._analyzeExpr(expr); 0 },
+            Stmt.ExprStmt(expr) => {
+                this._analyzeExpr(expr)
+                // Phase 8.6: detect push/set/insert in ExprStmt context for escape marking
+                this._checkExprStmtEscape(expr)
+                0
+            },
             Stmt.Block(blk) => { this._analyzeBlock(blk); 0 },
             _ => { 0 }
         }
@@ -478,6 +483,22 @@ LivenessAnalyzer {
     _checkReturnEscape(retExpr: Expr?) {
         if retExpr != null {
             this._collectEscapingIdents(retExpr)
+        }
+    }
+
+    // Phase 8.6: detect push/set/insert on collections in ExprStmt
+    // this._warnings.push(msg) → msg escapes into the collection
+    _checkExprStmtEscape(expr: Expr) {
+        let _ = switch expr {
+            Expr.MethodCall(mcObj, mcMethod, mcArgs) => {
+                if mcMethod == "push" || mcMethod == "set" || mcMethod == "insert" {
+                    for ma in mcArgs {
+                        this._collectEscapingIdents(ma)
+                    }
+                }
+                0
+            },
+            _ => { 0 }
         }
     }
 

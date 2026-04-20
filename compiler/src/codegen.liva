@@ -84,6 +84,12 @@ RustEmitter {
     _functionDefaultStrs: Map<string, string>
     _borrowedParamIndices: Map<string, bool>
     _suppressCloneForBorrow: bool
+    _strRefParams: Map<string, bool>
+    _enableStrRef: bool
+    _buildParamIdx: number
+    _currentFuncIsMethod: bool
+    _lastEmittedStrRef: bool
+    _currentFuncBorrowKey: string
     _warnings: [string]
 
     constructor(typeCtx: TypeContext, liveCtx: LivenessContext) {
@@ -122,6 +128,12 @@ RustEmitter {
         this._functionDefaultStrs = Map {}
         this._borrowedParamIndices = Map {}
         this._suppressCloneForBorrow = false
+        this._strRefParams = Map {}
+        this._enableStrRef = true
+        this._buildParamIdx = 0
+        this._lastEmittedStrRef = false
+        this._currentFuncBorrowKey = ""
+        this._currentFuncIsMethod = false
         this._warnings = []
     }
 
@@ -338,6 +350,40 @@ RustEmitter {
                     0
                 },
                 _ => { 0 }
+            }
+        }
+
+        // Pre-pass: register borrowed (&str) param indices for all functions/methods
+        // This must happen before emission so call-sites can look up borrow info
+        if this._enableStrRef {
+            for item in program.items {
+                let _ = switch item {
+                    TopLevel.Function(fd) => {
+                        // Skip free functions — they can be called cross-module
+                        // where callers don't have borrow info
+                        0
+                    },
+                    TopLevel.Class(cd) => {
+                        let cn = $"{cd.name}"
+                        for m in cd.members {
+                            let _ = switch m {
+                                Member.Method(md) => {
+                                    // Phase 8.6: only private methods (_prefix)
+                                    let mFirst = md.name.substring(0, 1)
+                                    if mFirst == "_" {
+                                        let rawMK = $"{cn}.{md.name}"
+                                        let sanMK = $"{cn}.{this._sanitizeName(md.name)}"
+                                        this._preRegisterBorrowedParams(rawMK, sanMK, md.params)
+                                    }
+                                    0
+                                },
+                                _ => { 0 }
+                            }
+                        }
+                        0
+                    },
+                    _ => { 0 }
+                }
             }
         }
 
@@ -680,10 +726,14 @@ RustEmitter {
         let funcName = this._sanitizeName(decl.name)
         let prevFunc = $"{this._currentFunc}"
         this._currentFunc = $"{decl.name}"
+        this._currentFuncBorrowKey = $"{funcName}"
+        this._currentFuncIsMethod = false
         let prevRetOpt = this._currentReturnOptional
         let prevRetFail = this._currentReturnFallible
+        let prevStrRefParams = this._strRefParams
         this._currentReturnOptional = false
         this._currentReturnFallible = false
+        this._strRefParams = Map {}
 
         // Register default parameter values for call-site injection
         this._functionParamCount.set(funcName, decl.params.length)
@@ -713,9 +763,8 @@ RustEmitter {
             dIdx += 1
         }
 
-        // Build parameter list
+        // Build parameter list (also registers borrowed param indices)
         let paramList = this._buildParamList(decl.params)
-        this._registerBorrowedParams(funcName, decl.params)
 
         // Build return type and detect Optional return
         let retStr = this._buildReturnType(decl.returnType, decl.containsFail)
@@ -807,13 +856,16 @@ RustEmitter {
         this._currentFunc = prevFunc
         this._currentReturnOptional = prevRetOpt
         this._currentReturnFallible = prevRetFail
+        this._strRefParams = prevStrRefParams
     }
 
     _buildParamList(params: [Param]): string {
         let parts: [string] = []
+        this._buildParamIdx = 0
         for p in params {
             let paramStr = this._buildParam(p)
             parts.push(paramStr)
+            this._buildParamIdx += 1
         }
         return parts.join(", ")
     }
@@ -849,6 +901,12 @@ RustEmitter {
     }
 
     _buildParam(p: Param): string {
+        // Extract raw name for liveness key lookup
+        let rawName = switch p.pattern {
+            BindingPattern.Identifier(n) => n,
+            _ => "_"
+        }
+        // Extract again for sanitization (switch consumes the value in bootstrap)
         let paramName = switch p.pattern {
             BindingPattern.Identifier(n) => n,
             _ => "_"
@@ -856,8 +914,10 @@ RustEmitter {
         let sanitized = this._sanitizeName(paramName)
         let typeStr = this._buildParamType(p.typeRef)
         // Phase 8.5: if param is borrowable string and doesn't escape → &str
-        if typeStr == "String" {
-            let key = $"{this._currentFunc}:{paramName}"
+        // BOOTSTRAP GATE: only apply &str opt when _enableStrRef is true
+        // Phase 8.6: only for methods — free functions may be called cross-module
+        if this._enableStrRef && this._currentFuncIsMethod && typeStr == "String" {
+            let key = $"{this._currentFunc}:{rawName}"
             let isBorrow = 0
             if this._liveCtx.paramBorrow.has(key) {
                 isBorrow = this._liveCtx.paramBorrow.get(key)
@@ -867,32 +927,40 @@ RustEmitter {
                 isEscape = this._liveCtx.paramEscapes.get(key)
             }
             if isBorrow == 1 && isEscape == 0 {
+                this._strRefParams.set(sanitized, true)
+                // Also register borrowed param index for callers
+                let bKey = $"{this._currentFuncBorrowKey}:{this._buildParamIdx}"
+                this._borrowedParamIndices.set(bKey, true)
                 return $"{sanitized}: &str"
             }
         }
         return $"{sanitized}: {typeStr}"
     }
 
-    _registerBorrowedParams(funcName: string, params: [Param]) {
+    // Pre-pass: register borrowed param indices for all functions/methods
+    // so call-sites can look up borrow info before the method body is emitted
+    _preRegisterBorrowedParams(rawFuncKey: string, sanFuncKey: string, params: [Param]) {
         let pIdx = 0
         for p in params {
-            let paramName = switch p.pattern {
+            let rawName = switch p.pattern {
                 BindingPattern.Identifier(n) => n,
                 _ => "_"
             }
             let typeStr = this._buildParamType(p.typeRef)
             if typeStr == "String" {
-                let key = $"{this._currentFunc}:{paramName}"
+                // Liveness key uses raw func name and raw param name
+                let livenessKey = $"{rawFuncKey}:{rawName}"
                 let isBorrow = 0
-                if this._liveCtx.paramBorrow.has(key) {
-                    isBorrow = this._liveCtx.paramBorrow.get(key)
+                if this._liveCtx.paramBorrow.has(livenessKey) {
+                    isBorrow = this._liveCtx.paramBorrow.get(livenessKey)
                 }
                 let isEscape = 0
-                if this._liveCtx.paramEscapes.has(key) {
-                    isEscape = this._liveCtx.paramEscapes.get(key)
+                if this._liveCtx.paramEscapes.has(livenessKey) {
+                    isEscape = this._liveCtx.paramEscapes.get(livenessKey)
                 }
                 if isBorrow == 1 && isEscape == 0 {
-                    let bKey = $"{funcName}:{pIdx}"
+                    // Borrow key uses sanitized func name and param index
+                    let bKey = $"{sanFuncKey}:{pIdx}"
                     this._borrowedParamIndices.set(bKey, true)
                 }
             }
@@ -1190,17 +1258,22 @@ RustEmitter {
         let methodName = this._sanitizeName(decl.name)
         let prevFunc = $"{this._currentFunc}"
         this._currentFunc = $"{className}.{decl.name}"
+        let methodName = this._sanitizeName(decl.name)
+        this._currentFuncBorrowKey = $"{className}.{methodName}"
+        // Phase 8.6: only private methods (_prefix) → always called via this._method()
+        let mStart = decl.name.substring(0, 1)
+        this._currentFuncIsMethod = mStart == "_"
         let prevRetOpt = this._currentReturnOptional
         let prevRetFail = this._currentReturnFallible
+        let prevStrRefParams = this._strRefParams
         this._currentReturnOptional = false
         this._currentReturnFallible = false
+        this._strRefParams = Map {}
 
         // Determine self receiver (all methods get &mut self to allow field mutations)
         let selfParam = "&mut self"
 
         let paramList = this._buildParamList(decl.params)
-        let emitFuncName = $"{className}.{methodName}"
-        this._registerBorrowedParams(emitFuncName, decl.params)
         let fullParams = $"{selfParam}"
         if paramList != "" {
             fullParams = $"{selfParam}, {paramList}"
@@ -1248,6 +1321,7 @@ RustEmitter {
         this._currentFunc = prevFunc
         this._currentReturnOptional = prevRetOpt
         this._currentReturnFallible = prevRetFail
+        this._strRefParams = prevStrRefParams
     }
 
     // -- Enum declaration --
@@ -1709,7 +1783,11 @@ RustEmitter {
                             let firstCh = afterEq.substring(0, 1)
                             let lastCh = afterEq.substring(afterEq.length - 1, afterEq.length)
                             // Starts and ends with digit = numeric literal
+                            // Also handle negative: starts with - followed by digit
                             if firstCh >= "0" && firstCh <= "9" && lastCh >= "0" && lastCh <= "9" {
+                                isNumLiteral = true
+                            }
+                            if firstCh == "-" && lastCh >= "0" && lastCh <= "9" && afterEq.length >= 2 {
                                 isNumLiteral = true
                             }
                         }
@@ -1723,7 +1801,12 @@ RustEmitter {
             }
         }
         if not skipClone {
-            this._write(".clone()")
+            // Phase 8.6: &str params — .clone() on &str gives &str, need .to_string() for String
+            if this._lastEmittedStrRef {
+                this._write(".to_string()")
+            } else {
+                this._write(".clone()")
+            }
         }
 
         this._write(";")
@@ -2243,8 +2326,11 @@ RustEmitter {
         this._writeIndent()
         if isStringSwitch {
             this._write("match ")
+            // Phase 8.6: emit discriminant, then skip .as_str() if it was &str
             this._emitExpr(stmt.discriminant)
-            this._write(".as_str()")
+            if !this._lastEmittedStrRef {
+                this._write(".as_str()")
+            }
         } else {
             // Borrow discriminant with & to avoid O(n²) deep-clone on recursive types.
             // Fields become references; individual clones happen inside each arm.
@@ -2542,8 +2628,10 @@ RustEmitter {
     _emitIdentifier(name: string) {
         if name == "this" {
             this._write("self")
+            this._lastEmittedStrRef = false
         } else {
             let sn = this._sanitizeName(name)
+            this._lastEmittedStrRef = this._strRefParams.has(sn)
             this._write(sn)
         }
     }
@@ -2618,7 +2706,8 @@ RustEmitter {
                             _ => { 0 }
                         }
                         if leftIsTarget2 {
-                            this._write(this._pushStrTarget)
+                            let pst1 = this._pushStrTarget
+                            this._write(pst1)
                             this._write(".push_str(")
                             this._inCompoundAdd = true
                             this._emitLiteral(rLit)
@@ -2629,7 +2718,8 @@ RustEmitter {
                             this._write(";")
                             this._newline()
                             this._writeIndent()
-                            this._write(this._pushStrTarget)
+                            let pst2 = this._pushStrTarget
+                            this._write(pst2)
                             this._write(".push_str(")
                             this._inCompoundAdd = true
                             this._emitLiteral(rLit)
@@ -2663,7 +2753,8 @@ RustEmitter {
                             _ => { 0 }
                         }
                         if leftIsTarget3 {
-                            this._write(this._pushStrTarget)
+                            let pst3 = this._pushStrTarget
+                            this._write(pst3)
                             this._write(".push_str(&")
                             this._emitStringTemplate(rParts)
                             this._write(")")
@@ -2672,7 +2763,8 @@ RustEmitter {
                             this._write(";")
                             this._newline()
                             this._writeIndent()
-                            this._write(this._pushStrTarget)
+                            let pst4 = this._pushStrTarget
+                            this._write(pst4)
                             this._write(".push_str(&")
                             this._emitStringTemplate(rParts)
                             this._write(")")
@@ -2719,10 +2811,13 @@ RustEmitter {
             this._emitLiteral(rightLit)
             this._write(".is_some()")
         } else {
+            // Phase 8.5: emit left, then check if it was &str → suppress .to_string() on right
             this._emitExpr(left)
+            let leftIsStrRef = this._lastEmittedStrRef
             this._write($" {opStr} ")
             // Suppress .to_string() for == and != — String implements PartialEq<str>
-            if opStr == "==" || opStr == "!=" {
+            // Also suppress for all comparisons when left is &str
+            if opStr == "==" || opStr == "!=" || leftIsStrRef {
                 let saved = this._suppressToString
                 this._suppressToString = true
                 this._emitLiteral(rightLit)
@@ -2801,7 +2896,8 @@ RustEmitter {
                         }
                         if leftIsTarget {
                             // x + y → x.push_str(&y)
-                            this._write(this._pushStrTarget)
+                            let pst5 = this._pushStrTarget
+                            this._write(pst5)
                             this._write(".push_str(&(")
                             this._emitExpr(right)
                             this._write(").to_string())")
@@ -2813,7 +2909,8 @@ RustEmitter {
                             this._write(";")
                             this._newline()
                             this._writeIndent()
-                            this._write(this._pushStrTarget)
+                            let pst6 = this._pushStrTarget
+                            this._write(pst6)
                             this._write(".push_str(&(")
                             this._emitExpr(right)
                             this._write(").to_string())")
@@ -4324,11 +4421,11 @@ RustEmitter {
                             this._write("None")
                         } else {
                             this._write("Some(")
-                            this._emitExpr(a)
+                            this._emitClonedArg(a)
                             this._write(")")
                         }
                     } else {
-                        this._emitExpr(a)
+                        this._emitClonedArg(a)
                     }
                     mcIdx += 1
                 }
@@ -4495,9 +4592,9 @@ RustEmitter {
             }
             if isMap {
                 this._emitExpr(obj)
-                this._write(".get(&(")
-                if args.length > 0 { this._emitExpr(args[0]) }
-                this._write(")).cloned().unwrap()")
+                this._write(".get(")
+                if args.length > 0 { this._emitMapKeyArg(args[0]) }
+                this._write(").cloned().unwrap()")
             } else if objTag == "set" || objTag == "array" || objTag == "string" {
                 this._emitExpr(obj)
                 this._write(".get(")
@@ -4511,9 +4608,9 @@ RustEmitter {
             } else {
                 // Default: assume Map-style get for unknown types
                 this._emitExpr(obj)
-                this._write(".get(&(")
-                if args.length > 0 { this._emitExpr(args[0]) }
-                this._write(")).cloned().unwrap()")
+                this._write(".get(")
+                if args.length > 0 { this._emitMapKeyArg(args[0]) }
+                this._write(").cloned().unwrap()")
             }
             return
         }
@@ -4532,20 +4629,20 @@ RustEmitter {
             }
             if isMap {
                 this._emitExpr(obj)
-                this._write(".contains_key(&(")
-                if args.length > 0 { this._emitExpr(args[0]) }
-                this._write("))")
+                this._write(".contains_key(")
+                if args.length > 0 { this._emitMapKeyArg(args[0]) }
+                this._write(")")
             } else if objTag == "set" {
                 this._emitExpr(obj)
-                this._write(".contains(&(")
-                if args.length > 0 { this._emitExpr(args[0]) }
-                this._write("))")
+                this._write(".contains(")
+                if args.length > 0 { this._emitMapKeyArg(args[0]) }
+                this._write(")")
             } else {
                 // Default: assume Map (has() is predominantly used on Maps)
                 this._emitExpr(obj)
-                this._write(".contains_key(&(")
-                if args.length > 0 { this._emitExpr(args[0]) }
-                this._write("))")
+                this._write(".contains_key(")
+                if args.length > 0 { this._emitMapKeyArg(args[0]) }
+                this._write(")")
             }
             return
         }
@@ -5210,9 +5307,9 @@ RustEmitter {
     _emitMapMethod(obj: Expr, method: string, args: [Expr]): bool {
         if method == "get" {
             this._emitExpr(obj)
-            this._write(".get(&(")
-            if args.length > 0 { this._emitExpr(args[0]) }
-            this._write(")).cloned().unwrap()")
+            this._write(".get(")
+            if args.length > 0 { this._emitMapKeyArg(args[0]) }
+            this._write(").cloned().unwrap()")
             return true
         }
         if method == "set" {
@@ -5230,16 +5327,16 @@ RustEmitter {
         }
         if method == "has" {
             this._emitExpr(obj)
-            this._write(".contains_key(&(")
-            if args.length > 0 { this._emitExpr(args[0]) }
-            this._write("))")
+            this._write(".contains_key(")
+            if args.length > 0 { this._emitMapKeyArg(args[0]) }
+            this._write(")")
             return true
         }
         if method == "delete" {
             this._emitExpr(obj)
-            this._write(".remove(&(")
-            if args.length > 0 { this._emitExpr(args[0]) }
-            this._write("))")
+            this._write(".remove(")
+            if args.length > 0 { this._emitMapKeyArg(args[0]) }
+            this._write(")")
             return true
         }
         if method == "keys" {
@@ -5297,9 +5394,9 @@ RustEmitter {
         }
         if method == "delete" {
             this._emitExpr(obj)
-            this._write(".remove(&(")
-            if args.length > 0 { this._emitExpr(args[0]) }
-            this._write("))")
+            this._write(".remove(")
+            if args.length > 0 { this._emitMapKeyArg(args[0]) }
+            this._write(")")
             return true
         }
         if method == "clear" {
@@ -5486,6 +5583,28 @@ RustEmitter {
         }
     }
 
+    // Phase 8.6: Emit map/set key arg — &str params don't need &() wrapping
+    // HashMap<String,_>::contains_key/get takes &Q where String: Borrow<Q>.
+    // Since String: Borrow<str>, passing &str directly works. Adding &() creates &&str which fails.
+    _emitMapKeyArg(argExpr: Expr) {
+        let isStrRef = false
+        let _ = switch argExpr {
+            Expr.Identifier(aName) => {
+                let sn = this._sanitizeName(aName)
+                if this._strRefParams.has(sn) { isStrRef = true }
+                0
+            },
+            _ => { 0 }
+        }
+        if isStrRef {
+            this._emitExpr(argExpr)
+        } else {
+            this._write("&(")
+            this._emitExpr(argExpr)
+            this._write(")")
+        }
+    }
+
     // Phase 8.5: Emit arg for &str param — string literals as-is, others with & prefix
     _emitBorrowedArg(argExpr: Expr) {
         let isStrLit = false
@@ -5569,7 +5688,15 @@ RustEmitter {
         }
         this._emitExpr(argExpr)
         if needsClone {
-            this._write(".clone()")
+            // Phase 8.6: &str params — .into() works universally (String or &str callees)
+            if this._lastEmittedStrRef {
+                this._write(".into()")
+            } else {
+                this._write(".clone()")
+            }
+        } else if this._lastEmittedStrRef {
+            // Single-use &str params: .into() converts to expected type (String or &str)
+            this._write(".into()")
         }
     }
 
@@ -5836,8 +5963,11 @@ RustEmitter {
         let cloneDisc = true
         if stringSwitch {
             this._write("match ")
+            // Phase 8.6: emit disc, then skip .as_str() if it was &str
             this._emitExpr(disc)
-            this._write(".as_str()")
+            if !this._lastEmittedStrRef {
+                this._write(".as_str()")
+            }
             cloneDisc = false
         } else {
             // Borrow discriminant with & to avoid O(n²) deep-clone.
