@@ -1260,7 +1260,6 @@ RustEmitter {
         let methodName = this._sanitizeName(decl.name)
         let prevFunc = $"{this._currentFunc}"
         this._currentFunc = $"{className}.{decl.name}"
-        let methodName = this._sanitizeName(decl.name)
         this._currentFuncBorrowKey = $"{className}.{methodName}"
         // Phase 8.6: only private methods (_prefix) → always called via this._method()
         let mStart = decl.name.substring(0, 1)
@@ -1779,8 +1778,9 @@ RustEmitter {
                     // Safe approach: search for "= " and verify what follows is numeric
                     let eqIdx = line.indexOf("= ")
                     let isNumLiteral = false
+                    let afterEq = ""
                     if eqIdx >= 0 {
-                        let afterEq = line.substring(eqIdx + 2, line.length)
+                        afterEq = line.substring(eqIdx + 2, line.length)
                         if afterEq.length > 0 {
                             let firstCh = afterEq.substring(0, 1)
                             let lastCh = afterEq.substring(afterEq.length - 1, afterEq.length)
@@ -1797,7 +1797,35 @@ RustEmitter {
                     if isNumLiteral {
                         skipClone = true
                     } else {
-                        skipClone = false
+                        // Phase 8.9: liveness-based let-binding clone elision
+                        if this._lastEmittedStrRef {
+                            // &str param → always .to_string()
+                            skipClone = false
+                        } else {
+                            // Check if afterEq is a simple identifier (no dots, calls, indexing)
+                            let isSimpleIdent = afterEq.length > 0
+                            if afterEq.contains(".") || afterEq.contains("(") || afterEq.contains("[") || afterEq.contains("{") || afterEq.contains("\"") || afterEq.contains("!") || afterEq.contains(" ") {
+                                isSimpleIdent = false
+                            }
+                            if isSimpleIdent {
+                                let origName = afterEq
+                                if origName.startsWith("r#") { origName = origName.substring(2, origName.length) }
+                                let liveKey = $"{this._currentFunc}:{origName}"
+                                if this._liveCtx.useCounts.has(liveKey) {
+                                    let uc = this._liveCtx.useCounts.get(liveKey)
+                                    let inLoop = this._liveCtx.loopUseCounts.has(liveKey)
+                                    if uc <= 1 && not inLoop {
+                                        skipClone = true
+                                    } else {
+                                        skipClone = false
+                                    }
+                                } else {
+                                    skipClone = false
+                                }
+                            } else {
+                                skipClone = false
+                            }
+                        }
                     }
                 }
             }
