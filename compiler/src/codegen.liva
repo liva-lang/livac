@@ -2822,7 +2822,8 @@ RustEmitter {
             this._write(".is_some()")
         } else {
             // Phase 8.5: emit left, then check if it was &str → suppress .to_string() on right
-            this._emitExpr(left)
+            // Phase 8.8: suppress self.field clone in comparison context
+            this._emitExprNoMemberClone(left)
             let leftIsStrRef = this._lastEmittedStrRef
             this._write($" {opStr} ")
             // Suppress .to_string() for == and != — String implements PartialEq<str>
@@ -2872,7 +2873,8 @@ RustEmitter {
                         this._emitLiteral(lLit)
                     }
                     this._write($" {opStr} ")
-                    this._emitExpr(right)
+                    // Phase 8.8: suppress self.field clone on right of literal comparison
+                    this._emitExprNoMemberClone(right)
                 }
                 0
             },
@@ -2934,9 +2936,17 @@ RustEmitter {
                         this._write(")")
                     }
                 } else {
-                    this._emitExpr(left)
-                    this._write($" {opStr} ")
-                    this._emitExpr(right)
+                    // Phase 8.8: suppress self.field clone in comparison context
+                    let isComp = opStr == "==" || opStr == "!=" || opStr == "<" || opStr == ">" || opStr == "<=" || opStr == ">="
+                    if isComp {
+                        this._emitExprNoMemberClone(left)
+                        this._write($" {opStr} ")
+                        this._emitExprNoMemberClone(right)
+                    } else {
+                        this._emitExpr(left)
+                        this._write($" {opStr} ")
+                        this._emitExpr(right)
+                    }
                 }
                 0
             }
@@ -5457,6 +5467,24 @@ RustEmitter {
     }
 
     // -- Member access (type-directed) --
+
+    // Phase 8.8: emit expr suppressing self.field clone if expr is a direct MemberAccess
+    // Used in comparison contexts where clone is wasteful (String: PartialEq<str>)
+    _emitExprNoMemberClone(expr: Expr) {
+        let isMember = false
+        let _ = switch expr {
+            Expr.MemberAccess(_, _) => { isMember = true; 0 },
+            _ => { 0 }
+        }
+        if isMember {
+            let saved = this._inAssignTarget
+            this._inAssignTarget = true
+            this._emitExpr(expr)
+            this._inAssignTarget = saved
+        } else {
+            this._emitExpr(expr)
+        }
+    }
 
     _emitMemberAccess(obj: Expr, prop: string) {
         let objTag = this._getExprTypeName(obj)
