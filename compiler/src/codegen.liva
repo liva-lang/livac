@@ -5842,7 +5842,26 @@ RustEmitter {
     // -- String template --
 
     _emitStringTemplate(parts: [StringTemplatePart]) {
-        // Generate format!("...", args)
+        // Phase 8.7: single-expression template $"{x}" → x.to_string() instead of format!("{}", x)
+        if parts.length == 1 {
+            let isSingleExpr = false
+            let _ = switch parts[0] {
+                StringTemplatePart.ExprPart(_) => { isSingleExpr = true; 0 },
+                _ => { 0 }
+            }
+            if isSingleExpr {
+                let _ = switch parts[0] {
+                    StringTemplatePart.ExprPart(expr) => {
+                        this._emitExpr(expr)
+                        this._write(".to_string()")
+                        0
+                    },
+                    _ => { 0 }
+                }
+                return
+            }
+        }
+        // Multi-part template: format!("...", args)
         this._write("format!(")
         this._emitStringTemplateInner(parts)
         this._write(")")
