@@ -90,6 +90,7 @@ RustEmitter {
     _currentFuncIsMethod: bool
     _lastEmittedStrRef: bool
     _currentFuncBorrowKey: string
+    _forNeedsInnerClone: bool
     _warnings: [string]
 
     constructor(typeCtx: TypeContext, liveCtx: LivenessContext) {
@@ -134,6 +135,7 @@ RustEmitter {
         this._lastEmittedStrRef = false
         this._currentFuncBorrowKey = ""
         this._currentFuncIsMethod = false
+        this._forNeedsInnerClone = false
         this._warnings = []
     }
 
@@ -2197,6 +2199,11 @@ RustEmitter {
             // Clone item to avoid move issues
             this._writeln($"let {var2Name} = {var2Name}.clone();")
         }
+        // Phase 8.6: inner clone for borrow-iteration (for x in &vec)
+        if this._forNeedsInnerClone {
+            this._writeln($"let {varName} = {varName}.clone();")
+            this._forNeedsInnerClone = false
+        }
         this._emitBlock(stmt.body)
         this._dedent()
         this._writeln("}")
@@ -2216,7 +2223,6 @@ RustEmitter {
                     this._write(sanitized)
                     this._write(".chars().map(|c| c.to_string())")
                 } else {
-                    this._write(sanitized)
                     // Phase 8: move instead of clone if var is single-use and NOT in a loop
                     let isSingleUse = false
                     let liveKey = $"{this._currentFunc}:{name}"
@@ -2225,8 +2231,12 @@ RustEmitter {
                         let inLoop = this._liveCtx.loopUseCounts.has(liveKey)
                         if uc <= 1 && not inLoop { isSingleUse = true }
                     }
-                    if not isSingleUse {
-                        this._write(".clone()")
+                    if isSingleUse {
+                        this._write(sanitized)
+                    } else {
+                        // Phase 8.6: borrow instead of clone — saves Vec allocation
+                        this._write($"&{sanitized}")
+                        this._forNeedsInnerClone = true
                     }
                 }
                 0
@@ -2277,8 +2287,8 @@ RustEmitter {
                 0
             },
             Expr.MemberAccess(_, _) => {
-                // obj.field needs .clone() to avoid moving out of borrow
-                // Suppress auto-clone from _emitMemberAccess (we add our own .clone())
+                // self.field: can't borrow with & if loop body mutates self
+                // Must clone to avoid E0502 (immutable + mutable borrow of self)
                 let savedAT = this._inAssignTarget
                 this._inAssignTarget = true
                 this._emitExpr(iterable)
