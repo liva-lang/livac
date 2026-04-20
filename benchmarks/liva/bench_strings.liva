@@ -1,0 +1,94 @@
+// Benchmark 1: String processing
+// Stresses: string concat, split, replace, templates, loops
+
+processLines(lines: [string]): [string] {
+    let results: [string] = []
+    for line in lines {
+        let trimmed = line.trim()
+        if trimmed.length > 0 {
+            let upper = trimmed.toUpperCase()
+            let replaced = upper.replace("FOO", "BAR")
+            let tagged = $"[PROCESSED] {replaced}"
+            results.push(tagged)
+        }
+    }
+    return results
+}
+
+buildCSV(rows: number): string {
+    let output = "id,name,value\n"
+    let i = 0
+    while i < rows {
+        let line = $"{i},item_{i},{i * 10}\n"
+        output = output + line
+        i = i + 1
+    }
+    return output
+}
+
+countWords(text: string): Map<string, number> {
+    let counts: Map<string, number> = Map {}
+    let words = text.split(" ")
+    for word in words {
+        let lower = word.toLowerCase()
+        if counts.has(lower) {
+            let c = counts.get(lower)
+            counts.set(lower, c + 1)
+        } else {
+            counts.set(lower, 1)
+        }
+    }
+    return counts
+}
+
+main() {
+    let iterations = 1000
+
+    // Benchmark 1: Line processing
+    let lines: [string] = []
+    let j = 0
+    while j < 1000 {
+        lines.push($"  foo item number {j}  ")
+        j = j + 1
+    }
+
+    let t1Start = Date.timestamp()
+    let i = 0
+    while i < iterations {
+        let _ = processLines(lines)
+        i = i + 1
+    }
+    let t1End = Date.timestamp()
+    let t1Ms = t1End - t1Start
+    print($"Line processing: {t1Ms}ms ({iterations} iterations x 1000 lines)")
+
+    // Benchmark 2: CSV building
+    let t2Start = Date.timestamp()
+    i = 0
+    while i < iterations {
+        let _ = buildCSV(1000)
+        i = i + 1
+    }
+    let t2End = Date.timestamp()
+    let t2Ms = t2End - t2Start
+    print($"CSV building: {t2Ms}ms ({iterations} iterations x 1000 rows)")
+
+    // Benchmark 3: Word counting
+    let words: [string] = []
+    j = 0
+    while j < 200 {
+        words.push("the quick brown fox jumps over the lazy dog and the fox runs fast")
+        j = j + 1
+    }
+    let bigText = words.join(" ")
+
+    let t3Start = Date.timestamp()
+    i = 0
+    while i < iterations {
+        let _ = countWords(bigText)
+        i = i + 1
+    }
+    let t3End = Date.timestamp()
+    let t3Ms = t3End - t3Start
+    print($"Word counting: {t3Ms}ms ({iterations} iterations)")
+}

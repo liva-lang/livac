@@ -38,3 +38,9 @@ Thumbs.db
 todos.db
 .liva_test_build/
 examples/benchmark/handwritten
+
+# Benchmark binaries
+benchmarks/liva/*_bin
+benchmarks/rust/bench_strings
+benchmarks/rust/bench_collections
+benchmarks/rust/bench_classes

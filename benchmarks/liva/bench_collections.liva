@@ -1,0 +1,96 @@
+// Benchmark 2: Collections — arrays, maps, sorting
+// Stresses: array ops, map ops, iteration, sorting
+
+fillArray(n: number): [number] {
+    let arr: [number] = []
+    let i = 0
+    while i < n {
+        arr.push(i)
+        i = i + 1
+    }
+    return arr
+}
+
+sumArray(arr: [number]): number {
+    let total = 0
+    for n in arr {
+        total = total + n
+    }
+    return total
+}
+
+filterAndMap(arr: [number]): [number] {
+    return arr.filter(x => x % 2 == 0).map(x => x * 3)
+}
+
+buildLookup(n: number): Map<string, number> {
+    let m: Map<string, number> = Map {}
+    let i = 0
+    while i < n {
+        m.set($"key_{i}", i * 7)
+        i = i + 1
+    }
+    return m
+}
+
+lookupAll(m: Map<string, number>, n: number): number {
+    let total = 0
+    let i = 0
+    while i < n {
+        let key = $"key_{i}"
+        if m.has(key) {
+            total = total + m.get(key)
+        }
+        i = i + 1
+    }
+    return total
+}
+
+main() {
+    let iterations = 1000
+    let size = 5000
+
+    // Benchmark 1: Array fill + sum
+    let t1Start = Date.timestamp()
+    let i = 0
+    while i < iterations {
+        let arr = fillArray(size)
+        let _ = sumArray(arr)
+        i = i + 1
+    }
+    let t1End = Date.timestamp()
+    print($"Array fill+sum: {t1End - t1Start}ms ({iterations} x {size})")
+
+    // Benchmark 2: Filter + Map
+    let baseArr = fillArray(size)
+    let t2Start = Date.timestamp()
+    i = 0
+    while i < iterations {
+        let _ = filterAndMap(baseArr)
+        i = i + 1
+    }
+    let t2End = Date.timestamp()
+    print($"Filter+Map: {t2End - t2Start}ms ({iterations} x {size})")
+
+    // Benchmark 3: Map build + lookup
+    let t3Start = Date.timestamp()
+    i = 0
+    while i < iterations {
+        let lookup = buildLookup(1000)
+        let _ = lookupAll(lookup, 1000)
+        i = i + 1
+    }
+    let t3End = Date.timestamp()
+    print($"Map build+lookup: {t3End - t3Start}ms ({iterations} x 1000)")
+
+    // Benchmark 4: Sort
+    let t4Start = Date.timestamp()
+    i = 0
+    while i < iterations {
+        let arr = fillArray(size)
+        arr.sort()
+        i = i + 1
+    }
+    let t4End = Date.timestamp()
+    print($"Sort: {t4End - t4Start}ms ({iterations} x {size})")
+}

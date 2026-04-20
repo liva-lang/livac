@@ -1,0 +1,128 @@
+// Benchmark 3: Classes and method dispatch
+// Stresses: class construction, method calls, pattern matching, enums
+
+enum Shape {
+    Circle(radius: float),
+    Rectangle(width: float, height: float),
+    Triangle(base: float, height: float)
+}
+
+shapeArea(s: Shape): float {
+    return switch s {
+        Shape.Circle(r) => 3.14159265 * r * r,
+        Shape.Rectangle(w, h) => w * h,
+        Shape.Triangle(b, h) => 0.5 * b * h
+    }
+}
+
+shapePerimeter(s: Shape): float {
+    return switch s {
+        Shape.Circle(r) => 2.0 * 3.14159265 * r,
+        Shape.Rectangle(w, h) => 2.0 * (w + h),
+        Shape.Triangle(b, h) => b + h + Math.sqrt(b * b + h * h)
+    }
+}
+
+Vec2 {
+    x: float
+    y: float
+    constructor(x: float, y: float) {
+        this.x = x
+        this.y = y
+    }
+    add(other: Vec2): Vec2 => Vec2(this.x + other.x, this.y + other.y)
+    scale(factor: float): Vec2 => Vec2(this.x * factor, this.y * factor)
+    magnitude(): float => Math.sqrt(this.x * this.x + this.y * this.y)
+    dot(other: Vec2): float => this.x * other.x + this.y * other.y
+}
+
+Particle {
+    pos: Vec2
+    vel: Vec2
+    mass: float
+    constructor(x: float, y: float, vx: float, vy: float, mass: float) {
+        this.pos = Vec2(x, y)
+        this.vel = Vec2(vx, vy)
+        this.mass = mass
+    }
+    step(dt: float) {
+        let dx = this.vel.scale(dt)
+        this.pos = this.pos.add(dx)
+    }
+    kineticEnergy(): float {
+        let v = this.vel.magnitude()
+        return 0.5 * this.mass * v * v
+    }
+}
+
+main() {
+    let iterations = 1000
+
+    // Benchmark 1: Shape area/perimeter computation
+    let shapes: [Shape] = []
+    let fi = 0.0
+    while fi < 1000.0 {
+        shapes.push(Shape.Circle(fi * 0.1 + 1.0))
+        shapes.push(Shape.Rectangle(fi * 0.2 + 1.0, fi * 0.3 + 1.0))
+        shapes.push(Shape.Triangle(fi * 0.15 + 1.0, fi * 0.25 + 1.0))
+        fi = fi + 1.0
+    }
+
+    let t1Start = Date.timestamp()
+    let i = 0
+    while i < iterations {
+        let totalArea = 0.0
+        let totalPerim = 0.0
+        for shape in shapes {
+            totalArea = totalArea + shapeArea(shape)
+            totalPerim = totalPerim + shapePerimeter(shape)
+        }
+        i = i + 1
+    }
+    let t1End = Date.timestamp()
+    print($"Shape compute: {t1End - t1Start}ms ({iterations} x 3000 shapes)")
+
+    // Benchmark 2: Vec2 operations
+    let t2Start = Date.timestamp()
+    i = 0
+    while i < iterations {
+        let v1 = Vec2(1.0, 2.0)
+        let j = 0
+        while j < 10000 {
+            let v2 = Vec2(0.1, 0.2)
+            v1 = v1.add(v2)
+            v1 = v1.scale(0.999)
+            let _ = v1.magnitude()
+            j = j + 1
+        }
+        i = i + 1
+    }
+    let t2End = Date.timestamp()
+    print($"Vec2 ops: {t2End - t2Start}ms ({iterations} x 10000 ops)")
+
+    // Benchmark 3: Particle simulation
+    let particles: [Particle] = []
+    let pf = 0.0
+    while pf < 100.0 {
+        particles.push(Particle(pf, pf * 0.5, 1.0, 0.5, pf + 1.0))
+        pf = pf + 1.0
+    }
+
+    let t3Start = Date.timestamp()
+    i = 0
+    while i < iterations {
+        let pi = 0
+        while pi < particles.length {
+            let j = 0
+            while j < 100 {
+                particles[pi].step(0.01)
+                let _ = particles[pi].kineticEnergy()
+                j = j + 1
+            }
+            pi = pi + 1
+        }
+        i = i + 1
+    }
+    let t3End = Date.timestamp()
+    print($"Particle sim: {t3End - t3Start}ms ({iterations} x 100 particles x 100 steps)")
+}
