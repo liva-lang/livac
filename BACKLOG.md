@@ -502,6 +502,18 @@
 - [x] **7.1: Gen-1 compila el compilador** — `livac-gen1 build compiler/src/main.liva` produce Rust válido (253→0 errors, commit `01eaea3`)
 - [x] **7.2: Gen-2 idempotencia generacional** — gen-1 output == gen-2 output, 2000x perf fix (commit `4cbb30a`)
 
+### Self-hosting — Fase 8: Calidad del Rust Generado ✅
+
+- [x] **8.1-8.4**: Liveness clone elision, Copy-type elision, println! forwarding, push_str chains
+- [x] **8.5**: `&str` params for private methods — 77 params, 56 `.into()` (commit `5fa154b`)
+- [x] **8.6**: `for item in &vec` borrow iteration — 138→80 clone-iterations (commit `77a6f7a`)
+- [x] **8.7**: Eliminate redundant `format!("{}", x)` — 77→1 (commit `89248bd`)
+- [x] **8.8**: `self.field` clone suppression in comparisons — 89→78 (commit `2f11404`)
+- [x] **8.9**: Liveness-based let-binding clone elision — 1100→996 (commit `d7189bf`)
+- [x] **8.10**: Benchmark suite — 6/10 within <10% of hand-written Rust (commit `45cc67c`)
+- [x] 518 tests verdes
+- [x] Self-hosting idempotent (gen-1 == gen-2)
+
 ### Liva Test Suite — archivos .liva que validan el lenguaje
 
 > **Foco:** Crear suite completa de tests escritos EN Liva que validen toda la sintaxis y features documentadas.

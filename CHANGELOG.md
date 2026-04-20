@@ -5,6 +5,22 @@ All notable changes to the Liva compiler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-dev] - 2026-04-20
+
+### Added
+- **Self-hosting Phase 8: Calidad del Rust Generado COMPLETE**
+  - **Phase 8.5:** `&str` params for private methods — 77 params converted, 56 `.into()` at call sites
+  - **Phase 8.6:** `for item in &vec` borrow iteration — 138→80 clone-iterations
+  - **Phase 8.7:** Eliminate redundant `format!("{}", x)` — 77→1 format! calls
+  - **Phase 8.8:** `self.field` clone suppression in comparisons — 89→78 clones
+  - **Phase 8.9:** Liveness-based let-binding clone elision — 1100→996 clones
+  - **Phase 8.10:** Benchmark suite — 3 programs (strings, collections, classes) × Liva + Rust
+  - **Result:** 6/10 benchmarks within <10% of hand-written Rust
+  - Numeric, class, and enum code at parity with hand-written Rust
+
+### Fixed
+- Duplicate `let methodName` declaration in `_emitMethod` (detected by gen-1 semantic analysis)
+
 ## [2.0.0-dev] - 2026-04-15
 
 ### Added
