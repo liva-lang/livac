@@ -5195,7 +5195,16 @@ RustEmitter {
         } else {
             this._write(".iter()")
         }
-        if withCloned { this._write(".cloned()") }
+        if withCloned {
+            // Phase 9.6: emit .copied() for Copy element types (LLVM inlines
+            // trivially; semantically identical to .cloned() for Copy).
+            let elemType = this._getArrayElemTypeRef(obj)
+            if this._isCopyType(elemType) {
+                this._write(".copied()")
+            } else {
+                this._write(".cloned()")
+            }
+        }
     }
 
     // -- Array methods → Rust equivalents --
