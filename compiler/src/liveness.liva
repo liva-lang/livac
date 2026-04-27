@@ -174,9 +174,10 @@ LivenessAnalyzer {
             Stmt.VarDecl(decl) => { this._analyzeVarDecl(decl); 0 },
             Stmt.ConstDecl(cdecl) => { this._analyzeExpr(cdecl.init); 0 },
             Stmt.Assign(asgn) => {
-                this._analyzeExpr(asgn.target)
-                // Escape check BEFORE analyzing value to avoid partial move
+                // Pass `asgn` whole FIRST (bootstrap clones at call site).
+                // Then analyze target/value via partial moves on the original.
                 this._checkAssignEscape(asgn)
+                this._analyzeExpr(asgn.target)
                 this._analyzeExpr(asgn.value)
                 0
             },

@@ -257,44 +257,55 @@ RustEmitter {
     // Converts Liva TypeRef to Rust type string.
 
     _emitType(t: TypeRef): string {
-        let result = "/* unknown */"
+        // Defensive default: switch below covers all variants of TypeRef.
+        // If a new variant is added without updating this function, _warn surfaces it.
+        let result = "()"
+        let matched = false
         let _ = switch t {
             TypeRef.Simple(name) => {
                 result = this._emitSimpleType(name)
+                matched = true
                 0
             },
             TypeRef.Array(inner) => {
                 let arrInner = this._emitType(inner)
                 result = "Vec<" + arrInner + ">"
+                matched = true
                 0
             },
             TypeRef.MapType(k, v) => {
                 let kStr = this._emitType(k)
                 let vStr = this._emitType(v)
                 result = "HashMap<" + kStr + ", " + vStr + ">"
+                matched = true
                 0
             },
             TypeRef.SetType(inner) => {
                 let setInner = this._emitType(inner)
                 result = "HashSet<" + setInner + ">"
+                matched = true
                 0
             },
             TypeRef.OptionalType(inner) => {
                 let optInner = this._emitType(inner)
                 result = "Option<" + optInner + ">"
+                matched = true
                 0
             },
             TypeRef.Fallible(inner) => {
                 let failInner = this._emitType(inner)
                 result = "Result<" + failInner + ", String>"
+                matched = true
                 0
             },
             TypeRef.Tuple(elems) => {
                 result = this._emitTupleType(elems)
+                matched = true
                 0
             },
             TypeRef.Generic(base, args) => {
                 result = this._emitGenericType(base, args)
+                matched = true
                 0
             },
             TypeRef.Union(types) => {
@@ -304,8 +315,12 @@ RustEmitter {
                     result = this._emitType(t)
                     break
                 }
+                matched = true
                 0
             }
+        }
+        if not matched {
+            this._warn("Unhandled TypeRef variant in _emitType — emitting () as fallback")
         }
         return result
     }
@@ -903,16 +918,15 @@ RustEmitter {
     }
 
     _buildParam(p: Param): string {
-        // Extract raw name for liveness key lookup
-        let rawName = switch p.pattern {
+        // Bootstrap workaround: switch consumes the value, so we extract the name
+        // ONCE here and use the local string for both `rawName` and `paramName`.
+        // Avoids E0382 (`use of moved value`) on the second switch arm.
+        let extractedName = switch p.pattern {
             BindingPattern.Identifier(n) => n,
             _ => "_"
         }
-        // Extract again for sanitization (switch consumes the value in bootstrap)
-        let paramName = switch p.pattern {
-            BindingPattern.Identifier(n) => n,
-            _ => "_"
-        }
+        let rawName = $"{extractedName}"
+        let paramName = $"{extractedName}"
         let sanitized = this._sanitizeName(paramName)
         let typeStr = this._buildParamType(p.typeRef)
         // Phase 8.5: if param is borrowable string and doesn't escape → &str
@@ -1972,9 +1986,12 @@ RustEmitter {
                 0
             },
             _ => {
-                // Rare cases — emit without wrapping (may need manual fix)
-                this._warn("Optional wrapping for complex expression may need review")
-                this._write("Some(todo!(\"optional\"))")
+                // Phase 9.10: emit Some(<expr>) instead of todo!() — produces working code
+                // for unhandled Expr variants. _warn surfaces the case for review.
+                this._warn("Optional wrapping fallback for complex expression")
+                this._write("Some(")
+                this._emitExpr(expr)
+                this._write(")")
                 0
             }
         }
@@ -2000,15 +2017,18 @@ RustEmitter {
         } else {
             // Handle assignment — check if target is an optional variable
             // We destructure stmt.target in ONE pass to avoid double-consume
-            let _ = switch stmt.target {
+            // Bootstrap workaround: bind target/value to locals to avoid partial-move E0382
+            let stTarget = stmt.target
+            let stValue = stmt.value
+            let _ = switch stTarget {
                 Expr.Identifier(varName) => {
                     let vnCopy = $"{varName}"
                     let san = this._sanitizeName(varName)
                     // Phase 8.4: detect x = x + y → push_str chain (only for Binary(+) rooted at target)
-                    let isStringVar = this._isStringExpr(stmt.target)
+                    let isStringVar = this._isStringExpr(stTarget)
                     let isPushStrCandidate = false
                     if isStringVar && !this._optionalVars.has(san) {
-                        let _ = switch stmt.value {
+                        let _ = switch stValue {
                             Expr.Binary(bop, left, _) => {
                                 let bopStr = this._binOpToRust(bop)
                                 if bopStr == "+" {
@@ -2022,22 +2042,22 @@ RustEmitter {
                     if isPushStrCandidate {
                         this._pushStrTarget = $"{san}"
                         this._pushStrUsed = false
-                        this._emitExpr(stmt.value)
+                        this._emitExpr(stValue)
                         this._pushStrTarget = ""
                     } else {
                         this._write(san)
                         this._write(" = ")
                         if this._optionalVars.has(san) {
-                            this._emitSomeWrapped(stmt.value)
+                            this._emitSomeWrapped(stValue)
                         } else {
                             // Fallback: check type context for Optional
                             let varTypeRef = this._lookupVarTypeRef(vnCopy)
                             let varTag = this._typeRefToTag(varTypeRef)
                             if varTag == "optional" {
                                 this._optionalVars.set(san, true)
-                                this._emitSomeWrapped(stmt.value)
+                                this._emitSomeWrapped(stValue)
                             } else {
-                                this._emitExpr(stmt.value)
+                                this._emitExpr(stValue)
                             }
                         }
                     }
@@ -2048,7 +2068,7 @@ RustEmitter {
                     let snProp = this._sanitizeName(maProp)
                     this._write($".{snProp}")
                     this._write(" = ")
-                    this._emitExpr(stmt.value)
+                    this._emitExpr(stValue)
                     0
                 },
                 Expr.Index(idxObj, idxExpr) => {
@@ -2057,13 +2077,13 @@ RustEmitter {
                     this._emitExpr(idxExpr)
                     this._write(") as usize]")
                     this._write(" = ")
-                    this._emitExpr(stmt.value)
+                    this._emitExpr(stValue)
                     0
                 },
                 _ => {
                     // Fallback — emit without Some wrapping
                     this._write("/* assign */ ")
-                    this._emitExpr(stmt.value)
+                    this._emitExpr(stValue)
                     0
                 }
             }
@@ -2642,8 +2662,8 @@ RustEmitter {
                 0
             },
             Literal.Char(v) => {
-                let escaped = this._escapeRustChar(v)
-                this._write("'" + escaped + "'")
+                let escapedC = this._escapeRustChar(v)
+                this._write("'" + escapedC + "'")
                 0
             },
             Literal.Bool(v) => {
@@ -3168,26 +3188,89 @@ RustEmitter {
         return tag
     }
 
-    // Phase 8: Check if array indexing expression has Copy-type elements
-    _isIndexExprCopyType(obj: Expr): bool {
+    // Phase 9.1: Single source of truth for Rust Copy-type detection.
+    // Used by clone elision, .copied() dispatch, and deref patterns.
+    _isCopyType(t: TypeRef): bool {
+        let tag = this._typeRefToTag(t)
+        return tag == "number" or tag == "float" or tag == "bool" or tag == "char"
+    }
+
+    // Phase 9.1: Resolve the value type V of a Map<K,V> expression, or unknown.
+    _getMapValueTypeRef(obj: Expr): TypeRef {
+        let result = TypeRef.Simple("unknown")
+        let baseType = TypeRef.Simple("unknown")
         let _ = switch obj {
             Expr.Identifier(name) => {
-                let varType = this._lookupVarTypeRef(name)
-                let _ = switch varType {
-                    TypeRef.Array(elemType) => {
-                        let elemTag = this._typeRefToTag(elemType)
-                        if elemTag == "number" || elemTag == "float" || elemTag == "bool" || elemTag == "char" {
-                            return true
-                        }
+                baseType = this._lookupVarTypeRef(name)
+                0
+            },
+            Expr.MemberAccess(maObj, prop) => {
+                let isThis = false
+                let _ = switch maObj {
+                    Expr.Identifier(idn) => {
+                        if idn == "this" { isThis = true }
                         0
                     },
                     _ => { 0 }
+                }
+                if isThis && this._currentClassName != "" {
+                    let fkey = $"{this._currentClassName}.{prop}"
+                    if this._typeCtx.fieldTypes.has(fkey) {
+                        let fidx = this._typeCtx.fieldTypes.get(fkey)
+                        baseType = this._typeCtx.typePool[fidx]
+                    }
                 }
                 0
             },
             _ => { 0 }
         }
-        return false
+        let _ = switch baseType {
+            TypeRef.MapType(_, v) => { result = v; 0 },
+            _ => { 0 }
+        }
+        return result
+    }
+
+    // Phase 9.1: Resolve the element type T of an Array<T>/[T] expression, or unknown.
+    _getArrayElemTypeRef(obj: Expr): TypeRef {
+        let result = TypeRef.Simple("unknown")
+        let baseType = TypeRef.Simple("unknown")
+        let _ = switch obj {
+            Expr.Identifier(name) => {
+                baseType = this._lookupVarTypeRef(name)
+                0
+            },
+            Expr.MemberAccess(maObj, prop) => {
+                let isThis = false
+                let _ = switch maObj {
+                    Expr.Identifier(idn) => {
+                        if idn == "this" { isThis = true }
+                        0
+                    },
+                    _ => { 0 }
+                }
+                if isThis && this._currentClassName != "" {
+                    let fkey = $"{this._currentClassName}.{prop}"
+                    if this._typeCtx.fieldTypes.has(fkey) {
+                        let fidx = this._typeCtx.fieldTypes.get(fkey)
+                        baseType = this._typeCtx.typePool[fidx]
+                    }
+                }
+                0
+            },
+            _ => { 0 }
+        }
+        let _ = switch baseType {
+            TypeRef.Array(elem) => { result = elem; 0 },
+            _ => { 0 }
+        }
+        return result
+    }
+
+    // Phase 8: Check if array indexing expression has Copy-type elements
+    _isIndexExprCopyType(obj: Expr): bool {
+        let elem = this._getArrayElemTypeRef(obj)
+        return this._isCopyType(elem)
     }
 
     _getLiteralTypeName(lit: Literal): string {
@@ -5115,9 +5198,18 @@ RustEmitter {
             return true
         }
         if method == "sort" {
-            this._write("{ let mut __v = ")
-            this._emitExpr(obj)
-            this._write(".clone(); __v.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)); __v }")
+            // Phase 9.5: use .sort() for primitive Copy types (avoids partial_cmp overhead)
+            let elemType = this._getArrayElemTypeRef(obj)
+            let tag = this._typeRefToTag(elemType)
+            if tag == "number" || tag == "bool" || tag == "char" {
+                this._write("{ let mut __v = ")
+                this._emitExpr(obj)
+                this._write(".clone(); __v.sort(); __v }")
+            } else {
+                this._write("{ let mut __v = ")
+                this._emitExpr(obj)
+                this._write(".clone(); __v.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)); __v }")
+            }
             return true
         }
         if method == "isEmpty" {
@@ -5150,12 +5242,23 @@ RustEmitter {
         }
         if method == "first" {
             this._emitExpr(obj)
-            this._write(".first().cloned().unwrap()")
+            // Phase 9.3: .copied() for Copy element types
+            let elemType = this._getArrayElemTypeRef(obj)
+            if this._isCopyType(elemType) {
+                this._write(".first().copied().unwrap()")
+            } else {
+                this._write(".first().cloned().unwrap()")
+            }
             return true
         }
         if method == "last" {
             this._emitExpr(obj)
-            this._write(".last().cloned().unwrap()")
+            let elemType = this._getArrayElemTypeRef(obj)
+            if this._isCopyType(elemType) {
+                this._write(".last().copied().unwrap()")
+            } else {
+                this._write(".last().cloned().unwrap()")
+            }
             return true
         }
         if method == "slice" {
@@ -5357,7 +5460,13 @@ RustEmitter {
             this._emitExpr(obj)
             this._write(".get(")
             if args.length > 0 { this._emitMapKeyArg(args[0]) }
-            this._write(").cloned().unwrap()")
+            // Phase 9.2: use .copied() for Copy value types (zero-cost)
+            let valType = this._getMapValueTypeRef(obj)
+            if this._isCopyType(valType) {
+                this._write(").copied().unwrap()")
+            } else {
+                this._write(").cloned().unwrap()")
+            }
             return true
         }
         if method == "set" {
@@ -5707,10 +5816,9 @@ RustEmitter {
             Expr.Identifier(name) => {
                 // Don't clone literals-like identifiers (this is handled by emitExpr)
                 if name != "true" && name != "false" && name != "null" {
-                    // Phase 8: skip clone for Copy types (int, float, bool)
+                    // Phase 9.1: skip clone for Copy types via unified helper
                     let varType = this._lookupVarTypeRef(name)
-                    let varTag = this._typeRefToTag(varType)
-                    if varTag == "number" || varTag == "float" || varTag == "bool" || varTag == "char" {
+                    if this._isCopyType(varType) {
                         needsClone = false
                     } else {
                         // Phase 8: skip clone for single-use vars NOT in loops
@@ -6136,8 +6244,8 @@ RustEmitter {
                 0
             },
             Literal.Char(v) => {
-                let escaped = this._escapeRustChar(v)
-                this._write("'" + escaped + "'")
+                let escapedC = this._escapeRustChar(v)
+                this._write("'" + escapedC + "'")
                 0
             },
             Literal.Bool(v) => {

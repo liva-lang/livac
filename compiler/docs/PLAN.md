@@ -1,7 +1,7 @@
 # Self-Hosting: Compilador de Liva escrito en Liva
 
-> **Estado:** Fase 8 completada — Calidad del Rust Generado ✅
-> **Última actualización:** 2026-04-16  
+> **Estado:** Fase 8 completada — Fase 9 Commit 1 aplicado (9.1/9.2/9.3/9.5/9.10), baseline bootstrap restaurado (9/9 módulos), pendiente bench
+> **Última actualización:** 2026-04-27
 > **Branch:** `feat/self-hosting-v2`
 
 ---
@@ -542,6 +542,96 @@ Compute-bound y class-based code at parity. String/HashMap overhead by clone pat
 
 ---
 
+## Roadmap: Fase 9 — Cerrar gaps de eficiencia del Rust generado
+
+### Objetivo
+
+Cerrar los 4 benchmarks que aún están >10% sobre Rust escrito a mano (Word counting 3.88x,
+Sort 4x, Filter+Map 2.5x, Map build+lookup 1.50x) con optimizaciones medibles en
+`compiler/src/codegen.liva`. Meta: **9/10 benchmarks <10%** vs hand-written Rust.
+
+> **⚠️ IMPORTANTE:** Igual que Fase 8 — todas las optimizaciones se implementan
+> **únicamente en `compiler/src/codegen.liva`** (self-hosted), NO en `src/codegen.rs`
+> (bootstrap Rust).
+
+### Métricas objetivo
+
+| Métrica | Ahora (Fase 8) | Objetivo (Fase 9) |
+|---------|----------------|-------------------|
+| `.clone()` por 1K líneas (self-host output) | ~163 | <100 |
+| Word counting ratio | 3.88x | ~1.3x |
+| Sort ratio | 4x | ~1.1x |
+| Filter+Map ratio | 2.5x | ~1.15x |
+| Map build+lookup ratio | 1.50x | ~1.20x |
+| Line processing ratio | 1.44x | ~1.25x |
+| **Benchmarks <10%** | 6/10 | **9/10** |
+
+### Estrategia
+
+Una optimización por commit. Por cada item: build bootstrap, rebuild self-host,
+`cargo test`, Liva Test Suite, idempotencia gen-1==gen-2 (sorted), benchmark
+antes/después en `benchmarks/RESULTS.md`. Si rompe idempotencia o regresa
+benchmark: revertir y reabordar.
+
+### 9a — Copy-type detection extendida (base habilitadora)
+
+> **Riesgo:** BAJO. Pre-requisito de 9b/9c — un único punto de verdad para Copy detection.
+
+| Item | Cambio | Ubicación en codegen.liva | Impacto esperado |
+|------|--------|---------------------------|------------------|
+| 1 | Helper `_isCopyType(typeRef)` extendiendo `_typeRefToTag` | `~260, 4400` | habilita 2-6 |
+| 2 | `Map.get(k)` con V Copy → `.copied()` en vez de `.cloned()` | `_emitMapMethod` (~5355) | Map build+lookup ↓ |
+| 3 | `Array.first()` / `Array.last()` con T Copy → `.copied()` | `_emitArrayMethod` (~5147) | menos clones |
+| 4 | `for x in arr` con T Copy → `for &x in &arr` (deref pattern), eliminar `_forNeedsInnerClone` cuando aplique | `_emitForIterable` / `_emitFor` (~2178) | Line processing ↓ |
+| 5 | `Array.sort()` con T primitivo → `.sort()` en vez de `.sort_by(partial_cmp...)` | `_emitArrayMethod` ("sort") | **Sort 4x → ~1.1x** |
+
+### 9b — Iterator chains sin clones
+
+> **Riesgo:** BAJO-MEDIO. Depende de 9a.
+
+| Item | Cambio | Ubicación | Impacto esperado |
+|------|--------|-----------|------------------|
+| 6 | `_emitIterPrefix` con T Copy: `.iter()` sin `.cloned()` + dereference pattern en cierres downstream (`filter`/`map`/`reduce`), aprovechando `_derefClosureParams` ya existente | `_emitIterPrefix` (~5060) | **Filter+Map 2.5x → ~1.15x** |
+| 7 | `Map.keys()` / `Map.values()` directamente iterables: emitir `.keys()` / `.values()` sin `.cloned().collect()` cuando el contexto es for-in | `_emitMapMethod` ("keys", "values") | menos allocs |
+
+### 9c — Map patterns inteligentes
+
+> **Riesgo:** MEDIO. Depende de 9a. Mayor impacto.
+
+| Item | Cambio | Ubicación | Impacto esperado |
+|------|--------|-----------|------------------|
+| 8 | Peephole: `if m.has(k) { m.set(k, m.get(k) OP e) } else { m.set(k, init) }` → `*m.entry(k).or_insert(init) OP= e`. Solo dispara cuando ambas ramas tocan la misma clave constante con `+`/`-`/`*`/`or` | `_emitIf` | **Word counting 3.88x → ~1.3x** |
+| 9 | `Map.set(k, v)` con clave String single-use: omitir `.clone()` de la clave (liveness) | `_emitMapMethod` ("set") | menos clones de String |
+
+### 9d — Limpieza arquitectónica (independiente)
+
+| Item | Cambio | Ubicación | Notas |
+|------|--------|-----------|-------|
+| 10 | Eliminar `todo!()` residual y reemplazar `/* unknown */` de `_rustTypeToString` por `_warn()` con código de error concreto | `~1977, ~260` | Lo más fácil — agrupar con item 1 |
+| 11 | *(Opcional)* Dispatch tables incrementales para `_emitStringMethod` / `_emitArrayMethod` / `_emitMapMethod` / `_emitSetMethod`. Solo si la duplicación tras 9a-9c lo justifica | dispatchers | NO bloqueante |
+
+### Decisiones clave
+
+- **Una opt por commit**, con benchmark + idempotencia verificadas antes de avanzar.
+- **Copy detection (item 1) es prerrequisito** de 9a/9b. Hacerlo primero junto con item 10.
+- **Item 8 (Entry API) es el de mayor impacto** pero el de mayor riesgo de pattern matching frágil — va después de tener Copy detection sólida (9a completa).
+- **String keys en HashMap:** `entry(k.clone())` aún clona la primera vez (sin `entry_ref` estable). Aceptar el clone en `set`; solo elidir en lookups y comparaciones.
+- **Closure params al cambiar a `for &x in &arr`:** `x: &T`. Verificar que `_emitClonedArg` no doble el clone — instrumentar con flag "alreadyBorrowed".
+- **Item 11 opcional.** Solo si reduce regresiones futuras. No bloquea nada.
+- **Fuera de scope:** mensajes de error mejorados, LSP, package manager, retiro del bootstrap, release v2.0.
+
+### Verificación (por cada item)
+
+1. `cargo build --release` (bootstrap)
+2. `./target/release/livac build compiler/src/main.liva` (rebuild self-host)
+3. `cargo test` (518 tests Rust)
+4. `./target/release/livac test compiler/tests/liva` (83 tests Liva)
+5. Idempotencia: gen-1 vs gen-2 sobre `compiler/src` con `diff -r` (sorted) → byte-identical
+6. `benchmarks/run_benchmarks.sh` → registrar ratio en `benchmarks/RESULTS.md`
+7. `grep -c "\.clone()"` en `target/liva_build/` antes/después
+
+---
+
 ## Checklist de hitos
 
 ```
@@ -592,6 +682,37 @@ Fase 8: Calidad del Rust Generado ✅ COMPLETADA
   [x] 8.8: self.field clone suppression in comparisons — 89→78 (commit 2f11404)
   [x] 8.9: Let binding liveness clone elision — 1100→996 (commit d7189bf)
   [x] 8.10: Benchmark suite — 6/10 within <10% of hand-written Rust (commit 45cc67c)
+
+Fase 9: Cerrar gaps de eficiencia del Rust generado
+  9a — Copy-type detection extendida (base habilitadora) — Commit 1 aplicado, pendiente bench
+  [x] 9.1: Helper `_isCopyType(typeRef)` unificado en codegen.liva (~L3175)
+  [x] 9.2: Map.get() con V Copy → `.copied()` (`_emitMapMethod`)
+  [x] 9.3: Array.first()/last() con T Copy → `.copied()` (`_emitArrayMethod`)
+  [ ] 9.4: `for x in arr` con T Copy → `for &x in &arr` sin inner clone
+  [x] 9.5: Array.sort() para primitivos → `.sort()`; resto `.sort_by(partial_cmp)`
+  9b — Iterator chains sin clones
+  [ ] 9.6: `_emitIterPrefix` con T Copy: `.iter()` sin `.cloned()` + deref en closures (objetivo: 2.5x → ~1.15x)
+  [ ] 9.7: Map.keys()/values() en for-in: sin `.cloned().collect()`
+  9c — Map patterns inteligentes
+  [ ] 9.8: Peephole has+get+set → entry().or_insert() (objetivo: 3.88x → ~1.3x)
+  [ ] 9.9: Map.set con clave String single-use: omitir `.clone()`
+  9d — Limpieza arquitectónica
+  [x] 9.10: `todo!()` / `/* unknown */` reemplazados por `_warn()` + `Some(<expr>)`
+  [ ] 9.11: (Opcional) Dispatch tables incrementales para stdlib dispatchers
+
+Baseline workarounds aplicados durante Commit 1 (regresiones bootstrap por auto-clone elision):
+  - codegen.liva `_buildParam`: extracción única `extractedName` para evitar E0382 doble-move
+  - codegen.liva `_emitAssign`: `let stTarget = stmt.target; let stValue = stmt.value`
+  - codegen.liva: rename `let escaped` → `escapedC` en arms `Literal.Char` (W-002)
+  - liveness.liva `_analyzeStmt`/`Stmt.Assign`: llamar `_checkAssignEscape(asgn)` ANTES
+    de acceder a `asgn.target`/`asgn.value` (clona `asgn` en call site previo a partial-move)
+
+Validación tras Commit 1:
+  - cargo test --release: 100% verde (94+282+otros, 0 fallos)
+  - bootstrap_test.sh: 9/9 módulos compilan a Rust válido
+  - compiler/tests/liva: 107/107 verde
+  - cargo check sobre proyecto ensamblado: falla por `serde_json` ausente en Cargo.toml
+    generado (issue pre-existente, no de Fase 9)
 ```
 
 ---
