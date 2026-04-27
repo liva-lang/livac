@@ -2234,8 +2234,27 @@ RustEmitter {
                 this._write(".iter().enumerate()")
             }
         } else {
-            this._write($"for {varName} in ")
+            // Phase 9.4: array of Copy elements → `for &x in &arr` (no inner clone)
+            let useCopyDeref = false
+            let _ = switch iterableExpr {
+                Expr.Identifier(iterName) => {
+                    if this._arrayIdentNameIsCopyElem(iterName) {
+                        useCopyDeref = true
+                    }
+                    0
+                },
+                _ => { 0 }
+            }
+            if useCopyDeref {
+                this._write($"for &{varName} in ")
+            } else {
+                this._write($"for {varName} in ")
+            }
             this._emitForIterable(iterableExpr)
+            // Suppress inner clone — we already have the Copy value via deref pattern
+            if useCopyDeref {
+                this._forNeedsInnerClone = false
+            }
         }
 
         this._write(" {")
@@ -3271,6 +3290,21 @@ RustEmitter {
     _isIndexExprCopyType(obj: Expr): bool {
         let elem = this._getArrayElemTypeRef(obj)
         return this._isCopyType(elem)
+    }
+
+    // Phase 9.4: returns true iff named var is Array<T> with T Copy.
+    // (Map<K,V> is filtered automatically by the TypeRef.Array arm.)
+    _arrayIdentNameIsCopyElem(name: string): bool {
+        let vt = this._lookupVarTypeRef(name)
+        let result = false
+        let _ = switch vt {
+            TypeRef.Array(elem) => {
+                if this._isCopyType(elem) { result = true }
+                0
+            },
+            _ => { 0 }
+        }
+        return result
     }
 
     _getLiteralTypeName(lit: Literal): string {
