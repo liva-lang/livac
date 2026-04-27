@@ -1,6 +1,6 @@
 # Self-Hosting: Compilador de Liva escrito en Liva
 
-> **Estado:** Fase 8 completada — Fase 9 Commit 1 aplicado (9.1/9.2/9.3/9.5/9.10), baseline bootstrap restaurado (9/9 módulos), pendiente bench
+> **Estado:** Fase 8 completada — Fase 9 Commits 1-3 aplicados (9.1/9.2/9.3/9.4/9.5/9.6/9.10 done, 9.9 ya cubierto, 9.7/9.8 aplazados), bootstrap 9/9, pendiente bench
 > **Última actualización:** 2026-04-27
 > **Branch:** `feat/self-hosting-v2`
 
@@ -688,14 +688,14 @@ Fase 9: Cerrar gaps de eficiencia del Rust generado
   [x] 9.1: Helper `_isCopyType(typeRef)` unificado en codegen.liva (~L3175)
   [x] 9.2: Map.get() con V Copy → `.copied()` (`_emitMapMethod`)
   [x] 9.3: Array.first()/last() con T Copy → `.copied()` (`_emitArrayMethod`)
-  [ ] 9.4: `for x in arr` con T Copy → `for &x in &arr` sin inner clone
+  [x] 9.4: `for x in arr` con T Copy → `for &x in &arr` sin inner clone (commit 971e451)
   [x] 9.5: Array.sort() para primitivos → `.sort()`; resto `.sort_by(partial_cmp)`
   9b — Iterator chains sin clones
-  [ ] 9.6: `_emitIterPrefix` con T Copy: `.iter()` sin `.cloned()` + deref en closures (objetivo: 2.5x → ~1.15x)
-  [ ] 9.7: Map.keys()/values() en for-in: sin `.cloned().collect()`
+  [x] 9.6: `_emitIterPrefix` con T Copy → `.iter().copied()` (commit 550df15)
+  [ ] 9.7: Map.keys()/values() en for-in: sin `.cloned().collect()` — APLAZADO (riesgo: cambia tipo loop var de K a &K, rompe usos en body, requiere análisis de uso)
   9c — Map patterns inteligentes
-  [ ] 9.8: Peephole has+get+set → entry().or_insert() (objetivo: 3.88x → ~1.3x)
-  [ ] 9.9: Map.set con clave String single-use: omitir `.clone()`
+  [ ] 9.8: Peephole has+get+set → entry().or_insert() — APLAZADO (requiere análisis statement-level de 3 stmts consecutivos en bloque, infraestructura nueva)
+  [x] 9.9: Map.set con clave String single-use → omitir `.clone()` — YA CUBIERTO por la lógica `isSingleUse` de Phase 8 en `_emitClonedArg`
   9d — Limpieza arquitectónica
   [x] 9.10: `todo!()` / `/* unknown */` reemplazados por `_warn()` + `Some(<expr>)`
   [ ] 9.11: (Opcional) Dispatch tables incrementales para stdlib dispatchers
