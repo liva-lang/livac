@@ -5,6 +5,24 @@ All notable changes to the Liva compiler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-dev] - 2026-04-28
+
+### Added
+- **Self-hosting Phase 9: Borrow optimizations + official benchmark — CLOSED for v2.0**
+  - Phase 9.1–9.6, 9.8, 9.9, 9.10 done; 9.7 / 9.11 explicitly deferred to v2.1.
+  - 9.4 fix: `for &x in arr` now emits `&arr` so the deref pattern matches when
+    the iterable is a single-use Identifier (`Vec<i32>` and friends).
+  - 9.8 (Entry-API peephole) hardened: hoist `_sanitizeName` call to avoid
+    `E0502` self-borrow in generated Rust at release optimization.
+  - `benchmarks/run_official.sh` — multi-run, median-aware bench runner with
+    per-metric Liva/Rust ratio table; honors `LIVAC` env var.
+  - `benchmarks/RESULTS.md` — gen-2 self-host vs hand-written Rust:
+    - Strings: 1.06x – 2.11x
+    - Collections: 1.35x – 2.50x
+    - Classes: parity or better
+  - Idempotence: gen-2 source ≡ gen-3 source byte-for-byte; gen-2 release
+    binary ≡ gen-3 release binary byte-for-byte (`cmp = 0`).
+
 ## [2.0.0-dev] - 2026-04-20
 
 ### Added
