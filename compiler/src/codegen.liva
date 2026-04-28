@@ -91,6 +91,11 @@ RustEmitter {
     _lastEmittedStrRef: bool
     _currentFuncBorrowKey: string
     _forNeedsInnerClone: bool
+    // Phase 10.1: tracks whether the statement currently being emitted is
+    // the LAST one in its enclosing block. The entry-API peephole uses this,
+    // combined with `liveCtx.declaredInLoop`, to elide defensive `.clone()`
+    // on the key when the binding is dead after the rewrite.
+    _stmtIsLastInBlock: bool
     _warnings: [string]
 
     constructor(typeCtx: TypeContext, liveCtx: LivenessContext) {
@@ -136,6 +141,7 @@ RustEmitter {
         this._currentFuncBorrowKey = ""
         this._currentFuncIsMethod = false
         this._forNeedsInnerClone = false
+        this._stmtIsLastInBlock = false
         this._warnings = []
     }
 
@@ -1485,9 +1491,15 @@ RustEmitter {
     }
 
     _emitBlock(block: BlockStmt) {
+        let total = block.stmts.length
+        let idx = 0
+        let prev = this._stmtIsLastInBlock
         for s in block.stmts {
+            this._stmtIsLastInBlock = (idx == total - 1)
             this._emitStmt(s)
+            idx = idx + 1
         }
+        this._stmtIsLastInBlock = prev
     }
 
     _blockStmts(block: BlockStmt): [Stmt] {
@@ -2459,12 +2471,25 @@ RustEmitter {
     // second use of the binding inside the match arm, which the self-host
     // codegen doesn't clone yet). Int literal emits as the integer text.
     // Returns "" for any other shape so the peephole bails out cleanly.
+    //
+    // Phase 10.1: when the key is an identifier declared INSIDE a loop body
+    // AND the if-statement being rewritten is the last statement of its
+    // enclosing block (so the binding is dead after the rewrite), we emit
+    // a move (`san`) instead of `.clone()`. This eliminates the dominant
+    // allocation hot-path in the word-counting benchmark.
     _entryKeyEmit(e: Expr): string {
         let result = ""
         let _ = switch e {
             Expr.Identifier(n) => {
+                let key = $"{this._currentFunc}:{n}"
                 let san = this._sanitizeName(n)
-                result = $"{san}.clone()"
+                let canMove = this._stmtIsLastInBlock
+                    && this._liveCtx.declaredInLoop.has(key)
+                if canMove {
+                    result = san
+                } else {
+                    result = $"{san}.clone()"
+                }
                 0
             },
             Expr.Literal(l) => {

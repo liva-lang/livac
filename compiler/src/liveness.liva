@@ -54,6 +54,11 @@ LivenessContext {
     loopUseCounts: Map<string, number>
     paramBorrow: Map<string, number>
     paramEscapes: Map<string, number>
+    // Phase 10.1: variables declared with `let` inside a for/while body.
+    // Key format: "funcName:varName". Value: 1 = declared in loop, 0 = otherwise.
+    // Codegen uses this to know that each iteration is a fresh binding,
+    // enabling move/no-clone in patterns like the entry-API peephole.
+    declaredInLoop: Map<string, number>
 }
 
 // =====================================================================
@@ -65,6 +70,7 @@ LivenessAnalyzer {
     _loopUseCounts: Map<string, number>
     _paramBorrow: Map<string, number>
     _paramEscapes: Map<string, number>
+    _declaredInLoop: Map<string, number>
     _currentFunc: string
     _inLoop: bool
     _currentParams: Map<string, bool>
@@ -74,6 +80,7 @@ LivenessAnalyzer {
         this._loopUseCounts = Map {}
         this._paramBorrow = Map {}
         this._paramEscapes = Map {}
+        this._declaredInLoop = Map {}
         this._currentFunc = ""
         this._inLoop = false
         this._currentParams = Map {}
@@ -89,7 +96,8 @@ LivenessAnalyzer {
             this._useCounts,
             this._loopUseCounts,
             this._paramBorrow,
-            this._paramEscapes
+            this._paramEscapes,
+            this._declaredInLoop
         )
     }
 
@@ -210,6 +218,20 @@ LivenessAnalyzer {
         this._analyzeExpr(decl.init)
         this._analyzeExprOpt(decl.orValue)
         this._analyzeExprOpt(decl.orFailMsg)
+        // Phase 10.1: track variables declared inside loops. Each binding
+        // is recorded so codegen can enable move-on-last-use safely.
+        if this._inLoop {
+            for b in decl.bindings {
+                let _ = switch b.pattern {
+                    BindingPattern.Identifier(n) => {
+                        let key = $"{this._currentFunc}:{n}"
+                        this._declaredInLoop.set(key, 1)
+                        0
+                    },
+                    _ => { 0 }
+                }
+            }
+        }
     }
 
     _analyzeIf(stmt: IfStmt) {
