@@ -659,26 +659,30 @@
 ### Gate de release v2.0
 
 - [x] Tier 1 completo (10.1 + 10.2 + 10.3)
-- [ ] **Pendiente:** peor caso aún >1.15x (Sort 2.50x, Word counting 1.79x). Probable necesidad de Tier 2 antes de release v2.0.
+- [x] Tier 2 parcial (10.4 implementado — Word counting 1.79x→1.28x)
+- [ ] **Pendiente:** algunos benches aún >1.15x (Word 1.28x, CSV 1.17x, Map 1.14x). Sort/Filter+Map <6ms son ruido (DCE/timer). 10.5 (Box<str>) opcional, alto coste / bajo retorno esperado — aplazado a Tier 3 / v2.x.
 
 ### Tier 2 — solo si Tier 1 no alcanza <1.15x
 
-#### 10.4 — `&str` deref directo en Map APIs
+#### 10.4 — `&str` deref directo en Map APIs + sort/reverse in-place + split→for fusion
 
-> Bench objetivo: Map lookup 1.35x → ~1.20x.
+> Bench: Word counting 1.79x → 1.28x (-29% gap), Sort/Reverse statement-position elide `__v.clone()` wrapper.
 
-- [ ] `_emitMapMethod`: emitir `key.as_str()` en vez de `&(key)` cuando `key: String` y map es `HashMap<String, _>`
-- [ ] Mantener `&` para temporales (resultado de `format!`)
-- [ ] Idempotencia gen-2≡gen-3 binaria
+- [x] `_emitMapKeyArg`: emitir `key.as_str()` cuando key es Identifier de tipo `String` (no `strRefParams`)
+- [x] `_inExprStmt` flag: `arr.sort()` / `arr.reverse()` / `arr.reversed()` en posición de statement emiten directo (sin `{ let mut __v = obj.clone(); __v.sort(); __v }`)
+- [x] `_canMoveIdent` helper + sort/reversed move-on-last-use cuando obj es Identifier single-use+declaredInLoop
+- [x] Peephole `_emitBlock`: fusiona `let X = e.split(s); for Y in X { ... }` → `for Y in e.split(s).map(|s| s.to_string()) { ... }` (skip Vec<String>)
+- [x] `_emitForIterable` MethodCall("split"): omite `.collect::<Vec<_>>()` para iteración lazy
+- [x] Idempotencia gen-2≡gen-3 binaria + 518 tests + bootstrap 9/9
 
-#### 10.5 — `Box<str>` para Map values nunca mutados
+#### 10.5 — `Box<str>` para Map values nunca mutados (APLAZADO)
 
-> Requiere análisis de escape del map.
+> Requiere análisis de escape del map. Coste de implementación alto, retorno esperado bajo (<10% en hotpaths actuales). Mover a Tier 3 / post-v2.0.
 
-- [ ] Análisis `_localMapEscape`: map no exportado, no en parámetro genérico, no asignado a campo
-- [ ] Codegen: emitir `HashMap<K, Box<str>>` para maps locales con valores `String` nunca mutados
-- [ ] `m.get` devuelve `&str` directo
-- [ ] Idempotencia gen-2≡gen-3 binaria
+- [ ] (post-v2.0) Análisis `_localMapEscape`: map no exportado, no en parámetro genérico, no asignado a campo
+- [ ] (post-v2.0) Codegen: emitir `HashMap<K, Box<str>>` para maps locales con valores `String` nunca mutados
+- [ ] (post-v2.0) `m.get` devuelve `&str` directo
+- [ ] (post-v2.0) Idempotencia gen-2≡gen-3 binaria
 
 ### Validación obligatoria por cada item de Fase 10
 
