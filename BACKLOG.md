@@ -660,7 +660,7 @@
 
 - [x] Tier 1 completo (10.1 + 10.2 + 10.3)
 - [x] Tier 2 parcial (10.4 implementado — Word counting 1.79x→1.23x, CSV 1.17x→1.00x, Map 1.14x→1.09x)
-- [x] **Aceptado:** todos los benches dentro de banda razonable; Word counting (1.23x) ligeramente sobre 1.15x por diferencia ABI fundamental (Liva strings owned vs Rust hand-written `&str`). Sort/Filter+Map <6ms ruido (DCE/timer). 10.5 (Box<str>) aplazado a Tier 3 / v2.x.
+- [ ] **v2.0 al 100% — pendiente:** ver sección siguiente "v2.0 al 100% — 5 bloques pendientes". Bloque 1 cierra Word counting <1.15x, Bloque 2 cierra 10.5 Box<str>, Bloque 3 mide cobertura, Bloque 4 valida E2E self-host, Bloque 5 limpieza.
 
 ---
 
@@ -729,14 +729,14 @@
 - [x] `_emitBinary` push_str chain: omite `.to_string()` cuando RHS es ya un `String` (CSV building 1.17x → 1.00x)
 - [x] Idempotencia gen-2≡gen-3 binaria + 518 tests + bootstrap 9/9
 
-#### 10.5 — `Box<str>` para Map values nunca mutados (APLAZADO)
+#### 10.5 — `Box<str>` para Map values nunca mutados
 
-> Requiere análisis de escape del map. Coste de implementación alto, retorno esperado bajo (<10% en hotpaths actuales). Mover a Tier 3 / post-v2.0.
+> Promovido al Bloque 2 de "v2.0 al 100%" (sección anterior). Análisis de escape del map. Coste medio-alto, retorno esperado <10% en hotpaths actuales pero requerido para cerrar v2.0 al 100%.
 
-- [ ] (post-v2.0) Análisis `_localMapEscape`: map no exportado, no en parámetro genérico, no asignado a campo
-- [ ] (post-v2.0) Codegen: emitir `HashMap<K, Box<str>>` para maps locales con valores `String` nunca mutados
-- [ ] (post-v2.0) `m.get` devuelve `&str` directo
-- [ ] (post-v2.0) Idempotencia gen-2≡gen-3 binaria
+- [ ] Análisis `_localMapEscape`: map no exportado, no en parámetro genérico, no asignado a campo
+- [ ] Codegen: emitir `HashMap<K, Box<str>>` para maps locales con valores `String` nunca mutados
+- [ ] `m.get` devuelve `&str` directo
+- [ ] Idempotencia gen-2≡gen-3 binaria
 
 ### Validación obligatoria por cada item de Fase 10
 
