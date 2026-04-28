@@ -1840,7 +1840,8 @@ RustEmitter {
                                 if this._liveCtx.useCounts.has(liveKey) {
                                     let uc = this._liveCtx.useCounts.get(liveKey)
                                     let inLoop = this._liveCtx.loopUseCounts.has(liveKey)
-                                    if uc <= 1 && not inLoop {
+                                    let declaredInLoop = this._liveCtx.declaredInLoop.has(liveKey)
+                                    if uc <= 1 && (not inLoop || declaredInLoop) {
                                         skipClone = true
                                     } else {
                                         skipClone = false
@@ -2647,12 +2648,15 @@ RustEmitter {
                     this._write(".chars().map(|c| c.to_string())")
                 } else {
                     // Phase 8: move instead of clone if var is single-use and NOT in a loop
+                    // Phase 10.2: also allow move when var is declared inside the loop body
+                    // (each iteration is a fresh binding — safe to move on its single use).
                     let isSingleUse = false
                     let liveKey = $"{this._currentFunc}:{name}"
                     if this._liveCtx.useCounts.has(liveKey) {
                         let uc = this._liveCtx.useCounts.get(liveKey)
                         let inLoop = this._liveCtx.loopUseCounts.has(liveKey)
-                        if uc <= 1 && not inLoop { isSingleUse = true }
+                        let declaredInLoop = this._liveCtx.declaredInLoop.has(liveKey)
+                        if uc <= 1 && (not inLoop || declaredInLoop) { isSingleUse = true }
                     }
                     if isSingleUse {
                         this._write(sanitized)
@@ -6221,12 +6225,15 @@ RustEmitter {
                         needsClone = false
                     } else {
                         // Phase 8: skip clone for single-use vars NOT in loops
+                        // Phase 10.2: also skip clone when var is declared inside the
+                        // current loop body (single-use-per-iteration is move-safe).
                         let isSingleUse = false
                         let liveKey = $"{this._currentFunc}:{name}"
                         if this._liveCtx.useCounts.has(liveKey) {
                             let uc = this._liveCtx.useCounts.get(liveKey)
                             let inLoop = this._liveCtx.loopUseCounts.has(liveKey)
-                            if uc <= 1 && not inLoop { isSingleUse = true }
+                            let declaredInLoop = this._liveCtx.declaredInLoop.has(liveKey)
+                            if uc <= 1 && (not inLoop || declaredInLoop) { isSingleUse = true }
                         }
                         if isSingleUse {
                             needsClone = false
