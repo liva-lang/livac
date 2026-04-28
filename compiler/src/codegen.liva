@@ -101,6 +101,11 @@ RustEmitter {
     // leading `.iter().copied()` and the trailing `.collect::<Vec<_>>()` so
     // adjacent methods fuse into one iterator chain (no intermediate Vec).
     _inIterChain: bool
+    // Phase 10.4: true when emitting an Expr in statement position (Stmt.ExprStmt).
+    // Used by `arr.sort()` / `arr.reverse()` / `arr.reversed()` to elide the
+    // `{ let mut __v = obj.clone(); __v.sort(); __v }` wrapper and emit just
+    // `obj.sort()` (mutates in place — the wrapper's return value is discarded).
+    _inExprStmt: bool
     _warnings: [string]
 
     constructor(typeCtx: TypeContext, liveCtx: LivenessContext) {
@@ -148,6 +153,7 @@ RustEmitter {
         this._forNeedsInnerClone = false
         this._stmtIsLastInBlock = false
         this._inIterChain = false
+        this._inExprStmt = false
         this._warnings = []
     }
 
@@ -1497,13 +1503,111 @@ RustEmitter {
     }
 
     _emitBlock(block: BlockStmt) {
-        let total = block.stmts.length
-        let idx = 0
+        let stmts = block.stmts
+        let total = stmts.length
         let prev = this._stmtIsLastInBlock
-        for s in block.stmts {
-            this._stmtIsLastInBlock = (idx == total - 1)
-            this._emitStmt(s)
+        // Phase 10.4: peephole — fuse `let X = e.split(s); for Y in X { ... }`
+        // into a single `for Y in e.split(s) { ... }`. We use a [Stmt] buffer
+        // (length 0 or 1) to hold the candidate let so we can fall back to
+        // emitting it normally if the next stmt isn't the matching for-loop.
+        let heldBuf: [Stmt] = []
+        let heldName = ""
+        let heldInit: Expr = Expr.Identifier("")
+        let idx = 0
+        for s in stmts {
+            let isLast = (idx == total - 1) && (heldBuf.length == 0)
+            let consumed = false
+            // 1) If we hold a candidate, peek `s` to see if it matches.
+            if heldBuf.length > 0 {
+                let forVar = ""
+                let forBody: BlockStmt = BlockStmt([])
+                let matched = false
+                let _ = switch s {
+                    Stmt.For(fs) => {
+                        if fs.variable2 == null {
+                            let _ = switch fs.iterable {
+                                Expr.Identifier(itn) => {
+                                    if itn == heldName {
+                                        forVar = fs.variable
+                                        forBody = fs.body
+                                        matched = true
+                                    }
+                                    0
+                                },
+                                _ => { 0 }
+                            }
+                        }
+                        0
+                    },
+                    _ => { 0 }
+                }
+                if matched {
+                    let liveKey = $"{this._currentFunc}:{heldName}"
+                    if this._liveCtx.useCounts.has(liveKey) && this._liveCtx.useCounts.get(liveKey) == 1 {
+                        // Discard held; emit fused for-loop using held init.
+                        let _ = heldBuf.pop()
+                        this._stmtIsLastInBlock = isLast
+                        let fused = ForStmt(forVar, null, heldInit, forBody)
+                        this._emitFor(fused)
+                        consumed = true
+                    }
+                }
+                if not consumed {
+                    // Fusion failed — flush the held let normally.
+                    let heldStmt = heldBuf.pop()
+                    this._stmtIsLastInBlock = false
+                    this._emitStmt(heldStmt)
+                }
+            }
+            // 2) If s wasn't fused, decide: hold or emit.
+            if not consumed {
+                let candName = ""
+                let candInit: Expr = Expr.Identifier("")
+                let isCandidate = false
+                let _ = switch s {
+                    Stmt.VarDecl(d) => {
+                        if d.bindings.length == 1 && not d.isFallible {
+                            let bIdx = 0
+                            for b in d.bindings {
+                                if bIdx == 0 {
+                                    let _ = switch b.pattern {
+                                        BindingPattern.Identifier(n) => { candName = n; 0 },
+                                        _ => { 0 }
+                                    }
+                                }
+                                bIdx += 1
+                            }
+                            let dInit = d.init
+                            let _ = switch dInit {
+                                Expr.MethodCall(_, m, mArgs) => {
+                                    if m == "split" && mArgs.length > 0 {
+                                        isCandidate = true
+                                        candInit = dInit
+                                    }
+                                    0
+                                },
+                                _ => { 0 }
+                            }
+                        }
+                        0
+                    },
+                    _ => { 0 }
+                }
+                if isCandidate && candName != "" {
+                    heldBuf.push(s)
+                    heldName = candName
+                    heldInit = candInit
+                } else {
+                    this._stmtIsLastInBlock = isLast
+                    this._emitStmt(s)
+                }
+            }
             idx = idx + 1
+        }
+        if heldBuf.length > 0 {
+            let heldStmt = heldBuf.pop()
+            this._stmtIsLastInBlock = true
+            this._emitStmt(heldStmt)
         }
         this._stmtIsLastInBlock = prev
     }
@@ -1545,7 +1649,10 @@ RustEmitter {
             Stmt.Continue => { this._writeln("continue;"); 0 },
             Stmt.ExprStmt(expr) => {
                 this._writeIndent()
+                let savedExprStmt = this._inExprStmt
+                this._inExprStmt = true
                 this._emitExpr(expr)
+                this._inExprStmt = savedExprStmt
                 this._write(";")
                 this._newline()
                 0
@@ -2685,6 +2792,14 @@ RustEmitter {
                 } else if m == "chars" {
                     this._emitExpr(obj)
                     this._write(".chars().map(|c| c.to_string())")
+                } else if m == "split" && args.length > 0 {
+                    // Phase 10.4: in `for x in str.split(sep)`, skip the
+                    // `.collect::<Vec<String>>()` — we iterate the lazy iterator
+                    // directly. Saves O(n) Vec allocation per call.
+                    this._emitExpr(obj)
+                    this._write(".split(")
+                    this._emitRefArg(args[0])
+                    this._write(").map(|s| s.to_string())")
                 } else {
                     // Other method call returns a collection
                     this._emitMethodCall(obj, m, args)
@@ -5598,6 +5713,10 @@ RustEmitter {
     // -- Array methods → Rust equivalents --
 
     _emitArrayMethod(obj: Expr, method: string, args: [Expr]): bool {
+        // Phase 10.4: capture statement-position flag and clear it for nested
+        // expression emissions (only sort/reverse/reversed consult it).
+        let isStmtCtx = this._inExprStmt
+        this._inExprStmt = false
         if method == "push" {
             this._emitExpr(obj)
             this._write(".push(")
@@ -5623,23 +5742,58 @@ RustEmitter {
             return true
         }
         if method == "reversed" {
+            // Phase 10.4: in statement position, emit `obj.reverse()` directly
+            // (mutates in place — block-expression result is discarded anyway).
+            if isStmtCtx {
+                this._emitExpr(obj)
+                this._write(".reverse()")
+                return true
+            }
+            // Phase 10.4: move when single-use + declaredInLoop
+            let useMove = this._canMoveIdent(obj)
             this._write("{ let mut __v = ")
             this._emitExpr(obj)
-            this._write(".clone(); __v.reverse(); __v }")
+            if useMove {
+                this._write("; __v.reverse(); __v }")
+            } else {
+                this._write(".clone(); __v.reverse(); __v }")
+            }
             return true
         }
         if method == "sort" {
+            // Phase 10.4: in statement position, emit `obj.sort()` directly so the
+            // user's `arr.sort()` mutates in place — no clone, no temp Vec.
+            if isStmtCtx {
+                let elemTypeS = this._getArrayElemTypeRef(obj)
+                let tagS = this._typeRefToTag(elemTypeS)
+                this._emitExpr(obj)
+                if tagS == "number" || tagS == "bool" || tagS == "char" {
+                    this._write(".sort()")
+                } else {
+                    this._write(".sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))")
+                }
+                return true
+            }
             // Phase 9.5: use .sort() for primitive Copy types (avoids partial_cmp overhead)
+            // Phase 10.4: move (no clone) when obj is an Identifier that is single-use
+            // and declared inside a loop (each iteration is a fresh binding).
             let elemType = this._getArrayElemTypeRef(obj)
             let tag = this._typeRefToTag(elemType)
-            if tag == "number" || tag == "bool" || tag == "char" {
-                this._write("{ let mut __v = ")
-                this._emitExpr(obj)
-                this._write(".clone(); __v.sort(); __v }")
+            let useMove = this._canMoveIdent(obj)
+            this._write("{ let mut __v = ")
+            this._emitExpr(obj)
+            if useMove {
+                if tag == "number" || tag == "bool" || tag == "char" {
+                    this._write("; __v.sort(); __v }")
+                } else {
+                    this._write("; __v.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)); __v }")
+                }
             } else {
-                this._write("{ let mut __v = ")
-                this._emitExpr(obj)
-                this._write(".clone(); __v.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)); __v }")
+                if tag == "number" || tag == "bool" || tag == "char" {
+                    this._write(".clone(); __v.sort(); __v }")
+                } else {
+                    this._write(".clone(); __v.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)); __v }")
+                }
             }
             return true
         }
@@ -6192,21 +6346,63 @@ RustEmitter {
         }
     }
 
+    // Phase 10.4: returns true if `e` is an Identifier that the compiler can
+    // move (consume) safely instead of clone — used by sort/reversed/etc to
+    // avoid Vec::clone() in the dominant pattern `let arr = ...; arr.sort()`
+    // inside a loop body where arr is dead after the call.
+    _canMoveIdent(e: Expr): bool {
+        let result = false
+        let _ = switch e {
+            Expr.Identifier(n) => {
+                let liveKey = $"{this._currentFunc}:{n}"
+                if this._liveCtx.useCounts.has(liveKey) {
+                    let uc = this._liveCtx.useCounts.get(liveKey)
+                    let declaredInLoop = this._liveCtx.declaredInLoop.has(liveKey)
+                    if uc <= 1 && declaredInLoop { result = true }
+                }
+                0
+            },
+            _ => { 0 }
+        }
+        return result
+    }
+
+    // Phase 10.4: peephole — fuse `let X = expr.split(sep); for Y in X { body }`
+    // into `for Y in expr.split(sep).map(|s| s.to_string()) { body }` when X is
+    // single-use. The fusion is performed inline in `_emitBlock` (see above).
     // Phase 8.6: Emit map/set key arg — &str params don't need &() wrapping
     // HashMap<String,_>::contains_key/get takes &Q where String: Borrow<Q>.
     // Since String: Borrow<str>, passing &str directly works. Adding &() creates &&str which fails.
+    //
+    // Phase 10.4: when key is an Identifier holding a String, emit `key.as_str()` instead
+    // of `&(key)` so the Map APIs lookup against `&str` directly (skips one auto-deref).
     _emitMapKeyArg(argExpr: Expr) {
         let isStrRef = false
+        let isStringIdent = false
+        let identSan = ""
         let _ = switch argExpr {
             Expr.Identifier(aName) => {
+                let aNameCopy = $"{aName}"
                 let sn = this._sanitizeName(aName)
-                if this._strRefParams.has(sn) { isStrRef = true }
+                if this._strRefParams.has(sn) {
+                    isStrRef = true
+                } else {
+                    let varType = this._lookupVarTypeRef(aNameCopy)
+                    let tag = this._typeRefToTag(varType)
+                    if tag == "string" {
+                        isStringIdent = true
+                        identSan = sn
+                    }
+                }
                 0
             },
             _ => { 0 }
         }
         if isStrRef {
             this._emitExpr(argExpr)
+        } else if isStringIdent {
+            this._write(identSan)
+            this._write(".as_str()")
         } else {
             this._write("&(")
             this._emitExpr(argExpr)
