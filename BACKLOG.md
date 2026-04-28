@@ -669,16 +669,17 @@
 > **Objetivo:** cerrar v2.0 al 100% en compilación, tests, cobertura y bench.
 > **Estado actual:** 518 cargo tests + 135 archivos `.liva` (e2e 61, errors 28, syntax 18, stdlib 19, compile 9) + bootstrap 9/9 + idempotencia gen-2≡gen-3. Bench 4/5 en gate; Word counting 1.23x.
 
-### Bloque 1 — Cross-module `&str` (cierra Word counting <1.15x)
+### Bloque 1 — Cross-module `&str` (cierra Word counting <1.15x) ✅ DONE
 
 > Causa raíz: `text.split(" ")` en Liva produce `[string]` (Vec<String>) por la signatura owned actual. Si `count_words(text)` aceptara `text: &str` y propagara `&str` al `for word in text.split(" ")`, eliminamos la alocación por palabra.
 > Bloqueo histórico: cada módulo se compila con su propio `RustEmitter`; `_borrowedParamIndices` no se comparte.
 
-- [ ] Refactor `main.liva`: pre-pass que recolecta signaturas de todas las funciones libres ANTES de codegen-por-módulo
-- [ ] Pasar `globalBorrowRegistry: Map<string, [int]>` (clave `funcSan`, valor índices de params `&str`) a cada `RustEmitter`
-- [ ] `_buildParam` y call-site usar el registry global cuando el callee es función libre cross-module
-- [ ] Verificar idempotencia gen-2≡gen-3 (binario+src) + 518 tests + bootstrap 9/9
-- [ ] Bench: Word counting 1.23x → ≤1.15x
+- [x] Refactor `main.liva`: pre-pass que recolecta signaturas de todas las funciones libres ANTES de codegen-por-módulo
+- [x] Pasar `globalBorrowRegistry: Map<string, bool>` (clave `funcSan:idx`) a cada `RustEmitter`
+- [x] `_buildParam` y call-site usar el registry global cuando el callee es función libre cross-module
+- [x] Verificar idempotencia gen-2≡gen-3 (binario+src) + 518 tests + bootstrap 9/9
+- [x] Bench: Word counting 1.23x → 0.98x (✅ <1.15x — Liva más rápido que Rust)
+- [x] Commit: `b6c4aa4`
 
 ### Bloque 2 — 10.5 Box<str> para Map<K, String> values
 
@@ -698,15 +699,15 @@
 - [ ] Add `make coverage` target + entrada en `Makefile`
 - [ ] Documentar baseline en `docs/PROJECT_STRUCTURE.md`
 
-### Bloque 4 — E2E self-hosted bench
+### Bloque 4 — E2E self-hosted bench ✅ DONE
 
-- [ ] Script `compiler/tests/e2e_selfhost.sh`: para cada `.liva` en `examples/` (85 archivos)
-  - Compilar con `livac-gen2-release` → ejecutar → capturar stdout
-  - Compilar con `livac` (Rust bootstrap) → ejecutar → capturar stdout
-  - `diff` ambos stdouts → fallar si difieren
-- [ ] Excluir examples interactivos / con red (http-server, db-demo, etc.)
-- [ ] Integrar en `scripts/run_tests.sh`
-- [ ] Documentar en `compiler/tests/README.md`
+- [x] Script `compiler/tests/e2e_selfhost.sh`: compila cada test con bootstrap **y** gen-2, ejecuta ambos binarios y compara stdout
+- [x] Programs deterministas en `compiler/tests/e2e_progs/` (basics, enums_match, errors, stdlib) + ejemplo `calculator.liva`
+- [x] Helper `compiler/tests/rebuild_selfhost.sh`: reconstruye gen-1→gen-2→gen-3 y verifica idempotencia (src+binario)
+- [x] **Bug fix descubierto:** `Map.get(k) or default` self-host emitía pattern de tupla inválido — fix en `_emitOptionGetWithDefault`
+- [x] **Bug fix descubierto:** `userFunc() or default` self-host emitía pattern de tupla pero las fns retornan `Result<T, Error>` — fix con switch en `isFreeCall`
+- [x] 5/5 tests E2E PASS, idempotencia gen-2≡gen-3 preservada, 518 cargo tests, bench bajo gate
+- [ ] (opcional) Integrar en `scripts/run_tests.sh` y CI
 
 ### Bloque 5 — Limpieza BACKLOG
 

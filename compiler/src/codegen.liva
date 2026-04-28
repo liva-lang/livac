@@ -1847,12 +1847,58 @@ RustEmitter {
                     }
                     if isOr {
                         let isCall = false
+                        let isFreeCall = false
                         let _ = switch left {
-                            Expr.Call(_, _, _, _) => { isCall = true; 0 },
+                            Expr.Call(_, _, _, _) => { isCall = true; isFreeCall = true; 0 },
                             Expr.MethodCall(_, _, _) => { isCall = true; 0 },
                             _ => { 0 }
                         }
-                        if isCall {
+                        // Detect collection .get() returning Option<V> (NOT a fallible
+                        // tuple). For these, emit `.cloned().unwrap_or(default)` directly.
+                        let isOptionGet = false
+                        let _ = switch left {
+                            Expr.MethodCall(mObj, mName, _) => {
+                                if mName == "get" || mName == "first" || mName == "last" || mName == "find" {
+                                    let mTag = this._getExprTypeName(mObj)
+                                    if mTag == "map" || mTag == "array" || mTag == "set" {
+                                        isOptionGet = true
+                                    } else {
+                                        let _ = switch mObj {
+                                            Expr.Identifier(gn) => {
+                                                let sn = this._sanitizeName(gn)
+                                                if this._mapVars.has(sn) { isOptionGet = true }
+                                                0
+                                            },
+                                            _ => { 0 }
+                                        }
+                                    }
+                                }
+                                0
+                            },
+                            _ => { 0 }
+                        }
+                        if isOptionGet {
+                            // Re-emit the inner method call without the trailing
+                            // .unwrap() that the standard Map.get path adds, so we
+                            // can append .unwrap_or(default).
+                            let _ = switch left {
+                                Expr.MethodCall(mObj, mName, mArgs) => {
+                                    this._emitOptionGetWithDefault(mObj, mName, mArgs, right)
+                                    0
+                                },
+                                _ => { 0 }
+                            }
+                        } else if isFreeCall {
+                            // User-defined fallible call → returns Result<T, Error>.
+                            // Lower `expr or <default>` to `match expr { Ok(v) => v, Err(_) => default }`.
+                            this._write("match ")
+                            this._emitExpr(left)
+                            this._write(" { Ok(v) => v, Err(_) => ")
+                            this._emitExpr(right)
+                            this._write(" }")
+                        } else if isCall {
+                            // MethodCall (stdlib / user methods) → emits inline
+                            // (Option<T>, String) tuple expression.
                             this._write("{ let (opt, err_str) = ")
                             this._emitExpr(left)
                             this._write("; if !err_str.is_empty() { ")
@@ -5262,6 +5308,25 @@ RustEmitter {
             this._emitExpr(a)
             aIdx += 1
         }
+        this._write(")")
+    }
+
+    // -- Helper: emit `obj.<mName>(...) or default` as
+    // -- `obj.get(k).cloned().unwrap_or(default)` for collections
+    // -- whose `get`/`first`/`last`/`find` returns Option<V>.
+
+    _emitOptionGetWithDefault(obj: Expr, mName: string, args: [Expr], defaultExpr: Expr) {
+        this._emitExpr(obj)
+        if mName == "get" {
+            this._write(".get(")
+            if args.length > 0 { this._emitMapKeyArg(args[0]) }
+            this._write(").cloned().unwrap_or(")
+        } else {
+            this._write(".")
+            this._write(mName)
+            this._write("().cloned().unwrap_or(")
+        }
+        this._emitExpr(defaultExpr)
         this._write(")")
     }
 

@@ -1,0 +1,81 @@
+// E2E self-host test: deterministic program covering basic features.
+// Both bootstrap and gen-2 must produce identical stdout.
+
+Counter {
+    count: number
+    constructor() { this.count = 0 }
+    inc() { this.count = this.count + 1 }
+    add(n: number) { this.count = this.count + n }
+}
+
+factorial(n: number): number {
+    if n <= 1 { return 1 }
+    return n * factorial(n - 1)
+}
+
+fib(n: number): number {
+    if n < 2 { return n }
+    return fib(n - 1) + fib(n - 2)
+}
+
+main() {
+    // Arithmetic
+    let a = 7
+    let b = 3
+    print($"add: {a + b}")
+    print($"sub: {a - b}")
+    print($"mul: {a * b}")
+    print($"div: {a / b}")
+    print($"mod: {a % b}")
+
+    // Strings
+    let s = "Hello, Liva!"
+    print($"len: {s.len()}")
+    print($"contains: {s.contains("Liva")}")
+
+    // Arrays
+    let arr = [1, 2, 3, 4, 5]
+    let sum = arr.reduce(0, (acc, x) => acc + x)
+    print($"arr sum: {sum}")
+    let doubled = arr.map(x => x * 2)
+    let doubledStr = doubled.map(x => $"{x}").join(",")
+    print($"arr doubled: {doubledStr}")
+    let even = arr.filter(x => x % 2 == 0)
+    let evenStr = even.map(x => $"{x}").join(",")
+    print($"arr even: {evenStr}")
+
+    // Map
+    let m: Map<string, number> = Map {}
+    m.set("one", 1)
+    m.set("two", 2)
+    m.set("three", 3)
+    let v1 = m.get("one") or 0
+    let v2 = m.get("two") or 0
+    let v3 = m.get("three") or 0
+    print($"map one: {v1}")
+    print($"map two: {v2}")
+    print($"map three: {v3}")
+    print($"map size: {m.len()}")
+
+    // Class + mutation
+    let c = Counter()
+    c.inc()
+    c.inc()
+    c.add(10)
+    print($"counter: {c.count}")
+
+    // Recursion
+    print($"fact(6): {factorial(6)}")
+    print($"fib(10): {fib(10)}")
+
+    // Loops
+    let total = 0
+    for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] {
+        total = total + i
+    }
+    print($"loop sum: {total}")
+
+    // String building
+    let parts = ["foo", "bar", "baz"]
+    print($"joined: {parts.join("-")}")
+}

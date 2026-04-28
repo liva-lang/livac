@@ -1,0 +1,29 @@
+// E2E self-host test: error handling — `or default` and `or fail` patterns.
+// (Explicit `let v, err = ...` binding with .message field tested separately.)
+
+divide(a: number, b: number): number {
+    if b == 0 { fail "div by zero" }
+    return a / b
+}
+
+triple(x: number): number {
+    return x * 3
+}
+
+main() {
+    // or default
+    let ok = divide(10, 2) or 0
+    let bad = divide(10, 0) or -1
+    print($"ok={ok} bad={bad}")
+
+    // Multiple or-default checks
+    let r1 = divide(100, 4) or 0
+    let r2 = divide(100, 5) or 0
+    let r3 = divide(100, 0) or -999
+    print($"r1={r1} r2={r2} r3={r3}")
+
+    // Combine fallible with non-fallible
+    let v = divide(60, 3) or 0
+    let t = triple(v)
+    print($"t={t}")
+}

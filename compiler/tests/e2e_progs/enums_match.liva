@@ -1,0 +1,58 @@
+// E2E self-host test: enums, pattern matching, optionals.
+
+enum Shape {
+    Circle(radius: number),
+    Rectangle(width: number, height: number),
+    Square(side: number),
+    Point
+}
+
+area(s: Shape): number {
+    return switch s {
+        Shape.Circle(r) => r * r * 3,
+        Shape.Rectangle(w, h) => w * h,
+        Shape.Square(side) => side * side,
+        Shape.Point => 0
+    }
+}
+
+shapeName(s: Shape): string {
+    return switch s {
+        Shape.Circle(_) => "circle",
+        Shape.Rectangle(_, _) => "rectangle",
+        Shape.Square(_) => "square",
+        Shape.Point => "point"
+    }
+}
+
+main() {
+    let shapes = [
+        Shape.Circle(5),
+        Shape.Rectangle(4, 6),
+        Shape.Square(3),
+        Shape.Point
+    ]
+
+    for s in shapes {
+        print($"{shapeName(s)}: area={area(s)}")
+    }
+
+    // Optional + or
+    let nums: Map<string, number> = Map {}
+    nums.set("a", 10)
+    nums.set("b", 20)
+
+    let a = nums.get("a") or -1
+    let b = nums.get("b") or -1
+    let c = nums.get("missing") or -1
+    print($"a={a} b={b} c={c}")
+
+    // Range matching
+    let grade = switch 85 {
+        90..=100 => "A",
+        80..=89 => "B",
+        70..=79 => "C",
+        _ => "F"
+    }
+    print($"grade: {grade}")
+}

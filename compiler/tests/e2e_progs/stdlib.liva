@@ -1,0 +1,56 @@
+// E2E self-host test: array stdlib methods.
+
+main() {
+    let arr = [3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5]
+
+    print($"len: {arr.length}")
+    print($"sum: {arr.sum()}")
+    print($"min: {arr.min()}")
+    print($"max: {arr.max()}")
+
+    let sorted = arr.sort()
+    let sortedStr = sorted.map(x => $"{x}").join(",")
+    print($"sorted: {sortedStr}")
+
+    let reversed = arr.reversed()
+    let revStr = reversed.map(x => $"{x}").join(",")
+    print($"reversed: {revStr}")
+
+    let unique = arr.distinct().sort()
+    let uniqStr = unique.map(x => $"{x}").join(",")
+    print($"distinct: {uniqStr}")
+
+    print($"includes 9: {arr.includes(9)}")
+    print($"includes 100: {arr.includes(100)}")
+    print($"indexOf 5: {arr.indexOf(5)}")
+
+    let filtered = arr.filter(x => x > 3)
+    let filtStr = filtered.map(x => $"{x}").join(",")
+    print($"filtered: {filtStr}")
+
+    let mapped = arr.map(x => x * 10)
+    let mapStr = mapped.map(x => $"{x}").join(",")
+    print($"mapped: {mapStr}")
+
+    print($"every>0: {arr.every(x => x > 0)}")
+    print($"some>5: {arr.some(x => x > 5)}")
+
+    let flat = [[1, 2], [3, 4], [5]].flat()
+    let flatStr = flat.map(x => $"{x}").join(",")
+    print($"flat: {flatStr}")
+
+    // Strings
+    let s = "Hello World"
+    print($"len: {s.len()}")
+    print($"upper: {s.toUpperCase()}")
+    print($"lower: {s.toLowerCase()}")
+    print($"contains World: {s.contains("World")}")
+    print($"startsWith Hel: {s.startsWith("Hel")}")
+    print($"endsWith rld: {s.endsWith("rld")}")
+    print($"replace: {s.replace("World", "Liva")}")
+
+    let parts = s.split(" ")
+    let joinedParts = parts.join("|")
+    print($"split: {joinedParts}")
+    print($"trimmed: '{"  hi  ".trim()}'")
+}
