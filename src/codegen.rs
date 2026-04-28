@@ -2,7 +2,7 @@ use crate::ast::*;
 use crate::desugaring::DesugarContext;
 use crate::error::{CompilerError, Result, SemanticErrorInfo};
 use crate::traits::TraitRegistry;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt::Write;
 
 /// Capitalize the first letter of a string
@@ -6597,7 +6597,7 @@ impl CodeGenerator {
                 } else if let Expr::Member { object, property } = &assign.target {
                     // Check this.field = value for optional class fields
                     if let Expr::Identifier(name) = object.as_ref() {
-                        if (name == "this" || name == "self") {
+                        if name == "this" || name == "self" {
                             if let Some(class_name) = &self.current_class_name {
                                 self.class_optional_fields
                                     .get(class_name)
@@ -9045,6 +9045,7 @@ impl CodeGenerator {
     }
 
     /// Check if a TypeRef is a Copy type (doesn't need cloning)
+    #[allow(dead_code)]
     fn is_copy_type(&self, type_ref: &TypeRef) -> bool {
         match type_ref {
             TypeRef::Simple(name) => {
