@@ -1,6 +1,6 @@
 # Self-Hosting: Compilador de Liva escrito en Liva
 
-> **Estado:** Fase 8 completada — Fase 9 cerrada para v2.0 (9.1/9.2/9.3/9.4/9.5/9.6/9.8/9.10 done, 9.9 ya cubierto, 9.7/9.11 deferred); bench oficial gen-2 vs hand-written Rust ejecutado (`benchmarks/RESULTS.md`); idempotencia gen-2≡gen-3 (binario `cmp = 0`). **Fase 10 (optimizaciones)** planificada — ver sección al final del documento.
+> **Estado:** Fase 8 completada — Fase 9 cerrada (9.1/9.2/9.3/9.4/9.5/9.6/9.8/9.10 done, 9.9 ya cubierto, 9.7/9.11 absorbidos por Fase 10); bench oficial gen-2 vs hand-written Rust ejecutado (`benchmarks/RESULTS.md`); idempotencia gen-2≡gen-3 (binario `cmp = 0`). **Fase 10 (optimizaciones) en curso — prerrequisito de v2.0.** Ver sección al final del documento.
 > **Última actualización:** 2026-04-27
 > **Branch:** `feat/self-hosting-v2`
 
@@ -692,13 +692,12 @@ Fase 9: Cerrar gaps de eficiencia del Rust generado
   [x] 9.5: Array.sort() para primitivos → `.sort()`; resto `.sort_by(partial_cmp)`
   9b — Iterator chains sin clones
   [x] 9.6: `_emitIterPrefix` con T Copy → `.iter().copied()` (commit 550df15)
-  [ ] 9.7: Map.keys()/values() en for-in: sin `.cloned().collect()` — DEFERRED a v2.1 (riesgo: cambia tipo loop var de K a &K, rompe usos en body, requiere análisis de uso de loop var). Bench oficial muestra que el gap actual (Word-counting 2.11x, Map build+lookup 1.35x) es aceptable para v2.0; el principal coste es `lower.clone()` en el peephole `entry().or_insert()`, no `.cloned().collect()` en `for k in m.keys()`.
+  [ ] 9.7: Map.keys()/values() en for-in: sin `.cloned().collect()` — absorbido por Fase 10 (lo cubre 10.3 + 10.1).
   9c — Map patterns inteligentes
   [x] 9.8: Peephole has+get+set → entry().or_insert() (`_emitIf` + `_tryEmitEntryApi` en `compiler/src/codegen.liva`). Solo dispara con clave Identifier/Int y operador `+`/`-` con literal Int en RHS y INIT. Idempotencia gen-2==gen-3 verificada (diff -r = 0 líneas).
-  [x] 9.9: Map.set con clave String single-use → omitir `.clone()` — YA CUBIERTO por la lógica `isSingleUse` de Phase 8 en `_emitClonedArg`
   9d — Limpieza arquitectónica
   [x] 9.10: `todo!()` / `/* unknown */` reemplazados por `_warn()` + `Some(<expr>)`
-  [ ] 9.11: (Opcional) Dispatch tables incrementales para stdlib dispatchers
+  [ ] 9.11: (Opcional) Dispatch tables incrementales para stdlib dispatchers — absorbido por Fase 10 (evaluar tras 10.3).
 
 Baseline workarounds aplicados durante Commit 1 (regresiones bootstrap por auto-clone elision):
   - codegen.liva `_buildParam`: extracción única `extractedName` para evitar E0382 doble-move
@@ -717,25 +716,25 @@ Validación tras Commit 1:
 
 ---
 
-## Fase 10 — Optimizaciones del Rust generado (post v2.0)
+## Fase 10 — Optimizaciones del Rust generado (prerrequisito de v2.0)
 
-> **Estado:** planificación. Se abordará tras cerrar release v2.0.
+> **Estado:** en curso. **v2.0 NO sale hasta cerrar Fase 10 al menos en su Tier 1.**
 > **Objetivo:** llevar todos los benchmarks de [benchmarks/RESULTS.md](../../benchmarks/RESULTS.md) a <1.15x vs Rust escrito a mano.
 > **Restricción no negociable:** cada optimización debe ser **determinística desde la AST** (sin orden de iteración inestable, sin estado externo) para preservar idempotencia gen-N≡gen-(N+1) byte-a-byte.
 > **Diagnóstico fuente:** ver `benchmarks/RESULTS.md` y la conversación 2026-04-28 sobre causas del gap.
 
 ### Tabla resumen
 
-| Tier | Item | Causa raíz | Bench afectado | Esperado | Riesgo |
-|---|---|---|---|---|---|
-| 1 | 10.1 Last-use numbering en liveness | clone defensivo por falta de orden | Word-counting 2.11x | →~1.10x | bajo |
-| 1 | 10.2 Param escape analysis (mutadores) | `arr.clone()` antes de `.sort()` | Sort 2.50x | →~1.10x | bajo |
-| 1 | 10.3 Iterator chain fusion | `.collect()` intermedios | Filter+Map 1.50x | →~1.05x | medio |
-| 2 | 10.4 `&str` deref en Map APIs | `m.get(&(key))` doble borrow | Map lookup 1.35x | →~1.20x | bajo |
-| 2 | 10.5 `Box<str>` para Map values read-only | `.cloned()` defensivo en `m.get` | Map lookup adicional | -10–15% | medio |
-| 3 | 10.6 Borrow-tracking IR completo | causa raíz de todos los clones | todos | mayoría <1.10x | alto |
+| Tier | Item | Causa raíz | Bench afectado | Esperado | Riesgo | Bloquea v2.0 |
+|---|---|---|---|---|---|---|
+| 1 | 10.1 Last-use numbering en liveness | clone defensivo por falta de orden | Word-counting 2.11x | →~1.10x | bajo | sí |
+| 1 | 10.2 Param escape analysis (mutadores) | `arr.clone()` antes de `.sort()` | Sort 2.50x | →~1.10x | bajo | sí |
+| 1 | 10.3 Iterator chain fusion | `.collect()` intermedios | Filter+Map 1.50x | →~1.05x | medio | sí |
+| 2 | 10.4 `&str` deref en Map APIs | `m.get(&(key))` doble borrow | Map lookup 1.35x | →~1.20x | bajo | si Tier1 no llega a 1.15x |
+| 2 | 10.5 `Box<str>` para Map values read-only | `.cloned()` defensivo en `m.get` | Map lookup adicional | -10–15% | medio | si Tier1+10.4 no llega |
+| 3 | 10.6 Borrow-tracking IR completo | causa raíz de todos los clones | todos | mayoría <1.10x | alto | no — si bloquea, posponer post-v2.0 |
 
-### Tier 1 — alto ROI, riesgo bajo (target: v2.1)
+### Tier 1 — alto ROI, riesgo bajo (BLOQUEAN v2.0)
 
 #### 10.1 — Last-use numbering en `liveness.liva` (resuelve también 9.7)
 
@@ -805,7 +804,7 @@ con un `Vec` intermedio que el humano evita: `arr.iter().copied().filter(|&x| p)
 
 **Validación:** Filter+Map bench <2.5ms; ningún test de `compiler/tests/liva` regresa.
 
-### Tier 2 — ROI medio, riesgo medio (target: v2.2)
+### Tier 2 — ROI medio, riesgo medio (entran en v2.0 si Tier 1 no alcanza <1.15x)
 
 #### 10.4 — `&str` deref directo en Map APIs
 
@@ -827,7 +826,7 @@ con un `Vec` intermedio que el humano evita: `arr.iter().copied().filter(|&x| p)
 
 **Tamaño estimado:** ~150 líneas. Requiere `_localMapEscape` similar al de 10.2.
 
-### Tier 3 — rediseño mayor (target: v3.0)
+### Tier 3 — rediseño mayor (post-v2.0)
 
 #### 10.6 — IR intermedio con borrow modes
 
@@ -838,15 +837,14 @@ con un `Vec` intermedio que el humano evita: `arr.iter().copied().filter(|&x| p)
 
 Y un codegen `IR → Rust` que solo emita `.clone()` cuando dos usos `Owned` consumen la misma variable.
 
-**Tamaño estimado:** **3–6 semanas**. Es el plan natural de v3.0 si los datos justifican el esfuerzo. No emprender hasta tener métricas de v2.1+v2.2.
+**Tamaño estimado:** **3–6 semanas**. Es un rediseño mayor que solo se emprenderá post-v2.0 si los datos justifican acercar todos los benches a 1.05x.
 
-### Plan de ejecución sugerido
+### Plan de ejecución
 
-1. **v2.0 release** primero (push, tag, distribución).
-2. **v2.1 = 10.1 + 10.2 + 10.3** en ese orden. Cada una con su propio commit y benchmark de validación. Idempotencia binaria comprobada antes de cada commit.
-3. **Reevaluar:** si tras 10.1–10.3 el peor bench está <1.20x, parar y dedicar esfuerzo a features de lenguaje.
-4. **v2.2 = 10.4 + 10.5** solo si los datos lo justifican.
-5. **v3.0 = 10.6** solo si las métricas siguen sin alcanzar paridad y las features de lenguaje están estables.
+1. **Tier 1 (10.1 → 10.2 → 10.3) en ese orden.** Cada item con su commit y benchmark de validación. Idempotencia binaria comprobada antes de cada commit.
+2. **Reevaluar tras Tier 1:** correr `benchmarks/run_official.sh`. Si el peor bench está <1.15x → **release v2.0**.
+3. **Si tras Tier 1 algún bench sigue >1.15x:** abordar 10.4 y/o 10.5 hasta cumplir. **Solo entonces release v2.0.**
+4. **10.6 (Tier 3) NO bloquea v2.0.** Es un rediseño mayor (3–6 semanas) que se planifica como mejora arquitectónica posterior si se quiere acercar todos los benches a 1.05x.
 
 ### Reglas de validación obligatorias por cada optimización
 

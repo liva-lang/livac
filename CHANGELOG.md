@@ -8,8 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.0-dev] - 2026-04-28
 
 ### Added
-- **Self-hosting Phase 9: Borrow optimizations + official benchmark — CLOSED for v2.0**
-  - Phase 9.1–9.6, 9.8, 9.9, 9.10 done; 9.7 / 9.11 explicitly deferred to v2.1.
+- **Self-hosting Phase 9: Borrow optimizations + official benchmark**
+  - Phase 9.1–9.6, 9.8, 9.9, 9.10 done; 9.7 / 9.11 absorbidos por Fase 10.
   - 9.4 fix: `for &x in arr` now emits `&arr` so the deref pattern matches when
     the iterable is a single-use Identifier (`Vec<i32>` and friends).
   - 9.8 (Entry-API peephole) hardened: hoist `_sanitizeName` call to avoid
@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Classes: parity or better
   - Idempotence: gen-2 source ≡ gen-3 source byte-for-byte; gen-2 release
     binary ≡ gen-3 release binary byte-for-byte (`cmp = 0`).
+- **Phase 10 plan published** (prerequisite of v2.0):
+  - Tier 1 — last-use numbering (10.1), param escape analysis (10.2),
+    iterator chain fusion (10.3). v2.0 release blocked until peor-bench
+    < 1.15x vs hand-written Rust.
+  - Detailed in `compiler/docs/PLAN.md` § Fase 10 and `BACKLOG.md`.
 
 ## [2.0.0-dev] - 2026-04-20
 

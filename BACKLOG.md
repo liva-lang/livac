@@ -616,15 +616,17 @@
 
 ---
 
-## v2.1 — Optimizaciones del Rust generado (Tier 1)
+## Fase 10 — Optimizaciones del Rust generado (prerrequisito de v2.0)
 
-> **Foco:** cerrar el gap medido en `benchmarks/RESULTS.md` con cambios de bajo riesgo y alto ROI.
+> **v2.0 NO sale hasta cerrar Fase 10 al menos en su Tier 1.**
+> **Foco:** cerrar el gap medido en `benchmarks/RESULTS.md` con cambios deterministas que preservan idempotencia gen-2≡gen-3 binaria.
 > **Plan detallado:** ver `compiler/docs/PLAN.md` § Fase 10.
-> **Restricción:** cada cambio debe preservar idempotencia gen-2≡gen-3 (binario `cmp = 0`).
 
-### 10.1 — Last-use numbering en `liveness.liva`
+### Tier 1 — bloquean v2.0
 
-> Resuelve también 9.7 (deferred desde v2.0). Bench objetivo: Word counting 2.11x → ~1.10x.
+#### 10.1 — Last-use numbering en `liveness.liva`
+
+> Resuelve también 9.7. Bench objetivo: Word counting 2.11x → ~1.10x.
 
 - [ ] Añadir `perScopeUses: Map<string, number>` a `LivenessContext`
 - [ ] Añadir `lastUsePoints: Map<string, number>` (clave: `func:exprId`)
@@ -637,7 +639,7 @@
 - [ ] Idempotencia gen-2≡gen-3 binaria
 - [ ] Bench: Word counting <120ms
 
-### 10.2 — Parameter escape analysis para mutadores
+#### 10.2 — Parameter escape analysis para mutadores
 
 > Bench objetivo: Sort 2.50x → ~1.10x.
 
@@ -647,7 +649,7 @@
 - [ ] Idempotencia gen-2≡gen-3 binaria
 - [ ] Bench: Sort <3ms
 
-### 10.3 — Iterator chain fusion
+#### 10.3 — Iterator chain fusion
 
 > Bench objetivo: Filter+Map 1.50x → ~1.05x.
 
@@ -658,7 +660,31 @@
 - [ ] Idempotencia gen-2≡gen-3 binaria
 - [ ] Bench: Filter+Map <2.5ms
 
-### Validación obligatoria por cada item de v2.1
+### Gate de release v2.0
+
+- [ ] Tras Tier 1: correr `benchmarks/run_official.sh` y comprobar peor caso <1.15x.
+- [ ] Si algún bench sigue >1.15x → abordar Tier 2 (10.4, 10.5) antes de release.
+
+### Tier 2 — solo si Tier 1 no alcanza <1.15x
+
+#### 10.4 — `&str` deref directo en Map APIs
+
+> Bench objetivo: Map lookup 1.35x → ~1.20x.
+
+- [ ] `_emitMapMethod`: emitir `key.as_str()` en vez de `&(key)` cuando `key: String` y map es `HashMap<String, _>`
+- [ ] Mantener `&` para temporales (resultado de `format!`)
+- [ ] Idempotencia gen-2≡gen-3 binaria
+
+#### 10.5 — `Box<str>` para Map values nunca mutados
+
+> Requiere análisis de escape del map.
+
+- [ ] Análisis `_localMapEscape`: map no exportado, no en parámetro genérico, no asignado a campo
+- [ ] Codegen: emitir `HashMap<K, Box<str>>` para maps locales con valores `String` nunca mutados
+- [ ] `m.get` devuelve `&str` directo
+- [ ] Idempotencia gen-2≡gen-3 binaria
+
+### Validación obligatoria por cada item de Fase 10
 
 - [ ] `cargo test --release` 100% verde (518 tests)
 - [ ] `bootstrap_test.sh` 9/9
@@ -670,32 +696,9 @@
 
 ---
 
-## v2.2 — Optimizaciones (Tier 2)
+## Post-v2.0 — Borrow-tracking IR completo (Tier 3, rediseño)
 
-> Solo si v2.1 no cierra el gap. Plan detallado: `compiler/docs/PLAN.md` § Fase 10.4 / 10.5.
-
-### 10.4 — `&str` deref directo en Map APIs
-
-> Bench objetivo: Map lookup 1.35x → ~1.20x.
-
-- [ ] `_emitMapMethod`: emitir `key.as_str()` en vez de `&(key)` cuando `key: String` y map es `HashMap<String, _>`
-- [ ] Mantener `&` para temporales (resultado de `format!`)
-- [ ] Idempotencia gen-2≡gen-3 binaria
-
-### 10.5 — `Box<str>` para Map values nunca mutados
-
-> Requiere análisis de escape del map.
-
-- [ ] Análisis `_localMapEscape`: map no exportado, no en parámetro genérico, no asignado a campo
-- [ ] Codegen: emitir `HashMap<K, Box<str>>` para maps locales con valores `String` nunca mutados
-- [ ] `m.get` devuelve `&str` directo
-- [ ] Idempotencia gen-2≡gen-3 binaria
-
----
-
-## v3.0 — Borrow-tracking IR (Tier 3, rediseño)
-
-> **Solo si los datos justifican el esfuerzo tras v2.1+v2.2.** Estimación: 3–6 semanas.
+> **NO bloquea v2.0.** Solo si tras Fase 10 los datos justifican un rediseño mayor para acercar todos los benches a 1.05x. Estimación: 3–6 semanas.
 
 - [ ] Nuevo IR `liva-AST → liva-IR` con anotaciones `Owned | Borrowed | MutBorrowed` por uso
 - [ ] Pase de inferencia de borrow modes (combina liveness + mutabilidad efectiva + escape)
