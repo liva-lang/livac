@@ -475,7 +475,7 @@
 
 - [x] Implementar lexer de Liva en Liva (~660 líneas)
 - [x] Implementar parser (subset) en Liva (~948 líneas, self-referencial con 0 errores)
-- [ ] Implementar codegen (subset) en Liva (pendiente — reiniciar tras fixes)
+- [x] Implementar codegen completo en Liva (~7000 líneas, gen-2≡gen-3 idempotente)
 - [x] Comparar output con compilador Rust → verificar equivalencia
 - [x] Documentar bugs encontrados (#90-#94) y arreglar en main (#90, #91, #92, #94 ✅)
 
@@ -662,6 +662,59 @@
 - [x] Tier 2 parcial (10.4 implementado — Word counting 1.79x→1.23x, CSV 1.17x→1.00x, Map 1.14x→1.09x)
 - [x] **Aceptado:** todos los benches dentro de banda razonable; Word counting (1.23x) ligeramente sobre 1.15x por diferencia ABI fundamental (Liva strings owned vs Rust hand-written `&str`). Sort/Filter+Map <6ms ruido (DCE/timer). 10.5 (Box<str>) aplazado a Tier 3 / v2.x.
 
+---
+
+## v2.0 al 100% — 5 bloques pendientes
+
+> **Objetivo:** cerrar v2.0 al 100% en compilación, tests, cobertura y bench.
+> **Estado actual:** 518 cargo tests + 135 archivos `.liva` (e2e 61, errors 28, syntax 18, stdlib 19, compile 9) + bootstrap 9/9 + idempotencia gen-2≡gen-3. Bench 4/5 en gate; Word counting 1.23x.
+
+### Bloque 1 — Cross-module `&str` (cierra Word counting <1.15x)
+
+> Causa raíz: `text.split(" ")` en Liva produce `[string]` (Vec<String>) por la signatura owned actual. Si `count_words(text)` aceptara `text: &str` y propagara `&str` al `for word in text.split(" ")`, eliminamos la alocación por palabra.
+> Bloqueo histórico: cada módulo se compila con su propio `RustEmitter`; `_borrowedParamIndices` no se comparte.
+
+- [ ] Refactor `main.liva`: pre-pass que recolecta signaturas de todas las funciones libres ANTES de codegen-por-módulo
+- [ ] Pasar `globalBorrowRegistry: Map<string, [int]>` (clave `funcSan`, valor índices de params `&str`) a cada `RustEmitter`
+- [ ] `_buildParam` y call-site usar el registry global cuando el callee es función libre cross-module
+- [ ] Verificar idempotencia gen-2≡gen-3 (binario+src) + 518 tests + bootstrap 9/9
+- [ ] Bench: Word counting 1.23x → ≤1.15x
+
+### Bloque 2 — 10.5 Box<str> para Map<K, String> values
+
+> Análisis de escape del map. Coste medio-alto, retorno esperado <10% en hotpaths actuales.
+
+- [ ] `_localMapEscape` en liveness.liva: map no exportado / no en parámetro genérico / no asignado a campo / nunca mutado en valores
+- [ ] Codegen: emitir `HashMap<K, Box<str>>` para maps locales con valores `String` nunca mutados
+- [ ] `m.get(k)` devuelve `&str` directo (skip clone)
+- [ ] Idempotencia gen-2≡gen-3 + 518 tests
+
+### Bloque 3 — Cobertura medida (cargo-llvm-cov)
+
+- [ ] Instalar `cargo-llvm-cov` (`cargo install cargo-llvm-cov` o vía rustup component)
+- [ ] Generar reporte baseline: `cargo llvm-cov --html --workspace`
+- [ ] Identificar zonas <90% en `src/` (esperado: paths de error, casos edge en codegen)
+- [ ] Añadir tests unit/integration para gaps (priorizar: lexer, parser, semantic, codegen, liveness)
+- [ ] Add `make coverage` target + entrada en `Makefile`
+- [ ] Documentar baseline en `docs/PROJECT_STRUCTURE.md`
+
+### Bloque 4 — E2E self-hosted bench
+
+- [ ] Script `compiler/tests/e2e_selfhost.sh`: para cada `.liva` en `examples/` (85 archivos)
+  - Compilar con `livac-gen2-release` → ejecutar → capturar stdout
+  - Compilar con `livac` (Rust bootstrap) → ejecutar → capturar stdout
+  - `diff` ambos stdouts → fallar si difieren
+- [ ] Excluir examples interactivos / con red (http-server, db-demo, etc.)
+- [ ] Integrar en `scripts/run_tests.sh`
+- [ ] Documentar en `compiler/tests/README.md`
+
+### Bloque 5 — Limpieza BACKLOG
+
+- [x] L478 (Implementar codegen self-host) → marcado completo (codegen.liva ~7000 líneas, idempotente)
+- [x] L690-696 (validación Fase 10) → marcado completo
+- [ ] Revisar resto de `[ ]` y mover a sección apropiada (REPL → v2.x, etc.)
+- [ ] Sincronizar `ROADMAP.md` y `CHANGELOG.md` con v2.0 final
+
 ### Tier 2 — solo si Tier 1 no alcanza <1.15x
 
 #### 10.4 — `&str` deref directo en Map APIs + sort/reverse in-place + split→for fusion
@@ -687,13 +740,13 @@
 
 ### Validación obligatoria por cada item de Fase 10
 
-- [ ] `cargo test --release` 100% verde (518 tests)
-- [ ] `bootstrap_test.sh` 9/9
-- [ ] `compiler/tests/liva` sin regresiones
-- [ ] gen-2 source ≡ gen-3 source (`diff -r = 0`)
-- [ ] gen-2 release binary ≡ gen-3 release binary (`cmp = 0`)
-- [ ] `benchmarks/run_official.sh` mejora la métrica objetivo, ninguna otra regresa >5%
-- [ ] `benchmarks/RESULTS.md` actualizado y commiteado
+- [x] `cargo test --release` 100% verde (518 tests)
+- [x] `bootstrap_test.sh` 9/9
+- [x] `compiler/tests/liva` sin regresiones (135 archivos: e2e 61, errors 28, syntax 18, stdlib 19, compile 9)
+- [x] gen-2 source ≡ gen-3 source (`diff -r = 0`)
+- [x] gen-2 release binary ≡ gen-3 release binary (`cmp = 0`)
+- [x] `benchmarks/run_official.sh` mejora la métrica objetivo, ninguna otra regresa >5%
+- [x] `benchmarks/RESULTS.md` actualizado y commiteado
 
 ---
 
