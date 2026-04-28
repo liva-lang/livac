@@ -96,6 +96,11 @@ RustEmitter {
     // combined with `liveCtx.declaredInLoop`, to elide defensive `.clone()`
     // on the key when the binding is dead after the rewrite.
     _stmtIsLastInBlock: bool
+    // Phase 10.3: when true, iterator methods (map/filter/flatMap/take/skip/
+    // takeWhile/skipWhile) emit only the iterator step and skip both the
+    // leading `.iter().copied()` and the trailing `.collect::<Vec<_>>()` so
+    // adjacent methods fuse into one iterator chain (no intermediate Vec).
+    _inIterChain: bool
     _warnings: [string]
 
     constructor(typeCtx: TypeContext, liveCtx: LivenessContext) {
@@ -142,6 +147,7 @@ RustEmitter {
         this._currentFuncIsMethod = false
         this._forNeedsInnerClone = false
         this._stmtIsLastInBlock = false
+        this._inIterChain = false
         this._warnings = []
     }
 
@@ -5535,6 +5541,28 @@ RustEmitter {
 
     // -- Helper: emit iterator prefix, detecting .par() chains --
     _emitIterPrefix(obj: Expr, withCloned: bool) {
+        // Phase 10.3: if obj is itself a chainable iterator method, emit it
+        // as a bare iterator (no .iter().cloned() prefix, no .collect() suffix)
+        // so the new method extends the same iterator chain.
+        let isChain = false
+        let _ = switch obj {
+            Expr.MethodCall(_, m2, _) => {
+                if m2 == "map" || m2 == "filter" || m2 == "flatMap" {
+                    isChain = true
+                }
+                0
+            },
+            _ => { 0 }
+        }
+        if isChain {
+            let savedChain = this._inIterChain
+            this._inIterChain = true
+            this._emitExpr(obj)
+            this._inIterChain = savedChain
+            // Already an iterator — no .iter() / .copied() needed.
+            return
+        }
+
         // Check if obj is arr.par() → use par_iter instead of iter
         let isPar = false
         let _ = switch obj {
@@ -5711,7 +5739,8 @@ RustEmitter {
             this._emitIterPrefix(obj, true)
             this._write(".map(")
             if args.length > 0 { this._emitExpr(args[0]) }
-            this._write(").collect::<Vec<_>>()")
+            this._write(")")
+            if not this._inIterChain { this._write(".collect::<Vec<_>>()") }
             return true
         }
         if method == "filter" {
@@ -5735,7 +5764,8 @@ RustEmitter {
                 if args.length > 0 { this._emitExpr(args[0]) }
                 this._derefClosureParams = false
             }
-            this._write(").collect::<Vec<_>>()")
+            this._write(")")
+            if not this._inIterChain { this._write(".collect::<Vec<_>>()") }
             return true
         }
         if method == "forEach" {
@@ -5797,7 +5827,8 @@ RustEmitter {
             this._emitIterPrefix(obj, false)
             this._write(".flat_map(|x| ")
             if args.length > 0 { this._emitExpr(args[0]) }
-            this._write("(x.clone())).collect::<Vec<_>>()")
+            this._write("(x.clone()))")
+            if not this._inIterChain { this._write(".collect::<Vec<_>>()") }
             return true
         }
         if method == "findIndex" {
