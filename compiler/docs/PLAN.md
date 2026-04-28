@@ -1,6 +1,6 @@
 # Self-Hosting: Compilador de Liva escrito en Liva
 
-> **Estado:** Fase 8 completada — Fase 9 cerrada para v2.0 (9.1/9.2/9.3/9.4/9.5/9.6/9.8/9.10 done, 9.9 ya cubierto, 9.7/9.11 deferred); bench oficial gen-2 vs hand-written Rust ejecutado (`benchmarks/RESULTS.md`); idempotencia gen-2≡gen-3 (binario `cmp = 0`)
+> **Estado:** Fase 8 completada — Fase 9 cerrada para v2.0 (9.1/9.2/9.3/9.4/9.5/9.6/9.8/9.10 done, 9.9 ya cubierto, 9.7/9.11 deferred); bench oficial gen-2 vs hand-written Rust ejecutado (`benchmarks/RESULTS.md`); idempotencia gen-2≡gen-3 (binario `cmp = 0`). **Fase 10 (optimizaciones)** planificada — ver sección al final del documento.
 > **Última actualización:** 2026-04-27
 > **Branch:** `feat/self-hosting-v2`
 
@@ -714,6 +714,149 @@ Validación tras Commit 1:
   - cargo check sobre proyecto ensamblado: falla por `serde_json` ausente en Cargo.toml
     generado (issue pre-existente, no de Fase 9)
 ```
+
+---
+
+## Fase 10 — Optimizaciones del Rust generado (post v2.0)
+
+> **Estado:** planificación. Se abordará tras cerrar release v2.0.
+> **Objetivo:** llevar todos los benchmarks de [benchmarks/RESULTS.md](../../benchmarks/RESULTS.md) a <1.15x vs Rust escrito a mano.
+> **Restricción no negociable:** cada optimización debe ser **determinística desde la AST** (sin orden de iteración inestable, sin estado externo) para preservar idempotencia gen-N≡gen-(N+1) byte-a-byte.
+> **Diagnóstico fuente:** ver `benchmarks/RESULTS.md` y la conversación 2026-04-28 sobre causas del gap.
+
+### Tabla resumen
+
+| Tier | Item | Causa raíz | Bench afectado | Esperado | Riesgo |
+|---|---|---|---|---|---|
+| 1 | 10.1 Last-use numbering en liveness | clone defensivo por falta de orden | Word-counting 2.11x | →~1.10x | bajo |
+| 1 | 10.2 Param escape analysis (mutadores) | `arr.clone()` antes de `.sort()` | Sort 2.50x | →~1.10x | bajo |
+| 1 | 10.3 Iterator chain fusion | `.collect()` intermedios | Filter+Map 1.50x | →~1.05x | medio |
+| 2 | 10.4 `&str` deref en Map APIs | `m.get(&(key))` doble borrow | Map lookup 1.35x | →~1.20x | bajo |
+| 2 | 10.5 `Box<str>` para Map values read-only | `.cloned()` defensivo en `m.get` | Map lookup adicional | -10–15% | medio |
+| 3 | 10.6 Borrow-tracking IR completo | causa raíz de todos los clones | todos | mayoría <1.10x | alto |
+
+### Tier 1 — alto ROI, riesgo bajo (target: v2.1)
+
+#### 10.1 — Last-use numbering en `liveness.liva` (resuelve también 9.7)
+
+**Problema:** `liveness.liva` produce `useCounts: Map<func:var, number>` (contador escalar por función). Codegen no sabe **cuál de los N usos es el último** ni si la variable se **redeclara en cada iteración** del loop. Por eso el peephole 9.8 emite `*counts.entry(lower.clone()).or_insert(0) += 1;` en vez de pasar `lower` por move.
+
+**Cambios en `compiler/src/liveness.liva`:**
+- Añadir 3 mapas a `LivenessContext`:
+  - `perScopeUses: Map<string, number>` — clave `"func:scopeId:var"` (scope = bloque del cuerpo del for/while/if).
+  - `lastUsePoints: Map<string, number>` — clave `"func:exprId"` → 1 si ese uso concreto es el último en su scope.
+  - `declaredInLoop: Map<string, bool>` — variable declarada con `let` dentro del cuerpo de un loop.
+- Asignar un `exprId: number` único a cada `Expr.Identifier` durante el walk (contador en el analyzer). Guardar el `exprId` también en el AST si hace falta (campo opcional en `Expr.Identifier(name, exprId)` o map paralelo).
+- En `_analyzeFor`/`_analyzeWhile`: incrementar un `_scopeId`, marcar `declaredInLoop` para todo `let` dentro del cuerpo.
+- Tras el walk, recorrer los usos en orden inverso por `(funcKey, scopeId, var)` y marcar el primero encontrado como `lastUsePoint = 1`.
+
+**Cambios en `compiler/src/codegen.liva`:**
+- En `_entryKeyEmit` (peephole 9.8): si `lastUsePoints.has(exprId)` y `declaredInLoop.has(var)`, emitir `{san}` en vez de `{san}.clone()`.
+- En `_emitForIterable` y `_emitClonedArg`: aplicar la misma regla — last-use + declaredInLoop ⇒ move.
+
+**Tamaño estimado:** ~80 líneas (`liveness.liva`) + ~40 líneas (`codegen.liva`).
+
+**Validación:**
+- 518 tests Rust verdes.
+- `bootstrap_test.sh` 9/9.
+- Idempotencia gen-2≡gen-3 binaria.
+- Bench: Word-counting median <120ms (target ~1.10x sobre 92ms de Rust mano).
+
+#### 10.2 — Parameter escape analysis para mutadores
+
+**Problema:** `pub fn sort_array(mut arr: Vec<i32>) -> Vec<i32> { arr.sort(); arr }` no necesita el `arr.clone()` que metemos al llamar. Pero el codegen actual añade `.clone()` defensivo al pasar arrays a funciones que los mutan, porque no sabe si el caller va a reusar el array.
+
+**Cambios en `compiler/src/liveness.liva`:**
+- `paramEscapes` ya existe; extenderlo con un valor 3-estado:
+  - `0` = consumido (move ok, no escapa, función mutadora)
+  - `1` = devuelto (`return arr`)
+  - `2` = guardado (asignado a `this.field` u otra variable del scope mayor)
+- Detectar caso `0`: el parámetro entra, se pasa a `.sort()`/`.push()`/`.set()`, no aparece en `Stmt.Return` ni en lado izquierdo de `Stmt.Assign`.
+
+**Cambios en `compiler/src/codegen.liva`:**
+- En `_emitArg` para llamadas a funciones que mutan su parámetro: si el argumento del call site es un `Identifier` que es last-use Y el parámetro de destino tiene escape=0, emitir `arr` en vez de `arr.clone()`.
+
+**Tamaño estimado:** ~60 líneas.
+
+**Validación:** Sort bench median <3ms.
+
+#### 10.3 — Iterator chain fusion
+
+**Problema:** `arr.filter(p).map(f)` se compila a:
+
+```rust
+arr.iter().copied().filter(|&x| p).collect::<Vec<_>>()
+   .iter().cloned().map(|x| f).collect::<Vec<_>>()
+```
+
+con un `Vec` intermedio que el humano evita: `arr.iter().copied().filter(|&x| p).map(|x| f).collect()`.
+
+**Cambios en `compiler/src/codegen.liva`:**
+- Añadir buffer `_pendingIterOps: [string]` en el codegen.
+- En `_emitMethodCall`, cuando el receiver es un iterator method (`.filter`, `.map`, `.flatMap`, `.take`, `.skip`, `.takeWhile`, `.skipWhile`) y el contexto **no requiere materialización inmediata** (no es target de assign, return, indexing, `.length`), acumular en `_pendingIterOps` y diferir el `.collect()`.
+- Materializar en:
+  - `let x = chain` (assign → collect)
+  - `return chain` (collect)
+  - `chain.length` / `chain[i]` / `chain[..]` (collect)
+  - llamada a método no-iterator (`.first`, `.sort`, `.contains`, etc.)
+  - paso como argumento a función con tipo `Vec<T>`.
+
+**Tamaño estimado:** ~120 líneas. Refactor del path `_emitMethodCall` para iterator methods.
+
+**Validación:** Filter+Map bench <2.5ms; ningún test de `compiler/tests/liva` regresa.
+
+### Tier 2 — ROI medio, riesgo medio (target: v2.2)
+
+#### 10.4 — `&str` deref directo en Map APIs
+
+**Problema:** `m.get(&(key))` y `m.contains_key(&(key))` emiten un borrow extra a un `&String` cuando `m: HashMap<String, V>`. Un `m.get(key.as_str())` evita el round-trip.
+
+**Cambios en `_emitMapMethod`:**
+- Si la clave del map es `string` y el argumento es:
+  - literal `"foo"` → emitir `"foo"` (es ya `&str`).
+  - identifier `key: String` → emitir `key.as_str()`.
+  - expresión `format!(...)` → mantener como está (necesita `&` por temporal).
+
+**Tamaño estimado:** ~40 líneas.
+
+#### 10.5 — `Box<str>` para valores Map nunca mutados
+
+**Problema:** valores `String` en mapas se clonan al leer (`.get(k).cloned()` en `_emitMapMethod`). Si el map es local y los valores no se mutan, podemos almacenar `Box<str>` y devolver `&str` directamente.
+
+**Requisito:** análisis de escape del map (no se exporta, no entra en parámetro genérico, no se asigna a campo).
+
+**Tamaño estimado:** ~150 líneas. Requiere `_localMapEscape` similar al de 10.2.
+
+### Tier 3 — rediseño mayor (target: v3.0)
+
+#### 10.6 — IR intermedio con borrow modes
+
+**Problema:** las optimizaciones 10.1–10.5 son patches puntuales sobre un codegen que no modela ownership. Para llegar a paridad consistente hace falta un pase `liva-AST → liva-IR` donde cada uso de variable lleve anotado `Owned | Borrowed | MutBorrowed` derivado de:
+- liveness (last use → potencial move)
+- mutabilidad efectiva (¿el callee muta?)
+- escape (¿el valor sobrevive al scope?)
+
+Y un codegen `IR → Rust` que solo emita `.clone()` cuando dos usos `Owned` consumen la misma variable.
+
+**Tamaño estimado:** **3–6 semanas**. Es el plan natural de v3.0 si los datos justifican el esfuerzo. No emprender hasta tener métricas de v2.1+v2.2.
+
+### Plan de ejecución sugerido
+
+1. **v2.0 release** primero (push, tag, distribución).
+2. **v2.1 = 10.1 + 10.2 + 10.3** en ese orden. Cada una con su propio commit y benchmark de validación. Idempotencia binaria comprobada antes de cada commit.
+3. **Reevaluar:** si tras 10.1–10.3 el peor bench está <1.20x, parar y dedicar esfuerzo a features de lenguaje.
+4. **v2.2 = 10.4 + 10.5** solo si los datos lo justifican.
+5. **v3.0 = 10.6** solo si las métricas siguen sin alcanzar paridad y las features de lenguaje están estables.
+
+### Reglas de validación obligatorias por cada optimización
+
+- [ ] `cargo test --release` 100% verde (518 tests).
+- [ ] `bootstrap_test.sh` 9/9 módulos.
+- [ ] `compiler/tests/liva` sin regresiones.
+- [ ] Idempotencia: gen-2 source ≡ gen-3 source (`diff -r = 0`).
+- [ ] Idempotencia binaria: gen-2 release ≡ gen-3 release (`cmp = 0`).
+- [ ] `LIVAC=./target/livac-gen2-release ./benchmarks/run_official.sh` mejora la métrica objetivo y no regresa ninguna otra >5%.
+- [ ] Actualizar `benchmarks/RESULTS.md` con la nueva fila y commitear.
 
 ---
 

@@ -616,6 +616,95 @@
 
 ---
 
+## v2.1 — Optimizaciones del Rust generado (Tier 1)
+
+> **Foco:** cerrar el gap medido en `benchmarks/RESULTS.md` con cambios de bajo riesgo y alto ROI.
+> **Plan detallado:** ver `compiler/docs/PLAN.md` § Fase 10.
+> **Restricción:** cada cambio debe preservar idempotencia gen-2≡gen-3 (binario `cmp = 0`).
+
+### 10.1 — Last-use numbering en `liveness.liva`
+
+> Resuelve también 9.7 (deferred desde v2.0). Bench objetivo: Word counting 2.11x → ~1.10x.
+
+- [ ] Añadir `perScopeUses: Map<string, number>` a `LivenessContext`
+- [ ] Añadir `lastUsePoints: Map<string, number>` (clave: `func:exprId`)
+- [ ] Añadir `declaredInLoop: Map<string, bool>`
+- [ ] Asignar `exprId` único por `Expr.Identifier` durante el walk
+- [ ] `_analyzeFor`/`_analyzeWhile`: incrementar `_scopeId`, marcar `declaredInLoop` para `let` dentro
+- [ ] Walk inverso por scope para marcar last-use
+- [ ] Codegen `_entryKeyEmit`: usar move si last-use + declaredInLoop
+- [ ] Codegen `_emitForIterable`/`_emitClonedArg`: misma regla
+- [ ] Idempotencia gen-2≡gen-3 binaria
+- [ ] Bench: Word counting <120ms
+
+### 10.2 — Parameter escape analysis para mutadores
+
+> Bench objetivo: Sort 2.50x → ~1.10x.
+
+- [ ] Extender `paramEscapes` a 3-estado: 0=consumido, 1=devuelto, 2=guardado
+- [ ] Detectar caso 0: param entra, se muta, no aparece en `Stmt.Return` ni LHS de `Stmt.Assign`
+- [ ] Codegen `_emitArg`: omitir `.clone()` si arg es last-use Y escape=0
+- [ ] Idempotencia gen-2≡gen-3 binaria
+- [ ] Bench: Sort <3ms
+
+### 10.3 — Iterator chain fusion
+
+> Bench objetivo: Filter+Map 1.50x → ~1.05x.
+
+- [ ] Buffer `_pendingIterOps: [string]` en codegen
+- [ ] Acumular ops en `_emitMethodCall` para `.filter`/`.map`/`.flatMap`/`.take`/`.skip`/`.takeWhile`/`.skipWhile`
+- [ ] Materializar (`.collect()`) en: assign, return, indexing, `.length`, método no-iterator, arg de fn que toma `Vec<T>`
+- [ ] Sin regresiones en `compiler/tests/liva`
+- [ ] Idempotencia gen-2≡gen-3 binaria
+- [ ] Bench: Filter+Map <2.5ms
+
+### Validación obligatoria por cada item de v2.1
+
+- [ ] `cargo test --release` 100% verde (518 tests)
+- [ ] `bootstrap_test.sh` 9/9
+- [ ] `compiler/tests/liva` sin regresiones
+- [ ] gen-2 source ≡ gen-3 source (`diff -r = 0`)
+- [ ] gen-2 release binary ≡ gen-3 release binary (`cmp = 0`)
+- [ ] `benchmarks/run_official.sh` mejora la métrica objetivo, ninguna otra regresa >5%
+- [ ] `benchmarks/RESULTS.md` actualizado y commiteado
+
+---
+
+## v2.2 — Optimizaciones (Tier 2)
+
+> Solo si v2.1 no cierra el gap. Plan detallado: `compiler/docs/PLAN.md` § Fase 10.4 / 10.5.
+
+### 10.4 — `&str` deref directo en Map APIs
+
+> Bench objetivo: Map lookup 1.35x → ~1.20x.
+
+- [ ] `_emitMapMethod`: emitir `key.as_str()` en vez de `&(key)` cuando `key: String` y map es `HashMap<String, _>`
+- [ ] Mantener `&` para temporales (resultado de `format!`)
+- [ ] Idempotencia gen-2≡gen-3 binaria
+
+### 10.5 — `Box<str>` para Map values nunca mutados
+
+> Requiere análisis de escape del map.
+
+- [ ] Análisis `_localMapEscape`: map no exportado, no en parámetro genérico, no asignado a campo
+- [ ] Codegen: emitir `HashMap<K, Box<str>>` para maps locales con valores `String` nunca mutados
+- [ ] `m.get` devuelve `&str` directo
+- [ ] Idempotencia gen-2≡gen-3 binaria
+
+---
+
+## v3.0 — Borrow-tracking IR (Tier 3, rediseño)
+
+> **Solo si los datos justifican el esfuerzo tras v2.1+v2.2.** Estimación: 3–6 semanas.
+
+- [ ] Nuevo IR `liva-AST → liva-IR` con anotaciones `Owned | Borrowed | MutBorrowed` por uso
+- [ ] Pase de inferencia de borrow modes (combina liveness + mutabilidad efectiva + escape)
+- [ ] Codegen `IR → Rust` que solo emita `.clone()` cuando dos usos `Owned` consumen la misma variable
+- [ ] Migración incremental: feature flag `--ir`, comparar output con codegen actual hasta paridad
+- [ ] Retirar codegen legacy
+
+---
+
 ## v2.x — Ecosistema maduro (futuro)
 
 > **Priorizar según demanda de usuarios.**

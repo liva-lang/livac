@@ -6,7 +6,7 @@
 > **Tests:** 518 passing  
 > **Self-hosting:** Phase 7 idempotente; Phase 8 ✅; Phase 9 ✅ cerrada para v2.0 (9.1–9.6, 9.8, 9.9, 9.10 done; 9.7/9.11 deferred a v2.1) — idempotencia gen-2≡gen-3 binario, bench oficial en `benchmarks/RESULTS.md`  
 > **Rama activa:** `feat/self-hosting-v2`  
-> **Próximo objetivo:** v2.0 release — cerrar tag, Homebrew/Scoop bump, dogfooding final  
+> **Próximo objetivo:** v2.0 release (push, tag, distribución) → luego v2.1 = optimizaciones Tier 1 (10.1 last-use numbering, 10.2 param escape, 10.3 iterator chain fusion). Plan completo en `compiler/docs/PLAN.md` § Fase 10 y `BACKLOG.md` v2.1.  
 > **Última actualización:** 2026-04-28
 
 ---
