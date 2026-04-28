@@ -161,6 +161,13 @@ RustEmitter {
         this._isMainModule = isMain
     }
 
+    // Phase 10.5 Bloque 1: register a borrowed param index from outside.
+    // Public method so callers can prime the registry; uses `this` so the
+    // self-host codegen recognizes `_borrowedParamIndices` as a Map field.
+    primeBorrowedParam(bKey: string) {
+        this._borrowedParamIndices.set(bKey, true)
+    }
+
     getWarnings(): [string] {
         return this._warnings
     }
@@ -394,8 +401,14 @@ RustEmitter {
             for item in program.items {
                 let _ = switch item {
                     TopLevel.Function(fd) => {
-                        // Skip free functions — they can be called cross-module
-                        // where callers don't have borrow info
+                        // Phase 10.5 Bloque 1: free functions register too. Cross-
+                        // module callers receive the registry via generateRust /
+                        // generateModuleRust priming. `main` cannot take a string.
+                        if fd.name != "main" {
+                            let rawFK = $"{fd.name}"
+                            let sanFK = this._sanitizeName(fd.name)
+                            this._preRegisterBorrowedParams(rawFK, sanFK, fd.params)
+                        }
                         0
                     },
                     TopLevel.Class(cd) => {
@@ -949,8 +962,10 @@ RustEmitter {
         let typeStr = this._buildParamType(p.typeRef)
         // Phase 8.5: if param is borrowable string and doesn't escape → &str
         // BOOTSTRAP GATE: only apply &str opt when _enableStrRef is true
-        // Phase 8.6: only for methods — free functions may be called cross-module
-        if this._enableStrRef && this._currentFuncIsMethod && typeStr == "String" {
+        // Phase 10.5 Bloque 1: extended to free functions. Cross-module callers
+        // get borrow info via the global registry primed in generateRust /
+        // generateModuleRust. `main` is excluded (cannot take a string param).
+        if this._enableStrRef && (this._currentFuncIsMethod || not this._inMethod) && typeStr == "String" && this._currentFunc != "main" {
             let key = $"{this._currentFunc}:{rawName}"
             let isBorrow = 0
             if this._liveCtx.paramBorrow.has(key) {
@@ -2796,10 +2811,27 @@ RustEmitter {
                     // Phase 10.4: in `for x in str.split(sep)`, skip the
                     // `.collect::<Vec<String>>()` — we iterate the lazy iterator
                     // directly. Saves O(n) Vec allocation per call.
+                    // Phase 10.5 Bloque 1: when the source is an &str-borrowed
+                    // identifier (function param in `_strRefParams`), the loop
+                    // var can be &str directly. Skip `.map(|s| s.to_string())`
+                    // so each iteration yields &str instead of an owned String.
+                    let objIsStrRef = false
+                    let _ = switch obj {
+                        Expr.Identifier(on) => {
+                            let osn = this._sanitizeName(on)
+                            if this._strRefParams.has(osn) { objIsStrRef = true }
+                            0
+                        },
+                        _ => { 0 }
+                    }
                     this._emitExpr(obj)
                     this._write(".split(")
                     this._emitRefArg(args[0])
-                    this._write(").map(|s| s.to_string())")
+                    if objIsStrRef {
+                        this._write(")")
+                    } else {
+                        this._write(").map(|s| s.to_string())")
+                    }
                 } else {
                     // Other method call returns a collection
                     this._emitMethodCall(obj, m, args)
@@ -7114,21 +7146,102 @@ RustEmitter {
 //  Public API
 // =====================================================================
 
-generateRust(program: Program, typeCtx: TypeContext, liveCtx: LivenessContext, enumFields: Map<string, [string]>, enumFieldBoxed: Map<string, [bool]>, enumFieldOptional: Map<string, [bool]>): string {
+generateRust(program: Program, typeCtx: TypeContext, liveCtx: LivenessContext, enumFields: Map<string, [string]>, enumFieldBoxed: Map<string, [bool]>, enumFieldOptional: Map<string, [bool]>, globalBorrow: Map<string, bool>): string {
     let emitter = RustEmitter(typeCtx, liveCtx)
     emitter._enumVariantFields = enumFields
     emitter._enumVariantFieldBoxed = enumFieldBoxed
     emitter._enumVariantFieldOptional = enumFieldOptional
+    // Phase 10.5 Bloque 1: prime cross-module borrow registry so call sites in
+    // this module can detect that free functions defined in OTHER modules take
+    // their String params as `&str`.
+    for k in globalBorrow.keys() {
+        let kCopy = $"{k}"
+        emitter.primeBorrowedParam(kCopy)
+    }
     return emitter.generate(program)
 }
 
-generateModuleRust(program: Program, typeCtx: TypeContext, liveCtx: LivenessContext, enumFields: Map<string, [string]>, enumFieldBoxed: Map<string, [bool]>, enumFieldOptional: Map<string, [bool]>): string {
+generateModuleRust(program: Program, typeCtx: TypeContext, liveCtx: LivenessContext, enumFields: Map<string, [string]>, enumFieldBoxed: Map<string, [bool]>, enumFieldOptional: Map<string, [bool]>, globalBorrow: Map<string, bool>): string {
     let emitter = RustEmitter(typeCtx, liveCtx)
     emitter.setIsMainModule(false)
     emitter._enumVariantFields = enumFields
     emitter._enumVariantFieldBoxed = enumFieldBoxed
     emitter._enumVariantFieldOptional = enumFieldOptional
+    // Phase 10.5 Bloque 1: prime cross-module borrow registry (see generateRust).
+    for k in globalBorrow.keys() {
+        let kCopy = $"{k}"
+        emitter.primeBorrowedParam(kCopy)
+    }
     return emitter.generate(program)
+}
+
+// Phase 10.5 Bloque 1: collect borrowable (&str) free-function params for one
+// module. Returns a Map<bKey, bool> where bKey = "{sanFuncName}:{paramIdx}".
+// Run by main.liva once per module BEFORE codegen, then merged into a global
+// registry shared across all modules so cross-module call sites see borrow info.
+//
+// Standalone implementation (no TypeContext needed) — matches TypeRef directly.
+// Mirrors the gate in `_buildParam`: param type must be `string` (Simple) and
+// liveness must say paramBorrow=1 && paramEscapes=0. `main` excluded.
+collectBorrowedParams(program: Program, liveCtx: LivenessContext): Map<string, bool> {
+    let registry: Map<string, bool> = Map {}
+    for item in program.items {
+        let _ = switch item {
+            TopLevel.Function(fd) => {
+                if fd.name != "main" {
+                    let rawFK = $"{fd.name}"
+                    let sanFK = sanitizeName(fd.name)
+                    let pIdx = 0
+                    for p in fd.params {
+                        let rawName = switch p.pattern {
+                            BindingPattern.Identifier(n) => n,
+                            _ => "_"
+                        }
+                        let isStringType = paramTypeIsString(p.typeRef)
+                        if isStringType {
+                            let livenessKey = $"{rawFK}:{rawName}"
+                            let isBorrow = 0
+                            if liveCtx.paramBorrow.has(livenessKey) {
+                                isBorrow = liveCtx.paramBorrow.get(livenessKey)
+                            }
+                            let isEscape = 0
+                            if liveCtx.paramEscapes.has(livenessKey) {
+                                isEscape = liveCtx.paramEscapes.get(livenessKey)
+                            }
+                            if isBorrow == 1 && isEscape == 0 {
+                                let bKey = $"{sanFK}:{pIdx}"
+                                registry.set(bKey, true)
+                            }
+                        }
+                        pIdx += 1
+                    }
+                }
+                0
+            },
+            _ => { 0 }
+        }
+    }
+    return registry
+}
+
+// Standalone helper: returns true iff `optRef` is `Some(TypeRef.Simple("string"))`.
+paramTypeIsString(optRef: TypeRef?): bool {
+    if optRef != null {
+        return _typeRefIsStringSimple(optRef)
+    }
+    return false
+}
+
+_typeRefIsStringSimple(t: TypeRef): bool {
+    let result = false
+    let _ = switch t {
+        TypeRef.Simple(tn) => {
+            if tn == "string" { result = true }
+            0
+        },
+        _ => { 0 }
+    }
+    return result
 }
 
 // Reusable name sanitization: camelCase → snake_case + keyword escaping
@@ -7148,6 +7261,54 @@ sanitizeFieldName(name: string): string {
         i += 1
     }
     return result
+}
+
+// Standalone version of `_toSnakeCase` (used by `collectBorrowedParams`).
+toSnakeCaseStandalone(name: string): string {
+    let allCaps = true
+    for ch in name {
+        let isUpper = ch >= "A" && ch <= "Z"
+        let isUnderscore = ch == "_"
+        let isDigit = ch >= "0" && ch <= "9"
+        if not isUpper && not isUnderscore && not isDigit {
+            allCaps = false
+        }
+    }
+    if allCaps && name.length > 1 {
+        return name
+    }
+    let result = ""
+    let i = 0
+    for ch in name {
+        if ch >= "A" && ch <= "Z" {
+            if i > 0 {
+                result += "_"
+            }
+            result += ch.toLowerCase()
+        } else {
+            result += ch
+        }
+        i += 1
+    }
+    return result
+}
+
+// Standalone version of `_sanitizeName` (used by `collectBorrowedParams`).
+sanitizeName(name: string): string {
+    if name == "type" { return "r#type" }
+    if name == "match" { return "r#match" }
+    if name == "ref" { return "r#ref" }
+    if name == "mod" { return "r#mod" }
+    if name == "use" { return "r#use" }
+    if name == "impl" { return "r#impl" }
+    if name == "trait" { return "r#trait" }
+    if name == "where" { return "r#where" }
+    if name == "async" { return "r#async" }
+    if name == "await" { return "r#await" }
+    if name == "move" { return "r#move" }
+    if name == "self" { return "self_" }
+    if name == "default" { return "default_val" }
+    return toSnakeCaseStandalone(name)
 }
 
 main() {

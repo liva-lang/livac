@@ -33,7 +33,7 @@ import { Lexer, tokenize } from "./lexer"
 import { Parser, parse } from "./parser"
 import { SemanticAnalyzer, TypeContext, DiagnosticLevel, analyzeProgram } from "./semantic"
 import { LivenessAnalyzer, LivenessContext, analyzeLiveness } from "./liveness"
-import { RustEmitter, generateRust, generateModuleRust, sanitizeFieldName } from "./codegen"
+import { RustEmitter, generateRust, generateModuleRust, sanitizeFieldName, collectBorrowedParams } from "./codegen"
 import { ModuleResolver, LivaModule } from "./module"
 
 // =====================================================================
@@ -179,7 +179,8 @@ compileSingleFile(source: string, fileName: string, checkOnly: bool): Compilatio
     let emptyEnumFields: Map<string, [string]> = Map {}
     let emptyEnumFieldBoxed: Map<string, [bool]> = Map {}
     let emptyEnumFieldOptional: Map<string, [bool]> = Map {}
-    let rustCode = generateRust(program, typeCtx, liveCtxCopy, emptyEnumFields, emptyEnumFieldBoxed, emptyEnumFieldOptional)
+    let emptyBorrow: Map<string, bool> = Map {}
+    let rustCode = generateRust(program, typeCtx, liveCtxCopy, emptyEnumFields, emptyEnumFieldBoxed, emptyEnumFieldOptional, emptyBorrow)
 
     // Step 6: Cargo.toml — detect deps from generated code
     let projectName = fileToProjectName(fileName)
@@ -369,6 +370,28 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
         parsedModules.set(modPath, [copy1, copy2, copy3])
     }
 
+    // Phase 10.5 Bloque 1 — Pass 2a: build global borrow registry across all
+    // modules. For each free function param of type `string`, if liveness says
+    // it doesn't escape, register `(sanFunc, idx) → true`. Cross-module call
+    // sites consult this registry to know whether to pass `&value` instead of
+    // `value.clone()`. Re-parses each module (cheap) to avoid consuming Pass 2
+    // cache copies, then runs liveness fresh on those re-parsed ASTs.
+    let globalBorrow: Map<string, bool> = Map {}
+    for modPath in compileOrder {
+        let modR: LivaModule = resolver.getModule(modPath)
+        let modSrcR = $"{modR.source}"
+        let modTokensR = tokenize(modSrcR)
+        let modProgramR = parse(modTokensR, modSrcR)
+        let liveCtx2a = analyzeLiveness(modProgramR)
+        let modTokensR2 = tokenize(modSrcR)
+        let modProgramR2 = parse(modTokensR2, modSrcR)
+        let modBorrows = collectBorrowedParams(modProgramR2, liveCtx2a)
+        for k in modBorrows.keys() {
+            let kCopy = $"{k}"
+            globalBorrow.set(kCopy, true)
+        }
+    }
+
     // Pass 2: Generate Rust for each module with all enum fields available
 
     for modPath in compileOrder {
@@ -384,9 +407,9 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
         // Sub-modules: generateModuleRust() → includes use std only (no #![allow], no mod)
         let rustCode = ""
         if isEntry {
-            rustCode = generateRust(programForCodegen, typeCtx, liveCtx, allEnumFields, allEnumFieldBoxed, allEnumFieldOptional)
+            rustCode = generateRust(programForCodegen, typeCtx, liveCtx, allEnumFields, allEnumFieldBoxed, allEnumFieldOptional, globalBorrow)
         } else {
-            rustCode = generateModuleRust(programForCodegen, typeCtx, liveCtx, allEnumFields, allEnumFieldBoxed, allEnumFieldOptional)
+            rustCode = generateModuleRust(programForCodegen, typeCtx, liveCtx, allEnumFields, allEnumFieldBoxed, allEnumFieldOptional, globalBorrow)
         }
 
         let modName = resolver.pathToModName(modPath)
