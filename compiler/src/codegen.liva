@@ -2209,7 +2209,8 @@ RustEmitter {
         }
         if not condIsHas { return false }
         if condKeyE == "" { return false }
-        if not this._mapVars.has(this._sanitizeName(condMapName)) { return false }
+        let condMapSan: string = this._sanitizeName(condMapName)
+        if not this._mapVars.has(condMapSan) { return false }
 
         // 2. then-branch: must contain exactly 2 stmts
         let thenStmts: [Stmt] = this._ifBodyStmts(stmt.thenBranch)
@@ -2560,10 +2561,27 @@ RustEmitter {
             }
             if useCopyDeref {
                 this._write($"for &{varName} in ")
+                // Phase 9: with `&{var}` pattern we need an iterator over references.
+                // Emit `&{ident}` directly to avoid `_emitForIterable` choosing a
+                // by-value move path (which would yield owned Copy values and break
+                // the `&{var}` pattern).
+                let emitted = false
+                let _ = switch iterableExpr {
+                    Expr.Identifier(iterName) => {
+                        let san = this._sanitizeName(iterName)
+                        this._write($"&{san}")
+                        emitted = true
+                        0
+                    },
+                    _ => { 0 }
+                }
+                if not emitted {
+                    this._emitForIterable(iterableExpr)
+                }
             } else {
                 this._write($"for {varName} in ")
+                this._emitForIterable(iterableExpr)
             }
-            this._emitForIterable(iterableExpr)
             // Suppress inner clone — we already have the Copy value via deref pattern
             if useCopyDeref {
                 this._forNeedsInnerClone = false

@@ -1,6 +1,6 @@
 # Self-Hosting: Compilador de Liva escrito en Liva
 
-> **Estado:** Fase 8 completada — Fase 9 Commits 1-3 aplicados (9.1/9.2/9.3/9.4/9.5/9.6/9.8/9.10 done, 9.9 ya cubierto, 9.7/9.11 aplazados), bootstrap 9/9, pendiente bench
+> **Estado:** Fase 8 completada — Fase 9 cerrada para v2.0 (9.1/9.2/9.3/9.4/9.5/9.6/9.8/9.10 done, 9.9 ya cubierto, 9.7/9.11 deferred); bench oficial gen-2 vs hand-written Rust ejecutado (`benchmarks/RESULTS.md`); idempotencia gen-2≡gen-3 (binario `cmp = 0`)
 > **Última actualización:** 2026-04-27
 > **Branch:** `feat/self-hosting-v2`
 
@@ -692,7 +692,7 @@ Fase 9: Cerrar gaps de eficiencia del Rust generado
   [x] 9.5: Array.sort() para primitivos → `.sort()`; resto `.sort_by(partial_cmp)`
   9b — Iterator chains sin clones
   [x] 9.6: `_emitIterPrefix` con T Copy → `.iter().copied()` (commit 550df15)
-  [ ] 9.7: Map.keys()/values() en for-in: sin `.cloned().collect()` — APLAZADO (riesgo: cambia tipo loop var de K a &K, rompe usos en body, requiere análisis de uso)
+  [ ] 9.7: Map.keys()/values() en for-in: sin `.cloned().collect()` — DEFERRED a v2.1 (riesgo: cambia tipo loop var de K a &K, rompe usos en body, requiere análisis de uso de loop var). Bench oficial muestra que el gap actual (Word-counting 2.11x, Map build+lookup 1.35x) es aceptable para v2.0; el principal coste es `lower.clone()` en el peephole `entry().or_insert()`, no `.cloned().collect()` en `for k in m.keys()`.
   9c — Map patterns inteligentes
   [x] 9.8: Peephole has+get+set → entry().or_insert() (`_emitIf` + `_tryEmitEntryApi` en `compiler/src/codegen.liva`). Solo dispara con clave Identifier/Int y operador `+`/`-` con literal Int en RHS y INIT. Idempotencia gen-2==gen-3 verificada (diff -r = 0 líneas).
   [x] 9.9: Map.set con clave String single-use → omitir `.clone()` — YA CUBIERTO por la lógica `isSingleUse` de Phase 8 en `_emitClonedArg`

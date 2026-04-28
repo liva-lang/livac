@@ -5,7 +5,7 @@ set -e
 
 cd "$(dirname "$0")/.."
 
-LIVAC="./target/release/livac"
+LIVAC="${LIVAC:-./target/release/livac}"
 BENCH_DIR="benchmarks"
 RESULTS_FILE="$BENCH_DIR/RESULTS.md"
 

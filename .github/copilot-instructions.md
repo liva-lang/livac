@@ -4,9 +4,9 @@
 > **Versión:** v2.0.0-dev (tag: v1.2.0)  
 > **Lenguaje:** Rust (bootstrap) + Liva (self-hosting)  
 > **Tests:** 518 passing  
-> **Self-hosting:** Phase 7 idempotente; Phase 8 ✅; Phase 9 en curso (9.1–9.6, 9.8, 9.9, 9.10 done; 9.7/9.11 aplazados)  
+> **Self-hosting:** Phase 7 idempotente; Phase 8 ✅; Phase 9 ✅ cerrada para v2.0 (9.1–9.6, 9.8, 9.9, 9.10 done; 9.7/9.11 deferred a v2.1) — idempotencia gen-2≡gen-3 binario, bench oficial en `benchmarks/RESULTS.md`  
 > **Rama activa:** `feat/self-hosting-v2`  
-> **Próximo objetivo:** Phase 9.7 (Map keys/values borrowed) y bench oficial gen-2 vs Rust hand-written  
+> **Próximo objetivo:** v2.0 release — cerrar tag, Homebrew/Scoop bump, dogfooding final  
 > **Última actualización:** 2026-04-28
 
 ---
