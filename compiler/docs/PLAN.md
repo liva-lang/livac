@@ -1,6 +1,6 @@
 # Self-Hosting: Compilador de Liva escrito en Liva
 
-> **Estado:** Fase 8 completada — Fase 9 Commits 1-3 aplicados (9.1/9.2/9.3/9.4/9.5/9.6/9.10 done, 9.9 ya cubierto, 9.7/9.8 aplazados), bootstrap 9/9, pendiente bench
+> **Estado:** Fase 8 completada — Fase 9 Commits 1-3 aplicados (9.1/9.2/9.3/9.4/9.5/9.6/9.8/9.10 done, 9.9 ya cubierto, 9.7/9.11 aplazados), bootstrap 9/9, pendiente bench
 > **Última actualización:** 2026-04-27
 > **Branch:** `feat/self-hosting-v2`
 
@@ -694,7 +694,7 @@ Fase 9: Cerrar gaps de eficiencia del Rust generado
   [x] 9.6: `_emitIterPrefix` con T Copy → `.iter().copied()` (commit 550df15)
   [ ] 9.7: Map.keys()/values() en for-in: sin `.cloned().collect()` — APLAZADO (riesgo: cambia tipo loop var de K a &K, rompe usos en body, requiere análisis de uso)
   9c — Map patterns inteligentes
-  [ ] 9.8: Peephole has+get+set → entry().or_insert() — APLAZADO (requiere análisis statement-level de 3 stmts consecutivos en bloque, infraestructura nueva)
+  [x] 9.8: Peephole has+get+set → entry().or_insert() (`_emitIf` + `_tryEmitEntryApi` en `compiler/src/codegen.liva`). Solo dispara con clave Identifier/Int y operador `+`/`-` con literal Int en RHS y INIT. Idempotencia gen-2==gen-3 verificada (diff -r = 0 líneas).
   [x] 9.9: Map.set con clave String single-use → omitir `.clone()` — YA CUBIERTO por la lógica `isSingleUse` de Phase 8 en `_emitClonedArg`
   9d — Limpieza arquitectónica
   [x] 9.10: `todo!()` / `/* unknown */` reemplazados por `_warn()` + `Some(<expr>)`

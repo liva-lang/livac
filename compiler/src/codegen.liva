@@ -2144,6 +2144,9 @@ RustEmitter {
     // -- If statement --
 
     _emitIf(stmt: IfStmt) {
+        // Phase 9.8: peephole — has+get+set → entry API
+        if this._tryEmitEntryApi(stmt) { return }
+
         this._writeIndent()
         this._write("if ")
         this._inIfCondition = true
@@ -2163,6 +2166,316 @@ RustEmitter {
             this._dedent()
         }
         this._writeln("}")
+    }
+
+    // Phase 9.8: detect the canonical "increment/decrement-or-init" pattern on a Map
+    // and lower it to Rust's `*m.entry(k).or_insert(X) += R;` form.
+    //
+    //     if m.has(K) {
+    //         let c = m.get(K)
+    //         m.set(K, c + R)        // or c - R
+    //     } else {
+    //         m.set(K, INIT)
+    //     }
+    //
+    //  →  *m.entry(K.clone()).or_insert(INIT - R) += R;        (Add)
+    //  →  *m.entry(K.clone()).or_insert(INIT + R) -= R;        (Sub)
+    //
+    // Conservative guards: only when R and INIT are integer literals, the four
+    // K occurrences are syntactically equal (Identifier or Int/Str literal),
+    // and m is a known Map variable. Otherwise fall through to the regular
+    // if/else lowering. Returns true iff the optimized form was emitted.
+    _tryEmitEntryApi(stmt: IfStmt): bool {
+        // 1. Condition: m.has(K)
+        let condIsHas = false
+        let condMapName = ""
+        let condKeyE = ""
+        let _ = switch stmt.condition {
+            Expr.MethodCall(co, cm, ca) => {
+                if cm == "has" and ca.length == 1 {
+                    let _ = switch co {
+                        Expr.Identifier(cn) => {
+                            condIsHas = true
+                            condMapName = cn
+                            for k in ca { condKeyE = this._entryKeyEmit(k); break }
+                            0
+                        },
+                        _ => { 0 }
+                    }
+                }
+                0
+            },
+            _ => { 0 }
+        }
+        if not condIsHas { return false }
+        if condKeyE == "" { return false }
+        if not this._mapVars.has(this._sanitizeName(condMapName)) { return false }
+
+        // 2. then-branch: must contain exactly 2 stmts
+        let thenStmts: [Stmt] = this._ifBodyStmts(stmt.thenBranch)
+        if thenStmts.length != 2 { return false }
+
+        // 3. else-branch: must be present and contain exactly 1 stmt
+        let elseBranch = stmt.elseBranch
+        if elseBranch == null { return false }
+        let elseStmts: [Stmt] = []
+        if elseBranch != null {
+            elseStmts = this._ifBodyStmts(elseBranch)
+        }
+        if elseStmts.length != 1 { return false }
+
+        // 4. then[0]: VarDecl single Identifier `cName`, init = m.get(K)
+        let cName = ""
+        let getMapName = ""
+        let getKeyE = ""
+        let stmt0Ok = false
+        for s0 in thenStmts {
+            let _ = switch s0 {
+                Stmt.VarDecl(decl) => {
+                    if decl.bindings.length == 1 and not decl.isFallible {
+                        for b in decl.bindings {
+                            let _ = switch b.pattern {
+                                BindingPattern.Identifier(bn) => { cName = bn; 0 },
+                                _ => { 0 }
+                            }
+                            break
+                        }
+                        if cName != "" {
+                            let _ = switch decl.init {
+                                Expr.MethodCall(go, gm, ga) => {
+                                    if gm == "get" and ga.length == 1 {
+                                        let _ = switch go {
+                                            Expr.Identifier(gn) => {
+                                                getMapName = gn
+                                                for k in ga { getKeyE = this._entryKeyEmit(k); break }
+                                                if getKeyE != "" { stmt0Ok = true }
+                                                0
+                                            },
+                                            _ => { 0 }
+                                        }
+                                    }
+                                    0
+                                },
+                                _ => { 0 }
+                            }
+                        }
+                    }
+                    0
+                },
+                _ => { 0 }
+            }
+            break
+        }
+        if not stmt0Ok { return false }
+
+        // 5. then[1]: ExprStmt(MethodCall(m, "set", [K, Binary(Add|Sub, Identifier(cName), Int(R))]))
+        let setMapName = ""
+        let setKeyE = ""
+        let opIsAdd = false
+        let rVal = 0
+        let stmt1Ok = false
+        let idx0 = 0
+        for s1 in thenStmts {
+            if idx0 == 1 {
+                let _ = switch s1 {
+                    Stmt.ExprStmt(se) => {
+                        let _ = switch se {
+                            Expr.MethodCall(so, sm, sa) => {
+                                if sm == "set" and sa.length == 2 {
+                                    let _ = switch so {
+                                        Expr.Identifier(sn) => { setMapName = sn; 0 },
+                                        _ => { 0 }
+                                    }
+                                    if setMapName != "" {
+                                        // First pass: extract key (idx 0) into a string
+                                        let kIdx = 0
+                                        for kArg in sa {
+                                            if kIdx == 0 {
+                                                setKeyE = this._entryKeyEmit(kArg)
+                                            }
+                                            kIdx += 1
+                                        }
+                                        // Second pass: validate value (idx 1) is `c <op> Int`
+                                        let vIdx = 0
+                                        for vArg in sa {
+                                            if vIdx == 1 {
+                                                let _ = switch vArg {
+                                                    Expr.Binary(bop, bl, br) => {
+                                                        let opOk = false
+                                                        let _ = switch bop {
+                                                            BinOp.Add => { opOk = true; opIsAdd = true; 0 },
+                                                            BinOp.Sub => { opOk = true; opIsAdd = false; 0 },
+                                                            _ => { 0 }
+                                                        }
+                                                        if opOk {
+                                                            let leftOk = false
+                                                            let _ = switch bl {
+                                                                Expr.Identifier(ln) => {
+                                                                    if ln == cName { leftOk = true }
+                                                                    0
+                                                                },
+                                                                _ => { 0 }
+                                                            }
+                                                            if leftOk {
+                                                                let _ = switch br {
+                                                                    Expr.Literal(rlit) => {
+                                                                        let _ = switch rlit {
+                                                                            Literal.Int(rv) => { rVal = rv; stmt1Ok = true; 0 },
+                                                                            _ => { 0 }
+                                                                        }
+                                                                        0
+                                                                    },
+                                                                    _ => { 0 }
+                                                                }
+                                                            }
+                                                        }
+                                                        0
+                                                    },
+                                                    _ => { 0 }
+                                                }
+                                            }
+                                            vIdx += 1
+                                        }
+                                    }
+                                }
+                                0
+                            },
+                            _ => { 0 }
+                        }
+                        0
+                    },
+                    _ => { 0 }
+                }
+                break
+            }
+            idx0 += 1
+        }
+        if not stmt1Ok { return false }
+        if setKeyE == "" { return false }
+
+        // 6. else[0]: ExprStmt(MethodCall(m, "set", [K, Literal.Int(initN)]))
+        let elseMapName = ""
+        let elseKeyE = ""
+        let initN = 0
+        let stmt2Ok = false
+        for e0 in elseStmts {
+            let _ = switch e0 {
+                Stmt.ExprStmt(ee) => {
+                    let _ = switch ee {
+                        Expr.MethodCall(eo, em, ea) => {
+                            if em == "set" and ea.length == 2 {
+                                let _ = switch eo {
+                                    Expr.Identifier(en) => { elseMapName = en; 0 },
+                                    _ => { 0 }
+                                }
+                                if elseMapName != "" {
+                                    let kIdx2 = 0
+                                    for kArg2 in ea {
+                                        if kIdx2 == 0 {
+                                            elseKeyE = this._entryKeyEmit(kArg2)
+                                        }
+                                        kIdx2 += 1
+                                    }
+                                    let vIdx2 = 0
+                                    for vArg2 in ea {
+                                        if vIdx2 == 1 {
+                                            let _ = switch vArg2 {
+                                                Expr.Literal(lit) => {
+                                                    let _ = switch lit {
+                                                        Literal.Int(iv) => { initN = iv; stmt2Ok = true; 0 },
+                                                        _ => { 0 }
+                                                    }
+                                                    0
+                                                },
+                                                _ => { 0 }
+                                            }
+                                        }
+                                        vIdx2 += 1
+                                    }
+                                }
+                            }
+                            0
+                        },
+                        _ => { 0 }
+                    }
+                    0
+                },
+                _ => { 0 }
+            }
+            break
+        }
+        if not stmt2Ok { return false }
+        if elseKeyE == "" { return false }
+
+        // 7. All four map references must name the same variable
+        if condMapName != getMapName { return false }
+        if condMapName != setMapName { return false }
+        if condMapName != elseMapName { return false }
+
+        // 8. All four keys must be syntactically equal
+        if condKeyE != getKeyE { return false }
+        if condKeyE != setKeyE { return false }
+        if condKeyE != elseKeyE { return false }
+
+        // 9. Compute the seed for or_insert so that, after the compound op,
+        //    the "missing key" branch yields exactly INIT.
+        let seed = initN - rVal
+        let opStr = "+"
+        if not opIsAdd {
+            seed = initN + rVal
+            opStr = "-"
+        }
+
+        // 10. Emit `*<m>.entry(<K>).or_insert(<seed>) <op>= <r>;`
+        this._writeIndent()
+        let mapName = this._sanitizeName(condMapName)
+        this._write($"*{mapName}.entry({condKeyE}).or_insert({seed}) {opStr}= {rVal};")
+        this._newline()
+        return true
+    }
+
+    // Helper: flattens an IfBody (Block or SingleStmt) into a plain [Stmt].
+    // Used by the entry-API peephole so the caller has a single use of the
+    // IfBody value (avoiding self-host codegen move limitations).
+    _ifBodyStmts(body: IfBody): [Stmt] {
+        let result: [Stmt] = []
+        let _ = switch body {
+            IfBody.Block(b) => {
+                for s in b.stmts { result.push(s) }
+                0
+            },
+            IfBody.SingleStmt(stmts) => {
+                for s in stmts { result.push(s) }
+                0
+            }
+        }
+        return result
+    }
+
+    // Helper: returns a Rust emission string for a key expression suitable
+    // for use inside `HashMap::entry(...)`. Identifier emits as `name.clone()`
+    // (a no-op for Copy types — accepting the small redundancy avoids a
+    // second use of the binding inside the match arm, which the self-host
+    // codegen doesn't clone yet). Int literal emits as the integer text.
+    // Returns "" for any other shape so the peephole bails out cleanly.
+    _entryKeyEmit(e: Expr): string {
+        let result = ""
+        let _ = switch e {
+            Expr.Identifier(n) => {
+                let san = this._sanitizeName(n)
+                result = $"{san}.clone()"
+                0
+            },
+            Expr.Literal(l) => {
+                let _ = switch l {
+                    Literal.Int(v) => { result = $"{v}"; 0 },
+                    _ => { 0 }
+                }
+                0
+            },
+            _ => { 0 }
+        }
+        return result
     }
 
     _emitIfBody(body: IfBody) {
