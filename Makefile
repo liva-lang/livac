@@ -34,6 +34,17 @@ clean:
 	@rm -rf target/liva_build
 	@echo "✓ Clean complete"
 
+# Deep clean: cargo + nested target/, .liva_build/, node_modules, dist, .astro
+clean-all:
+	@bash scripts/clean.sh --yes
+
+# Prune stale Cargo build artifacts (keeps recent, deletes old).
+# Requires: cargo install cargo-sweep --locked
+sweep:
+	@echo "🧹 Sweeping stale build artifacts (>30 days)..."
+	@cargo sweep --time 30 || echo "  (install cargo-sweep first: cargo install cargo-sweep --locked)"
+	@echo "✓ Sweep complete"
+
 # Build AI skill from docs/
 skill:
 	@scripts/build-skill.sh

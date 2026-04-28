@@ -1,5 +1,6 @@
 # Rust
 /target/
+**/target/
 **/*.rs.bk
 *.pdb
 Cargo.lock
@@ -38,6 +39,22 @@ Thumbs.db
 todos.db
 .liva_test_build/
 examples/benchmark/handwritten
+
+# Generational / scratch build dirs (self-hosting tests, benchmarks)
+# These are nested under target/ but listed explicitly for clarity / safety
+**/gen[0-9]*_build/
+**/gen[0-9]*_test/
+**/bootstrap_test/
+**/selfhost_bootstrap/
+**/selfhost_test/
+**/orig_test/
+**/test_scratch/
+**/test_build_gen[0-9]*/
+**/bench_rust/
+**/liva_build_*/
+
+# node_modules (just in case any nested project adds one)
+**/node_modules/
 
 # Benchmark binaries
 benchmarks/liva/*_bin

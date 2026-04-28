@@ -16,7 +16,7 @@
    code --install-extension liva-lang.liva-vscode
    
    # Or from VSIX
-   code --install-extension liva-vscode-0.12.0.vsix
+   code --install-extension liva-vscode-0.14.0.vsix
    ```
 
 2. **Verify Installation:**
