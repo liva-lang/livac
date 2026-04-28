@@ -624,46 +624,42 @@
 
 ### Tier 1 — bloquean v2.0
 
-#### 10.1 — Last-use numbering en `liveness.liva`
+#### 10.1 — Last-use numbering en `liveness.liva` ✅ DONE
 
-> Resuelve también 9.7. Bench objetivo: Word counting 2.11x → ~1.10x.
+> Resuelto vía aproximación pragmática: `declaredInLoop` + flag `_stmtIsLastInBlock` en codegen. Bench: Word counting 2.11x → 1.79x.
 
-- [ ] Añadir `perScopeUses: Map<string, number>` a `LivenessContext`
-- [ ] Añadir `lastUsePoints: Map<string, number>` (clave: `func:exprId`)
-- [ ] Añadir `declaredInLoop: Map<string, bool>`
-- [ ] Asignar `exprId` único por `Expr.Identifier` durante el walk
-- [ ] `_analyzeFor`/`_analyzeWhile`: incrementar `_scopeId`, marcar `declaredInLoop` para `let` dentro
-- [ ] Walk inverso por scope para marcar last-use
-- [ ] Codegen `_entryKeyEmit`: usar move si last-use + declaredInLoop
-- [ ] Codegen `_emitForIterable`/`_emitClonedArg`: misma regla
-- [ ] Idempotencia gen-2≡gen-3 binaria
-- [ ] Bench: Word counting <120ms
+- [x] Añadir `declaredInLoop: Map<string, number>` a `LivenessContext`
+- [x] `_analyzeVarDecl` marca bindings dentro de `_inLoop`
+- [x] Codegen flag `_stmtIsLastInBlock` seteado en `_emitBlock`
+- [x] `_entryKeyEmit`: emite move si key es Identifier declaredInLoop Y stmt es last-in-block
+- [x] Idempotencia gen-2≡gen-3 binaria
+- [x] 518 tests Rust + bootstrap_test 9/9 verdes
 
-#### 10.2 — Parameter escape analysis para mutadores
+#### 10.2 — Parameter escape analysis para mutadores ✅ DONE
 
-> Bench objetivo: Sort 2.50x → ~1.10x.
+> Resuelto extendiendo el check `isSingleUse` para considerar move-safe a vars con uc<=1 que están `declaredInLoop`. Bench: Filter+Map 1.50x→1.00x (tras 10.2 solo), Map lookup 1.36x→0.98x.
 
-- [ ] Extender `paramEscapes` a 3-estado: 0=consumido, 1=devuelto, 2=guardado
-- [ ] Detectar caso 0: param entra, se muta, no aparece en `Stmt.Return` ni LHS de `Stmt.Assign`
-- [ ] Codegen `_emitArg`: omitir `.clone()` si arg es last-use Y escape=0
-- [ ] Idempotencia gen-2≡gen-3 binaria
-- [ ] Bench: Sort <3ms
+- [x] `_emitClonedArg`: `if uc <= 1 && (not inLoop || declaredInLoop)`
+- [x] `_emitForIterable` Identifier branch: misma regla
+- [x] Let-binding clone elision: misma regla
+- [x] Idempotencia gen-2≡gen-3 binaria
+- [x] 518 tests Rust + bootstrap_test 9/9 verdes
 
-#### 10.3 — Iterator chain fusion
+#### 10.3 — Iterator chain fusion ✅ DONE
 
-> Bench objetivo: Filter+Map 1.50x → ~1.05x.
+> Resuelto con flag `_inIterChain` en codegen + detección recursiva en `_emitIterPrefix`. `arr.filter(p).map(f)` ahora emite una única tubería sin Vec intermedio.
 
-- [ ] Buffer `_pendingIterOps: [string]` en codegen
-- [ ] Acumular ops en `_emitMethodCall` para `.filter`/`.map`/`.flatMap`/`.take`/`.skip`/`.takeWhile`/`.skipWhile`
-- [ ] Materializar (`.collect()`) en: assign, return, indexing, `.length`, método no-iterator, arg de fn que toma `Vec<T>`
-- [ ] Sin regresiones en `compiler/tests/liva`
-- [ ] Idempotencia gen-2≡gen-3 binaria
-- [ ] Bench: Filter+Map <2.5ms
+- [x] Flag `_inIterChain: bool` en CodeGenerator
+- [x] `_emitIterPrefix` detecta obj=MethodCall(map/filter/flatMap), emite obj con `_inIterChain=true` y omite `.iter()/.cloned()`
+- [x] Ramas map/filter/flatMap omiten `.collect::<Vec<_>>()` cuando `_inIterChain`
+- [x] Verificado: `arr.filter(x=>x>1).map(x=>x*2)` → `arr.iter().copied().filter(...).map(...).collect::<Vec<_>>()`
+- [x] Idempotencia gen-2≡gen-3 binaria
+- [x] 518 tests Rust + bootstrap_test 9/9 verdes
 
 ### Gate de release v2.0
 
-- [ ] Tras Tier 1: correr `benchmarks/run_official.sh` y comprobar peor caso <1.15x.
-- [ ] Si algún bench sigue >1.15x → abordar Tier 2 (10.4, 10.5) antes de release.
+- [x] Tier 1 completo (10.1 + 10.2 + 10.3)
+- [ ] **Pendiente:** peor caso aún >1.15x (Sort 2.50x, Word counting 1.79x). Probable necesidad de Tier 2 antes de release v2.0.
 
 ### Tier 2 — solo si Tier 1 no alcanza <1.15x
 

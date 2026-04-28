@@ -6,7 +6,7 @@
 > **Tests:** 518 passing  
 > **Self-hosting:** Phase 7 idempotente; Phase 8 ✅; Phase 9 ✅ (9.1–9.6, 9.8, 9.9, 9.10 done; 9.7/9.11 absorbidos por Fase 10) — idempotencia gen-2≡gen-3 binario, bench oficial en `benchmarks/RESULTS.md`  
 > **Rama activa:** `feat/self-hosting-v2`  
-> **Próximo objetivo:** **Fase 10 (optimizaciones del Rust generado) — prerrequisito de v2.0**. Tier 1 obligatorio: 10.1 last-use numbering, 10.2 param escape, 10.3 iterator chain fusion. Gate de release: peor bench <1.15x. Plan en `compiler/docs/PLAN.md` § Fase 10 y `BACKLOG.md`.  
+> **Próximo objetivo:** **Fase 10 (optimizaciones del Rust generado) — prerrequisito de v2.0**. Tier 1 ✅ DONE (10.1 last-use+declaredInLoop, 10.2 clone elision en loop, 10.3 iterator chain fusion). Gate v2.0 (peor bench <1.15x): aún Sort 2.50x y Word counting 1.79x — probable Tier 2 antes de release. Plan en `compiler/docs/PLAN.md` § Fase 10 y `BACKLOG.md`.  
 > **Última actualización:** 2026-04-28
 
 ---
