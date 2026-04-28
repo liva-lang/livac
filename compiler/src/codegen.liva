@@ -3455,12 +3455,21 @@ RustEmitter {
                             _ => { 0 }
                         }
                         if leftIsTarget {
-                            // x + y → x.push_str(&y)
+                            // x + y → x.push_str(&y) when y is already a String,
+                            // else x.push_str(&(y).to_string()) for primitives.
                             let pst5 = this._pushStrTarget
+                            let rightIsString = this._isStringExpr(right)
                             this._write(pst5)
-                            this._write(".push_str(&(")
-                            this._emitExpr(right)
-                            this._write(").to_string())")
+                            if rightIsString {
+                                // Phase 10.4: skip useless `.to_string()` on a String.
+                                this._write(".push_str(&(")
+                                this._emitExpr(right)
+                                this._write("))")
+                            } else {
+                                this._write(".push_str(&(")
+                                this._emitExpr(right)
+                                this._write(").to_string())")
+                            }
                         } else {
                             // Left is not the target (maybe nested: (x + a) + b)
                             // Emit left (which recurses and may emit push_str for inner chain)
@@ -3470,10 +3479,17 @@ RustEmitter {
                             this._newline()
                             this._writeIndent()
                             let pst6 = this._pushStrTarget
+                            let rightIsString2 = this._isStringExpr(right)
                             this._write(pst6)
-                            this._write(".push_str(&(")
-                            this._emitExpr(right)
-                            this._write(").to_string())")
+                            if rightIsString2 {
+                                this._write(".push_str(&(")
+                                this._emitExpr(right)
+                                this._write("))")
+                            } else {
+                                this._write(".push_str(&(")
+                                this._emitExpr(right)
+                                this._write(").to_string())")
+                            }
                         }
                     } else {
                         // Normal string concat: format!("{}{}", left, right)
