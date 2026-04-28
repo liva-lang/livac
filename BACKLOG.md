@@ -3,7 +3,7 @@
 > **Objetivo:** Llevar Liva a producción real  
 > **Plan de diseño:** `docs/plans/PLAN_PRODUCTION_READINESS.md`  
 > **Prioridad:** Orden por versión = orden de implementación  
-> **Última actualización:** 2026-03-31
+> **Última actualización:** 2026-04-28
 
 ---
 

@@ -1,6 +1,16 @@
 # Plan: Liveness Analysis para Ownership Invisible
 
-> **Objetivo:** Hacer que Liva maneje ownership/borrowing/cloning automáticamente,
+> **⚠️ Estado: HISTÓRICO (2026-04-28).** Este plan ya está mayoritariamente
+> implementado. La implementación real vive en:
+> - `src/liveness.rs` (bootstrap Rust)
+> - `compiler/src/liveness.liva` (self-hosted)
+> - Optimizaciones aplicadas en **Phase 8.1–8.10** y **Phase 9.1–9.6/9.9/9.10**
+>   (ver `compiler/docs/PLAN.md`).
+>
+> Los checkboxes sin marcar de este documento corresponden al diseño original
+> y NO reflejan trabajo pendiente. Para optimizaciones futuras, ver `compiler/docs/PLAN.md`.
+
+> **Objetivo (original):** Hacer que Liva maneje ownership/borrowing/cloning automáticamente,
 > invisible para el programador, con coste cero (o mínimo) en rendimiento.
 >
 > **Técnica:** Last-use analysis (inspirada en Swift ARC, Mojo, Val)

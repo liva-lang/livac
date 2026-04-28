@@ -3,10 +3,11 @@
 > **Proyecto:** livac - El compilador de Liva  
 > **Versión:** v2.0.0-dev (tag: v1.2.0)  
 > **Lenguaje:** Rust (bootstrap) + Liva (self-hosting)  
-> **Tests:** 520 passing (518 + 2 ignored)  
-> **Self-hosting:** Phase 7 COMPLETE — idempotente, 2000x perf fix  
-> **Próximo objetivo:** Optimización de clones en Rust generado  
-> **Última actualización:** 2026-04-15
+> **Tests:** 518 passing  
+> **Self-hosting:** Phase 7 idempotente; Phase 8 ✅; Phase 9 en curso (9.1–9.6, 9.9, 9.10 done; 9.7/9.8/9.11 aplazados)  
+> **Rama activa:** `feat/self-hosting-v2`  
+> **Próximo objetivo:** Phase 9.7/9.8 (Map keys/values borrowed, has+get+set → entry API)  
+> **Última actualización:** 2026-04-28
 
 ---
 
