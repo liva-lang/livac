@@ -19,13 +19,13 @@ main() {
     print($"count_total:{total}")
 
     // find the most frequent word
-    let best_key = ""
-    let best_val = -1
+    let bestKey = ""
+    let bestVal = -1
     for k, v in freq {
-        if v > best_val {
-            best_val = v
-            best_key = k
+        if v > bestVal {
+            bestVal = v
+            bestKey = k
         }
     }
-    print($"top:{best_key}={best_val}")
+    print($"top:{bestKey}={bestVal}")
 }
