@@ -77,6 +77,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `bootstrap_apps/app19_pq.liva` — PriorityQueue (min-heap) con `_siftUp` /
   `_siftDown`, `pop()` / `peek()` / `size()` y `[number].reverse()` para
   ordenar descendiente.
+- `bootstrap_apps/app20_shapes.liva` — enum `Shape` con `Circle/Rect/Triangle`
+  y dispatch vía `switch` con patrones `Shape.Variant(_)`.
+- `bootstrap_apps/app21_hashmap.liva` — hash table from-scratch (parallel
+  arrays + linear probing + rehash on load factor) que ejercita B149/B150.
+
+### Fixed (round 6 — bootstrap)
+- **B149 — locales mutadas del constructor sin `mut`**: el handler de
+  constructor entraba al loop de stmts sin ejecutar el pre-pass
+  `collect_mutated_vars_in_block`. Resultado: `let ks = []; ks.push(...)`
+  emitía `let ks` y rompía con E0596. Ahora se pre-popula `self.mutated_vars`
+  con las mutaciones del cuerpo.
+- **B150 — string literal a método de usuario sin `.to_string()`**: B137
+  solo cubría `count`. Para el resto de métodos de usuario (`get`, `has`, etc.)
+  los args literales-string emitían `&str` mientras el método esperaba
+  `String` (E0308). Ahora, en el loop genérico de args, cuando el receiver
+  está en `class_instance_vars` y el arg es `Literal::String`, se hace append
+  `.to_string()`.
+
+### Known (round 6)
+- **B148 — `this.X` no se rebinds en cuerpo no-asignación del constructor**:
+  cuando un constructor lee/usa `this` fuera de una asignación directa
+  `this.field = expr`, el codegen emite `this` literal pero `Self` aún no
+  existe → E0425. Workaround: usar locales y al final asignar a `this.field`.
+  Fix propuesto requiere alias mutable post-`Self {...}` con sustitución
+  `this`→`__obj`. Aplazado por riesgo en 518 tests.
 
 ### Added (round 4)
 - `bootstrap_apps/app18_template.liva` — motor de templating `{{var}}` con

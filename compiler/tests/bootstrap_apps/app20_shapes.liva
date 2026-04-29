@@ -1,0 +1,102 @@
+// app20_shapes — enum-based dispatch with switch on tag.
+// Stresses: enum with variants (Circle, Rect, Triangle), switch over enum
+// returning expressions, qualified variant patterns, [Shape] arrays,
+// integer arithmetic across helpers.
+
+enum Shape {
+    Circle(r: number),
+    Rect(w: number, h: number),
+    Triangle(base: number, height: number)
+}
+
+// area returns 100x to keep integer math (circle uses 314/100 ≈ pi)
+area100(s: Shape): number {
+    return switch s {
+        Shape.Circle(r) => 314 * r * r
+        Shape.Rect(w, h) => 100 * w * h
+        Shape.Triangle(b, h) => 50 * b * h
+    }
+}
+
+perimeter(s: Shape): number {
+    return switch s {
+        Shape.Circle(r) => 6 * r
+        Shape.Rect(w, h) => 2 * (w + h)
+        Shape.Triangle(b, h) => b + 2 * h
+    }
+}
+
+label(s: Shape): string {
+    return switch s {
+        Shape.Circle(r) => $"circle({r})"
+        Shape.Rect(w, h) => $"rect({w}x{h})"
+        Shape.Triangle(b, h) => $"tri({b},{h})"
+    }
+}
+
+kindOf(s: Shape): string {
+    return switch s {
+        Shape.Circle(_) => "circle"
+        Shape.Rect(_, _) => "rect"
+        Shape.Triangle(_, _) => "tri"
+    }
+}
+
+totalArea100(shapes: [Shape]): number {
+    let sum = 0
+    for s in shapes {
+        sum += area100(s)
+    }
+    return sum
+}
+
+biggest(shapes: [Shape]): Shape {
+    let bestIdx = 0
+    let bestA = area100(shapes[0])
+    for i in 1..shapes.length {
+        let a = area100(shapes[i])
+        if a > bestA {
+            bestA = a
+            bestIdx = i
+        }
+    }
+    return shapes[bestIdx]
+}
+
+countKind(shapes: [Shape], kind: string): number {
+    let n = 0
+    for s in shapes {
+        if kindOf(s) == kind {
+            n += 1
+        }
+    }
+    return n
+}
+
+main() {
+    let shapes: [Shape] = [
+        Shape.Circle(5),
+        Shape.Rect(4, 6),
+        Shape.Triangle(3, 4),
+        Shape.Circle(2),
+        Shape.Rect(10, 10)
+    ]
+
+    let total100 = totalArea100(shapes)
+    let big = biggest(shapes)
+    let circles = countKind(shapes, "circle")
+    let rects = countKind(shapes, "rect")
+    let tris = countKind(shapes, "tri")
+
+    // Areas (x100): C(5)=7850, R(4,6)=2400, T(3,4)=600, C(2)=1256, R(10,10)=10000
+    // Sum = 22106
+    print($"total100:{total100}")
+    print($"big:{label(big)}")
+    print($"counts:c{circles}/r{rects}/t{tris}")
+    print($"perim_first:{perimeter(shapes[0])}")
+}
+
+// EXPECT: total100:22106
+// EXPECT: big:rect(10x10)
+// EXPECT: counts:c2/r2/t1
+// EXPECT: perim_first:30

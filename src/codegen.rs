@@ -3395,6 +3395,14 @@ impl CodeGenerator {
                 std::collections::HashSet::new();
 
             if let Some(body) = &constructor_method.body {
+                // B149: pre-analyze mutated vars in the constructor body so that
+                // `let v = ...` followed by `v.push(...)` emits `let mut v` (same
+                // analysis as regular methods).
+                self.mutated_vars.clear();
+                let mut temp_mutated = std::collections::HashSet::new();
+                self.collect_mutated_vars_in_block(body, &mut temp_mutated);
+                self.mutated_vars = temp_mutated;
+
                 self.in_constructor = true;
 
                 for stmt in &body.stmts {
@@ -11925,6 +11933,16 @@ impl CodeGenerator {
             }
 
             self.generate_expr(arg)?;
+
+            // B150: when calling a method on a user class instance, string-literal
+            // args must be `.to_string()` to match the auto-generated `String` param
+            // type. Same logic as B137 but generalized to any user method (not only
+            // `count`).
+            if object_is_class_instance
+                && matches!(arg, Expr::Literal(Literal::String(_)))
+            {
+                self.output.push_str(".to_string()");
+            }
 
             // Clear current element type after generating lambda
             self.current_lambda_element_type = None;

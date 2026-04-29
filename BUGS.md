@@ -322,6 +322,37 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Fix:** Detectar `reverse` sobre receiver registrado en `array_vars` (y no en `string_vars`) y emitir `{ let mut __v = receiver.clone(); __v.reverse(); __v }`.
 - **Test:** `bootstrap_apps/app19_pq.liva`.
 
+### B148 — `this.X` no se rebinds en cuerpo no-asignación del constructor 🔶 OPEN
+- **Repro:**
+  ```liva
+  HashMap {
+      cap: number
+      keys: [string]
+      constructor() {
+          this.cap = 8
+          for i in 0..this.cap {     // ← `this` queda raw en Rust
+              this.keys.push("")
+          }
+      }
+  }
+  ```
+- **Problema:** El constructor de Liva tiene un esquema en dos fases: (1) emitir stmts no-`this.field=`, (2) emitir `Self { ... }`. Las stmts de fase (1) que leen `this` salen al output como literal `this`, pero `Self` aún no existe.
+- **Fix propuesto:** Detectar stmts que tocan `this`, deferir su emisión a después del `Self {...}` con un alias mutable (`let mut __obj = Self {...}; <deferred stmts: this→__obj>; __obj`). Requiere helper `expr_uses_this` y un campo `this_alias: Option<String>` para sustituir el identificador.
+- **Workaround:** Escribir el constructor con locales (`let cap = 8; let ks: [string] = []; ...`) y al final `this.cap = cap; this.keys = ks`.
+- **Test:** `bootstrap_apps/app21_hashmap.liva` (workaround aplicado).
+
+### B149 — Vars locales del constructor mutadas no se emiten con `mut` ⚡ ✅ FIXED (bootstrap)
+- **Repro:** `constructor() { let ks: [string] = []; for i in 0..n { ks.push("") } ... }` → E0596: `cannot borrow ks as mutable`.
+- **Problema:** El handler de constructor entraba al loop de stmts sin ejecutar el pre-pass `collect_mutated_vars_in_block` que sí corre en métodos normales (`mutated_vars` quedaba vacío).
+- **Fix:** Pre-poblar `self.mutated_vars` con las mutaciones del cuerpo antes de emitir las stmts del constructor.
+- **Test:** `bootstrap_apps/app21_hashmap.liva`.
+
+### B150 — Método de usuario `obj.method("literal")` no convertía string lit a `String` ⚡ ✅ FIXED (bootstrap)
+- **Repro:** `m.get("apple")` con `HashMap.get(key: string)` emitía `m.get("apple")` (`&str`) → E0308 (esperaba `String`).
+- **Problema:** B137 solo cubría `count`. Para el resto de métodos de usuario, los args literales-string no se promocionaban.
+- **Fix:** En el loop genérico de args de `generate_method_call_expr`, cuando el receiver está en `class_instance_vars` y el arg es `Literal::String`, append `.to_string()`.
+- **Test:** `bootstrap_apps/app21_hashmap.liva`.
+
 
 ## Carencias del lenguaje detectadas
 

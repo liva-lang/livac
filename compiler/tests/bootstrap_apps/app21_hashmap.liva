@@ -1,0 +1,159 @@
+// app21_hashmap — hash map "from scratch" using parallel arrays for
+// keys and values with linear probing. Stresses: class with mutable
+// arrays as fields, recursive helpers (rehash), `or fail` propagation,
+// arithmetic on string hash, dynamic resize on load factor.
+
+HashMap {
+    keys: [string]
+    vals: [number]
+    used: [bool]
+    size: number
+    cap: number
+
+    constructor() {
+        let initCap = 8
+        let ks: [string] = []
+        let vs: [number] = []
+        let us: [bool] = []
+        for i in 0..initCap {
+            ks.push("")
+            vs.push(0)
+            us.push(false)
+        }
+        this.cap = initCap
+        this.keys = ks
+        this.vals = vs
+        this.used = us
+        this.size = 0
+    }
+
+    _hash(key: string): number {
+        let h = 0
+        for ch in key {
+            h = (h * 31 + ch.toInt()) % 1000003
+        }
+        return h
+    }
+
+    _slot(key: string): number {
+        let idx = this._hash(key) % this.cap
+        if idx < 0 {
+            idx = idx + this.cap
+        }
+        let probe = 0
+        while probe < this.cap {
+            let i = (idx + probe) % this.cap
+            if !this.used[i] {
+                return i
+            }
+            if this.keys[i] == key {
+                return i
+            }
+            probe += 1
+        }
+        return -1
+    }
+
+    _rehash() {
+        let oldKeys = this.keys
+        let oldVals = this.vals
+        let oldUsed = this.used
+        let oldCap = this.cap
+
+        this.cap = oldCap * 2
+        this.keys = []
+        this.vals = []
+        this.used = []
+        for i in 0..this.cap {
+            this.keys.push("")
+            this.vals.push(0)
+            this.used.push(false)
+        }
+        this.size = 0
+
+        for i in 0..oldCap {
+            if oldUsed[i] {
+                this.put(oldKeys[i], oldVals[i])
+            }
+        }
+    }
+
+    put(key: string, val: number) {
+        if this.size * 2 >= this.cap {
+            this._rehash()
+        }
+        let i = this._slot(key)
+        if !this.used[i] {
+            this.size += 1
+        }
+        this.keys[i] = key
+        this.vals[i] = val
+        this.used[i] = true
+    }
+
+    get(key: string): number {
+        let i = this._slot(key)
+        if i < 0 {
+            return -1
+        }
+        if !this.used[i] {
+            return -1
+        }
+        return this.vals[i]
+    }
+
+    has(key: string): bool {
+        let i = this._slot(key)
+        if i < 0 {
+            return false
+        }
+        return this.used[i]
+    }
+
+    sizeOf(): number {
+        return this.size
+    }
+
+    capOf(): number {
+        return this.cap
+    }
+}
+
+main() {
+    let m = HashMap()
+    let words = ["apple", "banana", "cherry", "date", "elderberry", "fig", "grape", "honeydew", "kiwi", "lemon", "mango", "nectarine"]
+    let i = 0
+    for w in words {
+        m.put(w, i * 10)
+        i += 1
+    }
+
+    let apple = m.get("apple")
+    let mango = m.get("mango")
+    let missing = m.get("orange")
+    let hasFig = m.has("fig")
+    let hasPear = m.has("pear")
+    print($"size:{m.sizeOf()}")
+    print($"cap:{m.capOf()}")
+    print($"apple:{apple}")
+    print($"mango:{mango}")
+    print($"missing:{missing}")
+    print($"has_fig:{hasFig}")
+    print($"has_pear:{hasPear}")
+
+    // Update
+    m.put("apple", 999)
+    let appleUpdated = m.get("apple")
+    print($"apple_updated:{appleUpdated}")
+    print($"size_after_update:{m.sizeOf()}")
+}
+
+// EXPECT: size:12
+// EXPECT: cap:32
+// EXPECT: apple:0
+// EXPECT: mango:100
+// EXPECT: missing:-1
+// EXPECT: has_fig:true
+// EXPECT: has_pear:false
+// EXPECT: apple_updated:999
+// EXPECT: size_after_update:12
