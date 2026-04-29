@@ -1,0 +1,136 @@
+// App: Orders — cross-class references via Map, `or fail` propagation,
+// error binding with fallible class methods. Stresses optional chaining.
+//
+// EXPECT: ok1:1
+// EXPECT: err2:over credit:u2
+// EXPECT: err3:line failed:Q
+// EXPECT: err4:no customer:ghost
+// EXPECT: orders_count:1
+// EXPECT: alice_credit:550
+
+Customer {
+    id: string
+    name: string
+    credit: number
+
+    constructor(id: string, name: string, credit: number) {
+        this.id = id
+        this.name = name
+        this.credit = credit
+    }
+}
+
+Item {
+    code: string
+    price: number
+
+    constructor(code: string, price: number) {
+        this.code = code
+        this.price = price
+    }
+}
+
+Order {
+    id: number
+    customerId: string
+    lines: [string]
+    total: number
+
+    constructor(id: number, customerId: string) {
+        this.id = id
+        this.customerId = customerId
+        this.lines = []
+        this.total = 0
+    }
+
+    addLine(code: string, price: number) {
+        this.lines.push(code)
+        this.total += price
+    }
+}
+
+Shop {
+    customers: Map<string, Customer>
+    items: Map<string, Item>
+    orders: [Order]
+    nextId: number
+
+    constructor() {
+        this.customers = {}
+        this.items = {}
+        this.orders = []
+        this.nextId = 1
+    }
+
+    register(c: Customer) {
+        this.customers.set(c.id, c)
+    }
+
+    stock(it: Item) {
+        this.items.set(it.code, it)
+    }
+
+    findItem(code: string): Item {
+        let it = this.items.get(code) or fail $"unknown item:{code}"
+        return it
+    }
+
+    place(customerId: string, codes: [string]): number {
+        let c = this.customers.get(customerId) or fail $"no customer:{customerId}"
+        let order = Order(this.nextId, customerId)
+        this.nextId += 1
+        for code in codes {
+            let it = this.findItem(code) or fail $"line failed:{code}"
+            order.addLine(it.code, it.price)
+        }
+        if order.total > c.credit {
+            return fail $"over credit:{c.id}"
+        }
+        let updated = Customer(c.id, c.name, c.credit - order.total)
+        this.customers.set(updated.id, updated)
+        this.orders.push(order)
+        return order.id
+    }
+}
+
+main() {
+    let shop = Shop()
+    shop.register(Customer("u1", "Alice", 1000))
+    shop.register(Customer("u2", "Bob", 200))
+
+    shop.stock(Item("X", 300))
+    shop.stock(Item("Y", 150))
+    shop.stock(Item("Z", 50))
+
+    let id1, e1 = shop.place("u1", ["X", "Y"])
+    if e1 != null {
+        print($"err1:{e1.message}")
+    } else {
+        print($"ok1:{id1}")
+    }
+
+    let id2, e2 = shop.place("u2", ["X", "Y"])
+    if e2 != null {
+        print($"err2:{e2.message}")
+    } else {
+        print($"ok2:{id2}")
+    }
+
+    let id3, e3 = shop.place("u1", ["Z", "Q"])
+    if e3 != null {
+        print($"err3:{e3.message}")
+    } else {
+        print($"ok3:{id3}")
+    }
+
+    let id4, e4 = shop.place("ghost", ["X"])
+    if e4 != null {
+        print($"err4:{e4.message}")
+    } else {
+        print($"ok4:{id4}")
+    }
+
+    print($"orders_count:{shop.orders.len()}")
+    let alice = shop.customers.get("u1") or Customer("?", "?", 0)
+    print($"alice_credit:{alice.credit}")
+}

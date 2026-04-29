@@ -198,6 +198,48 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
   - En `_getExprTypeName`, extender el caso MemberAccess para resolver `var.field` cuando `var` es una instancia de clase conocida.
 - **Test:** `compiler/tests/regression/b125_map_member_class.liva` y `complex_apps/app7_inventory.liva` (todas las patterns en uso simultáneo).
 
+### B127 — `: T!` (Fallible return type) double-wraps con `Result<Result<T,Error>,Error>` ⚡ ✅ FIXED (bootstrap)
+- **Repro:** `findItem(c: string): Item! { let it = m.get(c) or fail "x"; return it }`.
+- **Problema:** Bootstrap reconocía `T!` como `TypeRef::Fallible` y lo expandía a `Result<T,Error>`, pero al detectar `contains_fail=true` lo envolvía OTRA VEZ → `Result<Result<T,Error>,Error>`. Cargo rechazaba con E0308.
+- **Fix bootstrap:** En el wrap auto-`Result` de funciones/métodos fallibles, si el return type ya es `TypeRef::Fallible(_)`, usar `to_rust_type()` directamente sin envolver.
+- **Gen-2:** El parser de gen-2 ni siquiera acepta el sufijo `!`. Documentado como GAP-005 (gen-2 catch-up).
+
+### B128 — `return fail "X"` dentro de función fallible genera Rust inválido ⚡ ✅ FIXED (bootstrap)
+- **Repro:** `if x > limit { return fail "too big" }`.
+- **Problema:** El handler `Stmt::Return` envolvía la expresión en `Ok(...)`, y `Expr::Fail` ya emite `return Err(...)`, dando `return Ok(            return Err(...));\n);` (paréntesis sueltos, return anidado, parse error en cargo).
+- **Fix:** Caso especial: si `Stmt::Return` contiene `Expr::Fail`, emitir directamente `return Err(liva_rt::Error::from(msg));`.
+- **Test:** `bootstrap_apps/app8_orders.liva` (línea `return fail $"over credit:{c.id}"`).
+
+### B130 — `e.message` falla con `.get_field("message")` después de narrowing `if e != null` ⚡ ✅ FIXED (bootstrap)
+- **Repro:** `let v, e = fallibleCall(); if e != null { print(e.message) }`.
+- **Problema:** Tras `if let Some(e) = e {...}` (narrowing), `e` es `liva_rt::Error` (no Option), pero el codegen seguía emitiendo `e.as_ref().map(|x| x.message.as_str()).unwrap_or("None")` (válido solo para `Option<Error>`). Y al fallar, caía a la heurística JsonValue → `e.get_field("message").unwrap_or_default()` que tampoco compila.
+- **Fix:** Nuevo set `narrowed_error_binding_vars`. Cuando `Stmt::If` narrowea un error binding, se inserta el nombre; el handler de `error.message` consulta el set y emite `e.message.clone()` en bloque narrowed, y el original `as_ref().map(...).unwrap_or("None")` fuera.
+- **Test:** `bootstrap_apps/app8_orders.liva` (4 bloques `if eN != null { print(eN.message) }`).
+
+### B131 — `let alice = m.get(k) or Class(...)` accede a `alice.field` con `.get_field("field")` ⚡ ✅ FIXED (bootstrap)
+- **Repro:** `let alice = shop.customers.get("u1") or Customer("?","?",0); print(alice.credit)`.
+- **Problema:** Tras `Map.get(k) or Class(...)`, la variable resultante no se registraba como instancia de clase. La heurística de `is_class_instance` fallaba y el property access caía a JsonValue path → `alice.get_field("credit")...` (Error E0599).
+- **Fix:** Al final del handler `or_value`, si el `default_val` es un constructor de clase (Call cuyo callee es Identifier ∈ class_fields), insertar el var en `class_instance_vars` y registrar el tipo en `var_types`.
+- **Test:** `bootstrap_apps/app8_orders.liva` (`let alice = shop.customers.get(...) or Customer(...)`).
+
+### B132 — `Map.get(k) or fail "msg"` se trataba como expresión no-fallible (silently dropped fail) ⚡ ✅ FIXED (bootstrap)
+- **Repro:** `let c = shop.customers.get(id) or fail "no customer"`.
+- **Problema:** El handler `or_fail_msg` no contemplaba el caso `is_map_get_call`, así que caía a "Non-fallible expression — just assign directly (or fail never triggers)" emitiendo `let c = m.get(&id).cloned().unwrap_or_default();`. Si la key no existe, devuelve `Default::default()` (Customer vacío) en lugar de propagar el error.
+- **Fix:** Añadir branch `else if is_map_get_call(&var.init)` antes del fallback: emite `let c = match m.get(&k).cloned() { Some(v) => v, None => return Err(liva_rt::Error::new(msg, fn, loc)) };`.
+- **Test:** `bootstrap_apps/app8_orders.liva` (`place("ghost", ...)` → `err4:no customer:ghost`).
+
+### B133 — `let q = [start]` partial-moves `start` (E0382) cuando se usa después ⚡ ✅ FIXED (bootstrap)
+- **Repro:** `let queue = [start]; dist.set(start, 0)`.
+- **Problema:** Bootstrap emitía `let queue = vec![start]; dist.insert(start.clone(), 0);` — el primer uso movía `start` (String), y `.clone()` en el segundo uso no podía compensar.
+- **Fix:** En `Expr::ArrayLiteral`, si un elemento es `Expr::Identifier` con tipo no-Copy (string_vars / array_vars / map_vars / class_instance_vars), emitir `.clone()`.
+- **Test:** `bootstrap_apps/app9_graph.liva` (`bfs(start, target)` con `let queue = [start]; dist.set(start, 0)`).
+
+### B132b — `let mut` no se inferia para variables que vienen de `m.get(k) or []` y luego mutan ⚡ ✅ FIXED (bootstrap)
+- **Repro:** `let listA = adj.get(a) or []; listA.push(b)` → "cannot borrow as mutable" (E0596).
+- **Problema:** Las ramas de `or_value` y `or_fail_msg` emitían `let X = ...` sin consultar `mutated_vars`; las mutaciones posteriores requerían `let mut X = ...`.
+- **Fix:** Las 12 emisiones de `let {} = ` y `let {} = match ` en estas ramas ahora prefijan `mut` cuando `mutated_vars.contains(&var_name)`.
+- **Test:** `bootstrap_apps/app9_graph.liva` (`addEdge` muta listas obtenidas con `or []`).
+
 
 ## Carencias del lenguaje detectadas
 
@@ -214,9 +256,23 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - El resultado pierde los wrappers de Liva (`.has()`, `.size()`, etc.).
 - Debería devolver un Set de Liva con todos los métodos disponibles.
 
-### GAP-004 — `print(a, b, c)` con varios argumentos diverge entre bootstrap y gen-2 🔶
+### GAP-004 — `print(a, b, ...)` con varios argumentos diverge entre bootstrap y gen-2 🔶
 - **Repro:** `print("count:", 3)` emite `count:3` en bootstrap pero `count: 3` en gen-2.
 - **Análisis:** Bootstrap concatena argumentos sin separador, gen-2 inserta espacio (estilo Python).
 - **Workaround actual:** usar string interpolation `print($"count:{x}")` en código portable.
 - **Decisión pendiente:** unificar al estilo Python (separador espacio) para consistencia. Afecta `complex_apps` snapshots si se cambia.
+
+### GAP-005 — Gen-2 lag en patrones avanzados de error handling y Map<K,V> (V no-trivial) 🔶
+- **Síntomas observados al ejecutar `bootstrap_apps/app8_orders.liva` y `app9_graph.liva` con gen-2:**
+  - Parser de gen-2 rechaza el sufijo `T!` ("Expected identifier").
+  - `let q = [start]` no clona Identifiers no-Copy en array literals (E0382).
+  - `let listA = m.get(k) or []; listA.push(...)` no infiere `mut`.
+  - `Map.get(k) or fail "msg"` cae a `unwrap_or_default()` (igual que bootstrap antes de B132).
+  - Error binding `e.message` post-narrowing emite `.get_field("message")` (igual que bootstrap antes de B130).
+- **Plan:** mirror las correcciones B127–B133 en `compiler/src/codegen.liva` cuando se decida priorizar paridad. Mientras tanto los apps que disparan estos casos viven en `compiler/tests/bootstrap_apps/` (no se ejecutan contra gen-2).
+
+### GAP-006 — String interpolation no admite escapes `\"` dentro de `{...}` 🔷
+- **Repro:** `print($"k:{m.get(\"key\")}")` produce literalmente `k:{m.get(\"key\")}` (no expande la interpolación).
+- **Workaround:** asignar el resultado a una variable antes: `let v = m.get("key"); print($"k:{v}")`.
+- **Pendiente:** lexer/parser de string interpolation debería entender escapes dentro del bloque `{...}` o permitir comillas dobles sin escape.
 

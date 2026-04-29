@@ -1,0 +1,79 @@
+// App: Graph BFS — adjacency Map<string, [string]>, shortest-path search.
+// Stresses Map of arrays + nested arrays + while loop with mutable indices.
+//
+// EXPECT: A->A:0
+// EXPECT: A->B:1
+// EXPECT: A->D:3
+// EXPECT: A->F:2
+// EXPECT: A->X:-1
+// EXPECT: A->Z:-1
+// EXPECT: nbs_A_count:2
+
+Graph {
+    adj: Map<string, [string]>
+
+    constructor() {
+        this.adj = {}
+    }
+
+    addEdge(a: string, b: string) {
+        let listA = this.adj.get(a) or []
+        listA.push(b)
+        this.adj.set(a, listA)
+        let listB = this.adj.get(b) or []
+        listB.push(a)
+        this.adj.set(b, listB)
+    }
+
+    neighbors(n: string): [string] {
+        return this.adj.get(n) or []
+    }
+
+    bfs(start: string, target: string): number {
+        if start == target { return 0 }
+        let queue: [string] = [start]
+        let dist: Map<string, number> = {}
+        dist.set(start, 0)
+        let head = 0
+        while head < queue.len() {
+            let cur = queue[head]
+            head += 1
+            let d = dist.get(cur) or 0
+            let nbs = this.neighbors(cur)
+            for nb in nbs {
+                if dist.has(nb) { continue }
+                dist.set(nb, d + 1)
+                if nb == target { return d + 1 }
+                queue.push(nb)
+            }
+        }
+        return -1
+    }
+}
+
+main() {
+    let g = Graph()
+    g.addEdge("A", "B")
+    g.addEdge("B", "C")
+    g.addEdge("C", "D")
+    g.addEdge("A", "E")
+    g.addEdge("E", "F")
+    g.addEdge("F", "D")
+    g.addEdge("X", "Y")  // disconnected
+
+    let aa = g.bfs("A", "A")
+    let ab = g.bfs("A", "B")
+    let ad = g.bfs("A", "D")
+    let af = g.bfs("A", "F")
+    let ax = g.bfs("A", "X")
+    let az = g.bfs("A", "Z")
+    print($"A->A:{aa}")
+    print($"A->B:{ab}")
+    print($"A->D:{ad}")
+    print($"A->F:{af}")
+    print($"A->X:{ax}")
+    print($"A->Z:{az}")
+
+    let nbsA = g.neighbors("A")
+    print($"nbs_A_count:{nbsA.len()}")
+}

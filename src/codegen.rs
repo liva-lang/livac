@@ -101,6 +101,7 @@ pub struct CodeGenerator {
     pending_tasks: std::collections::HashMap<String, TaskInfo>, // Variables that hold unawaited Tasks
     // --- Phase 3: Error binding variables (Option<String> type)
     error_binding_vars: std::collections::HashSet<String>, // Variables from error binding (second variable in let x, err = ...)
+    narrowed_error_binding_vars: std::collections::HashSet<String>, // B130: error vars currently inside `if e != null` narrowed block
     error_binding_scope_stack: Vec<Vec<String>>, // B20: Stack of error binding vars per scope level (for fail scope checking)
     string_error_vars: std::collections::HashSet<String>, // String error variables from HTTP/File calls (for `if err` sugar)
     option_value_vars: std::collections::HashSet<String>, // Variables from error binding (first variable in let value, err = ..., which is Option<T>)
@@ -205,6 +206,7 @@ impl CodeGenerator {
             union_types: std::collections::HashSet::new(),
             pending_tasks: std::collections::HashMap::new(),
             error_binding_vars: std::collections::HashSet::new(),
+            narrowed_error_binding_vars: std::collections::HashSet::new(),
             error_binding_scope_stack: vec![vec![]], // Start with one root scope
             string_error_vars: std::collections::HashSet::new(),
             option_value_vars: std::collections::HashSet::new(),
@@ -4168,9 +4170,13 @@ impl CodeGenerator {
         )?;
 
         let return_type = if let Some(ret) = &method.return_type {
-            // Bug #70 fix: Wrap return type in Result if method contains fail
+            // Bug #70 fix: Wrap return type in Result if method contains fail.
+            // B127 fix: if user already wrote `T!` (TypeRef::Fallible), don't double-wrap.
             if method.contains_fail {
-                format!(" -> Result<{}, liva_rt::Error>", ret.to_rust_type())
+                match ret {
+                    TypeRef::Fallible(_) => format!(" -> {}", ret.to_rust_type()),
+                    _ => format!(" -> Result<{}, liva_rt::Error>", ret.to_rust_type()),
+                }
             } else {
                 format!(" -> {}", ret.to_rust_type())
             }
@@ -4456,9 +4462,13 @@ impl CodeGenerator {
         let params_str = self.generate_params(&func.params, false, None, None, None)?;
 
         // Handle fallibility - wrap return type in Result if function contains fail
+        // B127 fix: if user already wrote `T!`, don't double-wrap.
         let return_type = if func.contains_fail {
             if let Some(ret) = &func.return_type {
-                format!(" -> Result<{}, liva_rt::Error>", self.expand_type_alias(ret))
+                match ret {
+                    TypeRef::Fallible(_) => format!(" -> {}", self.expand_type_alias(ret)),
+                    _ => format!(" -> Result<{}, liva_rt::Error>", self.expand_type_alias(ret)),
+                }
             } else if let Some(expr) = &func.expr_body {
                 let inner_type = self
                     .infer_expr_type(expr, None)
@@ -5388,7 +5398,7 @@ impl CodeGenerator {
                         self.json_value_vars.insert(var_name);
                     } else if is_user_fallible {
                         // User-defined fallible functions return Result<T, Error>
-                        write!(self.output, "let {} = match ", var_name).unwrap();
+                        write!(self.output, "let {}{} = match ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
                         self.generate_expr(&var.init)?;
                         if is_bare_or_fail {
                             // Bare `or fail` — propagate original error unchanged
@@ -5403,15 +5413,29 @@ impl CodeGenerator {
                     } else if self.is_option_returning_method(&var.init) {
                         // Option-returning methods (find, first, last, min, max) with or fail
                         self.suppress_option_unwrap = true;
-                        write!(self.output, "let {} = match ", var_name).unwrap();
+                        write!(self.output, "let {}{} = match ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
                         self.generate_expr(&var.init)?;
                         self.suppress_option_unwrap = false;
                         self.output.push_str(" { Some(v) => v, None => panic!(\"or fail: {}\", ");
                         self.generate_expr(fail_msg)?;
                         self.output.push_str(") };\n");
+                    } else if self.is_map_get_call(&var.init) {
+                        // B132: Map.get(k) or fail "msg" — propagate the failure when the key is absent.
+                        // Generates: match map.get(&k).cloned() { Some(v) => v, None => return Err(...) };
+                        self.suppress_map_get_unwrap = true;
+                        write!(self.output, "let {}{} = match ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
+                        self.generate_expr(&var.init)?;
+                        self.suppress_map_get_unwrap = false;
+                        self.output.push_str(" { Some(v) => v, None => return Err(liva_rt::Error::new(");
+                        if is_bare_or_fail {
+                            self.output.push_str("\"map: missing key\".to_string()");
+                        } else {
+                            self.generate_expr(fail_msg)?;
+                        }
+                        write!(self.output, ", \"{}\", \"{}\")) }};\n", fn_name, location).unwrap();
                     } else {
                         // Non-fallible expression with or fail — just assign directly (or fail never triggers)
-                        write!(self.output, "let {} = ", var_name).unwrap();
+                        write!(self.output, "let {}{} = ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
                         self.generate_expr(&var.init)?;
                         self.output.push_str(";\n");
                     }
@@ -5457,7 +5481,7 @@ impl CodeGenerator {
                     } else if self.is_map_get_call(&var.init) {
                         // Map.get with or default: let var = map.get(&key).cloned().unwrap_or(default);
                         self.suppress_map_get_unwrap = true;
-                        write!(self.output, "let {} = ", var_name).unwrap();
+                        write!(self.output, "let {}{} = ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
                         self.generate_expr(&var.init)?;
                         self.suppress_map_get_unwrap = false;
                         self.output.push_str(".unwrap_or(");
@@ -5471,7 +5495,7 @@ impl CodeGenerator {
                         self.output.push_str(");\n");
                     } else if is_user_fallible {
                         // User-defined fallible: let var = match expr { Ok(v) => v, Err(_) => defaultValue };
-                        write!(self.output, "let {} = match ", var_name).unwrap();
+                        write!(self.output, "let {}{} = match ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
                         self.generate_expr(&var.init)?;
                         self.output.push_str(" { Ok(v) => v, Err(_) => ");
                         self.generate_expr(default_val)?;
@@ -5483,7 +5507,7 @@ impl CodeGenerator {
                     } else if self.is_option_returning_method(&var.init) {
                         // Option-returning methods (find, first, last, min, max) with or default
                         self.suppress_option_unwrap = true;
-                        write!(self.output, "let {} = ", var_name).unwrap();
+                        write!(self.output, "let {}{} = ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
                         self.generate_expr(&var.init)?;
                         self.suppress_option_unwrap = false;
                         self.output.push_str(".unwrap_or(");
@@ -5494,20 +5518,20 @@ impl CodeGenerator {
                         // Generate: let var = match arg.parse::<T>() { Ok(v) => v, Err(_) => default };
                         if let Expr::Identifier(name) = call.callee.as_ref() {
                             if name == "parseInt" && !call.args.is_empty() {
-                                write!(self.output, "let {} = match ", var_name).unwrap();
+                                write!(self.output, "let {}{} = match ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
                                 self.generate_expr(&call.args[0])?;
                                 self.output.push_str(".parse::<i32>() { Ok(v) => v, Err(_) => ");
                                 self.generate_expr(default_val)?;
                                 self.output.push_str(" };\n");
                             } else if name == "parseFloat" && !call.args.is_empty() {
-                                write!(self.output, "let {} = match ", var_name).unwrap();
+                                write!(self.output, "let {}{} = match ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
                                 self.generate_expr(&call.args[0])?;
                                 self.output.push_str(".parse::<f64>() { Ok(v) => v, Err(_) => ");
                                 self.generate_expr(default_val)?;
                                 self.output.push_str(" };\n");
                             } else {
                                 // BUG-006: Generic function call with `or` — unwrap Option
-                                write!(self.output, "let {} = ", var_name).unwrap();
+                                write!(self.output, "let {}{} = ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
                                 self.generate_expr(&var.init)?;
                                 self.output.push_str(".unwrap_or(");
                                 if matches!(default_val.as_ref(), Expr::Literal(Literal::String(_))) {
@@ -5520,7 +5544,7 @@ impl CodeGenerator {
                             }
                         } else {
                             // BUG-006: Method call with `or` — unwrap Option
-                            write!(self.output, "let {} = ", var_name).unwrap();
+                            write!(self.output, "let {}{} = ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
                             self.generate_expr(&var.init)?;
                             self.output.push_str(".unwrap_or(");
                             if matches!(default_val.as_ref(), Expr::Literal(Literal::String(_))) {
@@ -5534,7 +5558,7 @@ impl CodeGenerator {
                     } else {
                         // BUG-006: Generic fallback — use .unwrap_or / .unwrap_or_else for
                         // functions that return Option<T> (user-defined or otherwise)
-                        write!(self.output, "let {} = ", var_name).unwrap();
+                        write!(self.output, "let {}{} = ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
                         self.generate_expr(&var.init)?;
                         self.output.push_str(".unwrap_or(");
                         if matches!(default_val.as_ref(), Expr::Literal(Literal::String(_))) {
@@ -5544,6 +5568,20 @@ impl CodeGenerator {
                             self.generate_expr(default_val)?;
                         }
                         self.output.push_str(");\n");
+                    }
+
+                    // B131: if `or X` default is a class constructor, the resulting var
+                    // is an instance of that class — track so `var.field` doesn't fall
+                    // back to `var.get_field("field")`.
+                    if let Expr::Call(call) = default_val.as_ref() {
+                        if let Expr::Identifier(name) = call.callee.as_ref() {
+                            if self.class_fields.contains_key(name) {
+                                let var_name_san =
+                                    self.sanitize_name(var.bindings[0].name().unwrap());
+                                self.class_instance_vars.insert(var_name_san.clone());
+                                self.var_types.insert(var_name_san, name.clone());
+                            }
+                        }
                     }
 
                     return Ok(());
@@ -6716,13 +6754,24 @@ impl CodeGenerator {
                 }
                 self.indent();
                 // BUG-007: Inside the narrowed block, the variable is no longer Option
+                let mut narrowed_error_var: Option<String> = None;
                 if let Some(ref var_name) = option_null_var {
                     self.option_value_vars.remove(var_name);
+                    // B130: error binding vars (Option<liva_rt::Error>) get the same narrowing.
+                    // We don't remove from error_binding_vars (other code depends on it),
+                    // but we record the narrowing for the .message access site.
+                    if self.error_binding_vars.contains(var_name) {
+                        self.narrowed_error_binding_vars.insert(var_name.clone());
+                        narrowed_error_var = Some(var_name.clone());
+                    }
                 }
                 self.generate_if_body(&if_stmt.then_branch)?;
                 // BUG-007: Restore Option tracking after the block
                 if let Some(ref var_name) = option_null_var {
                     self.option_value_vars.insert(var_name.clone());
+                }
+                if let Some(name) = narrowed_error_var {
+                    self.narrowed_error_binding_vars.remove(&name);
                 }
                 self.dedent();
                 self.write_indent();
@@ -7224,6 +7273,15 @@ impl CodeGenerator {
             }
             Stmt::Return(ret) => {
                 self.write_indent();
+                // B128: `return fail X` would otherwise produce
+                // `return Ok(return Err(...));)` (nested return + stray paren).
+                // Treat it as a direct Err return.
+                if let Some(Expr::Fail(inner)) = ret.expr.as_ref() {
+                    self.output.push_str("return Err(liva_rt::Error::from(");
+                    self.generate_expr(inner)?;
+                    self.output.push_str("));\n");
+                    return Ok(());
+                }
                 self.output.push_str("return");
                 if let Some(expr) = &ret.expr {
                     self.output.push(' ');
@@ -7842,6 +7900,12 @@ impl CodeGenerator {
                 if let Expr::Identifier(name) = object.as_ref() {
                     let sanitized = self.sanitize_name(name);
                     if self.error_binding_vars.contains(&sanitized) && property == "message" {
+                        // B130: inside `if err != null { ... }` the var is narrowed to
+                        // `liva_rt::Error` (not Option), so just emit `.message`.
+                        if self.narrowed_error_binding_vars.contains(&sanitized) {
+                            write!(self.output, "{}.message.clone()", sanitized).unwrap();
+                            return Ok(());
+                        }
                         write!(
                             self.output,
                             "{}.as_ref().map(|e| e.message.as_str()).unwrap_or(\"None\")",
@@ -8459,6 +8523,20 @@ impl CodeGenerator {
                     if matches!(elem, Expr::Literal(Literal::String(_))) {
                         self.generate_expr(elem)?;
                         self.output.push_str(".to_string()");
+                    } else if let Expr::Identifier(name) = elem {
+                        // B133: cloning Identifier elements avoids partial-move when the var
+                        // is referenced again later (e.g. `let q = [start]; map.set(start, ...)`)
+                        let san = self.sanitize_name(name);
+                        if self.string_vars.contains(&san)
+                            || self.array_vars.contains(&san)
+                            || self.map_vars.contains(&san)
+                            || self.class_instance_vars.contains(&san)
+                        {
+                            self.generate_expr(elem)?;
+                            self.output.push_str(".clone()");
+                        } else {
+                            self.generate_expr(elem)?;
+                        }
                     } else {
                         self.generate_expr(elem)?;
                     }
