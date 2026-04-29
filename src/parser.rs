@@ -3137,6 +3137,28 @@ fn parse_string_template_parts(raw: &str) -> Result<Vec<StringTemplatePart>> {
                 let mut expr_src = String::new();
                 while let Some(next) = chars.next() {
                     match next {
+                        '\\' => {
+                            // B151: handle escapes inside `{...}` interpolation —
+                            // user may write `\"` to escape outer template quotes.
+                            // Unescape so the placeholder is valid Liva source.
+                            if let Some(escaped) = chars.next() {
+                                match escaped {
+                                    '"' => expr_src.push('"'),
+                                    '\\' => expr_src.push('\\'),
+                                    'n' => expr_src.push('\n'),
+                                    'r' => expr_src.push('\r'),
+                                    't' => expr_src.push('\t'),
+                                    other => {
+                                        // Unknown escape — keep both chars literal so
+                                        // the parser can produce a meaningful error.
+                                        expr_src.push('\\');
+                                        expr_src.push(other);
+                                    }
+                                }
+                            } else {
+                                expr_src.push('\\');
+                            }
+                        }
                         '{' => {
                             depth += 1;
                             expr_src.push(next);

@@ -1,5 +1,6 @@
 ---
 source: tests/codegen_tests.rs
+assertion_line: 3171
 expression: rust_code
 ---
 #![allow(unused_parens, unused_mut)]
@@ -395,8 +396,8 @@ pub struct Parser {
 impl Parser {
     pub fn new(input: String) -> Self {
         let parts = input.split(",").map(|s| s.to_string()).collect::<Vec<String>>();
-        let __field_tokens = parts;
-        let __field_count = (parts.len() as i32);
+        let mut __field_tokens = parts;
+        let mut __field_count = (parts.len() as i32);
         Self {
             tokens: __field_tokens,
             count: __field_count,

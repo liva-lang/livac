@@ -1,5 +1,6 @@
 ---
 source: tests/codegen_tests.rs
+assertion_line: 4952
 expression: rust_code
 ---
 #![allow(unused_parens, unused_mut)]
@@ -393,7 +394,7 @@ pub struct Counter {
 
 impl Counter {
     pub fn new() -> Self {
-        let __field_value = 0;
+        let mut __field_value = 0;
         Self {
             value: __field_value,
         }

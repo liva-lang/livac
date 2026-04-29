@@ -1,5 +1,6 @@
 ---
 source: tests/codegen_tests.rs
+assertion_line: 3581
 expression: rust_code
 ---
 #![allow(unused_parens, unused_mut)]
@@ -394,8 +395,8 @@ pub struct Store {
 
 impl Store {
     pub fn new() -> Self {
-        let __field_prices = std::collections::HashMap::new();
-        let __field_tags = std::collections::HashSet::new();
+        let mut __field_prices = std::collections::HashMap::new();
+        let mut __field_tags = std::collections::HashSet::new();
         Self {
             prices: __field_prices,
             tags: __field_tags,

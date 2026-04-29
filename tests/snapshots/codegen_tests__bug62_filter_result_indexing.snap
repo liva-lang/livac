@@ -1,5 +1,6 @@
 ---
 source: tests/codegen_tests.rs
+assertion_line: 940
 expression: rust_code
 ---
 #![allow(unused_parens, unused_mut)]
@@ -393,7 +394,7 @@ pub struct Library {
 
 impl Library {
     pub fn new() -> Self {
-        let __field_books = vec![];
+        let mut __field_books = vec![];
         Self {
             books: __field_books,
         }

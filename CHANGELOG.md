@@ -145,6 +145,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Bloquea fábricas de closures (counters, currying) y dispatch tables
   tipadas. Workaround: encapsular la closure en una clase con un método.
 
+### Added (round 9)
+- `bootstrap_apps/app27_b148.liva` — ejercita B148 directamente: constructor
+  que lee `this.cap` en la condición del while y llena `this.items` en el
+  cuerpo. Sin workaround.
+
+### Fixed (round 9 — bootstrap)
+- **B148 — `this.X` reads en cuerpo del constructor** (ANTES OPEN): refactor
+  del codegen del constructor. Phase 1 ahora emite `let mut __field_X = ...;`
+  inline en orden de fuente; los demás stmts del constructor son emitidos
+  normalmente y `generate_expr` reescribe `this.X` (lectura) a `__field_X`
+  cuando `X` ya fue asignado. Phase 2 queda reducido a `Self { x: __field_x }`.
+  Mantiene last-write-wins y elimina los problemas de borrow del esquema
+  antiguo.
+- **B151 — escapes `\"` dentro de `${...}`** (ANTES OPEN): `parse_string_template_parts`
+  ahora maneja escapes (`\"`→`"`, `\\`→`\`, `\n`/`\r`/`\t`) al recolectar
+  el contenido del placeholder, antes de pasarlo al sub-parser. Ya se puede
+  escribir `print($"k:{m.get(\"key\")}")` directamente.
+
 ### Added (round 4)
 - `bootstrap_apps/app18_template.liva` — motor de templating `{{var}}` con
   `Map<string, string>` y `string.indexOf(needle, fromIndex)`.

@@ -1,5 +1,6 @@
 ---
 source: tests/codegen_tests.rs
+assertion_line: 5066
 expression: rust_code
 ---
 #![allow(unused_parens, unused_mut)]
@@ -394,8 +395,8 @@ pub struct Author {
 
 impl Author {
     pub fn new(id: i32, name: String) -> Self {
-        let __field_id = id;
-        let __field_name = name;
+        let mut __field_id = id;
+        let mut __field_name = name;
         Self {
             id: __field_id,
             name: __field_name,

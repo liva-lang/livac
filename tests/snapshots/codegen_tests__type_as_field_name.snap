@@ -1,5 +1,6 @@
 ---
 source: tests/codegen_tests.rs
+assertion_line: 5009
 expression: rust_code
 ---
 #![allow(unused_parens, unused_mut)]
@@ -395,9 +396,9 @@ pub struct Token {
 
 impl Token {
     pub fn new(t: String, v: String, l: i32) -> Self {
-        let __field_r#type = t;
-        let __field_value = v;
-        let __field_line = l;
+        let mut __field_r#type = t;
+        let mut __field_value = v;
+        let mut __field_line = l;
         Self {
             r#type: __field_r#type,
             value: __field_value,

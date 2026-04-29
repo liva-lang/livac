@@ -1,5 +1,6 @@
 ---
 source: tests/codegen_tests.rs
+assertion_line: 5040
 expression: rust_code
 ---
 #![allow(unused_parens, unused_mut)]
@@ -414,9 +415,9 @@ pub struct Item {
 
 impl Item {
     pub fn new(t: String, p: Priority) -> Self {
-        let __field_title = t;
-        let __field_priority = p;
-        let __field_done = false;
+        let mut __field_title = t;
+        let mut __field_priority = p;
+        let mut __field_done = false;
         Self {
             title: __field_title,
             priority: __field_priority,

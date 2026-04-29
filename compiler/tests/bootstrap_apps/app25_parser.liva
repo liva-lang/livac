@@ -195,14 +195,10 @@ evalSrc(src: string): number {
 }
 
 main() {
-    let r1 = evalSrc("10 + 20 * 2")           // 50
-    let r2 = evalSrc("2 * (3 + 4)")           // 14
-    let r3 = evalSrc("(10 - 5) - 5")          // 0
-    let r4 = evalSrc("1 + 2 * 3")             // 7
-    let r5 = evalSrc("100 / (5 - 1) - 4")     // 21
-    print($"1:{r1}")
-    print($"2:{r2}")
-    print($"3:{r3}")
-    print($"4:{r4}")
-    print($"5:{r5}")
+    // B151 fixed: escaped quotes inside ${...} interpolation now work.
+    print($"1:{evalSrc(\"10 + 20 * 2\")}")           // 50
+    print($"2:{evalSrc(\"2 * (3 + 4)\")}")           // 14
+    print($"3:{evalSrc(\"(10 - 5) - 5\")}")          // 0
+    print($"4:{evalSrc(\"1 + 2 * 3\")}")             // 7
+    print($"5:{evalSrc(\"100 / (5 - 1) - 4\")}")     // 21
 }

@@ -1,5 +1,6 @@
 ---
 source: tests/codegen_tests.rs
+assertion_line: 3731
 expression: rust_code
 ---
 #![allow(unused_parens, unused_mut)]
@@ -394,8 +395,8 @@ pub struct Registry {
 
 impl Registry {
     pub fn new() -> Self {
-        let __field_items = std::collections::HashMap::new();
-        let __field_tags = std::collections::HashSet::new();
+        let mut __field_items = std::collections::HashMap::new();
+        let mut __field_tags = std::collections::HashSet::new();
         Self {
             items: __field_items,
             tags: __field_tags,

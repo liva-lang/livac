@@ -1,5 +1,6 @@
 ---
 source: tests/codegen_tests.rs
+assertion_line: 4894
 expression: rust_code
 ---
 #![allow(unused_parens, unused_mut)]
@@ -394,8 +395,8 @@ pub struct TodoItem {
 
 impl TodoItem {
     pub fn new(t: String) -> Self {
-        let __field_title = t;
-        let __field_done = false;
+        let mut __field_title = t;
+        let mut __field_done = false;
         Self {
             title: __field_title,
             done: __field_done,
@@ -417,7 +418,7 @@ pub struct TodoList {
 
 impl TodoList {
     pub fn new() -> Self {
-        let __field_items = vec![];
+        let mut __field_items = vec![];
         Self {
             items: __field_items,
         }

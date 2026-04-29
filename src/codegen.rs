@@ -150,6 +150,9 @@ pub struct CodeGenerator {
     defer_counter: usize,
     /// SH-002: When true, we're inside a constructor body — `this.field` maps to local vars
     in_constructor: bool,
+    /// B148: Set of field names that have been assigned in the constructor so far,
+    /// so subsequent reads of `this.field` can be rewritten to `__field_<name>`.
+    constructor_assigned_fields: std::collections::HashSet<String>,
     /// Default parameter values: function_name -> [(param_index, default_expr)]
     function_defaults: std::collections::HashMap<String, Vec<(usize, Expr)>>,
     /// B109: Track used test function names to avoid collisions
@@ -236,6 +239,7 @@ impl CodeGenerator {
             rust_block_uses: Vec::new(),
             defer_counter: 0,
             in_constructor: false,
+            constructor_assigned_fields: std::collections::HashSet::new(),
             function_defaults: std::collections::HashMap::new(),
             used_test_names: std::collections::HashMap::new(),
         }
@@ -3388,12 +3392,17 @@ impl CodeGenerator {
             write!(self.output, "{}) -> Self {{\n", params_str).unwrap();
             self.indent();
 
-            // Phase 1: Walk body, emit non-field stmts, collect field assignments
-            // Use IndexMap-like Vec to preserve last-write-wins while keeping insertion order
-            let mut field_assignments: Vec<(String, &Expr)> = Vec::new();
+            // Phase 1: Walk body in source order. For top-level `this.X = expr`,
+            // emit `let mut __field_X = <expr>;` (or `__field_X = <expr>;` on
+            // subsequent assigns). For other stmts, emit normally — `this.X`
+            // reads are rewritten to `__field_X` (B148) when X has already been
+            // assigned, so constructors can use field reads in conditions,
+            // method calls, prints, etc.
             let mut assigned_fields: std::collections::HashSet<String> =
                 std::collections::HashSet::new();
 
+            // Helper closure-like inline emission of `<value>` with empty-Map/Set
+            // and string-literal special handling (mirrors what Phase 2 used to do).
             if let Some(body) = &constructor_method.body {
                 // B149: pre-analyze mutated vars in the constructor body so that
                 // `let v = ...` followed by `v.push(...)` emits `let mut v` (same
@@ -3404,97 +3413,104 @@ impl CodeGenerator {
                 self.mutated_vars = temp_mutated;
 
                 self.in_constructor = true;
+                self.constructor_assigned_fields.clear();
 
                 for stmt in &body.stmts {
                     // Check if this is a top-level this.field = expr assignment
-                    let is_field_assign = if let Stmt::Assign(assign) = stmt {
+                    let field_assign = if let Stmt::Assign(assign) = stmt {
                         if let Expr::Member { object, property } = &assign.target {
                             if let Expr::Identifier(obj_name) = object.as_ref() {
                                 if obj_name == "this" {
-                                    let field_name = self.sanitize_name(property);
-                                    // Remove previous assignment to same field (last write wins)
-                                    field_assignments.retain(|(f, _)| *f != field_name);
-                                    assigned_fields.insert(field_name.clone());
-                                    field_assignments.push((field_name, &assign.value));
-                                    true
+                                    Some((self.sanitize_name(property), &assign.value))
                                 } else {
-                                    false
+                                    None
                                 }
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+
+                    if let Some((field_name, value_expr)) = field_assign {
+                        let already_declared =
+                            self.constructor_assigned_fields.contains(&field_name);
+                        self.constructor_assigned_fields.insert(field_name.clone());
+                        assigned_fields.insert(field_name.clone());
+
+                        // Look up field type for empty-collection / optional special cases
+                        let field_type = class.members.iter().find_map(|m| {
+                            if let Member::Field(f) = m {
+                                if self.sanitize_name(&f.name) == field_name {
+                                    return f.type_ref.as_ref();
+                                }
+                            }
+                            None
+                        });
+                        let init_is_empty_object = matches!(
+                            value_expr,
+                            Expr::ObjectLiteral(fields) if fields.is_empty()
+                        );
+                        let init_is_empty_set = matches!(
+                            value_expr,
+                            Expr::SetLiteral(items) if items.is_empty()
+                        );
+                        let field_is_map =
+                            field_type.map_or(false, |t| matches!(t, TypeRef::Map(_, _)));
+                        let field_is_set =
+                            field_type.map_or(false, |t| matches!(t, TypeRef::Set(_)));
+                        let is_opt_field = class.members.iter().any(|m| {
+                            if let Member::Field(f) = m {
+                                let f_name = self.sanitize_name(&f.name);
+                                f_name == field_name
+                                    && (f.is_optional
+                                        || matches!(&f.type_ref, Some(TypeRef::Optional(_))))
                             } else {
                                 false
                             }
-                        } else {
-                            false
-                        }
-                    } else {
-                        false
-                    };
+                        });
 
-                    if !is_field_assign {
-                        // Not a field assignment → generate normally (let, if, while, etc.)
+                        self.write_indent();
+                        if already_declared {
+                            write!(self.output, "__field_{} = ", field_name).unwrap();
+                        } else {
+                            write!(self.output, "let mut __field_{} = ", field_name).unwrap();
+                        }
+
+                        if init_is_empty_object && field_is_map {
+                            self.output.push_str("std::collections::HashMap::new()");
+                        } else if (init_is_empty_object || init_is_empty_set) && field_is_set {
+                            self.output.push_str("std::collections::HashSet::new()");
+                        } else {
+                            self.generate_expr(value_expr)?;
+                            // Promote string literal to String when needed.
+                            if matches!(value_expr, Expr::Literal(Literal::String(_))) {
+                                self.output.push_str(".to_string()");
+                            }
+                        }
+
+                        if is_opt_field {
+                            self.output.push_str(".into()");
+                        }
+                        self.output.push_str(";\n");
+                    } else {
+                        // Not a field assignment → generate normally. `this.X`
+                        // reads inside this stmt are rewritten by generate_expr
+                        // to `__field_X` for already-assigned fields (B148).
                         self.generate_stmt(stmt)?;
                     }
                 }
 
                 self.in_constructor = false;
+                self.constructor_assigned_fields.clear();
             }
 
-            // Phase 2: Evaluate field expressions in SOURCE ORDER into temporaries,
-            // then emit Self { field: temp, ... } in STRUCT order.
-            // This prevents Rust move-before-borrow errors when the constructor
-            // borrows a value before moving it, but struct order differs.
-            for (field_name, value_expr) in &field_assignments {
-                self.write_indent();
-                write!(self.output, "let __field_{} = ", field_name).unwrap();
-
-                // B118 (constructor): empty `{}` literal assigned to a Map<K,V> field
-                // must emit HashMap::new(), not serde_json::json!({}). Same for Set<T>.
-                let field_type = class.members.iter().find_map(|m| {
-                    if let Member::Field(f) = m {
-                        if self.sanitize_name(&f.name) == *field_name {
-                            return f.type_ref.as_ref();
-                        }
-                    }
-                    None
-                });
-                let init_is_empty_object = matches!(
-                    value_expr,
-                    Expr::ObjectLiteral(fields) if fields.is_empty()
-                );
-                let init_is_empty_set = matches!(
-                    value_expr,
-                    Expr::SetLiteral(items) if items.is_empty()
-                );
-                let field_is_map = field_type.map_or(false, |t| matches!(t, TypeRef::Map(_, _)));
-                let field_is_set = field_type.map_or(false, |t| matches!(t, TypeRef::Set(_)));
-
-                if init_is_empty_object && field_is_map {
-                    self.output.push_str("std::collections::HashMap::new()");
-                } else if (init_is_empty_object || init_is_empty_set) && field_is_set {
-                    self.output.push_str("std::collections::HashSet::new()");
-                } else {
-                    self.generate_expr(value_expr)?;
-
-                    // Check if value is a string literal and needs .to_string()
-                    if matches!(value_expr, Expr::Literal(Literal::String(_))) {
-                        self.output.push_str(".to_string()");
-                    }
-                }
-
-                // Check if field is optional (needs .into())
-                let is_opt_field = class.members.iter().any(|m| {
-                    if let Member::Field(f) = m {
-                        let f_name = self.sanitize_name(&f.name);
-                        f_name == *field_name && (f.is_optional || matches!(&f.type_ref, Some(TypeRef::Optional(_))))
-                    } else {
-                        false
-                    }
-                });
-                if is_opt_field {
-                    self.output.push_str(".into()");
-                }
-                self.output.push_str(";\n");
-            }
+            // Phase 2: Emit `Self { ... }` using __field_X temps for assigned
+            // fields and defaults for the rest. The expression evaluation has
+            // already happened inline in Phase 1 (see B148 refactor above).
 
             self.write_indent();
             self.output.push_str("Self {\n");
@@ -8078,6 +8094,23 @@ impl CodeGenerator {
                 self.generate_call_expr(call)?;
             }
             Expr::Member { object, property } => {
+                // B148: Inside a constructor, rewrite `this.field` reads to the
+                // local `__field_<name>` temp once the field has been assigned.
+                // This lets the constructor body use field reads in conditions,
+                // method receivers, format args, etc. — without raw `this`
+                // (which would emit invalid Rust → E0425).
+                if self.in_constructor {
+                    if let Expr::Identifier(obj_name) = object.as_ref() {
+                        if obj_name == "this" || obj_name == "self" {
+                            let sanitized = self.sanitize_name(property);
+                            if self.constructor_assigned_fields.contains(&sanitized) {
+                                write!(self.output, "__field_{}", sanitized).unwrap();
+                                return Ok(());
+                            }
+                        }
+                    }
+                }
+
                 // Server request parameter interception: req.params → __params, req.body → body
                 if let Some(ref req_param_name) = self.server_request_param {
                     if let Expr::Identifier(name) = object.as_ref() {

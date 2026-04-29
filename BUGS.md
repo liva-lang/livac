@@ -322,7 +322,7 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Fix:** Detectar `reverse` sobre receiver registrado en `array_vars` (y no en `string_vars`) y emitir `{ let mut __v = receiver.clone(); __v.reverse(); __v }`.
 - **Test:** `bootstrap_apps/app19_pq.liva`.
 
-### B148 — `this.X` no se rebinds en cuerpo no-asignación del constructor 🔶 OPEN
+### B148 — `this.X` no se rebinds en cuerpo no-asignación del constructor ⚡ ✅ FIXED (bootstrap)
 - **Repro:**
   ```liva
   HashMap {
@@ -330,16 +330,15 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
       keys: [string]
       constructor() {
           this.cap = 8
-          for i in 0..this.cap {     // ← `this` queda raw en Rust
+          for i in 0..this.cap {     // ← antes `this` quedaba raw → E0425
               this.keys.push("")
           }
       }
   }
   ```
-- **Problema:** El constructor de Liva tiene un esquema en dos fases: (1) emitir stmts no-`this.field=`, (2) emitir `Self { ... }`. Las stmts de fase (1) que leen `this` salen al output como literal `this`, pero `Self` aún no existe.
-- **Fix propuesto:** Detectar stmts que tocan `this`, deferir su emisión a después del `Self {...}` con un alias mutable (`let mut __obj = Self {...}; <deferred stmts: this→__obj>; __obj`). Requiere helper `expr_uses_this` y un campo `this_alias: Option<String>` para sustituir el identificador.
-- **Workaround:** Escribir el constructor con locales (`let cap = 8; let ks: [string] = []; ...`) y al final `this.cap = cap; this.keys = ks`.
-- **Test:** `bootstrap_apps/app21_hashmap.liva` (workaround aplicado).
+- **Problema:** El constructor de Liva tenía un esquema en dos fases: (1) emitir stmts no-`this.field=`, (2) emitir `Self { ... }`. Las stmts de fase (1) que leían `this` salían al output como literal `this`, pero `Self` aún no existía.
+- **Fix:** Refactor de Phase 1: para cada `this.X = expr` top-level se emite `let mut __field_X = <expr>;` (o `__field_X = <expr>;` en re-asignaciones) inline, en orden de fuente. Para los demás stmts, `generate_expr` reescribe `Expr::Member { object: this, property: X }` a `__field_X` cuando `X` ya está asignado y `self.in_constructor` es true. Phase 2 simplemente emite `Self { x: __field_x, ... }`. Mantiene last-write-wins y evita los problemas de borrow del esquema antiguo.
+- **Test:** `bootstrap_apps/app27_b148.liva` (sin workaround).
 
 ### B149 — Vars locales del constructor mutadas no se emiten con `mut` ⚡ ✅ FIXED (bootstrap)
 - **Repro:** `constructor() { let ks: [string] = []; for i in 0..n { ks.push("") } ... }` → E0596: `cannot borrow ks as mutable`.
@@ -353,11 +352,11 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Fix:** En el loop genérico de args de `generate_method_call_expr`, cuando el receiver está en `class_instance_vars` y el arg es `Literal::String`, append `.to_string()`.
 - **Test:** `bootstrap_apps/app21_hashmap.liva`.
 
-### B151 — String interpolation con `\"` escapado dentro de `${...}` no se parsea ⚡ OPEN
-- **Repro:** `print($"a:{m.get(\"apple\")}")` emite literal `a:{m.get(\"apple\")}` (sin sustituir la expresión).
-- **Problema:** El lexer del string template trata `\"` como cierre o no lo unescapa correctamente dentro del `${...}` placeholder.
-- **Workaround:** Computar el valor en una variable local antes y usarla simple en el placeholder: `let v = m.get("apple"); print($"a:{v}")`.
-- **Test:** `bootstrap_apps/app22_glob.liva` (workaround aplicado).
+### B151 — String interpolation con `\"` escapado dentro de `${...}` no se parsea ⚡ ✅ FIXED (bootstrap)
+- **Repro:** `print($"a:{m.get(\"apple\")}")` emitía literal `a:{m.get(\"apple\")}` (sin sustituir la expresión).
+- **Problema:** `parse_string_template_parts` recogía el contenido del placeholder `{...}` literalmente; cuando el placeholder traía `\"` para escapar las comillas del `$"..."` exterior, el sub-parser veía `\` como token inválido y caía al fallback de "texto literal".
+- **Fix:** Dentro del bucle que recoge `expr_src` añadir manejo de escapes (`\"`→`"`, `\\`→`\`, `\n`/`\r`/`\t`) antes de pasar el contenido a `parse_template_expression`.
+- **Test:** `bootstrap_apps/app25_parser.liva` (escapes restaurados al patrón original).
 
 ### B152 — `impl Display for Class<T>` con campo `[T]` faltaba bound `Debug` ⚡ ✅ FIXED (bootstrap)
 - **Repro:** `Stack<T> { items: [T] }` generaba `write!(f, "Stack {{ items: {:?} }}", self.items)` con `impl<T: Clone + Display>` — falta `Debug` para `{:?}` → E0277.

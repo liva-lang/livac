@@ -1,0 +1,44 @@
+// app27_b148 — exercises B148: constructor that reads `this.field` after
+// assigning it (in conditions, in method receivers, in print). Before B148
+// fix, this required workarounds (locals + final this.field = local).
+// EXPECT: depth:3
+// EXPECT: cap:5
+// EXPECT: sum:6
+
+Bag {
+    items: [number]
+    cap: number
+
+    constructor(cap: number) {
+        this.cap = cap
+        this.items = []
+        // Pre-fill with three zeros, but read this.cap to bound the loop.
+        // This is the key B148 pattern — `this.cap` read in the while condition.
+        let i = 0
+        while i < 3 && i < this.cap {
+            this.items.push(i + 1)
+            i += 1
+        }
+    }
+
+    depth(): number {
+        return this.items.length
+    }
+
+    sum(): number {
+        let s = 0
+        for v in this.items {
+            s += v
+        }
+        return s
+    }
+}
+
+main() {
+    let b = Bag(5)
+    let d = b.depth()
+    print($"depth:{d}")
+    print($"cap:{b.cap}")
+    let s = b.sum()
+    print($"sum:{s}")
+}
