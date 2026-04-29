@@ -839,7 +839,15 @@ impl SemanticAnalyzer {
             Stmt::Expr(expr_stmt) => self.expr_contains_fail(&expr_stmt.expr),
             Stmt::VarDecl(var) => {
                 // `or fail` makes the containing function fallible
-                var.or_fail_msg.is_some() || self.expr_contains_fail(&var.init)
+                if var.or_fail_msg.is_some() {
+                    return true;
+                }
+                // Error binding (`let x, err = ...`) and `or <default>` consume the error
+                // locally, so they do NOT propagate fallibility to the containing function.
+                if var.is_fallible {
+                    return false;
+                }
+                self.expr_contains_fail(&var.init)
             }
             Stmt::Defer(defer_stmt) => self.stmt_contains_fail(&defer_stmt.body),
             _ => false,

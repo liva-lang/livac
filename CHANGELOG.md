@@ -36,6 +36,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `bootstrap_apps/app14_setops.liva` — Set ops + filter/map/distinct
 - `bootstrap_apps/app15_library.liva` — Map<string, [Class]> + user method `count`
 - `bootstrap_apps/app16_fsm.liva` — enums + fallible transitions con `fail`
+- `bootstrap_apps/app17_pipeline.liva` — chained iterator pipelines, nested
+  arrays, point-free reduce, fallible `toInt() or fail`, error binding count.
+
+### Fixed (round 3)
+- **B140 — `or <default>` propagaba fallibilidad incorrectamente**: en
+  `semantic.rs::stmt_contains_fail` la rama `Stmt::VarDecl` devolvía true
+  cuando el init contenía un fallible call, sin distinguir `or fail`
+  (sí propaga) de `or <default>` / error binding (no propagan). Ahora respeta
+  `is_fallible` y `or_fail_msg` por separado.
+- **B141 — point-free fn ref en `.reduce`**: `arr.reduce(0, my_fn)` emitía
+  `iter().fold(0, my_fn)`, pero `fold` requiere `FnMut(B, &T) -> B`. Ahora se
+  envuelve el ident en `|acc, x| my_fn(acc, x.clone())`.
+- **B142 — for nested sobre `[[T]]`**: el inner for caía en string-iterable
+  por defecto (emitía `g.chars()`). VarDecl con `Array(Array(T))` ahora
+  registra el element type como `"[T]"`; el for-loop dispatch desempaqueta
+  esa codificación y registra `g` como array.
+- **B143 — `s.toInt() or fail`**: `toInt()` emitía `parse::<i32>().unwrap_or(0)`
+  ignorando el `or fail`. Caso especial añadido en el `or fail` handler para
+  `MethodCall::toInt|toFloat`: emite match con `return Err(Error::chain(...))`.
 
 ## [2.0.0-dev] - 2026-04-29 — v2.0 al 100% (Release Ready)
 

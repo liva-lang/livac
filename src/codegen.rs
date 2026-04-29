@@ -5522,6 +5522,26 @@ impl CodeGenerator {
                             self.generate_expr(fail_msg)?;
                         }
                         write!(self.output, ", \"{}\", \"{}\")) }};\n", fn_name, location).unwrap();
+                    } else if let Expr::MethodCall(mc) = &var.init {
+                        // B143: `s.toInt() or fail "msg"` — emit fallible parse
+                        if mc.method == "toInt" || mc.method == "toFloat" {
+                            let parse_t = if mc.method == "toInt" { "i32" } else { "f64" };
+                            write!(self.output, "let {}{} = match ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
+                            self.generate_expr(&mc.object)?;
+                            write!(self.output, ".parse::<{}>() {{ Ok(v) => v, Err(e) => return Err(liva_rt::Error::", parse_t).unwrap();
+                            if is_bare_or_fail {
+                                self.output.push_str("from(e.to_string()))");
+                            } else {
+                                self.output.push_str("chain(");
+                                self.generate_expr(fail_msg)?;
+                                write!(self.output, ", \"{}\", \"{}\", liva_rt::Error::from(e.to_string())))", fn_name, location).unwrap();
+                            }
+                            self.output.push_str(" };\n");
+                        } else {
+                            write!(self.output, "let {}{} = ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
+                            self.generate_expr(&var.init)?;
+                            self.output.push_str(";\n");
+                        }
                     } else {
                         // Non-fallible expression with or fail — just assign directly (or fail never triggers)
                         write!(self.output, "let {}{} = ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
@@ -6570,11 +6590,24 @@ impl CodeGenerator {
 
                             // Bug #35 fix: Track array types for proper forEach/map lambda patterns
                             // e.g., let parts: [string] = text.split(",") should use |p| not |&p|
+                            // B142: also encode nested arrays `[[T]]` so inner for-loops know
+                            // the element is itself an array (encoded as "[T]").
                             if let TypeRef::Array(elem_type) = type_ref {
                                 self.array_vars.insert(var_name.clone());
-                                if let TypeRef::Simple(type_name) = elem_type.as_ref() {
-                                    self.typed_array_vars
-                                        .insert(var_name.clone(), type_name.clone());
+                                match elem_type.as_ref() {
+                                    TypeRef::Simple(type_name) => {
+                                        self.typed_array_vars
+                                            .insert(var_name.clone(), type_name.clone());
+                                    }
+                                    TypeRef::Array(inner) => {
+                                        if let TypeRef::Simple(inner_name) = inner.as_ref() {
+                                            self.typed_array_vars.insert(
+                                                var_name.clone(),
+                                                format!("[{}]", inner_name),
+                                            );
+                                        }
+                                    }
+                                    _ => {}
                                 }
                             }
 
@@ -7054,6 +7087,17 @@ impl CodeGenerator {
                     let element_type = self.typed_array_vars.get(&sanitized_iterable).cloned()
                         .or_else(|| self.typed_array_vars.get(iterable_name.as_str()).cloned());
                     if let Some(element_type) = element_type {
+                        // B142: nested array — element is itself an array (encoded "[T]")
+                        if element_type.starts_with('[') && element_type.ends_with(']') {
+                            self.array_vars.insert(var_name.clone());
+                            let inner = element_type
+                                .trim_start_matches('[')
+                                .trim_end_matches(']');
+                            if !inner.is_empty() {
+                                self.typed_array_vars
+                                    .insert(var_name.clone(), inner.to_string());
+                            }
+                        }
                         // Check if element type is a class (uppercase first char, not a primitive)
                         let is_class_type = !matches!(
                             element_type.as_str(),
@@ -11298,6 +11342,23 @@ impl CodeGenerator {
                 self.generate_expr(arg)?;
                 self.output.push_str(".to_string()");
                 continue;
+            }
+
+            // B141: point-free function reference as reduce/fold closure.
+            // `iter().fold(init, my_fn)` fails because `fold` expects `FnMut(B, &T) -> B`,
+            // not `fn(B, T) -> B`. Wrap the identifier in an adapter closure that clones
+            // the element (safe for both Copy and non-Copy types).
+            if method_call.method == "reduce" && i == 1 {
+                if let Expr::Identifier(fn_name) = arg {
+                    let sanitized = self.sanitize_name(fn_name);
+                    write!(
+                        self.output,
+                        "|acc, x| {}(acc, x.clone())",
+                        sanitized
+                    )
+                    .unwrap();
+                    continue;
+                }
             }
 
             // Special handling for includes/indexOf: wrap value in closure

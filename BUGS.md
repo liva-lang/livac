@@ -276,6 +276,28 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Workaround:** reemplazar el switch externo por if-else encadenado con `return State.Running` explícito (ver `bootstrap_apps/app16_fsm.liva`).
 - **Pendiente:** detectar en `generate_switch_expr` cuando alguna arm contiene `fail` y wrappear las otras arms en `Ok(...)`. Misma idea que el ternary B127.
 
+### B140 — `or <default>` propagaba fallibilidad al caller incorrectamente ⚡ ✅ FIXED (bootstrap)
+- **Repro:** `safe(x): number { let n = fail_fn(x) or 0; return n + 1 }`; el caller recibía `E0701: 'safe' can fail` aunque el `or 0` ya consume el error localmente.
+- **Problema:** `semantic.rs::stmt_contains_fail` para `Stmt::VarDecl` devolvía `true` siempre que el init contenía una llamada fallible, sin importar si era `or fail` (que sí propaga) o `or <default>` / error binding (que no propagan).
+- **Fix:** en `Stmt::VarDecl`: si `or_fail_msg.is_some()` → propaga; si `is_fallible` (error binding o `or <default>`) → NO propaga; resto → recursar en init.
+- **Test:** `bootstrap_apps/app17_pipeline.liva` (función `sum_parsed` y `count_bad`).
+
+### B141 — point-free fn ref en `.reduce(init, fn)` rompe firma de `fold` ⚡ ✅ FIXED (bootstrap)
+- **Repro:** `arr.reduce(0, max_of)` con `max_of(a, b): number` → emite `arr.iter().fold(0, max_of)` pero `fold` espera `FnMut(B, &T) -> B`.
+- **Fix:** en `generate_method_call` de `reduce`, cuando arg[1] es `Expr::Identifier`, envolver en closure `|acc, x| fn(acc, x.clone())`.
+- **Test:** `bootstrap_apps/app17_pipeline.liva`.
+
+### B142 — for nested sobre `[[T]]` no detectaba el array interno ⚡ ✅ FIXED (bootstrap)
+- **Repro:** `let groups: [[number]] = [...]; for g in groups { for x in g { ... } }` → inner for trataba `g` como string y emitía `g.chars()` con `flat_total = format!(...)` (concatenación de strings) en lugar de suma.
+- **Problema:** `typed_array_vars` solo registraba `TypeRef::Simple` como element type. Para `Array(Array(T))` perdía la dimensión interna y caía en el default-string-iterable.
+- **Fix:** en VarDecl con `TypeRef::Array(TypeRef::Array(T))`, registrar element type como `"[T]"`. En el for-loop sobre arrays, si el element type es `"[X]"` → `g` se registra en `array_vars` y `typed_array_vars` con elem `X`, habilitando el inner for.
+- **Test:** `bootstrap_apps/app17_pipeline.liva`.
+
+### B143 — `s.toInt() or fail "msg"` no era fallible ⚡ ✅ FIXED (bootstrap)
+- **Repro:** `parse_int(s): number { let n = s.toInt() or fail $"bad: {s}"; return n }` — `or fail` no propagaba el error de parse: `toInt()` emite `parse::<i32>().unwrap_or(0)`.
+- **Fix:** en `or fail` para `MethodCall::toInt|toFloat`, emitir `match s.parse::<T>() { Ok(v) => v, Err(e) => return Err(liva_rt::Error::chain(...)) }`.
+- **Test:** `bootstrap_apps/app17_pipeline.liva`.
+
 
 ## Carencias del lenguaje detectadas
 
