@@ -259,6 +259,23 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Fix:** Añadido a `is_set_method` matcher y handler que emite `(set.len() as i32)`.
 - **Test:** `bootstrap_apps/app14_setops.liva`.
 
+### B137 — `instance.count("literal")` no `.to_string()`-ea el argumento ⚡ ✅ FIXED (bootstrap)
+- **Repro:** método de usuario `count(category: string): number` invocado como `lib.count("fiction")` emitía `lib.count("fiction")` (sin `.to_string()`), `expected String, found &str`.
+- **Problema:** El parche B10 (que evita la rama de iteradores cuando el objeto es una instancia de clase) no propagaba la conversión `&str → String` para argumentos string-literal/var.
+- **Fix:** En el handler de B10 ahora se aplica `.to_string()` para `Expr::Literal::String` y `.clone()` para `string_vars` / `class_instance_vars`.
+- **Test:** `bootstrap_apps/app15_library.liva`.
+
+### B138 — `fail "msg"` en posición de expresión emitía `;\n` rompiendo switch arms ⚡ ✅ FIXED (bootstrap)
+- **Repro:** `return switch s { State.Idle => switch a { Action.Start => State.Running; _ => fail "..." } }` → "expected `,`, `.`, `?`, `}`, or an operator, found `;`".
+- **Problema:** `Expr::Fail` siempre emitía `\twrite_indent return Err(...);\n`. En contexto stmt eso se duplicaba con el `;` de `Stmt::Expr`; en contexto switch-arm rompía la sintaxis.
+- **Fix:** `Expr::Fail` ahora emite sólo `return Err(liva_rt::Error::from(...))` (sin indent ni `;`). El stmt context añade `;` por separado.
+- **Test:** `bootstrap_apps/app16_fsm.liva`.
+
+### B139 — switch arms en función `T!` no auto-envuelven valores no-fail en `Ok(...)` 🔶 OPEN
+- **Repro:** `transition(s, a): State! { return switch s { State.Idle => switch a { Action.Start => State.Running, _ => fail "..." } ... } }` → arm `State.Running` queda como `State::Running` pero la función espera `Result<State, Error>`. Sólo el ternary-with-fail (línea 7920) wrappea automáticamente.
+- **Workaround:** reemplazar el switch externo por if-else encadenado con `return State.Running` explícito (ver `bootstrap_apps/app16_fsm.liva`).
+- **Pendiente:** detectar en `generate_switch_expr` cuando alguna arm contiene `fail` y wrappear las otras arms en `Ok(...)`. Misma idea que el ternary B127.
+
 
 ## Carencias del lenguaje detectadas
 

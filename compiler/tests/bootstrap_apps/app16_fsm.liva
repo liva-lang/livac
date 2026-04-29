@@ -1,0 +1,92 @@
+// App: Mini state machine — enums + fallible transitions via if-else.
+// EXPECT: state:Idle
+// EXPECT: after_start:Running
+// EXPECT: after_pause:Paused
+// EXPECT: after_resume:Running
+// EXPECT: after_stop:Idle
+// EXPECT: invalid_from_idle:true
+
+enum State {
+    Idle,
+    Running,
+    Paused
+}
+
+enum Action {
+    Start,
+    Pause,
+    Resume,
+    Stop
+}
+
+stateName(s: State): string {
+    return switch s {
+        State.Idle => "Idle"
+        State.Running => "Running"
+        State.Paused => "Paused"
+    }
+}
+
+actionName(a: Action): string {
+    return switch a {
+        Action.Start => "Start"
+        Action.Pause => "Pause"
+        Action.Resume => "Resume"
+        Action.Stop => "Stop"
+    }
+}
+
+transition(s: State, a: Action): State! {
+    let sn = stateName(s)
+    let an = actionName(a)
+
+    if sn == "Idle" {
+        if an == "Start" {
+            return State.Running
+        }
+        fail $"cannot {an} from Idle"
+    }
+    if sn == "Running" {
+        if an == "Pause" {
+            return State.Paused
+        }
+        if an == "Stop" {
+            return State.Idle
+        }
+        fail $"cannot {an} from Running"
+    }
+    if sn == "Paused" {
+        if an == "Resume" {
+            return State.Running
+        }
+        if an == "Stop" {
+            return State.Idle
+        }
+        fail $"cannot {an} from Paused"
+    }
+    fail "unknown state"
+}
+
+main() {
+    let s0 = State.Idle
+    print($"state:{stateName(s0)}")
+
+    let s1 = transition(s0, Action.Start) or fail "boom"
+    print($"after_start:{stateName(s1)}")
+
+    let s2 = transition(s1, Action.Pause) or fail "boom"
+    print($"after_pause:{stateName(s2)}")
+
+    let s3 = transition(s2, Action.Resume) or fail "boom"
+    print($"after_resume:{stateName(s3)}")
+
+    let s4 = transition(s3, Action.Stop) or fail "boom"
+    print($"after_stop:{stateName(s4)}")
+
+    let bad, err = transition(State.Idle, Action.Pause)
+    if err != null {
+        print($"invalid_from_idle:true")
+    } else {
+        print($"invalid_from_idle:false")
+    }
+}

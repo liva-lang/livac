@@ -9088,10 +9088,12 @@ impl CodeGenerator {
                 }
             }
             Expr::Fail(expr) => {
-                self.write_indent();
+                // B138: emit as a bare expression (no indent/`;`) so it works in
+                // both statement context (Stmt::Expr adds `;`) and expression
+                // context (switch arm, ternary).
                 self.output.push_str("return Err(liva_rt::Error::from(");
                 self.generate_expr(expr)?;
-                self.output.push_str("));\n");
+                self.output.push_str("))");
             }
             Expr::MethodCall(method_call) => {
                 // TODO: Implement method call code generation (stdlib Phase 2)
@@ -11010,7 +11012,21 @@ impl CodeGenerator {
                 if i > 0 {
                     self.output.push_str(", ");
                 }
-                self.generate_expr(arg)?;
+                // B137: string literals → .to_string() for user methods.
+                if matches!(arg, Expr::Literal(Literal::String(_))) {
+                    self.generate_expr(arg)?;
+                    self.output.push_str(".to_string()");
+                } else if let Expr::Identifier(var_name) = arg {
+                    let san = self.sanitize_name(var_name);
+                    if self.string_vars.contains(&san) || self.class_instance_vars.contains(&san) {
+                        self.generate_expr(arg)?;
+                        self.output.push_str(".clone()");
+                    } else {
+                        self.generate_expr(arg)?;
+                    }
+                } else {
+                    self.generate_expr(arg)?;
+                }
             }
             self.output.push(')');
             return Ok(());

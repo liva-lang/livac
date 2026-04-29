@@ -1,0 +1,68 @@
+// App: JSON-like nested data + class methods over Map<string, [Class]>
+// Stress: Map of arrays of class instances, mutation through method.
+// EXPECT: total_books:5
+// EXPECT: count_fiction:3
+// EXPECT: count_science:2
+// EXPECT: first_fiction:Dune
+
+Book {
+    title: string
+    pages: number
+
+    constructor(t: string, p: number) {
+        this.title = t
+        this.pages = p
+    }
+}
+
+Library {
+    shelves: Map<string, [Book]>
+
+    constructor() {
+        this.shelves = {}
+    }
+
+    add(category: string, b: Book) {
+        let list = this.shelves.get(category) or []
+        list.push(b)
+        this.shelves.set(category, list)
+    }
+
+    count(category: string): number {
+        let list = this.shelves.get(category) or []
+        return list.length
+    }
+
+    total(): number {
+        let n = 0
+        for k, list in this.shelves {
+            n = n + list.length
+        }
+        return n
+    }
+
+    first(category: string): string {
+        let list = this.shelves.get(category) or []
+        if list.length == 0 {
+            return ""
+        }
+        return list[0].title
+    }
+}
+
+main() {
+    let lib = Library()
+    lib.add("fiction", Book("Dune", 412))
+    lib.add("fiction", Book("1984", 328))
+    lib.add("fiction", Book("Foundation", 244))
+    lib.add("science", Book("A Brief History of Time", 256))
+    lib.add("science", Book("Cosmos", 384))
+
+    print($"total_books:{lib.total()}")
+    let cf = lib.count("fiction")
+    let cs = lib.count("science")
+    let ff = lib.first("fiction")
+    print($"count_fiction:{cf}")
+    print($"count_science:{cs}")
+    print($"first_fiction:{ff}")
+}

@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   recursivamente `Stmt::Expr`, `Stmt::Return` y `Stmt::If` como expresiones.
 - **B136 — `Set.size()` no implementado**: añadido al matcher de set methods y
   emitido como `(set.len() as i32)`.
+- **B137 — `instance.count("literal")` sin `.to_string()`**: el parche B10
+  (skip array-iterator pipeline cuando objeto es instancia de clase) no
+  convertía argumentos string-literal a `String`. Ahora aplica `.to_string()`
+  para literales y `.clone()` para `string_vars` / `class_instance_vars`.
+- **B138 — `fail "msg"` rompía switch arms**: `Expr::Fail` emitía
+  `\twrite_indent return Err(...);\n`, duplicando `;` en contexto stmt y
+  rompiendo arms (`expected ',' or '}'`). Ahora emite sólo
+  `return Err(liva_rt::Error::from(...))`; el `Stmt::Expr` añade el `;`.
 
 ### Added
 - `bootstrap_apps/app10_stats.liva` — stats con `Map<string, [number]>`
@@ -26,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `bootstrap_apps/app12_tree.liva` — recursive enum `Tree` con switch+if tail-expr
 - `bootstrap_apps/app13_calc.liva` — recursive enum `Expr` evaluator
 - `bootstrap_apps/app14_setops.liva` — Set ops + filter/map/distinct
+- `bootstrap_apps/app15_library.liva` — Map<string, [Class]> + user method `count`
+- `bootstrap_apps/app16_fsm.liva` — enums + fallible transitions con `fail`
 
 ## [2.0.0-dev] - 2026-04-29 — v2.0 al 100% (Release Ready)
 
