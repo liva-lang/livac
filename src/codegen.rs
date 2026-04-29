@@ -81,6 +81,7 @@ pub struct CodeGenerator {
     class_fields: std::collections::HashMap<String, std::collections::HashSet<String>>,
     class_optional_fields: std::collections::HashMap<String, std::collections::HashSet<String>>, // Track optional fields per class
     class_array_field_types: std::collections::HashMap<String, std::collections::HashMap<String, String>>, // className -> (fieldName -> elementType) for array fields
+    class_map_value_types: std::collections::HashMap<String, std::collections::HashMap<String, String>>, // className -> (fieldName -> valueType) for Map<K,V> fields (B125)
     var_types: std::collections::HashMap<String, String>, // var -> ClassName
     fallible_functions: std::collections::HashSet<String>, // Track which functions are fallible
     fallible_methods: std::collections::HashSet<String>, // B19 fix: Track which class methods are fallible (method_name, not qualified)
@@ -188,6 +189,7 @@ impl CodeGenerator {
             class_fields: std::collections::HashMap::new(),
             class_optional_fields: std::collections::HashMap::new(),
             class_array_field_types: std::collections::HashMap::new(),
+            class_map_value_types: std::collections::HashMap::new(),
             var_types: std::collections::HashMap::new(),
             fallible_functions: std::collections::HashSet::new(),
             fallible_methods: std::collections::HashSet::new(),
@@ -1692,6 +1694,7 @@ impl CodeGenerator {
                 let mut fields = std::collections::HashSet::new();
                 let mut optional_fields = std::collections::HashSet::new();
                 let mut array_field_types = std::collections::HashMap::new();
+                let mut map_value_types: std::collections::HashMap<String, String> = std::collections::HashMap::new();
                 let mut constructor_optionals: Vec<bool> = Vec::new();
                 for m in &cls.members {
                     if let Member::Field(f) = m {
@@ -1707,6 +1710,12 @@ impl CodeGenerator {
                                 array_field_types.insert(f.name.clone(), type_name.clone());
                             }
                         }
+                        // B125: Track Map field value types: fieldName -> valueType
+                        if let Some(TypeRef::Map(_, value_type)) = &f.type_ref {
+                            if let TypeRef::Simple(type_name) = value_type.as_ref() {
+                                map_value_types.insert(f.name.clone(), type_name.clone());
+                            }
+                        }
                     }
                 }
                 self.class_fields.insert(cls.name.clone(), fields);
@@ -1715,6 +1724,9 @@ impl CodeGenerator {
                 self.class_constructor_optionals.insert(cls.name.clone(), constructor_optionals);
                 if !array_field_types.is_empty() {
                     self.class_array_field_types.insert(cls.name.clone(), array_field_types);
+                }
+                if !map_value_types.is_empty() {
+                    self.class_map_value_types.insert(cls.name.clone(), map_value_types);
                 }
 
                 // B100 fix: Scan class methods for return types (string, [T])
@@ -3407,11 +3419,39 @@ impl CodeGenerator {
             for (field_name, value_expr) in &field_assignments {
                 self.write_indent();
                 write!(self.output, "let __field_{} = ", field_name).unwrap();
-                self.generate_expr(value_expr)?;
 
-                // Check if value is a string literal and needs .to_string()
-                if matches!(value_expr, Expr::Literal(Literal::String(_))) {
-                    self.output.push_str(".to_string()");
+                // B118 (constructor): empty `{}` literal assigned to a Map<K,V> field
+                // must emit HashMap::new(), not serde_json::json!({}). Same for Set<T>.
+                let field_type = class.members.iter().find_map(|m| {
+                    if let Member::Field(f) = m {
+                        if self.sanitize_name(&f.name) == *field_name {
+                            return f.type_ref.as_ref();
+                        }
+                    }
+                    None
+                });
+                let init_is_empty_object = matches!(
+                    value_expr,
+                    Expr::ObjectLiteral(fields) if fields.is_empty()
+                );
+                let init_is_empty_set = matches!(
+                    value_expr,
+                    Expr::SetLiteral(items) if items.is_empty()
+                );
+                let field_is_map = field_type.map_or(false, |t| matches!(t, TypeRef::Map(_, _)));
+                let field_is_set = field_type.map_or(false, |t| matches!(t, TypeRef::Set(_)));
+
+                if init_is_empty_object && field_is_map {
+                    self.output.push_str("std::collections::HashMap::new()");
+                } else if (init_is_empty_object || init_is_empty_set) && field_is_set {
+                    self.output.push_str("std::collections::HashSet::new()");
+                } else {
+                    self.generate_expr(value_expr)?;
+
+                    // Check if value is a string literal and needs .to_string()
+                    if matches!(value_expr, Expr::Literal(Literal::String(_))) {
+                        self.output.push_str(".to_string()");
+                    }
                 }
 
                 // Check if field is optional (needs .into())
@@ -6495,7 +6535,8 @@ impl CodeGenerator {
                             } else {
                                 // Auto-clone when assigning this.field or a class instance to a local variable
                                 let needs_clone = self.expr_is_self_field(&var.init)
-                                    || self.expr_is_class_instance(&var.init);
+                                    || self.expr_is_class_instance(&var.init)
+                                    || self.expr_is_class_instance_field(&var.init);
                                 self.generate_expr(&var.init)?;
                                 if needs_clone {
                                     self.output.push_str(".clone()");
@@ -6719,8 +6760,43 @@ impl CodeGenerator {
                             let sanitized = self.sanitize_name(name);
                             self.map_vars.contains(&sanitized) || self.map_vars.contains(name.as_str())
                         }
+                        // B125: also match `obj.field` where field is a known Map field name
+                        Expr::Member { property, .. } => {
+                            let sanitized = self.sanitize_name(property);
+                            self.map_vars.contains(&sanitized) || self.map_vars.contains(property.as_str())
+                        }
                         _ => false,
                     };
+
+                    // B125: register the value loop var as a class instance if the
+                    // map is `obj.field` (or `this.field`) typed `Map<_, ClassName>`.
+                    if is_map_iteration {
+                        if let Expr::Member { object, property } = &for_stmt.iterable {
+                            let class_name_opt = match object.as_ref() {
+                                Expr::Identifier(name) if name == "this" || name == "self" => {
+                                    self.current_class_name.clone()
+                                }
+                                Expr::Identifier(name) => {
+                                    self.var_types.get(&self.sanitize_name(name)).cloned()
+                                }
+                                _ => None,
+                            };
+                            if let Some(class_name) = class_name_opt {
+                                if let Some(field_map) = self.class_map_value_types.get(&class_name).cloned() {
+                                    if let Some(elem_type) = field_map.get(property).cloned() {
+                                        let is_cls = !matches!(
+                                            elem_type.as_str(),
+                                            "number" | "int" | "i32" | "float" | "f64" | "bool" | "char" | "string"
+                                        ) && elem_type.chars().next().map(|c| c.is_uppercase()).unwrap_or(false);
+                                        if is_cls {
+                                            self.class_instance_vars.insert(var2_name_san.clone());
+                                            self.var_types.insert(var2_name_san.clone(), elem_type);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     if is_map_iteration {
                         // Map iteration: for key, value in map { ... }
@@ -7393,6 +7469,33 @@ impl CodeGenerator {
         if let Expr::Identifier(name) = expr {
             let sanitized = self.sanitize_name(name);
             return self.class_instance_vars.contains(&sanitized);
+        }
+        false
+    }
+
+    /// B125: Returns true if the expression is `obj.field` where `obj` is a known class
+    /// instance (parameter or local) but is NOT `this`/`self`. We auto-clone such field
+    /// reads in `let x = obj.field;` to prevent partial-moves of `obj`. Borrow checker
+    /// would otherwise reject `let key = p.sku; m.set(key, p);` because `p.sku` (a
+    /// non-Copy String) was moved out of `p`.
+    fn expr_is_class_instance_field(&self, expr: &Expr) -> bool {
+        if let Expr::Member { object, property } = expr {
+            // Skip tuple indexing like `point.0`, `pair.1`
+            if property.chars().all(|c| c.is_ascii_digit()) {
+                return false;
+            }
+            if let Expr::Identifier(name) = object.as_ref() {
+                if name == "this" || name == "self" {
+                    return false;
+                }
+                // Skip if `name` refers to a type (enum/class) used for static-style access
+                // (e.g. `Direction::North`, `Status::Active`).
+                if self.enum_names.contains(name) || self.class_fields.contains_key(name) {
+                    return false;
+                }
+                let sanitized = self.sanitize_name(name);
+                return self.class_instance_vars.contains(&sanitized);
+            }
         }
         false
     }
@@ -11701,6 +11804,11 @@ impl CodeGenerator {
                         } else {
                             self.generate_expr(key)?;
                         }
+                    } else if let Expr::Member { .. } = key {
+                        // B124: `m.set(p.field, p)` partially moves `p`. Clone the
+                        // member-access key so the original receiver stays whole.
+                        self.generate_expr(key)?;
+                        self.output.push_str(".clone()");
                     } else {
                         self.generate_expr(key)?;
                     }
@@ -15275,10 +15383,10 @@ impl CodeGenerator {
                     return self.map_vars.contains(&sanitized);
                 }
                 // Bug #76 fix: Also check this._field for Map-typed class fields
-                if let Expr::Member { object, property } = &*mc.object {
-                    if matches!(object.as_ref(), Expr::Identifier(name) if name == "this" || name == "self") {
-                        return self.map_vars.contains(&self.sanitize_name(property));
-                    }
+                // B125: Generalize to any `obj.field` where `field` is a known
+                // Map-typed name in `map_vars` (which tracks both vars and fields).
+                if let Expr::Member { property, .. } = &*mc.object {
+                    return self.map_vars.contains(&self.sanitize_name(property));
                 }
             }
         }

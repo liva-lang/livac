@@ -1,0 +1,70 @@
+// App: Inventory — exercises Map<string, ClassInstance> with the patterns
+// previously broken by B124/B125: `m.set(p.field, p)`, `m.get(k) or Class(...)`,
+// `for k, v in map` over class values, and constructor `this.field = {}` typed Map.
+
+Product {
+    sku: string
+    name: string
+    price: number
+    stock: number
+
+    constructor(sku: string, name: string, price: number, stock: number) {
+        this.sku = sku
+        this.name = name
+        this.price = price
+        this.stock = stock
+    }
+}
+
+Inventory {
+    items: Map<string, Product>
+    sales: number
+
+    constructor() {
+        this.items = {}
+        this.sales = 0
+    }
+
+    add(p: Product) {
+        // Direct member-access argument (used to fail E0382 partial-move).
+        this.items.set(p.sku, p)
+    }
+
+    sell(sku: string, qty: number): number {
+        // Map.get with class default (used to fail E0599 unwrap_or_default).
+        let p = this.items.get(sku) or Product("?", "missing", 0, 0)
+        if p.stock < qty { return 0 }
+        let updated = Product(p.sku, p.name, p.price, p.stock - qty)
+        this.items.set(updated.sku, updated)
+        this.sales += qty * p.price
+        return qty * p.price
+    }
+
+    total(): number {
+        let t = 0
+        for sku, p in this.items {
+            t += p.price * p.stock
+        }
+        return t
+    }
+}
+
+main() {
+    let inv = Inventory()
+    inv.add(Product("A", "Apple", 100, 10))
+    inv.add(Product("B", "Banana", 50, 20))
+    inv.add(Product("C", "Cherry", 300, 5))
+
+    print($"count:{inv.items.len()}")
+    print($"total:{inv.total()}")
+
+    let r1 = inv.sell("A", 3)
+    let r2 = inv.sell("Z", 1)
+    let r3 = inv.sell("B", 5)
+
+    print($"sale_A:{r1}")
+    print($"sale_Z:{r2}")
+    print($"sale_B:{r3}")
+    print($"revenue:{inv.sales}")
+    print($"total_after:{inv.total()}")
+}

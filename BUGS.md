@@ -1,7 +1,7 @@
 # 🐛 Bugs y Carencias Detectadas
 
 > **Fuente:** Liva Test Suite (`compiler/tests/liva/`)  
-> **Última actualización:** 2026-03-31  
+> **Última actualización:** 2026-04-30  
 > **Prioridad:** ⚡ = bloqueante, 🔶 = importante, 🔷 = menor
 
 ---
@@ -175,6 +175,29 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Repro:** `let d = dists.get(n) or 0` dentro de `for n in arrayOfStrings`.
 - **Análisis post-fix:** El error E0308 original venía del init `let dists: Map<string, number> = {}` (B118), no del `.get()`. Tras B118 fixed, bootstrap emite correctamente `dists.get(&n).cloned().unwrap_or(0)`.
 
+### B124 — `m.set(p.field, p)` partial-move ⚡ ✅ FIXED
+- **Repro:** `class Inv { items: Map<string, Product>; add(p: Product) { this.items.set(p.sku, p) } }`.
+- **Problema:** Bootstrap emite `self.items.insert(p.sku, p);` que en Rust mueve `p.sku` parcialmente y usa `p` después → E0382.
+- **Fix:** En `generate_map_method_call` (set), si la key es `Expr::Member`, clonar (`p.sku.clone()`).
+- **Adicional:** `let key = p.field; m.set(key, p)` también partial-move. Se extiende `expr_is_class_instance_field` para auto-clonar Member access cuando objeto es una instancia conocida (no this/self/enum/numeric tuple-index).
+
+### B125 — Map de class fields: `obj.field.get(k) or Class()`, `for k,v in obj.field`, constructor `this.field = {}` ⚡ ✅ FIXED
+- **Repro:** `Inventory.items: Map<string, Product>; constructor() { this.items = {} }; for sku, p in inv.items { ... }; let p = inv.items.get(k) or Product(...)`.
+- **Problemas (3 sub-bugs):**
+  1. Constructor: `this.items = {}` con Map type emitía `serde_json::json!({})` en lugar de `HashMap::new()`.
+  2. `inv.items.get(k) or Product(...)` emitía doble unwrap (`.unwrap_or_default().unwrap_or(Product::new(...))`) porque `is_map_get_call` no reconocía receiver `Expr::Member`.
+  3. `for k, v in obj.field` no se trataba como map iteration (caía a `.iter().enumerate()` arrojando tuplas en lugar de Product).
+- **Fix bootstrap:**
+  - Detectar empty Map literal (`{}`) en field assignments del constructor → `HashMap::new()`.
+  - Extender `is_map_get_call` para handle `Expr::Member` receivers (heurística: prop name in `map_vars`).
+  - Añadir `class_map_value_types` tracking; en for-loop dos-vars, reconocer `Expr::Member` cuyo prop esté en `map_vars` y registrar var2 como class instance del valor.
+- **Fix gen-2 (codegen.liva):**
+  - En `_emitClass`, registrar fields tipo `MapType` en `_mapVars` (nuevo helper `_isMapType`).
+  - En `_emitFor`, switch sobre iterableExpr ahora cubre `Expr.MemberAccess`.
+  - En el `or-default` switch, añadir caso `Expr.MemberAccess` para reconocer Map field receivers como `isOptionGet`.
+  - En `_getExprTypeName`, extender el caso MemberAccess para resolver `var.field` cuando `var` es una instancia de clase conocida.
+- **Test:** `compiler/tests/regression/b125_map_member_class.liva` y `complex_apps/app7_inventory.liva` (todas las patterns en uso simultáneo).
+
 
 ## Carencias del lenguaje detectadas
 
@@ -190,3 +213,10 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 ### GAP-003 — `Set.union()` / `Set.intersection()` devuelve HashSet crudo 🔶
 - El resultado pierde los wrappers de Liva (`.has()`, `.size()`, etc.).
 - Debería devolver un Set de Liva con todos los métodos disponibles.
+
+### GAP-004 — `print(a, b, c)` con varios argumentos diverge entre bootstrap y gen-2 🔶
+- **Repro:** `print("count:", 3)` emite `count:3` en bootstrap pero `count: 3` en gen-2.
+- **Análisis:** Bootstrap concatena argumentos sin separador, gen-2 inserta espacio (estilo Python).
+- **Workaround actual:** usar string interpolation `print($"count:{x}")` en código portable.
+- **Decisión pendiente:** unificar al estilo Python (separador espacio) para consistencia. Afecta `complex_apps` snapshots si se cambia.
+

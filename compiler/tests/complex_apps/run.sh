@@ -11,7 +11,7 @@ OUT_DIR="${TMPDIR:-/tmp}/liva_complex_apps_out"
 mkdir -p "$OUT_DIR"
 
 PASS=0; FAIL=0; RESULTS=()
-APPS=(app4_library app5_numerical app6_bench)
+APPS=(app4_library app5_numerical app6_bench app7_inventory)
 
 for app in "${APPS[@]}"; do
     SRC="$APPS_DIR/${app}.liva"

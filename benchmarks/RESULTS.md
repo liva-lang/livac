@@ -1,4 +1,4 @@
-# Benchmark Results — 2026-04-29 09:52
+# Benchmark Results — 2026-04-29 11:16
 
 Liva compiler: `./target/livac-gen2-release` (self-host gen-2 (release))
 Each binary executed 5 times; the **median** is reported.
@@ -14,50 +14,50 @@ rustc 1.93.1 (01f6ddf75 2026-02-11)
 
 | Metric | Liva (median) | Rust (median) | Liva/Rust |
 |---|---:|---:|---:|
-| Line processing | 155ms | 158ms | 0,98x |
-| CSV building | 102ms | 110ms | 0,93x |
-| Word counting | 92ms | 99ms | 0,93x |
+| Line processing | 153ms | 148ms | 1,03x |
+| CSV building | 101ms | 102ms | 0,99x |
+| Word counting | 93ms | 95ms | 0,98x |
 
 <details><summary>raw output (5 runs each)</summary>
 
 **Liva**
 ```
 
-Line processing: 156ms (1000 iterations x 1000 lines)
-CSV building: 103ms (1000 iterations x 1000 rows)
-Word counting: 152ms (1000 iterations)
-Line processing: 173ms (1000 iterations x 1000 lines)
-CSV building: 102ms (1000 iterations x 1000 rows)
-Word counting: 91ms (1000 iterations)
-Line processing: 151ms (1000 iterations x 1000 lines)
-CSV building: 101ms (1000 iterations x 1000 rows)
-Word counting: 92ms (1000 iterations)
-Line processing: 155ms (1000 iterations x 1000 lines)
+Line processing: 157ms (1000 iterations x 1000 lines)
 CSV building: 103ms (1000 iterations x 1000 rows)
 Word counting: 92ms (1000 iterations)
 Line processing: 153ms (1000 iterations x 1000 lines)
 CSV building: 101ms (1000 iterations x 1000 rows)
-Word counting: 90ms (1000 iterations)
+Word counting: 93ms (1000 iterations)
+Line processing: 190ms (1000 iterations x 1000 lines)
+CSV building: 101ms (1000 iterations x 1000 rows)
+Word counting: 94ms (1000 iterations)
+Line processing: 153ms (1000 iterations x 1000 lines)
+CSV building: 101ms (1000 iterations x 1000 rows)
+Word counting: 94ms (1000 iterations)
+Line processing: 151ms (1000 iterations x 1000 lines)
+CSV building: 102ms (1000 iterations x 1000 rows)
+Word counting: 91ms (1000 iterations)
 ```
 
 **Rust**
 ```
 
+Line processing: 147ms (1000 iterations x 1000 lines)
+CSV building: 101ms (1000 iterations x 1000 rows)
+Word counting: 93ms (1000 iterations)
+Line processing: 155ms (1000 iterations x 1000 lines)
+CSV building: 106ms (1000 iterations x 1000 rows)
+Word counting: 96ms (1000 iterations)
 Line processing: 150ms (1000 iterations x 1000 lines)
+CSV building: 101ms (1000 iterations x 1000 rows)
+Word counting: 94ms (1000 iterations)
+Line processing: 148ms (1000 iterations x 1000 lines)
 CSV building: 106ms (1000 iterations x 1000 rows)
 Word counting: 99ms (1000 iterations)
-Line processing: 158ms (1000 iterations x 1000 lines)
-CSV building: 129ms (1000 iterations x 1000 rows)
-Word counting: 128ms (1000 iterations)
-Line processing: 227ms (1000 iterations x 1000 lines)
-CSV building: 110ms (1000 iterations x 1000 rows)
-Word counting: 99ms (1000 iterations)
-Line processing: 165ms (1000 iterations x 1000 lines)
-CSV building: 113ms (1000 iterations x 1000 rows)
-Word counting: 96ms (1000 iterations)
-Line processing: 157ms (1000 iterations x 1000 lines)
-CSV building: 107ms (1000 iterations x 1000 rows)
-Word counting: 99ms (1000 iterations)
+Line processing: 148ms (1000 iterations x 1000 lines)
+CSV building: 102ms (1000 iterations x 1000 rows)
+Word counting: 95ms (1000 iterations)
 ```
 
 </details>
@@ -68,7 +68,7 @@ Word counting: 99ms (1000 iterations)
 |---|---:|---:|---:|
 | Array fill+sum | 3ms | 0ms | (rust ≈ 0ms) |
 | Filter+Map | 3ms | 2ms | 1,50x |
-| Map build+lookup | 170ms | 154ms | 1,10x |
+| Map build+lookup | 165ms | 154ms | 1,07x |
 | Sort | 5ms | 2ms | 2,50x |
 
 <details><summary>raw output (5 runs each)</summary>
@@ -78,23 +78,23 @@ Word counting: 99ms (1000 iterations)
 
 Array fill+sum: 3ms (1000 x 5000)
 Filter+Map: 3ms (1000 x 5000)
-Map build+lookup: 174ms (1000 x 1000)
-Sort: 5ms (1000 x 5000)
-Array fill+sum: 3ms (1000 x 5000)
-Filter+Map: 3ms (1000 x 5000)
-Map build+lookup: 170ms (1000 x 1000)
-Sort: 4ms (1000 x 5000)
-Array fill+sum: 3ms (1000 x 5000)
-Filter+Map: 3ms (1000 x 5000)
-Map build+lookup: 170ms (1000 x 1000)
-Sort: 5ms (1000 x 5000)
-Array fill+sum: 3ms (1000 x 5000)
-Filter+Map: 3ms (1000 x 5000)
 Map build+lookup: 166ms (1000 x 1000)
+Sort: 5ms (1000 x 5000)
+Array fill+sum: 2ms (1000 x 5000)
+Filter+Map: 3ms (1000 x 5000)
+Map build+lookup: 163ms (1000 x 1000)
 Sort: 5ms (1000 x 5000)
 Array fill+sum: 3ms (1000 x 5000)
 Filter+Map: 2ms (1000 x 5000)
-Map build+lookup: 173ms (1000 x 1000)
+Map build+lookup: 169ms (1000 x 1000)
+Sort: 5ms (1000 x 5000)
+Array fill+sum: 3ms (1000 x 5000)
+Filter+Map: 2ms (1000 x 5000)
+Map build+lookup: 165ms (1000 x 1000)
+Sort: 5ms (1000 x 5000)
+Array fill+sum: 3ms (1000 x 5000)
+Filter+Map: 3ms (1000 x 5000)
+Map build+lookup: 163ms (1000 x 1000)
 Sort: 5ms (1000 x 5000)
 ```
 
@@ -103,19 +103,19 @@ Sort: 5ms (1000 x 5000)
 
 Array fill+sum: 0ms (1000 x 5000)
 Filter+Map: 2ms (1000 x 5000)
-Map build+lookup: 154ms (1000 x 1000)
+Map build+lookup: 150ms (1000 x 1000)
 Sort: 2ms (1000 x 5000)
 Array fill+sum: 0ms (1000 x 5000)
 Filter+Map: 2ms (1000 x 5000)
-Map build+lookup: 154ms (1000 x 1000)
+Map build+lookup: 151ms (1000 x 1000)
 Sort: 2ms (1000 x 5000)
 Array fill+sum: 0ms (1000 x 5000)
 Filter+Map: 2ms (1000 x 5000)
-Map build+lookup: 155ms (1000 x 1000)
+Map build+lookup: 157ms (1000 x 1000)
 Sort: 2ms (1000 x 5000)
 Array fill+sum: 0ms (1000 x 5000)
 Filter+Map: 2ms (1000 x 5000)
-Map build+lookup: 155ms (1000 x 1000)
+Map build+lookup: 166ms (1000 x 1000)
 Sort: 2ms (1000 x 5000)
 Array fill+sum: 0ms (1000 x 5000)
 Filter+Map: 2ms (1000 x 5000)

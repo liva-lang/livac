@@ -1,0 +1,39 @@
+// Test: does this.map.set(p.field, p) work directly?
+Product {
+    sku: string
+    name: string
+    constructor(sku: string, name: string) {
+        this.sku = sku
+        this.name = name
+    }
+}
+
+Inventory {
+    items: Map<string, Product>
+    constructor() { this.items = {} }
+
+    addDirect(p: Product) {
+        // The form the user expects to work
+        this.items.set(p.sku, p)
+    }
+
+    addBinding(p: Product) {
+        let key = p.sku
+        this.items.set(key, p)
+    }
+}
+
+main() {
+    let inv = Inventory()
+    inv.addDirect(Product("A", "Alpha"))
+    inv.addBinding(Product("B", "Beta"))
+    print(inv.items.len())
+    if inv.items.has("A") {
+        let a = inv.items.get("A") or Product("X", "X")
+        print(a.name)
+    }
+    if inv.items.has("B") {
+        let b = inv.items.get("B") or Product("X", "X")
+        print(b.name)
+    }
+}

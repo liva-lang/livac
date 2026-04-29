@@ -1024,6 +1024,20 @@ RustEmitter {
         return "/* inferred */"
     }
 
+    // B125: Helper that returns true when the optional TypeRef is a Map<K,V>.
+    // Mirrors the `if optRef != null` narrowing used by _buildParamType.
+    _isMapType(optRef: TypeRef?): bool {
+        if optRef != null {
+            let isMap = false
+            let _ = switch optRef {
+                TypeRef.MapType(_, _) => { isMap = true; 0 },
+                _ => { 0 }
+            }
+            return isMap
+        }
+        return false
+    }
+
     _buildReturnType(optRef: TypeRef?, isFallible: bool): string {
         if optRef != null {
             let typeStr = this._emitType(optRef)
@@ -1086,6 +1100,23 @@ RustEmitter {
 
     _emitClass(decl: ClassDecl) {
         let className = $"{decl.name}"
+
+        // B125: register Map-typed field names in `_mapVars` so that downstream
+        // checks (`for k, v in obj.field`, `obj.field.get(k) or ...`) recognize
+        // member-access receivers as Map-typed without needing full type
+        // inference at every callsite.
+        for m in decl.members {
+            let _ = switch m {
+                Member.Field(f) => {
+                    if this._isMapType(f.typeRef) {
+                        let fName = this._sanitizeName(f.name)
+                        this._mapVars.set(fName, true)
+                    }
+                    0
+                },
+                _ => { 0 }
+            }
+        }
 
         // Build type param string via for-loop (auto-clones, avoids partial move of decl)
         let tpParts: [string] = []
@@ -1867,6 +1898,13 @@ RustEmitter {
                                             Expr.Identifier(gn) => {
                                                 let sn = this._sanitizeName(gn)
                                                 if this._mapVars.has(sn) { isOptionGet = true }
+                                                0
+                                            },
+                                            // B125: also handle `obj.field.get(...)` where
+                                            // `field` is a known Map field/var name.
+                                            Expr.MemberAccess(_, mp) => {
+                                                let sp = this._sanitizeName(mp)
+                                                if this._mapVars.has(sp) { isOptionGet = true }
                                                 0
                                             },
                                             _ => { 0 }
@@ -2731,10 +2769,19 @@ RustEmitter {
             let idxName = $"{varName}"
             let itemName = $"{var2Name}"
             // Detect Map iteration: for key, value in map → .iter()
+            // B125: also recognize `obj.field` and `this.field` Map fields. We
+            // pre-registered Map field names in `_mapVars` during _emitClass.
             let _ = switch iterableExpr {
                 Expr.Identifier(iterName) => {
                     let sn = this._sanitizeName(iterName)
                     if this._mapVars.has(sn) {
+                        isMapIteration = true
+                    }
+                    0
+                },
+                Expr.MemberAccess(_, prop) => {
+                    let sp = this._sanitizeName(prop)
+                    if this._mapVars.has(sp) {
                         isMapIteration = true
                     }
                     0
@@ -3937,6 +3984,31 @@ RustEmitter {
                         let fidx = this._typeCtx.fieldTypes.get(fkey)
                         let ftype = this._typeCtx.typePool[fidx]
                         tag = this._typeRefToTag(ftype)
+                    }
+                }
+                // B125: handle `var.field` where var is a class instance.
+                if tag == "unknown" {
+                    let _ = switch maObj {
+                        Expr.Identifier(varName) => {
+                            if varName != "this" && varName != "self" {
+                                let varType = this._lookupVarTypeRef(varName)
+                                let className = ""
+                                let _ = switch varType {
+                                    TypeRef.Simple(cn) => { className = cn; 0 },
+                                    _ => { 0 }
+                                }
+                                if className != "" && this._typeCtx.classes.has(className) {
+                                    let fkey2 = $"{className}.{prop}"
+                                    if this._typeCtx.fieldTypes.has(fkey2) {
+                                        let fidx2 = this._typeCtx.fieldTypes.get(fkey2)
+                                        let ftype2 = this._typeCtx.typePool[fidx2]
+                                        tag = this._typeRefToTag(ftype2)
+                                    }
+                                }
+                            }
+                            0
+                        },
+                        _ => { 0 }
                     }
                 }
                 // Chain resolution: this.field.subField
