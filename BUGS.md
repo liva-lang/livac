@@ -310,6 +310,18 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Fix:** Cuando `args.len() >= 2`, emitir un block que clona el receiver, computa `__from = i as usize`, y hace `__s[__from..].find(&needle).map(|i| (i + __from) as i32).unwrap_or(-1)` (con guard si `__from >= __s.len()`).
 - **Test:** `bootstrap_apps/app18_template.liva`.
 
+### B146 — `pq.pop()` en clase de usuario recibía `.expect("pop from empty array")` ⚡ ✅ FIXED (bootstrap)
+- **Repro:** Una clase `PriorityQueue` con método `pop(): number` usado como `pq.pop()` emitía `pq.pop().expect("pop from empty array")` → E0599 (`i32` no tiene `expect`).
+- **Problema:** El post-transform `(ArrayAdapter::Seq, "pop") => ".expect(...)"` se aplicaba sin comprobar si el receiver era una instancia de clase de usuario.
+- **Fix:** Antes de añadir `.expect("pop from empty array")`, comprobar que el receiver no esté en `class_instance_vars`.
+- **Test:** `bootstrap_apps/app19_pq.liva`.
+
+### B147 — `arr.reverse()` sobre `[number]` emitía `.chars().rev().collect::<String>()` ⚡ ✅ FIXED (bootstrap)
+- **Repro:** `let asc = desc.reverse()` con `desc: [number]` (variable de loop sobre array de arrays) emitía `desc.chars().rev().collect::<String>()` → E0599 (`Vec<i32>` no tiene `chars`).
+- **Problema:** `is_string_method` matcheaba `reverse` siempre que el adapter fuera `Seq`, sin discriminar por tipo del receiver.
+- **Fix:** Detectar `reverse` sobre receiver registrado en `array_vars` (y no en `string_vars`) y emitir `{ let mut __v = receiver.clone(); __v.reverse(); __v }`.
+- **Test:** `bootstrap_apps/app19_pq.liva`.
+
 
 ## Carencias del lenguaje detectadas
 

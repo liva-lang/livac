@@ -1,0 +1,104 @@
+// EXPECT: peek_empty:none
+// EXPECT: peek_one:5
+// EXPECT: ordered:1,1,2,3,5,8,9
+// EXPECT: top3_after:9,8,5
+
+PriorityQueue {
+    items: [number]
+    constructor() {
+        this.items = []
+    }
+
+    push(x: number) {
+        this.items.push(x)
+        this._siftUp(this.items.length - 1)
+    }
+
+    pop(): number {
+        if this.items.length == 0 { return -1 }
+        let top = this.items[0]
+        let last = this.items[this.items.length - 1]
+        this.items.pop()
+        if this.items.length > 0 {
+            this.items[0] = last
+            this._siftDown(0)
+        }
+        return top
+    }
+
+    peek(): string {
+        if this.items.length == 0 { return "none" }
+        return $"{this.items[0]}"
+    }
+
+    size(): number => this.items.length
+
+    _siftUp(i: number) {
+        let idx = i
+        while idx > 0 {
+            let parent = (idx - 1) / 2
+            if this.items[idx] > this.items[parent] {
+                let tmp = this.items[idx]
+                this.items[idx] = this.items[parent]
+                this.items[parent] = tmp
+                idx = parent
+            } else {
+                break
+            }
+        }
+    }
+
+    _siftDown(i: number) {
+        let idx = i
+        let n = this.items.length
+        while true {
+            let left = 2 * idx + 1
+            let right = 2 * idx + 2
+            let largest = idx
+            if left < n {
+                if this.items[left] > this.items[largest] { largest = left }
+            }
+            if right < n {
+                if this.items[right] > this.items[largest] { largest = right }
+            }
+            if largest != idx {
+                let tmp = this.items[idx]
+                this.items[idx] = this.items[largest]
+                this.items[largest] = tmp
+                idx = largest
+            } else {
+                break
+            }
+        }
+    }
+}
+
+main() {
+    let pq = PriorityQueue()
+    print($"peek_empty:{pq.peek()}")
+
+    pq.push(5)
+    print($"peek_one:{pq.peek()}")
+
+    // sort using max-heap: pop yields decreasing order, reverse to get ascending
+    let pq2 = PriorityQueue()
+    let nums = [3, 1, 8, 5, 2, 9, 1]
+    for x in nums { pq2.push(x) }
+    let desc: [number] = []
+    while pq2.size() > 0 { desc.push(pq2.pop()) }
+    let asc = desc.reverse()
+    let parts: [string] = []
+    for x in asc { parts.push($"{x}") }
+    print($"ordered:{parts.join(",")}")
+
+    // peek top-3 of fresh queue
+    let pq3 = PriorityQueue()
+    for x in nums { pq3.push(x) }
+    let top: [string] = []
+    let i = 0
+    while i < 3 {
+        top.push($"{pq3.pop()}")
+        i = i + 1
+    }
+    print($"top3_after:{top.join(",")}")
+}

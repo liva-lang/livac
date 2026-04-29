@@ -63,10 +63,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ignoraba — el handler solo emitía `find(needle)` desde el inicio. Ahora,
   cuando hay 2 args, emite `__s[__from..].find(&needle).map(|i| (i + __from)
   as i32).unwrap_or(-1)` con guard si `__from >= __s.len()`.
+- **B146 — `pop()` en instancia de clase de usuario**: el post-transform de
+  array `(Seq, "pop")` añadía `.expect("pop from empty array")` sin verificar
+  el tipo del receiver, rompiendo `pq.pop(): number` con E0599. Ahora se
+  comprueba `class_instance_vars` antes de aplicarlo.
+- **B147 — `arr.reverse()` sobre `[T]` emitía string-reverse**:
+  `is_string_method` matcheaba `reverse` siempre que el adapter fuera `Seq`,
+  emitiendo `.chars().rev().collect::<String>()` aun para `Vec<i32>`. Ahora
+  cuando el receiver está en `array_vars` se emite
+  `{ let mut __v = recv.clone(); __v.reverse(); __v }`.
+
+### Added (round 5)
+- `bootstrap_apps/app19_pq.liva` — PriorityQueue (min-heap) con `_siftUp` /
+  `_siftDown`, `pop()` / `peek()` / `size()` y `[number].reverse()` para
+  ordenar descendiente.
 
 ### Added (round 4)
 - `bootstrap_apps/app18_template.liva` — motor de templating `{{var}}` con
   `Map<string, string>` y `string.indexOf(needle, fromIndex)`.
+
 
 ## [2.0.0-dev] - 2026-04-29 — v2.0 al 100% (Release Ready)
 

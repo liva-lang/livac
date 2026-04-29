@@ -10818,9 +10818,28 @@ impl CodeGenerator {
             ))
             || is_string_indexof;
 
-        if is_string_method {
+        // B147: if method is `reverse` and the receiver is a known array var,
+        // bypass the string handler — emit array reverse instead.
+        let is_array_reverse = method_call.method == "reverse"
+            && match method_call.object.as_ref() {
+                Expr::Identifier(name) => {
+                    let san = self.sanitize_name(name);
+                    self.array_vars.contains(&san) && !self.string_vars.contains(&san)
+                }
+                _ => false,
+            };
+
+        if is_string_method && !is_array_reverse {
             // Handle string methods
             return self.generate_string_method_call(method_call);
+        }
+
+        if is_array_reverse {
+            // [T].reverse() → { let mut __v = receiver.clone(); __v.reverse(); __v }
+            self.output.push_str("{ let mut __v = ");
+            self.generate_expr(&method_call.object)?;
+            self.output.push_str(".clone(); __v.reverse(); __v }");
+            return Ok(());
         }
 
         // Handle [T].concat(other) — array concatenation
@@ -12028,8 +12047,19 @@ impl CodeGenerator {
             // Bug #41: Vec methods that return Option<T> need unwrap
             // pop() -> Option<T>, unwrap to get T directly
             // In Liva, pop() should return the element, not Option<T>
+            // B146: only apply when the receiver is an actual array/vec, not a
+            // user class with its own `pop()` method.
             (ArrayAdapter::Seq, "pop") => {
-                self.output.push_str(".expect(\"pop from empty array\")");
+                let receiver_is_class = match method_call.object.as_ref() {
+                    Expr::Identifier(name) => {
+                        let san = self.sanitize_name(name);
+                        self.class_instance_vars.contains(&san)
+                    }
+                    _ => false,
+                };
+                if !receiver_is_class {
+                    self.output.push_str(".expect(\"pop from empty array\")");
+                }
             }
             // Default: no transformation
             _ => {}
