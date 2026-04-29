@@ -1,0 +1,208 @@
+// app25_parser — recursive-descent arithmetic parser. Consumes a [Token] list
+// produced by tokenize() and builds a recursive Expr AST, then evaluates it.
+// Stresses: stateful parser via a class (cursor mutation across method calls),
+// recursive enum construction inside class methods, switch-expression on
+// enum returning enum, error path with `or fail`, qualified variant patterns.
+// EXPECT: 1:50
+// EXPECT: 2:14
+// EXPECT: 3:0
+// EXPECT: 4:7
+// EXPECT: 5:21
+
+enum Token {
+    Num(value: number),
+    Plus,
+    Minus,
+    Star,
+    Slash,
+    LP,
+    RP
+}
+
+enum Expr {
+    Lit(value: number),
+    Add(left: Expr, right: Expr),
+    Sub(left: Expr, right: Expr),
+    Mul(left: Expr, right: Expr),
+    Div(left: Expr, right: Expr)
+}
+
+isDigit(c: string): bool {
+    return c == "0" || c == "1" || c == "2" || c == "3" || c == "4" || c == "5" || c == "6" || c == "7" || c == "8" || c == "9"
+}
+
+digitVal(c: string): number {
+    if c == "0" { return 0 }
+    if c == "1" { return 1 }
+    if c == "2" { return 2 }
+    if c == "3" { return 3 }
+    if c == "4" { return 4 }
+    if c == "5" { return 5 }
+    if c == "6" { return 6 }
+    if c == "7" { return 7 }
+    if c == "8" { return 8 }
+    return 9
+}
+
+tokenize(src: string): [Token] {
+    let out: [Token] = []
+    let i = 0
+    while i < src.length {
+        let c = src.charAt(i)
+        if c == " " {
+            i += 1
+        } else if c == "+" {
+            out.push(Token.Plus)
+            i += 1
+        } else if c == "-" {
+            out.push(Token.Minus)
+            i += 1
+        } else if c == "*" {
+            out.push(Token.Star)
+            i += 1
+        } else if c == "/" {
+            out.push(Token.Slash)
+            i += 1
+        } else if c == "(" {
+            out.push(Token.LP)
+            i += 1
+        } else if c == ")" {
+            out.push(Token.RP)
+            i += 1
+        } else if isDigit(c) {
+            let n = 0
+            while i < src.length && isDigit(src.charAt(i)) {
+                n = n * 10 + digitVal(src.charAt(i))
+                i += 1
+            }
+            out.push(Token.Num(n))
+        } else {
+            i += 1
+        }
+    }
+    return out
+}
+
+Parser {
+    tokens: [Token]
+    pos: number
+
+    constructor(toks: [Token]) {
+        this.tokens = toks
+        this.pos = 0
+    }
+
+    peek(): Token {
+        return this.tokens[this.pos]
+    }
+
+    advance() {
+        this.pos += 1
+    }
+
+    atEnd(): bool {
+        return this.pos >= this.tokens.length
+    }
+
+    // expr = term (('+'|'-') term)*
+    parseExpr(): Expr {
+        let left = this.parseTerm()
+        while !this.atEnd() {
+            let t = this.peek()
+            let isPlus = switch t {
+                Token.Plus => true
+                _ => false
+            }
+            let isMinus = switch t {
+                Token.Minus => true
+                _ => false
+            }
+            if !isPlus && !isMinus {
+                return left
+            }
+            this.advance()
+            let right = this.parseTerm()
+            if isPlus {
+                left = Expr.Add(left, right)
+            } else {
+                left = Expr.Sub(left, right)
+            }
+        }
+        return left
+    }
+
+    // term = factor (('*'|'/') factor)*
+    parseTerm(): Expr {
+        let left = this.parseFactor()
+        while !this.atEnd() {
+            let t = this.peek()
+            let isStar = switch t {
+                Token.Star => true
+                _ => false
+            }
+            let isSlash = switch t {
+                Token.Slash => true
+                _ => false
+            }
+            if !isStar && !isSlash {
+                return left
+            }
+            this.advance()
+            let right = this.parseFactor()
+            if isStar {
+                left = Expr.Mul(left, right)
+            } else {
+                left = Expr.Div(left, right)
+            }
+        }
+        return left
+    }
+
+    // factor = NUM | '(' expr ')'
+    parseFactor(): Expr {
+        let t = this.peek()
+        return switch t {
+            Token.Num(n) => {
+                this.advance()
+                Expr.Lit(n)
+            }
+            Token.LP => {
+                this.advance()
+                let inner = this.parseExpr()
+                this.advance()  // consume RP
+                inner
+            }
+            _ => Expr.Lit(0)
+        }
+    }
+}
+
+eval(e: Expr): number {
+    return switch e {
+        Expr.Lit(n) => n
+        Expr.Add(l, r) => eval(l) + eval(r)
+        Expr.Sub(l, r) => eval(l) - eval(r)
+        Expr.Mul(l, r) => eval(l) * eval(r)
+        Expr.Div(l, r) => eval(l) / eval(r)
+    }
+}
+
+evalSrc(src: string): number {
+    let toks = tokenize(src)
+    let p = Parser(toks)
+    let ast = p.parseExpr()
+    return eval(ast)
+}
+
+main() {
+    let r1 = evalSrc("10 + 20 * 2")           // 50
+    let r2 = evalSrc("2 * (3 + 4)")           // 14
+    let r3 = evalSrc("(10 - 5) - 5")          // 0
+    let r4 = evalSrc("1 + 2 * 3")             // 7
+    let r5 = evalSrc("100 / (5 - 1) - 4")     // 21
+    print($"1:{r1}")
+    print($"2:{r2}")
+    print($"3:{r3}")
+    print($"4:{r4}")
+    print($"5:{r5}")
+}

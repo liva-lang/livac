@@ -405,3 +405,16 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Workaround:** asignar el resultado a una variable antes: `let v = m.get("key"); print($"k:{v}")`.
 - **Pendiente:** lexer/parser de string interpolation debería entender escapes dentro del bloque `{...}` o permitir comillas dobles sin escape.
 
+### GAP-007 — Sin sintaxis para tipos función ni inferencia de closures-as-return 🔷
+- **Repro 1 (anotación):** `makeAdder(x: number): (number) => number { ... }` ⇒ E2000 "Expected expression" en el parser. La gramática de `parse_type` no contempla `(T) => U` ni `fn(T) -> U`.
+- **Repro 2 (inferencia):** `makeCounter() { return () => { ... } }` (sin tipo de retorno explícito) compila, pero el codegen infiere `-> f64` para el cuerpo y luego falla al llamar `c1()` con E0618 "expected function, found f64".
+- **Impacto:** imposible escribir
+  - funciones que devuelven closures (currying, factories de counters/loggers).
+  - parámetros tipados como callbacks (`f: (number) => number`).
+  - colecciones tipadas de lambdas (`[(T) => U]`).
+- **Workarounds parciales:**
+  - Pasar lambdas como argumentos (sí funciona vía el slot inferido en `forEach`/`map`/etc.).
+  - Para "fábricas" de funciones, sustituir por una clase con un método (la clase actúa como closure).
+- **Pendiente:** añadir `TypeRef::Fn(args, ret)` al AST + parser para `(T1, T2) => U`, y propagar `impl Fn` / `Box<dyn Fn>` en codegen. Necesita decidir captura por valor vs ref y `Fn` vs `FnMut`.
+
+

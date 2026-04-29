@@ -1,0 +1,106 @@
+// app24_lexer — arithmetic tokenizer: scans a string char by char and emits a
+// list of Token enum values. Stresses: char-by-char scan with charAt, building
+// substrings via concat, multi-digit number parsing, enum with multiple variants
+// matched in switch with qualified patterns, and Array<Token> result shape.
+// EXPECT: count:11
+// EXPECT: t0:NUM(12)
+// EXPECT: t1:PLUS
+// EXPECT: t2:NUM(3)
+// EXPECT: t3:STAR
+// EXPECT: t4:LP
+// EXPECT: t5:NUM(45)
+// EXPECT: t6:MINUS
+// EXPECT: t7:NUM(6)
+// EXPECT: t8:RP
+// EXPECT: t9:SLASH
+// EXPECT: t10:NUM(2)
+
+enum Token {
+    Num(value: number),
+    Plus,
+    Minus,
+    Star,
+    Slash,
+    LP,
+    RP
+}
+
+isDigit(c: string): bool {
+    return c == "0" || c == "1" || c == "2" || c == "3" || c == "4" || c == "5" || c == "6" || c == "7" || c == "8" || c == "9"
+}
+
+digitVal(c: string): number {
+    if c == "0" { return 0 }
+    if c == "1" { return 1 }
+    if c == "2" { return 2 }
+    if c == "3" { return 3 }
+    if c == "4" { return 4 }
+    if c == "5" { return 5 }
+    if c == "6" { return 6 }
+    if c == "7" { return 7 }
+    if c == "8" { return 8 }
+    return 9
+}
+
+tokenize(src: string): [Token] {
+    let out: [Token] = []
+    let i = 0
+    while i < src.length {
+        let c = src.charAt(i)
+        if c == " " {
+            i += 1
+        } else if c == "+" {
+            out.push(Token.Plus)
+            i += 1
+        } else if c == "-" {
+            out.push(Token.Minus)
+            i += 1
+        } else if c == "*" {
+            out.push(Token.Star)
+            i += 1
+        } else if c == "/" {
+            out.push(Token.Slash)
+            i += 1
+        } else if c == "(" {
+            out.push(Token.LP)
+            i += 1
+        } else if c == ")" {
+            out.push(Token.RP)
+            i += 1
+        } else if isDigit(c) {
+            let n = 0
+            while i < src.length && isDigit(src.charAt(i)) {
+                n = n * 10 + digitVal(src.charAt(i))
+                i += 1
+            }
+            out.push(Token.Num(n))
+        } else {
+            // unknown — skip
+            i += 1
+        }
+    }
+    return out
+}
+
+show(t: Token): string {
+    return switch t {
+        Token.Num(n) => $"NUM({n})"
+        Token.Plus => "PLUS"
+        Token.Minus => "MINUS"
+        Token.Star => "STAR"
+        Token.Slash => "SLASH"
+        Token.LP => "LP"
+        Token.RP => "RP"
+    }
+}
+
+main() {
+    let toks = tokenize("12 + 3 * (45 - 6) / 2")
+    print($"count:{toks.length}")
+    let i = 0
+    for t in toks {
+        let s = show(t)
+        print($"t{i}:{s}")
+        i += 1
+    }
+}

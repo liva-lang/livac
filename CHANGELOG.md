@@ -128,6 +128,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   emite el placeholder literal en vez de evaluar la expresión. Workaround:
   guardar el valor en una variable local antes (`let v = m.get("k"); $"a:{v}"`).
 
+### Added (round 8)
+- `bootstrap_apps/app24_lexer.liva` — arithmetic tokenizer (char-by-char
+  scan + multi-digit number accumulation, enum `Token` with 7 variants).
+- `bootstrap_apps/app25_parser.liva` — recursive-descent parser sobre los
+  tokens de app24 que construye un AST `Expr` recursivo y lo evalúa
+  (precedencia, paréntesis, parser stateful en `class Parser`).
+- `bootstrap_apps/app26_window.liva` — sliding-window stats (min/max/sum)
+  sobre array de números.
+- Validation: 19/19 bootstrap_apps verde.
+
+### Known (round 8)
+- **GAP-007 — sin tipos función ni inferencia de closures-as-return**:
+  `(T) => U` no se acepta como tipo (E2000), y un `return () => ...` sin
+  tipo de retorno explícito infiere `-> f64`, rompiendo la llamada después.
+  Bloquea fábricas de closures (counters, currying) y dispatch tables
+  tipadas. Workaround: encapsular la closure en una clase con un método.
+
 ### Added (round 4)
 - `bootstrap_apps/app18_template.liva` — motor de templating `{{var}}` con
   `Map<string, string>` y `string.indexOf(needle, fromIndex)`.

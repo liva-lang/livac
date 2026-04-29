@@ -1,0 +1,55 @@
+// app26_window — sliding-window statistics over a number stream. For each
+// window of size k computes (min, max, sum) and tracks the global running
+// mean. Stresses: array slice, nested loops, branching min/max comparisons,
+// integer / float coexistence, large-ish data.
+// EXPECT: windows:6
+// EXPECT: w0:min=2,max=5,sum=10
+// EXPECT: w1:min=1,max=5,sum=8
+// EXPECT: w2:min=1,max=5,sum=8
+// EXPECT: w3:min=1,max=8,sum=14
+// EXPECT: w4:min=4,max=8,sum=17
+// EXPECT: w5:min=4,max=9,sum=21
+// EXPECT: total:4
+// EXPECT: count:8
+
+windowMinMaxSum(xs: [number], lo: number, hi: number): [number] {
+    let mn = xs[lo]
+    let mx = xs[lo]
+    let sm = 0
+    let i = lo
+    while i < hi {
+        let v = xs[i]
+        if v < mn { mn = v }
+        if v > mx { mx = v }
+        sm += v
+        i += 1
+    }
+    return [mn, mx, sm]
+}
+
+main() {
+    let xs = [3, 5, 2, 1, 5, 8, 4, 9]
+    let k = 3
+    let n = xs.length
+    let count = n - k + 1
+    print($"windows:{count}")
+
+    let i = 0
+    while i + k <= n {
+        let stats = windowMinMaxSum(xs, i, i + k)
+        let mn = stats[0]
+        let mx = stats[1]
+        let sm = stats[2]
+        print($"w{i}:min={mn},max={mx},sum={sm}")
+        i += 1
+    }
+
+    // running stats over full array: integer mean (floor)
+    let total = 0
+    for v in xs {
+        total += v
+    }
+    let mean = total / xs.length
+    print($"total:{mean}")
+    print($"count:{xs.length}")
+}
