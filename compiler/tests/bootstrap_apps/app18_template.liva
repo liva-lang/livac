@@ -1,0 +1,61 @@
+// EXPECT: r1:Hello, Alice! You are 30 years old.
+// EXPECT: r2:Hello, Bob! You are 25 years old.
+// EXPECT: r3:no_var_here
+// EXPECT: missing:Hello, ! Welcome.
+// EXPECT: nested:greet=Hi user=Alice
+
+renderTemplate(tpl: string, vars: Map<string, string>): string {
+    let result = ""
+    let i = 0
+    let n = tpl.length
+    while i < n {
+        let openIdx = tpl.indexOf("{{", i)
+        if openIdx == -1 {
+            result = result + tpl.substring(i, n)
+            break
+        }
+        // append literal up to the brace
+        result = result + tpl.substring(i, openIdx)
+        let closeIdx = tpl.indexOf("}}", openIdx)
+        if closeIdx == -1 {
+            // unterminated — append the rest verbatim
+            result = result + tpl.substring(openIdx, n)
+            break
+        }
+        let key = tpl.substring(openIdx + 2, closeIdx).trim()
+        let val = vars.get(key) or ""
+        result = result + val
+        i = closeIdx + 2
+    }
+    return result
+}
+
+main() {
+    let vars: Map<string, string> = {}
+    vars.set("name", "Alice")
+    vars.set("age", "30")
+    let tpl = "Hello, {{name}}! You are {{age}} years old."
+    let r1 = renderTemplate(tpl, vars)
+    print($"r1:{r1}")
+
+    let vars2: Map<string, string> = {}
+    vars2.set("name", "Bob")
+    vars2.set("age", "25")
+    let r2 = renderTemplate(tpl, vars2)
+    print($"r2:{r2}")
+
+    let r3 = renderTemplate("no_var_here", vars)
+    print($"r3:{r3}")
+
+    // missing key falls back to ""
+    let empty: Map<string, string> = {}
+    let r4 = renderTemplate("Hello, {{name}}! Welcome.", empty)
+    print($"missing:{r4}")
+
+    // multiple substitutions on a single template, no spaces between
+    let v3: Map<string, string> = {}
+    v3.set("greet", "Hi")
+    v3.set("user", "Alice")
+    let r5 = renderTemplate("greet={{greet}} user={{user}}", v3)
+    print($"nested:{r5}")
+}

@@ -298,6 +298,18 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Fix:** en `or fail` para `MethodCall::toInt|toFloat`, emitir `match s.parse::<T>() { Ok(v) => v, Err(e) => return Err(liva_rt::Error::chain(...)) }`.
 - **Test:** `bootstrap_apps/app17_pipeline.liva`.
 
+### B144 — Parámetros `Map<K,V>` y `Set<T>` no se registraban en map_vars/set_vars ⚡ ✅ FIXED (bootstrap)
+- **Repro:** `render(tpl: string, vars: Map<string, string>) { let v = vars.get(key) or "" }` → emite `vars.get(key.clone())` (sin `&`, sin `.cloned()`), E0308.
+- **Problema:** Los parámetros con `TypeRef::Array` se trackeaban en `array_vars`/`typed_array_vars`, pero los de `TypeRef::Map` y `TypeRef::Set` se ignoraban, así que el dispatch a `generate_map_method_call` / `generate_set_method_call` no se activaba.
+- **Fix:** En la rama de tracking de params, añadir `TypeRef::Map(_, V)` → `map_vars` + `local_map_value_types` con encoding (Simple / `[T]` / `{}`); `TypeRef::Set(_)` → `set_vars`.
+- **Test:** `bootstrap_apps/app18_template.liva`.
+
+### B145 — `string.indexOf(needle, fromIndex)` ignoraba el segundo argumento ⚡ ✅ FIXED (bootstrap)
+- **Repro:** `tpl.indexOf("{{", i)` en un loop while emite `tpl.find("{{")` ignorando `i` → loop infinito o panic en `substring`.
+- **Problema:** El handler de `indexOf` solo emitía el caso de un argumento.
+- **Fix:** Cuando `args.len() >= 2`, emitir un block que clona el receiver, computa `__from = i as usize`, y hace `__s[__from..].find(&needle).map(|i| (i + __from) as i32).unwrap_or(-1)` (con guard si `__from >= __s.len()`).
+- **Test:** `bootstrap_apps/app18_template.liva`.
+
 
 ## Carencias del lenguaje detectadas
 

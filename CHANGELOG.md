@@ -55,6 +55,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **B143 — `s.toInt() or fail`**: `toInt()` emitía `parse::<i32>().unwrap_or(0)`
   ignorando el `or fail`. Caso especial añadido en el `or fail` handler para
   `MethodCall::toInt|toFloat`: emite match con `return Err(Error::chain(...))`.
+- **B144 — params `Map<K,V>` y `Set<T>` no trackeados**: parámetros con esos
+  type refs no se registraban en `map_vars` / `set_vars`, así que `vars.get(k)`
+  no usaba el handler especializado y emitía argumentos sin `&` y sin
+  `.cloned()` (E0308). Ahora se trackean igual que los de `TypeRef::Array`.
+- **B145 — `string.indexOf(needle, fromIndex)`**: el segundo argumento se
+  ignoraba — el handler solo emitía `find(needle)` desde el inicio. Ahora,
+  cuando hay 2 args, emite `__s[__from..].find(&needle).map(|i| (i + __from)
+  as i32).unwrap_or(-1)` con guard si `__from >= __s.len()`.
+
+### Added (round 4)
+- `bootstrap_apps/app18_template.liva` — motor de templating `{{var}}` con
+  `Map<string, string>` y `string.indexOf(needle, fromIndex)`.
 
 ## [2.0.0-dev] - 2026-04-29 — v2.0 al 100% (Release Ready)
 

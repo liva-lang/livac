@@ -5261,6 +5261,29 @@ impl CodeGenerator {
                             // Array of strings - tracked for forEach |s| pattern
                         }
                     }
+                    // B144: Track Map-typed parameters in map_vars so that .get/.set/.has
+                    // dispatch to the Map method handler (which adds &key, .cloned(), etc).
+                    if let TypeRef::Map(_, value_type) = type_ref {
+                        self.map_vars.insert(param_name.clone());
+                        // Also remember value-type encoding for nested for-loops over the param.
+                        let elem_encoding = match value_type.as_ref() {
+                            TypeRef::Simple(name) => name.clone(),
+                            TypeRef::Array(inner) => match inner.as_ref() {
+                                TypeRef::Simple(n) => format!("[{}]", n),
+                                _ => "[_]".to_string(),
+                            },
+                            TypeRef::Map(_, _) => "{}".to_string(),
+                            _ => String::new(),
+                        };
+                        if !elem_encoding.is_empty() {
+                            self.local_map_value_types
+                                .insert(param_name.clone(), elem_encoding);
+                        }
+                    }
+                    // B144: Track Set-typed parameters in set_vars.
+                    if matches!(type_ref, TypeRef::Set(_)) {
+                        self.set_vars.insert(param_name.clone());
+                    }
                     // Track Optional-typed parameters so that init_is_already_optional
                     // can detect them and avoid double-wrapping in Some() at call sites
                     if matches!(type_ref, TypeRef::Optional(_)) {
@@ -12437,6 +12460,38 @@ impl CodeGenerator {
             }
             "indexOf" => {
                 // indexOf(substring) -> str.find(substring).map(|i| i as i32).unwrap_or(-1)
+                // B145: indexOf(substring, fromIndex) — search from a starting offset.
+                // Emit: { let __s = <obj>; let __from = <i> as usize;
+                //        if __from >= __s.len() { -1 }
+                //        else { __s[__from..].find(<needle>).map(|i| (i + __from) as i32).unwrap_or(-1) } }
+                if method_call.args.len() >= 2 {
+                    self.output.push_str("{ let __s = ");
+                    // Clone receiver so the loop body doesn't move it.
+                    match method_call.object.as_ref() {
+                        Expr::Identifier(_) | Expr::Member { .. } => {
+                            self.generate_expr(&method_call.object)?;
+                            self.output.push_str(".clone()");
+                        }
+                        _ => {
+                            self.generate_expr(&method_call.object)?;
+                        }
+                    }
+                    self.output.push_str("; let __from = (");
+                    self.generate_expr(&method_call.args[1])?;
+                    self.output.push_str(") as usize; if __from >= __s.len() { -1i32 } else { __s[__from..].find(");
+                    let needs_ref = match &method_call.args[0] {
+                        Expr::Identifier(var_name) => {
+                            self.string_vars.contains(&self.sanitize_name(var_name))
+                        }
+                        Expr::Member { .. } => true,
+                        Expr::Literal(Literal::String(_)) => false,
+                        _ => true,
+                    };
+                    if needs_ref { self.output.push('&'); }
+                    self.generate_expr(&method_call.args[0])?;
+                    self.output.push_str(").map(|i| (i + __from) as i32).unwrap_or(-1) } }");
+                    return Ok(());
+                }
                 self.generate_expr(&method_call.object)?;
                 self.output.push_str(".find(");
                 if !method_call.args.is_empty() {
