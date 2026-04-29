@@ -1072,12 +1072,22 @@ impl Parser {
     }
 
     fn parse_base_type(&mut self) -> Result<TypeRef> {
-        // Check for tuple type syntax: (T1, T2, T3) or ()
+        // Check for tuple / function-type syntax: (T1, T2, ...) or () or () => U
         if self.check(&Token::LParen) {
             self.advance(); // consume '('
 
-            // Empty tuple type: ()
+            // Empty parens: either `()` (unit tuple) or `() => U` (nullary fn)
             if self.match_token(&Token::RParen) {
+                if self.match_token(&Token::Arrow) {
+                    let ret = Box::new(self.parse_type()?);
+                    let mut result = TypeRef::Fn(Vec::new(), ret);
+                    if self.match_token(&Token::Question) {
+                        result = TypeRef::Optional(Box::new(result));
+                    } else if self.match_token(&Token::Bang) {
+                        result = TypeRef::Fallible(Box::new(result));
+                    }
+                    return Ok(result);
+                }
                 let mut result = TypeRef::Tuple(vec![]);
                 if self.match_token(&Token::Question) {
                     result = TypeRef::Optional(Box::new(result));
@@ -1090,7 +1100,8 @@ impl Parser {
             // Parse first type
             let first = self.parse_type()?;
 
-            // Check for comma (tuple) or RParen (error - grouped types don't make sense)
+            // Three possible follow-ups: `,` (tuple), `)` followed by `=>`
+            // (single-arg fn type), or `)` alone (error).
             if self.match_token(&Token::Comma) {
                 let mut types = vec![first];
 
@@ -1109,6 +1120,19 @@ impl Parser {
                 }
 
                 self.expect(Token::RParen)?;
+
+                // Function type with multiple args: (T1, T2) => U
+                if self.match_token(&Token::Arrow) {
+                    let ret = Box::new(self.parse_type()?);
+                    let mut result = TypeRef::Fn(types, ret);
+                    if self.match_token(&Token::Question) {
+                        result = TypeRef::Optional(Box::new(result));
+                    } else if self.match_token(&Token::Bang) {
+                        result = TypeRef::Fallible(Box::new(result));
+                    }
+                    return Ok(result);
+                }
+
                 let mut result = TypeRef::Tuple(types);
                 if self.match_token(&Token::Question) {
                     result = TypeRef::Optional(Box::new(result));
@@ -1116,8 +1140,24 @@ impl Parser {
                     result = TypeRef::Fallible(Box::new(result));
                 }
                 return Ok(result);
+            } else if self.match_token(&Token::RParen) {
+                // GAP-007: single-arg function type `(T) => U`.
+                if self.match_token(&Token::Arrow) {
+                    let ret = Box::new(self.parse_type()?);
+                    let mut result = TypeRef::Fn(vec![first], ret);
+                    if self.match_token(&Token::Question) {
+                        result = TypeRef::Optional(Box::new(result));
+                    } else if self.match_token(&Token::Bang) {
+                        result = TypeRef::Fallible(Box::new(result));
+                    }
+                    return Ok(result);
+                }
+                // Bare `(T)` — grouped type doesn't make sense in Liva
+                return Err(self.error(
+                    "Unexpected type in parentheses - did you mean a tuple type like (T,)?".into(),
+                ));
             } else {
-                // Error: grouped type doesn't make sense in Liva
+                // No comma, no closing paren — malformed
                 return Err(self.error(
                     "Unexpected type in parentheses - did you mean a tuple type like (T,)?".into(),
                 ));

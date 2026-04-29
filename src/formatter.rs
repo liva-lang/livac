@@ -1562,6 +1562,15 @@ impl Formatter {
             TypeRef::Set(inner) => {
                 format!("Set<{}>", self.format_type_ref(inner))
             }
+            TypeRef::Fn(args, ret) => {
+                let args_str: Vec<String> =
+                    args.iter().map(|a| self.format_type_ref(a)).collect();
+                format!(
+                    "({}) => {}",
+                    args_str.join(", "),
+                    self.format_type_ref(ret)
+                )
+            }
         }
     }
 

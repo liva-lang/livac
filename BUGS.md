@@ -404,7 +404,7 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Workaround:** asignar el resultado a una variable antes: `let v = m.get("key"); print($"k:{v}")`.
 - **Pendiente:** lexer/parser de string interpolation debería entender escapes dentro del bloque `{...}` o permitir comillas dobles sin escape.
 
-### GAP-007 — Sin sintaxis para tipos función ni inferencia de closures-as-return 🔷
+### GAP-007 — Sin sintaxis para tipos función ni inferencia de closures-as-return ✅ FIXED (Round 10, 2026-04-XX)
 - **Repro 1 (anotación):** `makeAdder(x: number): (number) => number { ... }` ⇒ E2000 "Expected expression" en el parser. La gramática de `parse_type` no contempla `(T) => U` ni `fn(T) -> U`.
 - **Repro 2 (inferencia):** `makeCounter() { return () => { ... } }` (sin tipo de retorno explícito) compila, pero el codegen infiere `-> f64` para el cuerpo y luego falla al llamar `c1()` con E0618 "expected function, found f64".
 - **Impacto:** imposible escribir
@@ -414,6 +414,12 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Workarounds parciales:**
   - Pasar lambdas como argumentos (sí funciona vía el slot inferido en `forEach`/`map`/etc.).
   - Para "fábricas" de funciones, sustituir por una clase con un método (la clase actúa como closure).
-- **Pendiente:** añadir `TypeRef::Fn(args, ret)` al AST + parser para `(T1, T2) => U`, y propagar `impl Fn` / `Box<dyn Fn>` en codegen. Necesita decidir captura por valor vs ref y `Fn` vs `FnMut`.
+- **Implementación:**
+  - AST: nueva variante `TypeRef::Fn(Vec<TypeRef>, Box<TypeRef>)` con `to_rust_type` ⇒ `Box<dyn Fn(args) -> ret>`.
+  - Parser: `parse_base_type` acepta `() => U`, `(T) => U`, `(T1, T2) => U` (peek de `Token::Arrow` después del `)`).
+  - Codegen: `function_param_types: HashMap<String, Vec<Option<TypeRef>>>` para wrapping automático de args `Lambda` en `Box::new(...)` cuando el parámetro espera `Box<dyn Fn>`.
+  - Cascade: arms `TypeRef::Fn` añadidos en `type_contains_param`, `expand_type_alias`, `substitute_type_params_codegen`, `format_type_ref`, `collect_type_ref_usages`, `type_ref_contains_name` (semantic), `substitute_type_params` (semantic), `type_supports_length`, `validate_type_ref`, `validate_json_parse_type_hint` (rechaza con E0904).
+- **Stress app:** `compiler/tests/bootstrap_apps/app28_closures.liva` cubre `apply` y `compose` con tipos `(number) => number`.
+- **Limitaciones:** la inferencia de closures-as-return (Repro 2 sin anotación explícita) sigue requiriendo el tipo explícito. Cuando se anota el retorno como `(T) => U`, funciona; sin anotación, codegen infiere `-> f64`. Para currying / factories funciona con tipo explícito.
 
 

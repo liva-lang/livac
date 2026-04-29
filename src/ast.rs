@@ -228,6 +228,10 @@ pub enum TypeRef {
     Fallible(Box<TypeRef>),
     Tuple(Vec<TypeRef>), // Tuple types: (int, string, bool)
     Union(Vec<TypeRef>), // Union types: int | string | bool
+    /// Function type: `(T1, T2) => U`. GAP-007. Codegen emits
+    /// `Box<dyn Fn(T1, T2) -> U>` so it can be stored, returned,
+    /// and used as a parameter type.
+    Fn(Vec<TypeRef>, Box<TypeRef>),
 }
 
 impl TypeRef {
@@ -280,6 +284,18 @@ impl TypeRef {
                     .collect::<Vec<_>>()
                     .join("Or");
                 format!("Union{}", types_str)
+            }
+            TypeRef::Fn(args, ret) => {
+                // GAP-007: function types as boxed trait objects so they can be
+                // stored in fields, arrays, returned, etc. For parameter
+                // positions a more efficient `impl Fn(...) -> ...` could be
+                // emitted but `Box<dyn Fn(...)>` works everywhere.
+                let args_str = args
+                    .iter()
+                    .map(|a| a.to_rust_type())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("Box<dyn Fn({}) -> {}>", args_str, ret.to_rust_type())
             }
         }
     }

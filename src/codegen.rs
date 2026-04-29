@@ -155,6 +155,9 @@ pub struct CodeGenerator {
     constructor_assigned_fields: std::collections::HashSet<String>,
     /// Default parameter values: function_name -> [(param_index, default_expr)]
     function_defaults: std::collections::HashMap<String, Vec<(usize, Expr)>>,
+    /// GAP-007: Track function param types to wrap Lambda args in Box::new when the
+    /// expected type is a function type (Box<dyn Fn(...)>).
+    function_param_types: std::collections::HashMap<String, Vec<Option<TypeRef>>>,
     /// B109: Track used test function names to avoid collisions
     used_test_names: std::collections::HashMap<String, usize>,
 }
@@ -241,6 +244,7 @@ impl CodeGenerator {
             in_constructor: false,
             constructor_assigned_fields: std::collections::HashSet::new(),
             function_defaults: std::collections::HashMap::new(),
+            function_param_types: std::collections::HashMap::new(),
             used_test_names: std::collections::HashMap::new(),
         }
     }
@@ -581,6 +585,10 @@ impl CodeGenerator {
                     || self.type_contains_param(value, param_name)
             }
             TypeRef::Set(inner) => self.type_contains_param(inner, param_name),
+            TypeRef::Fn(args, ret) => {
+                args.iter().any(|a| self.type_contains_param(a, param_name))
+                    || self.type_contains_param(ret, param_name)
+            }
         }
     }
 
@@ -3072,6 +3080,14 @@ impl CodeGenerator {
                 format!("std::collections::HashSet<{}>",
                     self.expand_type_alias(inner))
             }
+            TypeRef::Fn(args, ret) => {
+                let args_str = args
+                    .iter()
+                    .map(|a| self.expand_type_alias(a))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("Box<dyn Fn({}) -> {}>", args_str, self.expand_type_alias(ret))
+            }
         }
     }
 
@@ -3142,6 +3158,13 @@ impl CodeGenerator {
             ),
             TypeRef::Set(inner) => TypeRef::Set(
                 Box::new(self.substitute_type_params_codegen(inner, params, args)),
+            ),
+            TypeRef::Fn(fn_args, ret) => TypeRef::Fn(
+                fn_args
+                    .iter()
+                    .map(|a| self.substitute_type_params_codegen(a, params, args))
+                    .collect(),
+                Box::new(self.substitute_type_params_codegen(ret, params, args)),
             ),
         }
     }
@@ -4483,6 +4506,15 @@ impl CodeGenerator {
             .collect();
         if !defaults.is_empty() {
             self.function_defaults.insert(func.name.clone(), defaults);
+        }
+
+        // GAP-007: Record param types so call-site can wrap Lambda args in Box::new
+        // when the expected type is a function type.
+        let param_types: Vec<Option<TypeRef>> = func.params.iter()
+            .map(|p| p.type_ref.clone())
+            .collect();
+        if param_types.iter().any(|t| t.is_some()) {
+            self.function_param_types.insert(func.name.clone(), param_types);
         }
 
         // Pre-analyze: collect variables that are mutated after declaration
@@ -10052,6 +10084,22 @@ impl CodeGenerator {
         for (i, arg) in call.args.iter().enumerate() {
             if i > 0 {
                 self.output.push_str(", ");
+            }
+            // GAP-007: Wrap Lambda arg in Box::new when the parameter expects Box<dyn Fn(...)>
+            let expects_fn_type = if let Expr::Identifier(fname) = call.callee.as_ref() {
+                self.function_param_types.get(fname)
+                    .and_then(|types| types.get(i).cloned())
+                    .flatten()
+                    .map(|t| matches!(t, TypeRef::Fn(_, _)))
+                    .unwrap_or(false)
+            } else {
+                false
+            };
+            if expects_fn_type && matches!(arg, Expr::Lambda(_)) {
+                self.output.push_str("Box::new(");
+                self.generate_expr(arg)?;
+                self.output.push(')');
+                continue;
             }
             // Convert string literals to String automatically
             if let Expr::Literal(Literal::String(_)) = arg {

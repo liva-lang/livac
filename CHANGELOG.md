@@ -163,6 +163,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   el contenido del placeholder, antes de pasarlo al sub-parser. Ya se puede
   escribir `print($"k:{m.get(\"key\")}")` directamente.
 
+### Added (round 10)
+- `bootstrap_apps/app28_closures.liva` — ejercita `apply` y `compose` con
+  parámetros tipados como `(number) => number`.
+
+### Fixed (round 10 — bootstrap)
+- **GAP-007 — tipos función como anotación** (ANTES OPEN): nueva variante
+  `TypeRef::Fn(args, ret)` en el AST que se emite como `Box<dyn Fn(args) -> ret>`.
+  El parser acepta `() => U`, `(T) => U`, `(T1, T2) => U` (peek de `=>` después
+  del `)` en `parse_base_type`). El codegen registra los tipos de los parámetros
+  en `function_param_types` y, al pasar un `Lambda` literal a un slot que espera
+  `Box<dyn Fn>`, lo envuelve automáticamente en `Box::new(...)`. Cobertura de
+  cascade: `expand_type_alias`, `format_type_ref`, `validate_type_ref`,
+  `validate_json_parse_type_hint` (rechaza con E0904), etc.
+  Permite callbacks tipados (`f: (number) => number`) y composición
+  (`compose(f, g, x) = f(g(x))`). Limitación abierta: la inferencia de
+  closures-as-return sin anotación todavía falla; el workaround actual es
+  anotar el retorno con el tipo función explícito.
+
 ### Added (round 4)
 - `bootstrap_apps/app18_template.liva` — motor de templating `{{var}}` con
   `Map<string, string>` y `string.indexOf(needle, fromIndex)`.

@@ -1,0 +1,30 @@
+// app28_closures — exercises GAP-007: function-type annotations
+// `(T) => U` parsed as TypeRef::Fn and codegenned as Box<dyn Fn(T) -> U>.
+// Lambda arguments to fn-typed parameters are auto-wrapped in Box::new.
+// EXPECT: r1:30
+// EXPECT: r2:11
+// EXPECT: r3:42
+// EXPECT: r4:5
+
+apply(f: (number) => number, x: number): number {
+    return f(x)
+}
+
+compose(f: (number) => number, g: (number) => number, x: number): number {
+    return f(g(x))
+}
+
+main() {
+    let r1 = apply(n => n * 3, 10)
+    print($"r1:{r1}")
+
+    let r2 = compose(n => n + 1, n => n * 2, 5)
+    print($"r2:{r2}")
+
+    let r3 = apply(n => n * 6, 7)
+    print($"r3:{r3}")
+
+    // Identity
+    let r4 = apply(n => n, 5)
+    print($"r4:{r4}")
+}

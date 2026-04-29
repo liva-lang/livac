@@ -1304,6 +1304,10 @@ impl SemanticAnalyzer {
                     || self.type_ref_contains_name(value, name)
             }
             TypeRef::Set(inner) => self.type_ref_contains_name(inner, name),
+            TypeRef::Fn(args, ret) => {
+                args.iter().any(|a| self.type_ref_contains_name(a, name))
+                    || self.type_ref_contains_name(ret, name)
+            }
         }
     }
 
@@ -1372,6 +1376,13 @@ impl SemanticAnalyzer {
             ),
             TypeRef::Set(inner) => TypeRef::Set(
                 Box::new(self.substitute_type_params(inner, params, args)),
+            ),
+            TypeRef::Fn(fn_args, ret) => TypeRef::Fn(
+                fn_args
+                    .iter()
+                    .map(|a| self.substitute_type_params(a, params, args))
+                    .collect(),
+                Box::new(self.substitute_type_params(ret, params, args)),
             ),
         }
     }
@@ -2965,6 +2976,7 @@ impl SemanticAnalyzer {
             TypeRef::Fallible(_) => false,
             TypeRef::Tuple(_) => false, // Tuples don't have .length
             TypeRef::Union(_) => false, // Unions don't have .length without narrowing
+            TypeRef::Fn(_, _) => false, // Fn types don't have .length
         }
     }
 
@@ -3749,6 +3761,12 @@ impl SemanticAnalyzer {
             TypeRef::Set(inner) => {
                 self.validate_type_ref(inner, available_type_params)
             }
+            TypeRef::Fn(args, ret) => {
+                for a in args {
+                    self.validate_type_ref(a, available_type_params)?;
+                }
+                self.validate_type_ref(ret, available_type_params)
+            }
         }
     }
 
@@ -4266,6 +4284,15 @@ impl SemanticAnalyzer {
             TypeRef::Set(inner) => {
                 self.validate_json_parse_type_hint(inner)
             }
+            // Function types cannot be serialized to/from JSON.
+            TypeRef::Fn(_, _) => Err(CompilerError::SemanticError(
+                SemanticErrorInfo::new(
+                    "E0904",
+                    "Invalid JSON.parse type",
+                    "Function types cannot be parsed from JSON",
+                )
+                .with_help("Use a serializable type (primitive, struct, array, map, or set)"),
+            )),
         }
     }
 

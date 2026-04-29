@@ -807,6 +807,12 @@ impl Linter {
                     self.collect_type_ref_usages(t, used);
                 }
             }
+            TypeRef::Fn(args, ret) => {
+                for a in args {
+                    self.collect_type_ref_usages(a, used);
+                }
+                self.collect_type_ref_usages(ret, used);
+            }
         }
     }
 
