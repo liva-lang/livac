@@ -1,0 +1,51 @@
+// App: Tree — recursive enum + pattern matching, immutable structure.
+// EXPECT: depth:4
+// EXPECT: leaves:6
+// EXPECT: sum:36
+
+enum Tree {
+    Leaf(value: number),
+    Node(left: Tree, right: Tree)
+}
+
+depth(t: Tree): number {
+    return switch t {
+        Tree.Leaf(_) => 1
+        Tree.Node(l, r) => {
+            let dl = depth(l)
+            let dr = depth(r)
+            if dl > dr { dl + 1 } else { dr + 1 }
+        }
+    }
+}
+
+count_leaves(t: Tree): number {
+    return switch t {
+        Tree.Leaf(_) => 1
+        Tree.Node(l, r) => count_leaves(l) + count_leaves(r)
+    }
+}
+
+sum_tree(t: Tree): number {
+    return switch t {
+        Tree.Leaf(n) => n
+        Tree.Node(l, r) => sum_tree(l) + sum_tree(r)
+    }
+}
+
+main() {
+    let t = Tree.Node(
+        Tree.Node(
+            Tree.Leaf(1),
+            Tree.Node(Tree.Leaf(2), Tree.Leaf(3))
+        ),
+        Tree.Node(
+            Tree.Leaf(10),
+            Tree.Node(Tree.Leaf(20), Tree.Leaf(0))
+        )
+    )
+
+    print($"depth:{depth(t)}")
+    print($"leaves:{count_leaves(t)}")
+    print($"sum:{sum_tree(t)}")
+}

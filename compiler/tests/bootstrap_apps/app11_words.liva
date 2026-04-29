@@ -1,0 +1,31 @@
+// App: Word frequency counter — string split, Map mutation, sort by value.
+// EXPECT: count_total:8
+// EXPECT: top:the=3
+
+main() {
+    let text = "the cat and the dog and the bird"
+    let words = text.split(" ")
+    let freq: Map<string, number> = {}
+
+    for w in words {
+        let cur = freq.get(w) or 0
+        freq.set(w, cur + 1)
+    }
+
+    let total = 0
+    for k, v in freq {
+        total = total + v
+    }
+    print($"count_total:{total}")
+
+    // find the most frequent word
+    let best_key = ""
+    let best_val = -1
+    for k, v in freq {
+        if v > best_val {
+            best_val = v
+            best_key = k
+        }
+    }
+    print($"top:{best_key}={best_val}")
+}

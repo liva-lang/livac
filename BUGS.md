@@ -1,7 +1,7 @@
 # 🐛 Bugs y Carencias Detectadas
 
 > **Fuente:** Liva Test Suite (`compiler/tests/liva/`)  
-> **Última actualización:** 2026-04-30  
+> **Última actualización:** 2026-05-01  
 > **Prioridad:** ⚡ = bloqueante, 🔶 = importante, 🔷 = menor
 
 ---
@@ -239,6 +239,25 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Problema:** Las ramas de `or_value` y `or_fail_msg` emitían `let X = ...` sin consultar `mutated_vars`; las mutaciones posteriores requerían `let mut X = ...`.
 - **Fix:** Las 12 emisiones de `let {} = ` y `let {} = match ` en estas ramas ahora prefijan `mut` cuando `mutated_vars.contains(&var_name)`.
 - **Test:** `bootstrap_apps/app9_graph.liva` (`addEdge` muta listas obtenidas con `or []`).
+
+### B134 — `for k, v in mapField` con `Map<K, [T]>` o `Map<K, V>` local trataba `v` como string ⚡ ✅ FIXED (bootstrap)
+- **Repro:** `groups: Map<string, [number]>; for k, vs in this.groups { for v in vs { ... } }` generaba `for v in vs.chars()`.
+  También `let freq: Map<string, number> = {}; for k, v in freq { total = total + v }` generaba `format!("{}{}", total, v)` en vez de `total + v`.
+- **Problema:** El handler de two-var for-loop registraba blindamente var2 en `string_vars`, sin consultar el tipo del valor del Map. Para campos de clase, `class_map_value_types` solo guardaba tipos `Simple`. Para Maps locales, no había tracking.
+- **Fix:** (1) `class_map_value_types` ahora codifica también `[T]` para Array values y `{}` para Map. (2) Nuevo `local_map_value_types` poblado en let-binding con anotación `Map<K, V>`. (3) En el two-var for-loop el handler consulta ambos y registra var2 en `string_vars` / `array_vars` (con `typed_array_vars` para anidar) / `map_vars` según corresponda.
+- **Test:** `bootstrap_apps/app10_stats.liva`, `app11_words.liva`.
+
+### B135 — Switch arm Block con `if-else` final como tail-expr emitía `;` que descartaba el valor ⚡ ✅ FIXED (bootstrap)
+- **Repro:** `return switch t { Tree.Node(l, r) => { let dl = depth(l); let dr = depth(r); if dl > dr { dl + 1 } else { dr + 1 } } }` → E0308 "expected i32, found ()".
+- **Problema:** El handler de `SwitchBody::Block` solo trataba `Stmt::Return` como tail-expression. Cualquier otro statement final (incluido `Stmt::If` o `Stmt::Expr`) se emitía con `;` final que dropea el valor.
+- **Fix:** Nuevo helper `generate_stmt_as_tail_expr` que emite (a) `Stmt::Expr(e)` como `e` sin `;`, (b) `Stmt::If` con else como `if c { ... } else { ... }` recursivamente con tail-expr en cada rama, (c) `Stmt::Return` como antes. Aplicado en ambas ramas SwitchBody::Block (con y sin pattern bindings).
+- **Test:** `bootstrap_apps/app12_tree.liva`, `app13_calc.liva`.
+
+### B136 — `Set.size()` no estaba implementado ⚡ ✅ FIXED (bootstrap)
+- **Repro:** `let s: Set<number> = {}; s.size()` → "no method named `size` found for struct `HashSet`".
+- **Problema:** `size` no estaba en la lista de métodos reconocidos para Sets, y no tenía codegen.
+- **Fix:** Añadido a `is_set_method` matcher y handler que emite `(set.len() as i32)`.
+- **Test:** `bootstrap_apps/app14_setops.liva`.
 
 
 ## Carencias del lenguaje detectadas

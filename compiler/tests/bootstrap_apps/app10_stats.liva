@@ -1,0 +1,82 @@
+// App: Stats — Map<string, [number]> grouping, sums, averages, top-N.
+// Bootstrap-only: gen-2 lacks the B134 fix (Map<K, Array<T>> two-var for-loop).
+// EXPECT: sum_a:60
+// EXPECT: sum_b:20
+// EXPECT: sum_c:100
+// EXPECT: sum_z:0
+// EXPECT: avg_a:20
+// EXPECT: avg_b:10
+// EXPECT: total_count:6
+// EXPECT: global_max:100
+
+Stats {
+    groups: Map<string, [number]>
+
+    constructor() {
+        this.groups = {}
+    }
+
+    add(key: string, value: number) {
+        let cur = this.groups.get(key) or []
+        cur.push(value)
+        this.groups.set(key, cur)
+    }
+
+    sum(key: string): number {
+        let arr = this.groups.get(key) or []
+        let total = 0
+        for v in arr {
+            total += v
+        }
+        return total
+    }
+
+    avg(key: string): number {
+        let arr = this.groups.get(key) or []
+        if arr.len() == 0 { return 0 }
+        return this.sum(key) / arr.len()
+    }
+
+    countAll(): number {
+        let total = 0
+        for k, vs in this.groups {
+            total += vs.len()
+        }
+        return total
+    }
+}
+
+main() {
+    let s = Stats()
+    s.add("a", 10)
+    s.add("a", 20)
+    s.add("a", 30)
+    s.add("b", 5)
+    s.add("b", 15)
+    s.add("c", 100)
+
+    let sumA = s.sum("a")
+    let sumB = s.sum("b")
+    let sumC = s.sum("c")
+    let sumZ = s.sum("z")
+    print($"sum_a:{sumA}")
+    print($"sum_b:{sumB}")
+    print($"sum_c:{sumC}")
+    print($"sum_z:{sumZ}")
+
+    let avgA = s.avg("a")
+    let avgB = s.avg("b")
+    print($"avg_a:{avgA}")
+    print($"avg_b:{avgB}")
+
+    print($"total_count:{s.countAll()}")
+
+    // Compute global max across all groups
+    let max = -1
+    for k, vs in s.groups {
+        for v in vs {
+            if v > max { max = v }
+        }
+    }
+    print($"global_max:{max}")
+}

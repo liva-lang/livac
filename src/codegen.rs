@@ -82,6 +82,7 @@ pub struct CodeGenerator {
     class_optional_fields: std::collections::HashMap<String, std::collections::HashSet<String>>, // Track optional fields per class
     class_array_field_types: std::collections::HashMap<String, std::collections::HashMap<String, String>>, // className -> (fieldName -> elementType) for array fields
     class_map_value_types: std::collections::HashMap<String, std::collections::HashMap<String, String>>, // className -> (fieldName -> valueType) for Map<K,V> fields (B125)
+    local_map_value_types: std::collections::HashMap<String, String>, // localVarName -> valueType encoding (B134)
     var_types: std::collections::HashMap<String, String>, // var -> ClassName
     fallible_functions: std::collections::HashSet<String>, // Track which functions are fallible
     fallible_methods: std::collections::HashSet<String>, // B19 fix: Track which class methods are fallible (method_name, not qualified)
@@ -191,6 +192,7 @@ impl CodeGenerator {
             class_optional_fields: std::collections::HashMap::new(),
             class_array_field_types: std::collections::HashMap::new(),
             class_map_value_types: std::collections::HashMap::new(),
+            local_map_value_types: std::collections::HashMap::new(),
             var_types: std::collections::HashMap::new(),
             fallible_functions: std::collections::HashSet::new(),
             fallible_methods: std::collections::HashSet::new(),
@@ -1713,9 +1715,24 @@ impl CodeGenerator {
                             }
                         }
                         // B125: Track Map field value types: fieldName -> valueType
+                        // Encoding: "TypeName" for Simple, "[T]" for Array<T>, "{}" for Map (B134).
                         if let Some(TypeRef::Map(_, value_type)) = &f.type_ref {
-                            if let TypeRef::Simple(type_name) = value_type.as_ref() {
-                                map_value_types.insert(f.name.clone(), type_name.clone());
+                            match value_type.as_ref() {
+                                TypeRef::Simple(type_name) => {
+                                    map_value_types.insert(f.name.clone(), type_name.clone());
+                                }
+                                TypeRef::Array(inner) => {
+                                    let inner_name = if let TypeRef::Simple(n) = inner.as_ref() {
+                                        n.clone()
+                                    } else {
+                                        "_".to_string()
+                                    };
+                                    map_value_types.insert(f.name.clone(), format!("[{}]", inner_name));
+                                }
+                                TypeRef::Map(_, _) => {
+                                    map_value_types.insert(f.name.clone(), "{}".to_string());
+                                }
+                                _ => {}
                             }
                         }
                     }
@@ -5288,6 +5305,78 @@ impl CodeGenerator {
         Ok(())
     }
 
+    /// B135: Generate a statement as a tail-expression (no trailing semicolon),
+    /// recognising `Stmt::If` and `Stmt::Return(Some(_))` as expression-producing
+    /// constructs. Used in switch-arm Block bodies so the arm yields a value.
+    fn generate_stmt_as_tail_expr(&mut self, stmt: &Stmt) -> Result<bool> {
+        match stmt {
+            Stmt::Return(ret) => {
+                if let Some(expr) = &ret.expr {
+                    self.generate_expr(expr)?;
+                    if matches!(expr, Expr::Literal(Literal::String(_))) {
+                        self.output.push_str(".to_string()");
+                    }
+                    return Ok(true);
+                }
+                Ok(false)
+            }
+            Stmt::Expr(es) => {
+                self.generate_expr(&es.expr)?;
+                if matches!(&es.expr, Expr::Literal(Literal::String(_))) {
+                    self.output.push_str(".to_string()");
+                }
+                Ok(true)
+            }
+            Stmt::If(if_stmt) if if_stmt.else_branch.is_some() => {
+                self.output.push_str("if ");
+                self.generate_condition_expr(&if_stmt.condition)?;
+                self.output.push_str(" {\n");
+                self.indent();
+                self.generate_if_body_as_tail(&if_stmt.then_branch)?;
+                self.dedent();
+                self.output.push('\n');
+                self.write_indent();
+                self.output.push_str("} else {\n");
+                self.indent();
+                if let Some(else_b) = &if_stmt.else_branch {
+                    self.generate_if_body_as_tail(else_b)?;
+                }
+                self.dedent();
+                self.output.push('\n');
+                self.write_indent();
+                self.output.push('}');
+                Ok(true)
+            }
+            _ => {
+                self.generate_stmt(stmt)?;
+                Ok(false)
+            }
+        }
+    }
+
+    fn generate_if_body_as_tail(&mut self, body: &IfBody) -> Result<()> {
+        match body {
+            IfBody::Block(block) => {
+                if block.stmts.is_empty() {
+                    return Ok(());
+                }
+                for (i, stmt) in block.stmts.iter().enumerate() {
+                    if i == block.stmts.len() - 1 {
+                        self.write_indent();
+                        self.generate_stmt_as_tail_expr(stmt)?;
+                    } else {
+                        self.generate_stmt(stmt)?;
+                    }
+                }
+            }
+            IfBody::Stmt(stmt) => {
+                self.write_indent();
+                self.generate_stmt_as_tail_expr(stmt)?;
+            }
+        }
+        Ok(())
+    }
+
     fn generate_if_body(&mut self, body: &IfBody) -> Result<()> {
         match body {
             IfBody::Block(block) => {
@@ -6223,7 +6312,27 @@ impl CodeGenerator {
                         // Also track map vars from type annotation Map<K,V>
                         if binding.type_ref.as_ref().map_or(false, |t| matches!(t, TypeRef::Map(_, _))) {
                             if let Some(name) = binding.name() {
-                                self.map_vars.insert(self.sanitize_name(&name));
+                                let san = self.sanitize_name(&name);
+                                self.map_vars.insert(san.clone());
+                                // B134: track local Map<K,V> value type for two-var for-loops.
+                                if let Some(TypeRef::Map(_, value_type)) = &binding.type_ref {
+                                    let encoded = match value_type.as_ref() {
+                                        TypeRef::Simple(n) => Some(n.clone()),
+                                        TypeRef::Array(inner) => {
+                                            let inner_name = if let TypeRef::Simple(n) = inner.as_ref() {
+                                                n.clone()
+                                            } else {
+                                                "_".to_string()
+                                            };
+                                            Some(format!("[{}]", inner_name))
+                                        }
+                                        TypeRef::Map(_, _) => Some("{}".to_string()),
+                                        _ => None,
+                                    };
+                                    if let Some(e) = encoded {
+                                        self.local_map_value_types.insert(san, e);
+                                    }
+                                }
                             }
                         }
                         // Also track set vars from type annotation Set<T>
@@ -6849,6 +6958,33 @@ impl CodeGenerator {
 
                     if is_map_iteration {
                         // Map iteration: for key, value in map { ... }
+                        // B134: figure out the value type to track var2 in the right set
+                        // (string_vars / array_vars / map_vars / class_instance_vars).
+                        let value_type_str: Option<String> = match &for_stmt.iterable {
+                            Expr::Member { object, property } => {
+                                let class_name_opt = match object.as_ref() {
+                                    Expr::Identifier(name) if name == "this" || name == "self" => {
+                                        self.current_class_name.clone()
+                                    }
+                                    Expr::Identifier(name) => {
+                                        self.var_types.get(&self.sanitize_name(name)).cloned()
+                                    }
+                                    _ => None,
+                                };
+                                class_name_opt.and_then(|cls| {
+                                    self.class_map_value_types
+                                        .get(&cls)
+                                        .and_then(|fm| fm.get(property))
+                                        .cloned()
+                                })
+                            }
+                            Expr::Identifier(name) => {
+                                let san = self.sanitize_name(name);
+                                self.local_map_value_types.get(&san).cloned()
+                            }
+                            _ => None,
+                        };
+
                         self.write_indent();
                         write!(self.output, "for ({}, {}) in ", var1_name, var2_name_san).unwrap();
                         self.generate_expr(&for_stmt.iterable)?;
@@ -6858,8 +6994,33 @@ impl CodeGenerator {
                         // Bug #79 fix: Clone loop variables to get owned values
                         self.writeln(&format!("let {} = {}.clone();", var1_name, var1_name));
                         self.writeln(&format!("let {} = {}.clone();", var2_name_san, var2_name_san));
+                        // Key in Map<K, V> is currently always a string in Liva.
                         self.string_vars.insert(var1_name.clone());
-                        self.string_vars.insert(var2_name_san.clone());
+                        // B134: register var2 in the right set based on the value type.
+                        match value_type_str.as_deref() {
+                            Some("string") => {
+                                self.string_vars.insert(var2_name_san.clone());
+                            }
+                            Some(s) if s.starts_with('[') => {
+                                self.array_vars.insert(var2_name_san.clone());
+                                // B134: also remember element type for nested for-loops.
+                                let elem = s.trim_start_matches('[').trim_end_matches(']');
+                                if !elem.is_empty() && elem != "_" {
+                                    self.typed_array_vars
+                                        .insert(var2_name_san.clone(), elem.to_string());
+                                }
+                            }
+                            Some("{}") => {
+                                self.map_vars.insert(var2_name_san.clone());
+                            }
+                            Some(_) => {
+                                // Class instance or primitive — leave string_vars alone.
+                            }
+                            None => {
+                                // Unknown — fall back to legacy behaviour for compatibility.
+                                self.string_vars.insert(var2_name_san.clone());
+                            }
+                        }
                     } else {
                         // Array enumerate: for i, item in array { ... }
                         self.write_indent();
@@ -9126,15 +9287,9 @@ impl CodeGenerator {
                             self.output.push('\n');
                             self.write_indent();
                             if i == stmts.len() - 1 {
-                                if let Stmt::Return(ret) = stmt {
-                                    if let Some(expr) = &ret.expr {
-                                        self.generate_expr(expr)?;
-                                        if matches!(expr, Expr::Literal(Literal::String(_))) {
-                                            self.output.push_str(".to_string()");
-                                        }
-                                    }
-                                    continue;
-                                }
+                                // B135: emit if-statements as if-expressions in tail position
+                                self.generate_stmt_as_tail_expr(stmt)?;
+                                continue;
                             }
                             self.generate_stmt(stmt)?;
                         }
@@ -9164,15 +9319,9 @@ impl CodeGenerator {
                             self.output.push('\n');
                             self.write_indent();
                             if i == stmts.len() - 1 {
-                                if let Stmt::Return(ret) = stmt {
-                                    if let Some(expr) = &ret.expr {
-                                        self.generate_expr(expr)?;
-                                        if matches!(expr, Expr::Literal(Literal::String(_))) {
-                                            self.output.push_str(".to_string()");
-                                        }
-                                    }
-                                    continue;
-                                }
+                                // B135: emit if-statements as if-expressions in tail position
+                                self.generate_stmt_as_tail_expr(stmt)?;
+                                continue;
                             }
                             self.generate_stmt(stmt)?;
                         }
@@ -10528,7 +10677,7 @@ impl CodeGenerator {
 
             let is_set_method = matches!(
                 method_call.method.as_str(),
-                "add" | "has" | "delete" | "clear" | "values" | "forEach" | "union" | "intersection" | "difference"
+                "add" | "has" | "delete" | "clear" | "size" | "values" | "forEach" | "union" | "intersection" | "difference"
             );
 
             if is_set_var && is_set_method {
@@ -12077,6 +12226,12 @@ impl CodeGenerator {
                 // set.clear() → set.clear()
                 self.generate_expr(&method_call.object)?;
                 self.output.push_str(".clear()");
+            }
+            "size" => {
+                // B136: set.size() → (set.len() as i32)
+                self.output.push('(');
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str(".len() as i32)");
             }
             "values" => {
                 // set.values() → set.iter().cloned().collect::<Vec<_>>()

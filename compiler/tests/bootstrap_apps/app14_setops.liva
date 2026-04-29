@@ -1,0 +1,26 @@
+// App: Set operations + array transformations.
+// EXPECT: unique:5
+// EXPECT: doubled_sum:56
+// EXPECT: evens:[2, 4]
+
+main() {
+    let nums = [1, 2, 2, 3, 3, 3, 4, 5, 5]
+    let s: Set<number> = {}
+    for n in nums {
+        s.add(n)
+    }
+    print($"unique:{s.size()}")
+
+    let doubled = nums.map(x => x * 2)
+    let total = 0
+    for d in doubled {
+        total = total + d
+    }
+    // 1+2+2+3+3+3+4+5+5 = 28, doubled-sum = 56? Let me recompute via dedup.
+    // doubled = [2,4,4,6,6,6,8,10,10]; sum = 56
+    // The map above sums original*2, expected = 28 was wrong. Let me adjust:
+    print($"doubled_sum:{total}")
+
+    let evens = nums.filter(x => x % 2 == 0).distinct()
+    print($"evens:{evens}")
+}

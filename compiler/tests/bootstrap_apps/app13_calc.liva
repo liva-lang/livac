@@ -1,0 +1,36 @@
+// App: Mini calculator — recursive enum Expr with eval, immutable AST.
+// Stress: nested enum construction, switch expression returning value.
+// EXPECT: r1:14
+// EXPECT: r2:0
+// EXPECT: r3:1
+
+enum Expr {
+    Num(value: number),
+    Add(left: Expr, right: Expr),
+    Sub(left: Expr, right: Expr),
+    Mul(left: Expr, right: Expr)
+}
+
+eval(e: Expr): number {
+    return switch e {
+        Expr.Num(n) => n
+        Expr.Add(l, r) => eval(l) + eval(r)
+        Expr.Sub(l, r) => eval(l) - eval(r)
+        Expr.Mul(l, r) => eval(l) * eval(r)
+    }
+}
+
+main() {
+    // (2 + 3) * (4 - 1) => 5 * 3 = 15... let me redo
+    // 2 * (3 + 4) = 14
+    let e1 = Expr.Mul(Expr.Num(2), Expr.Add(Expr.Num(3), Expr.Num(4)))
+    print($"r1:{eval(e1)}")
+
+    // (10 - 5) - 5 = 0
+    let e2 = Expr.Sub(Expr.Sub(Expr.Num(10), Expr.Num(5)), Expr.Num(5))
+    print($"r2:{eval(e2)}")
+
+    // 1
+    let e3 = Expr.Num(1)
+    print($"r3:{eval(e3)}")
+}

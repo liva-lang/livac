@@ -5,6 +5,28 @@ All notable changes to the Liva compiler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-dev] - 2026-05-01 — v2.0 stress-test refinements
+
+### Fixed (codegen — discovered by extended `bootstrap_apps/` stress tests)
+- **B134 — `for k, v in map` con `Map<K, [T]>` o `Map<K, V>` local**: el handler
+  registraba `v` como string por defecto. Ahora consulta `class_map_value_types`
+  (extendido para `[T]` y `{}`) y un nuevo `local_map_value_types` (poblado en
+  `let x: Map<K,V>`). Registra `v` en `array_vars`/`map_vars`/`string_vars`
+  según corresponda y propaga `typed_array_vars` para nested loops.
+- **B135 — switch arm Block con `if-else` final como tail-expr**: las
+  expresiones-statement y if-else en posición final se emitían con `;` final,
+  perdiendo el valor (E0308). Nuevo helper `generate_stmt_as_tail_expr` emite
+  recursivamente `Stmt::Expr`, `Stmt::Return` y `Stmt::If` como expresiones.
+- **B136 — `Set.size()` no implementado**: añadido al matcher de set methods y
+  emitido como `(set.len() as i32)`.
+
+### Added
+- `bootstrap_apps/app10_stats.liva` — stats con `Map<string, [number]>`
+- `bootstrap_apps/app11_words.liva` — word frequency con map mutable y top-N
+- `bootstrap_apps/app12_tree.liva` — recursive enum `Tree` con switch+if tail-expr
+- `bootstrap_apps/app13_calc.liva` — recursive enum `Expr` evaluator
+- `bootstrap_apps/app14_setops.liva` — Set ops + filter/map/distinct
+
 ## [2.0.0-dev] - 2026-04-29 — v2.0 al 100% (Release Ready)
 
 ### Fixed (codegen — discovered by complex apps testing)
