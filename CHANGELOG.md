@@ -5,6 +5,47 @@ All notable changes to the Liva compiler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-dev] - 2026-04-29 — v2.0 al 100% (Release Ready)
+
+### Added
+- **v2.0 closing blocks (5/5 done)**:
+  - **Bloque 1 — Cross-module `&str`**: pre-pass global de signaturas en `main.liva`
+    permite que parámetros `&str` se propaguen a través de fronteras de módulos.
+    Word counting bench: 1.23x → 0.98x.
+  - **Bloque 3 — Coverage tooling**: `cargo-llvm-cov` instalado, baseline registrado
+    en `docs/PROJECT_STRUCTURE.md` (62.81% regions / 62.36% lines).
+    Targets `make coverage` / `make coverage-html`.
+  - **Bloque 4 — E2E self-hosted bench**: `compiler/tests/e2e_selfhost.sh` —
+    compila programas con bootstrap y con gen-2, ejecuta ambos y diffs stdout.
+    5/5 programas (basics, enums_match, errors, stdlib, calculator) pasan idénticos.
+    `compiler/tests/rebuild_selfhost.sh` automatiza la cadena bootstrap → gen-1 → gen-2 → gen-3.
+  - **Bloque 5 — BACKLOG / ROADMAP / CHANGELOG** sincronizados a v2.0 final.
+
+### Analysis (not shipped)
+- **Bloque 2 — Box<str> Map values**: análisis técnico cerrado.
+  No se implementa porque (a) el bench Map usa `Map<string, number>`, no `Map<K, String>`;
+  (b) el idiom `m.get(k) or default` siempre clona, así que Box<str> no ahorra CPU bajo el
+  API actual; (c) el ahorro de memoria 24B→16B no cambia el bench (todo cabe en L2).
+  Reabrible en v2.x si surge un hotpath con `Map<K, String>`.
+
+### Codegen fixes (during Bloque 4)
+- `or default` lowering ahora distingue 3 paths según el tipo de la expresión:
+  - User free-fn returning `Result<T,Error>` → `match X { Ok(v) => v, Err(_) => default }`
+  - Map/Set/Array `.get/first/last/find` → `obj.get(&k).cloned().unwrap_or(default)`
+    (nuevo helper `_emitOptionGetWithDefault`)
+  - Stdlib inline tuple → patrón `{ let (opt, err_str) = ...; ... }` preservado
+- Eliminado `.to_string()` redundante en split→for fusion cuando el parámetro
+  ya es `&str` (verificación vía `_strRefParams`).
+
+### Final benchmark (all metrics under 1.15x gate)
+- Line counting: 1.07x · CSV building: 1.00x · Word counting: 0.98x · Map build+lookup: 1.09x
+- Sort + Filter+Map: <6ms diferencia · Class invariants: paridad o mejor
+
+### Validation locked
+- 518 cargo tests · bootstrap_test 9/9 · e2e_selfhost 5/5
+- gen-2 source ≡ gen-3 source (`diff -r = 0`)
+- gen-2 release binary ≡ gen-3 release binary (`cmp = 0`)
+
 ## [2.0.0-dev] - 2026-04-28
 
 ### Added

@@ -42,7 +42,23 @@ The roadmap is organized into focused phases:
 
 ---
 
-## 📍 Current Status (v1.3.0-dev)
+## 📍 Current Status (v2.0.0-dev — RELEASE READY)
+
+> **v2.0 al 100% — todos los bloques cerrados (2026-04-29):**
+> - ✅ Self-hosting Phase 7 idempotente (gen-2 ≡ gen-3 binario y fuente)
+> - ✅ Bloque 1 — Cross-module `&str` (Word counting 1.23x → 0.98x)
+> - ✅ Bloque 2 — Box<str> Map values: **analysis-only, no shipped** (no hay hotpath, ver `BACKLOG.md` § Bloque 2 para rationale)
+> - ✅ Bloque 3 — Cobertura medida (cargo-llvm-cov: 62.81% regions / 62.36% lines baseline)
+> - ✅ Bloque 4 — E2E self-host bench (5/5 programas: bootstrap-bin == gen-2-bin stdout)
+> - ✅ Bloque 5 — BACKLOG / ROADMAP / CHANGELOG sync
+>
+> **Bench final** (all under 1.15x gate): Line 1.07x · CSV 1.00x · Word 0.98x · Map 1.09x · Sort/Filter+Map <6ms
+>
+> **Validation**: 518 cargo tests · bootstrap_test 9/9 · e2e_selfhost 5/5 · idempotence locked
+
+---
+
+## 📍 Historical: v1.3.0-dev
 
 ### ✅ Completed Features
 

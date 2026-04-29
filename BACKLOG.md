@@ -681,14 +681,25 @@
 - [x] Bench: Word counting 1.23x → 0.98x (✅ <1.15x — Liva más rápido que Rust)
 - [x] Commit: `b6c4aa4`
 
-### Bloque 2 — 10.5 Box<str> para Map<K, String> values
+### Bloque 2 — 10.5 Box<str> para Map<K, String> values ✅ ANALYSIS CLOSED (not shipped in v2.0)
 
-> Análisis de escape del map. Coste medio-alto, retorno esperado <10% en hotpaths actuales.
+> Análisis técnico realizado 2026-04-29. Conclusión: la optimización no aporta beneficio medible bajo el API actual y no hay hotpath en el bench que la justifique. **No se implementa en v2.0**.
 
-- [ ] `_localMapEscape` en liveness.liva: map no exportado / no en parámetro genérico / no asignado a campo / nunca mutado en valores
-- [ ] Codegen: emitir `HashMap<K, Box<str>>` para maps locales con valores `String` nunca mutados
-- [ ] `m.get(k)` devuelve `&str` directo (skip clone)
-- [ ] Idempotencia gen-2≡gen-3 + 518 tests
+**Hallazgos del análisis:**
+
+1. **Bench Map (1.09x) usa `Map<string, number>`**, no `Map<K, String>`. La optimización no aplicaría a la métrica medida. El gap viene del overhead de `entry()` API + hashing, no de la memoria de los valores.
+
+2. **El idiom Liva `m.get(k) or default` siempre clona.** Box<str>::clone() asigna nuevo slice (igual coste que String::clone()). Sin rediseño del API para devolver `&str` (incompatible con el lowering `or default` que necesita owned `String`), no hay ahorro de CPU.
+
+3. **Beneficio teórico solo de memoria** (16B vs 24B por valor, ~33%). En el bench (1000 entries) la diferencia (8KB) cabe holgada en L2 cache, sin impacto de localidad observable.
+
+4. **Coste de implementación:** `_localMapEscape` analysis en liveness.liva, dispatch en codegen.liva para insert/get/iter, manejo de tipos en pattern matching, tests de idempotencia. Riesgo no trivial de romper `gen-2 ≡ gen-3`.
+
+**Decisión:** Cerrar Bloque 2 como analysis-only. Si en el futuro se identifica un hotpath con `Map<K, String>` (p.ej. config parsing, JSON loading) o se rediseña el API de `.get()` para devolver `&str`, reabrir como tarea v2.x.
+
+- [x] Análisis técnico completo (este bloque)
+- [x] Bench actual confirma 4/4 métricas <1.15x sin esta optimización
+- [ ] (post-v2.0, condicional) Reabrir si nuevo hotpath con Map<K,String>
 
 ### Bloque 3 — Cobertura medida (cargo-llvm-cov) ✅ DONE (baseline)
 
@@ -713,12 +724,14 @@ y tests LSP manuales — no representan gap real.
 - [x] 5/5 tests E2E PASS, idempotencia gen-2≡gen-3 preservada, 518 cargo tests, bench bajo gate
 - [ ] (opcional) Integrar en `scripts/run_tests.sh` y CI
 
-### Bloque 5 — Limpieza BACKLOG
+### Bloque 5 — Limpieza BACKLOG ✅ DONE
 
 - [x] L478 (Implementar codegen self-host) → marcado completo (codegen.liva ~7000 líneas, idempotente)
 - [x] L690-696 (validación Fase 10) → marcado completo
-- [ ] Revisar resto de `[ ]` y mover a sección apropiada (REPL → v2.x, etc.)
-- [ ] Sincronizar `ROADMAP.md` y `CHANGELOG.md` con v2.0 final
+- [x] Bloque 2 (Box<str> Map values) → cerrado como analysis-only con rationale técnico documentado
+- [x] REPL listado en v2.x section (post-v2.0) — ya estaba
+- [x] Sincronizar `ROADMAP.md` con v2.0 final
+- [x] Sincronizar `CHANGELOG.md` con v2.0 final
 
 ### Tier 2 — solo si Tier 1 no alcanza <1.15x
 
@@ -734,14 +747,12 @@ y tests LSP manuales — no representan gap real.
 - [x] `_emitBinary` push_str chain: omite `.to_string()` cuando RHS es ya un `String` (CSV building 1.17x → 1.00x)
 - [x] Idempotencia gen-2≡gen-3 binaria + 518 tests + bootstrap 9/9
 
-#### 10.5 — `Box<str>` para Map values nunca mutados
+#### 10.5 — `Box<str>` para Map values nunca mutados ✅ ANALYSIS CLOSED (post-v2.0)
 
-> Promovido al Bloque 2 de "v2.0 al 100%" (sección anterior). Análisis de escape del map. Coste medio-alto, retorno esperado <10% en hotpaths actuales pero requerido para cerrar v2.0 al 100%.
+> Cerrado como Bloque 2 de "v2.0 al 100%" tras análisis técnico. **No se implementa en v2.0**. Ver § Bloque 2 arriba para rationale completo.
 
-- [ ] Análisis `_localMapEscape`: map no exportado, no en parámetro genérico, no asignado a campo
-- [ ] Codegen: emitir `HashMap<K, Box<str>>` para maps locales con valores `String` nunca mutados
-- [ ] `m.get` devuelve `&str` directo
-- [ ] Idempotencia gen-2≡gen-3 binaria
+- [x] Análisis técnico realizado (no hay hotpath con `Map<K, String>` en bench actual; idiom `.get() or default` clona en cualquier caso → sin ahorro de CPU; ahorro de memoria 24B→16B no cambia bench)
+- [ ] (post-v2.0) Reabrir si surge un hotpath con Map<K,String> o se rediseña `.get()` para devolver `&str`
 
 ### Validación obligatoria por cada item de Fase 10
 
