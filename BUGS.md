@@ -130,6 +130,51 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 
 ---
 
+## Bugs descubiertos por testing de apps complejas (2026-04-29)
+
+> Tres aplicaciones complejas (`compiler/tests/complex_apps/app[4-6]_*.liva`)
+> ejercitan patrones avanzados (Map<K, Class>, mutación through index,
+> `for k,v in map`, `self.field.concat`). Apps que usan solo arrays-de-primitivos
+> + clases con métodos (app5_numerical, app6_bench) compilan y producen stdout
+> idéntico en bootstrap y gen-2.
+
+### B116 — Indexed assignment `self.field[i] = X` se pierde en gen-2 ⚡
+- **Repro:** `this.statuses[bi] = 1` dentro de `pub fn loan(&mut self, ...)`
+- **Problema:** gen-2 emite `self.statuses.clone()[(bi) as usize] = 1;` — mutación al clon que se descarta. **Mutación silenciosamente perdida**, sin error de compilación.
+- **Impacto:** Crítico — corrupción silenciosa de datos. Cualquier programa que mute campos vector via índice da resultados incorrectos. Detectado en app4_library.
+- **Status:** Pendiente — bootstrap no compila estas apps por B117 antes de llegar a este patrón.
+
+### B117 — `self.field = self.field.concat([x])` cannot move out of `&mut self` 🔶
+- **Repro:** `this.bookIds = this.bookIds.concat([id])` en método `&mut self`
+- **Problema:** bootstrap emite `{ let mut __v = self.book_ids; __v.extend(vec![id]); __v }` — mueve `self.book_ids` fuera de `&mut self`. E0507.
+- **Estado:** **gen-2 ya tiene fix** (regresión solo en bootstrap).
+
+### B118 — `Map<K, NonDefaultClass>.get(k) or ClassInstance` doble-unwrap 🔶
+- **Repro:** `inv.items.get("X") or Product(...)` con `inv.items: Map<string, Product>`
+- **Problema:** Bootstrap emite `m.get(&k).cloned().unwrap_or_default().unwrap_or(default)` — requiere `Product: Default` no implementado.
+- **Estado:** gen-2 tiene fix parcial via `_emitOptionGetWithDefault` (añadido en Bloque 4).
+- **Workaround:** `if m.has(k) { m.get(k) or X } else { X }`.
+
+### B119 — `for k, v in map` destructure falla en gen-2 🔶
+- **Repro:** `for sku, p in this.items { print(p.summary()) }`
+- **Problema:** gen-2 emite iteración que produce tupla `(&K, &V)` y llama `.method()` sobre la tupla.
+
+### B120 — `arr.len()` asignado a campo `i32` sin cast 🔶
+- **Repro:** `s.lines = lineArr.len()` con `s.lines: number`
+- **Problema:** `.len()` retorna `usize`, falta `as i32` al asignar a `i32` field.
+
+### B121 — `let cur = ...; cur = ...` no declara mut 🔶
+- **Repro:** `let cur = this.adj.get(src) or []; cur = cur.concat(...)`
+- **Problema:** debería ser `let mut cur = ...`.
+
+### B122 — Mixed integer comparison emite `.as_str()` ⚡
+- **Repro:** `while i < n` con `i: i32` (Liva number) y `n: usize` (de `arr.len()`)
+- **Problema:** Codegen emite `while i.as_str() < n.as_str()` — interpreta como string compare.
+
+### B123 — `dists.get(stringVar) or 0` no borrowea la key 🔶
+- **Repro:** `let d = dists.get(n) or 0` con `n: String` desde `for n in arr`
+- **Problema:** Emite `dists.get(n.clone())` (debería ser `&n`) + `unwrap_or(0)` (debería ser `&0` ó `unwrap_or(0).copied()`).
+
 ## Carencias del lenguaje detectadas
 
 ### GAP-001 — No hay `toBeNull()` funcional en test framework ✅ RESOLVED

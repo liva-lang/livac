@@ -1,0 +1,187 @@
+// App: Library — uses parallel arrays of primitives to avoid bugged patterns.
+
+statusName(s: number): string {
+    if s == 0 { return "available" }
+    if s == 1 { return "loaned" }
+    if s == 2 { return "lost" }
+    return "?"
+}
+
+Library {
+    bookIds: [number]
+    titles: [string]
+    authors: [string]
+    years: [number]
+    statuses: [number]   // 0=available, 1=loaned, 2=lost
+
+    memberIds: [number]
+    memberNames: [string]
+    memberLoans: [number]
+
+    constructor() {
+        this.bookIds = []
+        this.titles = []
+        this.authors = []
+        this.years = []
+        this.statuses = []
+        this.memberIds = []
+        this.memberNames = []
+        this.memberLoans = []
+    }
+
+    addBook(id: number, title: string, author: string, year: number) {
+        let nbi = this.bookIds.concat([id])
+        this.bookIds = nbi
+        let nt = this.titles.concat([title])
+        this.titles = nt
+        let na = this.authors.concat([author])
+        this.authors = na
+        let ny = this.years.concat([year])
+        this.years = ny
+        let ns = this.statuses.concat([0])
+        this.statuses = ns
+    }
+
+    addMember(id: number, name: string) {
+        let nm = this.memberIds.concat([id])
+        this.memberIds = nm
+        let nn = this.memberNames.concat([name])
+        this.memberNames = nn
+        let nl = this.memberLoans.concat([0])
+        this.memberLoans = nl
+    }
+
+    findBookIdx(id: number): number {
+        let i = 0
+        let n = this.bookIds.len()
+        while i < n {
+            if this.bookIds[i] == id { return i }
+            i = i + 1
+        }
+        return -1
+    }
+
+    findMemberIdx(id: number): number {
+        let i = 0
+        let n = this.memberIds.len()
+        while i < n {
+            if this.memberIds[i] == id { return i }
+            i = i + 1
+        }
+        return -1
+    }
+
+    bookInfo(idx: number): string {
+        return $"#{this.bookIds[idx]} \"{this.titles[idx]}\" by {this.authors[idx]} ({this.years[idx]}) [{statusName(this.statuses[idx])}]"
+    }
+
+    loan(bookId: number, memberId: number): string {
+        let bi = this.findBookIdx(bookId)
+        let mi = this.findMemberIdx(memberId)
+        if bi < 0 { return "ERR: book not found" }
+        if mi < 0 { return "ERR: member not found" }
+        let st = this.statuses[bi]
+        if st == 1 { return $"ERR: \"{this.titles[bi]}\" already loaned" }
+        if st == 2 { return $"ERR: \"{this.titles[bi]}\" is lost" }
+        this.statuses[bi] = 1
+        this.memberLoans[mi] = this.memberLoans[mi] + 1
+        return $"OK: {this.memberNames[mi]} took \"{this.titles[bi]}\""
+    }
+
+    returnBook(bookId: number, memberId: number): string {
+        let bi = this.findBookIdx(bookId)
+        let mi = this.findMemberIdx(memberId)
+        if bi < 0 { return "ERR: book not found" }
+        if mi < 0 { return "ERR: member not found" }
+        let st = this.statuses[bi]
+        if st == 0 { return $"ERR: \"{this.titles[bi]}\" was not loaned" }
+        if st == 2 { return $"ERR: \"{this.titles[bi]}\" is lost" }
+        this.statuses[bi] = 0
+        this.memberLoans[mi] = this.memberLoans[mi] - 1
+        return $"OK: returned \"{this.titles[bi]}\""
+    }
+
+    statsByStatus(s: number): number {
+        let n = 0
+        let i = 0
+        let total = this.statuses.len()
+        while i < total {
+            if this.statuses[i] == s { n = n + 1 }
+            i = i + 1
+        }
+        return n
+    }
+
+    bookCount(): number { return this.bookIds.len() }
+    memberCount(): number { return this.memberIds.len() }
+}
+
+main() {
+    let lib = Library()
+    lib.addBook(1, "The Pragmatic Programmer", "Hunt & Thomas", 1999)
+    lib.addBook(2, "Clean Code", "Martin", 2008)
+    lib.addBook(3, "Refactoring", "Fowler", 1999)
+    lib.addBook(4, "Design Patterns", "GoF", 1994)
+    lib.addBook(5, "TAOCP Vol 1", "Knuth", 1968)
+    lib.addBook(6, "SICP", "Abelson", 1985)
+
+    lib.addMember(101, "Ada")
+    lib.addMember(102, "Linus")
+    lib.addMember(103, "Grace")
+
+    print("=== library ===")
+    let i = 0
+    let nb = lib.bookCount()
+    while i < nb {
+        print(lib.bookInfo(i))
+        i = i + 1
+    }
+
+    print("--- transactions ---")
+    print(lib.loan(1, 101))
+    print(lib.loan(2, 101))
+    print(lib.loan(1, 102))
+    print(lib.loan(99, 101))
+    print(lib.loan(3, 999))
+    print(lib.loan(4, 103))
+    print(lib.returnBook(1, 101))
+    print(lib.returnBook(1, 101))
+    print(lib.loan(1, 102))
+
+    print("--- after txns ---")
+    i = 0
+    while i < nb {
+        print(lib.bookInfo(i))
+        i = i + 1
+    }
+
+    print("--- members ---")
+    let j = 0
+    let nm = lib.memberCount()
+    while j < nm {
+        print($"member {lib.memberIds[j]} {lib.memberNames[j]}: {lib.memberLoans[j]} loans")
+        j = j + 1
+    }
+
+    print("--- stats ---")
+    print($"available: {lib.statsByStatus(0)}")
+    print($"loaned:    {lib.statsByStatus(1)}")
+    print($"lost:      {lib.statsByStatus(2)}")
+
+    print("--- by decade ---")
+    let decades = [1960, 1970, 1980, 1990, 2000]
+    for d in decades {
+        let count = 0
+        let k = 0
+        while k < nb {
+            let yr = lib.years[k]
+            if yr >= d {
+                if yr < d + 10 {
+                    count = count + 1
+                }
+            }
+            k = k + 1
+        }
+        print($"{d}s: {count}")
+    }
+}
