@@ -105,6 +105,20 @@ bench:
 	@cargo bench
 	@echo "✓ Benchmarks complete"
 
+# Coverage report (cargo-llvm-cov). Requires:
+#   cargo install cargo-llvm-cov --locked
+#   rustup component add llvm-tools-preview
+coverage:
+	@echo "📊 Generating coverage report..."
+	@cargo llvm-cov --summary-only --quiet
+	@echo ""
+	@echo "  → HTML report: cargo llvm-cov --open"
+
+coverage-html:
+	@echo "📊 Generating HTML coverage report..."
+	@cargo llvm-cov --html --quiet
+	@echo "  ✓ Opened in browser via target/llvm-cov/html/index.html"
+
 # Watch for changes and rebuild
 watch:
 	@echo "👀 Watching for changes..."

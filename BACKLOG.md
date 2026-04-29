@@ -690,14 +690,18 @@
 - [ ] `m.get(k)` devuelve `&str` directo (skip clone)
 - [ ] Idempotencia gen-2≡gen-3 + 518 tests
 
-### Bloque 3 — Cobertura medida (cargo-llvm-cov)
+### Bloque 3 — Cobertura medida (cargo-llvm-cov) ✅ DONE (baseline)
 
-- [ ] Instalar `cargo-llvm-cov` (`cargo install cargo-llvm-cov` o vía rustup component)
-- [ ] Generar reporte baseline: `cargo llvm-cov --html --workspace`
-- [ ] Identificar zonas <90% en `src/` (esperado: paths de error, casos edge en codegen)
-- [ ] Añadir tests unit/integration para gaps (priorizar: lexer, parser, semantic, codegen, liveness)
-- [ ] Add `make coverage` target + entrada en `Makefile`
-- [ ] Documentar baseline en `docs/PROJECT_STRUCTURE.md`
+- [x] Instalar `cargo-llvm-cov` (`cargo install cargo-llvm-cov --locked` + `rustup component add llvm-tools-preview`)
+- [x] Generar reporte baseline: `make coverage` — **62.81% regions / 62.36% lines** (518 tests)
+- [x] Identificar zonas <90% en `src/` — documentado en `docs/PROJECT_STRUCTURE.md`
+- [x] `make coverage` y `make coverage-html` targets añadidos a `Makefile`
+- [x] Documentar baseline en `docs/PROJECT_STRUCTURE.md` con tabla por módulo
+- [ ] (post-v2.0, low-priority) Añadir tests para subir módulos core a ≥90%: `parser` 77→90%, `codegen` 67→90%, `semantic` 48→90%. Ámbito grande — trackeado para v2.x.
+
+**Nota:** `liva_rt.rs` (0%), `main.rs` (19%) y `lsp/*` (0–59%) son intencionalmente bajos:
+se cubren vía E2E (`compiler/tests/e2e_selfhost.sh`), test suite Liva (`compiler/tests/liva/`)
+y tests LSP manuales — no representan gap real.
 
 ### Bloque 4 — E2E self-hosted bench ✅ DONE
 
