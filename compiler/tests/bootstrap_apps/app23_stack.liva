@@ -1,0 +1,83 @@
+// app23_generic_stack — generic Stack<T> exercising:
+// - generic class with type param T
+// - constructor with `[]` literal as field default
+// - method returning T from &self (B104 territory)
+// - mixing instances with T = number and T = string
+// - generic helpers: depth() for counting, isEmpty()
+
+Stack<T> {
+    items: [T]
+    constructor() {
+        this.items = []
+    }
+
+    push(x: T) {
+        this.items.push(x)
+    }
+
+    pop(): T {
+        let last = this.items[this.items.length - 1]
+        this.items.pop()
+        return last
+    }
+
+    peek(): T {
+        return this.items[this.items.length - 1]
+    }
+
+    depth(): number {
+        return this.items.length
+    }
+
+    isEmpty(): bool {
+        return this.items.length == 0
+    }
+}
+
+// Generic free function returning T
+firstOf<T>(items: [T], fallback: T): T {
+    if items.length == 0 {
+        return fallback
+    }
+    return items[0]
+}
+
+main() {
+    let nums = Stack<number>()
+    nums.push(10)
+    nums.push(20)
+    nums.push(30)
+    print($"nums_depth:{nums.depth()}")
+    print($"nums_peek:{nums.peek()}")
+    let popped = nums.pop()
+    print($"nums_popped:{popped}")
+    print($"nums_after:{nums.depth()}")
+
+    let words = Stack<string>()
+    words.push("alpha")
+    words.push("beta")
+    words.push("gamma")
+    print($"words_peek:{words.peek()}")
+    let w = words.pop()
+    print($"words_popped:{w}")
+    print($"words_empty:{words.isEmpty()}")
+
+    // Free generic function
+    let arr = [7, 14, 21]
+    let f = firstOf<number>(arr, -1)
+    print($"first_num:{f}")
+
+    let names: [string] = []
+    let fb = firstOf<string>(names, "none")
+    print($"first_str:{fb}")
+}
+
+// EXPECT: nums_depth:3
+// EXPECT: nums_peek:30
+// EXPECT: nums_popped:30
+// EXPECT: nums_after:2
+// EXPECT: words_peek:gamma
+// EXPECT: words_popped:gamma
+// EXPECT: words_empty:false
+// EXPECT: first_num:7
+// EXPECT: first_str:none

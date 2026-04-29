@@ -353,6 +353,22 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Fix:** En el loop genérico de args de `generate_method_call_expr`, cuando el receiver está en `class_instance_vars` y el arg es `Literal::String`, append `.to_string()`.
 - **Test:** `bootstrap_apps/app21_hashmap.liva`.
 
+### B151 — String interpolation con `\"` escapado dentro de `${...}` no se parsea ⚡ OPEN
+- **Repro:** `print($"a:{m.get(\"apple\")}")` emite literal `a:{m.get(\"apple\")}` (sin sustituir la expresión).
+- **Problema:** El lexer del string template trata `\"` como cierre o no lo unescapa correctamente dentro del `${...}` placeholder.
+- **Workaround:** Computar el valor en una variable local antes y usarla simple en el placeholder: `let v = m.get("apple"); print($"a:{v}")`.
+- **Test:** `bootstrap_apps/app22_glob.liva` (workaround aplicado).
+
+### B152 — `impl Display for Class<T>` con campo `[T]` faltaba bound `Debug` ⚡ ✅ FIXED (bootstrap)
+- **Repro:** `Stack<T> { items: [T] }` generaba `write!(f, "Stack {{ items: {:?} }}", self.items)` con `impl<T: Clone + Display>` — falta `Debug` para `{:?}` → E0277.
+- **Fix:** Pre-scan los campos antes de emitir el `impl Display`. Si alguno usa `{:?}` (Array / Map / Set / Optional / enum), añadir `std::fmt::Debug` a las bounds de cada type param.
+- **Test:** `bootstrap_apps/app23_stack.liva`.
+
+### B153 — Free generic functions sin bounds `Clone` rompían en patrones comunes ⚡ ✅ FIXED (bootstrap)
+- **Repro:** `firstOf<T>(items: [T], fallback: T): T { return items[0] }` emitía `items[0].clone()` pero el type param `T` no tenía bound `Clone` → E0599.
+- **Fix:** Auto-añadir `Clone + std::fmt::Display` a cada type param de funciones libres genéricas (mismo trato que ya recibían las clases vía B103). Si el usuario define constraints explícitas, se anexan.
+- **Tests:** `bootstrap_apps/app23_stack.liva`. Snapshot `feature_generic_function` actualizada para reflejar las nuevas bounds.
+
 
 ## Carencias del lenguaje detectadas
 

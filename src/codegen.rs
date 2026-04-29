@@ -3773,6 +3773,24 @@ impl CodeGenerator {
         // not just data classes. Classes with explicit constructors also need Display.
         if has_fields {
             self.output.push('\n');
+            // B152: pre-scan fields to detect if any uses {:?} (Debug) over a
+            // type-parameter-bearing container (Vec<T>, HashMap<.,T>, etc).
+            // If so, add `Debug` to the bounds of all generic type parameters.
+            let any_debug_field = class.members.iter().any(|m| {
+                if let Member::Field(field) = m {
+                    matches!(
+                        field.type_ref.as_ref(),
+                        Some(TypeRef::Array(_))
+                            | Some(TypeRef::Map(_, _))
+                            | Some(TypeRef::Set(_))
+                            | Some(TypeRef::Optional(_))
+                    ) || field.type_ref.as_ref().map_or(false, |t| {
+                        matches!(t, TypeRef::Simple(n) if self.enum_names.contains(n))
+                    })
+                } else {
+                    false
+                }
+            });
             // B103 fix: For Display impl, add Display bound to type parameters
             let impl_display_type_params = if !class.type_params.is_empty() {
                 let params: Vec<String> = class.type_params.iter().map(|tp| {
@@ -3794,6 +3812,10 @@ impl CodeGenerator {
                     // Add Display bound if not already present
                     if !all_bounds.iter().any(|b| b.contains("Display")) {
                         all_bounds.push("std::fmt::Display".to_string());
+                    }
+                    // B152: add Debug if the class has any field formatted via {:?}
+                    if any_debug_field && !all_bounds.iter().any(|b| b.contains("Debug")) {
+                        all_bounds.push("std::fmt::Debug".to_string());
                     }
                     format!("{}: {}", tp.name, all_bounds.join(" + "))
                 }).collect();
@@ -4470,14 +4492,24 @@ impl CodeGenerator {
                 .type_params
                 .iter()
                 .map(|param| {
+                    // B153: free generic functions almost always end up cloning T
+                    // (returning indexed elements, passing T to other functions, etc).
+                    // Auto-add Clone + Display so the generated Rust compiles for the
+                    // common cases. If the user wrote explicit constraints, append.
+                    let mut bounds: Vec<String> = Vec::new();
                     if !param.constraints.is_empty() {
-                        // Use trait registry to get complete Rust trait bounds
                         let rust_bounds =
                             self.trait_registry.generate_rust_bounds(&param.constraints);
-                        format!("{}{}", param.name, rust_bounds)
-                    } else {
-                        param.name.clone()
+                        let trimmed = rust_bounds.trim_start_matches(": ").to_string();
+                        bounds.push(trimmed);
                     }
+                    if !bounds.iter().any(|b| b.contains("Clone")) {
+                        bounds.push("Clone".to_string());
+                    }
+                    if !bounds.iter().any(|b| b.contains("Display")) {
+                        bounds.push("std::fmt::Display".to_string());
+                    }
+                    format!("{}: {}", param.name, bounds.join(" + "))
                 })
                 .collect();
             format!("<{}>", bounded.join(", "))

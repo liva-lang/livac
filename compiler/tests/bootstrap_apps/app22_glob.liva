@@ -1,0 +1,92 @@
+// app22_glob — recursive glob matcher: '?' = any single char, '*' = any seq.
+// Stresses: recursive function returning bool, charAt + length on strings,
+// integer index arithmetic, [string] arrays + filter, count of matches.
+
+matchHere(p: string, pi: number, s: string, si: number): bool {
+    if pi >= p.length {
+        return si >= s.length
+    }
+    let pc = p.charAt(pi)
+    if pc == "*" {
+        // match zero chars
+        if matchHere(p, pi + 1, s, si) {
+            return true
+        }
+        // match one or more chars (advance s)
+        if si < s.length {
+            return matchHere(p, pi, s, si + 1)
+        }
+        return false
+    }
+    if si >= s.length {
+        return false
+    }
+    let sc = s.charAt(si)
+    if pc == "?" || pc == sc {
+        return matchHere(p, pi + 1, s, si + 1)
+    }
+    return false
+}
+
+matches(pattern: string, text: string): bool {
+    return matchHere(pattern, 0, text, 0)
+}
+
+countMatches(pattern: string, items: [string]): number {
+    let n = 0
+    for s in items {
+        if matches(pattern, s) {
+            n += 1
+        }
+    }
+    return n
+}
+
+filterMatches(pattern: string, items: [string]): [string] {
+    let out: [string] = []
+    for s in items {
+        if matches(pattern, s) {
+            out.push(s)
+        }
+    }
+    return out
+}
+
+main() {
+    let names = ["apple", "apricot", "banana", "blackberry", "blueberry", "cherry", "date", "elderberry"]
+
+    let aStar = countMatches("a*", names)
+    let bStar = countMatches("b*", names)
+    let qqqqq = matches("?????", "apple")
+    let qqqq = matches("????", "apple")
+    let estar = countMatches("*e*", names)
+    let berry = countMatches("*berry", names)
+    let exact = matches("date", "date")
+    let emptyStar = matches("*", "")
+    let emptyQ = matches("?", "")
+
+    print($"a_star:{aStar}")
+    print($"b_star:{bStar}")
+    print($"qqqqq:{qqqqq}")
+    print($"qqqq_apple:{qqqq}")
+    print($"star_e_star:{estar}")
+    print($"berry:{berry}")
+    print($"exact:{exact}")
+    print($"empty_star:{emptyStar}")
+    print($"empty_q:{emptyQ}")
+
+    let bs = filterMatches("b*", names)
+    let joined = bs.join(",")
+    print($"b_list:{joined}")
+}
+
+// EXPECT: a_star:2
+// EXPECT: b_star:3
+// EXPECT: qqqqq:true
+// EXPECT: qqqq_apple:false
+// EXPECT: star_e_star:6
+// EXPECT: berry:3
+// EXPECT: exact:true
+// EXPECT: empty_star:true
+// EXPECT: empty_q:false
+// EXPECT: b_list:banana,blackberry,blueberry

@@ -103,6 +103,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Fix propuesto requiere alias mutable post-`Self {...}` con sustitución
   `this`→`__obj`. Aplazado por riesgo en 518 tests.
 
+### Added (round 7)
+- `bootstrap_apps/app22_glob.liva` — recursive glob matcher (`?` y `*`),
+  `string.charAt`/`length`, `[string].filter` por matcher.
+- `bootstrap_apps/app23_stack.liva` — `Stack<T>` genérico (push/pop/peek)
+  con instancias `T = number` y `T = string`, más `firstOf<T>` (free
+  generic function) que ejercitan B152 y B153.
+
+### Fixed (round 7 — bootstrap)
+- **B152 — `impl Display for Class<T>` faltaba bound `Debug`**: cuando un
+  campo de tipo container (`[T]`, `Map<K,T>`, `Set<T>`, `T?`) se formatea
+  con `{:?}`, las bounds del type param solo incluían `Display` → E0277.
+  Ahora se pre-escanea los campos: si alguno usa `{:?}`, se añade
+  `std::fmt::Debug` a cada type param.
+- **B153 — Free generic functions sin `Clone`**: el codegen emite
+  `items[0].clone()` para devolver elementos de `[T]`, pero `T` solo tenía
+  las bounds explícitas (vacías por defecto) → E0599. Auto-añadidos
+  `Clone + std::fmt::Display` a cada type param de funciones libres
+  genéricas (mismo trato que ya recibían las clases vía B103). Snapshot
+  `feature_generic_function` actualizada.
+
+### Known (round 7)
+- **B151 — string interpolation con `\"` escapado**: `$"a:{m.get(\"k\")}"`
+  emite el placeholder literal en vez de evaluar la expresión. Workaround:
+  guardar el valor en una variable local antes (`let v = m.get("k"); $"a:{v}"`).
+
 ### Added (round 4)
 - `bootstrap_apps/app18_template.liva` — motor de templating `{{var}}` con
   `Map<string, string>` y `string.indexOf(needle, fromIndex)`.

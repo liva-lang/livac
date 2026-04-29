@@ -1,5 +1,6 @@
 ---
 source: tests/codegen_tests.rs
+assertion_line: 2195
 expression: rust_code
 ---
 #![allow(unused_parens, unused_mut)]
@@ -386,7 +387,7 @@ mod liva_rt {
     
 }
 
-fn identity<T>(value: T) -> T {
+fn identity<T: Clone + std::fmt::Display>(value: T) -> T {
     return value;
 }
 
