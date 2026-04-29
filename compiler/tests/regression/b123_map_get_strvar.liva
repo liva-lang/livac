@@ -1,0 +1,11 @@
+// B123: dists.get(stringVar) or 0 — borrow correctness
+main() {
+    let dists: Map<string, number> = {}
+    dists.set("a", 10)
+    dists.set("b", 20)
+    let names = ["a", "b", "c"]
+    for n in names {
+        let d = dists.get(n) or 0
+        print($"{n}: {d}")
+    }
+}

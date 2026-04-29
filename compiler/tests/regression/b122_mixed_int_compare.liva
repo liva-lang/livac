@@ -1,0 +1,9 @@
+main() {
+    let arr = [10, 20, 30, 40, 50]
+    let i = 0
+    let n = arr.len()
+    while i < n {
+        print(arr[i])
+        i = i + 1
+    }
+}

@@ -1,0 +1,20 @@
+// B118: Map<K, NonDefaultClass>.get(k) or ClassInstance double-unwrap
+Point {
+    x: number
+    y: number
+    constructor(x: number, y: number) {
+        this.x = x
+        this.y = y
+    }
+}
+
+main() {
+    let pts: Map<string, Point> = {}
+    pts.set("origin", Point(0, 0))
+    let p = pts.get("origin") or Point(99, 99)
+    print(p.x)
+    print(p.y)
+    let q = pts.get("missing") or Point(99, 99)
+    print(q.x)
+    print(q.y)
+}

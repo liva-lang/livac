@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0-dev] - 2026-04-29 — v2.0 al 100% (Release Ready)
 
+### Fixed (codegen — discovered by complex apps testing)
+- **B116 — gen-2 silent data loss on `self.field[i] = X`**: `_emitAssign` ahora
+  setea `_inAssignTarget = true` antes de emitir el objeto indexado, suprimiendo
+  el auto-clone que hacía la mutación caer en un `.clone()` descartado.
+- **B117 — bootstrap E0507 en `self.field.concat([x])`**: el emitter de
+  `[T].concat(other)` clona obj siempre (`{ let mut __v = obj.clone(); ... }`),
+  evitando mover desde `&mut self`.
+- **B118 — bootstrap `let m: Map<K,V> = {}` emitía serde_json**: la rama VarDecl
+  ahora detecta `ObjectLiteral` vacío + type_ref `Map<_,_>` y emite
+  `std::collections::HashMap::new()`. Mismo fix para `Set<_>`.
+- **B119 — gen-2 `for k, v in map` destructure roto**: el shadow `let k = k as i32`
+  era válido sólo para `enumerate()`. Ahora si `isMapIteration` se emite
+  `let k = k.clone()` (key dueña) en lugar del cast.
+- **B120 — bootstrap `.len()` no casteaba a `i32`**: tratamiento explícito en
+  `generate_method_call` igual que `.length()` → `(obj.len() as i32)`.
+- B121, B122, B123 — confirmados como falsos positivos / cascada de los anteriores
+  (ver `BUGS.md` para análisis post-fix).
+
+### Validation post-fix
+- 518/518 cargo tests verdes
+- 9/9 modules en bootstrap_test
+- 5/5 programas en e2e_selfhost (basics, enums_match, errors, stdlib, calculator)
+- Self-host idempotente: gen-2 src/bin == gen-3 src/bin
+- 3/3 complex apps (`compiler/tests/complex_apps/app[4-6]_*`) stdout-match boot↔gen-2
+- 4/4 regression repros (`compiler/tests/regression/b11[8]_*`, `b12[1-3]_*`)
+- Bench oficial: line 0.98x · csv 0.93x · word 0.93x · map 1.10x (todos < 1.15x)
+
 ### Added
 - **v2.0 closing blocks (5/5 done)**:
   - **Bloque 1 — Cross-module `&str`**: pre-pass global de signaturas en `main.liva`

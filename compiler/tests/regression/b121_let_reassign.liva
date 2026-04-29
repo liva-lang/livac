@@ -1,0 +1,6 @@
+// B121: let cur = ...; cur = ... (reassign — should be mut)
+main() {
+    let cur = [1, 2, 3]
+    cur = cur.concat([4, 5])
+    print(cur.length)
+}

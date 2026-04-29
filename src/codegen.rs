@@ -6469,12 +6469,37 @@ impl CodeGenerator {
                             self.generate_expr(&var.init)?;
                             self.output.push_str(".0.unwrap_or_default()");
                         } else {
-                            // Auto-clone when assigning this.field or a class instance to a local variable
-                            let needs_clone = self.expr_is_self_field(&var.init)
-                                || self.expr_is_class_instance(&var.init);
-                            self.generate_expr(&var.init)?;
-                            if needs_clone {
-                                self.output.push_str(".clone()");
+                            // B118: empty `{}` literal annotated as Map<K,V> must emit
+                            // HashMap::new(), not serde_json::json!({}). Same for Set<T> = {}.
+                            let init_is_empty_object = matches!(
+                                &var.init,
+                                Expr::ObjectLiteral(fields) if fields.is_empty()
+                            );
+                            let init_is_empty_set = matches!(
+                                &var.init,
+                                Expr::SetLiteral(items) if items.is_empty()
+                            );
+                            let lhs_is_map = binding
+                                .type_ref
+                                .as_ref()
+                                .map_or(false, |t| matches!(t, TypeRef::Map(_, _)));
+                            let lhs_is_set = binding
+                                .type_ref
+                                .as_ref()
+                                .map_or(false, |t| matches!(t, TypeRef::Set(_)));
+
+                            if init_is_empty_object && lhs_is_map {
+                                self.output.push_str("std::collections::HashMap::new()");
+                            } else if (init_is_empty_object || init_is_empty_set) && lhs_is_set {
+                                self.output.push_str("std::collections::HashSet::new()");
+                            } else {
+                                // Auto-clone when assigning this.field or a class instance to a local variable
+                                let needs_clone = self.expr_is_self_field(&var.init)
+                                    || self.expr_is_class_instance(&var.init);
+                                self.generate_expr(&var.init)?;
+                                if needs_clone {
+                                    self.output.push_str(".clone()");
+                                }
                             }
                         }
 
@@ -10064,6 +10089,16 @@ impl CodeGenerator {
             return Ok(());
         }
 
+        // B120: Handle .len() as Liva method on string/array → (.len() as i32)
+        // In Liva semantics .len() returns `number` (i32). Without this cast,
+        // `let n = arr.len(); while i < n` fails with mismatched types (i32 vs usize).
+        if method_call.method == "len" && method_call.args.is_empty() {
+            self.output.push('(');
+            self.generate_expr(&method_call.object)?;
+            self.output.push_str(".len() as i32)");
+            return Ok(());
+        }
+
         // Check if this is a Math function call (Math.sqrt, Math.pow, etc.)
         if let Expr::Identifier(name) = method_call.object.as_ref() {
             if name == "Math" {
@@ -10391,11 +10426,14 @@ impl CodeGenerator {
 
         // Handle [T].concat(other) — array concatenation
         // Rust Vec doesn't have .concat() with the same semantics as Liva
-        // Translate to: { let mut __v = obj; __v.extend(other); __v }
+        // Translate to: { let mut __v = obj.clone(); __v.extend(other); __v }
+        // B117: must clone obj — bare `let mut __v = obj` moves out of &mut self
+        // when obj is a self field. Cloning is always safe; the LHS receiver
+        // is a temporary anyway.
         if method_call.method == "concat" && !method_call.args.is_empty() {
             self.output.push_str("{ let mut __v = ");
             self.generate_expr(&method_call.object)?;
-            self.output.push_str("; __v.extend(");
+            self.output.push_str(".clone(); __v.extend(");
             self.generate_expr(&method_call.args[0])?;
             self.output.push_str("); __v }");
             return Ok(());

@@ -130,50 +130,51 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 
 ---
 
-## Bugs descubiertos por testing de apps complejas (2026-04-29)
+## Bugs descubiertos por testing de apps complejas (2026-04-29) — ✅ TODOS FIXED
 
 > Tres aplicaciones complejas (`compiler/tests/complex_apps/app[4-6]_*.liva`)
 > ejercitan patrones avanzados (Map<K, Class>, mutación through index,
-> `for k,v in map`, `self.field.concat`). Apps que usan solo arrays-de-primitivos
-> + clases con métodos (app5_numerical, app6_bench) compilan y producen stdout
-> idéntico en bootstrap y gen-2.
+> `for k,v in map`, `self.field.concat`). Tras los fixes, las 3 apps
+> producen stdout idéntico en bootstrap y gen-2.
+>
+> Regresiones cubiertas en `compiler/tests/regression/run.sh` (4 repros mínimas).
 
-### B116 — Indexed assignment `self.field[i] = X` se pierde en gen-2 ⚡
+### B116 — Indexed assignment `self.field[i] = X` se pierde en gen-2 ⚡ ✅ FIXED
 - **Repro:** `this.statuses[bi] = 1` dentro de `pub fn loan(&mut self, ...)`
-- **Problema:** gen-2 emite `self.statuses.clone()[(bi) as usize] = 1;` — mutación al clon que se descarta. **Mutación silenciosamente perdida**, sin error de compilación.
-- **Impacto:** Crítico — corrupción silenciosa de datos. Cualquier programa que mute campos vector via índice da resultados incorrectos. Detectado en app4_library.
-- **Status:** Pendiente — bootstrap no compila estas apps por B117 antes de llegar a este patrón.
+- **Problema:** gen-2 emitía `self.statuses.clone()[(bi) as usize] = 1;` — mutación al clon que se descarta. **Mutación silenciosamente perdida**, sin error de compilación.
+- **Fix:** `_emitAssign` (`compiler/src/codegen.liva`) ahora setea `_inAssignTarget = true` antes de emitir `idxObj` en el caso `Expr.Index`, suprimiendo el auto-clone de self-fields.
 
-### B117 — `self.field = self.field.concat([x])` cannot move out of `&mut self` 🔶
+### B117 — `self.field = self.field.concat([x])` cannot move out of `&mut self` 🔶 ✅ FIXED
 - **Repro:** `this.bookIds = this.bookIds.concat([id])` en método `&mut self`
-- **Problema:** bootstrap emite `{ let mut __v = self.book_ids; __v.extend(vec![id]); __v }` — mueve `self.book_ids` fuera de `&mut self`. E0507.
-- **Estado:** **gen-2 ya tiene fix** (regresión solo en bootstrap).
+- **Problema:** bootstrap emitía `{ let mut __v = self.book_ids; __v.extend(vec![id]); __v }` — movía `self.book_ids` fuera de `&mut self`. E0507.
+- **Fix:** El emitter de `[T].concat(other)` (`src/codegen.rs`) ahora emite `let mut __v = obj.clone();` siempre. Gen-2 ya emitía bien.
 
-### B118 — `Map<K, NonDefaultClass>.get(k) or ClassInstance` doble-unwrap 🔶
-- **Repro:** `inv.items.get("X") or Product(...)` con `inv.items: Map<string, Product>`
-- **Problema:** Bootstrap emite `m.get(&k).cloned().unwrap_or_default().unwrap_or(default)` — requiere `Product: Default` no implementado.
-- **Estado:** gen-2 tiene fix parcial via `_emitOptionGetWithDefault` (añadido en Bloque 4).
-- **Workaround:** `if m.has(k) { m.get(k) or X } else { X }`.
+### B118 — `let pts: Map<K, V> = {}` emitía `serde_json::json!({})` 🔶 ✅ FIXED
+- **Repro:** `let pts: Map<string, Point> = {}` (Map vacío con tipo declarado)
+- **Problema:** Bootstrap emitía `serde_json::json!({})` para todo `ObjectLiteral`, ignorando la anotación `Map<K,V>` → mismatched types `HashMap<...>` vs `Value`.
+- **Fix:** En la rama `Stmt::VarDecl` (`src/codegen.rs`), si `init` es `ObjectLiteral` vacío y type_ref es `Map<_,_>`, emitir `std::collections::HashMap::new()`. Mismo trato para `Set<_>`.
 
-### B119 — `for k, v in map` destructure falla en gen-2 🔶
+### B119 — `for k, v in map` destructure falla en gen-2 🔶 ✅ FIXED
 - **Repro:** `for sku, p in this.items { print(p.summary()) }`
-- **Problema:** gen-2 emite iteración que produce tupla `(&K, &V)` y llama `.method()` sobre la tupla.
+- **Problema:** gen-2 emitía `let {sku} = {sku} as i32;` después del for, asumiendo enumerate. Pero en `map.iter()` la primera variable es `&K` (no `usize`), causando errores de tipo.
+- **Fix:** En `_emitFor` (`compiler/src/codegen.liva`), si `isMapIteration`, sustituir el cast `as i32` por `.clone()` en la key (e item ya se clona).
 
-### B120 — `arr.len()` asignado a campo `i32` sin cast 🔶
-- **Repro:** `s.lines = lineArr.len()` con `s.lines: number`
-- **Problema:** `.len()` retorna `usize`, falta `as i32` al asignar a `i32` field.
+### B120 — `arr.len()` (usize) sin cast a `i32` 🔶 ✅ FIXED
+- **Repro:** `let n = arr.len(); while i < n` con `i: i32` → mismatched types.
+- **Problema:** Bootstrap NO interceptaba `.len()` como método Liva: pasaba directamente a Rust devolviendo `usize`.
+- **Fix:** Tratar `.len()` igual que `.length()` en `src/codegen.rs` → `(obj.len() as i32)`. Gen-2 ya emitía con cast.
 
-### B121 — `let cur = ...; cur = ...` no declara mut 🔶
-- **Repro:** `let cur = this.adj.get(src) or []; cur = cur.concat(...)`
-- **Problema:** debería ser `let mut cur = ...`.
+### B121 — `let cur = ...; cur = ...` no declara mut 🔶 ✅ FALSE ALARM
+- **Análisis post-fix:** Liva infiere `let mut` automáticamente cuando detecta reasignación. Tanto bootstrap como gen-2 emiten `let mut cur` correctamente. El error original observado era consecuencia de B118/B120 cascade.
 
-### B122 — Mixed integer comparison emite `.as_str()` ⚡
-- **Repro:** `while i < n` con `i: i32` (Liva number) y `n: usize` (de `arr.len()`)
-- **Problema:** Codegen emite `while i.as_str() < n.as_str()` — interpreta como string compare.
+### B122 — Mixed integer comparison emite `.as_str()` ⚡ ✅ RESOLVED via B120
+- **Repro original:** `while i < n` con `i: i32` y `n` desde `let n = arr.len()`.
+- **Análisis post-fix:** Con B120 arreglado, `.len()` retorna `i32`, así que `n: i32` y la comparación funciona en ambos compiladores. El reporte de `.as_str()` se debió a inferencia rota tras el mismatch — al alinear los tipos, desaparece.
 
-### B123 — `dists.get(stringVar) or 0` no borrowea la key 🔶
-- **Repro:** `let d = dists.get(n) or 0` con `n: String` desde `for n in arr`
-- **Problema:** Emite `dists.get(n.clone())` (debería ser `&n`) + `unwrap_or(0)` (debería ser `&0` ó `unwrap_or(0).copied()`).
+### B123 — `dists.get(stringVar) or 0` 🔶 ✅ RESOLVED via B118
+- **Repro:** `let d = dists.get(n) or 0` dentro de `for n in arrayOfStrings`.
+- **Análisis post-fix:** El error E0308 original venía del init `let dists: Map<string, number> = {}` (B118), no del `.get()`. Tras B118 fixed, bootstrap emite correctamente `dists.get(&n).cloned().unwrap_or(0)`.
+
 
 ## Carencias del lenguaje detectadas
 

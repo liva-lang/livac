@@ -2259,7 +2259,10 @@ RustEmitter {
                     0
                 },
                 Expr.Index(idxObj, idxExpr) => {
+                    // B116: suppress self.field auto-clone on assign target
+                    this._inAssignTarget = true
                     this._emitExpr(idxObj)
+                    this._inAssignTarget = false
                     this._write("[(")
                     this._emitExpr(idxExpr)
                     this._write(") as usize]")
@@ -2721,12 +2724,13 @@ RustEmitter {
         if var2 != null {
             var2Name = this._sanitizeName(var2)
         }
+        // Track map iteration outside the if so the body can suppress `i as i32` shadowing.
+        let isMapIteration = false
         if hasVar2 {
             // Two-variable for loop
             let idxName = $"{varName}"
             let itemName = $"{var2Name}"
             // Detect Map iteration: for key, value in map → .iter()
-            let isMapIteration = false
             let _ = switch iterableExpr {
                 Expr.Identifier(iterName) => {
                     let sn = this._sanitizeName(iterName)
@@ -2793,7 +2797,13 @@ RustEmitter {
         this._indent()
         // If two-variable enumerate loop, shadow index var as i32
         if hasVar2 {
-            this._writeln($"let {varName} = {varName} as i32;")
+            if not isMapIteration {
+                // enumerate(): index is usize → shadow as i32 (Liva number)
+                this._writeln($"let {varName} = {varName} as i32;")
+            } else {
+                // map.iter(): key is &K → clone for owned access in body
+                this._writeln($"let {varName} = {varName}.clone();")
+            }
             // Clone item to avoid move issues
             this._writeln($"let {var2Name} = {var2Name}.clone();")
         }
