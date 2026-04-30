@@ -3133,7 +3133,21 @@ RustEmitter {
             Expr.Literal(lit) => { this._emitLiteral(lit); 0 },
             Expr.Identifier(name) => { this._emitIdentifier(name); 0 },
             Expr.Binary(op, left, right) => {
-                this._emitBinary(op, left, right)
+                // Phase 11: wrap in parens to preserve precedence when used as
+                // operand of another expression (e.g. `(idx - 1) / 2`).
+                // Suppressed in two cases:
+                //  - inside if/while conditions: the binary may lower to an
+                //    if-let pattern (`let Some(x) = x`) which is not an expr.
+                //  - when a `_pushStrTarget` chain is active: that path emits
+                //    multi-statement push_str calls (`a.push_str(...); a.push_str(...)`)
+                //    which cannot be parenthesised as a single expression.
+                if this._inIfCondition or this._pushStrTarget != "" {
+                    this._emitBinary(op, left, right)
+                } else {
+                    this._write("(")
+                    this._emitBinary(op, left, right)
+                    this._write(")")
+                }
                 0
             },
             Expr.Unary(op, operand) => {
@@ -5956,8 +5970,22 @@ RustEmitter {
             return true
         }
         if method == "reverse" {
+            // B147: in expression context, emit a block returning the reversed Vec.
+            // (`Vec::reverse` is mutating and returns `()`, which fails when used
+            // as an expression like `let asc = desc.reverse()`.)
+            if isStmtCtx {
+                this._emitExpr(obj)
+                this._write(".reverse()")
+                return true
+            }
+            let useMoveR = this._canMoveIdent(obj)
+            this._write("{ let mut __v = ")
             this._emitExpr(obj)
-            this._write(".reverse()")
+            if useMoveR {
+                this._write("; __v.reverse(); __v }")
+            } else {
+                this._write(".clone(); __v.reverse(); __v }")
+            }
             return true
         }
         if method == "reversed" {
