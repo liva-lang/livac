@@ -5311,15 +5311,21 @@ RustEmitter {
         let isUserClassInstance = false
         let _ = switch obj {
             Expr.Identifier(uName) => {
-                let uType = this._lookupVarTypeRef(uName)
-                let _ = switch uType {
-                    TypeRef.Simple(cn) => {
-                        if cn != "" and this._typeCtx.classes.has(cn) {
-                            isUserClassInstance = true
-                        }
-                        0
-                    },
-                    _ => { 0 }
+                if uName == "this" {
+                    if this._currentClassName != "" {
+                        isUserClassInstance = true
+                    }
+                } else {
+                    let uType = this._lookupVarTypeRef(uName)
+                    let _ = switch uType {
+                        TypeRef.Simple(cn) => {
+                            if cn != "" and this._typeCtx.classes.has(cn) {
+                                isUserClassInstance = true
+                            }
+                            0
+                        },
+                        _ => { 0 }
+                    }
                 }
                 0
             },
