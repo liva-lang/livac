@@ -76,6 +76,10 @@ RustEmitter {
     _currentReturnOptional: bool
     _currentReturnFallible: bool
     _inIfCondition: bool
+    // ERR-UNIFY: tracks identifiers bound as Option<liva_rt::Error> via fallible
+    // tuple destructure (let v, err = call()). Used to rewrite `if err` to
+    // `if err.is_some()` since Rust requires bool.
+    _errBindings: Map<string, bool>
     _inTestBlock: bool
     _derefClosureParams: bool
     _inAssignTarget: bool
@@ -151,6 +155,7 @@ RustEmitter {
         this._currentReturnOptional = false
         this._currentReturnFallible = false
         this._inIfCondition = false
+        this._errBindings = Map {}
         this._inTestBlock = false
         this._derefClosureParams = false
         this._inAssignTarget = false
@@ -988,6 +993,10 @@ RustEmitter {
             this._writeln("pub " + asyncKw2 + "fn " + funcName + typeParamStr + "(" + paramList + ")" + retStr + " {")
             this._indent()
             this._emitBlockOpt(decl.body)
+            // ERR-UNIFY: fallible main must end with Ok(())
+            if funcName == "main" && this._currentReturnFallible {
+                this._writeln("Ok(())")
+            }
         }
 
         this._dedent()
@@ -1053,6 +1062,10 @@ RustEmitter {
         let paramName = $"{extractedName}"
         let sanitized = this._sanitizeName(paramName)
         let typeStr = this._buildParamType(p.typeRef)
+        // Register collection params for `or value` / type dispatch tracking.
+        if typeStr.contains("HashMap") { this._mapVars.set(sanitized, true) }
+        else if typeStr.contains("HashSet") { this._setVars.set(sanitized, true) }
+        else if typeStr == "String" || typeStr == "&str" { this._stringVars.set(sanitized, true) }
         // Phase 8.5: if param is borrowable string and doesn't escape → &str
         // BOOTSTRAP GATE: only apply &str opt when _enableStrRef is true
         // Phase 10.5 Bloque 1: extended to free functions. Cross-module callers
@@ -1159,8 +1172,16 @@ RustEmitter {
 
     _buildReturnType(optRef: TypeRef?, isFallible: bool): string {
         if optRef != null {
+            // ERR-UNIFY: if return type is already TypeRef.Fallible(T), it's
+            // already Result<T, liva_rt::Error> — don't double-wrap even if
+            // the body also contains `fail` (containsFail would be redundant).
+            let isAlreadyFallible = false
+            let _ = switch optRef {
+                TypeRef.Fallible(_) => { isAlreadyFallible = true; 0 },
+                _ => { 0 }
+            }
             let typeStr = this._emitType(optRef)
-            if isFallible {
+            if isFallible && not isAlreadyFallible {
                 return $" -> Result<{typeStr}, liva_rt::Error>"
             }
             return $" -> {typeStr}"
@@ -1597,11 +1618,11 @@ RustEmitter {
     _emitEnum(decl: EnumDecl) {
         let enumName = $"{decl.name}"
 
-        // Check if all variants are unit (no data) — can derive Copy
+        // Check if all variants are unit (no data) — can derive Copy + Default
         let allUnit = this._isAllUnitEnum(decl)
 
         if allUnit {
-            this._writeln("#[derive(Clone, Copy, Debug, PartialEq)]")
+            this._writeln("#[derive(Clone, Copy, Debug, PartialEq, Default)]")
         } else {
             this._writeln("#[derive(Clone, Debug, PartialEq)]")
         }
@@ -1609,7 +1630,12 @@ RustEmitter {
         this._writeln("pub enum " + enumName + " {")
         this._indent()
 
+        let firstUnit = true
         for v in decl.variants {
+            if allUnit && firstUnit {
+                this._writeln("#[default]")
+                firstUnit = false
+            }
             this._emitVariant(enumName, v)
         }
 
@@ -1945,6 +1971,9 @@ RustEmitter {
             if bName0 != "" && bName1 != "" {
                 let valName = this._sanitizeName(bName0)
                 let errName = this._sanitizeName(bName1)
+                // ERR-UNIFY: register err-binding for `if err` rewrite
+                this._errBindings.set(errName, true)
+                this._optionalVars.set(errName, true)
                 this._writeIndent()
                 this._write("let (mut ")
                 this._write(valName)
@@ -2068,6 +2097,11 @@ RustEmitter {
                     if suffix.endsWith(".unwrap()") {
                         isOptionInit = true
                         this._currentLine = emittedLine.substring(0, emittedLine.length - 9)
+                    } else if suffix.endsWith(".parse::<i32>().unwrap_or(0)") {
+                        // toInt() shortcut → strip default to expose Result<i32, _>
+                        this._currentLine = emittedLine.substring(0, emittedLine.length - 13)
+                    } else if suffix.endsWith(".parse::<f64>().unwrap_or(0.0)") {
+                        this._currentLine = emittedLine.substring(0, emittedLine.length - 15)
                     }
                 }
                 if this._inTestBlock || not this._currentReturnFallible {
@@ -2098,7 +2132,7 @@ RustEmitter {
                         this._write(initRes)
                         this._write(" { Ok(v) => v, Err(e) => return Err(liva_rt::Error::chain(format!(\"{}\", ")
                         this._emitExpr(orMsg)
-                        this._write("), e)) }")
+                        this._write("), liva_rt::Error::from(format!(\"{}\", e)))) }")
                     } else {
                         this._write("?")
                     }
@@ -2358,6 +2392,9 @@ RustEmitter {
             this._writeIndent()
             let valName = this._sanitizeName(elements[0])
             let errName = this._sanitizeName(elements[1])
+            // ERR-UNIFY: register err-binding for if-condition rewrite (`if err` → `if err.is_some()`)
+            this._errBindings.set(errName, true)
+            this._optionalVars.set(errName, true)
             this._write("let (mut ")
             this._write(valName)
             this._write(", mut ")
@@ -3629,6 +3666,13 @@ RustEmitter {
         } else {
             let sn = this._sanitizeName(name)
             this._lastEmittedStrRef = this._strRefParams.has(sn)
+            // ERR-UNIFY: rewrite plain `if err` (where err is fallible-tuple
+            // err-binding holding Option<liva_rt::Error>) to `if err.is_some()`.
+            if this._inIfCondition && this._errBindings.has(sn) {
+                this._write(sn)
+                this._write(".is_some()")
+                return
+            }
             this._write(sn)
         }
     }
@@ -6148,6 +6192,16 @@ RustEmitter {
             return true
         }
         if method == "indexOf" {
+            if args.length >= 2 {
+                this._write("{ let __s = ")
+                this._emitExpr(obj)
+                this._write(".clone(); let __from = (")
+                this._emitExpr(args[1])
+                this._write(") as usize; if __from >= __s.len() { -1i32 } else { __s[__from..].find(")
+                this._emitRefArg(args[0])
+                this._write(").map(|i| (i + __from) as i32).unwrap_or(-1) } }")
+                return true
+            }
             this._emitExpr(obj)
             this._write(".find(")
             if args.length > 0 { this._emitRefArg(args[0]) }
@@ -6155,6 +6209,16 @@ RustEmitter {
             return true
         }
         if method == "lastIndexOf" {
+            if args.length >= 2 {
+                this._write("{ let __s = ")
+                this._emitExpr(obj)
+                this._write(".clone(); let __to = (")
+                this._emitExpr(args[1])
+                this._write(") as usize; let __end = if __to > __s.len() { __s.len() } else { __to }; __s[..__end].rfind(")
+                this._emitRefArg(args[0])
+                this._write(").map(|i| i as i32).unwrap_or(-1) }")
+                return true
+            }
             this._emitExpr(obj)
             this._write(".rfind(")
             if args.length > 0 { this._emitRefArg(args[0]) }
@@ -6617,7 +6681,23 @@ RustEmitter {
             this._write(".fold(")
             if args.length > 0 { this._emitExpr(args[0]) }
             this._write(", ")
-            if args.length > 1 { this._emitExpr(args[1]) }
+            if args.length > 1 {
+                let isLam = false
+                let _ = switch args[1] {
+                    Expr.Lambda(_) => { isLam = true; 0 },
+                    _ => { 0 }
+                }
+                if isLam {
+                    this._write("|acc, x| { let x = x.clone(); (")
+                    this._emitExpr(args[1])
+                    this._write(")(acc, x) }")
+                } else {
+                    // Function reference — wrap explicitly
+                    this._write("|acc, x| ")
+                    this._emitExpr(args[1])
+                    this._write("(acc, x.clone())")
+                }
+            }
             this._write(")")
             return true
         }
