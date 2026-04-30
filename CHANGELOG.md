@@ -5,6 +5,41 @@ All notable changes to the Liva compiler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — 2026-04-30 — Self-host codegen polish
+
+### Fixed (self-host codegen — discovered via dogfooding examples)
+- **Top-level `const` double-registration**: `_analyzeConstDecl` no longer calls
+  `declareConst` because the `_registerConst` pre-pass already did. Resolves
+  "Variable already declared in scope" for module-level `const` bindings (e.g.
+  `examples/dogfooding-v1/main.liva`).
+- **Interface emission**: classes with no fields and only bodyless methods are
+  now treated as compile-time-only validation contracts and skipped during
+  Rust emission, matching bootstrap behavior. Fixes E0308 from empty `fn` stubs
+  expecting `String` returns.
+- **`substring(start)` single-arg form**: `_emitStringMethod` and the
+  `_emitMethodCall` fallback now emit open-ended slices `s[start..]` when only
+  one argument is supplied (was emitting `..() as usize`, invalid Rust).
+- **Underscore tuple bindings**: `let _, err = fallible()` no longer emits
+  `let (mut _, mut err)` (Rust rejects `mut _`). Names equal to `_` skip the
+  `mut` qualifier; real names keep it.
+- **`serde_json::json!` macro emission**: `Response.json({...})` now lowers
+  object/map/array literals to JSON-literal syntax `{"key": expr, ...}` via
+  the new `_emitJsonArg` helper. The macro grammar rejected the previous
+  HashMap-builder block expansion.
+
+### Added (testing)
+- **`tests/cli_subcommand_tests.rs`** — 10 end-to-end tests invoking the
+  `livac` binary directly: `check` / `check --json`, `fmt` / `fmt --check`,
+  `lint` / `lint --json`, `--help`, no-args, unknown-subcommand. Raises
+  coverage on `main.rs` argument-parsing/dispatch surface. Total: 528/528.
+
+### Validation
+All gates green after each commit:
+- rebuild_selfhost: 4/4 (gen-2 src ≡ gen-3 src + binary, idempotent)
+- bootstrap_apps: 21/21 boot · 21/21 gen-2 parity
+- regression: 5/5 · complex_apps: 4/4 · e2e_selfhost: 5/5
+- cargo: 528/528
+
 ## [2.0.0-dev] - 2026-05-01 — v2.0 stress-test refinements
 
 ### Fixed (codegen — discovered by extended `bootstrap_apps/` stress tests)
