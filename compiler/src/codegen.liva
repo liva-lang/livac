@@ -93,6 +93,11 @@ RustEmitter {
     _borrowedParamIndices: Map<string, bool>
     _suppressCloneForBorrow: bool
     _strRefParams: Map<string, bool>
+    // Cross-module enum registry: populated via primeGlobalEnum() before generate()
+    // so that field-type checks (e.g. _emitClassStruct's Default-derive logic)
+    // recognize enums declared in OTHER modules. Without this, _typeCtx.enums
+    // only contains enums from the current module.
+    _globalEnums: Map<string, bool>
     _enableStrRef: bool
     _buildParamIdx: number
     _currentFuncIsMethod: bool
@@ -164,6 +169,7 @@ RustEmitter {
         this._functionFnParamMask = Map {}
         this._functionDefaultStrs = Map {}
         this._borrowedParamIndices = Map {}
+        this._globalEnums = Map {}
         this._suppressCloneForBorrow = false
         this._strRefParams = Map {}
         this._enableStrRef = true
@@ -190,6 +196,12 @@ RustEmitter {
     // self-host codegen recognizes `_borrowedParamIndices` as a Map field.
     primeBorrowedParam(bKey: string) {
         this._borrowedParamIndices.set(bKey, true)
+    }
+
+    // Cross-module enum registry: register an enum name declared in another
+    // module so that field-type checks recognize it as an enum.
+    primeGlobalEnum(name: string) {
+        this._globalEnums.set(name, true)
     }
 
     getWarnings(): [string] {
@@ -1326,7 +1338,43 @@ RustEmitter {
 
     _emitClassStruct(className: string, decl: ClassDecl) {
         // Derive clause — include PartialEq so enum variants containing this struct support ==
-        this._writeln("#[derive(Clone, Debug, PartialEq)]")
+        // Bootstrap rule (B99): derive Default for data classes (no ctor) AND for non-data
+        // classes when no field is an enum type (enum variants don't impl Default).
+        // This makes try/catch lowering `(Default::default(), Some(e))` type-check when
+        // the success type is the class itself.
+        let dcHasCtor = false
+        let dcHasEnumField = false
+        for dcM in decl.members {
+            let _ = switch dcM {
+                Member.Method(dcMd) => {
+                    if dcMd.name == "constructor" { dcHasCtor = true }
+                    0
+                },
+                Member.Field(dcF) => {
+                    let dcTr = dcF.typeRef
+                    if dcTr != null {
+                        let _ = switch dcTr {
+                            TypeRef.Simple(dcTn) => {
+                                if this._typeCtx.enums.has(dcTn) {
+                                    dcHasEnumField = true
+                                }
+                                if this._globalEnums.has(dcTn) {
+                                    dcHasEnumField = true
+                                }
+                                0
+                            },
+                            _ => { 0 }
+                        }
+                    }
+                    0
+                }
+            }
+        }
+        if dcHasEnumField {
+            this._writeln("#[derive(Clone, Debug, PartialEq)]")
+        } else {
+            this._writeln("#[derive(Clone, Debug, Default, PartialEq)]")
+        }
         let typeParamStr = this._classTypeParamStr
         this._writeln("pub struct " + className + typeParamStr + " {")
         this._indent()
@@ -7619,7 +7667,24 @@ RustEmitter {
             let _ = switch p {
                 StringTemplatePart.ExprPart(spExpr) => {
                     this._write(", ")
-                    this._emitExpr(spExpr)
+                    // Option<Error> err-bindings: unwrap with as_ref().map().unwrap_or_default()
+                    let isErrBinding = false
+                    let _ = switch spExpr {
+                        Expr.Identifier(spName) => {
+                            let snErr = this._sanitizeName(spName)
+                            if this._errBindings.has(snErr) {
+                                isErrBinding = true
+                            }
+                            0
+                        },
+                        _ => { 0 }
+                    }
+                    if isErrBinding {
+                        this._emitExpr(spExpr)
+                        this._write(".as_ref().map(|e| format!(\"{}\", e)).unwrap_or_default()")
+                    } else {
+                        this._emitExpr(spExpr)
+                    }
                     0
                 },
                 _ => { 0 }
@@ -8021,6 +8086,18 @@ RustEmitter {
 
 generateRust(program: Program, typeCtx: TypeContext, liveCtx: LivenessContext, enumFields: Map<string, [string]>, enumFieldBoxed: Map<string, [bool]>, enumFieldOptional: Map<string, [bool]>, globalBorrow: Map<string, bool>): string {
     let emitter = RustEmitter(typeCtx, liveCtx)
+    // Cross-module enum registry — each enum name appears as a key in enumFields
+    // (registered as "EnumName::Variant"). Extract enum names BEFORE assigning
+    // enumFields away (move semantics) so field-type checks (Default-derive)
+    // recognize cross-module enums.
+    for vk in enumFields.keys() {
+        let vkCopy = $"{vk}"
+        let cIdx = vkCopy.indexOf("::")
+        if cIdx > 0 {
+            let eName = vkCopy.substring(0, cIdx)
+            emitter.primeGlobalEnum(eName)
+        }
+    }
     emitter._enumVariantFields = enumFields
     emitter._enumVariantFieldBoxed = enumFieldBoxed
     emitter._enumVariantFieldOptional = enumFieldOptional
@@ -8037,6 +8114,15 @@ generateRust(program: Program, typeCtx: TypeContext, liveCtx: LivenessContext, e
 generateModuleRust(program: Program, typeCtx: TypeContext, liveCtx: LivenessContext, enumFields: Map<string, [string]>, enumFieldBoxed: Map<string, [bool]>, enumFieldOptional: Map<string, [bool]>, globalBorrow: Map<string, bool>): string {
     let emitter = RustEmitter(typeCtx, liveCtx)
     emitter.setIsMainModule(false)
+    // Cross-module enum registry (see generateRust).
+    for vk in enumFields.keys() {
+        let vkCopy = $"{vk}"
+        let cIdx = vkCopy.indexOf("::")
+        if cIdx > 0 {
+            let eName = vkCopy.substring(0, cIdx)
+            emitter.primeGlobalEnum(eName)
+        }
+    }
     emitter._enumVariantFields = enumFields
     emitter._enumVariantFieldBoxed = enumFieldBoxed
     emitter._enumVariantFieldOptional = enumFieldOptional
