@@ -44,6 +44,12 @@ The roadmap is organized into focused phases:
 
 ## 📍 Current Status (v2.0.0-dev — RELEASE READY)
 
+> **2026-04-30 — Decisión estratégica: v2.1 Self-Hosted Migration**
+> A partir de hoy el bootstrap Rust queda **CONGELADO** post-`ba7f263`.
+> Todo trabajo nuevo se hace sobre el compilador escrito en Liva
+> (`livac/compiler/src/*.liva`). Objetivo: cerrar GAP-005 y eliminar el
+> bootstrap Rust en v2.1. Plan completo en `BACKLOG.md` § v2.1.
+>
 > **v2.0 al 100% — todos los bloques cerrados (2026-04-29):**
 > - ✅ Self-hosting Phase 7 idempotente (gen-2 ≡ gen-3 binario y fuente)
 > - ✅ Bloque 1 — Cross-module `&str` (Word counting 1.23x → 0.98x)

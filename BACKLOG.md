@@ -778,6 +778,63 @@ y tests LSP manuales — no representan gap real.
 
 ---
 
+## v2.1 — Self-Hosted Migration (eliminar bootstrap Rust)
+
+> **Objetivo:** Cerrar GAP-005 al completo. El compilador escrito en Liva (`livac/compiler/src/*.liva`) reemplaza al bootstrap Rust (`livac/src/*.rs`). Después de esto, sólo queda `liva_rt` como crate Rust.
+> **Estado:** 🚧 EN CURSO desde 2026-04-30.
+> **Razón:** Cada feature añadida al bootstrap sin portar agranda GAP-005. Para v2.0 self-host real hay que congelar bootstrap, portar y rediseñar gen-2.
+
+### Fase A — Spec freeze (HACER YA) ⚡
+- [x] Marcar bootstrap Rust como CONGELADO post-`ba7f263` (GAP-007).
+- [x] No se ampliará el lenguaje en `livac/src/*.rs` hasta que gen-2 alcance paridad.
+- [x] Actualizar BACKLOG y ROADMAP con la decisión.
+
+### Fase B — Inventario de paridad
+- [ ] Listar cada feature/bug del bootstrap NO portado a gen-2.
+- [ ] Tabla en `compiler/PARITY.md`: ID, descripción, archivo origen (`.rs`), archivo destino (`.liva`), test que lo cubre.
+- [ ] Priorizar por: bloqueante → frecuencia de uso → simpleza.
+
+### Fase C — Rediseño gen-2 (escalable y mantenible)
+> `codegen.liva` tiene 7463 líneas — está convirtiéndose en monolito.
+- [ ] Dividir `codegen.liva` en módulos:
+  - `codegen/expr.liva` — expresiones
+  - `codegen/stmt.liva` — statements
+  - `codegen/types.liva` — TypeRef → Rust type
+  - `codegen/class.liva` — impls, Display, Debug
+  - `codegen/method.liva` — method dispatch (Array/Map/Set/String/User)
+  - `codegen/runtime.liva` — literales, strings, collections
+  - `codegen/error.liva` — fail / Result / Error::chain
+- [ ] Introducir abstracción `Emitter` (push, pushIndent, scope) para reemplazar la concatenación manual de strings.
+- [ ] `TypeContext` centralizado (un solo struct con var_types, map_vars, array_vars, etc.) en lugar de HashMaps dispersos.
+- [ ] Tests unitarios por módulo en `compiler/tests/codegen_modules/`.
+
+### Fase D — Portar fixes (orden recomendado, fáciles primero)
+- [ ] **B151** — string escape `\"` dentro de `${...}`
+- [ ] **B152** — `Display` impl con `{:?}` añade `Debug` bound
+- [ ] **B153** — free generic functions auto `Clone + Display`
+- [ ] **GAP-007** — function types `(T) => U` → `Box<dyn Fn>`
+- [ ] **B148–B150** — patrones de constructor (`this.X` reads, mut locals, literal-string args)
+- [ ] **B144–B147** — Map/Set params, `indexOf` 2-arg, user `pop`, `arr.reverse` on `[T]`
+- [ ] **B140–B143** — `or <default>` no propaga, fn-ref `reduce`, nested `[[T]]`, `toInt or fail`
+- [ ] **B137–B138** — user `method.count(literal)`, `fail` en posición de expr
+- [ ] **B134–B136** — Map for-loop typing, switch-arm if-tail, Set.size
+- [ ] **B127–B133** — error handling completo (esto requiere unificar `Result<T,String>` → `liva_rt::Error` en gen-2)
+- [ ] **B116–B125** — Map<K,Class>, indexed self.field assign, etc.
+
+### Fase E — Promover apps a self-host
+- [ ] `bootstrap_apps/*.liva` (21 apps) deben pasar también con gen-2.
+- [ ] Renombrar a `selfhost_apps/` cuando todas pasen.
+- [ ] CI: ejecutar la suite contra ambos compiladores hasta el corte final.
+
+### Fase F — Cortar la cuerda
+- [ ] Construir `livac` final con gen-N (Liva).
+- [ ] Reemplazar `target/release/livac` (Rust) por el binario gen-N en CI.
+- [ ] Eliminar `livac/src/*.rs` salvo `liva_rt` (que se queda como crate de runtime).
+- [ ] Actualizar `Cargo.toml` para que `liva_rt` sea standalone.
+- [ ] **v2.1 Release: Liva is fully self-hosted.**
+
+---
+
 ## v2.x — Ecosistema maduro (futuro)
 
 > **Priorizar según demanda de usuarios.**
