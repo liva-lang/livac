@@ -103,6 +103,11 @@ RustEmitter {
     // the set, then any method that calls `this.<m>()` for m already in set
     // is added until no change. Mirrors bootstrap's `mut_self_methods`.
     _classMutMethods: Map<string, bool>
+    // Per-program set of class names whose struct must NOT derive Default,
+    // either because they directly contain an enum field (enums don't impl
+    // Default) or because they transitively contain a class that doesn't
+    // derive Default. Built once in `generate` via fixpoint.
+    _noDefaultClasses: Map<string, bool>
     _enableStrRef: bool
     _buildParamIdx: number
     _currentFuncIsMethod: bool
@@ -176,6 +181,7 @@ RustEmitter {
         this._borrowedParamIndices = Map {}
         this._globalEnums = Map {}
         this._classMutMethods = Map {}
+        this._noDefaultClasses = Map {}
         this._suppressCloneForBorrow = false
         this._strRefParams = Map {}
         this._enableStrRef = true
@@ -487,6 +493,14 @@ RustEmitter {
                 }
             }
         }
+
+        // Pre-pass: build no-Default class set (transitive closure).
+        // A class can't derive Default if any field is an enum (enums don't
+        // impl Default) OR any field is another class already known to not
+        // derive Default. Iterates to fixpoint so transitive cases like
+        //   class A { x: B }   class B { x: SomeEnum }
+        // both end up in the set.
+        this._buildNoDefaultClasses(program)
 
         // Preamble: suppress common warnings and standard imports
         // Inner attributes (#![allow(...)]) only valid at crate root (main module)
@@ -1350,6 +1364,12 @@ RustEmitter {
         // the success type is the class itself.
         let dcHasCtor = false
         let dcHasEnumField = false
+        // Transitive: this class can't derive Default if it appears in the
+        // pre-computed no-Default set (computed in `generate` via fixpoint
+        // over field-type chains and enum membership).
+        if this._noDefaultClasses.has(className) {
+            dcHasEnumField = true
+        }
         for dcM in decl.members {
             let _ = switch dcM {
                 Member.Method(dcMd) => {
@@ -2213,6 +2233,79 @@ RustEmitter {
             return this._exprCallsThisInSet(ebOpt)
         }
         return false
+    }
+
+    // Build the per-program transitive no-Default class set. Called once at
+    // the start of `generate(program)`. See `_noDefaultClasses` doc comment.
+    _buildNoDefaultClasses(program: Program) {
+        this._noDefaultClasses = Map {}
+        let classFieldTypes: Map<string, [string]> = Map {}
+        for item in program.items {
+            let _ = switch item {
+                TopLevel.Class(cd) => {
+                    let cn = $"{cd.name}"
+                    let typeNames: [string] = []
+                    let hasEnumField = false
+                    for m in cd.members {
+                        let _ = switch m {
+                            Member.Field(f) => {
+                                let trOpt = f.typeRef
+                                if trOpt != null {
+                                    let _ = switch trOpt {
+                                        TypeRef.Simple(tn) => {
+                                            let tnCopy = $"{tn}"
+                                            if this._typeCtx.enums.has(tnCopy) {
+                                                hasEnumField = true
+                                            }
+                                            if this._globalEnums.has(tnCopy) {
+                                                hasEnumField = true
+                                            }
+                                            typeNames.push($"{tnCopy}")
+                                            0
+                                        },
+                                        _ => { 0 }
+                                    }
+                                }
+                                0
+                            },
+                            _ => { 0 }
+                        }
+                    }
+                    if hasEnumField {
+                        let cnSet = $"{cn}"
+                        this._noDefaultClasses.set(cnSet, true)
+                    }
+                    let cnKey = $"{cn}"
+                    classFieldTypes.set(cnKey, typeNames)
+                    0
+                },
+                _ => { 0 }
+            }
+        }
+        // Fixpoint propagation: a class becomes no-Default if any of its
+        // field types is already in the no-Default set.
+        let ndChanged = true
+        while ndChanged {
+            ndChanged = false
+            for cnIter in classFieldTypes.keys() {
+                let cnLook = $"{cnIter}"
+                if not this._noDefaultClasses.has(cnLook) {
+                    let types = classFieldTypes.get(cnLook)
+                    let propagate = false
+                    for t in types {
+                        let tCopy = $"{t}"
+                        if this._noDefaultClasses.has(tCopy) {
+                            propagate = true
+                        }
+                    }
+                    if propagate {
+                        let cnAdd = $"{cnLook}"
+                        this._noDefaultClasses.set(cnAdd, true)
+                        ndChanged = true
+                    }
+                }
+            }
+        }
     }
 
     // Build per-class transitive mut-self set. Called once at the start of
