@@ -111,6 +111,12 @@ RustEmitter {
     // trailing `;` would discard the value. Propagated through if/else
     // bodies so nested if-as-tail works inside switch arms.
     _inExprBlock: bool
+    // B148: when emitting a constructor body, `this.X` reads are rewritten
+    // to `__field_X` for fields that have already been assigned earlier
+    // in the body. This lets constructors use field reads in conditions,
+    // method calls (e.g. `this.items.push(...)`), and prints.
+    _inConstructor: bool
+    _constructorAssignedFields: Map<string, bool>
     _warnings: [string]
 
     constructor(typeCtx: TypeContext, liveCtx: LivenessContext) {
@@ -160,6 +166,8 @@ RustEmitter {
         this._inIterChain = false
         this._inExprStmt = false
         this._inExprBlock = false
+        this._inConstructor = false
+        this._constructorAssignedFields = Map {}
         this._warnings = []
     }
 
@@ -447,7 +455,29 @@ RustEmitter {
         if this._isMainModule {
             this._writeln("#![allow(unused_imports, unused_variables, unused_mut, unused_parens, dead_code, unused_assignments, unreachable_code, non_snake_case, while_true)]")
         }
-        this._writeln("use std::collections::{HashMap, HashSet};")
+        // Detect user classes that shadow std collection names so we can avoid
+        // re-importing them (would cause E0255: name defined multiple times).
+        let userHasHashMap = false
+        let userHasHashSet = false
+        for itm in program.items {
+            let _ = switch itm {
+                TopLevel.Class(cd) => {
+                    if cd.name == "HashMap" { userHasHashMap = true }
+                    if cd.name == "HashSet" { userHasHashSet = true }
+                    0
+                },
+                _ => { 0 }
+            }
+        }
+        let importMap = not userHasHashMap
+        let importSet = not userHasHashSet
+        if importMap && importSet {
+            this._writeln("use std::collections::{HashMap, HashSet};")
+        } else if importMap {
+            this._writeln("use std::collections::HashMap;")
+        } else if importSet {
+            this._writeln("use std::collections::HashSet;")
+        }
         this._writeln("use std::fmt::Write;")
         this._writeRaw("")
 
@@ -1030,6 +1060,32 @@ RustEmitter {
         return "/* inferred */"
     }
 
+    // B148: default initializer for a field that the constructor body does
+    // not explicitly assign to. Mirrors bootstrap behavior.
+    _fieldDefault(optRef: TypeRef?): string {
+        if optRef == null { return "Default::default()" }
+        let result = "Default::default()"
+        if optRef != null {
+            let tref = optRef
+            let _ = switch tref {
+                TypeRef.Simple(n) => {
+                    if n == "number" || n == "int" { result = "0" }
+                    else if n == "float" { result = "0.0" }
+                    else if n == "bool" { result = "false" }
+                    else if n == "string" || n == "String" { result = "String::new()" }
+                    else if n == "char" { result = "'\\0'" }
+                    0
+                },
+                TypeRef.Array(_) => { result = "Vec::new()"; 0 },
+                TypeRef.MapType(_, _) => { result = "HashMap::new()"; 0 },
+                TypeRef.SetType(_) => { result = "HashSet::new()"; 0 },
+                TypeRef.OptionalType(_) => { result = "None"; 0 },
+                _ => { 0 }
+            }
+        }
+        return result
+    }
+
     // B125: Helper that returns true when the optional TypeRef is a Map<K,V>.
     // Mirrors the `if optRef != null` narrowing used by _buildParamType.
     _isMapType(optRef: TypeRef?): bool {
@@ -1211,7 +1267,11 @@ RustEmitter {
         for m in decl.members {
             let _ = switch m {
                 Member.Method(md) => {
-                    this._emitMethod($"{className}", md)
+                    // B148: skip the `constructor` method — its body is fully
+                    // inlined inside `pub fn new(...)` by `_emitConstructor`.
+                    if md.name != "constructor" {
+                        this._emitMethod($"{className}", md)
+                    }
                     0
                 },
                 _ => { 0 }
@@ -1266,31 +1326,34 @@ RustEmitter {
             this._writeln("pub fn new(" + paramStr + ") -> Self {")
             this._indent()
 
-            // Emit constructor body as __field__ declarations
+            // B148: walk body in source order. For top-level `this.X = expr`,
+            // emit `let mut __field_X = expr;` (or `__field_X = expr;` on
+            // subsequent reassigns). For other stmts, emit normally — `this.X`
+            // reads inside them are rewritten to `__field_X` (B148) by
+            // `_emitMemberAccess` and `_emitMethodCall`.
+            this._inConstructor = true
+            this._constructorAssignedFields = Map {}
+            let assignedList: [string] = []
+
             for stmt in ctorStmts {
+                let isFieldAssign = false
+                let faName = ""
+                let faExpr: Expr = Expr.Identifier("")
                 let _ = switch stmt {
                     Stmt.Assign(asgn) => {
                         let _ = switch asgn.target {
                             Expr.MemberAccess(obj, prop) => {
-                                let isThis = false
                                 let _ = switch obj {
                                     Expr.Identifier(name) => {
                                         if name == "this" || name == "self" {
-                                            isThis = true
+                                            isFieldAssign = true
+                                            faName = this._sanitizeName(prop)
+                                            faExpr = asgn.value
                                         }
                                         0
                                     },
                                     _ => { 0 }
                                 }
-                                if isThis {
-                                    let fname = this._sanitizeName(prop)
-                                    this._writeIndent()
-                                    this._write($"let __field__{fname} = ")
-                                    this._emitExpr(asgn.value)
-                                    this._write(";")
-                                    this._newline()
-                                }
-                                // Non-this assignments skipped (shouldn't appear in constructors)
                                 0
                             },
                             _ => { 0 }
@@ -1299,6 +1362,61 @@ RustEmitter {
                     },
                     _ => { 0 }
                 }
+                if isFieldAssign {
+                    let alreadyAssigned = this._constructorAssignedFields.has(faName)
+                    // Look up field type for empty-collection special cases
+                    let fieldIsMap = false
+                    let fieldIsSet = false
+                    for f in fields {
+                        if this._sanitizeName(f.name) == faName {
+                            let ftRef = f.typeRef
+                            if ftRef != null {
+                                let fTag = this._typeRefToTag(ftRef)
+                                if fTag == "map" { fieldIsMap = true }
+                                if fTag == "set" { fieldIsSet = true }
+                            }
+                        }
+                    }
+                    let initIsEmptyObj = false
+                    let initIsEmptySet = false
+                    let _ = switch faExpr {
+                        Expr.ObjectLiteral(oFields) => {
+                            if oFields.length == 0 { initIsEmptyObj = true }
+                            0
+                        },
+                        Expr.SetLiteral(sItems) => {
+                            if sItems.length == 0 { initIsEmptySet = true }
+                            0
+                        },
+                        _ => { 0 }
+                    }
+
+                    this._writeIndent()
+                    if alreadyAssigned {
+                        this._write($"__field_{faName} = ")
+                    } else {
+                        this._write($"let mut __field_{faName} = ")
+                        this._constructorAssignedFields.set(faName, true)
+                        assignedList.push(faName)
+                    }
+
+                    if initIsEmptyObj && fieldIsMap {
+                        this._write("HashMap::new()")
+                    } else {
+                        let isEmptySetInit = false
+                        if initIsEmptyObj { if fieldIsSet { isEmptySetInit = true } }
+                        if initIsEmptySet { if fieldIsSet { isEmptySetInit = true } }
+                        if isEmptySetInit {
+                            this._write("HashSet::new()")
+                        } else {
+                            this._emitExpr(faExpr)
+                        }
+                    }
+                    this._write(";")
+                    this._newline()
+                } else {
+                    this._emitStmt(stmt)
+                }
             }
 
             // Emit Self { ... } initializer
@@ -1306,10 +1424,18 @@ RustEmitter {
             this._indent()
             for f in fields {
                 let fname = this._sanitizeName(f.name)
-                this._writeln($"{fname}: __field__{fname},")
+                if this._constructorAssignedFields.has(fname) {
+                    this._writeln($"{fname}: __field_{fname},")
+                } else {
+                    let dflt = this._fieldDefault(f.typeRef)
+                    this._writeln($"{fname}: {dflt},")
+                }
             }
             this._dedent()
             this._writeln("}")
+
+            this._inConstructor = false
+            this._constructorAssignedFields = Map {}
 
             this._dedent()
             this._writeln("}")
@@ -2004,9 +2130,18 @@ RustEmitter {
         }
 
         // Detect Set/Map from emitted init expression (for untyped bindings like let s = Set {...})
+        // Skip when the user has defined a class named HashSet/HashMap — that
+        // would shadow std collections and the binding refers to the user class.
         if initExprTag == "" && sanitized != "_" {
-            if this._currentLine.contains("HashSet") { this._setVars.set(sanitized, true) }
-            else if this._currentLine.contains("HashMap") { this._mapVars.set(sanitized, true) }
+            if this._currentLine.contains("HashSet") {
+                if not this._typeCtx.classes.has("HashSet") {
+                    this._setVars.set(sanitized, true)
+                }
+            } else if this._currentLine.contains("HashMap") {
+                if not this._typeCtx.classes.has("HashMap") {
+                    this._mapVars.set(sanitized, true)
+                }
+            }
         }
 
         // Clone let binding inits only for cases that need it (variables, field access)
@@ -5451,6 +5586,13 @@ RustEmitter {
                 target = "set"
             }
         }
+        // Same for string-only methods — if generic and method is a clearly
+        // string-only operation (parsing, char-iteration, etc.), assume string.
+        if not isUserClassInstance && target == "generic" {
+            if method == "toInt" || method == "toFloat" || method == "chars" || method == "padStart" || method == "padEnd" || method == "removePrefix" || method == "removeSuffix" || method == "trimStart" || method == "trimEnd" || method == "capitalize" || method == "isBlank" || method == "countMatches" || method == "toUpperCase" || method == "toLowerCase" {
+                target = "string"
+            }
+        }
         // Tertiary: if still generic, try runtime variable tracking for Map/String fallback
         if not isUserClassInstance && target == "generic" {
             let objIdName = ""
@@ -5573,8 +5715,33 @@ RustEmitter {
         // Use type detection for Map dispatch
         let objTag = this._getExprTypeName(obj)
 
+        // Detect user-class receiver (TypeRef.Simple matching a registered class).
+        // When present, skip Map-style default dispatch for `get`/`has` —
+        // the call should be a plain user-method call instead.
+        let isUserClassRecv = false
+        let _ = switch obj {
+            Expr.Identifier(uName) => {
+                if uName == "this" || uName == "self" {
+                    if this._currentClassName != "" { isUserClassRecv = true }
+                } else {
+                    let uType = this._lookupVarTypeRef(uName)
+                    let _ = switch uType {
+                        TypeRef.Simple(cn) => {
+                            if cn != "" && this._typeCtx.classes.has(cn) {
+                                isUserClassRecv = true
+                            }
+                            0
+                        },
+                        _ => { 0 }
+                    }
+                }
+                0
+            },
+            _ => { 0 }
+        }
+
         // Map/Set .get() with type detection or runtime tracking
-        if method == "get" {
+        if method == "get" && not isUserClassRecv {
             let isMap = objTag == "map"
             if not isMap {
                 let getObjIdName = ""
@@ -5611,7 +5778,7 @@ RustEmitter {
             return
         }
         // Map/Set .has() with type detection or runtime tracking
-        if method == "has" {
+        if method == "has" && not isUserClassRecv {
             let isMap = objTag == "map"
             if not isMap {
                 let objIdName = ""
@@ -6582,6 +6749,26 @@ RustEmitter {
     }
 
     _emitMemberAccess(obj: Expr, prop: string) {
+        // B148: in constructor body, rewrite `this.X` reads to `__field_X`
+        // for fields already assigned (so reads in conditions/prints/etc work).
+        if this._inConstructor {
+            let isThisX = false
+            let _ = switch obj {
+                Expr.Identifier(thisName) => {
+                    if thisName == "this" || thisName == "self" { isThisX = true }
+                    0
+                },
+                _ => { 0 }
+            }
+            if isThisX {
+                let sanProp = this._sanitizeName(prop)
+                if this._constructorAssignedFields.has(sanProp) {
+                    this._write($"__field_{sanProp}")
+                    return
+                }
+            }
+        }
+
         let objTag = this._getExprTypeName(obj)
 
         // Stdlib module property access before generic enum/class handling
