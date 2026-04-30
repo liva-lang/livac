@@ -735,6 +735,23 @@ Resultado de compilar+ejecutar 5 ejemplos deterministas (con `main()`) con boots
 - [ ] **destructuring.test.liva** — convertir `throw` del parser a propagación Result o instalar `panic_hook` clean en `main.liva`
 - [ ] **`-D warnings` en gen-2 emit** — opcional: hacer que gen-2 emita `#![deny(...)]` selectivo si así lo quiere el usuario
 
+### 9.5 — Polish landed during v2.0 stabilization (Phase 10 epilog)
+
+Self-host codegen polish committed on `feat/self-hosting-v2` after the
+v2.0 release-ready freeze. All five validation gates remain green
+(rebuild_selfhost idempotente gen-2≡gen-3 src+bin, bootstrap_apps
+21/21, regression 5/5, complex_apps 4/4, e2e_selfhost 5/5,
+cargo test --release 528+).
+
+- [x] **Cross-module enum registry for Default-derive** (`1d24ede`) — when a class field's type is an enum declared in another module, suppress `#[derive(Default)]` (enums don't impl Default).
+- [x] **Option<Error> template unwrap** (`1d24ede`) — `${err}` in string template auto-unwraps `Option<liva_rt::Error>` via `.as_ref().map(...).unwrap_or_default()`.
+- [x] **`array.filter()` non-Copy lowering** (`8487bc7`) — emits `.iter().filter().cloned().collect()` for non-Copy element types (was producing `cannot move out of dereference` on String/struct arrays).
+- [x] **`Math.min/max/clamp` no-cast emission** (`dc103a9` + revert) — emits native `.min()/.max()` without `as f64` coercion, preserving integer return types.
+- [x] **Per-class transitive mut-self analysis** (`7695c26`) — replaces always-`&mut self` heuristic with bootstrap-parity fixpoint over (a) direct field assignments + setter heuristic + known-mutating method calls (push/pop/insert/remove/clear/sort/reverse/extend/retain/truncate/set/add/delete) on `this`/`this.field`, then (b) iterates: any method calling another mut-self method joins the set. Stored per-class in `_classMutMethods: Map<string, bool>`. Effect: dogfooding-v1 GradeBook emits `&self` for read-only methods (`display`, `getSummary`, `getPassing/FailingGrades`) and `&mut self` only for `addGrade`/`sort`. Compiles + runs end-to-end (only cosmetic diff vs bootstrap is the Error-trace box renderer in `liva_rt::Display`).
+- [x] **Transitive Default-derive detection** (`590238e`) — `_buildNoDefaultClasses(program)` runs as program-wide pre-pass: seeds with classes containing direct enum fields, then fixpoints to mark any class whose field-graph reaches an enum. `_emitClassStruct` consults the precomputed set. Handles arbitrary-depth chains like `A { x: B }`, `B { x: SomeEnum }` — both correctly skip `Default` derive.
+
+> **Status post-9.5:** v2.0 still RELEASE READY. Pendientes 9.4 (`HTTP routes`, `multi-file imports`, `module.rs coverage`, `CLI subcmd tests`) siguen abiertos como **post-v2.0** — no son bloqueantes para el release.
+
 
 
 > **Objetivo:** cerrar v2.0 al 100% en compilación, tests, cobertura y bench.
