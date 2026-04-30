@@ -1866,6 +1866,28 @@ RustEmitter {
                 }
             }
         } else {
+            // B?: empty object literal `{}` typed as Set should produce HashSet,
+            // not the default ObjectLiteral lowering (HashMap-flavoured).
+            // Detect via cloned init to avoid moving fields out.
+            let emittedSetEmpty = false
+            if initExprTag == "set" {
+                let initClone = decl.init
+                let _ = switch initClone {
+                    Expr.ObjectLiteral(oFields) => {
+                        if oFields.length == 0 {
+                            this._write("HashSet::new()")
+                            emittedSetEmpty = true
+                        }
+                        0
+                    },
+                    _ => { 0 }
+                }
+            }
+            if emittedSetEmpty {
+                this._write(";")
+                this._newline()
+                return
+            }
             // Check for or-value pattern: Binary(Or, Call/MethodCall, value)
             // All emission paths MUST be inside switch arms to avoid partial move
             let _ = switch decl.init {
@@ -5328,14 +5350,14 @@ RustEmitter {
             }
         }
         // Same for set methods — if generic and method is a known set-only method, assume set
-        // Exclude common user-defined method names like 'add'
-        if target == "generic" && this._isKnownSetMethod(method) {
-            if method != "has" && method != "delete" && method != "clear" && method != "values" && method != "forEach" && method != "isEmpty" && method != "add" {
+        // Exclude common user-defined method names like 'add', 'size', 'count'.
+        if not isUserClassInstance && target == "generic" && this._isKnownSetMethod(method) {
+            if method != "has" && method != "delete" && method != "clear" && method != "values" && method != "forEach" && method != "isEmpty" && method != "add" && method != "size" && method != "count" {
                 target = "set"
             }
         }
         // Tertiary: if still generic, try runtime variable tracking for Map/String fallback
-        if target == "generic" {
+        if not isUserClassInstance && target == "generic" {
             let objIdName = ""
             let _ = switch obj {
                 Expr.Identifier(oName) => { objIdName = this._sanitizeName(oName); 0 },
@@ -5381,7 +5403,7 @@ RustEmitter {
     }
 
     _isKnownSetMethod(m: string): bool {
-        return m == "add" || m == "has" || m == "delete" || m == "clear" || m == "values" || m == "forEach" || m == "union" || m == "intersection" || m == "difference" || m == "isEmpty"
+        return m == "add" || m == "has" || m == "delete" || m == "clear" || m == "values" || m == "forEach" || m == "union" || m == "intersection" || m == "difference" || m == "isEmpty" || m == "size" || m == "count"
     }
 
     _isKnownDateMethod(m: string): bool {
@@ -6434,6 +6456,12 @@ RustEmitter {
             this._write(".is_empty()")
             return true
         }
+        if method == "size" || method == "count" {
+            this._write("(")
+            this._emitExpr(obj)
+            this._write(".len() as i32)")
+            return true
+        }
         // Not a known set method
         return false
     }
@@ -6939,7 +6967,13 @@ RustEmitter {
                     0
                 },
                 StringTemplatePart.ExprPart(spExpr) => {
-                    fmtStr += "{}"
+                    // Use {:?} for types that only impl Debug (Vec, HashMap, HashSet)
+                    let pTag = this._getExprTypeName(spExpr)
+                    if pTag == "array" || pTag == "map" || pTag == "set" {
+                        fmtStr += "{:?}"
+                    } else {
+                        fmtStr += "{}"
+                    }
                     // Capture expr to string — simplified: inline the expr
                     // We'll write args after the format string
                     fmtArgs.push("__arg__")
