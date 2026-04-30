@@ -752,6 +752,71 @@ cargo test --release 528+).
 
 > **Status post-9.5:** v2.0 still RELEASE READY. Pendientes 9.4 (`HTTP routes`, `multi-file imports`, `module.rs coverage`, `CLI subcmd tests`) siguen abiertos como **post-v2.0** — no son bloqueantes para el release.
 
+---
+
+## 🏛️ Fase 11 — Hardening estructural pre-v2.0 (in progress)
+
+> **Decisión 2026-04-30:** antes de etiquetar v2.0 vamos a saldar la deuda
+> arquitectónica detectada en la auditoría general (compilador, stdlib,
+> tests, examples, docs). Objetivo: que v2.x pueda crecer 3× sin
+> volverse inmantenible. Ningún cambio toca semántica del lenguaje;
+> todos preservan los 5 gates verdes.
+
+### Tier A — Refactor crítico del compilador self-hosted
+
+- [ ] **A1.** Modularizar `compiler/src/codegen.liva` (9 048 LOC → 7 módulos):
+      `codegen/expr.liva`, `codegen/stmt.liva`, `codegen/types.liva`,
+      `codegen/class.liva`, `codegen/method.liva`, `codegen/runtime.liva`,
+      `codegen/error.liva`. Verificar que `module.liva` resuelve los
+      imports relativos (`./codegen/expr`).
+- [ ] **A2.** Consolidar los 25+ `Map<string, …>` dispersos en `RustEmitter`
+      en una struct `EmitContext` con namespaces (`vars.optional`,
+      `vars.maps`, `funcs.params`, `classes.mutMethods`, …).
+- [ ] **A3.** Extraer los snippets Rust embebidos en `_write("...")` (DB,
+      HTTP, CSV, Crypto — líneas 6095/6185+) a constantes top-level o
+      a `compiler/src/codegen/runtime/*.rs.template`. Eliminar la
+      duplicación de `DB.query` (3 copias).
+
+### Tier B — Higiene del repo
+
+- [ ] **B4.** Borrar `compiler/src/main.liva.bak`, mover o eliminar
+      `compiler/test_concat.liva` y `compiler/test_suite.liva` (no son
+      ejercitados por ningún gate).
+- [ ] **B5.** Resincronizar `compiler/PARITY.md` con la realidad
+      (baseline 21/21, items Tier 1+2+3 completados marcados ✅).
+- [ ] **B6.** Unificar los 5 gates en `compiler/tests/run_all.sh` +
+      target `make test-full` que los lance en orden.
+- [ ] **B7.** O implementar `lib/std/test.liva` (`expect/describe/it`)
+      o quitar la promesa "Jest-like" del README — alinear narrativa.
+
+### Tier C — Escalabilidad
+
+- [ ] **C8.** Crear scaffold `lib/std/` con módulos `.liva` reutilizables
+      (validators, helpers funcionales, parsers de strings) — cimiento
+      de una stdlib real, no FFI.
+- [ ] **C9.** Tests unitarios del codegen self-hosted en
+      `compiler/tests/codegen_modules/` con snapshots Rust output
+      (1 archivo por sub-módulo de A1).
+- [ ] **C10.** Cubrir multi-file imports y CLI subcmds en gen-2
+      (`module.rs` 0 % → ≥50 %, `main.rs` 33 % → ≥50 %).
+
+### Tier D — Nice to have
+
+- [ ] **D11.** Eliminar duplicación de `examples/ai/*/.copilot/skills/`
+      (15× copia idéntica de la skill) — symlinks o `.gitignore`.
+- [ ] **D12.** Recuperar/versionar los 4 benchmarks de Phase 10
+      (Line, CSV, Word, Map) en `benchmarks/` — hoy solo viven los 3
+      antiguos (classes/collections/strings).
+- [ ] **D13.** Deduplicar `BACKLOG.md`/`ROADMAP.md`/`CHANGELOG.md`
+      definiendo source-of-truth única por temática.
+
+> **Gates de aceptación de Fase 11:** los 5 originales (rebuild_selfhost
+> idempotente, bootstrap_apps 21/21, regression 5/5, complex_apps 4/4,
+> e2e_selfhost 5/5, cargo test 528+) **+** `compiler/tests/run_all.sh`
+> verde en una sola invocación + `compiler/src/codegen.liva` ≤ 1 500 LOC.
+
+---
+
 
 
 > **Objetivo:** cerrar v2.0 al 100% en compilación, tests, cobertura y bench.
