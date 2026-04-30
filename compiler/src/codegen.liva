@@ -338,7 +338,7 @@ RustEmitter {
             },
             TypeRef.Fallible(inner) => {
                 let failInner = this._emitType(inner)
-                result = "Result<" + failInner + ", String>"
+                result = "Result<" + failInner + ", liva_rt::Error>"
                 matched = true
                 0
             },
@@ -470,6 +470,33 @@ RustEmitter {
         // use statements needed in every module that uses HashMap/HashSet
         if this._isMainModule {
             this._writeln("#![allow(unused_imports, unused_variables, unused_mut, unused_parens, dead_code, unused_assignments, unreachable_code, non_snake_case, while_true)]")
+            // ERR-UNIFY: emit minimal liva_rt module with Error struct so user code
+            // can return Result<T, liva_rt::Error> with chained-error trace support.
+            this._writeln("#[allow(dead_code)]")
+            this._writeln("mod liva_rt {")
+            this._writeln("    #[derive(Debug, Clone)]")
+            this._writeln("    pub struct Error {")
+            this._writeln("        pub message: String,")
+            this._writeln("        pub cause: Option<Box<Error>>,")
+            this._writeln("    }")
+            this._writeln("    impl PartialEq for Error {")
+            this._writeln("        fn eq(&self, other: &Self) -> bool { self.message == other.message }")
+            this._writeln("    }")
+            this._writeln("    impl Error {")
+            this._writeln("        pub fn from<S: Into<String>>(message: S) -> Self {")
+            this._writeln("            Error { message: message.into(), cause: None }")
+            this._writeln("        }")
+            this._writeln("        pub fn chain<S: Into<String>>(message: S, cause: Error) -> Self {")
+            this._writeln("            Error { message: message.into(), cause: Some(Box::new(cause)) }")
+            this._writeln("        }")
+            this._writeln("    }")
+            this._writeln("    impl std::fmt::Display for Error {")
+            this._writeln("        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {")
+            this._writeln("            write!(f, \"{}\", self.message)")
+            this._writeln("        }")
+            this._writeln("    }")
+            this._writeln("    impl std::error::Error for Error {}")
+            this._writeln("}")
         }
         // Detect user classes that shadow std collection names so we can avoid
         // re-importing them (would cause E0255: name defined multiple times).
@@ -1134,12 +1161,12 @@ RustEmitter {
         if optRef != null {
             let typeStr = this._emitType(optRef)
             if isFallible {
-                return $" -> Result<{typeStr}, String>"
+                return $" -> Result<{typeStr}, liva_rt::Error>"
             }
             return $" -> {typeStr}"
         }
         if isFallible {
-            return " -> Result<(), String>"
+            return " -> Result<(), liva_rt::Error>"
         }
         return ""
     }
@@ -1846,9 +1873,9 @@ RustEmitter {
             },
             Stmt.Fail(failExpr, line) => {
                 this._writeIndent()
-                this._write("return Err(format!(\"{}\", ")
+                this._write("return Err(liva_rt::Error::from(format!(\"{}\", ")
                 this._emitExpr(failExpr)
-                this._write("));")
+                this._write(")));")
                 this._newline()
                 0
             },
@@ -2030,15 +2057,51 @@ RustEmitter {
                 this._emitExpr(orVal)
                 this._write(")")
             } else {
-                // or fail → In test blocks: match + panic (no Result return type)
-                // In normal functions: expr?
+                // ERR-UNIFY or fail msg variant
+                let orMsg = decl.orFailMsg
+                let bufBefore = this._currentLine.length
+                this._emitExpr(decl.init)
+                let emittedLine = $"{this._currentLine}"
+                let isOptionInit = false
+                if emittedLine.length > bufBefore {
+                    let suffix = emittedLine.substring(bufBefore, emittedLine.length)
+                    if suffix.endsWith(".unwrap()") {
+                        isOptionInit = true
+                        this._currentLine = emittedLine.substring(0, emittedLine.length - 9)
+                    }
+                }
                 if this._inTestBlock || not this._currentReturnFallible {
-                    this._write("match ")
-                    this._emitExpr(decl.init)
-                    this._write(" { Ok(v) => v, Err(e) => panic!(\"{}\", e) }")
+                    if isOptionInit {
+                        this._write(" { Some(v) => v, None => panic!(\"{}\", ")
+                        if orMsg != null { this._emitExpr(orMsg) } else { this._write("\"or fail\"") }
+                        this._write(") }")
+                    } else {
+                        let initStr = this._currentLine.substring(bufBefore, this._currentLine.length)
+                        this._currentLine = this._currentLine.substring(0, bufBefore)
+                        this._write("match ")
+                        this._write(initStr)
+                        this._write(" { Ok(v) => v, Err(e) => panic!(\"{}\", e) }")
+                    }
                 } else {
-                    this._emitExpr(decl.init)
-                    this._write("?")
+                    if isOptionInit {
+                        let initOpt = this._currentLine.substring(bufBefore, this._currentLine.length)
+                        this._currentLine = this._currentLine.substring(0, bufBefore)
+                        this._write("match ")
+                        this._write(initOpt)
+                        this._write(" { Some(v) => v, None => return Err(liva_rt::Error::from(format!(\"{}\", ")
+                        if orMsg != null { this._emitExpr(orMsg) } else { this._write("\"or fail\"") }
+                        this._write(")))}")
+                    } else if orMsg != null {
+                        let initRes = this._currentLine.substring(bufBefore, this._currentLine.length)
+                        this._currentLine = this._currentLine.substring(0, bufBefore)
+                        this._write("match ")
+                        this._write(initRes)
+                        this._write(" { Ok(v) => v, Err(e) => return Err(liva_rt::Error::chain(format!(\"{}\", ")
+                        this._emitExpr(orMsg)
+                        this._write("), e)) }")
+                    } else {
+                        this._write("?")
+                    }
                 }
             }
         } else {
@@ -3307,7 +3370,7 @@ RustEmitter {
 
     _emitTryCatch(stmt: TryCatchStmt) {
         // Rust doesn't have try/catch — use a closure + match on Result
-        this._writeln("match (|| -> Result<(), String> {")
+        this._writeln("match (|| -> Result<(), liva_rt::Error> {")
         this._indent()
         this._emitBlock(stmt.tryBlock)
         this._writeln("Ok(())")
@@ -3455,9 +3518,9 @@ RustEmitter {
             Expr.Lambda(lam) => { this._emitLambda(lam); 0 },
             Expr.StringTemplate(parts) => { this._emitStringTemplate(parts); 0 },
             Expr.Fail(fExpr) => {
-                this._write("return Err(format!(\"{}\", ")
+                this._write("return Err(liva_rt::Error::from(format!(\"{}\", ")
                 this._emitExpr(fExpr)
-                this._write("))")
+                this._write(")))")
                 0
             },
             Expr.SwitchExpr(disc, arms) => {
