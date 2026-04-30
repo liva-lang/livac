@@ -6724,7 +6724,16 @@ RustEmitter {
             return true
         }
         if method == "filter" {
-            this._emitIterPrefix(obj, true)
+            // Bootstrap parity: for non-Copy element types (e.g. classes),
+            // emit `.iter().filter(...).cloned().collect()` (cloned AFTER filter)
+            // because pre-cloning yields an owned-iterator over T, and the
+            // closure pattern `|&x|` would then try to move out of `&T`.
+            // For Copy element types we keep the original `.iter().copied().filter(...)`
+            // form because the closure already destructures one ref-level
+            // via `_derefClosureParams`.
+            let elemTypeF = this._getArrayElemTypeRef(obj)
+            let isCopyF = this._isCopyType(elemTypeF)
+            this._emitIterPrefix(obj, isCopyF)
             this._write(".filter(")
             // Check if arg is a point-free function ref (Identifier) vs Lambda
             let filterArgIsRef = false
@@ -6745,7 +6754,14 @@ RustEmitter {
                 this._derefClosureParams = false
             }
             this._write(")")
-            if not this._inIterChain { this._write(".collect::<Vec<_>>()") }
+            if not this._inIterChain {
+                if not isCopyF {
+                    // Append .cloned() AFTER filter so resulting Vec contains
+                    // owned values (filter alone yields &T iterator).
+                    this._write(".cloned()")
+                }
+                this._write(".collect::<Vec<_>>()")
+            }
             return true
         }
         if method == "forEach" {
