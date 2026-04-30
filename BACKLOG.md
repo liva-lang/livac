@@ -664,7 +664,78 @@
 
 ---
 
-## v2.0 al 100% — 5 bloques pendientes
+## Self-hosting — Phase 9: Gen-2 Parity & Hardening (2026-04-30)
+
+> **Objetivo:** llevar gen-2 (compilador self-hosted) a paridad funcional completa con bootstrap_apps + medir calidad real (cobertura, clippy, examples).
+> **Punto de partida:** 16/21 bootstrap_apps; ERR-UNIFY no implementado; sin medición de cobertura del gen-2; sin run sistemático contra examples/.
+
+### 9.1 — Gen-2 parity 21/21 ✅ DONE
+
+- [x] **GAP-007 Function types** — `Box<dyn Fn(...) -> U>` para param types `(T1,T2) => U` (commit `e3e9978`)
+- [x] **ERR-UNIFY core** — `Result<T, liva_rt::Error>` + or-fail Option/Result match + `liva_rt` inline minimalista (commit `487bcfd`)
+- [x] **Tier 2 final** — app16_fsm (Default-derived enums, fallible-main `Ok(())`, no double Result wrap), app17_pipeline (reduce/fold point-free wrap, comma-sep err binding), app18_template (Map param tracking, indexOf with fromIdx) (commit `d9c5de4`)
+- [x] **Display vs Debug** — `print(arr)` / `println(arr)` emite `{:?}` para Vec/HashMap/HashSet (commit `525f955`)
+- [x] **Validación 4-gate verde:** `rebuild_selfhost` 4/4 idempotente · `bootstrap_apps/run.sh` 21/21 · `bootstrap_apps/run_gen2.sh` 21/21 · `regression` 5/5 · `complex_apps` 4/4 · `e2e_selfhost` 5/5
+
+### 9.2 — Calidad medida (2026-04-30)
+
+**Corpus completo `tests/liva/{compile,syntax,stdlib,e2e}` (106 archivos):**
+- gen-2 `check`: **105/106 pass**
+- 1 diferencia: `destructuring.test.liva` — gen-2 panics donde bootstrap retorna error E2000 limpio. Ambos rechazan, pero gen-2 lo hace mal (panic vs error estructurado). Bug menor de calidad de error, no de corrección. **Aplazado a v2.x** (requiere try/catch en Liva o panic_hook codegen-level).
+
+**Tamaño Rust generado (21 bootstrap_apps):**
+- bootstrap: 9962 líneas totales
+- gen-2: **2175 líneas totales (-78%)** — runtime mínimo `mod liva_rt { Error{message, cause} }` vs ~350 líneas inlineadas por programa en bootstrap.
+
+**Clippy (21 bootstrap_apps):**
+- **0 errors** · 222 warnings totales (~10.6/app, todo estilístico: `unneeded return`, `.clone() on Copy`, missing `Default` impl)
+- gen-2 emite código **más limpio que bootstrap** (app10_stats: gen-2 5 vs bootstrap 17 warnings).
+
+**Rendimiento runtime** (mediana 7 corridas, μs, mismo programa Liva → bootstrap-Rust vs gen-2-Rust):
+```
+app10_stats     bs=785   g2=861   1.10x
+app21_hashmap   bs=792   g2=699   0.88x
+app25_parser    bs=866   g2=702   0.81x
+app17_pipeline  bs=841   g2=763   0.91x
+app19_pq        bs=678   g2=813   1.20x
+```
+Banda 0.81x–1.20x → **paridad efectiva** (algunas mejoras por menos imports/runtime más liviano).
+
+**Cobertura del gen-2 (llvm-cov, 25 inputs: 21 bootstrap_apps + 4 e2e_progs):**
+
+| Archivo | Lines | Functions | Notas |
+|---|---|---|---|
+| `liveness.rs` | 76.67% | 87.50% | mejor |
+| `token.rs` | 72.73% | 50.00% | |
+| `lexer.rs` | 67.16% | 86.96% | |
+| `ast.rs` | 66.24% | 61.76% | |
+| `semantic.rs` | 62.39% | 72.03% | |
+| `parser.rs` | 54.54% | 69.03% | |
+| `codegen.rs` | 47.75% | 69.09% | mayor archivo, mayor gap (stdlib paths) |
+| `main.rs` | 33.05% | 54.55% | CLI subcmds (`run`/`fmt`/`test`/`lsp`) sin tests |
+| `module.rs` | **0.00%** | 0.00% | **multi-file imports nunca tocados por corpus** |
+| **TOTAL** | **51.47%** | **68.19%** | |
+
+### 9.3 — Examples corpus contra gen-2
+
+Resultado de compilar+ejecutar 5 ejemplos deterministas (con `main()`) con bootstrap y gen-2 y diff stdout:
+
+- ✅ `calculator.liva` — match 14 lines
+- ✅ `test_b39.liva` — match (después de fix Display→Debug)
+- ❌ `dogfooding-v1/main.liva` — multi-file: gen-2 re-declara constantes importadas (`MAX_GRADE`, `MIN_GRADE`, `PASSING_GRADE`). **Causa raíz: `module.rs` 0% cobertura confirma que multi-file no se ejerció en self-hosting.**
+- ❌ `dogfooding-v3/main.liva` — gen-2 mis-emite `serde_json::json!` macro para HTTP routes (`missing tokens in macro arguments`).
+- (bootstrap falla en `dogfooding-v2` por motivo no relacionado con gen-2)
+
+### 9.4 — Pendientes hacia release sólido (post-9.x)
+
+- [ ] **Multi-file imports en gen-2** — corregir re-declaración de constantes/funciones importadas (audit de `module.liva` + `_emitImport` en codegen)
+- [ ] **HTTP `serde_json::json!` macro** — emitir tokens válidos del macro DSL para route bodies (audit de `_emitObjectLit` cuando context es serde_json)
+- [ ] **Multi-file tests** — añadir 2-3 programas multi-file a `bootstrap_apps/` o `e2e_progs/` para que `module.rs` deje de estar al 0%
+- [ ] **CLI subcmd tests** — `livac run`, `livac fmt`, `livac test` actualmente sin cobertura en gen-2
+- [ ] **destructuring.test.liva** — convertir `throw` del parser a propagación Result o instalar `panic_hook` clean en `main.liva`
+- [ ] **`-D warnings` en gen-2 emit** — opcional: hacer que gen-2 emita `#![deny(...)]` selectivo si así lo quiere el usuario
+
+
 
 > **Objetivo:** cerrar v2.0 al 100% en compilación, tests, cobertura y bench.
 > **Estado actual:** 518 cargo tests + 135 archivos `.liva` (e2e 61, errors 28, syntax 18, stdlib 19, compile 9) + bootstrap 9/9 + idempotencia gen-2≡gen-3. Bench 4/5 en gate; Word counting 1.23x.
