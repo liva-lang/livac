@@ -1,0 +1,17 @@
+Container {
+    _label: string
+    _value: int
+
+    constructor(label: string, value: int) {
+        this._label = label
+        this._value = value
+    }
+
+    label(): string {
+        return this._label
+    }
+
+    value(): int {
+        return this._value
+    }
+}

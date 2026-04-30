@@ -1,0 +1,12 @@
+// EXPECT: 6
+//        Liva
+//        21
+
+import { add, square } from "./math"
+import { greet } from "./greet"
+
+main() {
+    print(add(2, 4))
+    print(greet("Liva"))
+    print(square(add(1, 2)) + add(4, 8))  // (1+2)^2 + 12 = 21
+}

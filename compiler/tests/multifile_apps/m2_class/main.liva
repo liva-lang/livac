@@ -1,0 +1,11 @@
+// EXPECT: A: 100
+//        B: 200
+
+import { Container } from "./container"
+
+main() {
+    let a = Container("A", 100)
+    let b = Container("B", 200)
+    print(a.label() + ": " + a.value().toString())
+    print(b.label() + ": " + b.value().toString())
+}

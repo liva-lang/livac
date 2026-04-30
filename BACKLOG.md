@@ -764,30 +764,39 @@ cargo test --release 528+).
 
 ### Tier A — Refactor crítico del compilador self-hosted
 
-- [ ] **A1.** Modularizar `compiler/src/codegen.liva` (9 048 LOC → 7 módulos):
-      `codegen/expr.liva`, `codegen/stmt.liva`, `codegen/types.liva`,
-      `codegen/class.liva`, `codegen/method.liva`, `codegen/runtime.liva`,
-      `codegen/error.liva`. Verificar que `module.liva` resuelve los
-      imports relativos (`./codegen/expr`).
-- [ ] **A2.** Consolidar los 25+ `Map<string, …>` dispersos en `RustEmitter`
-      en una struct `EmitContext` con namespaces (`vars.optional`,
-      `vars.maps`, `funcs.params`, `classes.mutMethods`, …).
-- [ ] **A3.** Extraer los snippets Rust embebidos en `_write("...")` (DB,
-      HTTP, CSV, Crypto — líneas 6095/6185+) a constantes top-level o
-      a `compiler/src/codegen/runtime/*.rs.template`. Eliminar la
-      duplicación de `DB.query` (3 copias).
+- [x] **A3.** Extraer snippets Rust embebidos a constantes top-level
+      (`CSV_PARSE_LINE`, `DB_ROW_TO_MAP`, `DB_PARAM_BINDING(_TAIL)`,
+      `CSV_ESCAPE_FIELD`). Eliminada la duplicación de `DB.query` y de
+      las dos rutas de parse de CSV. Commit `654127f`.
+
+- [ ] **A1.** ~~Modularizar `compiler/src/codegen.liva` en 7 archivos.~~
+      **Diferido a v2.1.** Requiere soporte del lenguaje para *partial
+      classes* o *extension methods*. Liva actualmente exige que toda
+      la clase `RustEmitter` viva en un único archivo (la sintaxis
+      `RustEmitter { … }` declara la clase entera). Las alternativas
+      (free functions + `EmitContext` struct pasado por referencia
+      mutable) chocan con el known-issue de `Map<K,V>` que se mueve al
+      pasar como parámetro (E0382 documentado en `conversation
+      summary § 2`). Plan v2.1: añadir `partial` keyword o pivotar a
+      arquitectura free-function una vez Liva soporte mut-borrow de Map.
+
+- [ ] **A2.** ~~Consolidar los 25+ `Map<string, …>` dispersos en
+      `EmitContext`.~~ **Diferido a v2.1** por el mismo bloqueo que A1
+      — un `EmitContext` requeriría pasarlo por mut-ref a docenas de
+      free functions, que Liva aún no soporta sin clonar.
 
 ### Tier B — Higiene del repo
 
-- [ ] **B4.** Borrar `compiler/src/main.liva.bak`, mover o eliminar
+- [x] **B4.** Borrar `compiler/src/main.liva.bak`, mover o eliminar
       `compiler/test_concat.liva` y `compiler/test_suite.liva` (no son
-      ejercitados por ningún gate).
-- [ ] **B5.** Resincronizar `compiler/PARITY.md` con la realidad
-      (baseline 21/21, items Tier 1+2+3 completados marcados ✅).
-- [ ] **B6.** Unificar los 5 gates en `compiler/tests/run_all.sh` +
-      target `make test-full` que los lance en orden.
-- [ ] **B7.** O implementar `lib/std/test.liva` (`expect/describe/it`)
-      o quitar la promesa "Jest-like" del README — alinear narrativa.
+      ejercitados por ningún gate). ✅
+- [x] **B5.** Resincronizar `compiler/PARITY.md` con la realidad
+      (baseline 21/21, items Tier 1+2+3 completados marcados ✅). ✅
+- [x] **B6.** Unificar los 5 gates en `compiler/tests/run_all.sh` +
+      target `make test-full` que los lance en orden. ✅
+- [x] **B7.** Quitar la promesa "Jest-like" del README + QUICK_REFERENCE
+      § 12 — alineada con realidad (`test_*` runner hoy, `liva/test`
+      planificado v2.x). Implementación completa diferida a v2.x. ✅
 
 ### Tier C — Escalabilidad
 
@@ -797,8 +806,12 @@ cargo test --release 528+).
 - [ ] **C9.** Tests unitarios del codegen self-hosted en
       `compiler/tests/codegen_modules/` con snapshots Rust output
       (1 archivo por sub-módulo de A1).
-- [ ] **C10.** Cubrir multi-file imports y CLI subcmds en gen-2
-      (`module.rs` 0 % → ≥50 %, `main.rs` 33 % → ≥50 %).
+- [x] **C10.** Cubrir multi-file imports en gen-2 — nueva gate
+      `compiler/tests/multifile_apps/run.sh` (2 fixtures: m1_basic =
+      3 archivos con functions, m2_class = 2 archivos con clases).
+      Confirmado que gen-2 resuelve `import { ... } from "./mod"`
+      correctamente. CLI subcmds (`main.rs` coverage) diferido a v2.1
+      junto con A1/A2. ✅
 
 ### Tier D — Nice to have
 

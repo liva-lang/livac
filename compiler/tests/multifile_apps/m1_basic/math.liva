@@ -1,0 +1,7 @@
+add(a: int, b: int): int {
+    return a + b
+}
+
+square(n: int): int {
+    return n * n
+}
