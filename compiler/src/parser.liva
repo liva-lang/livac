@@ -814,10 +814,18 @@ Parser {
     }
 
     _parseBaseType(): TypeRef {
-        // Tuple type: (T1, T2)
+        // Tuple type: (T1, T2)  OR  function type: (T1, T2) => U / () => U / (T) => U
         if this._check(TokenKind.LParen) {
             this._advance()
             if this._match(TokenKind.RParen) {
+                // GAP-007: `() => U`
+                if this._match(TokenKind.Arrow) {
+                    let retT = this._parseType()
+                    let result = TypeRef.FnType([], retT)
+                    if this._match(TokenKind.Question) => return TypeRef.OptionalType(result)
+                    if this._match(TokenKind.Bang) => return TypeRef.Fallible(result)
+                    return result
+                }
                 let result = TypeRef.Tuple([])
                 if this._match(TokenKind.Question) => return TypeRef.OptionalType(result)
                 if this._match(TokenKind.Bang) => return TypeRef.Fallible(result)
@@ -834,7 +842,25 @@ Parser {
                     }
                 }
                 this._expect(TokenKind.RParen)
+                // GAP-007: `(T1, T2) => U`
+                if this._match(TokenKind.Arrow) {
+                    let retT = this._parseType()
+                    let result = TypeRef.FnType(types, retT)
+                    if this._match(TokenKind.Question) => return TypeRef.OptionalType(result)
+                    if this._match(TokenKind.Bang) => return TypeRef.Fallible(result)
+                    return result
+                }
                 let result = TypeRef.Tuple(types)
+                if this._match(TokenKind.Question) => return TypeRef.OptionalType(result)
+                if this._match(TokenKind.Bang) => return TypeRef.Fallible(result)
+                return result
+            }
+            // Single-element parens: must be `(T) => U` (function type with one param)
+            this._expect(TokenKind.RParen)
+            if this._match(TokenKind.Arrow) {
+                let retT = this._parseType()
+                let pTypes = [first]
+                let result = TypeRef.FnType(pTypes, retT)
                 if this._match(TokenKind.Question) => return TypeRef.OptionalType(result)
                 if this._match(TokenKind.Bang) => return TypeRef.Fallible(result)
                 return result

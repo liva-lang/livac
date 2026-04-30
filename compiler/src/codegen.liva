@@ -81,6 +81,10 @@ RustEmitter {
     _inAssignTarget: bool
     _usedTestNames: Map<string, int>
     _functionParamCount: Map<string, int>
+    // GAP-007: for each function, a "fn-type-param" mask. Stored as a string
+    // of "1"/"0" per param position so a Map<string,string> entry suffices.
+    // At call sites, Lambda args at "1" positions are wrapped in Box::new.
+    _functionFnParamMask: Map<string, string>
     _functionDefaultStrs: Map<string, string>
     _borrowedParamIndices: Map<string, bool>
     _suppressCloneForBorrow: bool
@@ -152,6 +156,7 @@ RustEmitter {
         this._inAssignTarget = false
         this._usedTestNames = Map {}
         this._functionParamCount = Map {}
+        this._functionFnParamMask = Map {}
         this._functionDefaultStrs = Map {}
         this._borrowedParamIndices = Map {}
         this._suppressCloneForBorrow = false
@@ -354,6 +359,17 @@ RustEmitter {
                     result = this._emitType(t)
                     break
                 }
+                matched = true
+                0
+            },
+            TypeRef.FnType(params, ret) => {
+                // GAP-007: function type — Box<dyn Fn(args) -> ret>
+                let parts: [string] = []
+                for p in params {
+                    parts.push(this._emitType(p))
+                }
+                let retStr = this._emitType(ret)
+                result = "Box<dyn Fn(" + parts.join(", ") + ") -> " + retStr + ">"
                 matched = true
                 0
             }
@@ -821,6 +837,20 @@ RustEmitter {
 
         // Register default parameter values for call-site injection
         this._functionParamCount.set(funcName, decl.params.length)
+        // GAP-007: build per-param fn-type mask (1 = Box<dyn Fn> param, 0 = other).
+        let fnMask = ""
+        for fp in decl.params {
+            let isFn = false
+            let fpType = fp.typeRef
+            if fpType != null {
+                let _ = switch fpType {
+                    TypeRef.FnType(_, _) => { isFn = true; 0 },
+                    _ => { 0 }
+                }
+            }
+            if isFn { fnMask += "1" } else { fnMask += "0" }
+        }
+        this._functionFnParamMask.set(funcName, fnMask)
         let dIdx = 0
         for dp in decl.params {
             let dv = dp.defaultVal
@@ -4406,12 +4436,32 @@ RustEmitter {
             let aIdx = 0
             for a in args {
                 if aIdx > 0 { this._write(", ") }
-                // Check if this arg position is a borrowed (&str) param
-                let bKey = calleeForBorrow + ":" + aIdx.toString()
-                if calleeForBorrow != "" && this._borrowedParamIndices.has(bKey) {
-                    this._emitBorrowedArg(a)
+                // GAP-007: if this position expects a Box<dyn Fn>, wrap a Lambda
+                // arg in Box::new(...) so the Box<dyn Fn> param gets the right type.
+                let isFnParam = false
+                if calleeForBorrow != "" && this._functionFnParamMask.has(calleeForBorrow) {
+                    let mask = this._functionFnParamMask.get(calleeForBorrow)
+                    if aIdx < mask.length && mask.charAt(aIdx) == "1" {
+                        isFnParam = true
+                    }
+                }
+                let isLambdaArg = false
+                let _ = switch a {
+                    Expr.Lambda(_) => { isLambdaArg = true; 0 },
+                    _ => { 0 }
+                }
+                if isFnParam && isLambdaArg {
+                    this._write("Box::new(")
+                    this._emitExpr(a)
+                    this._write(")")
                 } else {
-                    this._emitClonedArg(a)
+                    // Check if this arg position is a borrowed (&str) param
+                    let bKey = calleeForBorrow + ":" + aIdx.toString()
+                    if calleeForBorrow != "" && this._borrowedParamIndices.has(bKey) {
+                        this._emitBorrowedArg(a)
+                    } else {
+                        this._emitClonedArg(a)
+                    }
                 }
                 aIdx += 1
             }

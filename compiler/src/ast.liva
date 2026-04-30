@@ -57,7 +57,9 @@ enum TypeRef {
     OptionalType(inner: TypeRef),
     Fallible(inner: TypeRef),
     Tuple(elements: [TypeRef]),
-    Union(types: [TypeRef])
+    Union(types: [TypeRef]),
+    // GAP-007: function type `(T1, T2) => U` — emitted as Box<dyn Fn(T1, T2) -> U>.
+    FnType(params: [TypeRef], ret: TypeRef)
 }
 
 // =====================================================================

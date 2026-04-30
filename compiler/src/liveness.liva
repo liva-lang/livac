@@ -614,7 +614,8 @@ LivenessAnalyzer {
             TypeRef.OptionalType(inner) => { result = 1; 0 },
             TypeRef.Fallible(inner) => { result = 1; 0 },
             TypeRef.Generic(base, gArgs) => { result = 1; 0 },
-            TypeRef.Union(parts) => { result = 1; 0 }
+            TypeRef.Union(parts) => { result = 1; 0 },
+            TypeRef.FnType(params, ret) => { result = 1; 0 }
         }
         return result
     }

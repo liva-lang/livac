@@ -423,6 +423,14 @@ SemanticAnalyzer {
                 }
                 result = TypeRef.Union(unionResolved)
                 0
+            },
+            TypeRef.FnType(params, ret) => {
+                let fnParams: [TypeRef] = []
+                for p in params {
+                    fnParams.push(this.resolveTypeRef(p))
+                }
+                result = TypeRef.FnType(fnParams, this.resolveTypeRef(ret))
+                0
             }
         }
         return result
@@ -801,7 +809,8 @@ SemanticAnalyzer {
             TypeRef.SetType(inner) => { result = TypeRef.SetType(inner); 0 },
             TypeRef.Tuple(elems) => { result = TypeRef.Tuple(elems); 0 },
             TypeRef.Generic(base, args) => { result = TypeRef.Generic(base, args); 0 },
-            TypeRef.Union(types) => { result = TypeRef.Union(types); 0 }
+            TypeRef.Union(types) => { result = TypeRef.Union(types); 0 },
+            TypeRef.FnType(params, ret) => { result = TypeRef.FnType(params, ret); 0 }
         }
         return result
     }
@@ -868,6 +877,14 @@ SemanticAnalyzer {
                     unionParts.push(this._typeToString(u))
                 }
                 result = unionParts.join(" | ")
+                0
+            },
+            TypeRef.FnType(params, ret) => {
+                let fnParts: [string] = []
+                for p in params {
+                    fnParts.push(this._typeToString(p))
+                }
+                result = $"({fnParts.join(", ")}) => {this._typeToString(ret)}"
                 0
             }
         }
