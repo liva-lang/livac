@@ -106,6 +106,11 @@ RustEmitter {
     // `{ let mut __v = obj.clone(); __v.sort(); __v }` wrapper and emit just
     // `obj.sort()` (mutates in place — the wrapper's return value is discarded).
     _inExprStmt: bool
+    // When true, the current block is in expression position (e.g. switch
+    // arm body). The last stmt of such a block is a tail expression, so a
+    // trailing `;` would discard the value. Propagated through if/else
+    // bodies so nested if-as-tail works inside switch arms.
+    _inExprBlock: bool
     _warnings: [string]
 
     constructor(typeCtx: TypeContext, liveCtx: LivenessContext) {
@@ -154,6 +159,7 @@ RustEmitter {
         this._stmtIsLastInBlock = false
         this._inIterChain = false
         this._inExprStmt = false
+        this._inExprBlock = false
         this._warnings = []
     }
 
@@ -1699,7 +1705,21 @@ RustEmitter {
                 this._inExprStmt = true
                 this._emitExpr(expr)
                 this._inExprStmt = savedExprStmt
-                this._write(";")
+                // Suppress trailing `;` when this is the tail expression of an
+                // expression block (e.g. switch arm body, or an if-body nested
+                // inside one). The value is yielded back to the surrounding
+                // expression instead of being discarded.
+                let isTailInExprBlock = false
+                if this._inExprBlock {
+                    if this._stmtIsLastInBlock {
+                        isTailInExprBlock = true
+                    }
+                }
+                if isTailInExprBlock {
+                    // omit `;` — value yields from the expression block
+                } else {
+                    this._write(";")
+                }
                 this._newline()
                 0
             },
@@ -2397,6 +2417,16 @@ RustEmitter {
         // Phase 9.8: peephole — has+get+set → entry API
         if this._tryEmitEntryApi(stmt) { return }
 
+        // If this `if` has no `else`, it is an `if (cond) { … }` statement —
+        // its branch must yield `()`. Clear `_inExprBlock` while emitting the
+        // body so an inner `Stmt.ExprStmt` doesn't drop its `;` and create a
+        // type mismatch (e.g. `String` instead of `()`).
+        let elsePartCheck = stmt.elseBranch
+        let savedExprBlockIf = this._inExprBlock
+        if elsePartCheck == null {
+            this._inExprBlock = false
+        }
+
         this._writeIndent()
         this._write("if ")
         this._inIfCondition = true
@@ -2416,6 +2446,7 @@ RustEmitter {
             this._dedent()
         }
         this._writeln("}")
+        this._inExprBlock = savedExprBlockIf
     }
 
     // Phase 9.8: detect the canonical "increment/decrement-or-init" pattern on a Map
@@ -2765,7 +2796,12 @@ RustEmitter {
         this._write(" {")
         this._newline()
         this._indent()
+        // The while-body is a stmt-only block; do not inherit expr-block
+        // context from any enclosing switch arm.
+        let savedExprBlockW = this._inExprBlock
+        this._inExprBlock = false
         this._emitBlock(stmt.body)
+        this._inExprBlock = savedExprBlockW
         this._dedent()
         this._writeln("}")
     }
@@ -2881,7 +2917,11 @@ RustEmitter {
             this._writeln($"let {varName} = {varName}.clone();")
             this._forNeedsInnerClone = false
         }
+        // The for-body is a stmt-only block; do not inherit expr-block context.
+        let savedExprBlockF = this._inExprBlock
+        this._inExprBlock = false
         this._emitBlock(stmt.body)
+        this._inExprBlock = savedExprBlockF
         this._dedent()
         this._writeln("}")
     }
@@ -7193,9 +7233,18 @@ RustEmitter {
                 for c2 in clones {
                     this._write("let " + c2 + " = " + c2 + ".clone(); ")
                 }
+                // Switch arm bodies are expression positions — the last stmt is a tail expr.
+                let savedExprBlock = this._inExprBlock
+                this._inExprBlock = true
+                let aTotal = armStmts.length
+                let aIdx = 0
                 for s in armStmts {
+                    this._stmtIsLastInBlock = (aIdx == aTotal - 1)
                     this._emitStmt(s)
+                    aIdx += 1
                 }
+                this._stmtIsLastInBlock = false
+                this._inExprBlock = savedExprBlock
                 this._write("}, ")
                 0
             }
