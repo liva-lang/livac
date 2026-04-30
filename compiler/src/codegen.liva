@@ -5268,9 +5268,33 @@ RustEmitter {
 
         let objTag = this._getExprTypeName(obj)
 
+        // B146: detect if `obj` is an instance of a user class.
+        // If so, force generic dispatch — don't promote to array/string/etc.
+        // (User class instances are typed as `TypeRef.Simple(ClassName)`, never
+        // as Array/Map/Set/etc., so any array-method-name lookup is wrong.)
+        let isUserClassInstance = false
+        let _ = switch obj {
+            Expr.Identifier(uName) => {
+                let uType = this._lookupVarTypeRef(uName)
+                let _ = switch uType {
+                    TypeRef.Simple(cn) => {
+                        if cn != "" and this._typeCtx.classes.has(cn) {
+                            isUserClassInstance = true
+                        }
+                        0
+                    },
+                    _ => { 0 }
+                }
+                0
+            },
+            _ => { 0 }
+        }
+
         // Classify method target without consuming args
         let target = "generic"
-        if objTag == "string" && this._isKnownStringMethod(method) {
+        if isUserClassInstance {
+            // skip — leave target as "generic" so we hit _emitGenericMethodCall
+        } else if objTag == "string" && this._isKnownStringMethod(method) {
             target = "string"
         } else if objTag == "array" && this._isKnownArrayMethod(method) {
             target = "array"
@@ -5284,7 +5308,7 @@ RustEmitter {
         // Secondary dispatch: if target is still generic but method is a known array-only method,
         // assume array (type detection often fails for array variables)
         // Exclude methods that overlap with Map/Set/user/String (insert, remove, has, get, set, forEach, isEmpty, contains, clear, count, slice, indexOf)
-        if target == "generic" && this._isKnownArrayMethod(method) {
+        if not isUserClassInstance && target == "generic" && this._isKnownArrayMethod(method) {
             if method != "insert" && method != "remove" && method != "has" && method != "get" && method != "set" && method != "forEach" && method != "isEmpty" && method != "contains" && method != "clear" && method != "count" && method != "slice" && method != "indexOf" {
                 target = "array"
             }
