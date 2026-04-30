@@ -3,7 +3,9 @@
 > **Source:** `livac/src/*.rs` (CONGELADO post-`ba7f263`).
 > **Target:** `livac/compiler/src/*.liva` (gen-2, escrito en Liva).
 > **Goal:** v2.1 — gen-2 cubre 100 % del bootstrap → eliminar `livac/src/*.rs` salvo `liva_rt`.
-> **Status:** 🚧 Inventario inicial — 2026-04-30. Refinar con tests al portar cada item.
+> **Status:** 🚧 11/21 (era 6/21) — 2026-04-30 sesión 2.
+>
+> **Métrica:** `bash compiler/tests/bootstrap_apps/run_gen2.sh`
 
 ---
 
@@ -25,12 +27,17 @@ Ordenados por simpleza creciente. Empezar por aquí.
 
 | ID | Estado | Prio | Descripción | Bootstrap fix | Test |
 |----|--------|------|-------------|---------------|------|
-| B151 | ⏳ | 🔷 | Escapes `\"` dentro de `${...}` en string interpolation | `parser.rs::parse_string_template_parts` | `bootstrap_apps/app25_parser.liva` |
+| B151 | ✅ | 🔷 | Escapes `\"` dentro de `${...}` en string interpolation | parser+lexer | `13b93c0` |
 | B152 | ⏳ | 🔶 | `impl Display for Class<T>` con campo `[T]` requiere bound `Debug` | `codegen.rs` Display impl pre-scan | `bootstrap_apps/app23_stack.liva` |
 | B153 | ⏳ | 🔶 | Free generic functions auto `Clone + Display` | `codegen.rs::generate_function` type-param bounds | `bootstrap_apps/app23_stack.liva` |
 | GAP-007 | ⏳ | ⚡ | Function types `(T) => U` → `Box<dyn Fn(T) -> U>` | AST `TypeRef::Fn` + parser + codegen wrap | `bootstrap_apps/app28_closures.liva` |
-| B147 | ⏳ | ⚡ | `arr.reverse()` sobre `[T]` numérico no debe emitir `.chars()` | `codegen.rs::generate_method_call` | `bootstrap_apps/app19_pq.liva` |
-| B146 | ⏳ | ⚡ | `pq.pop()` en clase de usuario no debe añadir `.expect("pop from empty array")` | `codegen.rs` post-transform Seq pop | `bootstrap_apps/app19_pq.liva` |
+| B147 | ✅ | ⚡ | `arr.reverse()` en expr-ctx → block-expression | codegen | `a3bba46` |
+| B146 | ✅ | ⚡ | `pq.pop()` / `this.method()` en user class — no array dispatch | codegen | `cfa30c3` + `aa56f23` |
+| BIN-PAREN | ✅ | ⚡ | Binary precedence parens `(idx-1)/2` | codegen | `a3bba46` |
+| EMPTY-SET | ✅ | ⚡ | `let s: Set<T> = {}` → `HashSet::new()` | codegen | `0477c3b` |
+| SET-SIZE | ✅ | 🔶 | `set.size()`, `set.count()` → `.len() as i32` | codegen | `0477c3b` |
+| FMT-DEBUG | ✅ | ⚡ | `$"{vec}"` usa `{:?}` (no `{}`) para Vec/Map/Set | codegen | `0477c3b` |
+| OR-RET | ✅ | ⚡ | `return Map.get(k) or default` (no var-decl) | codegen `_emitBinary` | `c2f63f9` |
 | B145 | ⏳ | ⚡ | `string.indexOf(needle, fromIndex)` con 2 args | `codegen.rs` indexOf handler | `bootstrap_apps/app18_template.liva` |
 | B144 | ⏳ | ⚡ | Parámetros `Map<K,V>` y `Set<T>` se deben registrar en map_vars/set_vars | `codegen.rs` param tracking | `bootstrap_apps/app18_template.liva` |
 | B142 | ⏳ | ⚡ | `for g in groups` sobre `[[T]]` debe registrar element type `[T]` | `codegen.rs` typed_array_vars + VarDecl | `bootstrap_apps/app17_pipeline.liva` |
