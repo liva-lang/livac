@@ -2004,10 +2004,20 @@ RustEmitter {
                 this._errBindings.set(errName, true)
                 this._optionalVars.set(errName, true)
                 this._writeIndent()
-                this._write("let (mut ")
-                this._write(valName)
-                this._write(", mut ")
-                this._write(errName)
+                this._write("let (")
+                if valName == "_" {
+                    this._write("_")
+                } else {
+                    this._write("mut ")
+                    this._write(valName)
+                }
+                this._write(", ")
+                if errName == "_" {
+                    this._write("_")
+                } else {
+                    this._write("mut ")
+                    this._write(errName)
+                }
                 this._write(") = match ")
                 this._emitExpr(decl.init)
                 this._write(" { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };")
@@ -2424,10 +2434,20 @@ RustEmitter {
             // ERR-UNIFY: register err-binding for if-condition rewrite (`if err` → `if err.is_some()`)
             this._errBindings.set(errName, true)
             this._optionalVars.set(errName, true)
-            this._write("let (mut ")
-            this._write(valName)
-            this._write(", mut ")
-            this._write(errName)
+            this._write("let (")
+            if valName == "_" {
+                this._write("_")
+            } else {
+                this._write("mut ")
+                this._write(valName)
+            }
+            this._write(", ")
+            if errName == "_" {
+                this._write("_")
+            } else {
+                this._write("mut ")
+                this._write(errName)
+            }
             this._write(") = match ")
             this._emitExpr(decl.init)
             this._write(" { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };")
@@ -5420,11 +5440,11 @@ RustEmitter {
                     this._write("(axum::http::StatusCode::from_u16(")
                     this._emitExpr(args[1])
                     this._write(" as u16).unwrap_or(axum::http::StatusCode::OK), axum::Json(serde_json::json!(")
-                    this._emitExpr(args[0])
+                    this._emitJsonArg(args[0])
                     this._write(")))")
                 } else {
                     this._write("(axum::http::StatusCode::OK, axum::Json(serde_json::json!(")
-                    this._emitExpr(args[0])
+                    this._emitJsonArg(args[0])
                     this._write(")))")
                 }
                 return
@@ -7331,6 +7351,66 @@ RustEmitter {
             this._write("); ")
         }
         this._write("_map }")
+    }
+
+    // -- JSON literal arg for serde_json::json!() — emits {"key": expr, ...} --
+
+    _emitJsonArg(expr: Expr) {
+        let _ = switch expr {
+            Expr.ObjectLiteral(jFields) => {
+                this._emitJsonObjectFields(jFields)
+                0
+            },
+            Expr.MapLiteral(jEntries) => {
+                this._emitJsonMapEntries(jEntries)
+                0
+            },
+            Expr.ArrayLiteral(jElems) => {
+                this._emitJsonArrayElems(jElems)
+                0
+            },
+            _ => {
+                this._emitExpr(expr)
+                0
+            }
+        }
+    }
+
+    _emitJsonObjectFields(fields: [ObjField]) {
+        this._write("{")
+        let jIdx = 0
+        for f in fields {
+            if jIdx > 0 { this._write(", ") }
+            let key = $"{f.key}"
+            this._write($"\"{key}\": ")
+            this._emitJsonArg(f.value)
+            jIdx += 1
+        }
+        this._write("}")
+    }
+
+    _emitJsonMapEntries(entries: [MapEntry]) {
+        this._write("{")
+        let jIdx = 0
+        for e in entries {
+            if jIdx > 0 { this._write(", ") }
+            this._emitJsonArg(e.key)
+            this._write(": ")
+            this._emitJsonArg(e.value)
+            jIdx += 1
+        }
+        this._write("}")
+    }
+
+    _emitJsonArrayElems(elements: [Expr]) {
+        this._write("[")
+        let jIdx = 0
+        for e in elements {
+            if jIdx > 0 { this._write(", ") }
+            this._emitJsonArg(e)
+            jIdx += 1
+        }
+        this._write("]")
     }
 
     // -- Array literal --
