@@ -299,43 +299,46 @@ Generic aliases like `Result<T>` substitute `T` at each usage site.
 
 ---
 
-## 12. Testing: Full Matchers & Lifecycle
+## 12. Testing — current status
 
-### All matchers
+> **Reality check (v2.0):** Liva ships a **basic test runner** that
+> auto-discovers free functions whose name starts with `test_` and
+> executes them, reporting pass/fail. The Jest-style `describe`/`expect`
+> matcher API documented in older drafts is **not implemented yet** and
+> is planned for v2.x as `liva/test` stdlib module.
 
-| Matcher | Asserts |
-|---------|---------|
-| `toBe(y)` | `x == y` (strict equality) |
-| `toEqual(y)` | Alias for `toBe` |
-| `toBeTruthy()` | `x` is truthy |
-| `toBeFalsy()` | `x` is falsy |
-| `toBeGreaterThan(y)` | `x > y` |
-| `toBeLessThan(y)` | `x < y` |
-| `toBeGreaterThanOrEqual(y)` | `x >= y` |
-| `toBeLessThanOrEqual(y)` | `x <= y` |
-| `toContain(y)` | Array/string contains `y` |
-| `toBeNull()` | `x` is null |
-| `toThrow()` | Expression throws/fails |
-| `.not.*` | Negate any matcher above |
-
-### Lifecycle hooks
+### What works today
 
 ```liva
-import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach } from "liva/test"
+// any-file.liva
+test_addition() {
+    let result = 2 + 2
+    if result != 4 {
+        fail "addition broken"
+    }
+}
 
-describe("Suite", () => {
-    beforeAll(() => { /* once before all tests */ })
-    afterAll(() => { /* once after all tests */ })
-    beforeEach(() => { /* before each test */ })
-    afterEach(() => { /* after each test */ })
-
-    test("example", () => {
-        expect(2 + 2).toBe(4)
-        expect([1, 2, 3]).toContain(2)
-        expect("hello").not.toBe("world")
-    })
-})
+test_string_concat() {
+    if "a" + "b" != "ab" { fail "concat broken" }
+}
 ```
+
+Run with:
+
+```bash
+livac test any-file.liva
+```
+
+The runner prints `[PASS] test_addition`, `[FAIL] test_string_concat`
+and exits non-zero on any failure.
+
+### Roadmap (`liva/test`, v2.x)
+
+`describe(name, fn)` / `test(name, fn)` / `expect(x).toBe(y)` plus
+matchers (`toContain`, `toBeTruthy`, `.not.*`) and lifecycle hooks
+(`beforeAll`, `afterEach`, …) will land as a stdlib module once the
+runtime supports closures-as-handlers stably across modules. Tracked
+in `BACKLOG § Fase 11 → C8`.
 
 ---
 

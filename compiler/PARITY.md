@@ -3,9 +3,20 @@
 > **Source:** `livac/src/*.rs` (CONGELADO post-`ba7f263`).
 > **Target:** `livac/compiler/src/*.liva` (gen-2, escrito en Liva).
 > **Goal:** v2.1 — gen-2 cubre 100 % del bootstrap → eliminar `livac/src/*.rs` salvo `liva_rt`.
-> **Status:** 🚧 11/21 (era 6/21) — 2026-04-30 sesión 2.
 >
-> **Métrica:** `bash compiler/tests/bootstrap_apps/run_gen2.sh`
+> **Status (2026-04-30, post Phase 10 close):** ✅ **21/21 bootstrap_apps pasan con gen-2**.
+> El historial detallado debajo (Tier 1/2/3) refleja el camino recorrido,
+> pero la métrica de aceptación está cumplida. Items aún marcados ⏳ que
+> aparecen *resueltos en práctica* (porque su test asociado pasa en
+> `bootstrap_apps/run_gen2.sh`) deben confirmarse y cerrarse en una
+> auditoría dedicada — no son bloqueantes para v2.0.
+>
+> **Métrica viva:** `bash compiler/tests/run_all.sh` (incluye este gate).
+>
+> **Pendiente real para v2.1** (no cubierto aún por bootstrap_apps):
+> - HTTP routing en self-host (axum + async closures) — ver `BACKLOG § 9.4`.
+> - Stdlib emission con tuplas nativas (DB.open re-wrap) — ídem.
+> - Multi-file imports cobertura ≥50 % en `module.rs`.
 
 ---
 
@@ -133,18 +144,21 @@ Antes de portar masivo, gen-2 necesita esto para ser **escalable**:
 
 ## Métricas
 
-- Bootstrap LOC (Rust): ~16k
-- Gen-2 LOC actual (Liva): 14.5k
-- Gen-2 LOC target post-paridad: ~18k (incluye fixes Tier 1+2+3)
-- Bootstrap_apps: 21/21 verde con bootstrap, **0/21 verde con gen-2** (a verificar)
+- Bootstrap LOC (Rust): ~17.6k
+- Gen-2 LOC actual (Liva): ~16.2k (post Phase 11 modularización: target ≤9k en `codegen/*.liva`)
+- Bootstrap_apps: **21/21 verde con bootstrap y 21/21 verde con gen-2** (post Phase 10).
+- Idempotencia: gen-2 ≡ gen-3 (src + binary).
 
 ## Métrica de avance
 
 `bootstrap_apps` ejecutados con gen-2:
-- **Baseline 2026-04-30: 6/21 pasan** (app11_words, app13_calc, app20_shapes, app22_glob, app24_lexer, app26_window).
-- 15/21 fallan en compile-time con gen-2.
-- Meta v2.1: 21/21.
-- Script: `compiler/tests/bootstrap_apps/run_gen2.sh`
+- **2026-04-30: 21/21 pasan** ✅ — meta v2.1 alcanzada al cierre de Phase 10.
+- Script: `compiler/tests/bootstrap_apps/run_gen2.sh` (también incluido en `compiler/tests/run_all.sh`).
+
+> Lo que sigue debajo es el **historial** del camino recorrido. Algunos
+> items aún marcados ⏳ pueden estar implícitamente resueltos porque su
+> test asociado entra en los 21/21 — pendiente auditoría 1-a-1 si se
+> quiere cerrar formalmente cada ID.
 
 ### Errores observados (15 fallos)
 

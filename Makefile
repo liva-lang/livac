@@ -1,4 +1,4 @@
-.PHONY: build test clean install run fmt clippy doc examples skill help
+.PHONY: build test test-full clean install run fmt clippy doc examples skill help
 
 # Default target
 all: build
@@ -20,6 +20,14 @@ test:
 	@echo "🧪 Running tests..."
 	@cargo test
 	@echo "✓ All tests passed"
+
+# Run all 5 self-host gates + cargo tests (full validation)
+test-full:
+	@bash compiler/tests/run_all.sh
+
+# Quick gates (skip rebuild_selfhost — useful for inner dev loop)
+test-quick:
+	@bash compiler/tests/run_all.sh --quick
 
 # Run tests with output
 test-verbose:
