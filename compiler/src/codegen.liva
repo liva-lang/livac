@@ -42,6 +42,33 @@ import {
 } from "./liveness"
 
 // =====================================================================
+//  Stdlib runtime snippets (Phase 11 § A3)
+// =====================================================================
+// These are large Rust expressions emitted verbatim by stdlib lowering
+// (DB, CSV, …). They previously lived as string literals duplicated up
+// to 3× inside `_write(...)` calls, which made auditing impossible and
+// drift between with/without-params variants likely. Centralizing them
+// here keeps the lowering call-sites short and the snippets reviewable.
+
+// CSV row-parsing closure body — used by CSV.read, CSV.readTable,
+// CSV.parse. Takes a single `line: &str` (closed over via .map()) and
+// returns Vec<String>.
+const CSV_PARSE_LINE = "let mut fields = Vec::new(); let mut current = String::new(); let mut in_quotes = false; let mut chars = line.chars().peekable(); while let Some(c) = chars.next() { if in_quotes { if c == '\"' { if chars.peek() == Some(&'\"') { current.push('\"'); chars.next(); } else { in_quotes = false; } } else { current.push(c); } } else if c == '\"' { in_quotes = true; } else if c == ',' { fields.push(current.trim().to_string()); current = String::new(); } else { current.push(c); } } fields.push(current.trim().to_string()); fields"
+
+// CSV row-escape used by CSV.write, CSV.writeTable, CSV.stringify.
+const CSV_ESCAPE_FIELD = "if field.contains(',') || field.contains('\"') || field.contains('\\n') { format!(\"\\\"{}\\\"\" , field.replace('\"', \"\\\"\\\"\")) } else { field.clone() }"
+
+// SQLite row → HashMap<String,String> closure body for DB.query.
+// The closure takes `row: &rusqlite::Row` and returns Ok(map).
+const DB_ROW_TO_MAP = "let count = row.as_ref().column_count(); let mut map = std::collections::HashMap::<String, String>::new(); for i in 0..count { let col_name = row.as_ref().column_name(i).unwrap_or(\"\").to_string(); let val: String = row.get::<_, rusqlite::types::Value>(i).map(|v| match v { rusqlite::types::Value::Null => String::new(), rusqlite::types::Value::Integer(n) => n.to_string(), rusqlite::types::Value::Real(f) => f.to_string(), rusqlite::types::Value::Text(s) => s, rusqlite::types::Value::Blob(b) => format!(\"{:?}\", b), }).unwrap_or_default(); map.insert(col_name, val); } Ok(map)"
+
+// SQL parameter binding boilerplate — turns a Vec<String> into the
+// `&[&dyn ToSql]` slice rusqlite wants. Used by DB.exec/DB.query when
+// the user passes a 3rd arg with the bind list.
+const DB_PARAM_BINDING = "let __params: Vec<String> = "  // followed by `<expr>.iter()…`
+const DB_PARAM_BINDING_TAIL = ".iter().map(|s| s.to_string()).collect(); let __param_refs: Vec<&dyn rusqlite::types::ToSql> = __params.iter().map(|s| s as &dyn rusqlite::types::ToSql).collect();"
+
+// =====================================================================
 //  RustEmitter — accumulates Rust source code with indent management
 // =====================================================================
 // Design: output is a [string] buffer (one entry per write call).
@@ -6092,7 +6119,9 @@ RustEmitter {
             if method == "readTable" {
                 this._write("{ match std::fs::read_to_string(&")
                 this._emitExpr(args[0])
-                this._write(") { Ok(content) => { let __rows: Vec<Vec<String>> = content.lines().filter(|l| !l.is_empty()).map(|line| { let mut fields = Vec::new(); let mut current = String::new(); let mut in_quotes = false; let mut chars = line.chars().peekable(); while let Some(c) = chars.next() { if in_quotes { if c == '\"' { if chars.peek() == Some(&'\"') { current.push('\"'); chars.next(); } else { in_quotes = false; } } else { current.push(c); } } else if c == '\"' { in_quotes = true; } else if c == ',' { fields.push(current.trim().to_string()); current = String::new(); } else { current.push(c); } } fields.push(current.trim().to_string()); fields }).collect(); if __rows.is_empty() { (Some(Vec::new()), String::new()) } else { let headers = &__rows[0]; let table: Vec<std::collections::HashMap<String, String>> = __rows[1..].iter().map(|row| { let mut map = std::collections::HashMap::new(); for (i, header) in headers.iter().enumerate() { map.insert(header.clone(), row.get(i).cloned().unwrap_or_default()); } map }).collect(); (Some(table), String::new()) } }, Err(e) => (None, format!(\"CSV.readTable error: {}\", e)) } }")
+                this._write(") { Ok(content) => { let __rows: Vec<Vec<String>> = content.lines().filter(|l| !l.is_empty()).map(|line| { ")
+                this._write($"{CSV_PARSE_LINE}")
+                this._write(" }).collect(); if __rows.is_empty() { (Some(Vec::new()), String::new()) } else { let headers = &__rows[0]; let table: Vec<std::collections::HashMap<String, String>> = __rows[1..].iter().map(|row| { let mut map = std::collections::HashMap::new(); for (i, header) in headers.iter().enumerate() { map.insert(header.clone(), row.get(i).cloned().unwrap_or_default()); } map }).collect(); (Some(table), String::new()) } }, Err(e) => (None, format!(\"CSV.readTable error: {}\", e)) } }")
                 return
             }
             if method == "writeTable" {
@@ -6108,7 +6137,9 @@ RustEmitter {
             if method == "parse" {
                 this._write("{ let __text: &str = &")
                 this._emitExpr(args[0])
-                this._write("; __text.lines().filter(|l| !l.is_empty()).map(|line| { let mut fields = Vec::new(); let mut current = String::new(); let mut in_quotes = false; let mut chars = line.chars().peekable(); while let Some(c) = chars.next() { if in_quotes { if c == '\"' { if chars.peek() == Some(&'\"') { current.push('\"'); chars.next(); } else { in_quotes = false; } } else { current.push(c); } } else if c == '\"' { in_quotes = true; } else if c == ',' { fields.push(current.trim().to_string()); current = String::new(); } else { current.push(c); } } fields.push(current.trim().to_string()); fields }).collect::<Vec<Vec<String>>>() }")
+                this._write("; __text.lines().filter(|l| !l.is_empty()).map(|line| { ")
+                this._write($"{CSV_PARSE_LINE}")
+                this._write(" }).collect::<Vec<Vec<String>>>() }")
                 return
             }
             if method == "stringify" {
@@ -6161,9 +6192,10 @@ RustEmitter {
                 this._emitExpr(args[1])
                 this._write("; ")
                 if args.length >= 3 {
-                    this._write("let __params: Vec<String> = ")
+                    this._write($"{DB_PARAM_BINDING}")
                     this._emitExpr(args[2])
-                    this._write(".iter().map(|s| s.to_string()).collect(); let __param_refs: Vec<&dyn rusqlite::types::ToSql> = __params.iter().map(|s| s as &dyn rusqlite::types::ToSql).collect(); match ")
+                    this._write($"{DB_PARAM_BINDING_TAIL}")
+                    this._write(" match ")
                     this._emitExpr(args[0])
                     this._write(".lock().unwrap().execute(&__sql, __param_refs.as_slice()) { Ok(_) => (Some(String::new()), String::new()), Err(e) => (None, format!(\"DB.exec error: {}\", e)) } }")
                 } else {
@@ -6178,15 +6210,20 @@ RustEmitter {
                 this._emitExpr(args[1])
                 this._write("; ")
                 if args.length >= 3 {
-                    this._write("let __params: Vec<String> = ")
+                    this._write($"{DB_PARAM_BINDING}")
                     this._emitExpr(args[2])
-                    this._write(".iter().map(|s| s.to_string()).collect(); let __param_refs: Vec<&dyn rusqlite::types::ToSql> = __params.iter().map(|s| s as &dyn rusqlite::types::ToSql).collect(); match ")
+                    this._write($"{DB_PARAM_BINDING_TAIL}")
+                    this._write(" match ")
                     this._emitExpr(args[0])
-                    this._write(".lock().unwrap().prepare(&__sql) { Ok(mut stmt) => { match stmt.query_map(__param_refs.as_slice(), |row| { let count = row.as_ref().column_count(); let mut map = std::collections::HashMap::<String, String>::new(); for i in 0..count { let col_name = row.as_ref().column_name(i).unwrap_or(\"\").to_string(); let val: String = row.get::<_, rusqlite::types::Value>(i).map(|v| match v { rusqlite::types::Value::Null => String::new(), rusqlite::types::Value::Integer(n) => n.to_string(), rusqlite::types::Value::Real(f) => f.to_string(), rusqlite::types::Value::Text(s) => s, rusqlite::types::Value::Blob(b) => format!(\"{:?}\", b), }).unwrap_or_default(); map.insert(col_name, val); } Ok(map) }) { Ok(rows) => { let result: Vec<std::collections::HashMap<String, String>> = rows.filter_map(|r| r.ok()).collect(); (Some(result), String::new()) }, Err(e) => (None, format!(\"DB.query error: {}\", e)) } }, Err(e) => (None, format!(\"DB.query error: {}\", e)) } }")
+                    this._write(".lock().unwrap().prepare(&__sql) { Ok(mut stmt) => { match stmt.query_map(__param_refs.as_slice(), |row| { ")
+                    this._write($"{DB_ROW_TO_MAP}")
+                    this._write(" }) { Ok(rows) => { let result: Vec<std::collections::HashMap<String, String>> = rows.filter_map(|r| r.ok()).collect(); (Some(result), String::new()) }, Err(e) => (None, format!(\"DB.query error: {}\", e)) } }, Err(e) => (None, format!(\"DB.query error: {}\", e)) } }")
                 } else {
                     this._write("match ")
                     this._emitExpr(args[0])
-                    this._write(".lock().unwrap().prepare(&__sql) { Ok(mut stmt) => { match stmt.query_map([], |row| { let count = row.as_ref().column_count(); let mut map = std::collections::HashMap::<String, String>::new(); for i in 0..count { let col_name = row.as_ref().column_name(i).unwrap_or(\"\").to_string(); let val: String = row.get::<_, rusqlite::types::Value>(i).map(|v| match v { rusqlite::types::Value::Null => String::new(), rusqlite::types::Value::Integer(n) => n.to_string(), rusqlite::types::Value::Real(f) => f.to_string(), rusqlite::types::Value::Text(s) => s, rusqlite::types::Value::Blob(b) => format!(\"{:?}\", b), }).unwrap_or_default(); map.insert(col_name, val); } Ok(map) }) { Ok(rows) => { let result: Vec<std::collections::HashMap<String, String>> = rows.filter_map(|r| r.ok()).collect(); (Some(result), String::new()) }, Err(e) => (None, format!(\"DB.query error: {}\", e)) } }, Err(e) => (None, format!(\"DB.query error: {}\", e)) } }")
+                    this._write(".lock().unwrap().prepare(&__sql) { Ok(mut stmt) => { match stmt.query_map([], |row| { ")
+                    this._write($"{DB_ROW_TO_MAP}")
+                    this._write(" }) { Ok(rows) => { let result: Vec<std::collections::HashMap<String, String>> = rows.filter_map(|r| r.ok()).collect(); (Some(result), String::new()) }, Err(e) => (None, format!(\"DB.query error: {}\", e)) } }, Err(e) => (None, format!(\"DB.query error: {}\", e)) } }")
                 }
                 return
             }
