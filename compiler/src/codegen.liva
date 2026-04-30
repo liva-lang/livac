@@ -6913,7 +6913,33 @@ RustEmitter {
             let aIdx = 0
             for e in elements {
                 if aIdx > 0 { this._write(", ") }
-                this._emitExpr(e)
+                // Clone non-Copy identifiers (String / array / map / set / class)
+                // to avoid moving a binding that may be used after the literal.
+                // Mirrors the bootstrap behavior `vec![start.clone()]`.
+                let cloned = false
+                let _ = switch e {
+                    Expr.Identifier(elName) => {
+                        let elNameCopy = $"{elName}"
+                        let varType = this._lookupVarTypeRef(elNameCopy)
+                        let elTag = this._typeRefToTag(varType)
+                        let isNonCopy = false
+                        if elTag == "string" { isNonCopy = true }
+                        if elTag == "array" { isNonCopy = true }
+                        if elTag == "map" { isNonCopy = true }
+                        if elTag == "set" { isNonCopy = true }
+                        if elTag == "class" { isNonCopy = true }
+                        if isNonCopy {
+                            this._emitExpr(e)
+                            this._write(".clone()")
+                            cloned = true
+                        }
+                        0
+                    },
+                    _ => { 0 }
+                }
+                if not cloned {
+                    this._emitExpr(e)
+                }
                 aIdx += 1
             }
             this._write("]")
