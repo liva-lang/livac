@@ -3372,6 +3372,55 @@ RustEmitter {
         // `||` is always logical OR now — `or <value>` is handled at parser level
         // Wrap in parens to preserve precedence when used as operand of &&
         if opStr == "||" {
+            // B?: detect `Map.get(k) or default` (or array.get/first/last/find)
+            // outside of a var-decl. The parser only desugars these inside
+            // `let x = call() or default`, so for `return call() or default`
+            // (and similar expression positions) we lower here.
+            let isOptionGet = false
+            let _ = switch left {
+                Expr.MethodCall(mObj, mName, _) => {
+                    if mName == "get" or mName == "first" or mName == "last" or mName == "find" {
+                        let mTag = this._getExprTypeName(mObj)
+                        if mTag == "map" or mTag == "array" or mTag == "set" {
+                            isOptionGet = true
+                        } else {
+                            let _ = switch mObj {
+                                Expr.Identifier(gn) => {
+                                    let sn = this._sanitizeName(gn)
+                                    if this._mapVars.has(sn) or this._setVars.has(sn) { isOptionGet = true }
+                                    0
+                                },
+                                Expr.MemberAccess(_, _) => {
+                                    // `this.fieldMap.get(...)` etc.
+                                    if mTag == "" or mTag == "unknown" {
+                                        // Conservatively treat field method-calls of `get` as
+                                        // option-returning when the method name is a known
+                                        // collection accessor; runtime type-tracking is too
+                                        // weak to be sure, so prefer option-get lowering.
+                                        isOptionGet = true
+                                    }
+                                    0
+                                },
+                                _ => { 0 }
+                            }
+                        }
+                    }
+                    0
+                },
+                _ => { 0 }
+            }
+            if isOptionGet {
+                // Use the shared helper (suppresses the trailing .unwrap()
+                // that the normal Map.get path emits).
+                let _ = switch left {
+                    Expr.MethodCall(mObj2, mName2, mArgs2) => {
+                        this._emitOptionGetWithDefault(mObj2, mName2, mArgs2, right)
+                        0
+                    },
+                    _ => { 0 }
+                }
+                return
+            }
             this._write("(")
             this._emitExpr(left)
             this._write(" || ")
