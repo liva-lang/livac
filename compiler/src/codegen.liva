@@ -5526,9 +5526,9 @@ RustEmitter {
             if method == "round" { this._write("("); this._emitExpr(args[0]); this._write(" as f64).round() as i32"); return }
             if method == "sqrt" { this._write("("); this._emitExpr(args[0]); this._write(" as f64).sqrt()"); return }
             if method == "pow" { this._write("("); this._emitExpr(args[0]); this._write(" as f64).powf("); this._emitExpr(args[1]); this._write(" as f64)"); return }
-            if method == "max" { this._emitExpr(args[0]); this._write("_f64.max("); this._emitExpr(args[1]); this._write(" as f64)"); return }
-            if method == "min" { this._emitExpr(args[0]); this._write("_f64.min("); this._emitExpr(args[1]); this._write(" as f64)"); return }
-            if method == "clamp" { this._emitExpr(args[0]); this._write("_f64.max("); this._emitExpr(args[1]); this._write(" as f64).min("); this._emitExpr(args[2]); this._write(" as f64)"); return }
+            if method == "max" { this._write("("); this._emitExpr(args[0]); this._write(" as f64).max("); this._emitExpr(args[1]); this._write(" as f64)"); return }
+            if method == "min" { this._write("("); this._emitExpr(args[0]); this._write(" as f64).min("); this._emitExpr(args[1]); this._write(" as f64)"); return }
+            if method == "clamp" { this._write("("); this._emitExpr(args[0]); this._write(" as f64).max("); this._emitExpr(args[1]); this._write(" as f64).min("); this._emitExpr(args[2]); this._write(" as f64)"); return }
             if method == "random" { this._write("rand::random::<f64>()"); return }
             if method == "sign" {
                 this._write("{ let __v: f64 = ")
