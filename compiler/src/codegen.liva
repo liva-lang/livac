@@ -1241,6 +1241,35 @@ RustEmitter {
     _emitClass(decl: ClassDecl) {
         let className = $"{decl.name}"
 
+        // Interface detection: class with no fields AND all methods bodyless
+        // (no body, no exprBody) is treated as a compile-time-only interface
+        // and is NOT emitted. Bootstrap behavior (interfaces are validation only).
+        let hasField = false
+        let hasImplMethod = false
+        for m in decl.members {
+            let _ = switch m {
+                Member.Field(_) => { hasField = true; 0 },
+                Member.Method(md) => {
+                    let bodyOpt = md.body
+                    let exprOpt = md.exprBody
+                    if bodyOpt != null { hasImplMethod = true }
+                    if exprOpt != null { hasImplMethod = true }
+                    0
+                }
+            }
+        }
+        let isInterface = false
+        if hasField == false {
+            if hasImplMethod == false {
+                if decl.members.length > 0 {
+                    isInterface = true
+                }
+            }
+        }
+        if isInterface {
+            return
+        }
+
         // B125: register Map-typed field names in `_mapVars` so that downstream
         // checks (`for k, v in obj.field`, `obj.field.get(k) or ...`) recognize
         // member-access receivers as Map-typed without needing full type

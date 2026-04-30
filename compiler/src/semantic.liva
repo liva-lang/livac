@@ -1282,8 +1282,9 @@ SemanticAnalyzer {
     }
 
     _analyzeConstDecl(decl: ConstDecl) {
+        // Note: declaration was already registered by _registerConst pre-pass.
+        // Here we only infer the init type and bind it to the var-type registry.
         let initType = this.inferExprType(decl.init)
-        this.declareConst(decl.name, decl.typeRef)
         this._setVarType(decl.name, initType)
     }
 
