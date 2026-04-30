@@ -6083,9 +6083,13 @@ RustEmitter {
             this._emitExpr(obj)
             this._write("[(")
             if args.length > 0 { this._emitExpr(args[0]) }
-            this._write(") as usize..(")
-            if args.length > 1 { this._emitExpr(args[1]) }
-            this._write(") as usize].to_string()")
+            if args.length > 1 {
+                this._write(") as usize..(")
+                this._emitExpr(args[1])
+                this._write(") as usize].to_string()")
+            } else {
+                this._write(") as usize..].to_string()")
+            }
             return
         }
         if method == "indexOf" {
@@ -6228,9 +6232,13 @@ RustEmitter {
             this._emitExpr(obj)
             this._write("[(")
             if args.length > 0 { this._emitExpr(args[0]) }
-            this._write(") as usize..(")
-            if args.length > 1 { this._emitExpr(args[1]) }
-            this._write(") as usize].to_string()")
+            if args.length > 1 {
+                this._write(") as usize..(")
+                this._emitExpr(args[1])
+                this._write(") as usize].to_string()")
+            } else {
+                this._write(") as usize..].to_string()")
+            }
             return true
         }
         if method == "indexOf" {
