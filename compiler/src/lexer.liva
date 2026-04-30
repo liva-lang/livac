@@ -411,6 +411,13 @@ Lexer {
                     braceDepth += 1
                 } else if ch == "}" {
                     braceDepth -= 1
+                } else if ch == "\\" {
+                    // B151: escape inside placeholder — copy both \ and next char
+                    // verbatim so the parser can unescape later. This prevents
+                    // a `\"` from being mistaken for an inner string opener.
+                    content += this._advance()
+                    if not this._isAtEnd() => content += this._advance()
+                    continue
                 } else if ch == "\"" {
                     content += this._advance()
                     while not this._isAtEnd() and this._peek() != "\"" {

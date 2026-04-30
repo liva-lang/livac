@@ -820,6 +820,7 @@ Parser {
             if this._match(TokenKind.RParen) {
                 let result = TypeRef.Tuple([])
                 if this._match(TokenKind.Question) => return TypeRef.OptionalType(result)
+                if this._match(TokenKind.Bang) => return TypeRef.Fallible(result)
                 return result
             }
             let first = this._parseType()
@@ -835,6 +836,7 @@ Parser {
                 this._expect(TokenKind.RParen)
                 let result = TypeRef.Tuple(types)
                 if this._match(TokenKind.Question) => return TypeRef.OptionalType(result)
+                if this._match(TokenKind.Bang) => return TypeRef.Fallible(result)
                 return result
             }
             this._error("Unexpected type in parentheses — did you mean a tuple type like (T,)?")
@@ -848,6 +850,7 @@ Parser {
             this._expect(TokenKind.RBracket)
             let result = TypeRef.Array(inner)
             if this._match(TokenKind.Question) => return TypeRef.OptionalType(result)
+            if this._match(TokenKind.Bang) => return TypeRef.Fallible(result)
             return result
         }
 
@@ -879,21 +882,25 @@ Parser {
             if base == "Map" and args.length == 2 {
                 let mapResult = TypeRef.MapType(args[0], args[1])
                 if this._match(TokenKind.Question) => return TypeRef.OptionalType(mapResult)
+                if this._match(TokenKind.Bang) => return TypeRef.Fallible(mapResult)
                 return mapResult
             }
             if base == "Set" and args.length == 1 {
                 let setResult = TypeRef.SetType(args[0])
                 if this._match(TokenKind.Question) => return TypeRef.OptionalType(setResult)
+                if this._match(TokenKind.Bang) => return TypeRef.Fallible(setResult)
                 return setResult
             }
             let genResult = TypeRef.Generic(base, args)
             if this._match(TokenKind.Question) => return TypeRef.OptionalType(genResult)
+            if this._match(TokenKind.Bang) => return TypeRef.Fallible(genResult)
             return genResult
         }
 
         // Simple type
         let result = TypeRef.Simple(base)
         if this._match(TokenKind.Question) => return TypeRef.OptionalType(result)
+        if this._match(TokenKind.Bang) => return TypeRef.Fallible(result)
         return result
     }
 
@@ -2228,6 +2235,22 @@ parseStringTemplateParts(raw: string): [StringTemplatePart] {
             let exprSrc = ""
             while i < chars.length and depth > 0 {
                 let next = chars[i]
+                // B151: unescape \", \\, \n, \r, \t inside the placeholder.
+                // The lexer keeps these escapes literal so the outer string
+                // can survive; here we re-cook them before sub-parsing.
+                if next == "\\" and i + 1 < chars.length {
+                    let nx = chars[i + 1]
+                    if nx == "\"" { exprSrc += "\""; i += 2; continue }
+                    if nx == "\\" { exprSrc += "\\"; i += 2; continue }
+                    if nx == "n"  { exprSrc += "\n"; i += 2; continue }
+                    if nx == "r"  { exprSrc += "\r"; i += 2; continue }
+                    if nx == "t"  { exprSrc += "\t"; i += 2; continue }
+                    // Unknown escape — preserve as-is
+                    exprSrc += next
+                    exprSrc += nx
+                    i += 2
+                    continue
+                }
                 if next == "{" {
                     depth += 1
                     exprSrc += next
