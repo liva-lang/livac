@@ -4631,7 +4631,14 @@ RustEmitter {
                     this._emitStringTemplateInline(args[0])
                     this._write(")")
                 } else {
-                    this._write("println!(\"{}\", ")
+                    // Use Debug format for collections, Display for scalars/strings
+                    let argTag = this._getExprTypeName(args[0])
+                    let useDebug = argTag == "array" or argTag == "map" or argTag == "set"
+                    if useDebug {
+                        this._write("println!(\"{:?}\", ")
+                    } else {
+                        this._write("println!(\"{}\", ")
+                    }
                     this._emitExpr(args[0])
                     this._write(")")
                 }
@@ -4686,7 +4693,13 @@ RustEmitter {
                     this._emitStringTemplateInline(args[0])
                     this._write(")")
                 } else {
-                    this._write("println!(\"{}\", ")
+                    let argTag2 = this._getExprTypeName(args[0])
+                    let useDebug2 = argTag2 == "array" or argTag2 == "map" or argTag2 == "set"
+                    if useDebug2 {
+                        this._write("println!(\"{:?}\", ")
+                    } else {
+                        this._write("println!(\"{}\", ")
+                    }
                     this._emitExpr(args[0])
                     this._write(")")
                 }
