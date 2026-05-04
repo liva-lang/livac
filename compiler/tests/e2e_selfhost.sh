@@ -75,9 +75,9 @@ for t in "${TESTS[@]}"; do
     fi
 
     # Compile with self-host gen-2
-    # NOTE: gen-2 may print "Build failed" while still producing a binary
-    # (a known bug in self-host main.liva exit-code handling). We rely on
-    # the presence of the binary, not on the exit code.
+    # Note: as of v2.0 (BUG-1 fixed) gen-2 correctly reports build status.
+    # We still tolerate non-zero exit codes here for forward compatibility
+    # with future error-propagation work, and rely on the binary's presence.
     "$LIVAC_SELFHOST" build --release --output "$tmp_b" "$src" >/dev/null 2>&1 || true
     bin_b=$(find "$tmp_b/target/release" -maxdepth 1 -type f -executable ! -name "*.d" 2>/dev/null | head -1)
     if [[ -z "$bin_b" ]]; then

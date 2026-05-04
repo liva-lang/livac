@@ -5,9 +5,18 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # CI-3: nightly self-host gate (full run_all.sh including idempotence)
+  schedule:
+    - cron: '0 4 * * *'
+  # CI-3: also runnable on demand
+  workflow_dispatch:
 
 env:
-  CARGO_TERM_COLOR: always
+  # Hermetic snapshot tests — the `colored` crate respects NO_COLOR.
+  # CARGO_TERM_COLOR=never strips color from cargo's own output.
+  CARGO_TERM_COLOR: never
+  NO_COLOR: '1'
+  CLICOLOR: '0'
 
 jobs:
   test:
@@ -39,6 +48,61 @@ jobs:
       - name: Run tests
         run: cargo test --verbose
 
+  # CI-2: protect gen-2 self-host on every PR (Linux only — fastest gate).
+  # Skips rebuild_selfhost (covered by selfhost-full nightly job).
+  selfhost-quick:
+    name: Self-host gates (quick)
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: selfhost-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: selfhost-
+      - name: Build bootstrap (release)
+        run: cargo build --release
+      - name: Bootstrap → gen-1 → gen-2 (rebuild self-host)
+        run: bash compiler/tests/rebuild_selfhost.sh
+      - name: Stage gen-2 binary
+        run: cp ~/tmp/gen2_build/target/release/main target/livac-gen2-release
+      - name: Run all gates (quick — skips rebuild_selfhost)
+        run: bash compiler/tests/run_all.sh --quick
+
+  # CI-3: full self-host gate including idempotence (gen-2 ≡ gen-3).
+  # Runs nightly and on workflow_dispatch.
+  selfhost-full:
+    name: Self-host gates (full + idempotence)
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: selfhost-full-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: selfhost-full-
+      - name: Build bootstrap (release)
+        run: cargo build --release
+      - name: Bootstrap → gen-1 → gen-2 → gen-3 (idempotence)
+        run: bash compiler/tests/rebuild_selfhost.sh
+      - name: Stage gen-2 binary
+        run: cp ~/tmp/gen2_build/target/release/main target/livac-gen2-release
+      - name: Run all gates (full)
+        run: bash compiler/tests/run_all.sh
+
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
@@ -60,3 +124,4 @@ jobs:
           components: rustfmt
       - name: Check formatting
         run: cargo fmt --check
+

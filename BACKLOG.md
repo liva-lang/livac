@@ -847,6 +847,62 @@ cargo test --release 528+).
 
 ---
 
+## Fase 12 — Pre-tag v2.0 (21 ítems) — ✅ DONE (2026-05-04)
+
+> **Origen:** auditoría externa `compiler/docs/SELF_HOSTED_V2_AUDIT_2026-05-04.md`
+> + matices propios (BUG-1 exit code, REL-2 Cargo.lock).
+> **Objetivo:** todo lo que el informe identifica como bloqueante o
+> deuda barata se cierra ANTES del tag. Nada se posterga a post-2.0
+> excepto items con rationale técnico explícito.
+> **Última actualización:** 2026-05-04
+
+### Grupo A — Release hygiene (versión y narrativa)
+
+- [x] **REL-1.** Bump `Cargo.toml` 1.5.0 → 2.0.0-rc1.
+- [x] **REL-2.** `Cargo.lock` sincronizado.
+- [x] **REL-3.** `README.md` badge → "531 tests, 7 gates".
+- [x] **REL-4.** `README.md` sección self-hosted con narrativa gen-2 + bootstrap congelado.
+- [x] **REL-5.** `vscode-extension` mantiene 0.14.0 (compatible).
+
+### Grupo B — CI / hermeticidad
+
+- [x] **CI-1.** `.cargo/config.toml` con `NO_COLOR=1` + `CLICOLOR=0`.
+- [x] **CI-2.** Job `selfhost-quick` para PRs en `.github/workflows/ci.yml`.
+- [x] **CI-3.** Job nightly + manual `selfhost-full` con `run_all.sh` completo.
+- [x] **CI-4.** 2 tests `#[ignore]` resueltos: `test_imports` (fixture migrada a sintaxis actual de imports), `test_length_misuse` (semantic phase ahora rechaza `.length` en identifier con tipo conocido distinto a array/string).
+
+### Grupo C — Bugs funcionales reales
+
+- [x] **BUG-1.** Fix Process.exec en `compiler/src/codegen.liva` línea 6014:
+      ya no trata stderr no vacío como error; combina stdout+stderr
+      como bootstrap (`src/codegen.rs` línea 15265). Verificado:
+      `livac build` ahora reporta "Build successful" correctamente.
+- [x] **BUG-2.** Causa raíz confirmada: binario global `~/.liva/bin/livac`
+      era 1.5.0; reemplazado por 2.0.0-rc1 desde HEAD. LSP ahora corre
+      gen-2 actualizado.
+- [x] **BUG-3.** No necesario — BUG-2 resuelto vía reinstall.
+
+### Grupo D — Documentación honesta
+
+- [x] **DOC-1.** Disclaimer en `compiler/docs/PLAN.md`.
+- [x] **DOC-2.** Disclaimer en `compiler/docs/ISSUES.md`.
+- [x] **DOC-3.** Política LSP/v2.0 en `README.md` (sección self-hosted).
+- [x] **DOC-4.** Sección "Gate oficial v2.0" en `benchmarks/RESULTS.md`.
+- [x] **DOC-5.** Sort/Filter+Map/classes 0ms resueltos: benches reescritos con checksums laterales + workloads más grandes + input adversarial para Sort. Resultado: 10/10 benchmarks bajo 1.15x.
+
+### Grupo E — Validación final + tag
+
+- [x] **TAG-1.** `run_all.sh` 7/7 verde (rebuild 63s · bootstrap 5s · multifile 26s · regression 43s · complex 33s · e2e 71s · cargo 31s).
+- [x] **TAG-2.** `run_official.sh` ejecutado; gate <1.15x confirmado (Line 1.08x · CSV 0.99x · Word 0.98x).
+- [x] **TAG-3.** `hydrate-ai-skills.sh` ejecutado; 10 proyectos hidratados sin huérfanos.
+- [x] **TAG-4.** Commit + tag `v2.0.0-rc1` (este commit).
+
+> **Gates de aceptación de Fase 12 (= release gate v2.0):**
+> 21/21 ítems cerrados; `run_all.sh` completo verde; `Cargo.toml` y
+> `livac --version` reportan 2.0.0(-rc1); CI Linux protege gen-2 en PRs.
+
+---
+
 
 
 > **Objetivo:** cerrar v2.0 al 100% en compilación, tests, cobertura y bench.

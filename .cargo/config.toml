@@ -1,0 +1,13 @@
+# Cargo configuration for livac.
+#
+# [env] propagates these variables to every cargo subcommand
+# (build, test, run, …) so test snapshots that capture diagnostic
+# output stay hermetic — the `colored` crate respects NO_COLOR
+# natively, so we never embed ANSI escapes in snapshot fixtures.
+#
+# Set CLICOLOR=0 too as belt-and-braces: it disables color in the
+# few tools that don't honour NO_COLOR (older `colored` versions,
+# and any third-party prints we forget about).
+[env]
+NO_COLOR = "1"
+CLICOLOR = "0"

@@ -1,31 +1,54 @@
 ---
 source: tests/parser_tests.rs
+assertion_line: 17
 expression: json
 ---
 {
   "items": [
     {
       "Import": {
-        "name": "std",
+        "imports": [
+          "add",
+          "multiply"
+        ],
+        "source": "./math",
+        "is_wildcard": false,
         "alias": null
       }
     },
     {
       "Import": {
-        "name": "math",
+        "imports": [],
+        "source": "./utils",
+        "is_wildcard": true,
+        "alias": "utils"
+      }
+    },
+    {
+      "Import": {
+        "imports": [
+          "Server"
+        ],
+        "source": "http",
+        "is_wildcard": false,
         "alias": null
       }
     },
     {
       "UseRust": {
         "crate_name": "serde",
-        "alias": null
+        "alias": null,
+        "version": "1.0"
       }
     },
     {
       "UseRust": {
         "crate_name": "tokio",
-        "alias": null
+        "alias": null,
+        "features": [
+          "macros",
+          "rt"
+        ]
       }
     },
     {
@@ -50,7 +73,8 @@ expression: json
                         }
                       }
                     ],
-                    "exec_policy": "normal"
+                    "exec_policy": "normal",
+                    "type_args": []
                   }
                 }
               }

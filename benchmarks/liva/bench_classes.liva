@@ -56,7 +56,10 @@ Particle {
 }
 
 main() {
-    let iterations = 1000
+    let iterations = 5000
+    let chkA = 0.0
+    let chkV = 0.0
+    let chkP = 0.0
 
     // Benchmark 1: Shape area/perimeter computation
     let shapes: [Shape] = []
@@ -77,6 +80,7 @@ main() {
             totalArea = totalArea + shapeArea(shape)
             totalPerim = totalPerim + shapePerimeter(shape)
         }
+        chkA = chkA + totalArea + totalPerim
         i = i + 1
     }
     let t1End = Date.timestamp()
@@ -92,7 +96,7 @@ main() {
             let v2 = Vec2(0.1, 0.2)
             v1 = v1.add(v2)
             v1 = v1.scale(0.999)
-            let _ = v1.magnitude()
+            chkV = chkV + v1.magnitude()
             j = j + 1
         }
         i = i + 1
@@ -116,7 +120,7 @@ main() {
             let j = 0
             while j < 100 {
                 particles[pi].step(0.01)
-                let _ = particles[pi].kineticEnergy()
+                chkP = chkP + particles[pi].kineticEnergy()
                 j = j + 1
             }
             pi = pi + 1
@@ -125,4 +129,6 @@ main() {
     }
     let t3End = Date.timestamp()
     print($"Particle sim: {t3End - t3Start}ms ({iterations} x 100 particles x 100 steps)")
+
+    print($"checksums: {chkA} {chkV} {chkP}")
 }

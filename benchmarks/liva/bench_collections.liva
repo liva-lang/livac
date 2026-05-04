@@ -11,6 +11,17 @@ fillArray(n: number): [number] {
     return arr
 }
 
+fillReversed(n: number): [number] {
+    // Adversarial input for Sort: unsorted in descending order.
+    let arr: [number] = []
+    let i = 0
+    while i < n {
+        arr.push(n - i)
+        i = i + 1
+    }
+    return arr
+}
+
 sumArray(arr: [number]): number {
     let total = 0
     for n in arr {
@@ -48,14 +59,21 @@ lookupAll(m: Map<string, number>, n: number): number {
 
 main() {
     let iterations = 1000
-    let size = 5000
+    let size = 50000
+
+    // Side-effect accumulators (printed at the end so the optimizer
+    // cannot elide the work being measured).
+    let chk1 = 0
+    let chk2 = 0
+    let chk3 = 0
+    let chk4 = 0
 
     // Benchmark 1: Array fill + sum
     let t1Start = Date.timestamp()
     let i = 0
     while i < iterations {
         let arr = fillArray(size)
-        let _ = sumArray(arr)
+        chk1 = chk1 + sumArray(arr)
         i = i + 1
     }
     let t1End = Date.timestamp()
@@ -66,7 +84,8 @@ main() {
     let t2Start = Date.timestamp()
     i = 0
     while i < iterations {
-        let _ = filterAndMap(baseArr)
+        let result = filterAndMap(baseArr)
+        chk2 = chk2 + result.length
         i = i + 1
     }
     let t2End = Date.timestamp()
@@ -77,20 +96,23 @@ main() {
     i = 0
     while i < iterations {
         let lookup = buildLookup(1000)
-        let _ = lookupAll(lookup, 1000)
+        chk3 = chk3 + lookupAll(lookup, 1000)
         i = i + 1
     }
     let t3End = Date.timestamp()
     print($"Map build+lookup: {t3End - t3Start}ms ({iterations} x 1000)")
 
-    // Benchmark 4: Sort
+    // Benchmark 4: Sort (adversarial: reverse-sorted input)
     let t4Start = Date.timestamp()
     i = 0
     while i < iterations {
-        let arr = fillArray(size)
+        let arr = fillReversed(size)
         arr.sort()
+        chk4 = chk4 + arr[0]
         i = i + 1
     }
     let t4End = Date.timestamp()
     print($"Sort: {t4End - t4Start}ms ({iterations} x {size})")
+
+    print($"checksums: {chk1} {chk2} {chk3} {chk4}")
 }

@@ -62,7 +62,6 @@ fn test_expressions() {
 }
 
 #[test]
-#[ignore = "TODO: Fix import std syntax parsing"]
 fn test_imports() {
     test_parser_ok("imports");
 }

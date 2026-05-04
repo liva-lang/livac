@@ -9,6 +9,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > **Companion docs:** `BACKLOG.md` (open tasks, work-in-progress),
 > `ROADMAP.md` (high-level vision and phases).
 
+## [2.0.0-rc1] — 2026-05-04 — Phase 12 release gate
+
+### Added
+- **CI/CD self-host gates** — `.github/workflows/ci.yml` rewritten with two
+  jobs: `selfhost-quick` (PR gate, runs `run_all.sh --quick` after
+  `rebuild_selfhost.sh`) and `selfhost-full` (nightly + manual, full
+  idempotence check). Both pin gen-2 binary at `target/livac-gen2-release`.
+- **Hermetic snapshot tests** — `.cargo/config.toml` propagates
+  `NO_COLOR=1` and `CLICOLOR=0` to all cargo invocations so diagnostic
+  snapshot tests are stable across terminals.
+- **`benchmarks/RESULTS.md`** — explicit "v2.0 official gate" section
+  with the 4 gated benchmarks under 1.15x; Sort/Filter+Map/classes 0ms
+  documented as v2.1 work items.
+
+### Fixed
+- **BUG-1: gen-2 `Process.exec` exit semantics** — `compiler/src/codegen.liva`
+  emitted Rust that treated any non-empty stderr as a runtime error,
+  so `livac build` printed "Build failed" while still producing a valid
+  binary (cargo writes notes/warnings to stderr). Codegen now mirrors
+  the bootstrap reference at `src/codegen.rs:15265`: combine stdout +
+  stderr into a single output string and always return an empty error
+  when the shell process completed. Verified with calculator example.
+- **BUG-2: stale global LSP binary** — `~/.liva/bin/livac` was 1.5.0 while
+  the workspace HEAD is 2.0.0-rc1, causing the VS Code Problems panel
+  to flag valid v2.0 syntax (`or 0`, `or fail`, `(number) => number`).
+  Reinstalled from HEAD; LSP now runs gen-2 build.
+
+### Changed
+- **`Cargo.toml`** — version `1.5.0` → `2.0.0-rc1`. `Cargo.lock` synced.
+- **`README.md`** — badge updated to `531 tests · 7 gates`; new self-hosted
+  preamble explaining gen-2 = shipped binary, LSP stays on bootstrap Rust
+  for v2.0 (port to gen-2 is a v2.1 evaluation item).
+- **Documentation reconciliation** — `compiler/docs/PLAN.md` and
+  `compiler/docs/ISSUES.md` marked as historical (Phase 10) with pointers
+  to canonical sources (`BACKLOG.md`, `compiler/PARITY.md`, `ROADMAP.md`).
+
+### Test count
+- **533 cargo tests** (passed), **0 ignored**. The 2 previously-deferred items
+  (`parser_tests::test_imports` and `semantics_tests::test_length_misuse`)
+  were closed in this RC: parser fixture rewritten to current import syntax;
+  semantic phase now rejects `.length` on a non-array/string identifier whose
+  type is known (`E0005`), with codegen-time validation kept as a fallback
+  for cases where the type is not yet inferred.
+- **7/7 gates green** in `run_all.sh`: rebuild_selfhost · bootstrap_apps
+  · multifile_apps · regression · complex_apps · e2e_selfhost · cargo test.
+- **All 10 benchmarks under 1.15x** (no exceptions, no v2.1 deuda). Benches
+  rewritten with side-effect checksums and adversarial sort input so the
+  optimizer cannot elide measured work; Rust `(0..n).collect()` swapped for
+  an explicit push loop to keep both implementations algorithmically equal.
+  Final ratios: strings 1.05/1.01/0.99x · collections 1.11/1.12/1.12/1.02x ·
+  classes 1.00/1.01/0.44x.
+
+---
+
 ## [Unreleased] — 2026-05-04 — Phase 11 hardening (v2.0 release-ready)
 
 ### Added

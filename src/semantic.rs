@@ -2947,8 +2947,11 @@ impl SemanticAnalyzer {
             Expr::SetLiteral(_) => true,
             Expr::Literal(Literal::String(_)) => true,
             Expr::StringTemplate { .. } => true,
-            // Allow .length on identifiers - will be validated at codegen
-            Expr::Identifier(_) => true,
+            // For identifiers: if we know the type, validate it; otherwise defer to codegen.
+            Expr::Identifier(name) => match self.lookup_symbol(name) {
+                Some(Some(ty)) => self.type_supports_length(&Self::strip_optional(ty.clone())),
+                _ => true, // Type unknown — defer to codegen.
+            },
             // Allow .length on member access (e.g., this._grades.length) and method calls
             // (e.g., book.getPassingGrades().length) — validated at codegen
             Expr::Member { .. } => true,

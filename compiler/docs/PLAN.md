@@ -1,5 +1,13 @@
 # Self-Hosting: Compilador de Liva escrito en Liva
 
+> ⚠️ **DOCUMENTO HISTÓRICO (Phase 10 — in-progress).**  
+> Las métricas y líneas-de-código aquí referidas (ej. `codegen.liva`
+> 4.941 LOC) están desfasadas respecto al estado actual
+> (`codegen.liva` ~9.086 LOC, Phase 11 cerrada, v2.0 release-ready).  
+> **Fuente de verdad actual:** `BACKLOG.md` (tareas y fases),
+> `compiler/PARITY.md` (paridad gen-2 vs bootstrap), `ROADMAP.md`
+> (visión y fases históricas), `CHANGELOG.md` (cambios por release).
+
 > **Estado:** Fase 8 completada — Fase 9 cerrada (9.1/9.2/9.3/9.4/9.5/9.6/9.8/9.10 done, 9.9 ya cubierto, 9.7/9.11 absorbidos por Fase 10); bench oficial gen-2 vs hand-written Rust ejecutado (`benchmarks/RESULTS.md`); idempotencia gen-2≡gen-3 (binario `cmp = 0`). **Fase 10 (optimizaciones) en curso — prerrequisito de v2.0.** Ver sección al final del documento.
 > **Última actualización:** 2026-04-27
 > **Branch:** `feat/self-hosting-v2`

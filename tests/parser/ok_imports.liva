@@ -1,8 +1,10 @@
-// Imports y uso de crates
-import std
-import math
-use rust "serde"
-use rust "tokio"
+// Imports — all valid forms supported by the parser
+import { add, multiply } from "./math"
+import * as utils from "./utils"
+import { Server } from "http"
+
+use rust "serde" version "1.0"
+use rust "tokio" features ["macros", "rt"]
 
 main() {
     print("Using imports")

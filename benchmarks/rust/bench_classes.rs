@@ -10,7 +10,7 @@ enum Shape {
 
 fn shape_area(s: &Shape) -> f64 {
     match s {
-        Shape::Circle(r) => std::f64::consts::PI * r * r,
+        Shape::Circle(r) => 3.14159265 * r * r,
         Shape::Rectangle(w, h) => w * h,
         Shape::Triangle(b, h) => 0.5 * b * h,
     }
@@ -18,17 +18,14 @@ fn shape_area(s: &Shape) -> f64 {
 
 fn shape_perimeter(s: &Shape) -> f64 {
     match s {
-        Shape::Circle(r) => 2.0 * std::f64::consts::PI * r,
+        Shape::Circle(r) => 2.0 * 3.14159265 * r,
         Shape::Rectangle(w, h) => 2.0 * (w + h),
         Shape::Triangle(b, h) => b + h + (b * b + h * h).sqrt(),
     }
 }
 
 #[derive(Clone)]
-struct Vec2 {
-    x: f64,
-    y: f64,
-}
+struct Vec2 { x: f64, y: f64 }
 
 impl Vec2 {
     fn new(x: f64, y: f64) -> Self { Vec2 { x, y } }
@@ -39,11 +36,7 @@ impl Vec2 {
     fn dot(&self, other: &Vec2) -> f64 { self.x * other.x + self.y * other.y }
 }
 
-struct Particle {
-    pos: Vec2,
-    vel: Vec2,
-    mass: f64,
-}
+struct Particle { pos: Vec2, vel: Vec2, mass: f64 }
 
 impl Particle {
     fn new(x: f64, y: f64, vx: f64, vy: f64, mass: f64) -> Self {
@@ -60,7 +53,10 @@ impl Particle {
 }
 
 fn main() {
-    let iterations = 1000;
+    let iterations = 5000;
+    let mut chk_a = 0.0_f64;
+    let mut chk_v = 0.0_f64;
+    let mut chk_p = 0.0_f64;
 
     // Benchmark 1: Shape area/perimeter computation
     let mut shapes = Vec::new();
@@ -79,6 +75,7 @@ fn main() {
             total_area += shape_area(shape);
             total_perim += shape_perimeter(shape);
         }
+        chk_a += total_area + total_perim;
     }
     println!("Shape compute: {}ms ({} x 3000 shapes)", t1.elapsed().as_millis(), iterations);
 
@@ -90,7 +87,7 @@ fn main() {
             let v2 = Vec2::new(0.1, 0.2);
             v1 = v1.add(&v2);
             v1 = v1.scale(0.999);
-            let _ = v1.magnitude();
+            chk_v += v1.magnitude();
         }
     }
     println!("Vec2 ops: {}ms ({} x 10000 ops)", t2.elapsed().as_millis(), iterations);
@@ -107,9 +104,11 @@ fn main() {
         for p in particles.iter_mut() {
             for _ in 0..100 {
                 p.step(0.01);
-                let _ = p.kinetic_energy();
+                chk_p += p.kinetic_energy();
             }
         }
     }
     println!("Particle sim: {}ms ({} x 100 particles x 100 steps)", t3.elapsed().as_millis(), iterations);
+
+    println!("checksums: {} {} {}", chk_a, chk_v, chk_p);
 }

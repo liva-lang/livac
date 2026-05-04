@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/liva-lang/livac/actions/workflows/ci.yml/badge.svg)](https://github.com/liva-lang/livac/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/liva-lang/livac?include_prereleases&label=latest)](https://github.com/liva-lang/livac/releases/latest)
-[![Tests](https://img.shields.io/badge/tests-337%20passing-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-533%20passing%20%C2%B7%207%20gates-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 > **The simplicity of TypeScript, the expressiveness of Python, and the safety of Rust.**
@@ -391,6 +391,18 @@ Liva Source (.liva)
 ---
 
 ## 🧪 Battle-Tested
+
+**v2.0 self-hosted release.** The compiler is itself written in Liva
+(`compiler/src/*.liva`, ~16 000 LOC). The shipped binary is `gen-2`
+— the output of the Liva-written compiler compiling itself, validated
+as idempotent against `gen-3` (gen-2 src ≡ gen-3 src AND gen-2 bin ≡
+gen-3 bin). The original Rust bootstrap is **frozen** post-`ba7f263`
+and kept only as a build-time reference.
+
+**Editor / LSP policy:** v2.0 ships the LSP (`livac lsp`) backed by the
+bootstrap Rust compiler — mature, fast, fully featured. v2.1 will
+evaluate porting the LSP to gen-2; today the gen-2 compiler is used
+for every actual `build` / `run` / `check` invocation.
 
 Liva was built through extensive **dogfooding** — 10+ real applications were built with Liva, uncovering and fixing **71 bugs** (100% resolved):
 
