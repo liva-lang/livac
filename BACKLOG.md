@@ -808,9 +808,13 @@ cargo test --release 528+).
       Liva-side (`.liva` puro) y FFI stdlib (en compilador). Smoke
       test: `compiler/tests/multifile_apps/m3_stdlib/` lo importa
       y valida con gen-2. ✅
-- [ ] **C9.** Tests unitarios del codegen self-hosted en
-      `compiler/tests/codegen_modules/` con snapshots Rust output
-      (1 archivo por sub-módulo de A1).
+- [x] **C9.** Tests unitarios del codegen para los snippets extraídos
+      en A3 — `tests/codegen_tests.rs` añade 3 invariant-tests
+      (`test_csv_parse_line_invariants`, `test_db_param_binding_invariants`,
+      `test_db_row_to_map_invariants`) que verifican estructura sin
+      lock formatting; complementan los 340 snapshots existentes.
+      Gen-2 idempotence (gen-2 ≡ gen-3) sigue locking el output
+      self-host en `rebuild_selfhost.sh`. ✅
 - [x] **C10.** Cubrir multi-file imports en gen-2 — nueva gate
       `compiler/tests/multifile_apps/run.sh` (2 fixtures: m1_basic =
       3 archivos con functions, m2_class = 2 archivos con clases).

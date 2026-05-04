@@ -9,7 +9,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > **Companion docs:** `BACKLOG.md` (open tasks, work-in-progress),
 > `ROADMAP.md` (high-level vision and phases).
 
-## [Unreleased] — 2026-04-30 — Self-host codegen polish
+## [Unreleased] — 2026-05-04 — Phase 11 hardening (v2.0 release-ready)
+
+### Added
+- **`compiler/tests/multifile_apps/`** — new gen-2 gate covering multi-file
+  imports with 3 fixtures (m1_basic = 3 files functions, m2_class = 2 files
+  classes, m3_stdlib = imports `lib/std/validators`). Wired into
+  `compiler/tests/run_all.sh` between `bootstrap_apps` and `regression`.
+- **`lib/std/validators.liva`** — first reusable Liva-side stdlib module:
+  `isBlank`, `isNumeric`, `isEmail`, `isUrl`. Pure, total, no FFI.
+- **`lib/std/README.md`** — documents the split between Liva-side stdlib
+  (`.liva` source) and FFI stdlib (compiler-built).
+- **`compiler/tests/run_all.sh`** + **`make test-full` / `make test-quick`**
+  — unified runner that executes all 7 gates with a summary table.
+- **`scripts/hydrate-ai-skills.sh`** — rebuilds `examples/ai/*/.copilot/skills/liva-lang/`
+  from the canonical `skills/liva-lang/` + `docs/` references.
+- **3 codegen invariant tests** in `tests/codegen_tests.rs` guarding the
+  shape of the Tier A3 extracted constants (`CSV_PARSE_LINE`,
+  `DB_ROW_TO_MAP`, `DB_PARAM_BINDING`).
+
+### Changed
+- **`compiler/src/codegen.liva`** — `.length` / `.len()` now emits
+  `(<expr>.len() as i32)` (parenthesised) to avoid Rust's
+  `<` ambiguity when followed by a comparison.
+- **`compiler/src/codegen.liva`** — top-level constants
+  (`CSV_PARSE_LINE`, `CSV_ESCAPE_FIELD`, `DB_ROW_TO_MAP`,
+  `DB_PARAM_BINDING(_TAIL)`) extract repeated stdlib emission snippets
+  for maintainability (Tier A3).
+- **`compiler/PARITY.md`** — resynced with reality: 21/21 baseline,
+  Tier 1+2+3 historical ledger marked completed.
+- **`docs/QUICK_REFERENCE.md` § 12** + **`.github/copilot-instructions.md`**
+  — replaced aspirational "Jest-like" matchers/lifecycle with honest
+  "Reality Check": today's `test_*` runner, full `liva/test` planned v2.x.
+- **`BACKLOG.md` / `ROADMAP.md` / `CHANGELOG.md`** — headers reworked
+  with explicit "Source of truth for: …" + "Companion docs" blocks.
+
+### Removed
+- **`examples/ai/json-parser/.copilot/`** — 216 tracked files / ~91 580 LOC
+  now hydrated on demand via `scripts/hydrate-ai-skills.sh`.
+  `examples/ai/*/.copilot/` is `.gitignore`d.
+- **`compiler/src/main.liva.bak`**, **`compiler/test_concat.liva`**,
+  **`compiler/test_suite.liva`** — orphaned scratch files.
+
+### Validation
+All 7 gates green:
+- `rebuild_selfhost` — gen-2 src ≡ gen-3 src AND gen-2 bin ≡ gen-3 bin
+- `bootstrap_apps (gen-2)` — 21/21
+- `multifile_apps (gen-2)` — 3/3 fixtures
+- `regression` — 5/5
+- `complex_apps` — 4/4
+- `e2e_selfhost` — 5/5 stdout-identical
+- `cargo test --release` — 528+ pass
+
+### Deferred to v2.1 (documented in BACKLOG with rationale)
+- **A1**: Modularise `compiler/src/codegen.liva` (~9 085 LOC) into 7
+  sub-modules — needs Liva `partial class` keyword.
+- **A2**: Consolidate 25+ `Map` state fields into `EmitContext` —
+  needs Liva mut-borrow of `Map<K,V>` parameters.
+- **C10b**: gen-2 CLI subcommand coverage in `main.rs` — pure
+  coverage-metric polish; CLI is exercised indirectly by every gate.
+
+---
+
+## [2026-04-30] — Self-host codegen polish
 
 ### Fixed (self-host codegen — discovered via dogfooding examples)
 - **Top-level `const` double-registration**: `_analyzeConstDecl` no longer calls

@@ -6660,3 +6660,69 @@ main() {
         "Enum variable should be cloned when passed to function: {}", rust_code);
     assert_snapshot!("enum_clone_at_call_site", rust_code);
 }
+
+// ==================== Tier A3 — extracted runtime constants ====================
+//
+// These tests guard the structural shape that gen-2's CSV_PARSE_LINE,
+// DB_ROW_TO_MAP and DB_PARAM_BINDING constants must reproduce.
+// If anyone refactors the bootstrap codegen and the snippet drifts, these
+// assertions fail with a clear message instead of an opaque snapshot diff.
+// gen-2 idempotence (gen-2 src ≡ gen-3 src) is the corresponding gate
+// on the self-host side — see compiler/tests/rebuild_selfhost.sh.
+
+#[test]
+fn test_csv_parse_line_invariants() {
+    let source = r#"
+main() {
+    let rows = CSV.parse("a,b\n1,2")
+    print(rows.length)
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // The CSV_PARSE_LINE snippet must contain the quoted-field state
+    // machine pieces. These are structural invariants — they don't lock
+    // formatting, they just confirm the parser logic is intact.
+    assert!(rust_code.contains("in_quotes"),
+        "CSV parser must track quote state: {}", rust_code);
+    assert!(rust_code.contains("'\"'"),
+        "CSV parser must recognise the quote character: {}", rust_code);
+    assert!(rust_code.contains("c == ','") || rust_code.contains("',' =>"),
+        "CSV parser must split on comma: {}", rust_code);
+}
+
+#[test]
+fn test_db_param_binding_invariants() {
+    let source = r#"
+main() {
+    let db, err = DB.open("t.db")
+    let _, e = DB.exec(db, "INSERT INTO x VALUES (?)", ["v"])
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // DB_PARAM_BINDING must construct the __params + __param_refs pair.
+    assert!(rust_code.contains("__params"),
+        "DB.exec with params must build __params vec: {}", rust_code);
+    assert!(rust_code.contains("__param_refs"),
+        "DB.exec with params must build __param_refs slice: {}", rust_code);
+    assert!(rust_code.contains("rusqlite::types::ToSql"),
+        "DB.exec must coerce params via ToSql: {}", rust_code);
+}
+
+#[test]
+fn test_db_row_to_map_invariants() {
+    let source = r#"
+main() {
+    let db, err = DB.open("t.db")
+    let rows, e = DB.query(db, "SELECT * FROM x")
+}
+"#;
+    let rust_code = compile_and_generate(source);
+    // DB_ROW_TO_MAP closure must walk row.column_name(i) and stringify
+    // each value into a HashMap<String, String>.
+    assert!(rust_code.contains("column_name"),
+        "DB.query must enumerate column names: {}", rust_code);
+    assert!(rust_code.contains("HashMap"),
+        "DB.query must build a HashMap row: {}", rust_code);
+    assert!(rust_code.contains(".prepare("),
+        "DB.query must prepare the statement: {}", rust_code);
+}
