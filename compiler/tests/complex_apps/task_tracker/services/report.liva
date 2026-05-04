@@ -1,0 +1,39 @@
+// Build human-readable text reports for a task list.
+
+import { Task, Status, Priority, statusLabel, priorityLabel } from "../models/task"
+import { byStatus, sortedByPriorityDesc } from "./filters"
+
+// Returns a multi-line summary of `tasks`.
+buildReport(tasks: [Task]): string {
+    let total = tasks.length
+    let open = byStatus(tasks, Status.Open).length
+    let inProg = byStatus(tasks, Status.InProgress).length
+    let done = byStatus(tasks, Status.Done).length
+
+    let lines: [string] = []
+    lines.push("== Task Report ==")
+    lines.push($"total: {total}")
+    lines.push($"open: {open} | in-progress: {inProg} | done: {done}")
+    lines.push("---")
+
+    let sorted = sortedByPriorityDesc(tasks)
+    for t in sorted {
+        lines.push(t.summary())
+    }
+
+    return lines.join("\n")
+}
+
+// Compact one-line CSV row: "id,title,status,priority"
+toCsvRow(t: Task): string {
+    return $"{t.id},{t.title},{statusLabel(t.status)},{priorityLabel(t.priority)}"
+}
+
+toCsv(tasks: [Task]): string {
+    let lines: [string] = []
+    lines.push("id,title,status,priority")
+    for t in tasks {
+        lines.push(toCsvRow(t))
+    }
+    return lines.join("\n")
+}

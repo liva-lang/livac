@@ -1,0 +1,61 @@
+// Pure filter/search helpers over [Task].
+
+import { Task, Status, Priority, sameStatus, samePriority, priorityWeight } from "../models/task"
+
+byStatus(tasks: [Task], s: Status): [Task] {
+    let out: [Task] = []
+    for t in tasks {
+        if sameStatus(t.status, s) {
+            out.push(t)
+        }
+    }
+    return out
+}
+
+byPriority(tasks: [Task], p: Priority): [Task] {
+    let out: [Task] = []
+    for t in tasks {
+        if samePriority(t.priority, p) {
+            out.push(t)
+        }
+    }
+    return out
+}
+
+search(tasks: [Task], query: string): [Task] {
+    let q = query.toLowerCase()
+    let out: [Task] = []
+    for t in tasks {
+        if t.title.toLowerCase().contains(q) {
+            out.push(t)
+        }
+    }
+    return out
+}
+
+// Selection sort by priority weight descending (stable enough for tests).
+sortedByPriorityDesc(tasks: [Task]): [Task] {
+    let result: [Task] = []
+    for t in tasks {
+        result.push(t)
+    }
+    let n = result.length
+    let i = 0
+    while i < n {
+        let bestIdx = i
+        let j = i + 1
+        while j < n {
+            if priorityWeight(result[j].priority) > priorityWeight(result[bestIdx].priority) {
+                bestIdx = j
+            }
+            j = j + 1
+        }
+        if bestIdx != i {
+            let tmp = result[i]
+            result[i] = result[bestIdx]
+            result[bestIdx] = tmp
+        }
+        i = i + 1
+    }
+    return result
+}

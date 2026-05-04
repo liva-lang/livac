@@ -1,0 +1,86 @@
+// In-memory store for Task instances.
+
+import { Task, Status, Priority } from "./task"
+
+TaskStore {
+    _tasks: [Task]
+    _nextId: number
+
+    constructor() {
+        this._tasks = []
+        this._nextId = 1
+    }
+
+    add(title: string, status: Status, priority: Priority): Task {
+        let t = Task(this._nextId, title, status, priority)
+        this._tasks.push(t)
+        this._nextId = this._nextId + 1
+        return t
+    }
+
+    all(): [Task] {
+        return this._tasks
+    }
+
+    count(): number {
+        return this._tasks.length
+    }
+
+    countOpen(): number {
+        let n = 0
+        for t in this._tasks {
+            if t.isOpen() {
+                n = n + 1
+            }
+        }
+        return n
+    }
+
+    hasId(id: number): bool {
+        for t in this._tasks {
+            if t.id == id {
+                return true
+            }
+        }
+        return false
+    }
+
+    // Replaces the task with the same id; returns true if found.
+    update(updated: Task): bool {
+        let next: [Task] = []
+        let found = false
+        for t in this._tasks {
+            if t.id == updated.id {
+                next.push(updated)
+                found = true
+            } else {
+                next.push(t)
+            }
+        }
+        this._tasks = next
+        return found
+    }
+
+    markDone(id: number): bool {
+        for t in this._tasks {
+            if t.id == id {
+                return this.update(t.withStatus(Status.Done))
+            }
+        }
+        return false
+    }
+
+    remove(id: number): bool {
+        let next: [Task] = []
+        let removed = false
+        for t in this._tasks {
+            if t.id == id {
+                removed = true
+            } else {
+                next.push(t)
+            }
+        }
+        this._tasks = next
+        return removed
+    }
+}

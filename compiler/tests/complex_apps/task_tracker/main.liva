@@ -1,0 +1,34 @@
+// Task Tracker — multi-module demo.
+// EXPECT-FIRST-LINE: == Task Report ==
+
+import { Status, Priority } from "./models/task"
+import { TaskStore } from "./models/store"
+import { search } from "./services/filters"
+import { buildReport, toCsv } from "./services/report"
+
+main() {
+    let store = TaskStore()
+    store.add("Write specs", Status.Done, Priority.High)
+    store.add("Review PR #42", Status.InProgress, Priority.Medium)
+    store.add("Refactor auth module", Status.Open, Priority.High)
+    store.add("Update changelog", Status.Open, Priority.Low)
+    store.add("Investigate flaky test", Status.InProgress, Priority.High)
+
+    print(buildReport(store.all()))
+    print("")
+    print($"open count: {store.countOpen()}")
+
+    let high = search(store.all(), "auth")
+    print("--- search 'auth' ---")
+    for t in high {
+        print(t.summary())
+    }
+
+    print("--- mark #2 done ---")
+    let ok = store.markDone(2)
+    print($"updated: {ok.toString()}")
+    print(buildReport(store.all()))
+
+    print("--- csv ---")
+    print(toCsv(store.all()))
+}

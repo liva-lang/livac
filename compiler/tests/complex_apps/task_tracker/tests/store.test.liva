@@ -1,0 +1,83 @@
+// Tests for models/store.liva — uses Liva's built-in test framework.
+import { describe, test, expect } from "liva/test"
+import { Task, Status, Priority } from "../models/task"
+import { TaskStore } from "../models/store"
+
+makeStore(): TaskStore {
+    let s = TaskStore()
+    s.add("first", Status.Open, Priority.High)
+    s.add("second", Status.InProgress, Priority.Medium)
+    s.add("third", Status.Done, Priority.Low)
+    return s
+}
+
+describe("TaskStore basics", () => {
+    test("count reflects number of tasks", () => {
+        let s = makeStore()
+        expect(s.count()).toBe(3)
+    })
+    test("countOpen counts Open and InProgress", () => {
+        let s = makeStore()
+        expect(s.countOpen()).toBe(2)
+    })
+    test("hasId distinguishes existing ids", () => {
+        let s = makeStore()
+        expect(s.hasId(2)).toBe(true)
+    })
+    test("hasId returns false for missing ids", () => {
+        let s = makeStore()
+        expect(s.hasId(99)).toBe(false)
+    })
+    test("first id is 1", () => {
+        let s = makeStore()
+        let all: [Task] = s.all()
+        expect(all[0].id).toBe(1)
+    })
+    test("third id is 3", () => {
+        let s = makeStore()
+        let all: [Task] = s.all()
+        expect(all[2].id).toBe(3)
+    })
+})
+
+describe("markDone", () => {
+    test("returns true when an open task exists", () => {
+        let s = makeStore()
+        let ok = s.markDone(1)
+        expect(ok).toBe(true)
+    })
+    test("reduces openCount when an open task is closed", () => {
+        let s = makeStore()
+        s.markDone(1)
+        expect(s.countOpen()).toBe(1)
+    })
+    test("returns false for unknown id", () => {
+        let s = makeStore()
+        let ok = s.markDone(99)
+        expect(ok).toBe(false)
+    })
+})
+
+describe("remove", () => {
+    test("returns true for an existing task", () => {
+        let s = makeStore()
+        let ok = s.remove(2)
+        expect(ok).toBe(true)
+    })
+    test("decreases count after removal", () => {
+        let s = makeStore()
+        s.remove(2)
+        expect(s.count()).toBe(2)
+    })
+    test("returns false for unknown id", () => {
+        let s = makeStore()
+        let ok = s.remove(99)
+        expect(ok).toBe(false)
+    })
+    test("ids remain monotonic after a removal", () => {
+        let s = makeStore()
+        s.remove(2)
+        let t4: Task = s.add("fourth", Status.Open, Priority.Medium)
+        expect(t4.id).toBe(4)
+    })
+})

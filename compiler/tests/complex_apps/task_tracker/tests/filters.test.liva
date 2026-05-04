@@ -1,0 +1,65 @@
+// Tests for services/filters.liva and services/report.liva.
+import { describe, test, expect } from "liva/test"
+import { Task, Status, Priority } from "../models/task"
+import { TaskStore } from "../models/store"
+import { byStatus, byPriority, search, sortedByPriorityDesc } from "../services/filters"
+import { toCsv, toCsvRow } from "../services/report"
+
+makeStore(): TaskStore {
+    let s = TaskStore()
+    s.add("alpha", Status.Open, Priority.High)
+    s.add("beta", Status.InProgress, Priority.Medium)
+    s.add("alphabet", Status.Done, Priority.Low)
+    s.add("gamma", Status.Open, Priority.Medium)
+    return s
+}
+
+describe("byStatus", () => {
+    test("filters Open", () => {
+        expect(byStatus(makeStore().all(), Status.Open).length).toBe(2)
+    })
+    test("filters Done", () => {
+        expect(byStatus(makeStore().all(), Status.Done).length).toBe(1)
+    })
+})
+
+describe("byPriority", () => {
+    test("filters Medium", () => {
+        expect(byPriority(makeStore().all(), Priority.Medium).length).toBe(2)
+    })
+    test("filters High", () => {
+        expect(byPriority(makeStore().all(), Priority.High).length).toBe(1)
+    })
+})
+
+describe("search", () => {
+    test("matches case-insensitive substrings", () => {
+        let all = makeStore().all()
+        expect(search(all, "ALPHA").length).toBe(2)
+        expect(search(all, "beta").length).toBe(1)
+    })
+    test("returns empty list when nothing matches", () => {
+        expect(search(makeStore().all(), "zzz").length).toBe(0)
+    })
+})
+
+describe("sortedByPriorityDesc", () => {
+    test("places High first and Low last", () => {
+        let sorted = sortedByPriorityDesc(makeStore().all())
+        expect(sorted[0].title).toBe("alpha")
+        expect(sorted[3].title).toBe("alphabet")
+    })
+})
+
+describe("CSV output", () => {
+    test("toCsvRow follows id,title,status,priority", () => {
+        let t = Task(42, "demo", Status.InProgress, Priority.High)
+        expect(toCsvRow(t)).toBe("42,demo,in-progress,high")
+    })
+    test("toCsv emits a header plus one line per task", () => {
+        let csv = toCsv(makeStore().all())
+        let lines = csv.split("\n")
+        expect(lines.length).toBe(5)
+        expect(lines[0]).toBe("id,title,status,priority")
+    })
+})

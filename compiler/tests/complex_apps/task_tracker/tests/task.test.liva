@@ -1,0 +1,83 @@
+// Tests for models/task.liva — uses Liva's built-in test framework.
+import { describe, test, expect } from "liva/test"
+import {
+    Task,
+    Status,
+    Priority,
+    statusLabel,
+    priorityLabel,
+    priorityWeight,
+    sameStatus,
+    samePriority,
+    statusFromString,
+    priorityFromString,
+} from "../models/task"
+
+describe("statusLabel", () => {
+    test("renders all variants", () => {
+        expect(statusLabel(Status.Open)).toBe("open")
+        expect(statusLabel(Status.InProgress)).toBe("in-progress")
+        expect(statusLabel(Status.Done)).toBe("done")
+    })
+})
+
+describe("priorityLabel", () => {
+    test("renders all variants", () => {
+        expect(priorityLabel(Priority.Low)).toBe("low")
+        expect(priorityLabel(Priority.Medium)).toBe("medium")
+        expect(priorityLabel(Priority.High)).toBe("high")
+    })
+})
+
+describe("priorityWeight", () => {
+    test("orders High > Medium > Low", () => {
+        expect(priorityWeight(Priority.High)).toBeGreaterThan(priorityWeight(Priority.Medium))
+        expect(priorityWeight(Priority.Medium)).toBeGreaterThan(priorityWeight(Priority.Low))
+    })
+})
+
+describe("enum equality helpers", () => {
+    test("sameStatus is reflexive", () => {
+        expect(sameStatus(Status.Open, Status.Open)).toBe(true)
+    })
+    test("sameStatus distinguishes variants", () => {
+        expect(sameStatus(Status.Open, Status.Done)).toBe(false)
+    })
+    test("samePriority is reflexive", () => {
+        expect(samePriority(Priority.Medium, Priority.Medium)).toBe(true)
+    })
+})
+
+describe("string parsing", () => {
+    test("statusFromString round-trips known values", () => {
+        expect(sameStatus(statusFromString("open"), Status.Open)).toBe(true)
+        expect(sameStatus(statusFromString("in-progress"), Status.InProgress)).toBe(true)
+        expect(sameStatus(statusFromString("done"), Status.Done)).toBe(true)
+    })
+    test("priorityFromString round-trips known values", () => {
+        expect(samePriority(priorityFromString("high"), Priority.High)).toBe(true)
+        expect(samePriority(priorityFromString("medium"), Priority.Medium)).toBe(true)
+        expect(samePriority(priorityFromString("low"), Priority.Low)).toBe(true)
+    })
+    test("priorityFromString defaults unknown to Low", () => {
+        expect(samePriority(priorityFromString("???"), Priority.Low)).toBe(true)
+    })
+})
+
+describe("Task class", () => {
+    test("summary uses #id [status/priority] title format", () => {
+        let t = Task(7, "demo", Status.InProgress, Priority.Medium)
+        expect(t.summary()).toBe("#7 [in-progress/medium] demo")
+    })
+    test("isOpen() reflects status", () => {
+        expect(Task(1, "x", Status.Open, Priority.Low).isOpen()).toBe(true)
+        expect(Task(2, "x", Status.InProgress, Priority.Low).isOpen()).toBe(true)
+        expect(Task(3, "x", Status.Done, Priority.Low).isOpen()).toBe(false)
+    })
+    test("withStatus is non-mutating", () => {
+        let t = Task(7, "demo", Status.Open, Priority.Medium)
+        let t2 = t.withStatus(Status.Done)
+        expect(t.isOpen()).toBe(true)
+        expect(t2.isOpen()).toBe(false)
+    })
+})

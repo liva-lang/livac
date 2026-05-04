@@ -1,0 +1,97 @@
+// Task model — value object representing a single task.
+// Exposes Task class, Status and Priority enums, plus helpers.
+
+enum Status {
+    Open,
+    InProgress,
+    Done
+}
+
+enum Priority {
+    Low,
+    Medium,
+    High
+}
+
+statusLabel(s: Status): string {
+    return switch s {
+        Status.Open => "open",
+        Status.InProgress => "in-progress",
+        Status.Done => "done"
+    }
+}
+
+priorityLabel(p: Priority): string {
+    return switch p {
+        Priority.Low => "low",
+        Priority.Medium => "medium",
+        Priority.High => "high"
+    }
+}
+
+priorityWeight(p: Priority): number {
+    return switch p {
+        Priority.Low => 1,
+        Priority.Medium => 2,
+        Priority.High => 3
+    }
+}
+
+sameStatus(a: Status, b: Status): bool {
+    return switch a {
+        Status.Open => switch b { Status.Open => true, _ => false },
+        Status.InProgress => switch b { Status.InProgress => true, _ => false },
+        Status.Done => switch b { Status.Done => true, _ => false }
+    }
+}
+
+samePriority(a: Priority, b: Priority): bool {
+    return priorityWeight(a) == priorityWeight(b)
+}
+
+statusFromString(label: string): Status {
+    return switch label {
+        "open" => Status.Open,
+        "in-progress" => Status.InProgress,
+        "done" => Status.Done,
+        _ => Status.Open
+    }
+}
+
+priorityFromString(label: string): Priority {
+    return switch label {
+        "low" => Priority.Low,
+        "medium" => Priority.Medium,
+        "high" => Priority.High,
+        _ => Priority.Low
+    }
+}
+
+Task {
+    id: number
+    title: string
+    status: Status
+    priority: Priority
+
+    constructor(id: number, title: string, status: Status, priority: Priority) {
+        this.id = id
+        this.title = title
+        this.status = status
+        this.priority = priority
+    }
+
+    summary(): string {
+        return $"#{this.id} [{statusLabel(this.status)}/{priorityLabel(this.priority)}] {this.title}"
+    }
+
+    isOpen(): bool {
+        return switch this.status {
+            Status.Done => false,
+            _ => true
+        }
+    }
+
+    withStatus(s: Status): Task {
+        return Task(this.id, this.title, s, this.priority)
+    }
+}
