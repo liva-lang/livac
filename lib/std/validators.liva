@@ -1,0 +1,53 @@
+// lib/std/validators.liva
+//
+// Reusable string predicates. All functions are pure and total —
+// they never panic. Edge cases (empty input, whitespace) are
+// resolved consistently:
+//   - `isBlank("")` → true
+//   - `isEmail("")` → false
+//   - `isUrl("")`   → false
+
+isBlank(s: string): bool {
+    let t = s.trim()
+    return t.length() == 0
+}
+
+isNumeric(s: string): bool {
+    if (s.length() == 0) {
+        return false
+    }
+    let i = 0
+    let len = s.length()
+    while (i < len) {
+        let c = s.charAt(i)
+        let isDigit = c == "0" || c == "1" || c == "2" || c == "3" || c == "4" || c == "5" || c == "6" || c == "7" || c == "8" || c == "9"
+        if (!isDigit) {
+            return false
+        }
+        i = i + 1
+    }
+    return true
+}
+
+isEmail(s: string): bool {
+    if (s.length() < 3) {
+        return false
+    }
+    let at = s.indexOf("@")
+    if (at <= 0) {
+        return false
+    }
+    let dot = s.indexOf(".")
+    if (dot < 0) {
+        return false
+    }
+    // dot must come after the @
+    return dot > at + 1 && dot < s.length() - 1
+}
+
+isUrl(s: string): bool {
+    if (s.length() < 8) {
+        return false
+    }
+    return s.startsWith("http://") || s.startsWith("https://")
+}

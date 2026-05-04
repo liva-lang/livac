@@ -6872,8 +6872,9 @@ RustEmitter {
         }
         // .length/.len — works for any collection
         if method == "length" || method == "len" {
+            this._write("(")
             this._emitExpr(obj)
-            this._write(".len() as i32")
+            this._write(".len() as i32)")
             return
         }
 

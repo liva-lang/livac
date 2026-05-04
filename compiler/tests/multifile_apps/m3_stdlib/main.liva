@@ -1,0 +1,13 @@
+// EXPECT: blank=true,empty=true,filled=false
+//        num1=true,num2=false,num3=false
+//        email1=true,email2=false,email3=false
+//        url1=true,url2=true,url3=false
+
+import { isBlank, isNumeric, isEmail, isUrl } from "../../../../lib/std/validators"
+
+main() {
+    print($"blank={isBlank("   ").toString()},empty={isBlank("").toString()},filled={isBlank("hi").toString()}")
+    print($"num1={isNumeric("12345").toString()},num2={isNumeric("12a").toString()},num3={isNumeric("").toString()}")
+    print($"email1={isEmail("foo@bar.com").toString()},email2={isEmail("nope").toString()},email3={isEmail("a@b").toString()}")
+    print($"url1={isUrl("http://x.com").toString()},url2={isUrl("https://x.com").toString()},url3={isUrl("ftp://x.com").toString()}")
+}

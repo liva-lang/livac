@@ -1,9 +1,11 @@
 # 📋 Backlog — Production Readiness
 
-> **Objetivo:** Llevar Liva a producción real  
+> **Source of truth for:** pending work, open tasks, deferred items.  
+> **Companion docs:** `ROADMAP.md` (high-level vision + phases),
+> `CHANGELOG.md` (released versions, Keep-a-Changelog format).  
 > **Plan de diseño:** `docs/plans/PLAN_PRODUCTION_READINESS.md`  
 > **Prioridad:** Orden por versión = orden de implementación  
-> **Última actualización:** 2026-04-28
+> **Última actualización:** 2026-05-04
 
 ---
 
@@ -800,9 +802,12 @@ cargo test --release 528+).
 
 ### Tier C — Escalabilidad
 
-- [ ] **C8.** Crear scaffold `lib/std/` con módulos `.liva` reutilizables
-      (validators, helpers funcionales, parsers de strings) — cimiento
-      de una stdlib real, no FFI.
+- [x] **C8.** Scaffold `lib/std/` creado con primer módulo `.liva`
+      reutilizable: `lib/std/validators.liva` (`isBlank`, `isNumeric`,
+      `isEmail`, `isUrl`). README explica la diferencia entre stdlib
+      Liva-side (`.liva` puro) y FFI stdlib (en compilador). Smoke
+      test: `compiler/tests/multifile_apps/m3_stdlib/` lo importa
+      y valida con gen-2. ✅
 - [ ] **C9.** Tests unitarios del codegen self-hosted en
       `compiler/tests/codegen_modules/` con snapshots Rust output
       (1 archivo por sub-módulo de A1).
@@ -815,13 +820,21 @@ cargo test --release 528+).
 
 ### Tier D — Nice to have
 
-- [ ] **D11.** Eliminar duplicación de `examples/ai/*/.copilot/skills/`
-      (15× copia idéntica de la skill) — symlinks o `.gitignore`.
-- [ ] **D12.** Recuperar/versionar los 4 benchmarks de Phase 10
-      (Line, CSV, Word, Map) en `benchmarks/` — hoy solo viven los 3
-      antiguos (classes/collections/strings).
-- [ ] **D13.** Deduplicar `BACKLOG.md`/`ROADMAP.md`/`CHANGELOG.md`
-      definiendo source-of-truth única por temática.
+- [x] **D11.** Eliminar duplicación de `examples/ai/*/.copilot/skills/`
+      → `scripts/hydrate-ai-skills.sh` reconstruye desde
+      `skills/liva-lang/` (canónico) + `docs/` (references). Removidas
+      216 entradas de `git ls-tree`, ~91 580 líneas. `.gitignore`
+      añadido. ✅
+- [x] **D12.** Phase 10 benchmarks (Line / CSV / Word / Map) verificados:
+      ya viven en `benchmarks/liva/bench_strings.liva` (Line, CSV, Word)
+      y `benchmarks/liva/bench_collections.liva` (Map), con sus pares
+      Rust en `benchmarks/rust/`. `RESULTS.md` recoge la última corrida
+      (2026-04-29) — 1.03x · 0.99x · 0.98x · 1.09x. Ningún archivo
+      perdido; el item del backlog era impreciso. ✅
+- [x] **D13.** Cabeceras de `BACKLOG.md`/`ROADMAP.md`/`CHANGELOG.md`
+      reescritas con bloque "Source of truth for: …" + "Companion docs"
+      explícitos. Cada documento ahora declara su propósito sin
+      ambigüedad. (Refactor profundo de contenido aplazado a v2.1.) ✅
 
 > **Gates de aceptación de Fase 11:** los 5 originales (rebuild_selfhost
 > idempotente, bootstrap_apps 21/21, regression 5/5, complex_apps 4/4,
