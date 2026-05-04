@@ -61,3 +61,7 @@ benchmarks/liva/*_bin
 benchmarks/rust/bench_strings
 benchmarks/rust/bench_collections
 benchmarks/rust/bench_classes
+
+# AI example skills are hydrated by scripts/hydrate-ai-skills.sh
+# (canonical source: skills/liva-lang/)
+examples/ai/*/.copilot/
