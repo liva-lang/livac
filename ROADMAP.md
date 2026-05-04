@@ -63,9 +63,20 @@ The roadmap is organized into focused phases:
 > - ✅ Bloque 4 — E2E self-host bench (5/5 programas: bootstrap-bin == gen-2-bin stdout)
 > - ✅ Bloque 5 — BACKLOG / ROADMAP / CHANGELOG sync
 >
+> **Phase 11 — Hardening pre-tag (2026-05-04):**
+> - ✅ A3 — extract stdlib snippets to module-level constants
+> - ✅ B4–B7 — repo hygiene, PARITY resync, unified `run_all.sh`, honest test docs
+> - ✅ C8 — `lib/std/` scaffold + `validators.liva`
+> - ✅ C9 — codegen invariant tests for A3 constants
+> - ✅ C10 — multi-file gen-2 gate (`compiler/tests/multifile_apps/`, 3 fixtures)
+> - ✅ D11 — de-duped `examples/ai/*/.copilot/` via `scripts/hydrate-ai-skills.sh`
+> - ✅ D12/D13 — benchmarks audit + doc source-of-truth headers
+> - ⏸️ A1/A2/C10b deferred to v2.1 (lang feature blockers / coverage polish)
+> - **Bonus**: caught real `.length()` cast-precedence bug in gen-2 codegen
+>
 > **Bench final** (all under 1.15x gate): Line 1.07x · CSV 1.00x · Word 0.98x · Map 1.09x · Sort/Filter+Map <6ms
 >
-> **Validation**: 518 cargo tests · bootstrap_test 9/9 · e2e_selfhost 5/5 · idempotence locked
+> **Validation**: 7/7 gates green — `rebuild_selfhost` (idempotent), `bootstrap_apps` 21/21, `multifile_apps` 3/3, `regression` 5/5, `complex_apps` 4/4, `e2e_selfhost` 5/5, `cargo test --release` 528+ pass
 
 ---
 
