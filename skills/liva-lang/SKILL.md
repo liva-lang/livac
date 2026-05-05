@@ -213,28 +213,23 @@ divide(a: number, b: number): number {
     return a / b
 }
 
-// Error binding (REQUIRED for fallible calls)
+// Error binding (REQUIRED for fallible calls — E0701)
 let result, err = divide(10, 0)
-if err { print($"Error: {err}") }    // Always use `if err {`, NOT `if err != ""`
+if err { print($"Error: {err}") }    // ✅ always `if err {` — NEVER `if err != ""`
 
-// IMPORTANT: `err` is internally an Option<Error> with fields:
-//   err.message → plain string (just the message text)
-//   print(err) → full trace with function names, file locations, and chained causes
-// Always check with `if err {` (truthy when error exists), NEVER `if err != ""`
+// `err` is Option<Error>:
+//   err.message → plain message string
+//   print(err)  → full trace (causes + locations)
 
-// Shorthand: or fail (propagate)
-let data = File.read("f.txt") or fail "Cannot read"
+// Shorthands
+let data = File.read("f.txt") or fail "Cannot read"   // propagate
+let port = parseInt("abc") or 3000                     // fallback
 
-// Shorthand: or <default> (fallback)
-let port = parseInt("abc") or 3000
-
-// Unwrap operator (!) — force-unwrap, panics if null
-let user = find_user("admin")   // string?
-print(user!)                    // "Admin" — panics if null
-
-// Optional chaining (?.) — safe field access on nullable values
-let name = user?.name            // string? — null if user is null
-let safe = user?.name or "Guest" // string — with fallback
+// Optional value operators (only on T?)
+let user = find_user("admin")    // string?
+let name = user!                  // unwrap, panics if null
+let name = user?.name             // optional chaining → string?
+let safe = user?.name or "Guest"  // chain + fallback → string
 ```
 
 ## Defer
@@ -300,34 +295,25 @@ let doubled = numbers.par().map(x => x * 2)
 
 ### Arrays
 
+Full catalogue (31 methods) in `references/stdlib/arrays.md`. Most-used:
+
 ```liva
 let nums = [1, 2, 3]
 nums.push(4)                         // Mutates in place
 nums = nums + [4]                    // Or concatenation (new array)
-nums.map(x => x * 2)                // [2, 4, 6]
-nums.filter(x => x > 1)             // [2, 3]
-nums.reduce(0, (acc, x) => acc + x) // Initial value FIRST
-nums.forEach(x => print(x))
-nums.find(x => x > 2)               // Some(3)
-nums.some(x => x > 2)               // true
-nums.every(x => x > 0)              // true
-nums.includes(3)                     // true
-nums.indexOf(2)                      // 1
-["a", "b"].join(", ")               // "a, b"
 
-// v1.4 — Access & slicing
-nums.first() / nums.last() / nums.isEmpty()
-nums.slice(1, 3) / nums.take(2) / nums.drop(1)
+// Higher-order
+nums.map(x => x * 2) / nums.filter(x => x > 1) / nums.forEach(print)
+nums.reduce(0, (acc, x) => acc + x)  // ⚠️ initial value FIRST
+nums.find(p) / nums.findIndex(p) / nums.some(p) / nums.every(p)
+nums.flatMap(x => [x, x*10]) / nums.count(p)
 
-// v1.4 — Transform
+// Access / slicing / aggregate
+nums.first() / nums.last() / nums.isEmpty() / nums.length
+nums.slice(i, j) / nums.take(n) / nums.drop(n) / nums.chunks(n)
+nums.includes(x) / nums.indexOf(x) / ["a","b"].join(", ")
 nums.sort() / nums.reversed() / nums.distinct()
-[[1,2],[3]].flat() / nums.chunks(2) / nums.zip([4,5,6])
-
-// v1.4 — Aggregate
 nums.sum() / nums.min() / nums.max()
-
-// v1.4 — Callback
-nums.findIndex(x => x > 2) / nums.flatMap(x => [x, x*10]) / nums.count(x => x > 1)
 ```
 
 ### Maps (v1.3.0)
@@ -357,19 +343,21 @@ for color in colors { print(color) }
 
 ## Strings
 
-> The blocks below show the most common methods. Full signatures, edge cases, and the complete catalogue (28 string methods, 31 array methods, 14 math functions, etc.) live in `references/stdlib/`. Treat the lists here as a starting point, not a complete inventory.
+```liva
+let msg = $"Hello, {name}! Sum: {a + b}"    // String templates (NOT backticks)
+// Escape braces: $"\{\"key\": \"{val}\"\}"
+```
+
+Most-used methods (full catalogue — 28 methods — in `references/stdlib/strings.md`):
 
 ```liva
-let msg = $"Hello, {name}! Sum: {a + b}"    // String templates
-text.split(", ") / text.trim() / text.toUpperCase() / text.toLowerCase()
-text.replace("a", "b") / text.replaceAll("a", "b") / text.contains("x")
-text.substring(0, 5) / text.slice(0, 5) / text.charAt(0)
-text.startsWith("H") / text.endsWith("!") / text.indexOf("W") / text.lastIndexOf("W")
-text.padStart(5, "0") / text.padEnd(5, ".") / text.repeat(3)
-text.capitalize() / text.reverse() / text.truncate(10)
-text.isBlank() / text.isEmpty() / text.countMatches("x")
-text.removePrefix("pre_") / text.removeSuffix(".txt") / text.chars()
-// Escape braces: $"\{\"key\": \"{val}\"\}"
+text.split(sep) / text.trim() / text.toUpperCase() / text.toLowerCase()
+text.replace(a, b) / text.replaceAll(a, b) / text.contains(s)
+text.substring(i, j) / text.charAt(i)
+text.startsWith(s) / text.endsWith(s) / text.indexOf(s)
+text.padStart(n, c) / text.padEnd(n, c) / text.repeat(n)
+text.isBlank() / text.isEmpty()
+text.removePrefix(p) / text.removeSuffix(s)
 ```
 
 ## Type Aliases
@@ -390,172 +378,37 @@ import * as math from "./math"
 // _prefix = private (not exported)
 ```
 
-## Standard Library
+## Standard Library — Map
+
+The stdlib is large. **Always read the matching `references/stdlib/*.md` file before generating non-trivial code with one of these modules.** This section is just a locator + the most common entry points.
+
+| Module | What it does | Where to look | Most-used calls |
+|--------|--------------|---------------|-----------------|
+| `print`, `console` | stdout/stderr | (built-in) | `print(x)`, `console.error(msg)`, `console.input("Name: ")` |
+| `Math` | Numeric functions | `references/stdlib/math.md` | `Math.PI`, `Math.sqrt(x)`, `Math.pow(b,e)`, `Math.abs(x)`, `Math.floor/ceil/round`, `Math.min/max`, `Math.clamp(v,lo,hi)`, `Math.random()` |
+| `parseInt`, `parseFloat`, `toString` | Conversions (fallible except `toString`) | `references/stdlib/conversions.md` | `let n, err = parseInt(s)` |
+| `File` | File I/O | `references/stdlib/io.md` | `let c, err = File.read(p)`, `File.write(p, s)`, `File.exists(p)`, `File.append(p, s)`, `File.readLines(p)` |
+| `Dir` | Directory I/O | `references/stdlib/io.md` | `Dir.list(p)`, `Dir.create(p)` (mkdir -p), `Dir.delete(p)` (rm -rf), `Dir.listRecursive(p)` |
+| `Regex` | Regex (crate `regex`) | `references/stdlib/regex.md` | `Regex.test(re, s)`, `Regex.findAll(re, s)`, `Regex.replace(re, s, repl)`, `Regex.split(re, s)` |
+| `Date` | Date/time (crate `chrono`) | `references/stdlib/date.md` | `Date.now()`, `Date.new(y,m,d)`, `now.format("DD/MM/YYYY")`, `now.add(7, "days")`, `now.diff(other, "years")` |
+| `CSV` | CSV read/write | `references/stdlib/csv.md` | `CSV.read(p)`, `CSV.readTable(p)` (first row = headers), `CSV.write(p, rows)`, `CSV.writeTable(p, table)` |
+| `Random` | Random + UUID (crates `rand`, `uuid`) | `references/stdlib/random.md` | `Random.nextInt(lo, hi)`, `Random.choice(arr)`, `Random.shuffle(arr)`, `Random.uuid()` |
+| `Crypto` | Hash + base64 | `references/stdlib/crypto.md` | `Crypto.sha256(s)`, `Crypto.md5(s)`, `Crypto.base64Encode/Decode` |
+| `Process` | Subprocess + current PID | `references/stdlib/process.md` | `Process.exec(cmd)` (capture stdout), `Process.spawn(cmd)` (background), `Process.pid()`, `Process.exit(code)` |
+| `Sys` | Args + env | `references/stdlib/system.md` | `Sys.args()` (`args[0]` = program), `Sys.env(name)`, `Sys.exit(code)` |
+| `Log` | Stderr logger (timestamps + table rendering) | `references/stdlib/logging.md` | `Log.info(msg, ...)`, `Log.warn/error/debug`, `Log.setLevel("debug")` |
+| `JSON` | Parse/stringify (typed parsing supported) | `references/json-basics.md` | `let data: User, err = JSON.parse(s)`, `JSON.stringify(obj)` |
+| `HTTP` | Async HTTP client | `references/stdlib/io.md`, `references/concurrency.md` | `let resp, err = HTTP.get(url)` — also `.post(url, body)`, `.put`, `.delete`. `resp.status` / `resp.body` / `resp.json()` |
+| `DB` | SQLite (crate `rusqlite`, bundled) | `references/stdlib/db.md` | `DB.open(path)`, `DB.exec(db, sql, params)`, `DB.query(db, sql, params)` → `[Map<string,string>]`, `DB.close(db)` |
+| `Server` + `Response` | HTTP server (axum) | `references/stdlib/server.md` | `Server.create()`, `app.get/post/put/delete(path, (req) => ...)`, `Response.text(s)` / `.json(data)` / `.status(code)`, `app.listen(port)` |
+| `Config` | `.env` loader | `references/stdlib/config.md` | `let cfg, err = Config.load(".env")`, `Config.get/getInt/getBool(cfg, key)`, `Config.getAll(cfg)` |
+
+> **Always use error binding for fallible calls** (most stdlib I/O is fallible): `let val, err = Module.call(...); if err { ... }`. Exceptions like `File.exists` and `File.extension` return their value directly — see the per-module reference.
+
+## Rust Interop *(v1.5+)*
 
 ```liva
-// Console
-print("Hello") / console.log(data) / console.error("err") / console.warn("warn")
-let input = console.input("Name: ")
-
-// Math
-Math.PI / Math.E / Math.sqrt(16.0) / Math.pow(2.0, 3.0) / Math.abs(-10.5)
-Math.floor(3.7) / Math.ceil(3.2) / Math.round(3.5) / Math.random()
-Math.min(a, b) / Math.max(a, b) / Math.clamp(val, 0, 10)
-Math.sign(-42) / Math.log(2.718)
-
-// Type conversion (fallible)
-let num, err = parseInt("42")
-let val, err = parseFloat("3.14")
-let str = toString(42)
-
-// File I/O (error binding except File.exists and File.extension)
-let content, err = File.read("file.txt")
-File.write("out.txt", "data") / File.append("log.txt", "line\n") / File.delete("tmp")
-File.exists("file.txt")                // bool, no error binding
-File.copy("src", "dst") / File.move("old", "new")   // (bool, error)
-let bytes, err = File.size("f.txt")    // (int, error)
-let ext = File.extension("f.jpg")      // "jpg" — string, no error binding
-let lines, err = File.readLines("f.txt")   // ([string], error)
-File.writeLines("f.txt", ["a", "b"])       // (bool, error)
-
-// Directory
-let entries, err = Dir.list("/path")   // [string] sorted
-Dir.isDir("/path")                     // bool, no error binding
-Dir.exists("/path")                    // bool — true only if dir
-let ok, err = Dir.create("./a/b/c")   // mkdir -p (recursive)
-let ok, err = Dir.delete("./tmp")     // rm -rf (recursive)
-let files, err = Dir.listRecursive("./src")  // All files, relative paths
-let files, err = Dir.walk("./docs")          // Alias for listRecursive
-
-// Regex (crate `regex` auto-injected)
-Regex.test("\\d+", text)                   // bool
-let found, err = Regex.match("\\d+", text) // (string, error) — first match
-Regex.findAll("\\d+", "a1b22")             // ["1", "22"] — all matches
-Regex.replace("\\s+", text, " ")           // string — replace all
-Regex.split("[,;]", "a,b;c")              // ["a", "b", "c"]
-
-// Date (crate `chrono` auto-injected)
-let now = Date.now()                               // Current date/time
-let birthday = Date.new(1990, 6, 15)               // Specific date
-let parsed, err = Date.parse("2026-03-11", "YYYY-MM-DD")
-let ts = Date.timestamp()                          // Unix epoch ms (int)
-now.year / now.month / now.day / now.hour          // Properties → int
-now.format("DD/MM/YYYY")                           // → string
-let nextWeek = now.add(7, "days")                  // → Date
-let age = now.diff(birthday, "years")              // → int
-now.toString()                                     // → "2026-03-23T14:30:00"
-if nextWeek > now { print($"Future: {nextWeek}") } // Comparisons + interpolation
-
-// CSV (pure Rust std, no external crates) — Table = [Map<string, string>]
-let rows, err = CSV.read("data.csv")               // [[string]] — raw rows
-let table, err = CSV.readTable("data.csv")          // [Map<string, string>] — first row as headers
-CSV.write("out.csv", rows)                          // Write [[string]] to file
-CSV.writeTable("out.csv", table)                    // Write table with headers
-let parsed = CSV.parse(csvText)                     // String → [[string]]
-let text = CSV.stringify(rows)                      // [[string]] → CSV string
-let hdrs = CSV.headers(table)                       // → [string] header names
-let col = CSV.column(table, "name")                 // → [string] column values
-
-// Random (crates rand + uuid auto-injected)
-let n = Random.nextInt(1, 100)                      // int in [min, max]
-let f = Random.nextFloat(0.0, 1.0)                  // float in [min, max] (args optional)
-let pick = Random.choice(["a", "b", "c"])           // Random element
-let mixed = Random.shuffle([1, 2, 3])               // Shuffled copy
-let id = Random.uuid()                              // UUID v4 string
-
-// Crypto (crates sha2, md-5, base64 auto-injected)
-let hash = Crypto.sha256("hello")                    // Hex SHA-256
-let md = Crypto.md5("hello")                         // Hex MD5
-let enc = Crypto.base64Encode("hello")               // Base64 encode
-let dec, err = Crypto.base64Decode(enc)              // Fallible decode
-
-// Process (std::process, no external crates)
-let output, err = Process.exec("ls -la")             // Run cmd, capture stdout
-let pid, err = Process.spawn("sleep 10")             // Background process
-let myPid = Process.pid()                            // Current PID
-Process.exit(0)                                      // Exit with code
-
-// System
-Sys.args()                               // [string] — args[0] = program name, args[1..] = user args
-Sys.env("HOME")                           // Get env variable
-Sys.exit(1)                               // Exit with code
-
-// Logging (stderr, timestamped)
-Log.info("msg", arg1, arg2)            // Variadic args, concatenated with spaces
-Log.warn("warning") / Log.error("err") / Log.debug("detail")  // debug only with --verbose
-Log.setLevel("debug")                  // debug/info/warn/error
-// Map 4+ keys → Key/Value table, ≤3 keys → inline {k: v}
-// Array<Map> → columnar table (console.table style)
-// JSON.parse results → runtime auto-detection for table rendering
-
-// JSON
-let data: User, err = JSON.parse(jsonStr)
-let json = JSON.stringify(obj)
-
-// HTTP (HTTP.get / .post / .put / .delete are async functions —
-// the caller becomes async automatically, no `async` keyword needed
-// for a single call. Use `async` only to overlap requests; see § Concurrency.)
-let resp, err = HTTP.get(url)
-let resp, err = HTTP.post(url, body)              // Also: .put(), .delete()
-resp.status / resp.body / resp.json()
-
-// DB — SQLite (crate rusqlite bundled, auto-injected)
-let db, err = DB.open("myapp.db")                    // Open/create database
-let _, err2 = DB.exec(db, "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT)")
-let _, err3 = DB.exec(db, "INSERT INTO users (name) VALUES (?)", ["Alice"])  // Parameterized
-let rows, err4 = DB.query(db, "SELECT * FROM users")  // → [Map<string, string>]
-let results, err5 = DB.query(db, "SELECT * FROM users WHERE name = ?", ["Alice"])
-for row in rows {
-    print("Name: " + row.get("name"))                // Auto-unwraps in string context
-    let name = row.get("name") or "unknown"          // Explicit default
-}
-DB.close(db)                                          // Close connection
-```
-
-## HTTP Server *(axum)*
-
-```liva
-let app = Server.create()
-
-app.get("/hello", (req) => {
-    Response.text("Hello, World!")
-})
-
-app.post("/users", (req) => {
-    let body = req.body
-    Response.json(body)
-})
-
-app.put("/users/:id", (req) => {
-    let id = req.params.get("id")
-    Response.text("Updated " + id)
-})
-
-app.delete("/users/:id", (req) => {
-    let id = req.params.get("id")
-    Response.status(204)
-})
-
-app.listen(3000)
-// Routes: app.get/post/put/delete(path, handler)
-// Request: req.params.get("name"), req.body
-// Response: Response.text(str), Response.json(data), Response.json(data, 201), Response.status(code)
-```
-
-## Config *(v1.5.0)*
-
-```liva
-let config, err = Config.load(".env")
-let host, err = Config.get(config, "HOST")
-let port, err = Config.getInt(config, "PORT")
-let debug, err = Config.getBool(config, "DEBUG")
-let all = Config.getAll(config)   // Map<string, string> sorted
-```
-
-## Rust Interop *(v1.5.0)*
-
-```liva
-// Inline Rust code as expression
+// Inline Rust as an expression
 let result = rust {
     let x: i32 = 42;
     x * 2
@@ -564,27 +417,17 @@ let result = rust {
 // Crate dependencies (top-level)
 use rust "chrono" version "0.4"
 use rust "uuid" version "1.0" features ["v4", "serde"]
-use rust "tokio" features ["net"]   // Merges with built-in features
 
-// use statements inside rust { } are hoisted to file top
-let hash = rust {
-    use std::collections::HashMap;
-    let mut map = HashMap::new();
-    map.insert("key", "value");
-    map.len()
-}
-// Internal crates (always available): tokio, serde, serde_json, reqwest, rayon, rand
-// E9002: Cannot override internal crate version — only add features
-// Liva names are snake_case in generated Rust: myValue → my_value
-// No semantic validation of rust block content — errors come from rustc
+// `use std::...;` inside rust { } is hoisted to the file top
 ```
 
-### Rust Interop Details
+- **Snake_case transform**: a Liva identifier `myValue` is `my_value` inside `rust { }`.
+- **Internal crates** (always available, do not redeclare): `tokio`, `serde`, `serde_json`, `reqwest`, `rayon`, `rand`. Adding `features` is OK; overriding `version` triggers E9002.
+- **Hyphenated crate names** convert to underscores: `"my-crate"` → `my_crate` in `use`.
+- **Result types in Rust blocks**: Liva-fallible functions compile to `Result<T, String>`. Inside `rust { }` you can `return Ok(v)` or `Err("...".to_string())`. Outside, prefer `fail` from Liva.
+- No semantic validation of `rust { }` content — errors surface from `rustc`.
 
-- **Snake_case transform**: Liva identifiers like `myValue` become `my_value` in Rust. Use `my_value` inside `rust { }` blocks to reference Liva variables.
-- **Result types**: Fallible Liva functions generate `Result<T, String>`. Inside `rust { }`, return `Ok(value)` or `Err("message".to_string())`.
-- **Liva vars in Rust blocks**: Variables defined in Liva are accessible in `rust { }` blocks by their snake_case name. String vars are `String` type, numbers are `i32`, floats are `f64`.
-- **Hyphenated crate names**: `use rust "my-crate"` automatically converts to `my_crate` in Rust imports.
+See `references/rust-interop.md` for full details.
 
 ## Testing
 
@@ -623,19 +466,11 @@ describe("Math", () => {
 16. **Enums auto-derive `PartialEq`, NOT `PartialOrd`** — `==`/`!=` work; `<`/`>` don't.
 17. **Liva types are lowercase** — `string`, `number`, `float`, `bool`, `bytes`. `String`/`i32`/`f64` are Rust-only.
 
-### Reserved Keywords (cannot use as identifiers)
+### Reserved Keywords
 
-These are reserved in Liva and will cause parse errors if used as variable/function names:
+Language keywords (cannot be identifiers): `let const import from as if else while for in switch case default return break continue fail throw try catch async par parallel task await move seq defer vec parvec with ordered chunk threads enum type use rust test true false null and or not safe fast static dynamic auto detect schedule reduction prefetch simdWidth number float bool char string bytes`.
 
-```
-let const import from as if else while for in switch case default return
-break continue fail throw try catch async par parallel task await move seq defer
-vec parvec with ordered chunk threads enum type use rust test true false null
-and or not safe fast static dynamic auto detect schedule reduction prefetch simdWidth
-number float bool char string bytes
-```
-
-Additionally, avoid Rust reserved words as field/method names: `type`, `match`, `mod`, `self`, `super`, `crate`, `impl`, `trait`, `pub`, `fn`, `struct`, `where`, `loop`, `ref`, `mut`, `dyn`, `abstract`, `yield`. The compiler escapes some of these (e.g., `type` → `r#type`), but it's best to use alternatives (e.g., `kind` instead of `type`).
+Also avoid Rust reserved words as field/method names (`type`, `match`, `mod`, `self`, `super`, `crate`, `impl`, `trait`, `pub`, `fn`, `struct`, `where`, `loop`, `ref`, `mut`, `dyn`, `abstract`, `yield`). Some are escaped automatically (`type` → `r#type`); prefer alternatives like `kind`.
 
 ## References
 
