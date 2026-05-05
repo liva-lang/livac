@@ -1,25 +1,10 @@
 # Control Flow — Additional Reference
 
-> SKILL.md covers all basic if/else, for, while, switch, break/continue, and fail syntax.
-> This file covers **gotchas, edge cases, and advanced patterns only**.
+> SKILL.md covers all basic if/else, for, while, switch, break/continue, fail syntax,
+> AND the canonical `=>` gotcha (control-flow `=>` does not imply return).
+> This file covers the **other** edge cases only.
 
-## One-liner `=>` Gotcha
-
-For `if`/`for`/`while`, `=>` replaces `{}` but has **no implicit return** (unlike function `=>`):
-
-```liva
-// ✅ Function => has implicit return
-add(a, b) => a + b
-
-// ⚠️ if/for/while => does NOT — use explicit return
-clamp(val: number, lo: number, hi: number): number {
-    if val < lo => return lo   // explicit return required
-    if val > hi => return hi   // explicit return required
-    return val
-}
-```
-
-Point-free also works with `=>`:
+## Point-free `=>` in loops
 
 ```liva
 for item in items => print          // calls print(item)

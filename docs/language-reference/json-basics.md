@@ -7,25 +7,32 @@
 Type hint on the variable declaration drives deserialization:
 
 ```liva
-// Primitives
-let num: i32, err = JSON.parse("42")
-let text: String, err = JSON.parse("\"hello\"")
+// Primitives — use Liva's lowercase types in your code
+let num: number, err = JSON.parse("42")
+let text: string, err = JSON.parse("\"hello\"")
 let flag: bool, err = JSON.parse("true")
 
+// You can also use Rust's exact types when you need a specific width
+let big: i64, err = JSON.parse("123456789012")
+let pi: f64, err = JSON.parse("3.14")
+
 // Arrays
-let numbers: [i32], err = JSON.parse("[1, 2, 3]")
-let floats: [f64], err = JSON.parse("[1.5, 2.7]")
-let texts: [String], err = JSON.parse("[\"a\", \"b\"]")
+let numbers: [number], err = JSON.parse("[1, 2, 3]")
+let floats: [float], err = JSON.parse("[1.5, 2.7]")
+let texts: [string], err = JSON.parse("[\"a\", \"b\"]")
 ```
 
 ### Supported Primitive Types
 
-All Rust integer/float types: `i8`–`i128`, `u8`–`u128`, `isize`, `usize`, `f32`, `f64`, plus `bool`, `string`/`String`, `int` (→ i32), `float` (→ f64).
+- Liva primitives: `string`, `number` (= `i32`), `float` (= `f64`), `bool`, `int` (alias of `number`).
+- Rust integer/float types when you need a specific width: `i8`–`i128`, `u8`–`u128`, `isize`, `usize`, `f32`, `f64`.
+
+Prefer the Liva types in your own code; reach for the Rust ones only when the JSON contains values outside `i32` / `f64` range.
 
 ## Parsing into Custom Classes
 
 ```liva
-User { id: u64; name: String; age: i32 }
+User { id: number; name: string; age: number }
 
 let user: User, err = JSON.parse("{\"id\": 1, \"name\": \"Alice\", \"age\": 30}")
 let users: [User], err = JSON.parse("[{\"id\": 1, ...}, {\"id\": 2, ...}]")
@@ -36,7 +43,7 @@ Classes used with `JSON.parse()` auto-get `serde::Deserialize` derives.
 ### Nested Classes
 
 ```liva
-Post { id: u64; title: String; body: String; userId: u32 }
+Post { id: number; title: string; body: string; userId: number }
 
 let post: Post, err = JSON.parse(postJson)
 if !err {
@@ -50,10 +57,10 @@ Handle nullable/missing JSON fields without parse failure:
 
 ```liva
 User {
-    id: u32            // Required — must be present and non-null
-    name: String       // Required
-    email?: String     // Optional — can be absent, null, or present
-    age?: u32          // Optional
+    id: number          // Required — must be present and non-null
+    name: string        // Required
+    email?: string      // Optional — can be absent, null, or present
+    age?: number        // Optional
 }
 ```
 

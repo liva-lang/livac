@@ -484,5 +484,5 @@ For detailed docs, read files in `references/`. Key files:
 - `references/modules.md` — Import paths, wildcard imports, visibility
 - `references/file-io.md` — File and Dir methods with signatures
 - `references/linter.md` — W001-W004 warning codes
-- `references/style-guide.md` — Idiomatic patterns, `=>` vs `{}`, naming
+- `references/guides/style-guide.md` — Idiomatic patterns, `=>` vs `{}`, naming
 - `references/stdlib/` — Per-module API: arrays, strings, math, date, regex, csv, db, server, etc.
