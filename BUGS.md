@@ -386,6 +386,15 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Hipótesis:** Sin anotación explícita, el tracking de tipos del `let` no sabe que el array contiene structs y degrada a acceso JSON-style.
 - **Descubierto en:** `compiler/tests/complex_apps/task_tracker/tests/store.test.liva`.
 
+### B157 — `arr[i].mutMethod()` clona en lugar de mutar (clases de usuario) ⚡ OPEN
+- **Ubicación:** `compiler/src/codegen.liva` — emisión de `IndexExpr` seguido de method call.
+- **Repro:** `particles[pi].step(0.01)` donde `step` muta `&mut self` emite `particles[(pi) as usize].clone().step(0.01)`. La mutación se pierde porque `step` corre sobre un clon temporal que se descarta.
+- **Impacto:** silencioso. El programa compila y corre, pero los efectos no son observables. Cualquier algoritmo iterativo sobre `Vec<Class>` con mutación por índice da resultados incorrectos.
+- **Detección:** auditoría F.4 del bench `Particle sim` (2026-05-05). El benchmark medía 0.44× contra Rust precisamente porque LLVM eliminaba todo el cuerpo del bucle al ser código muerto.
+- **Fix esperado:** detectar `IndexExpr` como receiver de un method-call cuyo método toma `&mut self` (o que sea un setter/mutador) y emitir `&mut particles[(pi) as usize].step(0.01)` o equivalente sin `.clone()`.
+- **Tests a añadir:** `compiler/tests/liva/codegen/index_mut_method.test.liva` con un asserter explícito sobre el estado post-mutación.
+- **Bench a re-ejecutar:** `benchmarks/run_official.sh` tras el fix; ratio Particle sim debe quedar dentro del gate <1.15× igual que el resto.
+
 
 ## Carencias del lenguaje detectadas
 

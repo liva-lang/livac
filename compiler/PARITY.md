@@ -4,12 +4,14 @@
 > **Target:** `livac/compiler/src/*.liva` (gen-2, escrito en Liva).
 > **Goal:** v2.1 — gen-2 cubre 100 % del bootstrap → eliminar `livac/src/*.rs` salvo `liva_rt`.
 >
-> **Status (2026-04-30, post Phase 10 close):** ✅ **21/21 bootstrap_apps pasan con gen-2**.
-> El historial detallado debajo (Tier 1/2/3) refleja el camino recorrido,
-> pero la métrica de aceptación está cumplida. Items aún marcados ⏳ que
-> aparecen *resueltos en práctica* (porque su test asociado pasa en
-> `bootstrap_apps/run_gen2.sh`) deben confirmarse y cerrarse en una
-> auditoría dedicada — no son bloqueantes para v2.0.
+ > **Status (2026-05-05, PLAN.md A.1 audit):** ✅ **21/21 bootstrap_apps pasan con gen-2** (re-verificado).
+> Los items marcados ⏳ Tier 1 abajo están **cerrados por outcome**: sus tests asociados
+> pasan en `compiler/tests/bootstrap_apps/run_gen2.sh`. Una auditoría línea-a-línea queda
+> como deuda menor; no bloquea v2.0.
+>
+> ⚠️ **Hallazgo nuevo durante la auditoría F.4:** `arr[i].mutMethod()` sobre clases
+> de usuario emite `.clone().method()` y pierde la mutación. Ver `BUGS.md § B157`.
+> Este bug **es bloqueante** para benchmarks fiables y para casos reales de uso.
 >
 > **Métrica viva:** `bash compiler/tests/run_all.sh` (incluye este gate).
 >

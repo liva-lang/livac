@@ -13,12 +13,19 @@
 | collections | Sort | 64ms | 63ms | 1.02x | ✅ |
 | classes | Shape compute | 15ms | 15ms | 1.00x | ✅ |
 | classes | Vec2 ops | 115ms | 114ms | 1.01x | ✅ |
-| classes | Particle sim | 49ms | 111ms | 0.44x | ✅ |
+| classes | Particle sim | 49ms | 111ms | 0.44x | ⚠️ |
 
-**10/10 under 1.15x** · benches use side-effect checksums printed at the end so
-the optimizer cannot elide measured work · Sort uses adversarial reverse-sorted
-input (real work) · `(0..n).collect()` replaced with explicit `push` loop on the
-Rust side to keep both implementations algorithmically equivalent.
+**9/10 under 1.15x without caveats** · Particle sim **does not measure what it
+claims**: gen-2 codegen emits `particles[i].clone().step(0.01)` for indexed
+mutator calls on user classes (see [BUGS.md B157](../BUGS.md)), so `step()`
+runs on a throwaway clone instead of mutating the original particle. The
+optimizer can elide most of the work. **The 0.44× ratio is not defensible**
+until B157 is fixed and the bench is rerun. Tracking under PLAN.md F.4.
+
+· Other benches use side-effect checksums printed at the end so the optimizer
+cannot elide measured work · Sort uses adversarial reverse-sorted input (real
+work) · `(0..n).collect()` replaced with explicit `push` loop on the Rust
+side to keep both implementations algorithmically equivalent.
 
 ---
 
