@@ -44,6 +44,8 @@ let nums: [number] = [1, 2, 3]  // Array
 Primitives: `number` (i32), `float` (f64), `bool`, `string`, `char`, `bytes` (Vec<u8>). Aliases: `int` = `number`, `void` = `()`. Rust types available: `i8`–`i128`, `u8`–`u128`, `f32`, `f64`.
 
 > **Note:** `number` = integer (i32). For decimal/float values, use `float` (f64). Do NOT use `number` for floating-point math — it will truncate. There is no generic "number" type that covers both.
+>
+> **Liva types vs Rust types — keep them straight.** In Liva source code always use lowercase types: `string`, `number`, `float`, `bool`, `bytes`. The capitalised `String`, `i32`, `f64`, `Vec<u8>` are Rust types that only appear in generated code or inside `rust { }` blocks. Do not write `let x: String = ...` or `let n: i32 = ...` in Liva.
 
 ### Destructuring
 
@@ -92,6 +94,20 @@ for i, name in names { print($"{i}: {name}") }  // Enumerate
 while running { tick() }
 break / continue                         // Loop control
 ```
+
+> **⚠️ `=>` on `if`/`for`/`while` does NOT imply return.** Unlike function arrow (`add(a, b) => a + b`), the one-liner `=>` on a control-flow statement just replaces `{ }`. You still need an explicit `return`, `fail`, etc.
+>
+> ```liva
+> // ✅ explicit return required
+> clamp(x: number, lo: number, hi: number): number {
+>     if x < lo => return lo
+>     if x > hi => return hi
+>     return x
+> }
+>
+> // ❌ this returns nothing — "lo" is just an expression statement
+> if x < lo => lo
+> ```
 
 ### Pattern Matching (switch expressions)
 
@@ -163,6 +179,11 @@ let s = Shape.Circle(5)             // Dot syntax, NOT ::
 if color == Color.Red { ... }       // ✅ idiomatic
 sameColor(a, b) => a == b           // ✅ idiomatic
 isDone(s: Status): bool => s != Status.Done
+
+// ⚠️ Enums do NOT auto-derive PartialOrd. `priority1 > priority2` will
+// fail to compile. For ordering, define a weight function:
+//     priorityWeight(p: Priority): number => switch p { ... }
+//     if priorityWeight(a) > priorityWeight(b) { ... }
 
 // Use switch only when you destructure fields, map every variant to a
 // different value, or need guards/ranges. The arrow form keeps it compact:
@@ -258,6 +279,18 @@ async logEvent("login")
 let doubled = numbers.par().map(x => x * 2)
 ```
 
+> **Picking a concurrency primitive:**
+>
+> | Goal | Use | Example |
+> |------|-----|---------|
+> | I/O-bound work (HTTP, DB, file) | `async` | `let r = async HTTP.get(url)` |
+> | CPU-bound work (compute) | `par` | `let r = par heavy_calc(input)` |
+> | Map/filter a collection in parallel | `.par().map()` adapter | `nums.par().map(f)` |
+> | Tuned parallel loop (chunks, thread count) | `for par … with …` | `for par x in xs with threads 4 { … }` |
+> | Default sequential | plain `.map()` / `for` | `nums.map(f)` |
+>
+> Don't use `par` or `async` for trivial work — task spawning has overhead. Reach for them when each item is non-trivial or each call is meaningfully slow.
+
 ## Collections
 
 ### Arrays
@@ -318,6 +351,8 @@ for color in colors { print(color) }
 ```
 
 ## Strings
+
+> The blocks below show the most common methods. Full signatures, edge cases, and the complete catalogue (28 string methods, 31 array methods, 14 math functions, etc.) live in `references/stdlib/`. Treat the lists here as a starting point, not a complete inventory.
 
 ```liva
 let msg = $"Hello, {name}! Sum: {a + b}"    // String templates
@@ -576,6 +611,10 @@ describe("Math", () => {
 11. **Multi-file projects** — split by responsibility for >50 lines (see references/)
 12. **`or fail`** — prefer over verbose error binding for propagation
 13. **`defer` for cleanup** — `defer DB.close(db)` right after opening; never forget cleanup
+14. **`=>` on if/for/while ≠ implicit return** — only the *function* arrow returns; control-flow `=>` just replaces `{ }`. Keep `return`, `fail`, etc.
+15. **`%` is remainder, not modulo** — `-5 % 3 == -2`. For true modulo: `((a % b) + b) % b`.
+16. **Enums auto-derive `PartialEq`, NOT `PartialOrd`** — `==`/`!=` work; `<`/`>` don't.
+17. **Liva types are lowercase** — `string`, `number`, `float`, `bool`, `bytes`. `String`/`i32`/`f64` are Rust-only.
 
 ### Reserved Keywords (cannot use as identifiers)
 

@@ -154,44 +154,14 @@ Bindings match positionally to named fields: `Shape.Circle(r)` → `r` binds to 
 
 ## Idioms — Don't Reach For `switch` First
 
-All enums get `PartialEq` derived, so `==` and `!=` work natively. **Use them instead of `switch` whenever you only care about identity, not destructuring.**
-
-### Equality / inequality
+All enums get `PartialEq` derived, so `==` and `!=` work natively. **Use them instead of `switch` whenever you only care about identity, not destructuring.** See `references/pattern-matching.md` § *When NOT To Use `switch`* for the full decision table.
 
 ```liva
-// ✅ Idiomatic
+// ✅ Idiomatic — direct equality / inequality
 sameStatus(a: Status, b: Status): bool => a == b
 isDone(s: Status): bool => s == Status.Done
 isActive(s: Status): bool => s != Status.Done
-
-// ❌ Avoid — switch adds noise without adding value
-sameStatus(a: Status, b: Status): bool {
-    return switch a {
-        Status.Open => switch b { Status.Open => true, _ => false }
-        Status.InProgress => switch b { Status.InProgress => true, _ => false }
-        Status.Done => switch b { Status.Done => true, _ => false }
-    }
-}
 ```
-
-### Single-variant check
-
-```liva
-// ✅ Idiomatic
-if status == Status.Done => archive(task)
-
-// ❌ Avoid
-switch status {
-    Status.Done => archive(task)
-    _ => {}
-}
-```
-
-### Use `switch` when…
-
-- You destructure fields: `Shape.Circle(r) => r * r * 3.14`.
-- You map every variant to a different value: `statusLabel(s) => switch s { ... }`.
-- You match ranges, tuples, or guards.
 
 ### Arrow form with switch body
 
@@ -213,5 +183,21 @@ statusLabel(s: Status): string {
         Status.Done => "done"
     }
 }
+```
+
+### Ordering: enums DON'T auto-derive `PartialOrd`
+
+```liva
+enum Priority { Low, Medium, High }
+
+if Priority.High > Priority.Low { … }   // ❌ Compile error — no PartialOrd
+
+// ✅ Define a weight helper
+priorityWeight(p: Priority): number => switch p {
+    Priority.Low => 1
+    Priority.Medium => 2
+    Priority.High => 3
+}
+if priorityWeight(a) > priorityWeight(b) { … }
 ```
 

@@ -140,37 +140,16 @@ let label = switch color {
 
 ## Idioms — When NOT To Use `switch`
 
-`switch` is for cases where you actually pattern-match (destructure, branch by range/guard, or map every variant to a distinct value). For simple identity checks on enums or scalars, prefer the basic operators:
+`switch` earns its keep when you actually pattern-match. For simple identity checks or two-branch decisions, plain operators are clearer and shorter.
 
-```liva
-// ✅ Idiomatic — direct equality / inequality
-if status == Status.Done => archive(task)
-isOpen(s: Status): bool => s != Status.Done
-sameStatus(a, b) => a == b
+| Situation | Do | Avoid |
+|-----------|----|-------|
+| Enum identity check | `if status == Status.Done { … }` | `switch status { Status.Done => true, _ => false }` |
+| Negated enum check | `s != Status.Done` | `switch s { Status.Done => false, _ => true }` |
+| Two-branch decision | `if x > 5 { … } else { … }` | `switch x { n if n > 5 => …, _ => … }` |
+| Single-line dispatch | `=> switch s { … }` (arrow body) | `{ return switch s { … } }` (block) |
+| Destructure + map per variant | `switch shape { Circle(r) => …, Rectangle(w, h) => … }` | Chained `if`/`else if` |
+| Range / or-pattern / guard | `switch x { 1..=10 => …, 11 \| 12 => …, n if n > 100 => … }` | Manual conditions |
 
-// ✅ Idiomatic — chained ifs when conditions don't share a single subject
-clamp(x, lo, hi): number {
-    if x < lo => return lo
-    if x > hi => return hi
-    return x
-}
-
-// ❌ Switch as a glorified `if` adds noise
-isOpen(s: Status): bool {
-    return switch s {
-        Status.Done => false
-        _ => true
-    }
-}
-```
-
-When the function body is a single switch expression, drop the block:
-
-```liva
-statusLabel(s: Status): string => switch s {
-    Status.Open => "open"
-    Status.InProgress => "in-progress"
-    Status.Done => "done"
-}
-```
+> Enums auto-derive `PartialEq` (so `==` / `!=` work) but NOT `PartialOrd` — there is no `enumA > enumB`. If you need ordering, write a `weight(variant): number` helper.
 

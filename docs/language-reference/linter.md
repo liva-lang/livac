@@ -1,12 +1,12 @@
 # Linter — Static Analysis Warnings
 
-> **Subcommand:** `livac lint <file>`  
-> **Versión:** v1.8  
-> **Propósito:** Detección de code smells sin bloquear la compilación
+> **Subcommand:** `livac lint <file>`
+> **Version:** v1.8+
+> **Purpose:** Detect code smells without blocking compilation.
 
 ---
 
-## Uso
+## Usage
 
 ```bash
 # Lint a file (human-readable output)
@@ -16,7 +16,7 @@ livac lint main.liva
 livac lint main.liva --json
 ```
 
-### Salida ejemplo
+### Example output
 
 ```
 warning [W001]: Unused variable
@@ -38,9 +38,9 @@ warning [W003]: Unreachable code
 
 ## Warning Codes
 
-### W001 — Variable declarada pero no usada
+### W001 — Unused variable
 
-Se emite cuando una variable local (let/const) o loop variable (for) se declara pero nunca se referencia.
+Emitted when a local variable (`let`/`const`) or loop variable (`for`) is declared but never referenced.
 
 ```liva
 main() {
@@ -49,24 +49,25 @@ main() {
 }
 ```
 
-**Suprimir:** Prefija con `_`:
+**Suppress** by prefixing with `_`:
+
 ```liva
 main() {
-    let _x = 42       // ✅ No warning
+    let _x = 42       // ✅ no warning
     console.log("hi")
 }
 ```
 
-**No se emite para:**
-- Parámetros de función (son parte de la interfaz pública)
-- Variables prefijadas con `_`
-- El wildcard `_` en destructuring
+**Not emitted for:**
+- Function parameters (they are part of the public interface).
+- Variables prefixed with `_`.
+- The wildcard `_` in destructuring.
 
 ---
 
-### W002 — Import no usado
+### W002 — Unused import
 
-Se emite cuando un símbolo importado no se usa en ningún lugar del archivo.
+Emitted when an imported symbol is never used in the file.
 
 ```liva
 import { add, subtract } from "./math.liva"   // W002: 'subtract' unused
@@ -76,20 +77,21 @@ main() {
 }
 ```
 
-**Solución:** Eliminar el import no usado:
+**Fix** by removing the unused import:
+
 ```liva
 import { add } from "./math.liva"   // ✅
 ```
 
-**No se emite para:**
-- Imports wildcard (`import * from "..."`)
-- Tipos referenciados en type annotations
+**Not emitted for:**
+- Wildcard imports (`import * from "..."`).
+- Types referenced in type annotations.
 
 ---
 
-### W003 — Código inalcanzable
+### W003 — Unreachable code
 
-Se emite cuando hay statements después de `return`, `fail`, `break` o `continue`.
+Emitted when statements appear after `return`, `fail`, `break`, or `continue`.
 
 ```liva
 main() {
@@ -105,27 +107,30 @@ process(): string {
 }
 ```
 
-**Nota:** Solo reporta el primer statement inalcanzable por bloque. No se emite dentro de branches `if/else` separados (solo en el mismo nivel de bloque).
+**Note:** Only the first unreachable statement per block is reported. Branches inside separate `if`/`else` arms are checked independently.
 
 ---
 
-### W004 — Comparación siempre true/false
+### W004 — Comparison is always true/false
 
-Se emite cuando una comparación puede evaluarse estáticamente:
+Emitted when a comparison can be evaluated statically.
 
-#### Caso 1: Variable comparada consigo misma
+#### Case 1: variable compared with itself
+
 ```liva
 if x == x { ... }   // W004: always true
 if x != x { ... }   // W004: always false
 ```
 
-#### Caso 2: Literales diferentes comparados
+#### Case 2: distinct literals compared
+
 ```liva
 if 42 == 99 { ... }   // W004: always false
 if "a" != "b" { ... } // W004: always true
 ```
 
-#### Caso 3: Literales iguales comparados
+#### Case 3: equal literals compared
+
 ```liva
 if true == true { ... }   // W004: always true
 if 42 == 42 { ... }       // W004: always true
@@ -135,7 +140,7 @@ if 42 == 42 { ... }       // W004: always true
 
 ## JSON Output
 
-Para integración con IDEs, usa `--json`:
+For IDE integration, pass `--json`:
 
 ```bash
 livac lint main.liva --json
@@ -158,9 +163,9 @@ livac lint main.liva --json
 
 ---
 
-## Comportamiento
+## Behavior
 
-- **No bloquea compilación:** Las warnings son informativas, `livac build/run` sigue funcionando sin cambios.
-- **Exit code:** `livac lint` siempre retorna 0 (éxito) incluso con warnings. Solo retorna 1 si el archivo no parse.
-- **`_` suprime W001:** Convención de Rust/Liva — variables prefijadas con `_` son intencionalmente ignoradas.
-- **Un warning por bloque para W003:** Solo reporta el primer statement inalcanzable, no todos los siguientes.
+- **Non-blocking:** warnings are informational; `livac build`/`livac run` still succeed.
+- **Exit code:** `livac lint` always returns `0` even with warnings. It returns `1` only if the file fails to parse.
+- **`_` suppresses W001:** following the Rust/Liva convention — variables prefixed with `_` are intentionally ignored.
+- **One warning per block for W003:** only the first unreachable statement in a block is reported.

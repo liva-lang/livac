@@ -18,6 +18,10 @@
 | 10 | `? :` | Ternary | R→L |
 | 11 | `=` `+=` `-=` `*=` `/=` `%=` | Assignment | R→L |
 
+> **⚠️ Modulo `%` is remainder, not mathematical modulo.** It uses Rust's `rem` semantics, so `-5 % 3 == -2` (NOT `1`). For mathematical modulo on possibly-negative numbers, use `((a % b) + b) % b`.
+>
+> **⚠️ Equality on enums only.** Liva auto-derives `PartialEq` for enums, so `==` and `!=` work. It does NOT auto-derive `PartialOrd`, so `<`, `<=`, `>`, `>=` between enum variants will fail to compile. Use a helper like `priorityWeight(p)` that returns a number when you need ordering.
+
 ## Compound Assignment
 
 ```liva
