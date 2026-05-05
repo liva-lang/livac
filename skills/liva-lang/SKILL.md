@@ -283,13 +283,18 @@ let doubled = numbers.par().map(x => x * 2)
 >
 > | Goal | Use | Example |
 > |------|-----|---------|
-> | I/O-bound work (HTTP, DB, file) | `async` | `let r = async HTTP.get(url)` |
-> | CPU-bound work (compute) | `par` | `let r = par heavy_calc(input)` |
+> | Multiple concurrent I/O calls | `async` (one per call) | `let a = async HTTP.get(u1); let b = async HTTP.get(u2); print(a); print(b)` |
+> | Overlap I/O with other work | `async` + work in between | `let r = async HTTP.get(url); let local = readCache(); print(r)` |
+> | CPU-bound work in background | `par` | `let r = par heavy_calc(input)` |
 > | Map/filter a collection in parallel | `.par().map()` adapter | `nums.par().map(f)` |
 > | Tuned parallel loop (chunks, thread count) | `for par … with …` | `for par x in xs with threads 4 { … }` |
+> | Fire-and-forget side effect | bare `async`, no binding | `async logEvent("login")` |
+> | Single I/O call, result used immediately | plain call (no keyword) | `let resp, err = HTTP.get(url)` |
 > | Default sequential | plain `.map()` / `for` | `nums.map(f)` |
 >
-> Don't use `par` or `async` for trivial work — task spawning has overhead. Reach for them when each item is non-trivial or each call is meaningfully slow.
+> **Don't reach for `async` on every I/O call.** A single `let r = async HTTP.get(url); print(r)` is no faster than the plain call — the task spawn just adds overhead. `async` only pays off when something else can run while the task is in flight (another `async` call, sync work between spawn and use, or fire-and-forget).
+>
+> **Auto-async propagation:** any function that calls an async function (like `HTTP.get`) automatically becomes async itself, so you can call it without the `async` keyword and it will be awaited at the use site.
 
 ## Collections
 
@@ -487,9 +492,11 @@ Log.setLevel("debug")                  // debug/info/warn/error
 let data: User, err = JSON.parse(jsonStr)
 let json = JSON.stringify(obj)
 
-// HTTP (async)
-let resp, err = async HTTP.get(url)
-let resp, err = async HTTP.post(url, body)        // Also: .put(), .delete()
+// HTTP (HTTP.get / .post / .put / .delete are async functions —
+// the caller becomes async automatically, no `async` keyword needed
+// for a single call. Use `async` only to overlap requests; see § Concurrency.)
+let resp, err = HTTP.get(url)
+let resp, err = HTTP.post(url, body)              // Also: .put(), .delete()
 resp.status / resp.body / resp.json()
 
 // DB — SQLite (crate rusqlite bundled, auto-injected)
