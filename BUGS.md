@@ -368,6 +368,24 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Fix:** Auto-añadir `Clone + std::fmt::Display` a cada type param de funciones libres genéricas (mismo trato que ya recibían las clases vía B103). Si el usuario define constraints explícitas, se anexan.
 - **Tests:** `bootstrap_apps/app23_stack.liva`. Snapshot `feature_generic_function` actualizada para reflejar las nuevas bounds.
 
+### B154 — `expect(receiver.method())` se reescribe a `.iter().filter().count()` cuando method devuelve `i32` 🔶 OPEN
+- **Repro:** En un `*.test.liva`, `expect(makeStore().count()).toBe(3)` (donde `count()` retorna `number`) genera `make_store().iter().filter().count() as i32` en lugar de `make_store().count()` → E0599 "no method named `iter` for TaskStore".
+- **Workaround:** Extraer el receiver a un `let`: `let s = makeStore(); expect(s.count()).toBe(3)`.
+- **Hipótesis:** El codegen del test framework intercepta `.count()` como si fuera el helper de array nativo cuando el receiver es una expresión inline (no un identificador).
+- **Descubierto en:** `compiler/tests/complex_apps/task_tracker/tests/store.test.liva`.
+
+### B155 — Inferencia de `mut` no propaga a través de `expect(x.mutating())` 🔶 OPEN
+- **Repro:** `expect(s.markDone(99)).toBe(false)` (donde `markDone` requiere `&mut self`) declara `s` sin `mut` → E0596 "cannot borrow `s` as mutable".
+- **Workaround:** Extraer a binding intermedio: `let r = s.markDone(99); expect(r).toBe(false)`.
+- **Hipótesis:** El análisis de mutabilidad del lambda del `test(...)` no inspecciona los argumentos de `expect()`; solo mira asignaciones directas.
+- **Descubierto en:** `compiler/tests/complex_apps/task_tracker/tests/store.test.liva`.
+
+### B156 — `expect(arr[0].field)` pierde el tipo del elemento de `[Class]` 🔶 OPEN
+- **Repro:** `let all = s.all(); expect(all[0].id).toBe(1)` donde `s.all()` retorna `[Task]` emite `all[0]["id"]` (acceso por string) → E0608 "cannot index into a value of type `Task`".
+- **Workaround:** Anotar el binding con el tipo del elemento: `let all: [Task] = s.all()` (entonces `all[0].id` se compila correctamente).
+- **Hipótesis:** Sin anotación explícita, el tracking de tipos del `let` no sabe que el array contiene structs y degrada a acceso JSON-style.
+- **Descubierto en:** `compiler/tests/complex_apps/task_tracker/tests/store.test.liva`.
+
 
 ## Carencias del lenguaje detectadas
 

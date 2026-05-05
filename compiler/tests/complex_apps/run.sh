@@ -103,6 +103,23 @@ done
 echo "============================================================"
 echo "  SUMMARY"
 echo "============================================================"
+# Multi-module exemplar(s): each subdirectory with its own run.sh
+for sub in "$SCRIPT_DIR"/*/; do
+    sub_name="$(basename "$sub")"
+    sub_run="$sub/run.sh"
+    [ -x "$sub_run" ] || continue
+    echo "============================================================"
+    echo " multi-module: $sub_name"
+    echo "============================================================"
+    if "$sub_run"; then
+        PASS=$((PASS+1))
+        RESULTS+=("$sub_name: multi-module OK")
+    else
+        FAIL=$((FAIL+1))
+        RESULTS+=("$sub_name: multi-module FAIL")
+    fi
+done
+
 for r in "${RESULTS[@]}"; do echo "  $r"; done
 echo
 echo "  $PASS pass / $FAIL fail"
