@@ -1,0 +1,45 @@
+// Compile Test (B157): `arr[i].method()` must NOT clone the element.
+// Regression: before B157 fix, codegen emitted `arr[i].clone().method(...)`
+// for non-Copy element types. The clone created a temporary the &mut self
+// method operated on, silently dropping mutations. Now indexing returns
+// the slot directly so IndexMut produces &mut Element.
+import { describe, test, expect } from "liva/test"
+
+Counter {
+    n: number
+
+    constructor(n: number) {
+        this.n = n
+    }
+
+    inc() {
+        this.n = this.n + 1
+    }
+
+    value(): number => this.n
+}
+
+describe("B157 IndexExpr method receiver", () => {
+    test("arr[i].method() mutates the slot", () => {
+        let arr = [Counter(0), Counter(0), Counter(0)]
+        arr[0].inc()
+        arr[0].inc()
+        arr[1].inc()
+        // arr[2] untouched
+        expect(arr[0].value()).toBe(2)
+        expect(arr[1].value()).toBe(1)
+        expect(arr[2].value()).toBe(0)
+    })
+
+    test("loop over indices applies mutation", () => {
+        let arr = [Counter(10), Counter(20), Counter(30)]
+        let i = 0
+        while i < arr.length {
+            arr[i].inc()
+            i = i + 1
+        }
+        expect(arr[0].value()).toBe(11)
+        expect(arr[1].value()).toBe(21)
+        expect(arr[2].value()).toBe(31)
+    })
+})

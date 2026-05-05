@@ -110,6 +110,12 @@ RustEmitter {
     _inTestBlock: bool
     _derefClosureParams: bool
     _inAssignTarget: bool
+    // B157: when true, suppress the trailing .clone() that Expr.Index
+    // appends to non-Copy element accesses. Set by _emitMethodCall when
+    // its receiver is an IndexExpr, so that arr[i].method() does not
+    // clone the element first (which would silently lose mutations on
+    // and-mut self methods like Particle.step (see B157 / RESULTS.md F.4).
+    _suppressIndexElemClone: bool
     _usedTestNames: Map<string, int>
     _functionParamCount: Map<string, int>
     // GAP-007: for each function, a "fn-type-param" mask. Stored as a string
@@ -201,6 +207,7 @@ RustEmitter {
         this._inTestBlock = false
         this._derefClosureParams = false
         this._inAssignTarget = false
+        this._suppressIndexElemClone = false
         this._usedTestNames = Map {}
         this._functionParamCount = Map {}
         this._functionFnParamMask = Map {}
@@ -4395,11 +4402,19 @@ RustEmitter {
                 this._emitExpr(idxExpr)
                 // Phase 8: skip .clone() for Copy-type array elements
                 let elemCopy = this._isIndexExprCopyType(idxObj)
-                if elemCopy {
+                // B157: skip .clone() when the Index is the receiver of a
+                // method call. Cloning would create a temporary the method
+                // operates on, silently dropping any and-mut self mutations
+                // (e.g. particles[i].step(0.01)). Rusts IndexMut gives
+                // us the right borrow automatically when the clone is gone.
+                if elemCopy or this._suppressIndexElemClone {
                     this._write(") as usize]")
                 } else {
                     this._write(") as usize].clone()")
                 }
+                // B157: consume the single-shot flag so it does not leak
+                // into argument expressions of the enclosing method call.
+                this._suppressIndexElemClone = false
                 0
             },
             Expr.ObjectLiteral(objFields) => {
@@ -5805,6 +5820,12 @@ RustEmitter {
     // -- Method calls (type-directed dispatch) --
 
     _emitMethodCall(obj: Expr, method: string, args: [Expr]) {
+        let savedSuppressIdx = this._suppressIndexElemClone
+        this._suppressIndexElemClone = false
+        let _ = switch obj {
+            Expr.Index(idxObj, idxExpr) => { this._suppressIndexElemClone = true; 0 },
+            _ => { 0 }
+        }
         // ── liva/test: expect(x).toBe(y) chain → assert_eq!(x, y) ──
         // Check first WITHOUT consuming args (avoids E0382 move error)
         let isExpectChain = false
@@ -6686,6 +6707,7 @@ RustEmitter {
         if isSelfField {
             this._inAssignTarget = false
         }
+        this._suppressIndexElemClone = savedSuppressIdx
     }
 
     _isKnownStringMethod(m: string): bool {

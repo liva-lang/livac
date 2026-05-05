@@ -386,14 +386,14 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Hipótesis:** Sin anotación explícita, el tracking de tipos del `let` no sabe que el array contiene structs y degrada a acceso JSON-style.
 - **Descubierto en:** `compiler/tests/complex_apps/task_tracker/tests/store.test.liva`.
 
-### B157 — `arr[i].mutMethod()` clona en lugar de mutar (clases de usuario) ⚡ OPEN
-- **Ubicación:** `compiler/src/codegen.liva` — emisión de `IndexExpr` seguido de method call.
-- **Repro:** `particles[pi].step(0.01)` donde `step` muta `&mut self` emite `particles[(pi) as usize].clone().step(0.01)`. La mutación se pierde porque `step` corre sobre un clon temporal que se descarta.
-- **Impacto:** silencioso. El programa compila y corre, pero los efectos no son observables. Cualquier algoritmo iterativo sobre `Vec<Class>` con mutación por índice da resultados incorrectos.
+### B157 — `arr[i].mutMethod()` clona en lugar de mutar (clases de usuario) ✅ FIXED (2026-05-05)
+- **Ubicación:** `src/codegen.rs` (bootstrap) + `compiler/src/codegen.liva` (gen-2) — emisión de `IndexExpr` seguido de method call.
+- **Repro:** `particles[pi].step(0.01)` donde `step` muta `&mut self` emitía `particles[(pi) as usize].clone().step(0.01)`. La mutación se perdía porque `step` corría sobre un clon temporal que se descartaba.
+- **Impacto:** silencioso. El programa compilaba y corría, pero los efectos no eran observables. Cualquier algoritmo iterativo sobre `Vec<Class>` con mutación por índice daba resultados incorrectos.
 - **Detección:** auditoría F.4 del bench `Particle sim` (2026-05-05). El benchmark medía 0.44× contra Rust precisamente porque LLVM eliminaba todo el cuerpo del bucle al ser código muerto.
-- **Fix esperado:** detectar `IndexExpr` como receiver de un method-call cuyo método toma `&mut self` (o que sea un setter/mutador) y emitir `&mut particles[(pi) as usize].step(0.01)` o equivalente sin `.clone()`.
-- **Tests a añadir:** `compiler/tests/liva/codegen/index_mut_method.test.liva` con un asserter explícito sobre el estado post-mutación.
-- **Bench a re-ejecutar:** `benchmarks/run_official.sh` tras el fix; ratio Particle sim debe quedar dentro del gate <1.15× igual que el resto.
+- **Fix:** flag `suppress_index_elem_clone` (Rust) / `_suppressIndexElemClone` (Liva) puesto a true cuando el receiver de un method-call es `Expr::Index { .. }`. La emisión de `Expr::Index` consulta el flag y omite el `.clone()` final, dejando que `IndexMut` produzca `&mut Element`. Adicionalmente, el análisis `mutated_vars` del bootstrap ahora marca el var base de `arr[i].method()` como mutado (necesario para emitir `let mut arr`).
+- **Test de regresión:** `compiler/tests/liva/compile/index_mut_method.test.liva` (2 tests, pasan).
+- **Validación:** 533 cargo tests · 21/21 bootstrap_apps · 5/5 regression · gen-2 ≡ gen-3 idempotente.
 
 
 ## Carencias del lenguaje detectadas

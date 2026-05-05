@@ -56,6 +56,12 @@ pub struct CodeGenerator {
     /// B09: Pre-computed set of methods that need &mut self (direct + transitive)
     mut_self_methods: HashSet<String>,
     in_assignment_target: bool,
+    /// B157: when true, suppress the trailing `.clone()` that the `Expr::Index`
+    /// emission appends to non-Copy element accesses. Set by the method-call
+    /// path when its receiver is an IndexExpr, so that `arr[i].method()` does
+    /// not clone the slot first (which would silently lose `&mut self`
+    /// mutations like `Particle::step`). Single-shot.
+    suppress_index_elem_clone: bool,
     in_fallible_function: bool,
     in_optional_function: bool, // BUG-006: Track if inside function returning T?
     in_test_block: bool,
@@ -175,6 +181,7 @@ impl CodeGenerator {
             current_method_is_mut: false,
             mut_self_methods: HashSet::new(),
             in_assignment_target: false,
+            suppress_index_elem_clone: false,
             in_fallible_function: false,
             in_optional_function: false,
             in_test_block: false,
@@ -1582,6 +1589,21 @@ impl CodeGenerator {
                         if !name.chars().next().map_or(false, |c| c.is_uppercase()) {
                             // Mark as potentially mutated (sanitized to match VarDecl lookup)
                             mutated.insert(self.sanitize_name(name));
+                        }
+                    }
+                    // B157: arr[i].method() with a non-getter method requires `arr`
+                    // to be `mut` because indexing yields &mut Element (no clone).
+                    if let Expr::Index { object, .. } = mc.object.as_ref() {
+                        if let Some(base) = self.get_base_var_name(object) {
+                            mutated.insert(self.sanitize_name(&base));
+                        }
+                    }
+                }
+                if is_mutating_method {
+                    // B157: also propagate for known mutating methods on indexed slots.
+                    if let Expr::Index { object, .. } = mc.object.as_ref() {
+                        if let Some(base) = self.get_base_var_name(object) {
+                            mutated.insert(self.sanitize_name(&base));
                         }
                     }
                 }
@@ -8786,9 +8808,14 @@ impl CodeGenerator {
 
                 // For non-Copy arrays, add .clone() because indexing returns a reference
                 // But NOT when this is an assignment target (LHS of =)
-                if needs_clone && !self.in_assignment_target {
+                // B157: also NOT when we're emitting the receiver of a method call
+                // (would clone the slot and drop &mut self mutations).
+                if needs_clone && !self.in_assignment_target && !self.suppress_index_elem_clone {
                     self.output.push_str(".clone()");
                 }
+                // B157: consume single-shot flag so it does not leak into the
+                // index sub-expression nor into argument lists below.
+                self.suppress_index_elem_clone = false;
 
                 // Convert numeric properties automatically
                 if let Expr::Literal(Literal::String(prop)) = index.as_ref() {
@@ -9270,7 +9297,15 @@ impl CodeGenerator {
             Expr::MethodCall(method_call) => {
                 // TODO: Implement method call code generation (stdlib Phase 2)
                 // For now, just generate a placeholder
-                self.generate_method_call_expr(method_call)?;
+                // B157: when the receiver is an IndexExpr (`arr[i].method()`),
+                // suppress the trailing `.clone()` that the Index emission would
+                // otherwise add — so `&mut self` methods actually mutate the slot.
+                let saved_suppress = self.suppress_index_elem_clone;
+                self.suppress_index_elem_clone =
+                    matches!(method_call.object.as_ref(), Expr::Index { .. });
+                let res = self.generate_method_call_expr(method_call);
+                self.suppress_index_elem_clone = saved_suppress;
+                res?;
             }
             Expr::Switch(switch_expr) => {
                 self.generate_switch_expr(switch_expr)?;
