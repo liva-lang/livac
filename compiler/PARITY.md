@@ -12,6 +12,8 @@
 > ⚠️ **Hallazgo nuevo durante la auditoría F.4:** `arr[i].mutMethod()` sobre clases
 > de usuario emite `.clone().method()` y pierde la mutación. Ver `BUGS.md § B157`.
 > Este bug **es bloqueante** para benchmarks fiables y para casos reales de uso.
+> ✅ **FIXED (2026-05-05, commit `3463ce5`):** `_suppressIndexElemClone` flag en ambos
+> compiladores; particle sim checksum coincide con Rust.
 >
 > **Métrica viva:** `bash compiler/tests/run_all.sh` (incluye este gate).
 >

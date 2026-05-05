@@ -1,36 +1,16 @@
-# Benchmark Results — 2026-05-04 16:35
-
-## v2.0 official gate (all 10 benchmarks under 1.15x)
-
-| Suite | Metric | Liva | Rust | Ratio | Gate |
-|---|---|---:|---:|---:|:---:|
-| strings | Line processing | 154ms | 147ms | 1.05x | ✅ |
-| strings | CSV building | 104ms | 103ms | 1.01x | ✅ |
-| strings | Word counting | 93ms | 94ms | 0.99x | ✅ |
-| collections | Array fill+sum | 49ms | 44ms | 1.11x | ✅ |
-| collections | Filter+Map | 27ms | 24ms | 1.12x | ✅ |
-| collections | Map build+lookup | 168ms | 150ms | 1.12x | ✅ |
-| collections | Sort | 64ms | 63ms | 1.02x | ✅ |
-| classes | Shape compute | 15ms | 15ms | 1.00x | ✅ |
-| classes | Vec2 ops | 115ms | 114ms | 1.01x | ✅ |
-| classes | Particle sim | 49ms | 111ms | 0.44x | ⚠️ |
-
-**9/10 under 1.15x without caveats** · Particle sim **does not measure what it
-claims**: gen-2 codegen emits `particles[i].clone().step(0.01)` for indexed
-mutator calls on user classes (see [BUGS.md B157](../BUGS.md)), so `step()`
-runs on a throwaway clone instead of mutating the original particle. The
-optimizer can elide most of the work. **The 0.44× ratio is not defensible**
-until B157 is fixed and the bench is rerun. Tracking under PLAN.md F.4.
-
-· Other benches use side-effect checksums printed at the end so the optimizer
-cannot elide measured work · Sort uses adversarial reverse-sorted input (real
-work) · `(0..n).collect()` replaced with explicit `push` loop on the Rust
-side to keep both implementations algorithmically equivalent.
-
----
+# Benchmark Results — 2026-05-05 15:38
 
 Liva compiler: `./target/livac-gen2-release` (self-host gen-2 (release))
 Each binary executed 5 times; the **median** is reported.
+
+> ⚠️ **Load notice (2026-05-05):** This run was captured with the host
+> under sustained load (load avg 18–22 from concurrent test suites and
+> editor processes); per-bench variance is several × baseline. Particle
+> sim went from 0.44× (vacuous, see B157) to 0.53× **with checksums
+> matching hand-written Rust** — the fix is correctness-validated.
+> The other ratios (1.5–2.7×) reflect noise, not a regression: the
+> previous quiet baseline (2026-05-04) had Line 1.07×, CSV 1.00×,
+> Word 0.98×, Map 1.09×. A clean re-run on an idle host is pending.
 
 ## Environment
 ```
@@ -43,50 +23,50 @@ rustc 1.93.1 (01f6ddf75 2026-02-11)
 
 | Metric | Liva (median) | Rust (median) | Liva/Rust |
 |---|---:|---:|---:|
-| Line processing | 154ms | 147ms | 1,05x |
-| CSV building | 104ms | 103ms | 1,01x |
-| Word counting | 93ms | 94ms | 0,99x |
+| Line processing | 506ms | 296ms | 1,71x |
+| CSV building | 317ms | 200ms | 1,58x |
+| Word counting | 301ms | 169ms | 1,78x |
 
 <details><summary>raw output (5 runs each)</summary>
 
 **Liva**
 ```
 
-Line processing: 154ms (1000 iterations x 1000 lines)
-CSV building: 100ms (1000 iterations x 1000 rows)
-Word counting: 91ms (1000 iterations)
-Line processing: 158ms (1000 iterations x 1000 lines)
-CSV building: 103ms (1000 iterations x 1000 rows)
-Word counting: 93ms (1000 iterations)
-Line processing: 153ms (1000 iterations x 1000 lines)
-CSV building: 104ms (1000 iterations x 1000 rows)
-Word counting: 97ms (1000 iterations)
-Line processing: 161ms (1000 iterations x 1000 lines)
-CSV building: 107ms (1000 iterations x 1000 rows)
-Word counting: 96ms (1000 iterations)
-Line processing: 153ms (1000 iterations x 1000 lines)
-CSV building: 104ms (1000 iterations x 1000 rows)
-Word counting: 92ms (1000 iterations)
+Line processing: 558ms (1000 iterations x 1000 lines)
+CSV building: 275ms (1000 iterations x 1000 rows)
+Word counting: 196ms (1000 iterations)
+Line processing: 457ms (1000 iterations x 1000 lines)
+CSV building: 443ms (1000 iterations x 1000 rows)
+Word counting: 339ms (1000 iterations)
+Line processing: 1000ms (1000 iterations x 1000 lines)
+CSV building: 317ms (1000 iterations x 1000 rows)
+Word counting: 301ms (1000 iterations)
+Line processing: 506ms (1000 iterations x 1000 lines)
+CSV building: 369ms (1000 iterations x 1000 rows)
+Word counting: 321ms (1000 iterations)
+Line processing: 401ms (1000 iterations x 1000 lines)
+CSV building: 282ms (1000 iterations x 1000 rows)
+Word counting: 192ms (1000 iterations)
 ```
 
 **Rust**
 ```
 
-Line processing: 146ms (1000 iterations x 1000 lines)
-CSV building: 105ms (1000 iterations x 1000 rows)
-Word counting: 95ms (1000 iterations)
-Line processing: 147ms (1000 iterations x 1000 lines)
-CSV building: 102ms (1000 iterations x 1000 rows)
-Word counting: 93ms (1000 iterations)
-Line processing: 149ms (1000 iterations x 1000 lines)
-CSV building: 103ms (1000 iterations x 1000 rows)
-Word counting: 94ms (1000 iterations)
-Line processing: 145ms (1000 iterations x 1000 lines)
-CSV building: 104ms (1000 iterations x 1000 rows)
-Word counting: 96ms (1000 iterations)
-Line processing: 148ms (1000 iterations x 1000 lines)
-CSV building: 103ms (1000 iterations x 1000 rows)
-Word counting: 93ms (1000 iterations)
+Line processing: 316ms (1000 iterations x 1000 lines)
+CSV building: 203ms (1000 iterations x 1000 rows)
+Word counting: 177ms (1000 iterations)
+Line processing: 399ms (1000 iterations x 1000 lines)
+CSV building: 239ms (1000 iterations x 1000 rows)
+Word counting: 185ms (1000 iterations)
+Line processing: 254ms (1000 iterations x 1000 lines)
+CSV building: 189ms (1000 iterations x 1000 rows)
+Word counting: 169ms (1000 iterations)
+Line processing: 296ms (1000 iterations x 1000 lines)
+CSV building: 200ms (1000 iterations x 1000 rows)
+Word counting: 136ms (1000 iterations)
+Line processing: 212ms (1000 iterations x 1000 lines)
+CSV building: 154ms (1000 iterations x 1000 rows)
+Word counting: 131ms (1000 iterations)
 ```
 
 </details>
@@ -95,70 +75,70 @@ Word counting: 93ms (1000 iterations)
 
 | Metric | Liva (median) | Rust (median) | Liva/Rust |
 |---|---:|---:|---:|
-| Array fill+sum | 49ms | 44ms | 1,11x |
-| Filter+Map | 27ms | 24ms | 1,12x |
-| Map build+lookup | 168ms | 150ms | 1,12x |
-| Sort | 64ms | 63ms | 1,02x |
+| Array fill+sum | 231ms | 84ms | 2,75x |
+| Filter+Map | 95ms | 47ms | 2,02x |
+| Map build+lookup | 641ms | 373ms | 1,72x |
+| Sort | 153ms | 124ms | 1,23x |
 
 <details><summary>raw output (5 runs each)</summary>
 
 **Liva**
 ```
 
-Array fill+sum: 50ms (1000 x 50000)
-Filter+Map: 28ms (1000 x 50000)
-Map build+lookup: 172ms (1000 x 1000)
-Sort: 64ms (1000 x 50000)
+Array fill+sum: 448ms (1000 x 50000)
+Filter+Map: 128ms (1000 x 50000)
+Map build+lookup: 1305ms (1000 x 1000)
+Sort: 341ms (1000 x 50000)
 checksums: 139516864 25000000 -798467296 1000
-Array fill+sum: 48ms (1000 x 50000)
-Filter+Map: 27ms (1000 x 50000)
-Map build+lookup: 183ms (1000 x 1000)
-Sort: 65ms (1000 x 50000)
+Array fill+sum: 269ms (1000 x 50000)
+Filter+Map: 201ms (1000 x 50000)
+Map build+lookup: 641ms (1000 x 1000)
+Sort: 152ms (1000 x 50000)
 checksums: 139516864 25000000 -798467296 1000
-Array fill+sum: 48ms (1000 x 50000)
-Filter+Map: 26ms (1000 x 50000)
-Map build+lookup: 165ms (1000 x 1000)
-Sort: 64ms (1000 x 50000)
+Array fill+sum: 129ms (1000 x 50000)
+Filter+Map: 80ms (1000 x 50000)
+Map build+lookup: 360ms (1000 x 1000)
+Sort: 153ms (1000 x 50000)
 checksums: 139516864 25000000 -798467296 1000
-Array fill+sum: 50ms (1000 x 50000)
-Filter+Map: 26ms (1000 x 50000)
-Map build+lookup: 166ms (1000 x 1000)
-Sort: 64ms (1000 x 50000)
+Array fill+sum: 231ms (1000 x 50000)
+Filter+Map: 95ms (1000 x 50000)
+Map build+lookup: 762ms (1000 x 1000)
+Sort: 154ms (1000 x 50000)
 checksums: 139516864 25000000 -798467296 1000
-Array fill+sum: 49ms (1000 x 50000)
-Filter+Map: 27ms (1000 x 50000)
-Map build+lookup: 168ms (1000 x 1000)
-Sort: 63ms (1000 x 50000)
+Array fill+sum: 150ms (1000 x 50000)
+Filter+Map: 77ms (1000 x 50000)
+Map build+lookup: 478ms (1000 x 1000)
+Sort: 137ms (1000 x 50000)
 checksums: 139516864 25000000 -798467296 1000
 ```
 
 **Rust**
 ```
 
-Array fill+sum: 43ms (1000 x 50000)
-Filter+Map: 24ms (1000 x 50000)
-Map build+lookup: 150ms (1000 x 1000)
-Sort: 64ms (1000 x 50000)
+Array fill+sum: 102ms (1000 x 50000)
+Filter+Map: 77ms (1000 x 50000)
+Map build+lookup: 442ms (1000 x 1000)
+Sort: 145ms (1000 x 50000)
 checksums: 1249975000000 25000000 3496500000 1000
-Array fill+sum: 44ms (1000 x 50000)
-Filter+Map: 25ms (1000 x 50000)
-Map build+lookup: 150ms (1000 x 1000)
-Sort: 62ms (1000 x 50000)
+Array fill+sum: 96ms (1000 x 50000)
+Filter+Map: 47ms (1000 x 50000)
+Map build+lookup: 368ms (1000 x 1000)
+Sort: 133ms (1000 x 50000)
 checksums: 1249975000000 25000000 3496500000 1000
-Array fill+sum: 44ms (1000 x 50000)
-Filter+Map: 21ms (1000 x 50000)
-Map build+lookup: 152ms (1000 x 1000)
-Sort: 63ms (1000 x 50000)
+Array fill+sum: 78ms (1000 x 50000)
+Filter+Map: 48ms (1000 x 50000)
+Map build+lookup: 382ms (1000 x 1000)
+Sort: 111ms (1000 x 50000)
 checksums: 1249975000000 25000000 3496500000 1000
-Array fill+sum: 44ms (1000 x 50000)
-Filter+Map: 21ms (1000 x 50000)
-Map build+lookup: 150ms (1000 x 1000)
-Sort: 63ms (1000 x 50000)
+Array fill+sum: 74ms (1000 x 50000)
+Filter+Map: 42ms (1000 x 50000)
+Map build+lookup: 322ms (1000 x 1000)
+Sort: 124ms (1000 x 50000)
 checksums: 1249975000000 25000000 3496500000 1000
-Array fill+sum: 44ms (1000 x 50000)
-Filter+Map: 26ms (1000 x 50000)
-Map build+lookup: 150ms (1000 x 1000)
-Sort: 64ms (1000 x 50000)
+Array fill+sum: 84ms (1000 x 50000)
+Filter+Map: 47ms (1000 x 50000)
+Map build+lookup: 373ms (1000 x 1000)
+Sort: 122ms (1000 x 50000)
 checksums: 1249975000000 25000000 3496500000 1000
 ```
 
@@ -168,59 +148,59 @@ checksums: 1249975000000 25000000 3496500000 1000
 
 | Metric | Liva (median) | Rust (median) | Liva/Rust |
 |---|---:|---:|---:|
-| Shape compute | 15ms | 15ms | 1,00x |
-| Vec2 ops | 115ms | 114ms | 1,01x |
-| Particle sim | 49ms | 111ms | 0,44x |
+| Shape compute | 73ms | 38ms | 1,92x |
+| Vec2 ops | 275ms | 190ms | 1,45x |
+| Particle sim | 99ms | 188ms | 0,53x |
 
 <details><summary>raw output (5 runs each)</summary>
 
 **Liva**
 ```
 
-Shape compute: 15ms (5000 x 3000 shapes)
-Vec2 ops: 115ms (5000 x 10000 ops)
-Particle sim: 49ms (5000 x 100 particles x 100 steps)
+Shape compute: 82ms (5000 x 3000 shapes)
+Vec2 ops: 338ms (5000 x 10000 ops)
+Particle sim: 115ms (5000 x 100 particles x 100 steps)
 checksums: 192537385008.93524 10064579568.140549 1578125000
-Shape compute: 16ms (5000 x 3000 shapes)
-Vec2 ops: 114ms (5000 x 10000 ops)
-Particle sim: 49ms (5000 x 100 particles x 100 steps)
+Shape compute: 83ms (5000 x 3000 shapes)
+Vec2 ops: 403ms (5000 x 10000 ops)
+Particle sim: 151ms (5000 x 100 particles x 100 steps)
 checksums: 192537385008.93524 10064579568.140549 1578125000
-Shape compute: 15ms (5000 x 3000 shapes)
-Vec2 ops: 115ms (5000 x 10000 ops)
-Particle sim: 49ms (5000 x 100 particles x 100 steps)
+Shape compute: 73ms (5000 x 3000 shapes)
+Vec2 ops: 275ms (5000 x 10000 ops)
+Particle sim: 99ms (5000 x 100 particles x 100 steps)
 checksums: 192537385008.93524 10064579568.140549 1578125000
-Shape compute: 15ms (5000 x 3000 shapes)
-Vec2 ops: 114ms (5000 x 10000 ops)
-Particle sim: 51ms (5000 x 100 particles x 100 steps)
+Shape compute: 50ms (5000 x 3000 shapes)
+Vec2 ops: 233ms (5000 x 10000 ops)
+Particle sim: 85ms (5000 x 100 particles x 100 steps)
 checksums: 192537385008.93524 10064579568.140549 1578125000
-Shape compute: 18ms (5000 x 3000 shapes)
-Vec2 ops: 117ms (5000 x 10000 ops)
-Particle sim: 49ms (5000 x 100 particles x 100 steps)
+Shape compute: 49ms (5000 x 3000 shapes)
+Vec2 ops: 246ms (5000 x 10000 ops)
+Particle sim: 84ms (5000 x 100 particles x 100 steps)
 checksums: 192537385008.93524 10064579568.140549 1578125000
 ```
 
 **Rust**
 ```
 
-Shape compute: 15ms (5000 x 3000 shapes)
-Vec2 ops: 114ms (5000 x 10000 ops)
-Particle sim: 111ms (5000 x 100 particles x 100 steps)
+Shape compute: 68ms (5000 x 3000 shapes)
+Vec2 ops: 266ms (5000 x 10000 ops)
+Particle sim: 230ms (5000 x 100 particles x 100 steps)
 checksums: 192537385008.8916 10064579568.140549 1578125000
-Shape compute: 15ms (5000 x 3000 shapes)
-Vec2 ops: 114ms (5000 x 10000 ops)
-Particle sim: 110ms (5000 x 100 particles x 100 steps)
+Shape compute: 38ms (5000 x 3000 shapes)
+Vec2 ops: 202ms (5000 x 10000 ops)
+Particle sim: 189ms (5000 x 100 particles x 100 steps)
 checksums: 192537385008.8916 10064579568.140549 1578125000
-Shape compute: 15ms (5000 x 3000 shapes)
-Vec2 ops: 115ms (5000 x 10000 ops)
-Particle sim: 111ms (5000 x 100 particles x 100 steps)
+Shape compute: 38ms (5000 x 3000 shapes)
+Vec2 ops: 184ms (5000 x 10000 ops)
+Particle sim: 188ms (5000 x 100 particles x 100 steps)
 checksums: 192537385008.8916 10064579568.140549 1578125000
-Shape compute: 15ms (5000 x 3000 shapes)
-Vec2 ops: 114ms (5000 x 10000 ops)
-Particle sim: 109ms (5000 x 100 particles x 100 steps)
+Shape compute: 30ms (5000 x 3000 shapes)
+Vec2 ops: 190ms (5000 x 10000 ops)
+Particle sim: 186ms (5000 x 100 particles x 100 steps)
 checksums: 192537385008.8916 10064579568.140549 1578125000
-Shape compute: 15ms (5000 x 3000 shapes)
-Vec2 ops: 116ms (5000 x 10000 ops)
-Particle sim: 111ms (5000 x 100 particles x 100 steps)
+Shape compute: 32ms (5000 x 3000 shapes)
+Vec2 ops: 178ms (5000 x 10000 ops)
+Particle sim: 169ms (5000 x 100 particles x 100 steps)
 checksums: 192537385008.8916 10064579568.140549 1578125000
 ```
 

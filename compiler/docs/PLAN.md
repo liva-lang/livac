@@ -92,7 +92,7 @@
 
 ### A.1.bis — Hallazgos nuevos durante la auditoría ⚠️
 
-- [ ] `B157` — `arr[i].mutMethod()` clona en lugar de mutar (clases). Descubierto en F.4. **⚡ BLOQUEANTE para v2.0 final.** Ver `BUGS.md`.
+- [x] `B157` — `arr[i].mutMethod()` clona en lugar de mutar (clases). ✅ FIXED 2026-05-05 (commit `3463ce5`); particle sim checksum match con Rust.
 
 ### A.2 — Tier 2 PARITY.md (error handling unificado) ⚡ crítico
 
@@ -410,7 +410,7 @@ Este es el item más caro del plan. Tower-lsp en Liva no es trivial.
   clon temporal. La mutación se pierde y LLVM elide casi todo el cuerpo.
 - [x] Documentado en `benchmarks/RESULTS.md` (Particle sim marcada ⚠️ no defendible).
 - [x] Bug abierto: `BUGS.md § B157` — `arr[i].mutMethod()` clona en clases de usuario.
-- [ ] **Fix de B157** (pasa al bloque A.1.bis como bloqueante v2.0 final).
+- [x] **Fix de B157** (commit `3463ce5`, 2026-05-05). Detalles: `_suppressIndexElemClone` flag en codegen.rs (bootstrap) y codegen.liva (gen-2).
 - [ ] Re-ejecutar bench tras fix y actualizar ratio en `RESULTS.md`.
 
 **Gate F.4:** ✅ ratio actual etiquetado como no defendible; fix B157 queda en backlog crítico.
@@ -597,4 +597,5 @@ Antes de tagear `v2.0.0` (no rc), todos estos checks deben estar verde:
 - ✅ **B.1** — `livac check` ya implementado en gen-2.
 - ✅ **F.2** — `benchmarks/compile_speed.sh` creado y baseline registrado en `benchmarks/COMPILE_SPEED.md` (68ms suma de medianas, modo check, 21 programas).
 - ✅ **F.4** — Auditoría Particle sim 0.44× completada. Descubierto **B157** (`arr[i].mutMethod()` clona en clases). Documentado en `BUGS.md` y `RESULTS.md`.
+- ✅ **B157 fix** (2026-05-05, commit `3463ce5`) — `_suppressIndexElemClone` en ambos compiladores; regression test `compiler/tests/liva/compile/index_mut_method.test.liva`; checksum coincide con Rust en particle sim; 533 cargo tests + 21/21 bootstrap_apps + 5/5 regression + idempotent gen-2≡gen-3 verde.
 - 📝 Sin commits ni push hasta que el usuario lo autorice.
