@@ -135,3 +135,42 @@ let label = switch color {
 - No tuple destructuring in `let` bindings
 - Float/char exhaustiveness not checked
 - Planned: array patterns, as-patterns
+
+---
+
+## Idioms — When NOT To Use `switch`
+
+`switch` is for cases where you actually pattern-match (destructure, branch by range/guard, or map every variant to a distinct value). For simple identity checks on enums or scalars, prefer the basic operators:
+
+```liva
+// ✅ Idiomatic — direct equality / inequality
+if status == Status.Done => archive(task)
+isOpen(s: Status): bool => s != Status.Done
+sameStatus(a, b) => a == b
+
+// ✅ Idiomatic — chained ifs when conditions don't share a single subject
+clamp(x, lo, hi): number {
+    if x < lo => return lo
+    if x > hi => return hi
+    return x
+}
+
+// ❌ Switch as a glorified `if` adds noise
+isOpen(s: Status): bool {
+    return switch s {
+        Status.Done => false
+        _ => true
+    }
+}
+```
+
+When the function body is a single switch expression, drop the block:
+
+```liva
+statusLabel(s: Status): string => switch s {
+    Status.Open => "open"
+    Status.InProgress => "in-progress"
+    Status.Done => "done"
+}
+```
+

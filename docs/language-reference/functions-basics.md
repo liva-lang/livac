@@ -122,3 +122,30 @@ let msg = switch getStatus() {
 ```liva
 getNumbers(): [number] => [1, 2, 3, 4, 5]
 ```
+
+## Arrow Body Can Be a Multi-Line Expression
+
+The arrow body is **a single expression**, not a single line. `switch`, `if`/`else`, ternaries and parenthesised tuples all qualify, so you rarely need a `{ return … }` block just to return a switch:
+
+```liva
+// ✅ Arrow body = switch expression
+priorityLabel(p: Priority): string => switch p {
+    Priority.Low => "low"
+    Priority.Medium => "medium"
+    Priority.High => "high"
+}
+
+// ✅ Arrow body = ternary
+discount(age: number): float => age >= 65 ? 0.2 : 0.0
+
+// ❌ Verbose — block + return for a single-expression body
+priorityLabel(p: Priority): string {
+    return switch p {
+        Priority.Low => "low"
+        Priority.Medium => "medium"
+        Priority.High => "high"
+    }
+}
+```
+
+Use a block (`{ … return … }`) when the body needs statements (`let`, `for`, `if` without `else`, side-effects).

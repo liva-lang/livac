@@ -13,58 +13,41 @@ enum Priority {
     High
 }
 
-statusLabel(s: Status): string {
-    return switch s {
-        Status.Open => "open",
-        Status.InProgress => "in-progress",
-        Status.Done => "done"
-    }
+statusLabel(s: Status): string => switch s {
+    Status.Open => "open",
+    Status.InProgress => "in-progress",
+    Status.Done => "done"
 }
 
-priorityLabel(p: Priority): string {
-    return switch p {
-        Priority.Low => "low",
-        Priority.Medium => "medium",
-        Priority.High => "high"
-    }
+priorityLabel(p: Priority): string => switch p {
+    Priority.Low => "low",
+    Priority.Medium => "medium",
+    Priority.High => "high"
 }
 
-priorityWeight(p: Priority): number {
-    return switch p {
-        Priority.Low => 1,
-        Priority.Medium => 2,
-        Priority.High => 3
-    }
+// Enums don't auto-derive PartialOrd, so weight is needed for ordering.
+priorityWeight(p: Priority): number => switch p {
+    Priority.Low => 1,
+    Priority.Medium => 2,
+    Priority.High => 3
 }
 
-sameStatus(a: Status, b: Status): bool {
-    return switch a {
-        Status.Open => switch b { Status.Open => true, _ => false },
-        Status.InProgress => switch b { Status.InProgress => true, _ => false },
-        Status.Done => switch b { Status.Done => true, _ => false }
-    }
+// `==` works directly on enums (PartialEq is auto-derived).
+sameStatus(a: Status, b: Status): bool => a == b
+samePriority(a: Priority, b: Priority): bool => a == b
+
+statusFromString(label: string): Status => switch label {
+    "open" => Status.Open,
+    "in-progress" => Status.InProgress,
+    "done" => Status.Done,
+    _ => Status.Open
 }
 
-samePriority(a: Priority, b: Priority): bool {
-    return priorityWeight(a) == priorityWeight(b)
-}
-
-statusFromString(label: string): Status {
-    return switch label {
-        "open" => Status.Open,
-        "in-progress" => Status.InProgress,
-        "done" => Status.Done,
-        _ => Status.Open
-    }
-}
-
-priorityFromString(label: string): Priority {
-    return switch label {
-        "low" => Priority.Low,
-        "medium" => Priority.Medium,
-        "high" => Priority.High,
-        _ => Priority.Low
-    }
+priorityFromString(label: string): Priority => switch label {
+    "low" => Priority.Low,
+    "medium" => Priority.Medium,
+    "high" => Priority.High,
+    _ => Priority.Low
 }
 
 Task {
@@ -80,18 +63,9 @@ Task {
         this.priority = priority
     }
 
-    summary(): string {
-        return $"#{this.id} [{statusLabel(this.status)}/{priorityLabel(this.priority)}] {this.title}"
-    }
+    summary(): string => $"#{this.id} [{statusLabel(this.status)}/{priorityLabel(this.priority)}] {this.title}"
 
-    isOpen(): bool {
-        return switch this.status {
-            Status.Done => false,
-            _ => true
-        }
-    }
+    isOpen(): bool => this.status != Status.Done
 
-    withStatus(s: Status): Task {
-        return Task(this.id, this.title, s, this.priority)
-    }
+    withStatus(s: Status): Task => Task(this.id, this.title, s, this.priority)
 }

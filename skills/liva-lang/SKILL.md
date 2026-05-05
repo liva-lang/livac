@@ -157,6 +157,20 @@ enum Shape {
     Point
 }
 let s = Shape.Circle(5)             // Dot syntax, NOT ::
+
+// Enums get == / != automatically (PartialEq is derived). Reach for them
+// before reaching for switch:
+if color == Color.Red { ... }       // ✅ idiomatic
+sameColor(a, b) => a == b           // ✅ idiomatic
+isDone(s: Status): bool => s != Status.Done
+
+// Use switch only when you destructure fields, map every variant to a
+// different value, or need guards/ranges. The arrow form keeps it compact:
+statusLabel(s: Status): string => switch s {
+    Status.Open => "open"
+    Status.InProgress => "in-progress"
+    Status.Done => "done"
+}
 ```
 
 ## Interfaces & Visibility
