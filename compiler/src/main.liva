@@ -594,8 +594,8 @@ _findTestFiles(path: string): [string] {
 
 _walkTestDir(dir: string): [string] {
     let result: [string] = []
-    let entries, walkErr = Dir.list(dir)
-    if walkErr { return result }
+    let entries, err = Dir.list(dir)
+    if err { return result }
     for name in entries {
         // Skip dotfiles and target/build dirs
         if name.startsWith(".") { continue }

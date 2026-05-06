@@ -964,9 +964,13 @@ RustEmitter {
         let prevRetOpt = this._currentReturnOptional
         let prevRetFail = this._currentReturnFallible
         let prevStrRefParams = this._strRefParams
+        let prevErrBindings = this._errBindings
+        let prevTruthyErrBindings = this._truthyErrBindings
         this._currentReturnOptional = false
         this._currentReturnFallible = false
         this._strRefParams = Map {}
+        this._errBindings = Map {}
+        this._truthyErrBindings = Map {}
 
         // Register default parameter values for call-site injection
         this._functionParamCount.set(funcName, decl.params.length)
@@ -1108,6 +1112,8 @@ RustEmitter {
         this._currentReturnOptional = prevRetOpt
         this._currentReturnFallible = prevRetFail
         this._strRefParams = prevStrRefParams
+        this._errBindings = prevErrBindings
+        this._truthyErrBindings = prevTruthyErrBindings
     }
 
     // B.4: emit `test "name" { ... }` as `#[test] fn test_<sanitized>() { ... }`.
@@ -1121,12 +1127,16 @@ RustEmitter {
         let prevRetOpt = this._currentReturnOptional
         let prevRetFail = this._currentReturnFallible
         let prevStrRefParams = this._strRefParams
+        let prevErrBindings = this._errBindings
+        let prevTruthyErrBindings = this._truthyErrBindings
         this._currentFunc = "test_" + testName
         this._currentFuncBorrowKey = "test_" + testName
         this._currentFuncIsMethod = false
         this._currentReturnOptional = false
         this._currentReturnFallible = false
         this._strRefParams = Map {}
+        this._errBindings = Map {}
+        this._truthyErrBindings = Map {}
         this._emitBlock(decl.body)
         this._dedent()
         this._writeln("}")
@@ -1135,6 +1145,8 @@ RustEmitter {
         this._currentReturnOptional = prevRetOpt
         this._currentReturnFallible = prevRetFail
         this._strRefParams = prevStrRefParams
+        this._errBindings = prevErrBindings
+        this._truthyErrBindings = prevTruthyErrBindings
     }
 
     _buildParamList(params: [Param]): string {
@@ -2478,9 +2490,13 @@ RustEmitter {
         let prevRetOpt = this._currentReturnOptional
         let prevRetFail = this._currentReturnFallible
         let prevStrRefParams = this._strRefParams
+        let prevErrBindings = this._errBindings
+        let prevTruthyErrBindings = this._truthyErrBindings
         this._currentReturnOptional = false
         this._currentReturnFallible = false
         this._strRefParams = Map {}
+        this._errBindings = Map {}
+        this._truthyErrBindings = Map {}
 
         // Bootstrap parity: methods that don't mutate self/self-fields take &self
         // (avoids E0596 'cannot borrow as mutable' at call sites with non-mut bindings).
@@ -2541,6 +2557,8 @@ RustEmitter {
         this._currentReturnOptional = prevRetOpt
         this._currentReturnFallible = prevRetFail
         this._strRefParams = prevStrRefParams
+        this._errBindings = prevErrBindings
+        this._truthyErrBindings = prevTruthyErrBindings
     }
 
     // -- Enum declaration --
