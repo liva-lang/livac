@@ -6073,6 +6073,45 @@ RustEmitter {
             }
         }
 
+        // ── Env module (5 functions) — D.4 PLAN ──
+        if stdlibName == "Env" {
+            if method == "get" {
+                // Env.get(key) -> string (empty if missing). Mirrors Sys.env.
+                this._write("std::env::var(")
+                this._emitExpr(args[0])
+                this._write(").unwrap_or_default()")
+                return
+            }
+            if method == "has" {
+                // Env.has(key) -> bool
+                this._write("std::env::var(")
+                this._emitExpr(args[0])
+                this._write(").is_ok()")
+                return
+            }
+            if method == "set" {
+                // Env.set(key, value) -> void; SAFETY: process-global mutation.
+                this._write("{ unsafe { std::env::set_var(")
+                this._emitExpr(args[0])
+                this._write(", ")
+                this._emitExpr(args[1])
+                this._write(") } }")
+                return
+            }
+            if method == "unset" {
+                // Env.unset(key) -> void
+                this._write("{ unsafe { std::env::remove_var(")
+                this._emitExpr(args[0])
+                this._write(") } }")
+                return
+            }
+            if method == "all" {
+                // Env.all() -> Map<string, string>
+                this._write("std::env::vars().collect::<std::collections::HashMap<String, String>>()")
+                return
+            }
+        }
+
         // ── Config module (5 functions) ──
         if stdlibName == "Config" {
             if method == "load" {

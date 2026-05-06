@@ -1,0 +1,28 @@
+// Compile Test (D.4 PLAN): Env stdlib module.
+// Validates: Env.get / Env.has / Env.set / Env.unset / Env.all.
+import { describe, test, expect } from "liva/test"
+
+describe("D.4 Env stdlib", () => {
+    test("Env.set then Env.get round-trips", () => {
+        Env.set("LIVAC_D4_TEST_KEY", "hello")
+        expect(Env.get("LIVAC_D4_TEST_KEY")).toBe("hello")
+    })
+
+    test("Env.has reflects presence", () => {
+        Env.set("LIVAC_D4_HAS_KEY", "1")
+        expect(Env.has("LIVAC_D4_HAS_KEY")).toBe(true)
+        Env.unset("LIVAC_D4_HAS_KEY")
+        expect(Env.has("LIVAC_D4_HAS_KEY")).toBe(false)
+    })
+
+    test("Env.get returns empty for missing key", () => {
+        Env.unset("LIVAC_D4_MISSING_KEY")
+        expect(Env.get("LIVAC_D4_MISSING_KEY")).toBe("")
+    })
+
+    test("Env.all contains a known key after set", () => {
+        Env.set("LIVAC_D4_ALL_KEY", "world")
+        let envs = Env.all()
+        expect(envs.has("LIVAC_D4_ALL_KEY")).toBe(true)
+    })
+})

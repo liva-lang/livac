@@ -6558,6 +6558,16 @@ impl CodeGenerator {
                                     }
                                 }
                             }
+                            // Env.all() returns HashMap<String, String> - track as map variable
+                            else if method_call.method.as_str() == "all" {
+                                if let Expr::Identifier(obj_name) = method_call.object.as_ref() {
+                                    if obj_name == "Env" {
+                                        if let Some(name) = binding.name() {
+                                            self.map_vars.insert(name.to_string());
+                                        }
+                                    }
+                                }
+                            }
                             // .as_array() returns Vec<JsonValue> - mark as array for .length -> .len()
                             else if method_call.method.as_str() == "as_array" {
                                 if let Some(name) = binding.name() {
@@ -10690,6 +10700,11 @@ impl CodeGenerator {
                 return self.generate_sys_function_call(method_call);
             }
 
+            // Check if this is an Env function call (Env.get, Env.set, etc.) — D.4 PLAN
+            if name == "Env" {
+                return self.generate_env_function_call(method_call);
+            }
+
             // Check if this is a Log function call (Log.info, Log.warn, etc.)
             if name == "Log" {
                 return self.generate_log_function_call(method_call);
@@ -13786,6 +13801,91 @@ impl CodeGenerator {
                     "E3000",
                     &format!("Unknown Sys function: {}", method_call.method),
                     "Available Sys functions: args, env, exit",
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Generate Env module function calls — D.4 PLAN.
+    /// Env.get(key)   -> string (empty if missing)
+    /// Env.has(key)   -> bool
+    /// Env.set(k, v)  -> void
+    /// Env.unset(k)   -> void
+    /// Env.all()      -> Map<string, string>
+    fn generate_env_function_call(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
+        match method_call.method.as_str() {
+            "get" => {
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Env.get requires exactly 1 argument",
+                        "Usage: Env.get(\"VAR_NAME\")",
+                    )));
+                }
+                self.output.push_str("std::env::var(");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(").unwrap_or_default()");
+            }
+            "has" => {
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Env.has requires exactly 1 argument",
+                        "Usage: Env.has(\"VAR_NAME\")",
+                    )));
+                }
+                self.output.push_str("std::env::var(");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(").is_ok()");
+            }
+            "set" => {
+                if method_call.args.len() != 2 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Env.set requires exactly 2 arguments",
+                        "Usage: Env.set(\"KEY\", \"VALUE\")",
+                    )));
+                }
+                self.output.push_str("{ unsafe { std::env::set_var(");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(", ");
+                self.generate_expr(&method_call.args[1])?;
+                self.output.push_str(") } }");
+            }
+            "unset" => {
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Env.unset requires exactly 1 argument",
+                        "Usage: Env.unset(\"KEY\")",
+                    )));
+                }
+                self.output.push_str("{ unsafe { std::env::remove_var(");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(") } }");
+            }
+            "all" => {
+                if !method_call.args.is_empty() {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Env.all takes no arguments",
+                        "Usage: Env.all()",
+                    )));
+                }
+                self.output.push_str(
+                    "std::env::vars().collect::<std::collections::HashMap<String, String>>()",
+                );
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3000",
+                    &format!("Unknown Env function: {}", method_call.method),
+                    "Available Env functions: get, has, set, unset, all",
                 )));
             }
         }
