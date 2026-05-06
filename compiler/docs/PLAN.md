@@ -282,29 +282,30 @@ Este es el item más caro del plan. Tower-lsp en Liva no es trivial.
 
 ## Bloque D — Stdlib gaps
 
-### D.1 — JSON nativo ⚡ (prerrequisito de B.6)
+### D.1 — JSON nativo ⚡ (prerrequisito de B.6) — ✅ ya implementado (2026-05-06)
 
-- [ ] `Json.parse(s) -> Map<string, Any>!` (o equivalente fuertemente tipado).
-- [ ] `Json.stringify(value) -> string`.
-- [ ] Backend: `serde_json` interno, expuesto como API Liva nativa.
-- [ ] Reemplaza el patrón `rust { use rust "serde_json" }` actual.
+- [x] `JSON.parse(s)` y `JSON.stringify(value)` ya emitídos por bootstrap (`generate_typed_json_parse`) y gen-2 (`stdlibName == "JSON"`).
+- [x] Backend serde_json interno; usuarios no necesitan `rust { use rust "serde_json" }`.
+- [ ] Mejora futura: `Json` como alias case-flexible (low priority).
 
-### D.2 — HTTP client ⚡
+### D.2 — HTTP client ⚡ — ✅ ya implementado (2026-05-06)
 
-- [ ] `Http.get(url) -> Response!`, `Http.post(url, body) -> Response!`, etc.
-- [ ] Backend: `reqwest` interno.
-- [ ] Headers, timeouts, JSON body helpers.
+- [x] `Http.get/post/put/delete` ya emitidos en ambos compiladores (reqwest::blocking).
+- [x] También disponible vía `HTTP.*` (alias upper-case en bootstrap).
+- [ ] Mejora futura: headers/timeouts/JSON body helpers (lower priority).
 
 ### D.3 — Tipo `Path`
 
 - [ ] `Path.new("/a/b/c")`, `.join("d")`, `.parent()`, `.extension()`, `.normalize()`, `.exists()`.
 - [ ] Refactor stdlib `File`/`Dir` para aceptar `Path` además de `string`.
 
-### D.4 — `Env.*`
+### D.4 — `Env.*` — ✅ implementado (2026-05-06, commit `678a63d`)
 
-- [ ] `Env.get("HOME") -> string?`.
-- [ ] `Env.set("KEY", "value")`.
-- [ ] `Env.all() -> Map<string, string>`.
+- [x] `Env.get(key) -> string` ("" si no existe).
+- [x] `Env.has(key) -> bool`.
+- [x] `Env.set(key, value)` y `Env.unset(key)`.
+- [x] `Env.all() -> Map<string, string>` (auto-trackeado como Map).
+- [x] Test: `compiler/tests/liva/compile/env_stdlib.test.liva` (4 tests, PASS).
 
 ### D.5 — Time zones en `Date`
 
@@ -599,3 +600,12 @@ Antes de tagear `v2.0.0` (no rc), todos estos checks deben estar verde:
 - ✅ **F.4** — Auditoría Particle sim 0.44× completada. Descubierto **B157** (`arr[i].mutMethod()` clona en clases). Documentado en `BUGS.md` y `RESULTS.md`.
 - ✅ **B157 fix** (2026-05-05, commit `3463ce5`) — `_suppressIndexElemClone` en ambos compiladores; regression test `compiler/tests/liva/compile/index_mut_method.test.liva`; checksum coincide con Rust en particle sim; 533 cargo tests + 21/21 bootstrap_apps + 5/5 regression + idempotent gen-2≡gen-3 verde.
 - 📝 Sin commits ni push hasta que el usuario lo autorice.
+
+### 2026-05-06 — Continuación autónoma
+
+- ✅ **Bench idle-host** — re-corrida en host quieto: 10/10 benchmarks bajo el gate <1.15× (Line 1.03 / CSV 0.93 / Word 0.96 / Array 1.11 / Filter 1.13 / Map 1.10 / Sort 1.00 / Shape 1.07 / Vec2 1.00 / Particle 0.45). Caveat de carga removido de RESULTS.md.
+- ✅ **D.4 Env stdlib** (commit `678a63d`) — `Env.get/has/set/unset/all` en bootstrap (`generate_env_function_call`) y gen-2 (`stdlibName == "Env"`). `map_vars` tracking automático para `Env.all()`. Test `compiler/tests/liva/compile/env_stdlib.test.liva` (4/4 PASS).
+- 🟢 **D.1 JSON** — verificado ya implementado (`JSON.parse`/`JSON.stringify` en ambos compiladores; usuarios no necesitan importar `serde_json`).
+- 🟢 **D.2 HTTP client** — verificado ya implementado (`Http.get/post/put/delete` + alias `HTTP.*` en bootstrap, `Http` en gen-2; backend `reqwest::blocking`).
+- 📊 **Estado validación post-D.4**: 533 cargo tests · 108/109 liva suite (sólo `syntax/destructuring.test.liva` falla — preexistente, requiere C.3 tuplas nativas) · 21/21 bootstrap_apps via gen-2 · gen-2 ≡ gen-3 (src + binary).
+- 📝 Sin push (usuario explícito).
