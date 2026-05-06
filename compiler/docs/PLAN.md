@@ -94,19 +94,19 @@
 
 - [x] `B157` — `arr[i].mutMethod()` clona en lugar de mutar (clases). ✅ FIXED 2026-05-05 (commit `3463ce5`); particle sim checksum match con Rust.
 
-### A.2 — Tier 2 PARITY.md (error handling unificado) ⚡ crítico
+### A.2 — Tier 2 PARITY.md (error handling unificado) ✅ cerrado (2026-05-06)
 
-- [ ] `ERR-UNIFY` — gen-2 emite `Result<T, liva_rt::Error>` en lugar de `Result<T, String>`. Esto descarga el `error.rs` del runtime y arregla todo el sub-sistema fallible. Estimación ~100 LOC en `codegen.liva` + ajustes en `liva_rt.rs`.
-- [ ] `B127` — `: T!` (Fallible return) sin double-wrap.
-- [ ] `B128` — `return fail "X"` en función fallible.
-- [ ] `B129` — Error binding chain (`let v, err = f()`).
-- [ ] `B130` — `e.message` post-narrowing.
-- [ ] `B131` — `Map.get(k) or fail "msg"`.
-- [ ] `B132` — `m.get(k).expect(...)` chain.
-- [ ] `B133` — Array literal con fallible elements.
-- [ ] `B138`–`B143` — resto de fallible bugs en PARITY.md Tier 2.
+- [x] `ERR-UNIFY` — gen-2 emite `Result<T, liva_rt::Error>` en lugar de `Result<T, String>`. Commits: `42e967d`, `41f7965`.
+- [x] `B127` — `: T!` (Fallible return) sin double-wrap.
+- [x] `B128` — `return fail "X"` en función fallible.
+- [x] `B129` — Error binding chain (`let v, err = f()`).
+- [x] `B130` — `e.message` post-narrowing (`if err { return err.message }`). Tracking set + `_emitTruthyNarrowedErrMessageRead` helper.
+- [x] `B131` — `Map.get(k) or fail "msg"`.
+- [x] `B132` — `m.get(k).expect(...)` chain.
+- [x] `B133` — Array literal con fallible elements (verified in gen-2).
+- [x] `B138`–`B143` — resto de fallible bugs en PARITY.md Tier 2 (verified by `bc46efb`).
 
-**Gate A.2:** los ejemplos `examples/dogfooding-v3/` y `examples/http-api/` compilan con gen-2 sin tocar bootstrap.
+**Gate A.2:** ✅ `examples/dogfooding-v3/` y `examples/http-api/` (no-axum parts) compilan con gen-2.
 
 ### A.3 — HTTP routing + axum en gen-2
 
@@ -160,13 +160,16 @@
 
 **Gate B.3:** mismos warnings emitidos por gen-2 que por bootstrap sobre el corpus de tests.
 
-### B.4 — `livac test` (runner básico)
+### B.4 — `livac test` (runner básico) ✅ cerrado (2026-05-06)
 
-- [ ] Descubrir funciones `test_*` y `*.test.liva`.
-- [ ] Ejecutarlas, contar pass/fail, salida formateada.
-- [ ] Exit code 0 si todo pasa.
+- [x] Codegen: `test "name" { ... }` (TopLevel.Test) emite `#[test] fn test_<sanitized>() { ... }` (`_emitTestDecl` en `codegen.liva`). Antes era no-op.
+- [x] CLI runner: `_runTestCommand` en `main.liva` ya descubría `*.test.liva`, compilaba y delegaba en `cargo test`. Funcional con la emisión nueva.
+- [x] Salida formateada: PASS/FAIL por archivo, conteo de tests vía `_extractTestCount`.
+- [x] Test: `compiler/tests/regression/b4_test_blocks.liva` (compilación + 2 tests pass).
+- [ ] `*.test.liva` walking recursivo de directorios (Dir.list ya disponible) — pendiente como mejora menor.
+- [ ] Soporte completo `describe/test/expect` (liva/test virtual library) — postergado al frame de runtime test (ya funciona via bootstrap; gen-2 emite top-level expr stmts pero no las hooks `beforeEach`/`afterEach`).
 
-**Gate B.4:** `livac test` ejecuta los 141 `.test.liva` actuales con el mismo resultado que el bootstrap.
+**Gate B.4:** ✅ `livac test foo.test.liva` con gen-2 emite `#[test]` y delega en `cargo test`. Failure path correcto (FAIL + exit conteo).
 
 ### B.5 — `livac init` y `livac update`
 

@@ -30,7 +30,7 @@ import {
     LambdaExpr, LambdaParam, LambdaBody, BindingPattern,
     SwitchArm, SwitchArmBody, Pattern, Literal, BinOp, UnOp,
     ExecPolicy, TypeParameter, TypeAliasDecl, ObjField, MapEntry,
-    StringTemplatePart, ImportDecl, CaseClause
+    StringTemplatePart, ImportDecl, CaseClause, TestDecl
 } from "./ast"
 import {
     TypeContext, SemanticAnalyzer, FunctionSig, ParamSig,
@@ -684,7 +684,7 @@ RustEmitter {
             TopLevel.TypeAlias(decl) => { this._emitTypeAlias(decl); 0 },
             TopLevel.ConstDecl(decl) => { this._emitConstDecl(decl); 0 },
             TopLevel.Import(decl) => { this._emitImport(decl); 0 },
-            TopLevel.Test(decl) => { 0 },
+            TopLevel.Test(decl) => { this._emitTestDecl(decl); 0 },
             TopLevel.ExprStmt(expr) => { this._emitTopLevelExpr(expr); 0 },
             _ => { 0 }
         }
@@ -1104,6 +1104,33 @@ RustEmitter {
         this._writeln("}")
         this._writeRaw("")
 
+        this._currentFunc = prevFunc
+        this._currentReturnOptional = prevRetOpt
+        this._currentReturnFallible = prevRetFail
+        this._strRefParams = prevStrRefParams
+    }
+
+    // B.4: emit `test "name" { ... }` as `#[test] fn test_<sanitized>() { ... }`.
+    // Mirrors bootstrap `generate_test` (livac/src/codegen.rs:4745).
+    _emitTestDecl(decl: TestDecl) {
+        let testName = this._sanitizeTestName(decl.name)
+        this._writeln("#[test]")
+        this._writeln("fn test_" + testName + "() {")
+        this._indent()
+        let prevFunc = $"{this._currentFunc}"
+        let prevRetOpt = this._currentReturnOptional
+        let prevRetFail = this._currentReturnFallible
+        let prevStrRefParams = this._strRefParams
+        this._currentFunc = "test_" + testName
+        this._currentFuncBorrowKey = "test_" + testName
+        this._currentFuncIsMethod = false
+        this._currentReturnOptional = false
+        this._currentReturnFallible = false
+        this._strRefParams = Map {}
+        this._emitBlock(decl.body)
+        this._dedent()
+        this._writeln("}")
+        this._writeRaw("")
         this._currentFunc = prevFunc
         this._currentReturnOptional = prevRetOpt
         this._currentReturnFallible = prevRetFail
