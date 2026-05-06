@@ -57,13 +57,13 @@ Ordenados por simpleza creciente. Empezar por aquí.
 | B144 | ⏳ | ⚡ | Parámetros `Map<K,V>` y `Set<T>` se deben registrar en map_vars/set_vars | `codegen.rs` param tracking | `bootstrap_apps/app18_template.liva` |
 | B142 | ⏳ | ⚡ | `for g in groups` sobre `[[T]]` debe registrar element type `[T]` | `codegen.rs` typed_array_vars + VarDecl | `bootstrap_apps/app17_pipeline.liva` |
 | B141 | ⏳ | ⚡ | `arr.reduce(0, fn_ref)` debe envolver fn-ref en closure | `codegen.rs::generate_method_call` reduce | `bootstrap_apps/app17_pipeline.liva` |
-| B137 | ⏳ | 🔶 | User method `obj.method("literal")` debe `.to_string()` literal | `codegen.rs::generate_method_call_expr` | `bootstrap_apps/app21_hashmap.liva` (B150) |
-| B150 | ⏳ | 🔶 | (extiende B137) genérico para cualquier user method | igual | igual |
-| B149 | ⏳ | 🔶 | Vars locales mutadas en constructor deben emitirse `let mut` | `codegen.rs` constructor pre-pass mutated_vars | `bootstrap_apps/app21_hashmap.liva` |
-| B148 | ⏳ | ⚡ | `this.X` lectura tras asignación dentro de constructor | `codegen.rs` ctor refactor + Member rewrite | `bootstrap_apps/app27_b148.liva` |
-| B135 | ⏳ | 🔶 | Switch-arm con `if`-tail | `codegen.rs::generate_switch_expr` | `bootstrap_apps/app16_fsm.liva` (parcial) |
-| B136 | ⏳ | 🔶 | `Set.size` (vs `.size()`) | `codegen.rs::generate_member_expr` | (test pendiente) |
-| B134 | ⏳ | 🔶 | `for k, v in map` typing en gen-2 | `codegen.rs::generate_for_stmt` Map branch | `bootstrap_apps/app17_pipeline.liva` |
+| B137 | ✅ | 🔶 | User method `obj.method("literal")` con `.to_string()` literal — `app21_hashmap` 21/21 verde. |
+| B150 | ✅ | 🔶 | (extiende B137) — `app21_hashmap` 21/21 verde. |
+| B149 | ✅ | 🔶 | Vars locales mutadas en constructor → `let mut` — `app21_hashmap` 21/21 verde. |
+| B148 | ✅ | ⚡ | `this.X` lectura tras asignación dentro de constructor — `app27_b148` 21/21 verde.
+| B135 | ✅ | 🔶 | Switch-arm con `if`-tail / guard sobre discriminante Copy-type — gen-2 ahora emite `match n` (sin `&`) cuando tag es number/bool/float, vía helper compartido `_emitSwitchHead` (codegen.liva). Test: `compile/switch_guard.test.liva` 5/5. Verificado 2026-05-06. |
+| B136 | ✅ | 🔶 | `Set.size` (vs `.size()`) — gen-2 emite `(set.len() as i32)` (codegen.liva:8093). Verificado 2026-05-06. |
+| B134 | ✅ | 🔶 | `for k, v in map` typing en gen-2 — verificado 2026-05-06 (`bootstrap_apps/app17_pipeline.liva` 21/21 verde + smoke `Map<string,int>` OK). |
 
 ---
 

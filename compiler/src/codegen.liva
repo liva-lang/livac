@@ -4232,19 +4232,10 @@ RustEmitter {
         }
 
         this._writeIndent()
-        if isStringSwitch {
-            this._write("match ")
-            // Phase 8.6: emit discriminant, then skip .as_str() if it was &str
-            this._emitExpr(stmt.discriminant)
-            if !this._lastEmittedStrRef {
-                this._write(".as_str()")
-            }
-        } else {
-            // Borrow discriminant with & to avoid O(n²) deep-clone on recursive types.
-            // Fields become references; individual clones happen inside each arm.
-            this._write("match &")
-            this._emitExpr(stmt.discriminant)
-        }
+        // Delegate to helper so the parameter (auto-cloned in bootstrap codegen)
+        // can be used both for type-tag inspection and for emission. Field
+        // access on `stmt.discriminant` is consumed on first use.
+        this._emitSwitchHead(stmt.discriminant, isStringSwitch)
         this._write(" {")
         this._newline()
         this._indent()
@@ -8677,6 +8668,30 @@ RustEmitter {
         return isStr
     }
 
+    // Helper: emit `match <disc>` or `match &<disc>` (with optional `.as_str()`)
+    // depending on whether it's a string switch or a Copy-type discriminant.
+    // Taking `disc` as a parameter lets bootstrap codegen auto-clone the value
+    // across multiple uses inside this method (B135).
+    _emitSwitchHead(disc: Expr, isStringSwitch: bool) {
+        if isStringSwitch {
+            this._write("match ")
+            this._emitExpr(disc)
+            if !this._lastEmittedStrRef {
+                this._write(".as_str()")
+            }
+            return
+        }
+        // B135 fix: Copy-type (number/bool/float) discriminants don't need `&`.
+        let discTag = this._getExprTypeName(disc)
+        if discTag == "number" || discTag == "bool" || discTag == "float" {
+            this._write("match ")
+            this._emitExpr(disc)
+        } else {
+            this._write("match &")
+            this._emitExpr(disc)
+        }
+    }
+
     _emitSwitchExpr(disc: Expr, arms: [SwitchArm]) {
         // Detect string switch from first arm pattern (inline to avoid moving arms)
         let stringSwitch = false
@@ -8711,21 +8726,9 @@ RustEmitter {
         }
 
         let cloneDisc = true
-        if stringSwitch {
-            this._write("match ")
-            // Phase 8.6: emit disc, then skip .as_str() if it was &str
-            this._emitExpr(disc)
-            if !this._lastEmittedStrRef {
-                this._write(".as_str()")
-            }
-            cloneDisc = false
-        } else {
-            // Borrow discriminant with & to avoid O(n²) deep-clone.
-            this._write("match &")
-            this._emitExpr(disc)
-            // Borrow discriminant with & to avoid O(n²) deep-clone.
-            let doNothing = 0
-        }
+        if stringSwitch { cloneDisc = false }
+        // Use shared head emitter (B135 — Copy-type discriminants skip `&`).
+        this._emitSwitchHead(disc, stringSwitch)
         this._write(" { ")
 
         for arm in arms {

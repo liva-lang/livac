@@ -1,0 +1,37 @@
+// B135 regression — switch with variable-binding guard arm on Copy-type
+// discriminant (int / bool). Gen-2 must emit `match n` (not `match &n`)
+// so the bound variable is `i32` and the guard expression typechecks.
+import { describe, test, expect } from "liva/test"
+
+classifyInt(n: int): string {
+    return switch n {
+        0 => "zero",
+        x if x > 0 => "positive",
+        _ => "negative"
+    }
+}
+
+flagToStr(b: bool): string {
+    return switch b {
+        true => "T",
+        _ => "F"
+    }
+}
+
+describe("switch guard on Copy-type discriminant (B135)", () => {
+    test("int — literal arm", () => {
+        expect(classifyInt(0)).toBe("zero")
+    })
+    test("int — guard arm (positive)", () => {
+        expect(classifyInt(7)).toBe("positive")
+    })
+    test("int — wildcard arm", () => {
+        expect(classifyInt(-3)).toBe("negative")
+    })
+    test("bool — literal arm", () => {
+        expect(flagToStr(true)).toBe("T")
+    })
+    test("bool — wildcard arm", () => {
+        expect(flagToStr(false)).toBe("F")
+    })
+})
