@@ -1,0 +1,31 @@
+// A.5: stdlib tuple-returning calls in `let x, e = ...` destructure.
+// Bootstrap and gen-2 must agree on truthiness checks (no .message — bootstrap
+// keeps the err as String for stdlib tuple calls, gen-2 wraps to Option<Error>).
+// EXPECT: write_ok
+// EXPECT: read_ok:hello
+// EXPECT: bad_path_err
+
+main() {
+    let path = "/tmp/__a5_test.txt"
+
+    let _wOk, wErr = File.write(path, "hello")
+    if wErr {
+        print("write_err")
+        return
+    }
+    print("write_ok")
+
+    let content, rErr = File.read(path)
+    if rErr {
+        print("read_err")
+        return
+    }
+    print("read_ok:" + content)
+
+    let _bad, bErr = File.read("/tmp/__a5_does_not_exist_xyzzy.txt")
+    if bErr {
+        print("bad_path_err")
+    } else {
+        print("bad_path_unexpected_ok")
+    }
+}

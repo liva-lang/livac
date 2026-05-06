@@ -335,6 +335,35 @@ RustEmitter {
         return this._toSnakeCase(name)
     }
 
+    // A.5: Stdlib tuple-returning calls — File/Dir/CSV/DB/Process methods
+    // that codegen emits as `(Option<T>, String)` directly (NOT Result).
+    // For `let x, e = File.write(...)` we must skip the Result-wrap match.
+    _isStdlibTupleCall(init: Expr): bool {
+        let isMethodCall = false
+        let nsName = ""
+        let _ = switch init {
+            Expr.MethodCall(obj, _method, _args) => {
+                isMethodCall = true
+                let _ = switch obj {
+                    Expr.Identifier(name) => {
+                        nsName = name
+                        0
+                    },
+                    _ => { 0 }
+                }
+                0
+            },
+            _ => { 0 }
+        }
+        if !isMethodCall { return false }
+        if nsName == "File" { return true }
+        if nsName == "Dir" { return true }
+        if nsName == "CSV" { return true }
+        if nsName == "DB" { return true }
+        if nsName == "Process" { return true }
+        return false
+    }
+
     _toSnakeCase(name: string): string {
         // If the name is ALL_CAPS (constant style e.g. VERSION, MAX_SIZE), keep as-is
         let allCaps = true
@@ -2863,9 +2892,21 @@ RustEmitter {
                     this._write("mut ")
                     this._write(errName)
                 }
-                this._write(") = match ")
-                this._emitExpr(decl.init)
-                this._write(" { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };")
+                // A.5: stdlib calls (File/Dir/CSV/DB/Process) emit a tuple
+                // `(Option<T>, String)` directly — no Result wrap. Convert
+                // the String err to Option<liva_rt::Error> on the fly so
+                // the `if err` rewrite (`.is_some()`) keeps working.
+                let initExpr0 = decl.init
+                let isStdlibTuple0 = this._isStdlibTupleCall(initExpr0)
+                if isStdlibTuple0 {
+                    this._write(") = { let (__opt, __err) = ")
+                    this._emitExpr(decl.init)
+                    this._write("; (__opt.unwrap_or_default(), if __err.is_empty() { None } else { Some(liva_rt::Error::from(__err)) }) };")
+                } else {
+                    this._write(") = match ")
+                    this._emitExpr(decl.init)
+                    this._write(" { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };")
+                }
                 this._newline()
                 return
             }
@@ -3293,9 +3334,18 @@ RustEmitter {
                 this._write("mut ")
                 this._write(errName)
             }
-            this._write(") = match ")
-            this._emitExpr(decl.init)
-            this._write(" { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };")
+            // A.5: stdlib tuple-returning calls — see `_isStdlibTupleCall`.
+            let initExpr1 = decl.init
+            let isStdlibTuple1 = this._isStdlibTupleCall(initExpr1)
+            if isStdlibTuple1 {
+                this._write(") = { let (__opt, __err) = ")
+                this._emitExpr(decl.init)
+                this._write("; (__opt.unwrap_or_default(), if __err.is_empty() { None } else { Some(liva_rt::Error::from(__err)) }) };")
+            } else {
+                this._write(") = match ")
+                this._emitExpr(decl.init)
+                this._write(" { Ok(v) => (v, None), Err(e) => (Default::default(), Some(e)) };")
+            }
             this._newline()
             return
         }
