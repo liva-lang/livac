@@ -166,7 +166,7 @@
 - [x] CLI runner: `_runTestCommand` en `main.liva` ya descubría `*.test.liva`, compilaba y delegaba en `cargo test`. Funcional con la emisión nueva.
 - [x] Salida formateada: PASS/FAIL por archivo, conteo de tests vía `_extractTestCount`.
 - [x] Test: `compiler/tests/regression/b4_test_blocks.liva` (compilación + 2 tests pass).
-- [ ] `*.test.liva` walking recursivo de directorios (Dir.list ya disponible) — pendiente como mejora menor.
+- [x] `*.test.liva` walking recursivo de directorios (`_walkTestDir` con `Dir.list`, skip dotfiles/target/node_modules).
 - [ ] Soporte completo `describe/test/expect` (liva/test virtual library) — postergado al frame de runtime test (ya funciona via bootstrap; gen-2 emite top-level expr stmts pero no las hooks `beforeEach`/`afterEach`).
 
 **Gate B.4:** ✅ `livac test foo.test.liva` con gen-2 emite `#[test]` y delega en `cargo test`. Failure path correcto (FAIL + exit conteo).
