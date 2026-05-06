@@ -120,8 +120,8 @@
 ### A.4 — Multi-file imports completo
 
 - [ ] Cobertura ≥ 50 % en `compiler/src/module.liva` (medida vía fixtures).
-- [ ] Importar varios ficheros en cascada sin orden manual.
-- [ ] Test: `examples/calculator/` (3 ficheros) compila con gen-2.
+- [x] Importar varios ficheros en cascada sin orden manual.
+- [x] Test: `examples/calculator/` (3 ficheros) compila con gen-2 — **VERIFIED 2026-05-06** (output byte-idéntico a bootstrap).
 
 **Gate A.4:** todos los ejemplos multi-fichero del repo compilan en gen-2.
 
@@ -618,4 +618,5 @@ Antes de tagear `v2.0.0` (no rc), todos estos checks deben estar verde:
   - **B127/B128/B131/B140** — verificados ya funcionando bajo bootstrap (validados por audit).
   - Gen-2 mirror del narrowing diferido: ningún `bootstrap_apps/*` lo necesita (21/21 verde tras el fix). Documentado en `compiler/PARITY.md` Tier 2.
   - Validación: 533 cargo + 111/112 liva (1 fail preexistente) + 21/21 bootstrap_apps + gen-2 ≡ gen-3 (idempotente, src + binary).
+- ✅ **A.4 multi-file imports (parcial)** — verificado: `examples/calculator/` (3 ficheros, `import { ... } from "./..."`) compila con gen-2 y produce output byte-idéntico al bootstrap. Gate parcial: 1/N ejemplos multi-fichero pasados.
 - 📝 Sin push (usuario explícito).
