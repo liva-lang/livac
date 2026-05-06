@@ -578,11 +578,37 @@ _compileSource(source: string, inputFile: string, isMultiFile: bool,
 // =====================================================================
 
 _findTestFiles(path: string): [string] {
-    // For now, if the path is a single .test.liva file, return just that
-    // If it's a directory, we'd need to walk it (Dir.list not available yet)
     let result: [string] = []
-    if path.endsWith(".test.liva") || path.endsWith(".liva") {
+    // Single file: pass through if it ends in .liva
+    if path.endsWith(".test.liva") {
         result.push(path)
+        return result
+    }
+    if path.endsWith(".liva") {
+        result.push(path)
+        return result
+    }
+    // Otherwise treat as directory and walk recursively for *.test.liva.
+    return _walkTestDir(path)
+}
+
+_walkTestDir(dir: string): [string] {
+    let result: [string] = []
+    let entries, walkErr = Dir.list(dir)
+    if walkErr { return result }
+    for name in entries {
+        // Skip dotfiles and target/build dirs
+        if name.startsWith(".") { continue }
+        if name == "target" or name == "node_modules" { continue }
+        let full = Path.join(dir, name)
+        if name.endsWith(".test.liva") {
+            result.push(full)
+        } else if Dir.exists(full) {
+            let sub = _walkTestDir(full)
+            for s in sub {
+                result.push(s)
+            }
+        }
     }
     return result
 }
