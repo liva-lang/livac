@@ -107,6 +107,11 @@ RustEmitter {
     // tuple destructure (let v, err = call()). Used to rewrite `if err` to
     // `if err.is_some()` since Rust requires bool.
     _errBindings: Map<string, bool>
+    // B130 (truthy form, gen-2): err-bindings currently inside an
+    // `if err { ... }` block. Within this scope, `err.message` must emit
+    // `err.as_ref().unwrap().message.clone()` because the binding is still
+    // `Option<liva_rt::Error>` but guaranteed `Some`.
+    _truthyErrBindings: Map<string, bool>
     _inTestBlock: bool
     _derefClosureParams: bool
     _inAssignTarget: bool
@@ -204,6 +209,7 @@ RustEmitter {
         this._currentReturnFallible = false
         this._inIfCondition = false
         this._errBindings = Map {}
+        this._truthyErrBindings = Map {}
         this._inTestBlock = false
         this._derefClosureParams = false
         this._inAssignTarget = false
@@ -3582,13 +3588,21 @@ RustEmitter {
 
         this._writeIndent()
         this._write("if ")
-        this._inIfCondition = true
-        this._emitExpr(stmt.condition)
-        this._inIfCondition = false
+        // B130 (truthy form): detect+emit in a single helper to avoid
+        // double-consumption of `stmt.condition` (field accesses don't
+        // auto-clone in bootstrap). Returns the sanitized err-binding name
+        // when condition is `if errBinding`.
+        let truthyErrName = this._emitIfConditionAndDetectTruthy(stmt.condition)
         this._write(" {")
         this._newline()
         this._indent()
+        if truthyErrName != "" {
+            this._truthyErrBindings.set(truthyErrName, true)
+        }
         this._emitIfBody(stmt.thenBranch)
+        if truthyErrName != "" {
+            this._truthyErrBindings.delete(truthyErrName)
+        }
         this._dedent()
 
         let elsePart = stmt.elseBranch
@@ -8020,6 +8034,23 @@ RustEmitter {
 
         let objTag = this._getExprTypeName(obj)
 
+        // B130 (gen-2): err-binding `.message` access inside an
+        // `if err { ... }` block — emit the unwrapped form so it satisfies
+        // `String` return types / format args. Outside truthy-narrow we
+        // leave emission unchanged (the binding may already be unwrapped
+        // in nested scopes).
+        let _ = switch obj {
+            Expr.Identifier(idn) => {
+                let snErr2 = this._sanitizeName(idn)
+                if prop == "message" && this._errBindings.has(snErr2) && this._truthyErrBindings.has(snErr2) {
+                    this._write(snErr2 + ".as_ref().unwrap().message.clone()")
+                    return
+                }
+                0
+            },
+            _ => { 0 }
+        }
+
         // Stdlib module property access before generic enum/class handling
         let stdlibPropName = ""
         let _ = switch obj {
@@ -8666,6 +8697,31 @@ RustEmitter {
             break
         }
         return isStr
+    }
+
+    // B130 (gen-2 truthy narrow): detect `if errBinding { ... }` so the
+    // then-branch can rewrite `err.message` to the unwrapped form, AND emit
+    // the condition expression. We do both inside this helper because `cond`
+    // is bound as a method parameter — bootstrap auto-clones parameters at
+    // every use, but does NOT auto-clone field accesses (`stmt.condition`),
+    // so doing match + emit at the call-site would E0382. Returns the
+    // sanitized binding name (or "" if not applicable).
+    _emitIfConditionAndDetectTruthy(cond: Expr): string {
+        let result = ""
+        let _ = switch cond {
+            Expr.Identifier(condName) => {
+                let sn2 = this._sanitizeName(condName)
+                if this._errBindings.has(sn2) {
+                    result = sn2
+                }
+                0
+            },
+            _ => { 0 }
+        }
+        this._inIfCondition = true
+        this._emitExpr(cond)
+        this._inIfCondition = false
+        return result
     }
 
     // Helper: emit `match <disc>` or `match &<disc>` (with optional `.as_str()`)

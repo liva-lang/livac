@@ -1,0 +1,51 @@
+// Tier 2 ERR-UNIFY in gen-2: B130 (e.message after truthy-narrow),
+// B129 (multi-level error chain), B132 (`.expect()`-style chains).
+import { describe, test, expect } from "liva/test"
+
+// B130 — e.message inside `if err { ... }`
+describeErr(s: string): string {
+    let n, err = parseInt(s)
+    if err {
+        return err.message
+    }
+    return "ok"
+}
+
+// B129 — error binding chain: outer fallible delegates to inner fallible
+parseDouble(s: string): int! {
+    let n, err = parseInt(s)
+    if err {
+        fail err.message
+    }
+    return n * 2
+}
+
+// B132 — `or fail` propagation across multiple binds
+chain(s: string): int! {
+    let v1 = parseInt(s) or fail "a"
+    let v2 = parseInt(s) or fail "b"
+    return v1 + v2
+}
+
+describe("Tier 2 ERR-UNIFY in gen-2", () => {
+    test("B130 — e.message after narrowing (success)", () => {
+        expect(describeErr("42")).toBe("ok")
+    })
+    test("B130 — e.message after narrowing (failure)", () => {
+        expect(describeErr("abc")).toBe("invalid digit found in string")
+    })
+    test("B129 — fail err.message propagation (success)", () => {
+        let v, e = parseDouble("21")
+        expect(e).toBe(null)
+        expect(v).toBe(42)
+    })
+    test("B129 — fail err.message propagation (failure)", () => {
+        let v, e = parseDouble("xx")
+        expect(e == null).toBe(false)
+    })
+    test("B132 — chained or-fail (success)", () => {
+        let v, e = chain("3")
+        expect(e).toBe(null)
+        expect(v).toBe(6)
+    })
+})

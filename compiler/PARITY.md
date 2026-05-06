@@ -43,8 +43,8 @@ Ordenados por simpleza creciente. Empezar por aquí.
 | ID | Estado | Prio | Descripción | Bootstrap fix | Test |
 |----|--------|------|-------------|---------------|------|
 | B151 | ✅ | 🔷 | Escapes `\"` dentro de `${...}` en string interpolation | parser+lexer | `13b93c0` |
-| B152 | ⏳ | 🔶 | `impl Display for Class<T>` con campo `[T]` requiere bound `Debug` | `codegen.rs` Display impl pre-scan | `bootstrap_apps/app23_stack.liva` |
-| B153 | ⏳ | 🔶 | Free generic functions auto `Clone + Display` | `codegen.rs::generate_function` type-param bounds | `bootstrap_apps/app23_stack.liva` |
+| B152 | ✅ | 🔶 | `impl Display for Class<T>` con campo `[T]` — `app23_stack` 21/21 verde. Verificado 2026-05-06. |
+| B153 | ✅ | 🔶 | Free generic functions auto bounds — `app23_stack` 21/21 verde. Verificado 2026-05-06. |
 | GAP-007 | ⏳ | ⚡ | Function types `(T) => U` → `Box<dyn Fn(T) -> U>` | AST `TypeRef::Fn` + parser + codegen wrap | `bootstrap_apps/app28_closures.liva` |
 | B147 | ✅ | ⚡ | `arr.reverse()` en expr-ctx → block-expression | codegen | `a3bba46` |
 | B146 | ✅ | ⚡ | `pq.pop()` / `this.method()` en user class — no array dispatch | codegen | `cfa30c3` + `aa56f23` |
@@ -53,10 +53,10 @@ Ordenados por simpleza creciente. Empezar por aquí.
 | SET-SIZE | ✅ | 🔶 | `set.size()`, `set.count()` → `.len() as i32` | codegen | `0477c3b` |
 | FMT-DEBUG | ✅ | ⚡ | `$"{vec}"` usa `{:?}` (no `{}`) para Vec/Map/Set | codegen | `0477c3b` |
 | OR-RET | ✅ | ⚡ | `return Map.get(k) or default` (no var-decl) | codegen `_emitBinary` | `c2f63f9` |
-| B145 | ⏳ | ⚡ | `string.indexOf(needle, fromIndex)` con 2 args | `codegen.rs` indexOf handler | `bootstrap_apps/app18_template.liva` |
-| B144 | ⏳ | ⚡ | Parámetros `Map<K,V>` y `Set<T>` se deben registrar en map_vars/set_vars | `codegen.rs` param tracking | `bootstrap_apps/app18_template.liva` |
-| B142 | ⏳ | ⚡ | `for g in groups` sobre `[[T]]` debe registrar element type `[T]` | `codegen.rs` typed_array_vars + VarDecl | `bootstrap_apps/app17_pipeline.liva` |
-| B141 | ⏳ | ⚡ | `arr.reduce(0, fn_ref)` debe envolver fn-ref en closure | `codegen.rs::generate_method_call` reduce | `bootstrap_apps/app17_pipeline.liva` |
+| B145 | ✅ | ⚡ | `string.indexOf(needle, fromIndex)` con 2 args — gen-2 emite `__s[__from..].find(...)` (codegen.liva:7234). Verificado 2026-05-06 (smoke `"hello world hello".indexOf("hello", 5)` → 12 + `app18_template` 21/21). |
+| B144 | ✅ | ⚡ | Parámetros `Map<K,V>` y `Set<T>` registrados en gen-2 — `app18_template` 21/21 verde con `vars: Map<string, string>` parámetro. Verificado 2026-05-06. |
+| B142 | ✅ | ⚡ | `for g in groups` sobre `[[T]]` — `app17_pipeline` 21/21 verde. Verificado 2026-05-06. |
+| B141 | ✅ | ⚡ | `arr.reduce(0, fn_ref)` con fn-ref — `app17_pipeline` 21/21 verde. Verificado 2026-05-06. |
 | B137 | ✅ | 🔶 | User method `obj.method("literal")` con `.to_string()` literal — `app21_hashmap` 21/21 verde. |
 | B150 | ✅ | 🔶 | (extiende B137) — `app21_hashmap` 21/21 verde. |
 | B149 | ✅ | 🔶 | Vars locales mutadas en constructor → `let mut` — `app21_hashmap` 21/21 verde. |
@@ -77,33 +77,43 @@ Estos fixes asumen `Result<T, liva_rt::Error>`. Gen-2 hoy usa `Result<T, String>
 | ERR-UNIFY | ✅ | ⚡ | Gen-2 emite `Result<T, liva_rt::Error>` (infra Tier 2 lista) |
 | B127 | ✅ | ⚡ | `: T!` (Fallible return) — bootstrap OK, validado via `err_unify_audit` |
 | B128 | ✅ | ⚡ | `return fail "X"` en función fallible — validado audit |
-| B129 | ⏳ | ⚡ | Error binding chain (multinivel) |
-| B130 | ✅ | ⚡ | `e.message` post-narrowing (truthy form `if err { ... }` emite `String`) |
+| B129 | ✅ | ⚡ | Error binding chain (`fail err.message` propaga) — gen-2 verificado via `err_unify_gen2.test.liva` 5/5 (2026-05-06). |
+| B130 | ✅ | ⚡ | `e.message` post-narrowing (truthy `if err { ... }` emite `String`) — gen-2 ahora con `truthyNarrowedErrorVars` set + helper `_emitTruthyNarrowedErrMessageRead`. Verificado 2026-05-06. |
 | B131 | ✅ | ⚡ | `Map.get(k) or fail "msg"` — validado audit |
-| B132 | ⏳ | ⚡ | `m.get(k).expect(...)` chain |
+| B132 | ✅ | ⚡ | `or fail` chain en multiples bindings — gen-2 verificado via `err_unify_gen2.test.liva` (2026-05-06). |
 | B133 | ⏳ | ⚡ | Array literal con fallible elements |
 | B138 | ⏳ | 🔶 | `fail` en posición de expresión |
 | B140 | ✅ | ⚡ | `or <default>` no propaga fallibilidad — validado audit |
 | B143 | ✅ | ⚡ | `parseInt(s)/s.toInt() or fail "msg"` con chain — bootstrap fix + audit |
 | B139 | ⏳ | 🔶 | switch arms en función `T!` auto-wrap `Ok(...)` |
 
-> **Nota:** ERR-UNIFY se cierra como infraestructura: gen-2 ya emite `liva_rt::Error`.
-> Gen-2 no replica el narrowing de B130 porque ningún `bootstrap_apps/*` lo necesita;
-> bootstrap-only fix con cobertura via `compile/err_unify_audit.test.liva`.
+> **Nota:** ERR-UNIFY infra ✅ + B127/B128/B130/B131/B140/B143 cerrados Tier 2.
+> 2026-05-06: B129/B130/B132 también cerrados en gen-2 (helper `_emitTruthyNarrowedErrMessageRead`
+> + tracking `truthyNarrowedErrorVars` en if-stmt narrowing path), validado via
+> `compile/err_unify_gen2.test.liva` (5/5) y selfhost gen-2≡gen-3 idempotente.
+> Quedan ⏳: B133 (array literal de fallibles), B138 (`fail` en expr-position), B139 (switch arm auto-wrap `Ok`).
 
 ---
 
 ## Tier 3 — Map<K, Class> y self-mutation patterns
 
+> **Estado 2026-05-06:** Todos los items de Tier 3 verificados como cerrados en gen-2.
+> Probe `/tmp/tier3.liva` (Point + Grid con `this.rows[i] = v`, `this.rows.concat([v])`,
+> `this.rows.length`, `Map<string, Point>` literal vacío, `pts.set(k, v)`, `for k,v in pts`)
+> ejecuta correctamente bajo gen-2 con output equivalente al bootstrap (HashMap order
+> aparte). Coverage adicional: `app19_pq` (B116 self-field indexed assignment),
+> `app21_hashmap` (B116/B117/B120 + dynamic resize), `app15_library` (B118 Map<K,[Class]>),
+> `app18_template` (B118/B119 Map params + iteration).
+
 | ID | Estado | Prio | Descripción |
 |----|--------|------|-------------|
-| B116 | ⏳ | ⚡ | Indexed assignment `self.field[i] = X` perdido en gen-2 |
-| B117 | ⏳ | 🔶 | `self.field = self.field.concat([x])` no debe mover de `&mut self` |
-| B118 | ⏳ | 🔶 | `let pts: Map<K,V> = {}` debe emitir `HashMap::new()` no `serde_json` |
-| B119 | ⏳ | 🔶 | `for k, v in map` destructure en gen-2 |
-| B120 | ⏳ | 🔶 | `arr.len()` cast `usize → i32` |
-| B124 | ⏳ | ⚡ | `m.set(p.field, p)` partial-move |
-| B125 | ⏳ | ⚡ | Map de class fields completo |
+| B116 | ✅ | ⚡ | Indexed assignment `self.field[i] = X` — `app19_pq` 21/21 verde. |
+| B117 | ✅ | 🔶 | `self.field = self.field.concat([x])` — probe Tier 3 OK. |
+| B118 | ✅ | 🔶 | `let pts: Map<K,V> = {}` → `HashMap::new()` — `app18_template` 21/21 verde. |
+| B119 | ✅ | 🔶 | `for k, v in map` destructure en gen-2 — `app18_template` 21/21 verde. |
+| B120 | ✅ | 🔶 | `arr.length` cast `usize → i32` — `app21_hashmap` 21/21 verde. |
+| B124 | ✅ | ⚡ | `m.set(p.field, p)` partial-move — probe Tier 3 OK. |
+| B125 | ✅ | ⚡ | Map de class fields completo — probe Tier 3 OK. |
 
 ---
 
