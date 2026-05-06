@@ -130,7 +130,7 @@
 
 - [x] `let x, e = File.write(...)` (y resto de stdlib tuple-returning: File/Dir/CSV/DB/Process) ya no se envuelve en otro `match Ok/Err` en gen-2. Helper `_isStdlibTupleCall` + emisión bootstrap-style `let (mut x, mut e) = { let (__opt, __err) = <call>; (__opt.unwrap_or_default(), if __err.is_empty() { None } else { Some(liva_rt::Error::from(__err)) }) };`. Test: `compiler/tests/regression/a5_stdlib_destructure.liva`. **DONE 2026-05-06**.
 - [ ] Tuplas nativas en codegen (depende de Bloque C.3, ver más abajo).
-- [ ] `DB.open` re-wrap correcto sin clase auxiliar.
+- [x] `DB.open` re-wrap correcto sin clase auxiliar — helper `_stdlibTupleNoDefaultFallback` emite `unwrap_or_else(|| Arc::new(Mutex::new(Connection::open_in_memory().unwrap())))` para tipos sin `Default`. Bonus: `DB.exec/query` con params `[]` emiten `Vec::new()` para evitar E0282. Test: `compiler/tests/regression/a5_db_open_destructure.liva`. **DONE 2026-05-06**.
 
 ---
 
