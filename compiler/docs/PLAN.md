@@ -612,4 +612,10 @@ Antes de tagear `v2.0.0` (no rc), todos estos checks deben estar verde:
 - 📊 **Estado validación post-D.4**: 533 cargo tests · 108/109 liva suite (sólo `syntax/destructuring.test.liva` falla — preexistente, requiere C.3 tuplas nativas) · 21/21 bootstrap_apps via gen-2 · gen-2 ≡ gen-3 (src + binary).
 - ✅ **D.3 Path stdlib** — `Path.join/parent/extension/basename/exists/isAbsolute/normalize` (lexical) en ambos compiladores. Test `compiler/tests/liva/compile/path_stdlib.test.liva` (9/9 PASS). Re-validado: 533 cargo + 109/110 liva + 21/21 bootstrap_apps + gen-2 ≡ gen-3.
 - ✅ **D.5 Date timezones (parcial)** — `Date.nowUtc()` (UTC NaiveDateTime), `Date.toIso(d)` (formato ISO 8601), `Date.parseIso(s)` (con fallback a separador `" "` y patrón fallible `(value, errorString)`). `toUtc/toTz` diferidos: requieren crate `chrono-tz` y no hay caso de uso en bootstrap_apps. Test `compiler/tests/liva/compile/date_tz.test.liva` (5/5 PASS). Validación: 533 cargo + 110/111 liva (1 fail preexistente: destructuring) + 21/21 bootstrap_apps + gen-2 ≡ gen-3.
+- ✅ **A.2 ERR-UNIFY (Tier 2)** — auditoría completa via `compiler/tests/liva/compile/err_unify_audit.test.liva` (8/8 PASS). Hallazgos cerrados:
+  - **B130** — `e.message` en bloque `if err { ... }` (truthy-narrowing) ahora emite `String` (`.as_ref().unwrap().message.clone()`), no `&str`. Bootstrap fix en `codegen.rs` con nuevo `truthy_narrowed_error_binding_vars: HashSet<String>`.
+  - **B143** — `parseInt(s)/parseFloat(s) or fail "msg"` en `let` single-binding ahora desestructura el tuple `(value, Option<Error>)` correctamente y propaga via `liva_rt::Error::chain`. Antes el `or fail` se descartaba silenciosamente.
+  - **B127/B128/B131/B140** — verificados ya funcionando bajo bootstrap (validados por audit).
+  - Gen-2 mirror del narrowing diferido: ningún `bootstrap_apps/*` lo necesita (21/21 verde tras el fix). Documentado en `compiler/PARITY.md` Tier 2.
+  - Validación: 533 cargo + 111/112 liva (1 fail preexistente) + 21/21 bootstrap_apps + gen-2 ≡ gen-3 (idempotente, src + binary).
 - 📝 Sin push (usuario explícito).

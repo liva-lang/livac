@@ -1,0 +1,83 @@
+// ERR-UNIFY / Tier 2 audit — verify B127-B143 status under current gen-2.
+import { describe, test, expect } from "liva/test"
+
+// B127/B128: explicit T! return
+fallibleAdd(a: int, b: int): int! {
+    if a < 0 { fail "negative a" }
+    return a + b
+}
+
+// B131: Map.get(k) or fail (use let binding form)
+lookupOrFail(m: Map<string, int>, k: string): int {
+    let v = m.get(k) or fail "missing key"
+    return v
+}
+
+// B140: `or <default>` should NOT propagate fallibility (function not fallible)
+safeDefault(m: Map<string, int>, k: string): int {
+    return m.get(k) or 42
+}
+
+// B143: parseInt or fail with chain
+parseOrFail(s: string): int {
+    let n = parseInt(s) or fail "parse failed"
+    return n
+}
+
+// B130: e.message after narrowing
+describeErr(s: string): string {
+    let n, err = parseInt(s)
+    if err {
+        return err.message
+    }
+    return "ok"
+}
+
+describe("ERR-UNIFY Tier 2 audit", () => {
+    test("B127: T! return type — success path", () => {
+        let v, e = fallibleAdd(2, 3)
+        expect(e).toBe(null)
+        expect(v).toBe(5)
+    })
+
+    test("B128: return fail propagates", () => {
+        let v, e = fallibleAdd(-1, 3)
+        expect(e == null).toBe(false)
+    })
+
+    test("B131: Map.get or fail (hit)", () => {
+        let m: Map<string, int> = {"a": 1}
+        let v, e = lookupOrFail(m, "a")
+        expect(e).toBe(null)
+        expect(v).toBe(1)
+    })
+
+    test("B131: Map.get or fail (miss)", () => {
+        let m: Map<string, int> = {}
+        let v, e = lookupOrFail(m, "x")
+        expect(e == null).toBe(false)
+    })
+
+    test("B140: or default returns int (not fallible)", () => {
+        let m: Map<string, int> = {"a": 7}
+        expect(safeDefault(m, "a")).toBe(7)
+        expect(safeDefault(m, "missing")).toBe(42)
+    })
+
+    test("B143: parseInt or fail chain — ok", () => {
+        let v, e = parseOrFail("123")
+        expect(e).toBe(null)
+        expect(v).toBe(123)
+    })
+
+    test("B143: parseInt or fail chain — fail", () => {
+        let v, e = parseOrFail("garbage")
+        expect(e == null).toBe(false)
+    })
+
+    test("B130: err.message after narrowing", () => {
+        let s = describeErr("garbage")
+        expect(s == "ok").toBe(false)
+        expect(s.length > 0).toBe(true)
+    })
+})

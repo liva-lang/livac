@@ -74,18 +74,22 @@ Estos fixes asumen `Result<T, liva_rt::Error>`. Gen-2 hoy usa `Result<T, String>
 
 | ID | Estado | Prio | Descripción |
 |----|--------|------|-------------|
-| ERR-UNIFY | ⏳ | ⚡ | Migrar gen-2 a `liva_rt::Error` (prerrequisito de Tier 2) |
-| B127 | ⏳ | ⚡ | `: T!` (Fallible return) double-wrap |
-| B128 | ⏳ | ⚡ | `return fail "X"` en función fallible |
-| B129 | ⏳ | ⚡ | Error binding chain |
-| B130 | ⏳ | ⚡ | `e.message` post-narrowing |
-| B131 | ⏳ | ⚡ | `Map.get(k) or fail "msg"` |
+| ERR-UNIFY | ✅ | ⚡ | Gen-2 emite `Result<T, liva_rt::Error>` (infra Tier 2 lista) |
+| B127 | ✅ | ⚡ | `: T!` (Fallible return) — bootstrap OK, validado via `err_unify_audit` |
+| B128 | ✅ | ⚡ | `return fail "X"` en función fallible — validado audit |
+| B129 | ⏳ | ⚡ | Error binding chain (multinivel) |
+| B130 | ✅ | ⚡ | `e.message` post-narrowing (truthy form `if err { ... }` emite `String`) |
+| B131 | ✅ | ⚡ | `Map.get(k) or fail "msg"` — validado audit |
 | B132 | ⏳ | ⚡ | `m.get(k).expect(...)` chain |
 | B133 | ⏳ | ⚡ | Array literal con fallible elements |
 | B138 | ⏳ | 🔶 | `fail` en posición de expresión |
-| B140 | ⏳ | ⚡ | `or <default>` no debe propagar fallibilidad |
-| B143 | ⏳ | ⚡ | `s.toInt() or fail "msg"` propaga error con chain |
+| B140 | ✅ | ⚡ | `or <default>` no propaga fallibilidad — validado audit |
+| B143 | ✅ | ⚡ | `parseInt(s)/s.toInt() or fail "msg"` con chain — bootstrap fix + audit |
 | B139 | ⏳ | 🔶 | switch arms en función `T!` auto-wrap `Ok(...)` |
+
+> **Nota:** ERR-UNIFY se cierra como infraestructura: gen-2 ya emite `liva_rt::Error`.
+> Gen-2 no replica el narrowing de B130 porque ningún `bootstrap_apps/*` lo necesita;
+> bootstrap-only fix con cobertura via `compile/err_unify_audit.test.liva`.
 
 ---
 

@@ -109,6 +109,7 @@ pub struct CodeGenerator {
     // --- Phase 3: Error binding variables (Option<String> type)
     error_binding_vars: std::collections::HashSet<String>, // Variables from error binding (second variable in let x, err = ...)
     narrowed_error_binding_vars: std::collections::HashSet<String>, // B130: error vars currently inside `if e != null` narrowed block
+    truthy_narrowed_error_binding_vars: std::collections::HashSet<String>, // B130 (truthy form): error vars inside `if err { ... }` — still Option, guaranteed Some.
     error_binding_scope_stack: Vec<Vec<String>>, // B20: Stack of error binding vars per scope level (for fail scope checking)
     string_error_vars: std::collections::HashSet<String>, // String error variables from HTTP/File calls (for `if err` sugar)
     option_value_vars: std::collections::HashSet<String>, // Variables from error binding (first variable in let value, err = ..., which is Option<T>)
@@ -222,6 +223,7 @@ impl CodeGenerator {
             pending_tasks: std::collections::HashMap::new(),
             error_binding_vars: std::collections::HashSet::new(),
             narrowed_error_binding_vars: std::collections::HashSet::new(),
+            truthy_narrowed_error_binding_vars: std::collections::HashSet::new(),
             error_binding_scope_stack: vec![vec![]], // Start with one root scope
             string_error_vars: std::collections::HashSet::new(),
             option_value_vars: std::collections::HashSet::new(),
@@ -5655,6 +5657,30 @@ impl CodeGenerator {
                             self.generate_expr(fail_msg)?;
                         }
                         write!(self.output, ", \"{}\", \"{}\")) }};\n", fn_name, location).unwrap();
+                    } else if let Expr::Call(call) = &var.init {
+                        // B143: `parseInt(s) or fail "msg"` / `parseFloat(s) or fail "msg"`
+                        let parse_t = match call.callee.as_ref() {
+                            Expr::Identifier(n) if n == "parseInt" => Some("i32"),
+                            Expr::Identifier(n) if n == "parseFloat" => Some("f64"),
+                            _ => None,
+                        };
+                        if let (Some(parse_t), false) = (parse_t, call.args.is_empty()) {
+                            write!(self.output, "let {}{} = match ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
+                            self.generate_expr(&call.args[0])?;
+                            write!(self.output, ".parse::<{}>() {{ Ok(v) => v, Err(e) => return Err(liva_rt::Error::", parse_t).unwrap();
+                            if is_bare_or_fail {
+                                self.output.push_str("from(e.to_string()))");
+                            } else {
+                                self.output.push_str("chain(");
+                                self.generate_expr(fail_msg)?;
+                                write!(self.output, ", \"{}\", \"{}\", liva_rt::Error::from(e.to_string())))", fn_name, location).unwrap();
+                            }
+                            self.output.push_str(" };\n");
+                        } else {
+                            write!(self.output, "let {}{} = ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
+                            self.generate_expr(&var.init)?;
+                            self.output.push_str(";\n");
+                        }
                     } else if let Expr::MethodCall(mc) = &var.init {
                         // B143: `s.toInt() or fail "msg"` — emit fallible parse
                         if mc.method == "toInt" || mc.method == "toFloat" {
@@ -7027,7 +7053,21 @@ impl CodeGenerator {
                 // BUG-007: Detect `if x != null { ... }` where x is Option<T>
                 // Transform to `if let Some(x) = x { ... }` for type narrowing
                 let option_null_var = self.extract_option_null_check(&if_stmt.condition);
-                
+
+                // B130 (truthy form): `if err { ... }` where `err` is an error binding
+                // (Option<liva_rt::Error>) — still emit `if cond` (which already lowers
+                // to `err.is_some()` via condition rewrite), but record the narrowing
+                // so `err.message` resolves to a `String`-typed field access.
+                let mut truthy_error_var: Option<String> = None;
+                if option_null_var.is_none() {
+                    if let Expr::Identifier(name) = &if_stmt.condition {
+                        let sanitized = self.sanitize_name(name);
+                        if self.error_binding_vars.contains(&sanitized) {
+                            truthy_error_var = Some(sanitized);
+                        }
+                    }
+                }
+
                 self.write_indent();
                 if let Some(ref var_name) = option_null_var {
                     // Generate: if let Some(var) = var { ... }
@@ -7050,6 +7090,11 @@ impl CodeGenerator {
                         narrowed_error_var = Some(var_name.clone());
                     }
                 }
+                if let Some(ref var_name) = truthy_error_var {
+                    // Same narrowing for `if err { ... }` truthy form.
+                    self.narrowed_error_binding_vars.insert(var_name.clone());
+                    self.truthy_narrowed_error_binding_vars.insert(var_name.clone());
+                }
                 self.generate_if_body(&if_stmt.then_branch)?;
                 // BUG-007: Restore Option tracking after the block
                 if let Some(ref var_name) = option_null_var {
@@ -7057,6 +7102,10 @@ impl CodeGenerator {
                 }
                 if let Some(name) = narrowed_error_var {
                     self.narrowed_error_binding_vars.remove(&name);
+                }
+                if let Some(name) = truthy_error_var {
+                    self.narrowed_error_binding_vars.remove(&name);
+                    self.truthy_narrowed_error_binding_vars.remove(&name);
                 }
                 self.dedent();
                 self.write_indent();
@@ -8265,10 +8314,25 @@ impl CodeGenerator {
                 if let Expr::Identifier(name) = object.as_ref() {
                     let sanitized = self.sanitize_name(name);
                     if self.error_binding_vars.contains(&sanitized) && property == "message" {
-                        // B130: inside `if err != null { ... }` the var is narrowed to
-                        // `liva_rt::Error` (not Option), so just emit `.message`.
-                        if self.narrowed_error_binding_vars.contains(&sanitized) {
+                        // B130 (null-check form): inside `if err != null { ... }` the var
+                        // is shadowed via `if let Some(err) = err`, so `err` is the inner
+                        // `liva_rt::Error` value — emit `.message.clone()`.
+                        if self.narrowed_error_binding_vars.contains(&sanitized)
+                            && !self.truthy_narrowed_error_binding_vars.contains(&sanitized)
+                        {
                             write!(self.output, "{}.message.clone()", sanitized).unwrap();
+                            return Ok(());
+                        }
+                        // B130 (truthy form): inside `if err { ... }` the var is still
+                        // `Option<liva_rt::Error>` but guaranteed `Some` — unwrap to
+                        // produce an owned `String` matching the surrounding signature.
+                        if self.truthy_narrowed_error_binding_vars.contains(&sanitized) {
+                            write!(
+                                self.output,
+                                "{}.as_ref().unwrap().message.clone()",
+                                sanitized
+                            )
+                            .unwrap();
                             return Ok(());
                         }
                         write!(
