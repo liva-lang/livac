@@ -81,17 +81,18 @@ Estos fixes asumen `Result<T, liva_rt::Error>`. Gen-2 hoy usa `Result<T, String>
 | B130 | ✅ | ⚡ | `e.message` post-narrowing (truthy `if err { ... }` emite `String`) — gen-2 ahora con `truthyNarrowedErrorVars` set + helper `_emitTruthyNarrowedErrMessageRead`. Verificado 2026-05-06. |
 | B131 | ✅ | ⚡ | `Map.get(k) or fail "msg"` — validado audit |
 | B132 | ✅ | ⚡ | `or fail` chain en multiples bindings — gen-2 verificado via `err_unify_gen2.test.liva` (2026-05-06). |
-| B133 | ⏳ | ⚡ | Array literal con fallible elements |
-| B138 | ⏳ | 🔶 | `fail` en posición de expresión |
+| B133 | ✅ | ⚡ | Array literal con fallible elements (`for x in items { let n = parseX(x) or fail "bad"; result.push(n) }`) — gen-2 verificado 2026-05-06 (probe `parseAll(["1","2","3"])` → 3, `parseAll(["1","x"])` → "bad"). |
+| B138 | ✅ | 🔶 | `fail` en posición de expresión (switch-arm RHS) — gen-2 emite control-flow correcto donde el bootstrap aún falla con E0308. Verificado 2026-05-06 (probe `switch n { 0 => "zero", _ => fail "non-zero" }`). |
 | B140 | ✅ | ⚡ | `or <default>` no propaga fallibilidad — validado audit |
 | B143 | ✅ | ⚡ | `parseInt(s)/s.toInt() or fail "msg"` con chain — bootstrap fix + audit |
-| B139 | ⏳ | 🔶 | switch arms en función `T!` auto-wrap `Ok(...)` |
+| B139 | ✅ | 🔶 | switch arms en función `T!` auto-wrap `Ok(...)` — gen-2 verificado 2026-05-06 (probe `classify(n): string! { return switch n { 0 => "zero", ... } }`). |
 
 > **Nota:** ERR-UNIFY infra ✅ + B127/B128/B130/B131/B140/B143 cerrados Tier 2.
-> 2026-05-06: B129/B130/B132 también cerrados en gen-2 (helper `_emitTruthyNarrowedErrMessageRead`
+> 2026-05-06: B129/B130/B132 portados a gen-2 (helper `_emitTruthyNarrowedErrMessageRead`
 > + tracking `truthyNarrowedErrorVars` en if-stmt narrowing path), validado via
 > `compile/err_unify_gen2.test.liva` (5/5) y selfhost gen-2≡gen-3 idempotente.
-> Quedan ⏳: B133 (array literal de fallibles), B138 (`fail` en expr-position), B139 (switch arm auto-wrap `Ok`).
+> 2026-05-06 (cont.): B133/B138/B139 verificados como cerrados en gen-2 (probes manuales).
+> **Tier 2 íntegramente cerrado.**
 
 ---
 

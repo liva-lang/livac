@@ -27,6 +27,20 @@ chain(s: string): int! {
     return v1 + v2
 }
 
+// B133 — array of fallibles populated via or-fail loop
+parseAll(items: [string]): [int]! {
+    let result = []
+    for s in items {
+        let n = parseInt(s) or fail "bad"
+        result.push(n)
+    }
+    return result
+}
+
+// Note: B138 (`fail` in switch-arm RHS) and B139 (switch-arm auto-wrap Ok)
+// work in gen-2 but not in the FROZEN bootstrap; verified manually via
+// /tmp probes documented in PARITY.md.
+
 describe("Tier 2 ERR-UNIFY in gen-2", () => {
     test("B130 — e.message after narrowing (success)", () => {
         expect(describeErr("42")).toBe("ok")
@@ -47,5 +61,14 @@ describe("Tier 2 ERR-UNIFY in gen-2", () => {
         let v, e = chain("3")
         expect(e).toBe(null)
         expect(v).toBe(6)
+    })
+    test("B133 — array of fallibles (success)", () => {
+        let v, e = parseAll(["1", "2", "3"])
+        expect(e).toBe(null)
+        expect(v.length).toBe(3)
+    })
+    test("B133 — array of fallibles (failure)", () => {
+        let v, e = parseAll(["1", "x"])
+        expect(e == null).toBe(false)
     })
 })
