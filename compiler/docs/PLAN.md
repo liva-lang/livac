@@ -308,10 +308,11 @@ Este es el item más caro del plan. Tower-lsp en Liva no es trivial.
 - [x] `Env.all() -> Map<string, string>` (auto-trackeado como Map).
 - [x] Test: `compiler/tests/liva/compile/env_stdlib.test.liva` (4 tests, PASS).
 
-### D.5 — Time zones en `Date`
+### D.5 — Time zones en `Date`  ✅ **DONE 2026-05-06** (parcial)
 
-- [ ] `Date.nowUtc()`, `Date.parseIso(s)`, `.toIso()`, `.toUtc()`, `.toTz(tz)`.
-- [ ] Backend: `chrono`.
+- [x] `Date.nowUtc()`, `Date.parseIso(s)`, `Date.toIso(d)`. Backend: `chrono`.
+- [ ] `Date.toUtc(d)`, `Date.toTz(d, tz)` — diferidos: requieren crate `chrono-tz` (decisión de no añadir dependencia adicional sin caso de uso concreto).
+- [x] Test: `compiler/tests/liva/compile/date_tz.test.liva` (5 tests, PASS).
 
 ### D.6 — Streams para ficheros grandes
 
@@ -610,4 +611,5 @@ Antes de tagear `v2.0.0` (no rc), todos estos checks deben estar verde:
 - 🟢 **D.2 HTTP client** — verificado ya implementado (`Http.get/post/put/delete` + alias `HTTP.*` en bootstrap, `Http` en gen-2; backend `reqwest::blocking`).
 - 📊 **Estado validación post-D.4**: 533 cargo tests · 108/109 liva suite (sólo `syntax/destructuring.test.liva` falla — preexistente, requiere C.3 tuplas nativas) · 21/21 bootstrap_apps via gen-2 · gen-2 ≡ gen-3 (src + binary).
 - ✅ **D.3 Path stdlib** — `Path.join/parent/extension/basename/exists/isAbsolute/normalize` (lexical) en ambos compiladores. Test `compiler/tests/liva/compile/path_stdlib.test.liva` (9/9 PASS). Re-validado: 533 cargo + 109/110 liva + 21/21 bootstrap_apps + gen-2 ≡ gen-3.
+- ✅ **D.5 Date timezones (parcial)** — `Date.nowUtc()` (UTC NaiveDateTime), `Date.toIso(d)` (formato ISO 8601), `Date.parseIso(s)` (con fallback a separador `" "` y patrón fallible `(value, errorString)`). `toUtc/toTz` diferidos: requieren crate `chrono-tz` y no hay caso de uso en bootstrap_apps. Test `compiler/tests/liva/compile/date_tz.test.liva` (5/5 PASS). Validación: 533 cargo + 110/111 liva (1 fail preexistente: destructuring) + 21/21 bootstrap_apps + gen-2 ≡ gen-3.
 - 📝 Sin push (usuario explícito).

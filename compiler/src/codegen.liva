@@ -6571,6 +6571,26 @@ RustEmitter {
                 this._write("(chrono::Local::now().timestamp_millis() as i32)")
                 return
             }
+            if method == "nowUtc" {
+                // D.5: UTC equivalent of Date.now()
+                this._write("chrono::Utc::now().naive_utc()")
+                return
+            }
+            if method == "toIso" {
+                // D.5: ISO 8601 formatting (NaiveDateTime -> string)
+                this._write("(")
+                this._emitExpr(args[0])
+                this._write(").format(\"%Y-%m-%dT%H:%M:%S\").to_string()")
+                return
+            }
+            if method == "parseIso" {
+                // D.5: parse "YYYY-MM-DDTHH:MM:SS" or "YYYY-MM-DD HH:MM:SS" -> NaiveDateTime
+                // Returns (Option<NaiveDateTime>, String) for fallible binding.
+                this._write("{ let __s = ")
+                this._emitExpr(args[0])
+                this._write(".to_string(); match chrono::NaiveDateTime::parse_from_str(&__s, \"%Y-%m-%dT%H:%M:%S\").or_else(|_| chrono::NaiveDateTime::parse_from_str(&__s, \"%Y-%m-%d %H:%M:%S\")) { Ok(dt) => (dt, String::new()), Err(e) => (chrono::NaiveDateTime::default(), format!(\"Date.parseIso error: {}\", e)) } }")
+                return
+            }
         }
         // Regex module
         if stdlibName == "Regex" {

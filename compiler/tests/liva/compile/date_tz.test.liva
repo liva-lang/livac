@@ -1,0 +1,34 @@
+// Compile Test (D.5 PLAN): Date timezone helpers.
+import { describe, test, expect } from "liva/test"
+
+describe("D.5 Date timezones", () => {
+    test("Date.toIso formats Date.new", () => {
+        let d = Date.new(2026, 5, 6, 12, 34, 56)
+        expect(Date.toIso(d)).toBe("2026-05-06T12:34:56")
+    })
+
+    test("Date.parseIso round-trips toIso", () => {
+        let s = "2026-05-06T12:34:56"
+        let d, err = Date.parseIso(s)
+        expect(err).toBe("")
+        expect(Date.toIso(d)).toBe(s)
+    })
+
+    test("Date.parseIso accepts space separator", () => {
+        let d, err = Date.parseIso("2026-05-06 12:34:56")
+        expect(err).toBe("")
+        expect(Date.toIso(d)).toBe("2026-05-06T12:34:56")
+    })
+
+    test("Date.parseIso reports error for garbage", () => {
+        let d, err = Date.parseIso("not a date")
+        expect(err == "").toBe(false)
+    })
+
+    test("Date.nowUtc returns formattable value", () => {
+        let d = Date.nowUtc()
+        let s = Date.toIso(d)
+        // ISO format always has T at index 10.
+        expect(s.length >= 19).toBe(true)
+    })
+})

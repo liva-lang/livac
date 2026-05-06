@@ -14515,11 +14515,50 @@ impl CodeGenerator {
                 }
                 self.output.push_str("(chrono::Local::now().timestamp_millis() as i32)");
             }
+            "nowUtc" => {
+                // D.5: UTC equivalent of Date.now() — naive UTC datetime.
+                if !method_call.args.is_empty() {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Date.nowUtc takes no arguments",
+                        "Usage: Date.nowUtc()",
+                    )));
+                }
+                self.output.push_str("chrono::Utc::now().naive_utc()");
+            }
+            "toIso" => {
+                // D.5: ISO 8601 formatting (NaiveDateTime -> string).
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Date.toIso requires exactly 1 argument",
+                        "Usage: Date.toIso(date)",
+                    )));
+                }
+                self.output.push_str("(");
+                self.generate_expr(&method_call.args[0])?;
+                self.output
+                    .push_str(").format(\"%Y-%m-%dT%H:%M:%S\").to_string()");
+            }
+            "parseIso" => {
+                // D.5: parse ISO 8601 -> (Option<NaiveDateTime>, String).
+                // Accepts both "T" and " " separators between date and time.
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Date.parseIso requires exactly 1 argument",
+                        "Usage: Date.parseIso(\"2026-05-06T12:34:56\")",
+                    )));
+                }
+                self.output.push_str("{ let __s = ");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(".to_string(); match chrono::NaiveDateTime::parse_from_str(&__s, \"%Y-%m-%dT%H:%M:%S\").or_else(|_| chrono::NaiveDateTime::parse_from_str(&__s, \"%Y-%m-%d %H:%M:%S\")) { Ok(dt) => (dt, String::new()), Err(e) => (chrono::NaiveDateTime::default(), format!(\"Date.parseIso error: {}\", e)) } }");
+            }
             _ => {
                 return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
                     "E3000",
                     &format!("Unknown Date function: {}", method_call.method),
-                    "Available: Date.now(), Date.new(y,m,d), Date.parse(str, pattern), Date.timestamp()",
+                    "Available: Date.now(), Date.nowUtc(), Date.new(y,m,d), Date.parse(str, pattern), Date.parseIso(str), Date.toIso(date), Date.timestamp()",
                 )));
             }
         }
@@ -16326,6 +16365,10 @@ impl CodeGenerator {
                     }
                     // Check for Dir methods (list returns tuple)
                     if object_name == "Dir" && method_call.method == "list" {
+                        return true;
+                    }
+                    // D.5: Date.parseIso returns (Option<NaiveDateTime>, String).
+                    if object_name == "Date" && method_call.method == "parseIso" {
                         return true;
                     }
                     // Check for HTTP methods (all return tuples)
