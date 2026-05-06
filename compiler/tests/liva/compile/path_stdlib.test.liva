@@ -1,0 +1,44 @@
+// Compile Test (D.3 PLAN): Path stdlib module.
+import { describe, test, expect } from "liva/test"
+
+describe("D.3 Path stdlib", () => {
+    test("Path.join concatenates segments", () => {
+        let p = Path.join("a/b", "c.txt")
+        expect(p).toBe("a/b/c.txt")
+    })
+
+    test("Path.parent returns directory", () => {
+        expect(Path.parent("/a/b/c.txt")).toBe("/a/b")
+    })
+
+    test("Path.parent of root is empty", () => {
+        expect(Path.parent("/")).toBe("")
+    })
+
+    test("Path.extension returns ext without dot", () => {
+        expect(Path.extension("file.txt")).toBe("txt")
+        expect(Path.extension("README")).toBe("")
+    })
+
+    test("Path.basename returns last component", () => {
+        expect(Path.basename("/a/b/c.txt")).toBe("c.txt")
+    })
+
+    test("Path.exists is true for known path", () => {
+        // /tmp exists on Linux runners; if this fails, adjust for OS.
+        expect(Path.exists("/tmp")).toBe(true)
+    })
+
+    test("Path.exists is false for nonexistent path", () => {
+        expect(Path.exists("/this/path/should/not/exist/__livac_d3__")).toBe(false)
+    })
+
+    test("Path.isAbsolute distinguishes absolute paths", () => {
+        expect(Path.isAbsolute("/a/b")).toBe(true)
+        expect(Path.isAbsolute("a/b")).toBe(false)
+    })
+
+    test("Path.normalize collapses . and ..", () => {
+        expect(Path.normalize("/a/./b/../c")).toBe("/a/c")
+    })
+})

@@ -6112,6 +6112,61 @@ RustEmitter {
             }
         }
 
+        // ── Path module (7 functions) — D.3 PLAN ──
+        if stdlibName == "Path" {
+            if method == "join" {
+                // Path.join(a, b) -> string
+                this._write("std::path::Path::new(&")
+                this._emitExpr(args[0])
+                this._write(".to_string()).join(&")
+                this._emitExpr(args[1])
+                this._write(".to_string()).to_string_lossy().to_string()")
+                return
+            }
+            if method == "parent" {
+                // Path.parent(p) -> string ("" if no parent)
+                this._write("std::path::Path::new(&")
+                this._emitExpr(args[0])
+                this._write(".to_string()).parent().map(|p| p.to_string_lossy().to_string()).unwrap_or_default()")
+                return
+            }
+            if method == "extension" {
+                // Path.extension(p) -> string (no leading dot, "" if none)
+                this._write("std::path::Path::new(&")
+                this._emitExpr(args[0])
+                this._write(".to_string()).extension().and_then(|e| e.to_str()).map(|s| s.to_string()).unwrap_or_default()")
+                return
+            }
+            if method == "basename" {
+                // Path.basename(p) -> string
+                this._write("std::path::Path::new(&")
+                this._emitExpr(args[0])
+                this._write(".to_string()).file_name().and_then(|n| n.to_str()).map(|s| s.to_string()).unwrap_or_default()")
+                return
+            }
+            if method == "exists" {
+                // Path.exists(p) -> bool
+                this._write("std::path::Path::new(&")
+                this._emitExpr(args[0])
+                this._write(".to_string()).exists()")
+                return
+            }
+            if method == "isAbsolute" {
+                // Path.isAbsolute(p) -> bool
+                this._write("std::path::Path::new(&")
+                this._emitExpr(args[0])
+                this._write(".to_string()).is_absolute()")
+                return
+            }
+            if method == "normalize" {
+                // Path.normalize(p) -> string (lexical, collapses . and ..)
+                this._write("{ let __p = ")
+                this._emitExpr(args[0])
+                this._write(".to_string(); let __path = std::path::Path::new(&__p); let mut __out = std::path::PathBuf::new(); for __c in __path.components() { match __c { std::path::Component::ParentDir => { __out.pop(); }, std::path::Component::CurDir => {}, __other => { __out.push(__other.as_os_str()); } } } __out.to_string_lossy().to_string() }")
+                return
+            }
+        }
+
         // ── Config module (5 functions) ──
         if stdlibName == "Config" {
             if method == "load" {

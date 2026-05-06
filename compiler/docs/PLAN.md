@@ -294,10 +294,11 @@ Este es el item más caro del plan. Tower-lsp en Liva no es trivial.
 - [x] También disponible vía `HTTP.*` (alias upper-case en bootstrap).
 - [ ] Mejora futura: headers/timeouts/JSON body helpers (lower priority).
 
-### D.3 — Tipo `Path`
+### D.3 — Tipo `Path` — ✅ implementado (2026-05-06)
 
-- [ ] `Path.new("/a/b/c")`, `.join("d")`, `.parent()`, `.extension()`, `.normalize()`, `.exists()`.
-- [ ] Refactor stdlib `File`/`Dir` para aceptar `Path` además de `string`.
+- [x] `Path.join(a, b)`, `.parent(p)`, `.extension(p)`, `.basename(p)`, `.exists(p)`, `.isAbsolute(p)`, `.normalize(p)` (lexical) en bootstrap (`generate_path_function_call`) y gen-2 (`stdlibName == "Path"`).
+- [x] Test: `compiler/tests/liva/compile/path_stdlib.test.liva` (9 tests, PASS).
+- [ ] Refactor stdlib `File`/`Dir` para aceptar `Path` además de `string` (deferred — wrapper type aún no añadido).
 
 ### D.4 — `Env.*` — ✅ implementado (2026-05-06, commit `678a63d`)
 
@@ -608,4 +609,5 @@ Antes de tagear `v2.0.0` (no rc), todos estos checks deben estar verde:
 - 🟢 **D.1 JSON** — verificado ya implementado (`JSON.parse`/`JSON.stringify` en ambos compiladores; usuarios no necesitan importar `serde_json`).
 - 🟢 **D.2 HTTP client** — verificado ya implementado (`Http.get/post/put/delete` + alias `HTTP.*` en bootstrap, `Http` en gen-2; backend `reqwest::blocking`).
 - 📊 **Estado validación post-D.4**: 533 cargo tests · 108/109 liva suite (sólo `syntax/destructuring.test.liva` falla — preexistente, requiere C.3 tuplas nativas) · 21/21 bootstrap_apps via gen-2 · gen-2 ≡ gen-3 (src + binary).
+- ✅ **D.3 Path stdlib** — `Path.join/parent/extension/basename/exists/isAbsolute/normalize` (lexical) en ambos compiladores. Test `compiler/tests/liva/compile/path_stdlib.test.liva` (9/9 PASS). Re-validado: 533 cargo + 109/110 liva + 21/21 bootstrap_apps + gen-2 ≡ gen-3.
 - 📝 Sin push (usuario explícito).

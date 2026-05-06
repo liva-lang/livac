@@ -10705,6 +10705,11 @@ impl CodeGenerator {
                 return self.generate_env_function_call(method_call);
             }
 
+            // Check if this is a Path function call (Path.join, Path.parent, etc.) — D.3 PLAN
+            if name == "Path" {
+                return self.generate_path_function_call(method_call);
+            }
+
             // Check if this is a Log function call (Log.info, Log.warn, etc.)
             if name == "Log" {
                 return self.generate_log_function_call(method_call);
@@ -13886,6 +13891,137 @@ impl CodeGenerator {
                     "E3000",
                     &format!("Unknown Env function: {}", method_call.method),
                     "Available Env functions: get, has, set, unset, all",
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Generate Path module function calls — D.3 PLAN.
+    /// Static functions over path strings.
+    /// Path.join(a, b)     -> string  (joins two path segments)
+    /// Path.parent(p)      -> string  (parent dir or "" if none)
+    /// Path.extension(p)   -> string  (ext without dot, "" if none)
+    /// Path.basename(p)    -> string  (last component)
+    /// Path.exists(p)      -> bool
+    /// Path.isAbsolute(p)  -> bool
+    /// Path.normalize(p)   -> string  (resolve . and ..)
+    fn generate_path_function_call(
+        &mut self,
+        method_call: &crate::ast::MethodCallExpr,
+    ) -> Result<()> {
+        match method_call.method.as_str() {
+            "join" => {
+                if method_call.args.len() != 2 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Path.join requires exactly 2 arguments",
+                        "Usage: Path.join(\"a/b\", \"c\")",
+                    )));
+                }
+                self.output
+                    .push_str("std::path::Path::new(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(".to_string()).join(&");
+                self.generate_expr(&method_call.args[1])?;
+                self.output
+                    .push_str(".to_string()).to_string_lossy().to_string()");
+            }
+            "parent" => {
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Path.parent requires exactly 1 argument",
+                        "Usage: Path.parent(\"/a/b/c\")",
+                    )));
+                }
+                self.output
+                    .push_str("std::path::Path::new(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(
+                    ".to_string()).parent().map(|p| p.to_string_lossy().to_string()).unwrap_or_default()",
+                );
+            }
+            "extension" => {
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Path.extension requires exactly 1 argument",
+                        "Usage: Path.extension(\"file.txt\")",
+                    )));
+                }
+                self.output
+                    .push_str("std::path::Path::new(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(
+                    ".to_string()).extension().and_then(|e| e.to_str()).map(|s| s.to_string()).unwrap_or_default()",
+                );
+            }
+            "basename" => {
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Path.basename requires exactly 1 argument",
+                        "Usage: Path.basename(\"/a/b/c.txt\")",
+                    )));
+                }
+                self.output
+                    .push_str("std::path::Path::new(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(
+                    ".to_string()).file_name().and_then(|n| n.to_str()).map(|s| s.to_string()).unwrap_or_default()",
+                );
+            }
+            "exists" => {
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Path.exists requires exactly 1 argument",
+                        "Usage: Path.exists(\"/a/b\")",
+                    )));
+                }
+                self.output
+                    .push_str("std::path::Path::new(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(".to_string()).exists()");
+            }
+            "isAbsolute" => {
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Path.isAbsolute requires exactly 1 argument",
+                        "Usage: Path.isAbsolute(\"/a/b\")",
+                    )));
+                }
+                self.output
+                    .push_str("std::path::Path::new(&");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(".to_string()).is_absolute()");
+            }
+            "normalize" => {
+                if method_call.args.len() != 1 {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E3000",
+                        "Path.normalize requires exactly 1 argument",
+                        "Usage: Path.normalize(\"/a/./b/../c\")",
+                    )));
+                }
+                // Pure-lexical normalization: collapses "." and ".." without
+                // touching the filesystem (no symlink resolution, no canonicalize).
+                self.output.push_str(
+                    "{ let __p = ",
+                );
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(
+                    ".to_string(); let __path = std::path::Path::new(&__p); let mut __out = std::path::PathBuf::new(); for __c in __path.components() { match __c { std::path::Component::ParentDir => { __out.pop(); }, std::path::Component::CurDir => {}, __other => { __out.push(__other.as_os_str()); } } } __out.to_string_lossy().to_string() }",
+                );
+            }
+            _ => {
+                return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E3000",
+                    &format!("Unknown Path function: {}", method_call.method),
+                    "Available Path functions: join, parent, extension, basename, exists, isAbsolute, normalize",
                 )));
             }
         }
