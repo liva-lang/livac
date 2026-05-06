@@ -1,0 +1,14 @@
+// A.5 sub-2: DB.open returns Option<Arc<Mutex<Connection>>>, which has no
+// Default impl. Without the no-default fallback, gen-2's destructure emission
+// `__opt.unwrap_or_default()` would E0277. Verifies fallback (open_in_memory)
+// keeps the variable valid when err is non-empty.
+
+main() {
+    let conn, err = DB.open(":memory:")
+    if err {
+        print("open failed")
+        return
+    }
+    DB.close(conn)
+    print("ok")
+}

@@ -364,6 +364,29 @@ RustEmitter {
         return false
     }
 
+    // A.5 sub-2: stdlib tuple call where T has no Rust `Default` impl.
+    // Returns a Rust expression to use as fallback in `__opt.unwrap_or_else(|| <expr>)`.
+    // Empty string means T is Default-able and we use `__opt.unwrap_or_default()`.
+    _stdlibTupleNoDefaultFallback(init: Expr): string {
+        let objName = ""
+        let methodName = ""
+        let _ = switch init {
+            Expr.MethodCall(obj, m, _) => {
+                methodName = m
+                let _ = switch obj {
+                    Expr.Identifier(n) => { objName = n; 0 },
+                    _ => { 0 }
+                }
+                0
+            },
+            _ => { 0 }
+        }
+        if objName == "DB" && methodName == "open" {
+            return "std::sync::Arc::new(std::sync::Mutex::new(rusqlite::Connection::open_in_memory().unwrap()))"
+        }
+        return ""
+    }
+
     _toSnakeCase(name: string): string {
         // If the name is ALL_CAPS (constant style e.g. VERSION, MAX_SIZE), keep as-is
         let allCaps = true
@@ -2944,9 +2967,17 @@ RustEmitter {
                 let initExpr0 = decl.init
                 let isStdlibTuple0 = this._isStdlibTupleCall(initExpr0)
                 if isStdlibTuple0 {
+                    let fallbackInit0 = decl.init
+                    let fallback0 = this._stdlibTupleNoDefaultFallback(fallbackInit0)
                     this._write(") = { let (__opt, __err) = ")
                     this._emitExpr(decl.init)
-                    this._write("; (__opt.unwrap_or_default(), if __err.is_empty() { None } else { Some(liva_rt::Error::from(__err)) }) };")
+                    if fallback0 == "" {
+                        this._write("; (__opt.unwrap_or_default(), if __err.is_empty() { None } else { Some(liva_rt::Error::from(__err)) }) };")
+                    } else {
+                        this._write("; (__opt.unwrap_or_else(|| ")
+                        this._write(fallback0)
+                        this._write("), if __err.is_empty() { None } else { Some(liva_rt::Error::from(__err)) }) };")
+                    }
                 } else {
                     this._write(") = match ")
                     this._emitExpr(decl.init)
@@ -3383,9 +3414,17 @@ RustEmitter {
             let initExpr1 = decl.init
             let isStdlibTuple1 = this._isStdlibTupleCall(initExpr1)
             if isStdlibTuple1 {
+                let fallbackInit1 = decl.init
+                let fallback1 = this._stdlibTupleNoDefaultFallback(fallbackInit1)
                 this._write(") = { let (__opt, __err) = ")
                 this._emitExpr(decl.init)
-                this._write("; (__opt.unwrap_or_default(), if __err.is_empty() { None } else { Some(liva_rt::Error::from(__err)) }) };")
+                if fallback1 == "" {
+                    this._write("; (__opt.unwrap_or_default(), if __err.is_empty() { None } else { Some(liva_rt::Error::from(__err)) }) };")
+                } else {
+                    this._write("; (__opt.unwrap_or_else(|| ")
+                    this._write(fallback1)
+                    this._write("), if __err.is_empty() { None } else { Some(liva_rt::Error::from(__err)) }) };")
+                }
             } else {
                 this._write(") = match ")
                 this._emitExpr(decl.init)
@@ -6407,9 +6446,21 @@ RustEmitter {
                 this._emitExpr(args[1])
                 this._write("; ")
                 if args.length >= 3 {
-                    this._write($"{DB_PARAM_BINDING}")
-                    this._emitExpr(args[2])
-                    this._write($"{DB_PARAM_BINDING_TAIL}")
+                    let isEmptyParams = false
+                    let _ = switch args[2] {
+                        Expr.ArrayLiteral(elems) => {
+                            if elems.length == 0 { isEmptyParams = true }
+                            0
+                        },
+                        _ => { 0 }
+                    }
+                    if isEmptyParams {
+                        this._write("let __param_refs: Vec<&dyn rusqlite::types::ToSql> = Vec::new();")
+                    } else {
+                        this._write($"{DB_PARAM_BINDING}")
+                        this._emitExpr(args[2])
+                        this._write($"{DB_PARAM_BINDING_TAIL}")
+                    }
                     this._write(" match ")
                     this._emitExpr(args[0])
                     this._write(".lock().unwrap().execute(&__sql, __param_refs.as_slice()) { Ok(_) => (Some(String::new()), String::new()), Err(e) => (None, format!(\"DB.exec error: {}\", e)) } }")
@@ -6425,9 +6476,21 @@ RustEmitter {
                 this._emitExpr(args[1])
                 this._write("; ")
                 if args.length >= 3 {
-                    this._write($"{DB_PARAM_BINDING}")
-                    this._emitExpr(args[2])
-                    this._write($"{DB_PARAM_BINDING_TAIL}")
+                    let isEmptyParams = false
+                    let _ = switch args[2] {
+                        Expr.ArrayLiteral(elems) => {
+                            if elems.length == 0 { isEmptyParams = true }
+                            0
+                        },
+                        _ => { 0 }
+                    }
+                    if isEmptyParams {
+                        this._write("let __param_refs: Vec<&dyn rusqlite::types::ToSql> = Vec::new();")
+                    } else {
+                        this._write($"{DB_PARAM_BINDING}")
+                        this._emitExpr(args[2])
+                        this._write($"{DB_PARAM_BINDING_TAIL}")
+                    }
                     this._write(" match ")
                     this._emitExpr(args[0])
                     this._write(".lock().unwrap().prepare(&__sql) { Ok(mut stmt) => { match stmt.query_map(__param_refs.as_slice(), |row| { ")
