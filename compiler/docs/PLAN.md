@@ -169,10 +169,11 @@
 
 ### B.5 — `livac init` y `livac update`
 
-- [ ] `init`: scaffold `liva.toml` + `src/main.liva` + `.gitignore`.
+- [x] `init`: scaffold `main.liva` + `.gitignore` (gen-2). Validación de nombre, detección de directorio existente, error paths cubiertos. **DONE 2026-05-06**.
+- [ ] `init` extendido: scaffold multi-fichero (math.liva + models.liva + tests/main.test.liva) — postergado, equivalente al template del bootstrap.
 - [ ] `update`: descarga la última release de GitHub y reemplaza el binario actual.
 
-**Gate B.5:** ambos funcionan sin invocar al bootstrap.
+**Gate B.5:** ✅ parcial — `livac init <name>` produce un proyecto funcional ejecutable con gen-2 (`livac run main.liva` desde el dir creado funciona). `update` y scaffold extendido pendientes.
 
 ### B.6 — `livac lsp` (el grande)
 
