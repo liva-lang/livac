@@ -1051,10 +1051,9 @@ y tests LSP manuales — no representan gap real.
 - [x] **B151** — string escape `\"` dentro de `${...}` (gen-2 parser ya maneja `\"`, `\\`, `\n`, `\r`, `\t` en placeholder; verificado 2026-05-07 con `print($"a:{m.get(\"apple\")}")` → `a:1`)
 - [x] **B152** — `Display` impl con `{:?}` añade `Debug` bound. **DONE 2026-05-07** — añadido `_emitClassDisplay` en gen-2 que auto-emite `impl Display for ClassName` para toda clase con campos (mirroring bootstrap BUG-004), usando `{:?}` para Vec/Map/Set/Optional/Tuple/enum. Type params reciben `Display` bound (y `Debug` ya estaba). También fix collateral en bootstrap: `_emit_display_for_class` emitía `}}}}` (doble cierre literal) en lugar de `}}`. Test: `compiler/tests/regression/b152_class_display.liva` (Point/Bag/Dict).
 - [x] **B153** — free generic functions auto `Clone + Display` (gen-2 emite `<T: Clone + std::fmt::Debug + PartialEq>` en función libre genérica; verificado 2026-05-07 con `firstOf<T>` retornando `items[0]`)
-- [ ] **GAP-007** — function types `(T) => U` → `Box<dyn Fn>`
+- [x] **B141–B147** — fn-ref reduce, nested [[T]], toInt or fail, Map/Set params, indexOf 2-arg, user pop, arr.reverse on [T] — todos verificados en gen-2 con `compiler/tests/regression/b141_b147_gen2.liva` (2026-05-07; ya funcionaban, solo se pinearon)
 - [ ] **B148–B150** — patrones de constructor (`this.X` reads, mut locals, literal-string args)
-- [ ] **B144–B147** — Map/Set params, `indexOf` 2-arg, user `pop`, `arr.reverse` on `[T]`
-- [ ] **B141–B143** — fn-ref `reduce`, nested `[[T]]`, `toInt or fail` (B140 done 2026-05-07 — `s.toInt()/toFloat() or default` lowering en let, return e inline-arg en gen-2 + bootstrap; test `compiler/tests/regression/b140_toint_or_default.liva`)
+- [ ] **GAP-007** — function types `(T) => U` → `Box<dyn Fn>`
 - [ ] **B137–B138** — user `method.count(literal)`, `fail` en posición de expr
 - [ ] **B134–B136** — Map for-loop typing, switch-arm if-tail, Set.size
 - [ ] **B127–B133** — error handling completo (esto requiere unificar `Result<T,String>` → `liva_rt::Error` en gen-2)

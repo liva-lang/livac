@@ -1,0 +1,66 @@
+// B141-B147 sanity checks for gen-2.
+// Each bug was fixed in bootstrap; this regression confirms gen-2 also handles
+// the same patterns (and pins them so future refactors don't regress).
+
+Pque {
+    items: [int]
+    constructor() { this.items = [] }
+    push(x: int) { this.items.push(x) }
+    // B146: user-defined pop must not get .expect()
+    pop(): int {
+        let n = this.items.length
+        if n == 0 { return -1 }
+        let v = this.items[n - 1]
+        this.items = this.items.slice(0, n - 1)
+        return v
+    }
+}
+
+maxOf(a: int, b: int): int { return a > b ? a : b }
+
+// B144: Map/Set params register correctly
+render(tpl: string, vars: Map<string, string>): string {
+    let v = vars.get("k") or ""
+    return tpl + v
+}
+
+main() {
+    // B141: point-free fn ref in reduce
+    let nums = [3, 1, 4, 1, 5, 9, 2, 6]
+    let mx = nums.reduce(0, maxOf)
+    print(mx.toString())             // 9
+
+    // B142: nested for over [[T]]
+    let groups: [[int]] = [[1, 2], [3, 4, 5]]
+    let total = 0
+    for g in groups {
+        for x in g { total = total + x }
+    }
+    print(total.toString())          // 15
+
+    // B143: `s.toInt() or fail` propagates
+    let n = "42".toInt() or 0
+    print(n.toString())              // 42
+
+    // B144: Map param
+    let m: Map<string, string> = {"k": "world"}
+    print(render("hello ", m))       // hello world
+
+    // B145: indexOf with fromIndex
+    let s = "abcabc"
+    let i = s.indexOf("b", 2)
+    print(i.toString())              // 4
+
+    // B146: user-class pop
+    let pq = Pque()
+    pq.push(7)
+    pq.push(8)
+    print(pq.pop().toString())       // 8
+    print(pq.pop().toString())       // 7
+
+    // B147: arr.reverse on [int]
+    let desc: [int] = [3, 2, 1]
+    let asc = desc.reverse()
+    print(asc[0].toString())         // 1
+    print(asc[2].toString())         // 3
+}
