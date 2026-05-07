@@ -4333,6 +4333,9 @@ RustEmitter {
                 } else if m == "chars" {
                     this._emitExpr(obj)
                     this._write(".chars().map(|c| c.to_string())")
+                } else if m == "bytes" {
+                    this._emitExpr(obj)
+                    this._write(".bytes().map(|b| b as i32)")
                 } else if m == "split" && args.length > 0 {
                     // Phase 10.4: in `for x in str.split(sep)`, skip the
                     // `.collect::<Vec<String>>()` — we iterate the lazy iterator
@@ -7073,7 +7076,7 @@ RustEmitter {
         // Same for string-only methods — if generic and method is a clearly
         // string-only operation (parsing, char-iteration, etc.), assume string.
         if not isUserClassInstance && target == "generic" {
-            if method == "toInt" || method == "toFloat" || method == "chars" || method == "padStart" || method == "padEnd" || method == "removePrefix" || method == "removeSuffix" || method == "trimStart" || method == "trimEnd" || method == "capitalize" || method == "isBlank" || method == "countMatches" || method == "toUpperCase" || method == "toLowerCase" {
+            if method == "toInt" || method == "toFloat" || method == "chars" || method == "bytes" || method == "padStart" || method == "padEnd" || method == "removePrefix" || method == "removeSuffix" || method == "trimStart" || method == "trimEnd" || method == "capitalize" || method == "isBlank" || method == "countMatches" || method == "toUpperCase" || method == "toLowerCase" {
                 target = "string"
             }
         }
@@ -7113,7 +7116,7 @@ RustEmitter {
     }
 
     _isKnownStringMethod(m: string): bool {
-        return m == "contains" || m == "replace" || m == "replaceAll" || m == "split" || m == "trim" || m == "trimStart" || m == "trimEnd" || m == "startsWith" || m == "endsWith" || m == "toUpperCase" || m == "toLowerCase" || m == "substring" || m == "indexOf" || m == "lastIndexOf" || m == "slice" || m == "padStart" || m == "padEnd" || m == "repeat" || m == "charAt" || m == "chars" || m == "capitalize" || m == "isBlank" || m == "isEmpty" || m == "removePrefix" || m == "removeSuffix" || m == "countMatches" || m == "truncate" || m == "reverse" || m == "toInt" || m == "toFloat" || m == "toString"
+        return m == "contains" || m == "replace" || m == "replaceAll" || m == "split" || m == "trim" || m == "trimStart" || m == "trimEnd" || m == "startsWith" || m == "endsWith" || m == "toUpperCase" || m == "toLowerCase" || m == "substring" || m == "indexOf" || m == "lastIndexOf" || m == "slice" || m == "padStart" || m == "padEnd" || m == "repeat" || m == "charAt" || m == "chars" || m == "bytes" || m == "capitalize" || m == "isBlank" || m == "isEmpty" || m == "removePrefix" || m == "removeSuffix" || m == "countMatches" || m == "truncate" || m == "reverse" || m == "toInt" || m == "toFloat" || m == "toString"
     }
 
     _isKnownArrayMethod(m: string): bool {
@@ -7597,6 +7600,12 @@ RustEmitter {
         if method == "chars" {
             this._emitExpr(obj)
             this._write(".chars().map(|c| c.to_string()).collect::<Vec<String>>()")
+            return true
+        }
+        if method == "bytes" {
+            // bytes() -> Vec<i32> with raw UTF-8 byte values
+            this._emitExpr(obj)
+            this._write(".bytes().map(|b| b as i32).collect::<Vec<i32>>()")
             return true
         }
         if method == "slice" {

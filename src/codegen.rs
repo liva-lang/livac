@@ -11053,6 +11053,7 @@ impl CodeGenerator {
                     | "padEnd"
                     | "repeat"
                     | "chars"
+                    | "bytes"
                     | "capitalize"
                     | "isBlank"
                     | "isEmpty"
@@ -13013,6 +13014,14 @@ impl CodeGenerator {
                 self.generate_expr(&method_call.object)?;
                 self.output
                     .push_str(".chars().map(|c| c.to_string()).collect::<Vec<String>>()");
+                return Ok(());
+            }
+            "bytes" => {
+                // bytes() -> str.bytes().map(|b| b as i32).collect::<Vec<i32>>()
+                // Returns raw UTF-8 bytes as integers (not chars/code points).
+                self.generate_expr(&method_call.object)?;
+                self.output
+                    .push_str(".bytes().map(|b| b as i32).collect::<Vec<i32>>()");
                 return Ok(());
             }
             _ => {}

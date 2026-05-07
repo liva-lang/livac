@@ -1,0 +1,29 @@
+// Regression test for string.bytes() — raw UTF-8 byte access (C.10).
+//
+// Returns the underlying UTF-8 bytes as integers. Distinct from `chars()`
+// which returns code points as 1-char strings.
+
+main() {
+    // ASCII: each char is exactly one byte
+    let s1 = "abc"
+    let b1 = s1.bytes()
+    print($"len(abc)={b1.length}")
+    print($"a={b1[0]} b={b1[1]} c={b1[2]}")
+
+    // Non-ASCII: ñ is 2 UTF-8 bytes (0xC3 0xB1 = 195 177)
+    let s2 = "ñ"
+    let b2 = s2.bytes()
+    print($"len(n-tilde)={b2.length}")
+    print($"b0={b2[0]} b1={b2[1]}")
+
+    // chars() vs bytes() length on multi-byte string
+    let s3 = "café"
+    let chars = s3.chars()
+    let bs = s3.bytes()
+    print($"chars={chars.length} bytes={bs.length}")
+
+    // Empty string
+    let empty = ""
+    let be = empty.bytes()
+    print($"empty={be.length}")
+}
