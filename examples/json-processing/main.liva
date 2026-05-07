@@ -1,39 +1,44 @@
 // JSON Processing - Trabajar con datos JSON
 // Ejecutar: livac run json-processing/main.liva
 
-class Product {
-    id: Int
-    name: String
-    price: Float
-    inStock: Bool
+Product {
+    id: number
+    name: string
+    price: float
+    inStock: bool
 }
 
-fn main() {
-    print("=== Liva JSON Demo ===\n")
-    
-    // Crear JSON
+main() {
+    print("=== Liva JSON Demo ===")
+    print("")
+
+    // Crear datos
     let products = [
-        Product { id: 1, name: "Laptop", price: 999.99, inStock: true },
-        Product { id: 2, name: "Mouse", price: 29.99, inStock: true },
-        Product { id: 3, name: "Keyboard", price: 79.99, inStock: false }
+        Product(1, "Laptop", 999.99, true),
+        Product(2, "Mouse", 29.99, true),
+        Product(3, "Keyboard", 79.99, false)
     ]
-    
+
     // Filtrar productos en stock
     let available = products.filter(p => p.inStock)
-    print("Productos disponibles: ${available.len()}")
-    
+    print($"Productos disponibles: {available.length}")
+
     // Calcular precio total
     let total = products
         .filter(p => p.inStock)
         .map(p => p.price)
         .reduce(0.0, (acc, price) => acc + price)
-    
-    print("Precio total disponible: $${total}")
-    
-    // Iterar con foreach
-    print("\nLista de productos:")
-    products.foreach(p => {
-        let status = if p.inStock => "✓" else => "✗"
-        print("  ${status} ${p.name}: $${p.price}")
-    })
+
+    print($"Precio total disponible: ${total}")
+
+    // Iterar
+    print("")
+    print("Lista de productos:")
+    for p in products {
+        let status = switch p.inStock {
+            true => "✓",
+            false => "✗"
+        }
+        print($"  {status} {p.name}: ${p.price}")
+    }
 }

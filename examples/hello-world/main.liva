@@ -1,15 +1,15 @@
 // Hello World - Tu primer programa en Liva
 // Ejecutar: livac run hello-world/main.liva
 
-fn main() {
+main() {
     print("¡Hola, Liva!")
-    
+
     // Variables con inferencia de tipos
     let name = "Mundo"
     let count = 3
-    
+
     // String templates
     for i in 1..=count {
-        print("${i}. Hola, ${name}!")
+        print($"{i}. Hola, {name}!")
     }
 }
