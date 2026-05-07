@@ -1,0 +1,18 @@
+// GAP-007 — function types `(T) => U` as parameters, lowered to
+// `Box<dyn Fn(T) -> U>`. Both compilers Box::new-wrap inline lambda args
+// when the param expects a Fn type.
+//
+// Note: passing a let-bound closure via identifier is NOT auto-boxed by the
+// bootstrap (FROZEN) and gen-2 mirrors that behavior. Inline-lambda only
+// is the supported pattern; pin that.
+
+apply(f: (int) => int, x: int): int { return f(x) }
+
+twice(f: (int) => int, x: int): int { return f(f(x)) }
+
+main() {
+    print(apply((x: int) => x + 1, 10).toString())
+    print(twice((x: int) => x + 1, 10).toString())
+    print(apply((x: int) => x * 2, 5).toString())
+    print(twice((x: int) => x * 2, 3).toString())
+}
