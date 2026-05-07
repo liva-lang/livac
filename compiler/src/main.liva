@@ -60,8 +60,10 @@ parseCliArgs(args: [string]): CliOptions {
     let checkOnly = false
 
     if args.length < 2 {
-        printUsage()
-        return CliOptions(command, inputFile, outputDir, verbose, release, checkOnly)
+        // No subcommand provided — print help and signal via "help"
+        // so main() exits cleanly without falling through to the
+        // empty-input-file error path.
+        return CliOptions("help", inputFile, outputDir, verbose, release, checkOnly)
     }
 
     command = args[1]
