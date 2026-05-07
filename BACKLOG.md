@@ -732,7 +732,7 @@ Resultado de compilar+ejecutar 5 ejemplos deterministas (con `main()`) con boots
 
 - [ ] **Multi-file imports en gen-2** — corregir re-declaración de constantes/funciones importadas (audit de `module.liva` + `_emitImport` en codegen)
 - [ ] **HTTP `serde_json::json!` macro** — emitir tokens válidos del macro DSL para route bodies (audit de `_emitObjectLit` cuando context es serde_json)
-- [ ] **Multi-file tests** — añadir 2-3 programas multi-file a `bootstrap_apps/` o `e2e_progs/` para que `module.rs` deje de estar al 0%
+- [x] **Multi-file tests** — añadir 2-3 programas multi-file a `bootstrap_apps/` o `e2e_progs/` para que `module.rs` deje de estar al 0%. **DONE 2026-05-07** — multifile_apps tiene ahora 5 fixtures (m1_basic, m2_class, m3_stdlib, m4_enum cross-module enum payloads + switch, m5_chain transitive imports a→b→c). m5_chain destapó y bloqueó un bug en `main.liva` donde gen-2 no declaraba sub-módulos transitivos en `main.rs` (rustc E0432); fix landed in commit `0d181d1`.
 - [ ] **CLI subcmd tests** — `livac run`, `livac fmt`, `livac test` actualmente sin cobertura en gen-2
 - [x] **destructuring.test.liva** — convertir `throw` del parser a propagación Result o instalar `panic_hook` clean en `main.liva`. **DONE 2026-05-07** — instalado `std::panic::set_hook` con bloque `rust { }` al inicio de `main()` en `compiler/src/main.liva`. Ahora panics del parser/lexer (compiled from `throw`) emiten `Error: <msg>` y exit 1, en vez del backtrace `thread 'main' panicked at src/parser.rs:N:M:`. Mejora la paridad con bootstrap en errores de sintaxis.
 - [ ] **`-D warnings` en gen-2 emit** — opcional: hacer que gen-2 emita `#![deny(...)]` selectivo si así lo quiere el usuario
@@ -1048,9 +1048,9 @@ y tests LSP manuales — no representan gap real.
 - [ ] Tests unitarios por módulo en `compiler/tests/codegen_modules/`.
 
 ### Fase D — Portar fixes (orden recomendado, fáciles primero)
-- [ ] **B151** — string escape `\"` dentro de `${...}`
-- [ ] **B152** — `Display` impl con `{:?}` añade `Debug` bound
-- [ ] **B153** — free generic functions auto `Clone + Display`
+- [x] **B151** — string escape `\"` dentro de `${...}` (gen-2 parser ya maneja `\"`, `\\`, `\n`, `\r`, `\t` en placeholder; verificado 2026-05-07 con `print($"a:{m.get(\"apple\")}")` → `a:1`)
+- [ ] **B152** — `Display` impl con `{:?}` añade `Debug` bound (gen-2: aún no auto-emite `impl Display for ClassUserDef<T>`; bootstrap sí lo hace. Diferencia de scope respecto al fix original; **OPEN para gen-2**)
+- [x] **B153** — free generic functions auto `Clone + Display` (gen-2 emite `<T: Clone + std::fmt::Debug + PartialEq>` en función libre genérica; verificado 2026-05-07 con `firstOf<T>` retornando `items[0]`)
 - [ ] **GAP-007** — function types `(T) => U` → `Box<dyn Fn>`
 - [ ] **B148–B150** — patrones de constructor (`this.X` reads, mut locals, literal-string args)
 - [ ] **B144–B147** — Map/Set params, `indexOf` 2-arg, user `pop`, `arr.reverse` on `[T]`
