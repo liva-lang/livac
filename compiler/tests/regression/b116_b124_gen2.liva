@@ -1,0 +1,66 @@
+// B116, B117, B120, B124 sanity checks for gen-2.
+
+Product {
+    sku: string
+    qty: int
+    constructor(s: string, q: int) {
+        this.sku = s
+        this.qty = q
+    }
+    summary(): string { return this.sku + "x" + this.qty.toString() }
+}
+
+Inv {
+    items: Map<string, Product>
+    statuses: [int]
+    bookIds: [int]
+    constructor() {
+        this.items = {}
+        this.statuses = [0, 0, 0, 0]
+        this.bookIds = []
+    }
+    // B116: indexed assignment to self.field[i]
+    setStatus(i: int, v: int) {
+        this.statuses[i] = v
+    }
+    // B117: self.field = self.field.concat([x])
+    addBook(id: int) {
+        this.bookIds = this.bookIds.concat([id])
+    }
+    // B124: m.set(p.field, p) — partial move avoidance
+    add(p: Product) {
+        this.items.set(p.sku, p)
+    }
+}
+
+main() {
+    let inv = Inv()
+
+    // B116: indexed self-field assignment persists
+    inv.setStatus(2, 7)
+    print(inv.statuses[2].toString())   // 7
+    inv.setStatus(0, 1)
+    print(inv.statuses[0].toString())   // 1
+
+    // B117: concat does not move self
+    inv.addBook(101)
+    inv.addBook(202)
+    print(inv.bookIds.length.toString())  // 2
+    print(inv.bookIds[1].toString())      // 202
+
+    // B120: arr.len() vs i32 comparison
+    let arr = [10, 20, 30, 40]
+    let n = arr.length     // length is Liva's len, returns int
+    let i = 0
+    let sum = 0
+    while i < n {
+        sum = sum + arr[i]
+        i = i + 1
+    }
+    print(sum.toString())  // 100
+
+    // B124: insert without moving p.field
+    let p = Product("apple", 5)
+    inv.add(p)
+    print(inv.items.length.toString())  // 1
+}

@@ -1057,8 +1057,8 @@ y tests LSP manuales — no representan gap real.
 - [x] **B134–B137** — Map for-loop typing, switch-arm if-tail, Set.size, user `method.count(literal)` — verificados en gen-2 con `compiler/tests/regression/b134_b137_gen2.liva` (2026-05-07)
 - [ ] **B138** — `fail` en posición de expresión (gen-2 OK; bootstrap re-wrap bug en ternary-with-fail dentro de `T!`, no aislable sin tocar B139)
 - [ ] **B139** — switch arms en `T!` no auto-envuelven en `Ok(...)` (open en bootstrap; bloquea pin parity)
-- [ ] **B127–B133** — error handling completo (esto requiere unificar `Result<T,String>` → `liva_rt::Error` en gen-2)
-- [ ] **B116–B125** — Map<K,Class>, indexed self.field assign, etc.
+- [x] **B116, B117, B120, B124** — indexed self-field assign, self.field.concat, .len() cast, m.set(p.field, p) partial-move — verificados en gen-2 con `compiler/tests/regression/b116_b124_gen2.liva` (2026-05-07; B118/B121/B122/B123/B125 ya estaban pineados)
+- [ ] **B127–B133** — error handling completo (`T!` syntax en gen-2; requiere unificar `Result<T,String>` → `liva_rt::Error`. Gen-2 parser no acepta sufijo `!` aún — GAP-005)
 
 ### Fase E — Promover apps a self-host
 - [ ] `bootstrap_apps/*.liva` (21 apps) deben pasar también con gen-2.
