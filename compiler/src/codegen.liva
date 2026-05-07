@@ -3422,13 +3422,42 @@ RustEmitter {
                             this._emitExpr(right)
                             this._write(" }")
                         } else if isCall {
-                            // MethodCall (stdlib / user methods) → emits inline
-                            // (Option<T>, String) tuple expression.
-                            this._write("{ let (opt, err_str) = ")
-                            this._emitExpr(left)
-                            this._write("; if !err_str.is_empty() { ")
-                            this._emitExpr(right)
-                            this._write(" } else { opt.unwrap_or_default() } }")
+                            // B140: detect MethodCall toInt/toFloat first — these
+                            // are NOT (Option<T>, String) tuples but `.parse::<T>()
+                            // .unwrap_or(0)` chains. Re-emit as parse with custom
+                            // default instead of falling through to the tuple path.
+                            let isParseOr = false
+                            let parseTy = ""
+                            let _ = switch left {
+                                Expr.MethodCall(_, mName, _) => {
+                                    if mName == "toInt" { isParseOr = true; parseTy = "i32" }
+                                    if mName == "toFloat" { isParseOr = true; parseTy = "f64" }
+                                    0
+                                },
+                                _ => { 0 }
+                            }
+                            if isParseOr {
+                                let _ = switch left {
+                                    Expr.MethodCall(pObj, _, _) => {
+                                        this._emitExpr(pObj)
+                                        this._write(".parse::<")
+                                        this._write(parseTy)
+                                        this._write(">().unwrap_or(")
+                                        this._emitExpr(right)
+                                        this._write(")")
+                                        0
+                                    },
+                                    _ => { 0 }
+                                }
+                            } else {
+                                // MethodCall (stdlib / user methods) → emits inline
+                                // (Option<T>, String) tuple expression.
+                                this._write("{ let (opt, err_str) = ")
+                                this._emitExpr(left)
+                                this._write("; if !err_str.is_empty() { ")
+                                this._emitExpr(right)
+                                this._write(" } else { opt.unwrap_or_default() } }")
+                            }
                         } else {
                             this._emitBinary(op, left, right)
                         }
@@ -4923,6 +4952,37 @@ RustEmitter {
         // `||` is always logical OR now — `or <value>` is handled at parser level
         // Wrap in parens to preserve precedence when used as operand of &&
         if opStr == "||" {
+            // B140: detect `s.toInt() or default` and `s.toFloat() or default`
+            // in expression position (not let-binding). The standard `toInt`
+            // emission produces `.parse::<i32>().unwrap_or(0)`; with an explicit
+            // default we need to thread it into the unwrap_or call instead of
+            // emitting `<expr> || <default>` (boolean OR).
+            let isParseOr = false
+            let parseTy = ""
+            let _ = switch left {
+                Expr.MethodCall(_, mName, _) => {
+                    if mName == "toInt" { isParseOr = true; parseTy = "i32" }
+                    if mName == "toFloat" { isParseOr = true; parseTy = "f64" }
+                    0
+                },
+                _ => { 0 }
+            }
+            if isParseOr {
+                let _ = switch left {
+                    Expr.MethodCall(pObj, _, _) => {
+                        this._emitExpr(pObj)
+                        this._write(".to_string().parse::<")
+                        this._write(parseTy)
+                        this._write(">().unwrap_or(")
+                        this._emitExpr(right)
+                        this._write(")")
+                        0
+                    },
+                    _ => { 0 }
+                }
+                return
+            }
+
             // B?: detect `Map.get(k) or default` (or array.get/first/last/find)
             // outside of a var-decl. The parser only desugars these inside
             // `let x = call() or default`, so for `return call() or default`

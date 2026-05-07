@@ -5721,6 +5721,22 @@ impl CodeGenerator {
                     let is_json_parse = self.is_json_parse_call(&var.init);
                     let is_user_fallible = self.is_fallible_expr(&var.init);
 
+                    // B140: `let n = s.toInt() or default` / `s.toFloat() or default`
+                    // Emit `s.parse::<T>().unwrap_or(default)` so the default acts on
+                    // the raw parse Result instead of being chained after the bare
+                    // `toInt` lowering's own unwrap_or(0).
+                    if let Expr::MethodCall(mc) = &var.init {
+                        if mc.method == "toInt" || mc.method == "toFloat" {
+                            let parse_t = if mc.method == "toInt" { "i32" } else { "f64" };
+                            write!(self.output, "let {}{} = ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
+                            self.generate_expr(&mc.object)?;
+                            write!(self.output, ".parse::<{}>().unwrap_or(", parse_t).unwrap();
+                            self.generate_expr(default_val)?;
+                            self.output.push_str(");\n");
+                            return Ok(());
+                        }
+                    }
+
                     if is_http {
                         // HTTP calls: let var = { let (opt, err_str) = HTTP.get(...).await; if !err_str.is_empty() { default } else { opt.unwrap_or_default() } };
                         write!(self.output, "let {} = {{ let (opt, err_str) = ", var_name).unwrap();
@@ -15959,6 +15975,30 @@ impl CodeGenerator {
     }
 
     fn generate_binary_operation(&mut self, op: &BinOp, left: &Expr, right: &Expr) -> Result<()> {
+        // B140: detect `s.toInt() or default` / `s.toFloat() or default` in
+        // expression position (not let-binding). The standard `toInt` emission
+        // produces `.parse::<i32>().unwrap_or(0)`; with an explicit default we
+        // need to thread it into the unwrap_or call instead of emitting
+        // `<expr> || <default>` (boolean OR).
+        if matches!(op, BinOp::Or) {
+            if let Expr::MethodCall(mc) = left {
+                let parse_ty = match mc.method.as_str() {
+                    "toInt" => Some("i32"),
+                    "toFloat" => Some("f64"),
+                    _ => None,
+                };
+                if let Some(ty) = parse_ty {
+                    self.generate_expr(&mc.object)?;
+                    self.output.push_str(".parse::<");
+                    self.output.push_str(ty);
+                    self.output.push_str(">().unwrap_or(");
+                    self.generate_expr(right)?;
+                    self.output.push(')');
+                    return Ok(());
+                }
+            }
+        }
+
         // Optional chaining or default: expr?.field or default → expr.as_ref().map(...).unwrap_or(default)
         // Also handles option_value_vars: optVar or default → optVar.unwrap_or(default)
         if matches!(op, BinOp::Or) && (matches!(left, Expr::OptionalChain { .. }) || matches!(left, Expr::Identifier(name) if self.option_value_vars.contains(&self.sanitize_name(name)))) {

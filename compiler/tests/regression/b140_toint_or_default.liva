@@ -1,0 +1,22 @@
+// B140 — `expr.toInt() or default` / `expr.toFloat() or default` in
+// expression position. Without the fix, gen-2 emitted `<expr> || <default>`
+// (boolean OR) instead of threading the fallback into the `parse::<T>()`
+// `unwrap_or`. Coverage: return position, let position (already worked),
+// inline argument position.
+
+parseN(s: string): int { return s.toInt() or 0 }
+parseF(s: string): float { return s.toFloat() or 0.0 }
+
+main() {
+    print(parseN("42").toString())
+    print(parseN("nope").toString())
+    print(parseF("3.5").toString())
+    print(parseF("nan").toString())
+
+    // let-position (was already supported, regression check)
+    let n = "7".toInt() or 99
+    print(n.toString())
+
+    // inline-argument position
+    print(("not a number".toInt() or 100).toString())
+}

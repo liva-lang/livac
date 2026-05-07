@@ -1054,7 +1054,7 @@ y tests LSP manuales — no representan gap real.
 - [ ] **GAP-007** — function types `(T) => U` → `Box<dyn Fn>`
 - [ ] **B148–B150** — patrones de constructor (`this.X` reads, mut locals, literal-string args)
 - [ ] **B144–B147** — Map/Set params, `indexOf` 2-arg, user `pop`, `arr.reverse` on `[T]`
-- [ ] **B140–B143** — `or <default>` no propaga, fn-ref `reduce`, nested `[[T]]`, `toInt or fail`
+- [ ] **B141–B143** — fn-ref `reduce`, nested `[[T]]`, `toInt or fail` (B140 done 2026-05-07 — `s.toInt()/toFloat() or default` lowering en let, return e inline-arg en gen-2 + bootstrap; test `compiler/tests/regression/b140_toint_or_default.liva`)
 - [ ] **B137–B138** — user `method.count(literal)`, `fail` en posición de expr
 - [ ] **B134–B136** — Map for-loop typing, switch-arm if-tail, Set.size
 - [ ] **B127–B133** — error handling completo (esto requiere unificar `Result<T,String>` → `liva_rt::Error` en gen-2)
