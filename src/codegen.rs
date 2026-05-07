@@ -3934,7 +3934,7 @@ impl CodeGenerator {
                         self.output.push_str(&format!("{}: {{}}", field_name));
                     }
                 }
-                self.output.push_str(" }}}}\"");
+                self.output.push_str(" }}\"");
                 for field in &fields {
                     let field_name = self.sanitize_name(&field.name);
                     write!(self.output, ", self.{}", field_name).unwrap();

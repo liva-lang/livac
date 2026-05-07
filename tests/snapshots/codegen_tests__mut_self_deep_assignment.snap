@@ -1,6 +1,5 @@
 ---
 source: tests/codegen_tests.rs
-assertion_line: 1754
 expression: rust_code
 ---
 #![allow(unused_parens, unused_mut)]
@@ -405,7 +404,7 @@ impl Task {
 
 impl std::fmt::Display for Task {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Task {{ name: {}, done: {} }}}}", self.name, self.done)
+        write!(f, "Task {{ name: {}, done: {} }}", self.name, self.done)
     }
 }
 
@@ -436,6 +435,6 @@ impl TodoList {
 
 impl std::fmt::Display for TodoList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "TodoList {{ tasks: {:?} }}}}", self.tasks)
+        write!(f, "TodoList {{ tasks: {:?} }}", self.tasks)
     }
 }

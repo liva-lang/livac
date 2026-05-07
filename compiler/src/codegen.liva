@@ -1512,6 +1512,15 @@ RustEmitter {
         // Emit impl block with constructor + methods
         this._emitClassImpl(className, decl)
 
+        // B152: auto-emit `impl Display for ClassName` for any class with
+        // fields, mirroring bootstrap's BUG-004 fix. Without this, code like
+        // `print($"{stack}")` fails to compile because gen-2 generates
+        // `println!("{}", stack)` and Display is not derived. Uses {:?} for
+        // container/enum fields and {} for everything else.
+        if hasField {
+            this._emitClassDisplay(className, decl)
+        }
+
         this._classTypeParamStr = ""
         this._classTypeParamStrNoBounds = ""
     }
@@ -1584,6 +1593,128 @@ RustEmitter {
         let fieldName = this._sanitizeName(f.name)
         let typeStr = this._buildParamType(f.typeRef)
         this._writeln($"pub {fieldName}: {typeStr},")
+    }
+
+    // B152: auto-emit Display impl for user classes with fields.
+    // Without this, `print($"{instance}")` fails to compile because gen-2
+    // emits `println!("{}", x)` and Display is not derived. Uses `{:?}` for
+    // container/enum fields and `{}` for scalars/strings.
+    _emitClassDisplay(className: string, decl: ClassDecl) {
+        // Pre-scan: are any fields formatted via `{:?}` (Vec/Map/Set/Optional/enum)?
+        // If so, type params need an extra `Debug` bound on top of the impl.
+        let anyDebugField = false
+        for m in decl.members {
+            let _ = switch m {
+                Member.Field(f) => {
+                    if this._fieldNeedsDebug(f.typeRef) { anyDebugField = true }
+                    0
+                },
+                _ => { 0 }
+            }
+        }
+
+        // Build impl-line type-param section. Reuse the class's bounds and add
+        // `std::fmt::Display` (always) and `std::fmt::Debug` (if any debug field).
+        // Note: `_classTypeParamStr` already includes Clone+Debug+PartialEq, so
+        // we only need to inject Display when type params exist.
+        let implTypeParamStr = ""
+        let implTypeArgs = this._classTypeParamStrNoBounds
+        if decl.typeParams.length > 0 {
+            let parts: [string] = []
+            for tp in decl.typeParams {
+                let bnds = "Clone + std::fmt::Debug + PartialEq + std::fmt::Display"
+                for c in tp.constraints {
+                    if c == "Numeric" or c == "Number" {
+                        bnds = bnds + " + std::ops::Add<Output = " + tp.name + "> + std::ops::Sub<Output = " + tp.name + "> + PartialOrd + Default + Copy"
+                    } else if c == "Comparable" {
+                        bnds = bnds + " + PartialOrd"
+                    } else if c == "Printable" {
+                        // already added above
+                    } else {
+                        bnds = bnds + " + " + c
+                    }
+                }
+                parts.push(tp.name + ": " + bnds)
+            }
+            implTypeParamStr = "<" + parts.join(", ") + ">"
+        }
+
+        this._writeln("")
+        if implTypeParamStr != "" {
+            this._writeln("impl" + implTypeParamStr + " std::fmt::Display for " + className + implTypeArgs + " {")
+        } else {
+            this._writeln("impl std::fmt::Display for " + className + " {")
+        }
+        this._indent()
+        this._writeln("fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {")
+        this._indent()
+
+        // Collect field decls in order.
+        let fieldNames: [string] = []
+        let fieldNeedsDbg: [bool] = []
+        for m in decl.members {
+            let _ = switch m {
+                Member.Field(f) => {
+                    fieldNames.push(this._sanitizeName(f.name))
+                    fieldNeedsDbg.push(this._fieldNeedsDebug(f.typeRef))
+                    0
+                },
+                _ => { 0 }
+            }
+        }
+
+        // Build the format string: `ClassName {{ f1: {}, f2: {:?}, ... }}`.
+        // Doubled braces escape `{`/`}` for Rust's format!/write! macros.
+        let fmtStr = className + " {{ "
+        let i = 0
+        while i < fieldNames.length {
+            if i > 0 { fmtStr = fmtStr + ", " }
+            fmtStr = fmtStr + fieldNames[i] + ": "
+            if fieldNeedsDbg[i] {
+                fmtStr = fmtStr + "{:?}"
+            } else {
+                fmtStr = fmtStr + "{}"
+            }
+            i += 1
+        }
+        fmtStr = fmtStr + " }}"
+
+        // Emit `write!(f, "...", self.f1, self.f2, ...)`.
+        let line = "write!(f, \"" + fmtStr + "\""
+        let j = 0
+        while j < fieldNames.length {
+            line = line + ", self." + fieldNames[j]
+            j += 1
+        }
+        line = line + ")"
+        this._writeln(line)
+
+        this._dedent()
+        this._writeln("}")
+        this._dedent()
+        this._writeln("}")
+    }
+
+    // B152: returns true if a field of the given (optional) TypeRef should be
+    // formatted via `{:?}` instead of `{}` (Vec/Map/Set/Optional/Tuple/enum).
+    _fieldNeedsDebug(optRef: TypeRef?): bool {
+        if optRef != null {
+            let needs = false
+            let _ = switch optRef {
+                TypeRef.Array(_) => { needs = true; 0 },
+                TypeRef.MapType(_, _) => { needs = true; 0 },
+                TypeRef.SetType(_) => { needs = true; 0 },
+                TypeRef.OptionalType(_) => { needs = true; 0 },
+                TypeRef.Tuple(_) => { needs = true; 0 },
+                TypeRef.Simple(name) => {
+                    if this._globalEnums.has(name) { needs = true }
+                    0
+                },
+                _ => { 0 }
+            }
+            return needs
+        }
+        return false
     }
 
     _emitClassImpl(className: string, decl: ClassDecl) {

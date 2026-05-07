@@ -1,0 +1,36 @@
+// B152 — gen-2 auto-emits `impl Display for ClassName` for any class with
+// fields, mirroring bootstrap's BUG-004 fix. Without this auto-impl, code
+// like `print($"{instance}")` would fail to compile because gen-2 emits
+// `println!("{}", instance)` and the user did not derive Display.
+//
+// Coverage:
+//   - Class with scalar fields    -> uses {}
+//   - Class with Vec field        -> uses {:?}
+//   - Class with Map field        -> uses {:?}
+
+Point {
+    x: int
+    y: int
+}
+
+Bag {
+    name: string
+    items: [int]
+}
+
+Dict {
+    label: string
+    counts: Map<string, int>
+}
+
+main() {
+    let p = Point(3, 4)
+    print($"{p}")
+
+    let b = Bag("nums", [1, 2, 3])
+    print($"{b}")
+
+    let counts: Map<string, int> = Map { "a": 1 }
+    let d = Dict("freq", counts)
+    print($"{d}")
+}

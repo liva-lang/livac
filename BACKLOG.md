@@ -1049,7 +1049,7 @@ y tests LSP manuales — no representan gap real.
 
 ### Fase D — Portar fixes (orden recomendado, fáciles primero)
 - [x] **B151** — string escape `\"` dentro de `${...}` (gen-2 parser ya maneja `\"`, `\\`, `\n`, `\r`, `\t` en placeholder; verificado 2026-05-07 con `print($"a:{m.get(\"apple\")}")` → `a:1`)
-- [ ] **B152** — `Display` impl con `{:?}` añade `Debug` bound (gen-2: aún no auto-emite `impl Display for ClassUserDef<T>`; bootstrap sí lo hace. Diferencia de scope respecto al fix original; **OPEN para gen-2**)
+- [x] **B152** — `Display` impl con `{:?}` añade `Debug` bound. **DONE 2026-05-07** — añadido `_emitClassDisplay` en gen-2 que auto-emite `impl Display for ClassName` para toda clase con campos (mirroring bootstrap BUG-004), usando `{:?}` para Vec/Map/Set/Optional/Tuple/enum. Type params reciben `Display` bound (y `Debug` ya estaba). También fix collateral en bootstrap: `_emit_display_for_class` emitía `}}}}` (doble cierre literal) en lugar de `}}`. Test: `compiler/tests/regression/b152_class_display.liva` (Point/Bag/Dict).
 - [x] **B153** — free generic functions auto `Clone + Display` (gen-2 emite `<T: Clone + std::fmt::Debug + PartialEq>` en función libre genérica; verificado 2026-05-07 con `firstOf<T>` retornando `items[0]`)
 - [ ] **GAP-007** — function types `(T) => U` → `Box<dyn Fn>`
 - [ ] **B148–B150** — patrones de constructor (`this.X` reads, mut locals, literal-string args)

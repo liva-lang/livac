@@ -407,7 +407,7 @@ impl TaskManager {
 
 impl std::fmt::Display for TaskManager {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "TaskManager {{ tasks: {:?} }}}}", self.tasks)
+        write!(f, "TaskManager {{ tasks: {:?} }}", self.tasks)
     }
 }
 
