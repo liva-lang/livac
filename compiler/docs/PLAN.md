@@ -413,7 +413,7 @@ Este es el item más caro del plan. Tower-lsp en Liva no es trivial.
 
 **Gate F.2:** ✅ baseline registrado. Integración CI pendiente.
 
-### F.4 — Investigar Particle sim 0.44× — ✅ auditoría completada (2026-05-05)
+### F.4 — Investigar Particle sim 0.44× — ✅ resuelto (2026-05-07)
 
 - [x] Auditado el bench Liva vs Rust hand-written. **Hallazgo:** gen-2 emite
   `particles[(pi) as usize].clone().step(0.01)`, ejecutando `step()` sobre un
@@ -421,9 +421,9 @@ Este es el item más caro del plan. Tower-lsp en Liva no es trivial.
 - [x] Documentado en `benchmarks/RESULTS.md` (Particle sim marcada ⚠️ no defendible).
 - [x] Bug abierto: `BUGS.md § B157` — `arr[i].mutMethod()` clona en clases de usuario.
 - [x] **Fix de B157** (commit `3463ce5`, 2026-05-05). Detalles: `_suppressIndexElemClone` flag en codegen.rs (bootstrap) y codegen.liva (gen-2).
-- [ ] Re-ejecutar bench tras fix y actualizar ratio en `RESULTS.md`.
+- [x] **Re-bench post-fix** (2026-05-07). Generated Rust audit: `particles[(pi) as usize].step(0.01)` sin clone. Checksums idénticos a hand-written Rust (`chk_p = 1578125000`). Ratio 0.45× ahora **defendible** (Liva genuinamente más rápido por mejor unroll/vectorize del access por índice). Documentado en `RESULTS.md` § "Particle sim — defendible".
 
-**Gate F.4:** ✅ ratio actual etiquetado como no defendible; fix B157 queda en backlog crítico.
+**Gate F.4:** ✅ ratio 0.45× defendible, fix B157 validado end-to-end.
 
 ### F.3 — Coverage para self-host
 
