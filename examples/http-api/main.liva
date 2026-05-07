@@ -1,28 +1,28 @@
-// HTTP API Client - Consumir APIs REST
+// HTTP API Client - Consumir APIs REST con HTTP.get / HTTP.post
 // Ejecutar: livac run http-api/main.liva
 
-class User {
-    id: Int
-    name: String
-    email: String
-}
+main() {
+    print("=== Liva HTTP Client Demo ===")
+    print("")
 
-async fn main() {
-    print("=== Liva HTTP Client Demo ===\n")
-    
     // GET request
-    let response = await http.get("https://jsonplaceholder.typicode.com/users/1") or fail
-    let user = response.json::<User>() or fail
-    
-    print("Usuario: ${user.name}")
-    print("Email: ${user.email}")
-    
-    // POST request
-    let newUser = {
-        "name": "Liva User",
-        "email": "liva@example.com"
+    let response, err = async HTTP.get("https://jsonplaceholder.typicode.com/users/1")
+    if err != "" {
+        print($"Error: {err}")
+        return
     }
-    
-    let postResponse = await http.post("https://jsonplaceholder.typicode.com/users", newUser) or fail
-    print("\nUsuario creado con ID: ${postResponse.json().get("id")}")
+    let user = JSON.parse(response.body)
+    print($"Usuario: {user[\"name\"].as_string()}")
+    print($"Email:   {user[\"email\"].as_string()}")
+
+    // POST request
+    let body = "{\"name\":\"Liva User\",\"email\":\"liva@example.com\"}"
+    let postResponse, postErr = async HTTP.post("https://jsonplaceholder.typicode.com/users", body)
+    if postErr != "" {
+        print($"POST error: {postErr}")
+        return
+    }
+    let created = JSON.parse(postResponse.body)
+    print("")
+    print($"Usuario creado con ID: {created[\"id\"].as_int()}")
 }

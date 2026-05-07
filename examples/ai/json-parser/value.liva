@@ -181,7 +181,7 @@ _stringifyObject(v: string, indent: number, depth: number): string {
             let val = getEntryValue(entry)
             parts.push($"{_escapeJsonString(key)}:{_stringify(val, 0, 0)}")
         }
-        return $"\{{parts.join(",")}\}"
+        return $"{{{parts.join(",")}}}"
     }
 
     let newDepth = depth + 1
@@ -194,7 +194,7 @@ _stringifyObject(v: string, indent: number, depth: number): string {
         parts.push($"{innerPad}{_escapeJsonString(key)}: {_stringify(val, indent, newDepth)}")
     }
     let joined = parts.join(",\n")
-    return $"\{{\n{joined}\n{outerPad}\}}"
+    return $"{{\n{joined}\n{outerPad}}}"
 }
 
 _makeIndent(size: number, depth: number): string {
