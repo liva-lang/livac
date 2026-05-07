@@ -318,6 +318,7 @@ enum Expr {
     SwitchExpr(discriminant: Expr, arms: [SwitchArm]),
     MethodRef(object: string, method: string),
     Unwrap(expr: Expr),
+    Try(expr: Expr),
     OptionalChain(object: Expr, property: string),
     RustBlock(code: string)
 }

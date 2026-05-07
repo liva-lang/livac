@@ -722,6 +722,9 @@ impl Parser {
     fn expr_contains_fail(&self, expr: &Expr) -> bool {
         match expr {
             Expr::Fail(_) => true,
+            // `expr?` propagates an error from `expr` to the caller, so the
+            // caller must itself be fallible.
+            Expr::Try(_) => true,
             Expr::Ternary {
                 condition,
                 then_expr,
@@ -2292,6 +2295,63 @@ impl Parser {
         }
     }
 
+    /// Decide whether a `?` token at postfix position is the try operator
+    /// (Expr::Try) or the start of a ternary `cond ? a : b`.
+    ///
+    /// Try if the token following `?` is one of:
+    ///   - end-of-expression / group close: Newline, Semicolon, Eof,
+    ///     RBrace, RParen, RBracket, Comma
+    ///   - postfix chain continuation: Dot, QuestionDot, Question, Bang,
+    ///     LParen, LBracket
+    ///   - range operator: DotDot, DotDotEq, DotDotDot
+    ///   - block start (e.g. `if f()? { ... }`): LBrace
+    ///
+    /// Otherwise (Ident, IntLiteral, FloatLiteral, StringLiteral, True, False,
+    /// Null, If, Switch, unary operators like Plus/Minus/Bang/Not, etc.) the
+    /// `?` is treated as ternary and parse_call breaks out so parse_assignment
+    /// can pick it up.
+    ///
+    /// Edge case: `f()? + g()` is NOT supported as Try followed by binary
+    /// operator — write `(f()?) + g()` or split into a temp let-binding.
+    /// Decide whether a `?` token at postfix position is the try operator
+    /// (Expr::Try) or the start of a ternary `cond ? a : b`.
+    ///
+    /// We use a negative list: `?` is treated as ternary only when followed
+    /// by a token that can begin a ternary "then" expression. Everything
+    /// else (statement starters like `let`, `return`; postfix continuations
+    /// like `.` and `(`; group/group-close tokens; binary operators; EOF;
+    /// etc.) is treated as the try operator.
+    ///
+    /// Edge case: `f()? + g()` is NOT supported as Try followed by binary
+    /// operator — write `(f()?) + g()` or split into a temp let-binding.
+    /// Edge case: `cond ? -x : y` works (Minus starts ternary then-expr);
+    /// `f()? -x` would be parsed as ternary and produce an error, but that
+    /// pattern is not idiomatic.
+    fn question_is_try(next: Option<&Token>) -> bool {
+        match next {
+            None => true, // EOF
+            Some(t) => !matches!(
+                t,
+                Token::Ident(_)
+                    | Token::PrivateIdent(_)
+                    | Token::IntLiteral(_)
+                    | Token::FloatLiteral(_)
+                    | Token::StringLiteral(_)
+                    | Token::True
+                    | Token::False
+                    | Token::Null
+                    | Token::If
+                    | Token::Switch
+                    | Token::Plus
+                    | Token::Minus
+                    | Token::Not
+                    | Token::Bang
+                    | Token::LParen
+                    | Token::LBracket
+            ),
+        }
+    }
+
     fn parse_call(&mut self) -> Result<Expr> {
         let mut expr = self.parse_primary()?;
 
@@ -2448,6 +2508,12 @@ impl Parser {
             } else if self.match_token(&Token::Bang) {
                 // Postfix unwrap: expr! → Unwrap(expr)
                 expr = Expr::Unwrap(Box::new(expr));
+            } else if self.check(&Token::Question) && Self::question_is_try(self.peek_token(1)) {
+                // Postfix try: expr? → Try(expr) for error propagation in
+                // fallible functions. Disambiguated from ternary `cond ? a : b`
+                // by inspecting the next token. See Self::question_is_try.
+                self.advance();
+                expr = Expr::Try(Box::new(expr));
             } else if self.match_token(&Token::QuestionDot) {
                 // Optional chaining: expr?.field
                 let name = self.parse_method_name()?;

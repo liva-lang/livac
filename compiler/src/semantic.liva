@@ -514,6 +514,12 @@ SemanticAnalyzer {
                 result = this._unwrapOptionalType(innerType)
                 0
             },
+            Expr.Try(inner) => {
+                // `expr?` propagates the error and yields the success value
+                // type, which is the same as `inner`'s value type.
+                result = this.inferExprType(inner)
+                0
+            },
             Expr.OptionalChain(object, property) => {
                 let propType = this._inferMemberAccessType(object, property)
                 result = TypeRef.OptionalType(propType)

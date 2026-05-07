@@ -1920,6 +1920,10 @@ RustEmitter {
                 if this._exprModifiesSelf(e) { result = true }
                 0
             },
+            Expr.Try(e) => {
+                if this._exprModifiesSelf(e) { result = true }
+                0
+            },
             Expr.Fail(e) => {
                 if this._exprModifiesSelf(e) { result = true }
                 0
@@ -2197,6 +2201,10 @@ RustEmitter {
                 0
             },
             Expr.Unwrap(e) => {
+                if this._exprCallsThisInSet(e) { result = true }
+                0
+            },
+            Expr.Try(e) => {
                 if this._exprCallsThisInSet(e) { result = true }
                 0
             },
@@ -4655,6 +4663,16 @@ RustEmitter {
             Expr.Unwrap(uwExpr) => {
                 this._emitExpr(uwExpr)
                 this._write(".unwrap()")
+                0
+            },
+            Expr.Try(tryExpr) => {
+                // Postfix try: expr? → Rust `?` for error propagation.
+                this._emitExpr(tryExpr)
+                this._write("?")
+                // Result is the function's success type, not a &str ref —
+                // reset the flag so a downstream `let` binding does not
+                // append `.to_string()` based on the inner argument.
+                this._lastEmittedStrRef = false
                 0
             },
             Expr.OptionalChain(ocObj, ocProp) => {

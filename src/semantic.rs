@@ -782,6 +782,7 @@ impl SemanticAnalyzer {
             // B24 fix: check rust { } blocks for .await
             Expr::RustBlock { code } => code.contains(".await"),
             Expr::Unwrap(inner) => self.expr_contains_async(inner),
+            Expr::Try(inner) => self.expr_contains_async(inner),
             Expr::OptionalChain { object, .. } => self.expr_contains_async(object),
             _ => false,
         }
@@ -1867,6 +1868,15 @@ impl SemanticAnalyzer {
                 Ok(())
             }
             Expr::Unwrap(inner) => self.validate_expr(inner),
+            Expr::Try(inner) => {
+                // `expr?` propagates the error to the caller, so the inner
+                // fallible call is allowed without a separate error binding.
+                let prev = self.in_error_binding;
+                self.in_error_binding = true;
+                let r = self.validate_expr(inner);
+                self.in_error_binding = prev;
+                r
+            }
             Expr::OptionalChain { object, .. } => self.validate_expr(object),
         }
     }
@@ -2508,6 +2518,7 @@ impl SemanticAnalyzer {
             }
             Expr::RustBlock { .. } => false,
             Expr::Unwrap(inner) => Self::expr_contains_await(inner),
+            Expr::Try(inner) => Self::expr_contains_await(inner),
             Expr::OptionalChain { object, .. } => Self::expr_contains_await(object),
         }
     }

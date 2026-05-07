@@ -665,6 +665,9 @@ impl Linter {
             Expr::Unwrap(inner) => {
                 self.collect_var_usages_expr(inner, used);
             }
+            Expr::Try(inner) => {
+                self.collect_var_usages_expr(inner, used);
+            }
             Expr::OptionalChain { object, .. } => {
                 self.collect_var_usages_expr(object, used);
             }

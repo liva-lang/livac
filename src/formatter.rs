@@ -1075,6 +1075,9 @@ impl Formatter {
             Expr::Unwrap(inner) => {
                 format!("{}!", self.format_expr(inner))
             }
+            Expr::Try(inner) => {
+                format!("{}?", self.format_expr(inner))
+            }
             Expr::OptionalChain { object, property } => {
                 format!("{}?.{}", self.format_expr(object), property)
             }

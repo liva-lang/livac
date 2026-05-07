@@ -397,6 +397,10 @@ LivenessAnalyzer {
                 this._analyzeExpr(uwExpr)
                 0
             },
+            Expr.Try(tryExpr) => {
+                this._analyzeExpr(tryExpr)
+                0
+            },
             Expr.OptionalChain(ocObj, ocProp) => {
                 this._analyzeExpr(ocObj)
                 0

@@ -9420,6 +9420,14 @@ impl CodeGenerator {
                 self.generate_expr(inner)?;
                 self.output.push_str(".unwrap()");
             }
+            Expr::Try(inner) => {
+                // Postfix try: expr? → expr? in Rust (error propagation).
+                // Both Liva and Rust use `?` so the translation is direct;
+                // the surrounding fallible function emits a Result return type
+                // already, so the `?` operator type-checks.
+                self.generate_expr(inner)?;
+                self.output.push_str("?");
+            }
             Expr::OptionalChain { object, property } => {
                 // Optional chaining: expr?.field → expr.as_ref().map(|__v| __v.field.clone())
                 // For string properties, generates .clone() to get owned String
@@ -17169,6 +17177,7 @@ fn ast_expr_has_async(expr: &Expr) -> bool {
         Expr::SetLiteral(elements) => elements.iter().any(ast_expr_has_async),
         Expr::Literal(_) | Expr::Identifier(_) | Expr::MethodRef { .. } => false,
         Expr::Unwrap(inner) => ast_expr_has_async(inner),
+        Expr::Try(inner) => ast_expr_has_async(inner),
         Expr::OptionalChain { object, .. } => ast_expr_has_async(object),
         // B24 fix: check rust { } blocks for .await
         Expr::RustBlock { code } => code.contains(".await"),

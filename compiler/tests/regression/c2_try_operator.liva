@@ -1,0 +1,59 @@
+// Test for postfix `?` try operator (C.2).
+//
+// `expr?` propagates an error from a fallible expression to the calling
+// fallible function, equivalent to Rust's `?` operator.
+
+parseNum(s: string): number {
+    if s == "" {
+        fail "empty string"
+    }
+    if s == "bad" {
+        fail "not a number"
+    }
+    return 42
+}
+
+addParsed(a: string, b: string): number {
+    let x = parseNum(a)?
+    let y = parseNum(b)?
+    return x + y
+}
+
+readMaybe(s: string): number {
+    return parseNum(s)?
+}
+
+main() {
+    // Happy path
+    let v, err = addParsed("10", "20")
+    if err {
+        print("unexpected error in happy path")
+    } else {
+        print($"sum = {v}")
+    }
+
+    // Propagation: first arg fails — only assert error binding presence
+    // (rendered message differs between bootstrap and self-host).
+    let v2, err2 = addParsed("", "20")
+    if err2 {
+        print("caught first: yes")
+    } else {
+        print($"unexpected ok: {v2}")
+    }
+
+    // Propagation: second arg fails
+    let v3, err3 = addParsed("10", "bad")
+    if err3 {
+        print("caught second: yes")
+    } else {
+        print($"unexpected ok: {v3}")
+    }
+
+    // Single-call tail propagation
+    let v4, err4 = readMaybe("ok")
+    if err4 {
+        print("unexpected error in tail")
+    } else {
+        print($"single = {v4}")
+    }
+}

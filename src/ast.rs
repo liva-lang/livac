@@ -706,6 +706,12 @@ pub enum Expr {
     /// Postfix unwrap: `expr!` → `.unwrap()` (v2.0.0)
     /// Panics at runtime if the value is None
     Unwrap(Box<Expr>),
+    /// Postfix try: `expr?` → Rust `?` propagation (v2.0.0)
+    /// In a fallible function, propagates the error from `expr` to the caller.
+    /// Disambiguated from ternary `cond ? a : b` by the next token (postfix
+    /// continuations / end-of-expression markers select Try; expression-start
+    /// tokens select ternary).
+    Try(Box<Expr>),
     /// Optional chaining: `expr?.field` → `.as_ref().map(|x| x.field)` (v2.0.0)
     /// Returns null if expr is None, otherwise accesses the field
     OptionalChain {

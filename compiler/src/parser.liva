@@ -141,6 +141,36 @@ Parser {
         _ => false
     } }
 
+    // Decide whether a `?` token at postfix position is the try operator
+    // (Expr.Try) or the start of a ternary `cond ? a : b`.
+    // We use a negative list: `?` is treated as ternary only when followed by
+    // a token that can begin a ternary "then" expression. Everything else is
+    // treated as the try operator (including statement starters, postfix
+    // continuations like `.` and `(`, group-close tokens, binary operators,
+    // and EOF).
+    _questionIsTry(): bool {
+        let next = this._peekToken(1)
+        return switch next {
+            TokenKind.Ident(_) => false,
+            TokenKind.PrivateIdent(_) => false,
+            TokenKind.IntLit(_) => false,
+            TokenKind.FloatLit(_) => false,
+            TokenKind.StringLit(_) => false,
+            TokenKind.KwTrue => false,
+            TokenKind.KwFalse => false,
+            TokenKind.KwNull => false,
+            TokenKind.KwIf => false,
+            TokenKind.KwSwitch => false,
+            TokenKind.Plus => false,
+            TokenKind.Minus => false,
+            TokenKind.KwNot => false,
+            TokenKind.Bang => false,
+            TokenKind.LParen => false,
+            TokenKind.LBracket => false,
+            _ => true
+        }
+    }
+
     // Match and advance if current token matches a simple kind
     _match(kind: TokenKind): bool {
         if this._check(kind) {
@@ -1727,6 +1757,12 @@ Parser {
                 // Postfix unwrap: expr!
                 expr = Expr.Unwrap(expr)
                 isIdent = false
+            } else if this._check(TokenKind.Question) and this._questionIsTry() {
+                // Postfix try: expr? (error propagation in fallible function).
+                // Disambiguated from ternary by lookahead at next token.
+                this._advance()
+                expr = Expr.Try(expr)
+                isIdent = false
             } else if this._match(TokenKind.QuestionDot) {
                 // Optional chaining: expr?.field
                 let name = this._parseMethodName()
@@ -2085,6 +2121,63 @@ Parser {
                     if nextIsFail { return true }
                 }
             }
+            // Also check for postfix `?` (Try operator). Disambiguating from
+            // `T?` (OptionalType in type position) and ternary at the token
+            // level is non-trivial, so we only flag `?` as a try operator
+            // when the following token is unambiguously NOT valid in a type
+            // annotation and NOT valid in a ternary "then" expression. This
+            // is a conservative detector: it may miss some Try usages and
+            // require the user to add `fail` to the function body to mark
+            // it fallible, but it never produces a false positive that
+            // would mark a non-fallible function as fallible.
+            let isQuestion = switch this.tokens[i].kind {
+                TokenKind.Question => true,
+                _ => false
+            }
+            if isQuestion and i + 1 < endIdx and i + 1 < this.tokens.length {
+                let nextKind = this.tokens[i + 1].kind
+                let isTryUnambiguous = switch nextKind {
+                    // Statement enders / starters
+                    TokenKind.Semicolon => true,
+                    TokenKind.KwReturn => true,
+                    TokenKind.KwLet => true,
+                    TokenKind.KwConst => true,
+                    TokenKind.KwIf => true,
+                    TokenKind.KwWhile => true,
+                    TokenKind.KwFor => true,
+                    TokenKind.KwSwitch => true,
+                    TokenKind.KwFail => true,
+                    // `}` closes a function body or block: `return f()?` or
+                    // tail expression `f()?` followed by closing brace.
+                    // `T?` in type position never appears immediately
+                    // before a closing block brace.
+                    TokenKind.RBrace => true,
+                    // Postfix chain continuation that doesn't fit a type
+                    // annotation: `f()?.method()`, `f()?(args)`, etc.
+                    TokenKind.QuestionDot => true,
+                    // Note: Dot is omitted because a Liva enum case body
+                    // can have `Color.Red` — and `Color?.Red` looks weird,
+                    // but to be safe we only count Dot if previous is a
+                    // value-producing token (handled below).
+                    _ => false
+                }
+                if isTryUnambiguous { return true }
+                // Dot: only count as Try when previous token is a value
+                // producer (RParen/RBracket of a call/index, or Bang).
+                let isDot = switch nextKind {
+                    TokenKind.Dot => true,
+                    _ => false
+                }
+                if isDot and i > 0 {
+                    let prevIsCallish = switch this.tokens[i - 1].kind {
+                        TokenKind.RParen => true,
+                        TokenKind.RBracket => true,
+                        TokenKind.Bang => true,
+                        _ => false
+                    }
+                    if prevIsCallish { return true }
+                }
+            }
             i += 1
         }
         return false
@@ -2137,6 +2230,7 @@ Parser {
     _exprContainsFail(expr: Expr): bool {
         return switch expr {
             Expr.Fail(_) => true,
+            Expr.Try(_) => true,
             Expr.Ternary(cond, thenE, elseE) => this._exprContainsFail(cond) or this._exprContainsFail(thenE) or this._exprContainsFail(elseE),
             Expr.Binary(_, left, right) => this._exprContainsFail(left) or this._exprContainsFail(right),
             Expr.Unary(_, operand) => this._exprContainsFail(operand),
