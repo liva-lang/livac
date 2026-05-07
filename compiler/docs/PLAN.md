@@ -175,10 +175,10 @@
 ### B.5 — `livac init` y `livac update`
 
 - [x] `init`: scaffold `main.liva` + `.gitignore` (gen-2). Validación de nombre, detección de directorio existente, error paths cubiertos. **DONE 2026-05-06**.
-- [ ] `init` extendido: scaffold multi-fichero (math.liva + models.liva + tests/main.test.liva) — postergado, equivalente al template del bootstrap.
+- [x] `init` extendido: scaffold multi-fichero (math.liva + models.liva + tests/main.test.liva). **DONE 2026-05-07**. También fixea `liva_rt` cross-module: módulos no-main emiten `use crate::liva_rt;` para que `liva_rt::Error` resuelva en signatures fallible (antes causaba E0433 en cualquier proyecto multi-archivo con `fail` fuera de main).
 - [ ] `update`: descarga la última release de GitHub y reemplaza el binario actual.
 
-**Gate B.5:** ✅ parcial — `livac init <name>` produce un proyecto funcional ejecutable con gen-2 (`livac run main.liva` desde el dir creado funciona). `update` y scaffold extendido pendientes.
+**Gate B.5:** ✅ parcial — `livac init <name>` produce un proyecto multi-fichero funcional (5 ficheros: main.liva + math.liva + models.liva + tests/main.test.liva + .gitignore) ejecutable con gen-2. `update` pendiente.
 
 ### B.6 — `livac lsp` (el grande)
 
