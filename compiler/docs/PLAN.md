@@ -432,11 +432,12 @@ Este es el item más caro del plan. Tower-lsp en Liva no es trivial.
 
 **Gate F.3:** baseline ≥ 60 % regions sobre `compiler/src/`.
 
-### F.5 — Tamaño de binarios
+### F.5 — Tamaño de binarios — ✅ baseline Linux registrado (2026-05-07)
 
-- [ ] Medir tamaño de release binaries (Linux/macOS/Windows).
-- [ ] Comparar con bootstrap.
-- [ ] Documentar en `RESULTS.md`.
+- [x] Medir tamaño de release binaries en Linux x86-64. Script: `benchmarks/binary_size.sh`.
+- [x] Comparar con bootstrap. Resultados: gen-2/3 stripped = 1.80 MB (idénticos byte-a-byte), bootstrap stripped = 6.79 MB (~3.7× más por incluir LSP+fmt+lint+hints+suggestions y dependencias `tower-lsp`/`tokio`).
+- [x] Documentar en `benchmarks/RESULTS.md` § "Binary size".
+- [ ] (post-v2.0) Replicar mediciones en macOS y Windows una vez que CI tenga jobs en esas plataformas.
 
 ### F.6 — Snapshot tests + property tests en gen-2
 

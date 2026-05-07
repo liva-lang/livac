@@ -200,3 +200,24 @@ checksums: 192537385008.8916 10064579568.140549 1578125000
 ```
 
 </details>
+
+---
+
+## Binary size (2026-05-07)
+
+Measured with `./benchmarks/binary_size.sh` on Linux x86-64 (default `cargo build --release`, no extra strip/LTO flags). Raw = as built. Stripped = `strip` applied (the bootstrap is already shipped pre-stripped by cargo on this platform; gen-N keep symbols).
+
+| Binary | Raw | Stripped |
+|--------|----:|---------:|
+| bootstrap (Rust, full compiler + LSP + fmt + lint) | 6.79 MB | 6.79 MB |
+| gen-1 (self-host built by bootstrap)               | 2.14 MB | 1.91 MB |
+| gen-2 (self-host built by gen-1)                   | 2.03 MB | 1.80 MB |
+| gen-3 (self-host built by gen-2)                   | 2.03 MB | 1.80 MB |
+
+**Notes**
+- gen-2 and gen-3 are **byte-identical** when stripped — confirms the self-host is idempotent at the binary level (not just at the source level).
+- gen-2 is ~3.7× smaller than the bootstrap. Two factors contribute:
+  - The self-host currently ships only the codegen pipeline; the bootstrap also includes the LSP server (`tower-lsp`), formatter, linter, hints and suggestions modules.
+  - The self-host emits slightly tighter Rust (fewer redundant clones / borrows) thanks to the cleanups landed during Phase 11 — visible as gen-2 (1.80 MB) < gen-1 (1.91 MB) where the only difference is which compiler emitted the Rust code.
+
+**Idempotency check** (script output): `✓ identical (byte-for-byte)` for stripped gen-2 vs gen-3.
