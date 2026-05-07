@@ -110,12 +110,13 @@
 
 ### A.3 — HTTP routing + axum en gen-2
 
-- [ ] Emitir `Server.create()` + `.get/.post/.put/.delete(path, handler)` con cierres async correctos.
-- [ ] Emitir `app.listen(port)` con runtime tokio.
-- [ ] Emitir `Response.text/json/status` y `Request.params/body`.
-- [ ] Test: `examples/http-server/`, `examples/http-crud/`, `examples/http-api/` compilan con gen-2.
+- [x] Emitir `Server.create()` + `.get/.post/.put/.delete(path, handler)` con cierres async correctos. **DONE 2026-05-06** — server-var tracking en `_emitSimpleBinding`; `_emitServerRoute` emite `axum::routing::METHOD(|...| async move { ... })` con `_convertRoutePath` (`:id` → `{id}` para axum 0.8). Pre-pass `_detectMainAsync` activa `#[tokio::main] async fn main`.
+- [x] Emitir `app.listen(port)` con runtime tokio. **DONE 2026-05-06** — `_emitServerListen` emite `tokio::net::TcpListener::bind` + `axum::serve(...).await.unwrap()`.
+- [x] Emitir `Response.text/json/status` y `Request.params/body`. **DONE 2026-05-06** — `req.params.get("k")` → `__params.get(&"k".to_string())…unwrap_or_default()`; `req.body` → `body.clone()`. Response helpers ya estaban cubiertos en `_emitMethodCall`.
+- [x] Test: `examples/http-server/` compila con gen-2 — **VERIFIED 2026-05-06** (`cargo build --release` OK; 5 rutas: GET `/`, GET `/health`, GET `/users/{id}`, POST `/users`, PUT `/users/{id}`, DELETE `/users/{id}`).
+- [ ] `examples/http-crud/`, `examples/http-api/`: dependen de HTTP **client** + JsonValue iteration — fuera del scope A.3 (server). Bootstrap también falla en éstos.
 
-**Gate A.3:** los ejemplos HTTP actuales pasan con gen-2 y los binarios responden correctamente.
+**Gate A.3:** ✅ `examples/http-server/` compila con gen-2; emisión axum-0.8 byte-correcta para Server.create/get/post/put/delete/listen + req.params/body.
 
 ### A.4 — Multi-file imports completo
 

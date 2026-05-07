@@ -178,6 +178,20 @@ RustEmitter {
     // method calls (e.g. `this.items.push(...)`), and prints.
     _inConstructor: bool
     _constructorAssignedFields: Map<string, bool>
+    // A.3: HTTP server routing. Vars assigned to `Server.create()` (axum::Router).
+    // Detected at let init; used by _emitMethodCall to rewrite
+    // `app.get(path, handler)` into `app = app.route(...)` etc.
+    _serverVars: Map<string, bool>
+    // A.3: when emitting an HTTP route handler lambda body, name of the
+    // request param (lambda's first param). Inside the body, `req.params`
+    // → `__params`, `req.body` → `body.clone()`,
+    // `req.params.get("k")` → `__params.get(&"k".to_string()).cloned().unwrap_or_default()`.
+    // Empty string means we're not inside a server handler.
+    _serverRequestParam: string
+    // A.3: pre-pass result. True iff the program contains a Server.create()
+    // initializer or a top-level *.listen( call in the `main` function. When
+    // set, `_emitFunction` will emit `#[tokio::main] async fn main`.
+    _mainNeedsAsync: bool
     _warnings: [string]
 
     constructor(typeCtx: TypeContext, liveCtx: LivenessContext) {
@@ -236,6 +250,9 @@ RustEmitter {
         this._inExprBlock = false
         this._inConstructor = false
         this._constructorAssignedFields = Map {}
+        this._serverVars = Map {}
+        this._serverRequestParam = ""
+        this._mainNeedsAsync = false
         this._warnings = []
     }
 
@@ -534,6 +551,8 @@ RustEmitter {
     // -- Top-level generation --
 
     generate(program: Program): string {
+        // A.3: pre-detect async-needs for `main` (HTTP server / .listen).
+        this._detectMainAsync(program)
         // Pre-populate enum variant field registry from AST items
         // This registers field names for all enums defined in this module
         for item in program.items {
@@ -1089,8 +1108,9 @@ RustEmitter {
                 }
             }
             // Determine async keyword
+            let effectiveAsync = decl.isAsyncInferred
             let asyncKw = ""
-            if decl.isAsyncInferred {
+            if effectiveAsync {
                 asyncKw = "async "
                 if funcName == "main" {
                     this._writeln("#[tokio::main]")
@@ -1111,8 +1131,12 @@ RustEmitter {
             this._newline()
         } else {
             // Block-bodied function
+            let effectiveAsync2 = decl.isAsyncInferred
+            if !effectiveAsync2 && funcName == "main" && this._mainNeedsAsync {
+                effectiveAsync2 = true
+            }
             let asyncKw2 = ""
-            if decl.isAsyncInferred {
+            if effectiveAsync2 {
                 asyncKw2 = "async "
                 if funcName == "main" {
                     this._writeln("#[tokio::main]")
@@ -2546,7 +2570,8 @@ RustEmitter {
         }
 
         let asyncKw = ""
-        if decl.isAsyncInferred {
+        let effectiveAsyncM = decl.isAsyncInferred
+        if effectiveAsyncM {
             asyncKw = "async "
         }
         this._writeln("pub " + asyncKw + "fn " + methodName + "(" + fullParams + ")" + retStr + " {")
@@ -3037,6 +3062,28 @@ RustEmitter {
 
     _emitSimpleBinding(name: string, optTypeRef: TypeRef?, decl: VarDeclStmt) {
         let sanitized = this._sanitizeName(name)
+
+        // A.3: track `let app = Server.create()` so subsequent
+        // `app.get/post/put/delete/listen` calls emit axum routing.
+        let initSnap = decl.init
+        let _ = switch initSnap {
+            Expr.MethodCall(initObj, initMethod, _) => {
+                if initMethod == "create" {
+                    let _ = switch initObj {
+                        Expr.Identifier(initObjName) => {
+                            if initObjName == "Server" {
+                                this._serverVars.set(sanitized, true)
+                            }
+                            0
+                        },
+                        _ => { 0 }
+                    }
+                }
+                0
+            },
+            _ => { 0 }
+        }
+
         this._writeIndent()
 
         // Determine mutability — skip mut for _ (Rust doesn't allow let mut _)
@@ -5959,6 +6006,61 @@ RustEmitter {
     // -- Method calls (type-directed dispatch) --
 
     _emitMethodCall(obj: Expr, method: string, args: [Expr]) {
+        // A.3: HTTP routing — `app.get/post/put/delete/listen` where app
+        // is a tracked server var (assigned from Server.create()).
+        let isServerCall = false
+        let serverVarName = ""
+        let _ = switch obj {
+            Expr.Identifier(svName) => {
+                let svSan = this._sanitizeName(svName)
+                if this._serverVars.has(svSan) {
+                    isServerCall = true
+                    serverVarName = svSan
+                }
+                0
+            },
+            _ => { 0 }
+        }
+        if isServerCall {
+            if method == "get" or method == "post" or method == "put" or method == "delete" {
+                this._emitServerRoute(serverVarName, method, args)
+                return
+            }
+            if method == "listen" {
+                this._emitServerListen(serverVarName, args)
+                return
+            }
+        }
+
+        // A.3: inside a server handler, `req.params.get("id")` →
+        // `__params.get(&"id".to_string()).cloned().unwrap_or_default()`.
+        if this._serverRequestParam != "" && method == "get" {
+            let isReqParamsGet = false
+            let _ = switch obj {
+                Expr.MemberAccess(reqObj, reqProp) => {
+                    if reqProp == "params" {
+                        let _ = switch reqObj {
+                            Expr.Identifier(reqName) => {
+                                if reqName == this._serverRequestParam { isReqParamsGet = true }
+                                0
+                            },
+                            _ => { 0 }
+                        }
+                    }
+                    0
+                },
+                _ => { 0 }
+            }
+            if isReqParamsGet {
+                this._write("__params.get(&")
+                if args.length >= 1 {
+                    this._emitExpr(args[0])
+                }
+                this._write(".to_string()).cloned().unwrap_or_default()")
+                return
+            }
+        }
+
         let savedSuppressIdx = this._suppressIndexElemClone
         this._suppressIndexElemClone = false
         let _ = switch obj {
@@ -8170,6 +8272,23 @@ RustEmitter {
     }
 
     _emitMemberAccess(obj: Expr, prop: string) {
+        // A.3: inside a server handler, `req.params` → `__params`,
+        // `req.body` → `body.clone()`.
+        if this._serverRequestParam != "" {
+            let isReqMember = false
+            let _ = switch obj {
+                Expr.Identifier(reqName) => {
+                    if reqName == this._serverRequestParam { isReqMember = true }
+                    0
+                },
+                _ => { 0 }
+            }
+            if isReqMember {
+                if prop == "params" { this._write("__params"); return }
+                if prop == "body" { this._write("body.clone()"); return }
+            }
+        }
+
         // B148: in constructor body, rewrite `this.X` reads to `__field_X`
         // for fields already assigned (so reads in conditions/prints/etc work).
         if this._inConstructor {
@@ -9185,7 +9304,7 @@ RustEmitter {
 
         // HTTP server
         if usesHttp {
-            lines.push("axum = \"0.7\"")
+            lines.push("axum = \"0.8\"")
             lines.push("tower = \"0.4\"")
             lines.push("tower-http = { version = \"0.5\", features = [\"cors\"] }")
             // HTTP implies async
@@ -9242,8 +9361,241 @@ RustEmitter {
 
         return lines.join("\n")
     }
-}
 
+    // ── A.3: HTTP server route emission ──
+
+    // Convert axum 0.7 path syntax `:param` to axum 0.8 `{param}` (matches
+    // bootstrap codegen.rs:15053). Returns the converted path or the input
+    // unchanged if no `:`-prefixed segments.
+    _convertRoutePath(path: string): string {
+        let result = ""
+        let segments = path.split("/")
+        let isFirst = true
+        for seg in segments {
+            if isFirst {
+                isFirst = false
+            } else {
+                result += "/"
+            }
+            if seg.length > 0 && seg.substring(0, 1) == ":" {
+                let name = seg.substring(1, seg.length)
+                result += "{" + name + "}"
+            } else {
+                result += seg
+            }
+        }
+        return result
+    }
+
+    // app.METHOD(path, handler) → app = app.route(path, axum::routing::METHOD(|...| async move { ... }))
+    _emitServerRoute(serverVar: string, method: string, args: [Expr]) {
+        // Determine path (compile-time string literal → convert :param syntax)
+        let pathLiteral = ""
+        let havePathLit = false
+        let _ = switch args[0] {
+            Expr.Literal(litVal) => {
+                let _ = switch litVal {
+                    Literal.Str(s) => { pathLiteral = s; havePathLit = true; 0 },
+                    _ => { 0 }
+                }
+                0
+            },
+            _ => { 0 }
+        }
+        let hasParams = false
+        if havePathLit && pathLiteral.contains(":") { hasParams = true }
+        // Convert :param → {param} only when we have a literal path
+        let convertedPath = ""
+        if havePathLit { convertedPath = this._convertRoutePath(pathLiteral) }
+
+        let isWrite = method == "post" || method == "put"
+
+        this._write(serverVar)
+        this._write(" = ")
+        this._write(serverVar)
+        this._write(".route(")
+        if havePathLit {
+            this._write("\"")
+            this._write(convertedPath)
+            this._write("\"")
+        } else {
+            this._emitExpr(args[0])
+        }
+        this._write(", axum::routing::")
+        this._write(method)
+        this._write("(")
+
+        // Handler must be a lambda. We process args[1] inline via switch.
+        let _ = switch args[1] {
+            Expr.Lambda(lam) => {
+                // Closure signature based on (hasParams, isWrite)
+                if hasParams && isWrite {
+                    this._write("|axum::extract::Path(__params): axum::extract::Path<std::collections::HashMap<String, String>>, body: String| async move {")
+                } else if hasParams {
+                    this._write("|axum::extract::Path(__params): axum::extract::Path<std::collections::HashMap<String, String>>| async move {")
+                } else if isWrite {
+                    this._write("|body: String| async move {")
+                } else {
+                    this._write("|| async move {")
+                }
+                this._newline()
+                this._indent()
+
+                // Save and set request param tracking, then emit body with last
+                // statement as tail expression (so it becomes the return value).
+                let prevReqParam = $"{this._serverRequestParam}"
+                let firstParamName = ""
+                let _fp_seen = false
+                for p in lam.params {
+                    if !_fp_seen {
+                        _fp_seen = true
+                        let _ = switch p.pattern {
+                            BindingPattern.Identifier(pn) => { firstParamName = pn; 0 },
+                            _ => { 0 }
+                        }
+                    }
+                }
+                this._serverRequestParam = firstParamName
+
+                let _ = switch lam.body {
+                    LambdaBody.Block(blk) => {
+                        let stmts = blk.stmts
+                        let n = stmts.length
+                        let i = 0
+                        for s in stmts {
+                            let isLast = i == n - 1
+                            if isLast {
+                                let isExprStmt = false
+                                let _ = switch s {
+                                    Stmt.ExprStmt(eExpr) => {
+                                        isExprStmt = true
+                                        this._writeIndent()
+                                        this._emitExpr(eExpr)
+                                        this._newline()
+                                        0
+                                    },
+                                    _ => { 0 }
+                                }
+                                if !isExprStmt {
+                                    this._emitStmt(s)
+                                }
+                            } else {
+                                this._emitStmt(s)
+                            }
+                            i += 1
+                        }
+                        0
+                    },
+                    LambdaBody.Expr(exprs) => {
+                        if exprs.length >= 1 {
+                            this._writeIndent()
+                            this._emitExpr(exprs[0])
+                            this._newline()
+                        }
+                        0
+                    }
+                }
+
+                this._serverRequestParam = prevReqParam
+                this._dedent()
+                this._writeIndent()
+                this._write("}))")
+                0
+            },
+            _ => {
+                // Non-lambda: emit unchanged (likely user error).
+                this._emitExpr(args[1])
+                this._write("))")
+                0
+            }
+        }
+    }
+
+    // app.listen(port) → start axum server (blocks until shutdown).
+    _emitServerListen(serverVar: string, args: [Expr]) {
+        this._write("{ let __addr = format!(\"0.0.0.0:{}\", ")
+        this._emitExpr(args[0])
+        this._write("); let __listener = tokio::net::TcpListener::bind(&__addr).await.unwrap(); axum::serve(__listener, ")
+        this._write(serverVar)
+        this._write(").await.unwrap(); }")
+    }
+
+    // Async-inference: pre-pass detector. Set _mainNeedsAsync if the program
+    // contains any HTTP-server / listen trigger anywhere in `main`. Called from
+    // `generate()` before per-function emission. Shallow scan of `main`'s body
+    // statements (server setup is conventionally at top level).
+    _detectMainAsync(program: Program) {
+        for item in program.items {
+            let _ = switch item {
+                TopLevel.Function(fd) => {
+                    if fd.name == "main" {
+                        this._scanStmtsForAsyncOpt(fd.body)
+                    }
+                    0
+                },
+                _ => { 0 }
+            }
+        }
+    }
+
+    _scanStmtsForAsyncOpt(blkOpt: BlockStmt?) {
+        if blkOpt != null {
+            this._scanStmtsForAsync(blkOpt)
+        }
+    }
+
+    _scanStmtsForAsync(blk: BlockStmt) {
+        for s in blk.stmts {
+            let trig = false
+            let _ = switch s {
+                Stmt.VarDecl(d) => {
+                    if this._exprIsAsyncTrigger(d.init) { trig = true }
+                    0
+                },
+                Stmt.ConstDecl(d) => {
+                    if this._exprIsAsyncTrigger(d.init) { trig = true }
+                    0
+                },
+                Stmt.Assign(a) => {
+                    if this._exprIsAsyncTrigger(a.value) { trig = true }
+                    0
+                },
+                Stmt.ExprStmt(e) => {
+                    if this._exprIsAsyncTrigger(e) { trig = true }
+                    0
+                },
+                _ => { 0 }
+            }
+            if trig { this._mainNeedsAsync = true }
+        }
+    }
+
+    // Direct trigger detection on an expression — matches MethodCall on Server,
+    // HTTP.{get,post,put,delete}, or any `.listen(`.
+    _exprIsAsyncTrigger(e: Expr): bool {
+        let result = false
+        let _ = switch e {
+            Expr.MethodCall(obj, method, _) => {
+                if method == "listen" { result = true }
+                let _ = switch obj {
+                    Expr.Identifier(n) => {
+                        if n == "Server" { result = true }
+                        if n == "HTTP" {
+                            if method == "get" || method == "post" || method == "put" || method == "delete" {
+                                result = true
+                            }
+                        }
+                        0
+                    },
+                    _ => { 0 }
+                }
+                0
+            },
+            _ => { 0 }
+        }
+        return result
+    }
+}
 // =====================================================================
 //  Public API
 // =====================================================================
