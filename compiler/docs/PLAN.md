@@ -216,13 +216,13 @@ Este es el item más caro del plan. Tower-lsp en Liva no es trivial.
 
 **Gate C.1:** `app28_closures.liva` y nuevos ejemplos `examples/closures/` compilan en gen-2.
 
-### C.2 — `?` operator para fallibles
+### C.2 — `?` operator para fallibles ✅
 
-- [ ] Sintaxis: `let v = f()?` propaga error si la función actual es fallible.
-- [ ] Codegen: traducción directa al `?` de Rust (porque ya usaremos `liva_rt::Error` post-A.2).
-- [ ] Funciona encadenado: `obj.f()?.g()?.h()`.
+- [x] Sintaxis: `let v = f()?` propaga error si la función actual es fallible.
+- [x] Codegen: traducción directa al `?` de Rust (porque ya usaremos `liva_rt::Error` post-A.2).
+- [x] Funciona encadenado: `obj.f()?.g()?.h()`.
 
-**Gate C.2:** ejemplos `examples/error-handling/` reescritos con `?` siguen pasando.
+**Gate C.2:** ✅ regression `c2_try_operator` cubre chained, tail-position y propagación; bootstrap + gen-2 idempotentes; 7/7 gates green.
 
 ### C.3 — Tuplas nativas
 
