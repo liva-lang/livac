@@ -395,7 +395,7 @@ fn main() {
     let replaced = text.replace("World", "Liva");
     let starts = text.starts_with("Hello");
     let ends = text.ends_with("!");
-    let sub = text[(0) as usize..(5) as usize].to_string();
+    let sub = { let __s = &(text); let __a = (0) as usize; let __b = (5) as usize; __s.chars().skip(__a).take(__b.saturating_sub(__a)).collect::<String>() };
     let ch = text.chars().nth((0) as usize).map(|c| c.to_string()).unwrap_or_default();
     let idx = text.find("World").map(|i| i as i32).unwrap_or(-1);
     let len = (text.len() as i32);

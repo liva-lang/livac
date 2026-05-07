@@ -388,6 +388,6 @@ mod liva_rt {
 
 fn main() {
     let s = "hello world".to_string();
-    let sliced = s[(0) as usize..(5) as usize].to_string();
+    let sliced = { let __s = &(s); let __a = (0) as usize; let __b = (5) as usize; __s.chars().skip(__a).take(__b.saturating_sub(__a)).collect::<String>() };
     println!("{:?}", sliced);
 }

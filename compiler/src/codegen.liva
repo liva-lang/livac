@@ -7370,15 +7370,18 @@ RustEmitter {
             return
         }
         if method == "substring" {
+            // C.10: char-indexed (UTF-8 safe).
+            this._write("{ let __s = &(")
             this._emitExpr(obj)
-            this._write("[(")
-            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write("); let __a = (")
+            if args.length > 0 { this._emitExpr(args[0]) } else { this._write("0") }
+            this._write(") as usize; ")
             if args.length > 1 {
-                this._write(") as usize..(")
+                this._write("let __b = (")
                 this._emitExpr(args[1])
-                this._write(") as usize].to_string()")
+                this._write(") as usize; __s.chars().skip(__a).take(__b.saturating_sub(__a)).collect::<String>() }")
             } else {
-                this._write(") as usize..].to_string()")
+                this._write("__s.chars().skip(__a).collect::<String>() }")
             }
             return
         }
@@ -7389,17 +7392,20 @@ RustEmitter {
             this._write(").map(|i| i as i32).unwrap_or(-1)")
             return
         }
-        // slice — default to string semantics (.to_string()) when type unknown
+        // slice — default to string semantics when type unknown.
+        // C.10: char-indexed (UTF-8 safe).
         if method == "slice" {
+            this._write("{ let __s = &(")
             this._emitExpr(obj)
-            this._write("[(")
-            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write("); let __a = (")
+            if args.length > 0 { this._emitExpr(args[0]) } else { this._write("0") }
+            this._write(") as usize; ")
             if args.length > 1 {
-                this._write(") as usize..(")
+                this._write("let __b = (")
                 this._emitExpr(args[1])
-                this._write(") as usize].to_string()")
+                this._write(") as usize; __s.chars().skip(__a).take(__b.saturating_sub(__a)).collect::<String>() }")
             } else {
-                this._write(") as usize..].to_string()")
+                this._write("__s.chars().skip(__a).collect::<String>() }")
             }
             return
         }
@@ -7519,15 +7525,18 @@ RustEmitter {
             return true
         }
         if method == "substring" {
+            // C.10: char-indexed (UTF-8 safe).
+            this._write("{ let __s = &(")
             this._emitExpr(obj)
-            this._write("[(")
-            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write("); let __a = (")
+            if args.length > 0 { this._emitExpr(args[0]) } else { this._write("0") }
+            this._write(") as usize; ")
             if args.length > 1 {
-                this._write(") as usize..(")
+                this._write("let __b = (")
                 this._emitExpr(args[1])
-                this._write(") as usize].to_string()")
+                this._write(") as usize; __s.chars().skip(__a).take(__b.saturating_sub(__a)).collect::<String>() }")
             } else {
-                this._write(") as usize..].to_string()")
+                this._write("__s.chars().skip(__a).collect::<String>() }")
             }
             return true
         }
@@ -7609,15 +7618,18 @@ RustEmitter {
             return true
         }
         if method == "slice" {
+            // C.10: char-indexed (UTF-8 safe).
+            this._write("{ let __s = &(")
             this._emitExpr(obj)
-            this._write("[(")
-            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write("); let __a = (")
+            if args.length > 0 { this._emitExpr(args[0]) } else { this._write("0") }
+            this._write(") as usize; ")
             if args.length > 1 {
-                this._write(") as usize..(")
+                this._write("let __b = (")
                 this._emitExpr(args[1])
-                this._write(") as usize].to_string()")
+                this._write(") as usize; __s.chars().skip(__a).take(__b.saturating_sub(__a)).collect::<String>() }")
             } else {
-                this._write(") as usize..].to_string()")
+                this._write("__s.chars().skip(__a).collect::<String>() }")
             }
             return true
         }

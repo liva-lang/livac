@@ -11131,8 +11131,10 @@ impl CodeGenerator {
             };
 
         // Handle slice() — works for both strings and arrays
-        // String: obj[start..end].to_string()
-        // Array:  obj[start..end].to_vec()
+        // String: char-indexed slice (UTF-8 safe). C.10 — slice/substring use
+        //   chars().skip(a).take(b-a) so indices match s.chars().length and
+        //   s.length, not raw byte offsets. Avoids panics on multibyte chars.
+        // Array:  obj[start..end].to_vec() (element-indexed, unchanged)
         if method_call.method == "slice" && !method_call.args.is_empty() {
             let is_string = if let Expr::Identifier(var_name) = method_call.object.as_ref() {
                 self.string_vars.contains(&self.sanitize_name(var_name))
@@ -11141,19 +11143,30 @@ impl CodeGenerator {
             } else {
                 false
             };
-            self.generate_expr(&method_call.object)?;
-            self.output.push_str("[(");
-            self.generate_expr(&method_call.args[0])?;
-            self.output.push_str(") as usize..");
-            if method_call.args.len() >= 2 {
-                self.output.push('(');
-                self.generate_expr(&method_call.args[1])?;
-                self.output.push_str(") as usize");
-            }
-            self.output.push(']');
             if is_string {
-                self.output.push_str(".to_string()");
+                self.output.push_str("{ let __s = &(");
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str("); let __a = (");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(") as usize; ");
+                if method_call.args.len() >= 2 {
+                    self.output.push_str("let __b = (");
+                    self.generate_expr(&method_call.args[1])?;
+                    self.output.push_str(") as usize; __s.chars().skip(__a).take(__b.saturating_sub(__a)).collect::<String>() }");
+                } else {
+                    self.output.push_str("__s.chars().skip(__a).collect::<String>() }");
+                }
             } else {
+                self.generate_expr(&method_call.object)?;
+                self.output.push_str("[(");
+                self.generate_expr(&method_call.args[0])?;
+                self.output.push_str(") as usize..");
+                if method_call.args.len() >= 2 {
+                    self.output.push('(');
+                    self.generate_expr(&method_call.args[1])?;
+                    self.output.push_str(") as usize");
+                }
+                self.output.push(']');
                 self.output.push_str(".to_vec()");
             }
             return Ok(());
@@ -12717,22 +12730,27 @@ impl CodeGenerator {
         // Special handling for methods that need different syntax
         match method_call.method.as_str() {
             "substring" => {
-                // substring(start, end) -> &str[(start) as usize..(end) as usize].to_string()
+                // C.10: char-indexed (UTF-8 safe). substring(a, b?) emits
+                //   { let __s = &(obj); let __a = a as usize; ...
+                //     __s.chars().skip(__a).take(__b - __a).collect::<String>() }
+                // so it agrees with chars().length and never panics on
+                // multibyte boundaries.
+                self.output.push_str("{ let __s = &(");
                 self.generate_expr(&method_call.object)?;
-                self.output.push('[');
-                if method_call.args.len() >= 1 {
-                    // Wrap in parens to handle expressions like (maxLen - 3) as usize
-                    self.output.push('(');
+                self.output.push_str("); let __a = (");
+                if !method_call.args.is_empty() {
                     self.generate_expr(&method_call.args[0])?;
-                    self.output.push_str(") as usize");
+                } else {
+                    self.output.push('0');
                 }
-                self.output.push_str("..");
+                self.output.push_str(") as usize; ");
                 if method_call.args.len() >= 2 {
-                    self.output.push('(');
+                    self.output.push_str("let __b = (");
                     self.generate_expr(&method_call.args[1])?;
-                    self.output.push_str(") as usize");
+                    self.output.push_str(") as usize; __s.chars().skip(__a).take(__b.saturating_sub(__a)).collect::<String>() }");
+                } else {
+                    self.output.push_str("__s.chars().skip(__a).collect::<String>() }");
                 }
-                self.output.push_str("].to_string()");
                 return Ok(());
             }
             "charAt" => {
@@ -12824,22 +12842,24 @@ impl CodeGenerator {
                 return Ok(());
             }
             "slice" => {
-                // slice(start, end?) -> &str[(start) as usize..(end) as usize].to_string()
-                // Same semantics as substring
+                // C.10: fallback string slice (when prior dispatch didn't fire)
+                // — char-indexed for UTF-8 safety. Same shape as substring.
+                self.output.push_str("{ let __s = &(");
                 self.generate_expr(&method_call.object)?;
-                self.output.push('[');
-                if method_call.args.len() >= 1 {
-                    self.output.push('(');
+                self.output.push_str("); let __a = (");
+                if !method_call.args.is_empty() {
                     self.generate_expr(&method_call.args[0])?;
-                    self.output.push_str(") as usize");
+                } else {
+                    self.output.push('0');
                 }
-                self.output.push_str("..");
+                self.output.push_str(") as usize; ");
                 if method_call.args.len() >= 2 {
-                    self.output.push('(');
+                    self.output.push_str("let __b = (");
                     self.generate_expr(&method_call.args[1])?;
-                    self.output.push_str(") as usize");
+                    self.output.push_str(") as usize; __s.chars().skip(__a).take(__b.saturating_sub(__a)).collect::<String>() }");
+                } else {
+                    self.output.push_str("__s.chars().skip(__a).collect::<String>() }");
                 }
-                self.output.push_str("].to_string()");
                 return Ok(());
             }
             "padStart" => {

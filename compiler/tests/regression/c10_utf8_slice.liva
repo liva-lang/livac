@@ -1,0 +1,34 @@
+// C.10 — slice() and substring() are char-indexed (UTF-8 safe), not byte-indexed.
+// Indices match s.chars().length, not s.bytes().length. No panics on multibyte
+// boundaries.
+
+main() {
+    let s = "café"
+    print($"len chars: {s.chars().length}")
+    print($"len bytes: {s.bytes().length}")
+    print($"slice(0,3): {s.slice(0, 3)}")
+    print($"slice(0,4): {s.slice(0, 4)}")
+    print($"slice(3): {s.slice(3)}")
+    print($"substring(0,3): {s.substring(0, 3)}")
+    print($"substring(2): {s.substring(2)}")
+
+    let n = "ñ"
+    print($"ñ chars: {n.chars().length}")
+    print($"ñ bytes: {n.bytes().length}")
+    print($"ñ slice(0,1): {n.slice(0, 1)}")
+
+    let emoji = "😀x"
+    print($"emoji chars: {emoji.chars().length}")
+    print($"emoji bytes: {emoji.bytes().length}")
+    print($"emoji slice(0,1): {emoji.slice(0, 1)}")
+    print($"emoji slice(1,2): {emoji.slice(1, 2)}")
+
+    // ASCII still works
+    let a = "hello"
+    print($"hello slice(1,4): {a.slice(1, 4)}")
+    print($"hello substring(0,2): {a.substring(0, 2)}")
+
+    // Out-of-range is clamped (no panic)
+    print($"oob: '{s.slice(0, 100)}'")
+    print($"empty: '{s.slice(2, 2)}'")
+}

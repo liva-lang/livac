@@ -280,10 +280,10 @@ Este es el item más caro del plan. Tower-lsp en Liva no es trivial.
 
 ### C.10 — Strings UTF-8 explícitas
 
-- [ ] Documentar y testear: `chars()` itera code points, no bytes; `slice(a, b)` en char boundaries.
+- [x] Documentar y testear: `chars()` itera code points, no bytes; `slice(a, b)` en char boundaries. **DONE 2026-05-07** — `slice()` y `substring()` ahora emiten `chars().skip(a).take(b-a).collect::<String>()` (char-indexed, UTF-8 safe). Bootstrap (`src/codegen.rs`) y gen-2 (`compiler/src/codegen.liva`, 4 sitios) actualizados. Out-of-range queda clamped vía `saturating_sub` — no panics. Regression test `compiler/tests/regression/c10_utf8_slice.liva` valida ASCII, ñ (2-byte), café (4 chars / 5 bytes), 😀 (4-byte), out-of-range, empty range. `slice` en arrays sigue siendo element-indexed (sin cambio).
 - [x] Función `string.bytes()` para bytes raw. **DONE 2026-05-07** — emite `Vec<i32>` con valores UTF-8 byte por byte (distinto de `chars()` que produce code points como strings de 1 char). Soporte en bootstrap + gen-2 + en `for x in s.bytes()`. Regression test `compiler/tests/regression/c10_string_bytes.liva` valida ASCII, 2-byte UTF-8 (ñ → 195 177), café (4 chars / 5 bytes) y empty string.
 
-**Gate C.10:** parcial — `bytes()` cubierto. Tests con caracteres no-ASCII pasan. Slice/chars boundary docs pendientes.
+**Gate C.10:** ✅ cerrado — `chars()`/`bytes()`/`slice()`/`substring()` consistentes con UTF-8. Tests con ASCII, 2-byte (ñ), 3-byte (é), 4-byte (😀) pasan en bootstrap y gen-2.
 
 ---
 
