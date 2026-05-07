@@ -45,7 +45,7 @@ Ordenados por simpleza creciente. Empezar por aquí.
 | B151 | ✅ | 🔷 | Escapes `\"` dentro de `${...}` en string interpolation | parser+lexer | `13b93c0` |
 | B152 | ✅ | 🔶 | `impl Display for Class<T>` con campo `[T]` — `app23_stack` 21/21 verde. Verificado 2026-05-06. |
 | B153 | ✅ | 🔶 | Free generic functions auto bounds — `app23_stack` 21/21 verde. Verificado 2026-05-06. |
-| GAP-007 | ⏳ | ⚡ | Function types `(T) => U` → `Box<dyn Fn(T) -> U>` | AST `TypeRef::Fn` + parser + codegen wrap | `bootstrap_apps/app28_closures.liva` |
+| GAP-007 | ✅ | ⚡ | Function types `(T) => U` → `Box<dyn Fn(T) -> U>` — verificado 2026-05-07: `bootstrap_apps/app28_closures.liva` 21/21 verde + `regression/gap007_fn_types.liva` (inline lambda args). Caso let-bound closure por identifier sigue OPEN en bootstrap (FROZEN); gen-2 mirrors that behavior. |
 | B147 | ✅ | ⚡ | `arr.reverse()` en expr-ctx → block-expression | codegen | `a3bba46` |
 | B146 | ✅ | ⚡ | `pq.pop()` / `this.method()` en user class — no array dispatch | codegen | `cfa30c3` + `aa56f23` |
 | BIN-PAREN | ✅ | ⚡ | Binary precedence parens `(idx-1)/2` | codegen | `a3bba46` |

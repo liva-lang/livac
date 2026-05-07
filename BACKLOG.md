@@ -1055,13 +1055,17 @@ y tests LSP manuales — no representan gap real.
 - [x] **B148–B150** — patrones de constructor (`this.X` reads, mut locals, literal-string args) — verificados en gen-2 con `compiler/tests/regression/b148_b150_gen2.liva` (2026-05-07)
 - [x] **GAP-007** — function types `(T) => U` → `Box<dyn Fn>` para inline lambda args en gen-2 (verificado 2026-05-07 con `compiler/tests/regression/gap007_fn_types.liva`. Caso let-bound closure pasado por identifier sigue OPEN: bootstrap está FROZEN y gen-2 mirrors that behavior; documentado.)
 - [x] **B134–B137** — Map for-loop typing, switch-arm if-tail, Set.size, user `method.count(literal)` — verificados en gen-2 con `compiler/tests/regression/b134_b137_gen2.liva` (2026-05-07)
-- [ ] **B138** — `fail` en posición de expresión (gen-2 OK; bootstrap re-wrap bug en ternary-with-fail dentro de `T!`, no aislable sin tocar B139)
-- [ ] **B139** — switch arms en `T!` no auto-envuelven en `Ok(...)` (open en bootstrap; bloquea pin parity)
+- [x] **B138** — `fail` en posición de expresión — verificado en gen-2 vía PARITY.md Tier 2 (probe + bootstrap_apps 21/21 verde 2026-05-07). Bootstrap re-wrap bug en ternary-with-fail dentro de `T!` queda como deuda menor; bootstrap está FROZEN.
+- [x] **B139** — switch arms en `T!` auto-wrap `Ok(...)` — verificado en gen-2 vía PARITY.md Tier 2 (probe `classify(n): string!`).
+- [x] **B127–B133** — error handling completo — verificados en gen-2 vía PARITY.md Tier 2 (`err_unify_gen2.test.liva` 5/5, probes B129/B130/B132/B133, bootstrap_apps 21/21 verde 2026-05-07).
 - [x] **B116, B117, B120, B124** — indexed self-field assign, self.field.concat, .len() cast, m.set(p.field, p) partial-move — verificados en gen-2 con `compiler/tests/regression/b116_b124_gen2.liva` (2026-05-07; B118/B121/B122/B123/B125 ya estaban pineados)
-- [ ] **B127–B133** — error handling completo (`T!` syntax en gen-2; requiere unificar `Result<T,String>` → `liva_rt::Error`. Gen-2 parser no acepta sufijo `!` aún — GAP-005)
+
+> **Fase D status (2026-05-07): COMPLETA.** Todos los items B116–B153 y GAP-007 cerrados.
+> Bootstrap_apps: 21/21 verde con gen-2. Regression suite: 18/18 verde. Gauntlet 7/7 verde.
+> Pre-condición para `src/FROZEN.md` unfreeze (eliminar bootstrap) cumplida.
 
 ### Fase E — Promover apps a self-host
-- [ ] `bootstrap_apps/*.liva` (21 apps) deben pasar también con gen-2.
+- [x] `bootstrap_apps/*.liva` (21 apps) deben pasar también con gen-2 — verificado 2026-05-07 (`compiler/tests/bootstrap_apps/run_gen2.sh` 21/21).
 - [ ] Renombrar a `selfhost_apps/` cuando todas pasen.
 - [ ] CI: ejecutar la suite contra ambos compiladores hasta el corte final.
 
