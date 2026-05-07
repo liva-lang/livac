@@ -1054,8 +1054,9 @@ y tests LSP manuales — no representan gap real.
 - [x] **B141–B147** — fn-ref reduce, nested [[T]], toInt or fail, Map/Set params, indexOf 2-arg, user pop, arr.reverse on [T] — todos verificados en gen-2 con `compiler/tests/regression/b141_b147_gen2.liva` (2026-05-07; ya funcionaban, solo se pinearon)
 - [ ] **B148–B150** — patrones de constructor (`this.X` reads, mut locals, literal-string args)
 - [ ] **GAP-007** — function types `(T) => U` → `Box<dyn Fn>`
-- [ ] **B137–B138** — user `method.count(literal)`, `fail` en posición de expr
-- [ ] **B134–B136** — Map for-loop typing, switch-arm if-tail, Set.size
+- [x] **B134–B137** — Map for-loop typing, switch-arm if-tail, Set.size, user `method.count(literal)` — verificados en gen-2 con `compiler/tests/regression/b134_b137_gen2.liva` (2026-05-07)
+- [ ] **B138** — `fail` en posición de expresión (gen-2 OK; bootstrap re-wrap bug en ternary-with-fail dentro de `T!`, no aislable sin tocar B139)
+- [ ] **B139** — switch arms en `T!` no auto-envuelven en `Ok(...)` (open en bootstrap; bloquea pin parity)
 - [ ] **B127–B133** — error handling completo (esto requiere unificar `Result<T,String>` → `liva_rt::Error` en gen-2)
 - [ ] **B116–B125** — Map<K,Class>, indexed self.field assign, etc.
 
