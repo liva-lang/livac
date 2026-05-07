@@ -1052,7 +1052,7 @@ y tests LSP manuales — no representan gap real.
 - [x] **B152** — `Display` impl con `{:?}` añade `Debug` bound. **DONE 2026-05-07** — añadido `_emitClassDisplay` en gen-2 que auto-emite `impl Display for ClassName` para toda clase con campos (mirroring bootstrap BUG-004), usando `{:?}` para Vec/Map/Set/Optional/Tuple/enum. Type params reciben `Display` bound (y `Debug` ya estaba). También fix collateral en bootstrap: `_emit_display_for_class` emitía `}}}}` (doble cierre literal) en lugar de `}}`. Test: `compiler/tests/regression/b152_class_display.liva` (Point/Bag/Dict).
 - [x] **B153** — free generic functions auto `Clone + Display` (gen-2 emite `<T: Clone + std::fmt::Debug + PartialEq>` en función libre genérica; verificado 2026-05-07 con `firstOf<T>` retornando `items[0]`)
 - [x] **B141–B147** — fn-ref reduce, nested [[T]], toInt or fail, Map/Set params, indexOf 2-arg, user pop, arr.reverse on [T] — todos verificados en gen-2 con `compiler/tests/regression/b141_b147_gen2.liva` (2026-05-07; ya funcionaban, solo se pinearon)
-- [ ] **B148–B150** — patrones de constructor (`this.X` reads, mut locals, literal-string args)
+- [x] **B148–B150** — patrones de constructor (`this.X` reads, mut locals, literal-string args) — verificados en gen-2 con `compiler/tests/regression/b148_b150_gen2.liva` (2026-05-07)
 - [ ] **GAP-007** — function types `(T) => U` → `Box<dyn Fn>`
 - [x] **B134–B137** — Map for-loop typing, switch-arm if-tail, Set.size, user `method.count(literal)` — verificados en gen-2 con `compiler/tests/regression/b134_b137_gen2.liva` (2026-05-07)
 - [ ] **B138** — `fail` en posición de expresión (gen-2 OK; bootstrap re-wrap bug en ternary-with-fail dentro de `T!`, no aislable sin tocar B139)

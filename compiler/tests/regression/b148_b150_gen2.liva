@@ -1,0 +1,34 @@
+// B148-B150 sanity checks for gen-2.
+
+// B148: `this.X` reads in non-assignment constructor body, after assignments
+// B149: mutated locals in constructor get `mut`
+// B150: user method call with literal-string arg promotes to String
+HMap {
+    cap: int
+    keys: [string]
+    constructor() {
+        this.cap = 4
+        let ks: [string] = []
+        // B148: read this.cap in for-range
+        // B149: ks must be mut for ks.push
+        for i in 0..this.cap {
+            ks.push("")
+        }
+        this.keys = ks
+    }
+    get(key: string): string {
+        for k in this.keys {
+            if k == key { return k }
+        }
+        return ""
+    }
+}
+
+main() {
+    let m = HMap()
+    print(m.cap.toString())          // 4
+    print(m.keys.length.toString())  // 4
+    // B150: literal string arg
+    let r = m.get("apple")
+    print(r.length.toString())       // 0  (no key matches, returns "")
+}
