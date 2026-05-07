@@ -1,0 +1,11 @@
+// EXPECT: 1256
+//        900
+//        2400
+
+import { Shape, area100 } from "./shape"
+
+main() {
+    print(area100(Shape.Circle(2)).toString())
+    print(area100(Shape.Square(3)).toString())
+    print(area100(Shape.Rect(4, 6)).toString())
+}

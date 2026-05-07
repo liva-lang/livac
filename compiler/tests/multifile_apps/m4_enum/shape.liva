@@ -1,0 +1,14 @@
+enum Shape {
+    Circle(r: number),
+    Square(side: number),
+    Rect(w: number, h: number)
+}
+
+// 100x scale to keep integer math (pi ≈ 314/100).
+area100(s: Shape): number {
+    return switch s {
+        Shape.Circle(r) => 314 * r * r
+        Shape.Square(side) => 100 * side * side
+        Shape.Rect(w, h) => 100 * w * h
+    }
+}

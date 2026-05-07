@@ -1,0 +1,13 @@
+// EXPECT: dist=7
+//        clamped=18
+
+import { distance, clampedSum } from "./stats"
+
+main() {
+    print($"dist={distance(3, 10).toString()}")
+    // values 0,5,10,15,20 clamped to [2,8] = 2,5,8,8,8 + sum=31? Let's keep it simple.
+    let xs = [-5, 2, 3, 7, 12]
+    // clamped to [0,8] = 0,2,3,7,8 -> sum 20. Use [1,7] for variety:
+    // 1,2,3,7,7 -> 20. With [2,6]: 2,2,3,6,6 -> 19. [0,6]: 0,2,3,6,6 -> 17. [1,6]: 1,2,3,6,6 -> 18.
+    print($"clamped={clampedSum(xs, 1, 6).toString()}")
+}

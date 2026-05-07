@@ -1,0 +1,15 @@
+// Mid-level helpers re-using util.liva — exercises transitive imports.
+
+import { clamp, abs } from "./util"
+
+distance(a: number, b: number): number {
+    return abs(a - b)
+}
+
+clampedSum(xs: [number], lo: number, hi: number): number {
+    let total = 0
+    for x in xs {
+        total = total + clamp(x, lo, hi)
+    }
+    return total
+}

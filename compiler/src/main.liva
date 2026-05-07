@@ -434,6 +434,35 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
         }
     }
 
+    // Inject `mod X;` declarations for transitively-loaded sub-modules.
+    // _emitImport in codegen.liva writes `mod X;` only for direct imports of
+    // the entry module. When a sub-module imports another sub-module (e.g.
+    // a → b → c), `c` would never be declared at the crate root and rustc
+    // fails with E0432 "could not find module". Walk compileOrder and inject
+    // any missing declarations into main.rs.
+    let mainRs2 = moduleFiles.get("main.rs")
+    let modDeclsToAdd = ""
+    for modPath in compileOrder {
+        if modPath == entryPath { continue }
+        let modName = resolver.pathToModName(modPath)
+        let needle = "mod " + modName + ";"
+        if !mainRs2.contains(needle) {
+            modDeclsToAdd = modDeclsToAdd + needle + "\n"
+        }
+    }
+    if modDeclsToAdd.length > 0 {
+        // Insert right after the first newline (preserves the #![allow] header
+        // when present and otherwise prepends to the file).
+        let nlIdx = mainRs2.indexOf("\n")
+        if nlIdx >= 0 {
+            let before = mainRs2.substring(0, nlIdx + 1)
+            let after = mainRs2.substring(nlIdx + 1, mainRs2.length)
+            moduleFiles.set("main.rs", before + modDeclsToAdd + after)
+        } else {
+            moduleFiles.set("main.rs", modDeclsToAdd + mainRs2)
+        }
+    }
+
     // Step 4: Cargo.toml — detect deps from generated code
     let mainRs = ""
     let projectName = fileToProjectName(entryPath)
