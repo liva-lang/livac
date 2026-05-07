@@ -734,7 +734,7 @@ Resultado de compilar+ejecutar 5 ejemplos deterministas (con `main()`) con boots
 - [ ] **HTTP `serde_json::json!` macro** — emitir tokens válidos del macro DSL para route bodies (audit de `_emitObjectLit` cuando context es serde_json)
 - [ ] **Multi-file tests** — añadir 2-3 programas multi-file a `bootstrap_apps/` o `e2e_progs/` para que `module.rs` deje de estar al 0%
 - [ ] **CLI subcmd tests** — `livac run`, `livac fmt`, `livac test` actualmente sin cobertura en gen-2
-- [ ] **destructuring.test.liva** — convertir `throw` del parser a propagación Result o instalar `panic_hook` clean en `main.liva`
+- [x] **destructuring.test.liva** — convertir `throw` del parser a propagación Result o instalar `panic_hook` clean en `main.liva`. **DONE 2026-05-07** — instalado `std::panic::set_hook` con bloque `rust { }` al inicio de `main()` en `compiler/src/main.liva`. Ahora panics del parser/lexer (compiled from `throw`) emiten `Error: <msg>` y exit 1, en vez del backtrace `thread 'main' panicked at src/parser.rs:N:M:`. Mejora la paridad con bootstrap en errores de sintaxis.
 - [ ] **`-D warnings` en gen-2 emit** — opcional: hacer que gen-2 emita `#![deny(...)]` selectivo si así lo quiere el usuario
 
 ### 9.5 — Polish landed during v2.0 stabilization (Phase 10 epilog)
