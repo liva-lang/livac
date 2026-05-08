@@ -450,3 +450,61 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Limitaciones:** la inferencia de closures-as-return (Repro 2 sin anotación explícita) sigue requiriendo el tipo explícito. Cuando se anota el retorno como `(T) => U`, funciona; sin anotación, codegen infiere `-> f64`. Para currying / factories funciona con tipo explícito.
 
 
+
+---
+
+## Self-host (gen-2) — Bugs específicos del compilador en Liva
+
+### BUG-3 — gen-2 HTTP route closures move captured fallible bindings 🔶 OPEN
+
+**Status:** Open (2026-05-08). Diferido a v2.1. Documenta el fallo más visible
+de `examples/dogfooding-v3/main.liva` tras cerrar el bug `serde_json::json!`
+(`8da6bd4`) y el de `format!` con err-bindings (`a92e18b`).
+
+**Síntoma:** `cargo build` del Rust generado por gen-2 falla con E0382
+`use of moved value: 'db' / 'id'` en route handlers que usan DB.
+
+**Repro mínimo:**
+
+```liva
+main() {
+    let db, _ = DB.open("test.db")
+    let app = Server.create()
+    app.get("/items/:id", (req) => {
+        let id = req.params.get("id") or ""
+        let _, qerr = DB.query(db, "SELECT * FROM t WHERE id=?", [id])
+        if qerr {
+            return Response.json({ "error": "Not found" })
+        }
+        return Response.json({ "id": id })
+    })
+    app.listen(3000)
+}
+```
+
+**Causa raíz (hipótesis):** gen-2 emite el closure como `move ||` capturando
+`db` (`Arc<Mutex<Connection>>`) y `id` (`String`), pero las llamadas internas
+las consumen por valor en lugar de `.clone()`-ar en cada uso. Bootstrap genera
+un `db.clone()` antes del closure y `.clone()` por uso; gen-2 omite ambas
+inserciones cuando el closure forma parte de un argumento pasado a un método
+HTTP.
+
+**Lo que ya funciona en gen-2 (verificado 2026-05-08):**
+- `examples/dogfooding-v1/main.liva` — multi-file Student Grade Tracker:
+  cargo build OK, run OK, output completo.
+- HTTP servers sin DB capture en closures (Test 7 `cli_subcmds`): bare-ident
+  + quoted-string keys en `Response.json({...})` compilan limpio.
+- `let v, err = call(); print("Failed: " + err)` (Test 8 `cli_subcmds`):
+  unwrap correcto vía `.as_ref().map(|e| ...).unwrap_or_default()`.
+
+**Plan de fix (cuando se aborde):**
+1. Detectar `Expr.Lambda` en posición de argumento a `*.get/post/put/delete`.
+2. Para cada captured binding cuyo tipo no es `Copy` (Arc, String, Map, etc.),
+   emitir `let <name> = <name>.clone();` antes del closure (ya hace algo así
+   bootstrap; ver `livac/src/codegen.rs::emit_closure_capture_clones`).
+3. Dentro del cuerpo del closure, insertar `.clone()` en cada uso adicional
+   tras el primer move (o reescribir el closure como `Fn` clonando en cada
+   invocación).
+
+**Workaround:** usar `unsafe` block + `Arc::clone(&db)` manual en bloques
+`rust { ... }`, o expresar las rutas en bootstrap hasta el fix.

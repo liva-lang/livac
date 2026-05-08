@@ -724,8 +724,8 @@ Resultado de compilar+ejecutar 5 ejemplos deterministas (con `main()`) con boots
 
 - ✅ `calculator.liva` — match 14 lines
 - ✅ `test_b39.liva` — match (después de fix Display→Debug)
-- ❌ `dogfooding-v1/main.liva` — multi-file: gen-2 re-declara constantes importadas (`MAX_GRADE`, `MIN_GRADE`, `PASSING_GRADE`). **Causa raíz: `module.rs` 0% cobertura confirma que multi-file no se ejerció en self-hosting.**
-- ❌ `dogfooding-v3/main.liva` — gen-2 mis-emite `serde_json::json!` macro para HTTP routes (`missing tokens in macro arguments`).
+- ✅ `dogfooding-v1/main.liva` — re-validado **2026-05-08** end-to-end con gen-2: cargo build OK + run OK (Student Grade Tracker prints both report cards, Honor Roll/Passing classification, formatted names, letter-grade table). Multi-file re-declaración cerrada por `0d181d1` (m5_chain) + auditoría m6_diamond (`325a059`).
+- ⚠️ `dogfooding-v3/main.liva` — gen-2 ahora emite `serde_json::json!` válido (`8da6bd4`), pero destapa un bug nuevo: HTTP route closures que capturan bindings `let v, err = call()` (e.g. `db`, `id`) producen E0382 (`use of moved value`). Tracked en `BUGS.md` como `BUG-3` con repro mínimo. No bloquea release: la API REST con DB en gen-2 no compila aún, pero otros HTTP servers (sin DB capture en closures) sí. Diferido a v2.1.
 - (bootstrap falla en `dogfooding-v2` por motivo no relacionado con gen-2)
 
 ### 9.4 — Pendientes hacia release sólido (post-9.x)
