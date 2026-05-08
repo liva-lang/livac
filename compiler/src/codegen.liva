@@ -5117,7 +5117,7 @@ RustEmitter {
                         }
                     } else {
                         this._write("format!(\"{}{}\", ")
-                        this._emitExpr(left)
+                        this._emitFormatArg(left)
                         this._write(", ")
                         this._emitLiteral(rLit)
                         this._write(")")
@@ -5160,7 +5160,7 @@ RustEmitter {
                         }
                     } else {
                         this._write("format!(\"{}{}\", ")
-                        this._emitExpr(left)
+                        this._emitFormatArg(left)
                         this._write(", ")
                         this._emitStringTemplate(rParts)
                         this._write(")")
@@ -5239,7 +5239,7 @@ RustEmitter {
                     this._write("format!(\"{}{}\", ")
                     this._emitLiteral(lLit)
                     this._write(", ")
-                    this._emitExpr(right)
+                    this._emitFormatArg(right)
                     this._write(")")
                 } else {
                     // Suppress .to_string() for == and != — String implements PartialEq<str>
@@ -5262,7 +5262,7 @@ RustEmitter {
                     this._write("format!(\"{}{}\", ")
                     this._emitStringTemplate(lParts)
                     this._write(", ")
-                    this._emitExpr(right)
+                    this._emitFormatArg(right)
                     this._write(")")
                 } else {
                     this._emitStringTemplate(lParts)
@@ -5325,9 +5325,9 @@ RustEmitter {
                     } else {
                         // Normal string concat: format!("{}{}", left, right)
                         this._write("format!(\"{}{}\", ")
-                        this._emitExpr(left)
+                        this._emitFormatArg(left)
                         this._write(", ")
-                        this._emitExpr(right)
+                        this._emitFormatArg(right)
                         this._write(")")
                     }
                 } else {
@@ -8951,6 +8951,33 @@ RustEmitter {
                 0
             },
             _ => { this._emitJsonArg(key); 0 }
+        }
+    }
+
+    // Emit an expression in `format!`-arg position. If the expr is an
+    // identifier bound as Option<liva_rt::Error> via a fallible
+    // destructure (let v, err = call()), unwrap with as_ref().map().
+    // Without this, `"prefix" + err` would emit
+    //   format!("{}{}", "prefix".to_string(), err)
+    // which fails: Option<liva_rt::Error> doesn't impl Display.
+    // Mirrors the existing handling in _emitStringTemplateInner.
+    _emitFormatArg(expr: Expr) {
+        let isErrBinding = false
+        let _ = switch expr {
+            Expr.Identifier(spName) => {
+                let snErr = this._sanitizeName(spName)
+                if this._errBindings.has(snErr) {
+                    isErrBinding = true
+                }
+                0
+            },
+            _ => { 0 }
+        }
+        if isErrBinding {
+            this._emitExpr(expr)
+            this._write(".as_ref().map(|e| format!(\"{}\", e)).unwrap_or_default()")
+        } else {
+            this._emitExpr(expr)
         }
     }
 

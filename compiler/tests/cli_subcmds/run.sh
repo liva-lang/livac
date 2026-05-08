@@ -182,6 +182,49 @@ else
     fi
 fi
 
+# ---------------------------------------------------------------------------
+# Test 7 — `let v, err = call()` followed by `print("..." + err)` must emit
+# Rust that `cargo build` accepts. `err` is `Option<liva_rt::Error>` in
+# gen-2 (gen-2 wraps the err-binding in liva_rt::Error to enable trace
+# chaining). The naive `format!("{}{}", "...", err)` fails because
+# Option<T> doesn't impl Display. The fix unwraps via
+# `.as_ref().map(|e| format!("{}", e)).unwrap_or_default()` in the binary
+# `+` concat path (mirrors the existing handling in StringTemplate).
+# ---------------------------------------------------------------------------
+T7="$OUT/err_concat"; mkdir -p "$T7"
+cat > "$T7/main.liva" <<'EOF'
+main() {
+    let db, err = DB.open("/no/such/path/db.sqlite")
+    if err {
+        print("Failed: " + err)
+    }
+}
+EOF
+"$G2" build --output "$T7/out" "$T7/main.liva" >"$T7/build.log" 2>&1
+rc=$?
+if [[ $rc -ne 0 ]]; then
+    check_fail "livac build err_concat main.liva (gen-2)" \
+               "rc=$rc; log:\n$(tail -10 "$T7/build.log")"
+else
+    (cd "$T7/out" && cargo build --quiet) >"$T7/cargo.log" 2>&1
+    rc2=$?
+    if [[ $rc2 -ne 0 ]]; then
+        check_fail "cargo build of err-binding concat" \
+                   "rc=$rc2; log:\n$(tail -15 "$T7/cargo.log")"
+    else
+        # Run it: must exit 0 and print a "Failed: " line containing the
+        # underlying DB.open error message.
+        out=$("$T7/out/target/debug/main" 2>&1)
+        rc3=$?
+        if [[ $rc3 -eq 0 && "$out" == *"Failed: "*"DB.open"* ]]; then
+            check_ok "Option<Error> err-binding concat unwraps in format!"
+        else
+            check_fail "Option<Error> err-binding concat runtime" \
+                       "rc=$rc3; out=$out"
+        fi
+    fi
+fi
+
 echo "===================="
 echo "  CLI subcmds: $PASS pass / $FAIL fail"
 [[ $FAIL -eq 0 ]]
