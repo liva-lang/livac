@@ -2,7 +2,7 @@
 
 > **Objetivo:** cerrar todas las carencias detectadas en [ANALISIS_PROYECTO.md](ANALISIS_PROYECTO.md) **antes** de lanzar v2.0.0 final, de forma que el self-hosted (`livac/compiler/`) reemplace al bootstrap (`livac/src/`) sin perder ninguna feature ya prometida.
 >
-> **Estado de partida:** v2.0.0-rc1 (release gate passed). 7/7 gates verde, 10/10 benchmarks <1.15×, gen-2 ≡ gen-3 byte-idéntico, 21/21 bootstrap_apps OK.
+> **Estado de partida:** v2.0.0-rc1 (release gate passed). 7/7 gates verde, 10/10 benchmarks <1.15×, gen-2 ≡ gen-3 byte-idéntico, 21/21 selfhost_apps OK.
 >
 > **Estado destino:** v2.0.0 final. Bootstrap retirado del binario distribuido (conservado en repo como `stage0/`). Tooling completo en gen-2. Carencias de lenguaje y stdlib cerradas.
 >
@@ -37,7 +37,7 @@
 3. **Bootstrap permanece FROZEN salvo para `liva_rt`.** Si algo necesita cambiar en el bootstrap durante el plan, se documenta como excepción en el commit y debe quedar reflejado en `livac/src/FROZEN.md`.
 4. **Cada bloque cierra con su propio gate verde.** No se avanza al siguiente bloque hasta que el actual está mergeado y la suite completa pasa.
 5. **Trabajo en `feat/self-hosting-v2` (rama actual).** No se abre PR a `master` hasta cerrar todos los bloques.
-6. **Tests primero.** Cualquier feature nueva entra acompañada de su `.test.liva` en `compiler/tests/liva/` o de un `bootstrap_apps/appNN_*.liva` que la ejercite.
+6. **Tests primero.** Cualquier feature nueva entra acompañada de su `.test.liva` en `compiler/tests/liva/` o de un `selfhost_apps/appNN_*.liva` que la ejercite.
 7. **Commits locales libres; push y MR siempre con permiso explícito** (regla operacional ya establecida).
 8. **Validación obligatoria por commit:**
    - `cargo test --release` 100% verde
@@ -73,10 +73,10 @@
 
 ### A.1 — Tier 1 PARITY.md (codegen self-contained) — ✅ cerrado por outcome (2026-05-05)
 
-**Verificación:** `bash compiler/tests/bootstrap_apps/run_gen2.sh` → 21/21 pass. Los items ⏳ listados abajo están resueltos en la práctica; la auditoría línea-a-línea queda como deuda menor (no bloqueante).
+**Verificación:** `bash compiler/tests/selfhost_apps/run_gen2.sh` → 21/21 pass. Los items ⏳ listados abajo están resueltos en la práctica; la auditoría línea-a-línea queda como deuda menor (no bloqueante).
 
-- [x] `B144` — Parámetros `Map<K,V>` y `Set<T>` registrados en codegen state. Test: `bootstrap_apps/app18_template.liva`. **(closed by outcome)**
-- [x] `B145` — `string.indexOf(needle, fromIndex)` 2-arg. Test: `bootstrap_apps/app18_template.liva`. **(closed by outcome)**
+- [x] `B144` — Parámetros `Map<K,V>` y `Set<T>` registrados en codegen state. Test: `selfhost_apps/app18_template.liva`. **(closed by outcome)**
+- [x] `B145` — `string.indexOf(needle, fromIndex)` 2-arg. Test: `selfhost_apps/app18_template.liva`. **(closed by outcome)**
 - [x] `B141` — `arr.reduce(0, fn_ref)` envuelve fn-ref en closure. **(closed by outcome)**
 - [x] `B142` — `for g in groups` sobre `[[T]]` registra element type `[T]`. **(closed by outcome)**
 - [x] `B137` + `B150` — `obj.method("literal")` añade `.to_string()` al literal en métodos de usuario. **(closed by outcome)**
@@ -88,7 +88,7 @@
 - [x] `B135` — Switch-arm con `if`-tail. **(closed by outcome — app16_fsm pass)**
 - [x] `B136` — `Set.size` propiedad (vs `.size()`). **(closed by outcome)**
 
-**Gate A.1:** ✅ 21/21 bootstrap_apps verde con gen-2.
+**Gate A.1:** ✅ 21/21 selfhost_apps verde con gen-2.
 
 ### A.1.bis — Hallazgos nuevos durante la auditoría ⚠️
 
@@ -405,7 +405,7 @@ Este es el item más caro del plan. Tower-lsp en Liva no es trivial.
 ### F.2 — Benchmark de tiempo de compilación — ✅ baseline registrado (2026-05-05)
 
 - [x] `benchmarks/compile_speed.sh`: mide tiempo de compilación.
-  - 21 bootstrap_apps modo `check` (front-end): mediana 2–5 ms por programa, **68 ms suma de medianas**.
+  - 21 selfhost_apps modo `check` (front-end): mediana 2–5 ms por programa, **68 ms suma de medianas**.
   - Modo `build --release` disponible vía flag (incluye rustc, ~segundos).
 - [x] Reporta mediana de N runs (default 3, `--runs N` configurable).
 - [x] Baseline persistido en `benchmarks/COMPILE_SPEED.md`.
@@ -554,7 +554,7 @@ Antes de tagear `v2.0.0` (no rc), todos estos checks deben estar verde:
 4. ✅ `benchmarks/run_official.sh` — 10/10 bajo 1.15× sin regresiones >5 %.
 5. ✅ `benchmarks/compile_speed.sh` — sin regresión >10 % vs baseline.
 6. ✅ Coverage gen-2 ≥ 60 % regions.
-7. ✅ Los 21 bootstrap_apps + complex_apps + regression + e2e pasan con gen-2 puro (sin tocar bootstrap).
+7. ✅ Los 21 selfhost_apps + complex_apps + regression + e2e pasan con gen-2 puro (sin tocar bootstrap).
 8. ✅ Todos los `examples/` (incluidos los nuevos de C/D/E) compilan y corren.
 9. ✅ VS Code extension funciona apuntando al gen-2 LSP.
 10. ✅ Website live con docs renderizadas.
@@ -604,11 +604,11 @@ Antes de tagear `v2.0.0` (no rc), todos estos checks deben estar verde:
 
 ### 2026-05-05 — Sesión inicial de ejecución
 
-- ✅ **A.1** — Tier 1 PARITY cerrado por outcome (21/21 bootstrap_apps verde).
+- ✅ **A.1** — Tier 1 PARITY cerrado por outcome (21/21 selfhost_apps verde).
 - ✅ **B.1** — `livac check` ya implementado en gen-2.
 - ✅ **F.2** — `benchmarks/compile_speed.sh` creado y baseline registrado en `benchmarks/COMPILE_SPEED.md` (68ms suma de medianas, modo check, 21 programas).
 - ✅ **F.4** — Auditoría Particle sim 0.44× completada. Descubierto **B157** (`arr[i].mutMethod()` clona en clases). Documentado en `BUGS.md` y `RESULTS.md`.
-- ✅ **B157 fix** (2026-05-05, commit `3463ce5`) — `_suppressIndexElemClone` en ambos compiladores; regression test `compiler/tests/liva/compile/index_mut_method.test.liva`; checksum coincide con Rust en particle sim; 533 cargo tests + 21/21 bootstrap_apps + 5/5 regression + idempotent gen-2≡gen-3 verde.
+- ✅ **B157 fix** (2026-05-05, commit `3463ce5`) — `_suppressIndexElemClone` en ambos compiladores; regression test `compiler/tests/liva/compile/index_mut_method.test.liva`; checksum coincide con Rust en particle sim; 533 cargo tests + 21/21 selfhost_apps + 5/5 regression + idempotent gen-2≡gen-3 verde.
 - 📝 Sin commits ni push hasta que el usuario lo autorice.
 
 ### 2026-05-06 — Continuación autónoma
@@ -617,14 +617,14 @@ Antes de tagear `v2.0.0` (no rc), todos estos checks deben estar verde:
 - ✅ **D.4 Env stdlib** (commit `678a63d`) — `Env.get/has/set/unset/all` en bootstrap (`generate_env_function_call`) y gen-2 (`stdlibName == "Env"`). `map_vars` tracking automático para `Env.all()`. Test `compiler/tests/liva/compile/env_stdlib.test.liva` (4/4 PASS).
 - 🟢 **D.1 JSON** — verificado ya implementado (`JSON.parse`/`JSON.stringify` en ambos compiladores; usuarios no necesitan importar `serde_json`).
 - 🟢 **D.2 HTTP client** — verificado ya implementado (`Http.get/post/put/delete` + alias `HTTP.*` en bootstrap, `Http` en gen-2; backend `reqwest::blocking`).
-- 📊 **Estado validación post-D.4**: 533 cargo tests · 108/109 liva suite (sólo `syntax/destructuring.test.liva` falla — preexistente, requiere C.3 tuplas nativas) · 21/21 bootstrap_apps via gen-2 · gen-2 ≡ gen-3 (src + binary).
-- ✅ **D.3 Path stdlib** — `Path.join/parent/extension/basename/exists/isAbsolute/normalize` (lexical) en ambos compiladores. Test `compiler/tests/liva/compile/path_stdlib.test.liva` (9/9 PASS). Re-validado: 533 cargo + 109/110 liva + 21/21 bootstrap_apps + gen-2 ≡ gen-3.
-- ✅ **D.5 Date timezones (parcial)** — `Date.nowUtc()` (UTC NaiveDateTime), `Date.toIso(d)` (formato ISO 8601), `Date.parseIso(s)` (con fallback a separador `" "` y patrón fallible `(value, errorString)`). `toUtc/toTz` diferidos: requieren crate `chrono-tz` y no hay caso de uso en bootstrap_apps. Test `compiler/tests/liva/compile/date_tz.test.liva` (5/5 PASS). Validación: 533 cargo + 110/111 liva (1 fail preexistente: destructuring) + 21/21 bootstrap_apps + gen-2 ≡ gen-3.
+- 📊 **Estado validación post-D.4**: 533 cargo tests · 108/109 liva suite (sólo `syntax/destructuring.test.liva` falla — preexistente, requiere C.3 tuplas nativas) · 21/21 selfhost_apps via gen-2 · gen-2 ≡ gen-3 (src + binary).
+- ✅ **D.3 Path stdlib** — `Path.join/parent/extension/basename/exists/isAbsolute/normalize` (lexical) en ambos compiladores. Test `compiler/tests/liva/compile/path_stdlib.test.liva` (9/9 PASS). Re-validado: 533 cargo + 109/110 liva + 21/21 selfhost_apps + gen-2 ≡ gen-3.
+- ✅ **D.5 Date timezones (parcial)** — `Date.nowUtc()` (UTC NaiveDateTime), `Date.toIso(d)` (formato ISO 8601), `Date.parseIso(s)` (con fallback a separador `" "` y patrón fallible `(value, errorString)`). `toUtc/toTz` diferidos: requieren crate `chrono-tz` y no hay caso de uso en selfhost_apps. Test `compiler/tests/liva/compile/date_tz.test.liva` (5/5 PASS). Validación: 533 cargo + 110/111 liva (1 fail preexistente: destructuring) + 21/21 selfhost_apps + gen-2 ≡ gen-3.
 - ✅ **A.2 ERR-UNIFY (Tier 2)** — auditoría completa via `compiler/tests/liva/compile/err_unify_audit.test.liva` (8/8 PASS). Hallazgos cerrados:
   - **B130** — `e.message` en bloque `if err { ... }` (truthy-narrowing) ahora emite `String` (`.as_ref().unwrap().message.clone()`), no `&str`. Bootstrap fix en `codegen.rs` con nuevo `truthy_narrowed_error_binding_vars: HashSet<String>`.
   - **B143** — `parseInt(s)/parseFloat(s) or fail "msg"` en `let` single-binding ahora desestructura el tuple `(value, Option<Error>)` correctamente y propaga via `liva_rt::Error::chain`. Antes el `or fail` se descartaba silenciosamente.
   - **B127/B128/B131/B140** — verificados ya funcionando bajo bootstrap (validados por audit).
-  - Gen-2 mirror del narrowing diferido: ningún `bootstrap_apps/*` lo necesita (21/21 verde tras el fix). Documentado en `compiler/PARITY.md` Tier 2.
-  - Validación: 533 cargo + 111/112 liva (1 fail preexistente) + 21/21 bootstrap_apps + gen-2 ≡ gen-3 (idempotente, src + binary).
+  - Gen-2 mirror del narrowing diferido: ningún `selfhost_apps/*` lo necesita (21/21 verde tras el fix). Documentado en `compiler/PARITY.md` Tier 2.
+  - Validación: 533 cargo + 111/112 liva (1 fail preexistente) + 21/21 selfhost_apps + gen-2 ≡ gen-3 (idempotente, src + binary).
 - ✅ **A.4 multi-file imports (parcial)** — verificado: `examples/calculator/` (3 ficheros, `import { ... } from "./..."`) compila con gen-2 y produce output byte-idéntico al bootstrap. Gate parcial: 1/N ejemplos multi-fichero pasados.
 - ✅ **A.4 gate cerrado** — `examples/github-dashboard/src/` (8 ficheros, 4 niveles de profundidad: `src/main.liva`, `src/api/{users,issues}.liva`, `src/models/{entities,stats}.liva`, `src/utils/{format,config}.liva`, `src/display/output.liva`) compila con gen-2 y produce output byte-idéntico al bootstrap (25 líneas). `examples/ai/rest-api/` excluido del gate por depender de `actix-web` via `use rust { }` interop (cubierto por A.3). **Gate A.4 ✅** salvo cobertura de `module.liva` (medición pendiente).

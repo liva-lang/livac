@@ -4,9 +4,9 @@
 > **Target:** `livac/compiler/src/*.liva` (gen-2, escrito en Liva).
 > **Goal:** v2.1 — gen-2 cubre 100 % del bootstrap → eliminar `livac/src/*.rs` salvo `liva_rt`.
 >
- > **Status (2026-05-05, PLAN.md A.1 audit):** ✅ **21/21 bootstrap_apps pasan con gen-2** (re-verificado).
+ > **Status (2026-05-05, PLAN.md A.1 audit):** ✅ **21/21 selfhost_apps pasan con gen-2** (re-verificado).
 > Los items marcados ⏳ Tier 1 abajo están **cerrados por outcome**: sus tests asociados
-> pasan en `compiler/tests/bootstrap_apps/run_gen2.sh`. Una auditoría línea-a-línea queda
+> pasan en `compiler/tests/selfhost_apps/run_gen2.sh`. Una auditoría línea-a-línea queda
 > como deuda menor; no bloquea v2.0.
 >
 > ⚠️ **Hallazgo nuevo durante la auditoría F.4:** `arr[i].mutMethod()` sobre clases
@@ -17,7 +17,7 @@
 >
 > **Métrica viva:** `bash compiler/tests/run_all.sh` (incluye este gate).
 >
-> **Pendiente real para v2.1** (no cubierto aún por bootstrap_apps):
+> **Pendiente real para v2.1** (no cubierto aún por selfhost_apps):
 > - HTTP routing en self-host (axum + async closures) — ver `BACKLOG § 9.4`.
 > - Stdlib emission con tuplas nativas (DB.open re-wrap) — ídem.
 > - Multi-file imports cobertura ≥50 % en `module.rs`.
@@ -45,7 +45,7 @@ Ordenados por simpleza creciente. Empezar por aquí.
 | B151 | ✅ | 🔷 | Escapes `\"` dentro de `${...}` en string interpolation | parser+lexer | `13b93c0` |
 | B152 | ✅ | 🔶 | `impl Display for Class<T>` con campo `[T]` — `app23_stack` 21/21 verde. Verificado 2026-05-06. |
 | B153 | ✅ | 🔶 | Free generic functions auto bounds — `app23_stack` 21/21 verde. Verificado 2026-05-06. |
-| GAP-007 | ✅ | ⚡ | Function types `(T) => U` → `Box<dyn Fn(T) -> U>` — verificado 2026-05-07: `bootstrap_apps/app28_closures.liva` 21/21 verde + `regression/gap007_fn_types.liva` (inline lambda args). Caso let-bound closure por identifier sigue OPEN en bootstrap (FROZEN); gen-2 mirrors that behavior. |
+| GAP-007 | ✅ | ⚡ | Function types `(T) => U` → `Box<dyn Fn(T) -> U>` — verificado 2026-05-07: `selfhost_apps/app28_closures.liva` 21/21 verde + `regression/gap007_fn_types.liva` (inline lambda args). Caso let-bound closure por identifier sigue OPEN en bootstrap (FROZEN); gen-2 mirrors that behavior. |
 | B147 | ✅ | ⚡ | `arr.reverse()` en expr-ctx → block-expression | codegen | `a3bba46` |
 | B146 | ✅ | ⚡ | `pq.pop()` / `this.method()` en user class — no array dispatch | codegen | `cfa30c3` + `aa56f23` |
 | BIN-PAREN | ✅ | ⚡ | Binary precedence parens `(idx-1)/2` | codegen | `a3bba46` |
@@ -63,7 +63,7 @@ Ordenados por simpleza creciente. Empezar por aquí.
 | B148 | ✅ | ⚡ | `this.X` lectura tras asignación dentro de constructor — `app27_b148` 21/21 verde.
 | B135 | ✅ | 🔶 | Switch-arm con `if`-tail / guard sobre discriminante Copy-type — gen-2 ahora emite `match n` (sin `&`) cuando tag es number/bool/float, vía helper compartido `_emitSwitchHead` (codegen.liva). Test: `compile/switch_guard.test.liva` 5/5. Verificado 2026-05-06. |
 | B136 | ✅ | 🔶 | `Set.size` (vs `.size()`) — gen-2 emite `(set.len() as i32)` (codegen.liva:8093). Verificado 2026-05-06. |
-| B134 | ✅ | 🔶 | `for k, v in map` typing en gen-2 — verificado 2026-05-06 (`bootstrap_apps/app17_pipeline.liva` 21/21 verde + smoke `Map<string,int>` OK). |
+| B134 | ✅ | 🔶 | `for k, v in map` typing en gen-2 — verificado 2026-05-06 (`selfhost_apps/app17_pipeline.liva` 21/21 verde + smoke `Map<string,int>` OK). |
 
 ---
 
@@ -170,9 +170,9 @@ Antes de portar masivo, gen-2 necesita esto para ser **escalable**:
 
 ## Métrica de avance
 
-`bootstrap_apps` ejecutados con gen-2:
+`selfhost_apps` ejecutados con gen-2:
 - **2026-04-30: 21/21 pasan** ✅ — meta v2.1 alcanzada al cierre de Phase 10.
-- Script: `compiler/tests/bootstrap_apps/run_gen2.sh` (también incluido en `compiler/tests/run_all.sh`).
+- Script: `compiler/tests/selfhost_apps/run_gen2.sh` (también incluido en `compiler/tests/run_all.sh`).
 
 > Lo que sigue debajo es el **historial** del camino recorrido. Algunos
 > items aún marcados ⏳ pueden estar implícitamente resueltos porque su

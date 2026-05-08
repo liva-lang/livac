@@ -76,7 +76,7 @@ The roadmap is organized into focused phases:
 >
 > **Bench final** (all under 1.15x gate): Line 1.07x · CSV 1.00x · Word 0.98x · Map 1.09x · Sort/Filter+Map <6ms
 >
-> **Validation**: 7/7 gates green — `rebuild_selfhost` (idempotent), `bootstrap_apps` 21/21, `multifile_apps` 3/3, `regression` 5/5, `complex_apps` 4/4, `e2e_selfhost` 5/5, `cargo test --release` 528+ pass
+> **Validation**: 7/7 gates green — `rebuild_selfhost` (idempotent), `selfhost_apps` 21/21, `multifile_apps` 3/3, `regression` 5/5, `complex_apps` 4/4, `e2e_selfhost` 5/5, `cargo test --release` 528+ pass
 
 ---
 

@@ -6,7 +6,7 @@
 - Mode: `check` (front-end) and `build --release` (full pipeline + rustc)
 
 
-## bootstrap_apps (check)
+## selfhost_apps (check)
 
 | Program | LOC | min | median | max |
 |---|---:|---:|---:|---:|

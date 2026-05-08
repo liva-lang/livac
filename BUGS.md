@@ -208,119 +208,119 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Repro:** `if x > limit { return fail "too big" }`.
 - **Problema:** El handler `Stmt::Return` envolvía la expresión en `Ok(...)`, y `Expr::Fail` ya emite `return Err(...)`, dando `return Ok(            return Err(...));\n);` (paréntesis sueltos, return anidado, parse error en cargo).
 - **Fix:** Caso especial: si `Stmt::Return` contiene `Expr::Fail`, emitir directamente `return Err(liva_rt::Error::from(msg));`.
-- **Test:** `bootstrap_apps/app8_orders.liva` (línea `return fail $"over credit:{c.id}"`).
+- **Test:** `selfhost_apps/app8_orders.liva` (línea `return fail $"over credit:{c.id}"`).
 
 ### B130 — `e.message` falla con `.get_field("message")` después de narrowing `if e != null` ⚡ ✅ FIXED (bootstrap)
 - **Repro:** `let v, e = fallibleCall(); if e != null { print(e.message) }`.
 - **Problema:** Tras `if let Some(e) = e {...}` (narrowing), `e` es `liva_rt::Error` (no Option), pero el codegen seguía emitiendo `e.as_ref().map(|x| x.message.as_str()).unwrap_or("None")` (válido solo para `Option<Error>`). Y al fallar, caía a la heurística JsonValue → `e.get_field("message").unwrap_or_default()` que tampoco compila.
 - **Fix:** Nuevo set `narrowed_error_binding_vars`. Cuando `Stmt::If` narrowea un error binding, se inserta el nombre; el handler de `error.message` consulta el set y emite `e.message.clone()` en bloque narrowed, y el original `as_ref().map(...).unwrap_or("None")` fuera.
-- **Test:** `bootstrap_apps/app8_orders.liva` (4 bloques `if eN != null { print(eN.message) }`).
+- **Test:** `selfhost_apps/app8_orders.liva` (4 bloques `if eN != null { print(eN.message) }`).
 
 ### B131 — `let alice = m.get(k) or Class(...)` accede a `alice.field` con `.get_field("field")` ⚡ ✅ FIXED (bootstrap)
 - **Repro:** `let alice = shop.customers.get("u1") or Customer("?","?",0); print(alice.credit)`.
 - **Problema:** Tras `Map.get(k) or Class(...)`, la variable resultante no se registraba como instancia de clase. La heurística de `is_class_instance` fallaba y el property access caía a JsonValue path → `alice.get_field("credit")...` (Error E0599).
 - **Fix:** Al final del handler `or_value`, si el `default_val` es un constructor de clase (Call cuyo callee es Identifier ∈ class_fields), insertar el var en `class_instance_vars` y registrar el tipo en `var_types`.
-- **Test:** `bootstrap_apps/app8_orders.liva` (`let alice = shop.customers.get(...) or Customer(...)`).
+- **Test:** `selfhost_apps/app8_orders.liva` (`let alice = shop.customers.get(...) or Customer(...)`).
 
 ### B132 — `Map.get(k) or fail "msg"` se trataba como expresión no-fallible (silently dropped fail) ⚡ ✅ FIXED (bootstrap)
 - **Repro:** `let c = shop.customers.get(id) or fail "no customer"`.
 - **Problema:** El handler `or_fail_msg` no contemplaba el caso `is_map_get_call`, así que caía a "Non-fallible expression — just assign directly (or fail never triggers)" emitiendo `let c = m.get(&id).cloned().unwrap_or_default();`. Si la key no existe, devuelve `Default::default()` (Customer vacío) en lugar de propagar el error.
 - **Fix:** Añadir branch `else if is_map_get_call(&var.init)` antes del fallback: emite `let c = match m.get(&k).cloned() { Some(v) => v, None => return Err(liva_rt::Error::new(msg, fn, loc)) };`.
-- **Test:** `bootstrap_apps/app8_orders.liva` (`place("ghost", ...)` → `err4:no customer:ghost`).
+- **Test:** `selfhost_apps/app8_orders.liva` (`place("ghost", ...)` → `err4:no customer:ghost`).
 
 ### B133 — `let q = [start]` partial-moves `start` (E0382) cuando se usa después ⚡ ✅ FIXED (bootstrap)
 - **Repro:** `let queue = [start]; dist.set(start, 0)`.
 - **Problema:** Bootstrap emitía `let queue = vec![start]; dist.insert(start.clone(), 0);` — el primer uso movía `start` (String), y `.clone()` en el segundo uso no podía compensar.
 - **Fix:** En `Expr::ArrayLiteral`, si un elemento es `Expr::Identifier` con tipo no-Copy (string_vars / array_vars / map_vars / class_instance_vars), emitir `.clone()`.
-- **Test:** `bootstrap_apps/app9_graph.liva` (`bfs(start, target)` con `let queue = [start]; dist.set(start, 0)`).
+- **Test:** `selfhost_apps/app9_graph.liva` (`bfs(start, target)` con `let queue = [start]; dist.set(start, 0)`).
 
 ### B132b — `let mut` no se inferia para variables que vienen de `m.get(k) or []` y luego mutan ⚡ ✅ FIXED (bootstrap)
 - **Repro:** `let listA = adj.get(a) or []; listA.push(b)` → "cannot borrow as mutable" (E0596).
 - **Problema:** Las ramas de `or_value` y `or_fail_msg` emitían `let X = ...` sin consultar `mutated_vars`; las mutaciones posteriores requerían `let mut X = ...`.
 - **Fix:** Las 12 emisiones de `let {} = ` y `let {} = match ` en estas ramas ahora prefijan `mut` cuando `mutated_vars.contains(&var_name)`.
-- **Test:** `bootstrap_apps/app9_graph.liva` (`addEdge` muta listas obtenidas con `or []`).
+- **Test:** `selfhost_apps/app9_graph.liva` (`addEdge` muta listas obtenidas con `or []`).
 
 ### B134 — `for k, v in mapField` con `Map<K, [T]>` o `Map<K, V>` local trataba `v` como string ⚡ ✅ FIXED (bootstrap)
 - **Repro:** `groups: Map<string, [number]>; for k, vs in this.groups { for v in vs { ... } }` generaba `for v in vs.chars()`.
   También `let freq: Map<string, number> = {}; for k, v in freq { total = total + v }` generaba `format!("{}{}", total, v)` en vez de `total + v`.
 - **Problema:** El handler de two-var for-loop registraba blindamente var2 en `string_vars`, sin consultar el tipo del valor del Map. Para campos de clase, `class_map_value_types` solo guardaba tipos `Simple`. Para Maps locales, no había tracking.
 - **Fix:** (1) `class_map_value_types` ahora codifica también `[T]` para Array values y `{}` para Map. (2) Nuevo `local_map_value_types` poblado en let-binding con anotación `Map<K, V>`. (3) En el two-var for-loop el handler consulta ambos y registra var2 en `string_vars` / `array_vars` (con `typed_array_vars` para anidar) / `map_vars` según corresponda.
-- **Test:** `bootstrap_apps/app10_stats.liva`, `app11_words.liva`.
+- **Test:** `selfhost_apps/app10_stats.liva`, `app11_words.liva`.
 
 ### B135 — Switch arm Block con `if-else` final como tail-expr emitía `;` que descartaba el valor ⚡ ✅ FIXED (bootstrap)
 - **Repro:** `return switch t { Tree.Node(l, r) => { let dl = depth(l); let dr = depth(r); if dl > dr { dl + 1 } else { dr + 1 } } }` → E0308 "expected i32, found ()".
 - **Problema:** El handler de `SwitchBody::Block` solo trataba `Stmt::Return` como tail-expression. Cualquier otro statement final (incluido `Stmt::If` o `Stmt::Expr`) se emitía con `;` final que dropea el valor.
 - **Fix:** Nuevo helper `generate_stmt_as_tail_expr` que emite (a) `Stmt::Expr(e)` como `e` sin `;`, (b) `Stmt::If` con else como `if c { ... } else { ... }` recursivamente con tail-expr en cada rama, (c) `Stmt::Return` como antes. Aplicado en ambas ramas SwitchBody::Block (con y sin pattern bindings).
-- **Test:** `bootstrap_apps/app12_tree.liva`, `app13_calc.liva`.
+- **Test:** `selfhost_apps/app12_tree.liva`, `app13_calc.liva`.
 
 ### B136 — `Set.size()` no estaba implementado ⚡ ✅ FIXED (bootstrap)
 - **Repro:** `let s: Set<number> = {}; s.size()` → "no method named `size` found for struct `HashSet`".
 - **Problema:** `size` no estaba en la lista de métodos reconocidos para Sets, y no tenía codegen.
 - **Fix:** Añadido a `is_set_method` matcher y handler que emite `(set.len() as i32)`.
-- **Test:** `bootstrap_apps/app14_setops.liva`.
+- **Test:** `selfhost_apps/app14_setops.liva`.
 
 ### B137 — `instance.count("literal")` no `.to_string()`-ea el argumento ⚡ ✅ FIXED (bootstrap)
 - **Repro:** método de usuario `count(category: string): number` invocado como `lib.count("fiction")` emitía `lib.count("fiction")` (sin `.to_string()`), `expected String, found &str`.
 - **Problema:** El parche B10 (que evita la rama de iteradores cuando el objeto es una instancia de clase) no propagaba la conversión `&str → String` para argumentos string-literal/var.
 - **Fix:** En el handler de B10 ahora se aplica `.to_string()` para `Expr::Literal::String` y `.clone()` para `string_vars` / `class_instance_vars`.
-- **Test:** `bootstrap_apps/app15_library.liva`.
+- **Test:** `selfhost_apps/app15_library.liva`.
 
 ### B138 — `fail "msg"` en posición de expresión emitía `;\n` rompiendo switch arms ⚡ ✅ FIXED (bootstrap)
 - **Repro:** `return switch s { State.Idle => switch a { Action.Start => State.Running; _ => fail "..." } }` → "expected `,`, `.`, `?`, `}`, or an operator, found `;`".
 - **Problema:** `Expr::Fail` siempre emitía `\twrite_indent return Err(...);\n`. En contexto stmt eso se duplicaba con el `;` de `Stmt::Expr`; en contexto switch-arm rompía la sintaxis.
 - **Fix:** `Expr::Fail` ahora emite sólo `return Err(liva_rt::Error::from(...))` (sin indent ni `;`). El stmt context añade `;` por separado.
-- **Test:** `bootstrap_apps/app16_fsm.liva`.
+- **Test:** `selfhost_apps/app16_fsm.liva`.
 
 ### B139 — switch arms en función `T!` no auto-envuelven valores no-fail en `Ok(...)` 🔶 OPEN
 - **Repro:** `transition(s, a): State! { return switch s { State.Idle => switch a { Action.Start => State.Running, _ => fail "..." } ... } }` → arm `State.Running` queda como `State::Running` pero la función espera `Result<State, Error>`. Sólo el ternary-with-fail (línea 7920) wrappea automáticamente.
-- **Workaround:** reemplazar el switch externo por if-else encadenado con `return State.Running` explícito (ver `bootstrap_apps/app16_fsm.liva`).
+- **Workaround:** reemplazar el switch externo por if-else encadenado con `return State.Running` explícito (ver `selfhost_apps/app16_fsm.liva`).
 - **Pendiente:** detectar en `generate_switch_expr` cuando alguna arm contiene `fail` y wrappear las otras arms en `Ok(...)`. Misma idea que el ternary B127.
 
 ### B140 — `or <default>` propagaba fallibilidad al caller incorrectamente ⚡ ✅ FIXED (bootstrap)
 - **Repro:** `safe(x): number { let n = fail_fn(x) or 0; return n + 1 }`; el caller recibía `E0701: 'safe' can fail` aunque el `or 0` ya consume el error localmente.
 - **Problema:** `semantic.rs::stmt_contains_fail` para `Stmt::VarDecl` devolvía `true` siempre que el init contenía una llamada fallible, sin importar si era `or fail` (que sí propaga) o `or <default>` / error binding (que no propagan).
 - **Fix:** en `Stmt::VarDecl`: si `or_fail_msg.is_some()` → propaga; si `is_fallible` (error binding o `or <default>`) → NO propaga; resto → recursar en init.
-- **Test:** `bootstrap_apps/app17_pipeline.liva` (función `sum_parsed` y `count_bad`).
+- **Test:** `selfhost_apps/app17_pipeline.liva` (función `sum_parsed` y `count_bad`).
 
 ### B141 — point-free fn ref en `.reduce(init, fn)` rompe firma de `fold` ⚡ ✅ FIXED (bootstrap)
 - **Repro:** `arr.reduce(0, max_of)` con `max_of(a, b): number` → emite `arr.iter().fold(0, max_of)` pero `fold` espera `FnMut(B, &T) -> B`.
 - **Fix:** en `generate_method_call` de `reduce`, cuando arg[1] es `Expr::Identifier`, envolver en closure `|acc, x| fn(acc, x.clone())`.
-- **Test:** `bootstrap_apps/app17_pipeline.liva`.
+- **Test:** `selfhost_apps/app17_pipeline.liva`.
 
 ### B142 — for nested sobre `[[T]]` no detectaba el array interno ⚡ ✅ FIXED (bootstrap)
 - **Repro:** `let groups: [[number]] = [...]; for g in groups { for x in g { ... } }` → inner for trataba `g` como string y emitía `g.chars()` con `flat_total = format!(...)` (concatenación de strings) en lugar de suma.
 - **Problema:** `typed_array_vars` solo registraba `TypeRef::Simple` como element type. Para `Array(Array(T))` perdía la dimensión interna y caía en el default-string-iterable.
 - **Fix:** en VarDecl con `TypeRef::Array(TypeRef::Array(T))`, registrar element type como `"[T]"`. En el for-loop sobre arrays, si el element type es `"[X]"` → `g` se registra en `array_vars` y `typed_array_vars` con elem `X`, habilitando el inner for.
-- **Test:** `bootstrap_apps/app17_pipeline.liva`.
+- **Test:** `selfhost_apps/app17_pipeline.liva`.
 
 ### B143 — `s.toInt() or fail "msg"` no era fallible ⚡ ✅ FIXED (bootstrap)
 - **Repro:** `parse_int(s): number { let n = s.toInt() or fail $"bad: {s}"; return n }` — `or fail` no propagaba el error de parse: `toInt()` emite `parse::<i32>().unwrap_or(0)`.
 - **Fix:** en `or fail` para `MethodCall::toInt|toFloat`, emitir `match s.parse::<T>() { Ok(v) => v, Err(e) => return Err(liva_rt::Error::chain(...)) }`.
-- **Test:** `bootstrap_apps/app17_pipeline.liva`.
+- **Test:** `selfhost_apps/app17_pipeline.liva`.
 
 ### B144 — Parámetros `Map<K,V>` y `Set<T>` no se registraban en map_vars/set_vars ⚡ ✅ FIXED (bootstrap)
 - **Repro:** `render(tpl: string, vars: Map<string, string>) { let v = vars.get(key) or "" }` → emite `vars.get(key.clone())` (sin `&`, sin `.cloned()`), E0308.
 - **Problema:** Los parámetros con `TypeRef::Array` se trackeaban en `array_vars`/`typed_array_vars`, pero los de `TypeRef::Map` y `TypeRef::Set` se ignoraban, así que el dispatch a `generate_map_method_call` / `generate_set_method_call` no se activaba.
 - **Fix:** En la rama de tracking de params, añadir `TypeRef::Map(_, V)` → `map_vars` + `local_map_value_types` con encoding (Simple / `[T]` / `{}`); `TypeRef::Set(_)` → `set_vars`.
-- **Test:** `bootstrap_apps/app18_template.liva`.
+- **Test:** `selfhost_apps/app18_template.liva`.
 
 ### B145 — `string.indexOf(needle, fromIndex)` ignoraba el segundo argumento ⚡ ✅ FIXED (bootstrap)
 - **Repro:** `tpl.indexOf("{{", i)` en un loop while emite `tpl.find("{{")` ignorando `i` → loop infinito o panic en `substring`.
 - **Problema:** El handler de `indexOf` solo emitía el caso de un argumento.
 - **Fix:** Cuando `args.len() >= 2`, emitir un block que clona el receiver, computa `__from = i as usize`, y hace `__s[__from..].find(&needle).map(|i| (i + __from) as i32).unwrap_or(-1)` (con guard si `__from >= __s.len()`).
-- **Test:** `bootstrap_apps/app18_template.liva`.
+- **Test:** `selfhost_apps/app18_template.liva`.
 
 ### B146 — `pq.pop()` en clase de usuario recibía `.expect("pop from empty array")` ⚡ ✅ FIXED (bootstrap)
 - **Repro:** Una clase `PriorityQueue` con método `pop(): number` usado como `pq.pop()` emitía `pq.pop().expect("pop from empty array")` → E0599 (`i32` no tiene `expect`).
 - **Problema:** El post-transform `(ArrayAdapter::Seq, "pop") => ".expect(...)"` se aplicaba sin comprobar si el receiver era una instancia de clase de usuario.
 - **Fix:** Antes de añadir `.expect("pop from empty array")`, comprobar que el receiver no esté en `class_instance_vars`.
-- **Test:** `bootstrap_apps/app19_pq.liva`.
+- **Test:** `selfhost_apps/app19_pq.liva`.
 
 ### B147 — `arr.reverse()` sobre `[number]` emitía `.chars().rev().collect::<String>()` ⚡ ✅ FIXED (bootstrap)
 - **Repro:** `let asc = desc.reverse()` con `desc: [number]` (variable de loop sobre array de arrays) emitía `desc.chars().rev().collect::<String>()` → E0599 (`Vec<i32>` no tiene `chars`).
 - **Problema:** `is_string_method` matcheaba `reverse` siempre que el adapter fuera `Seq`, sin discriminar por tipo del receiver.
 - **Fix:** Detectar `reverse` sobre receiver registrado en `array_vars` (y no en `string_vars`) y emitir `{ let mut __v = receiver.clone(); __v.reverse(); __v }`.
-- **Test:** `bootstrap_apps/app19_pq.liva`.
+- **Test:** `selfhost_apps/app19_pq.liva`.
 
 ### B148 — `this.X` no se rebinds en cuerpo no-asignación del constructor ⚡ ✅ FIXED (bootstrap)
 - **Repro:**
@@ -338,35 +338,35 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
   ```
 - **Problema:** El constructor de Liva tenía un esquema en dos fases: (1) emitir stmts no-`this.field=`, (2) emitir `Self { ... }`. Las stmts de fase (1) que leían `this` salían al output como literal `this`, pero `Self` aún no existía.
 - **Fix:** Refactor de Phase 1: para cada `this.X = expr` top-level se emite `let mut __field_X = <expr>;` (o `__field_X = <expr>;` en re-asignaciones) inline, en orden de fuente. Para los demás stmts, `generate_expr` reescribe `Expr::Member { object: this, property: X }` a `__field_X` cuando `X` ya está asignado y `self.in_constructor` es true. Phase 2 simplemente emite `Self { x: __field_x, ... }`. Mantiene last-write-wins y evita los problemas de borrow del esquema antiguo.
-- **Test:** `bootstrap_apps/app27_b148.liva` (sin workaround).
+- **Test:** `selfhost_apps/app27_b148.liva` (sin workaround).
 
 ### B149 — Vars locales del constructor mutadas no se emiten con `mut` ⚡ ✅ FIXED (bootstrap)
 - **Repro:** `constructor() { let ks: [string] = []; for i in 0..n { ks.push("") } ... }` → E0596: `cannot borrow ks as mutable`.
 - **Problema:** El handler de constructor entraba al loop de stmts sin ejecutar el pre-pass `collect_mutated_vars_in_block` que sí corre en métodos normales (`mutated_vars` quedaba vacío).
 - **Fix:** Pre-poblar `self.mutated_vars` con las mutaciones del cuerpo antes de emitir las stmts del constructor.
-- **Test:** `bootstrap_apps/app21_hashmap.liva`.
+- **Test:** `selfhost_apps/app21_hashmap.liva`.
 
 ### B150 — Método de usuario `obj.method("literal")` no convertía string lit a `String` ⚡ ✅ FIXED (bootstrap)
 - **Repro:** `m.get("apple")` con `HashMap.get(key: string)` emitía `m.get("apple")` (`&str`) → E0308 (esperaba `String`).
 - **Problema:** B137 solo cubría `count`. Para el resto de métodos de usuario, los args literales-string no se promocionaban.
 - **Fix:** En el loop genérico de args de `generate_method_call_expr`, cuando el receiver está en `class_instance_vars` y el arg es `Literal::String`, append `.to_string()`.
-- **Test:** `bootstrap_apps/app21_hashmap.liva`.
+- **Test:** `selfhost_apps/app21_hashmap.liva`.
 
 ### B151 — String interpolation con `\"` escapado dentro de `${...}` no se parsea ⚡ ✅ FIXED (bootstrap)
 - **Repro:** `print($"a:{m.get(\"apple\")}")` emitía literal `a:{m.get(\"apple\")}` (sin sustituir la expresión).
 - **Problema:** `parse_string_template_parts` recogía el contenido del placeholder `{...}` literalmente; cuando el placeholder traía `\"` para escapar las comillas del `$"..."` exterior, el sub-parser veía `\` como token inválido y caía al fallback de "texto literal".
 - **Fix:** Dentro del bucle que recoge `expr_src` añadir manejo de escapes (`\"`→`"`, `\\`→`\`, `\n`/`\r`/`\t`) antes de pasar el contenido a `parse_template_expression`.
-- **Test:** `bootstrap_apps/app25_parser.liva` (escapes restaurados al patrón original).
+- **Test:** `selfhost_apps/app25_parser.liva` (escapes restaurados al patrón original).
 
 ### B152 — `impl Display for Class<T>` con campo `[T]` faltaba bound `Debug` ⚡ ✅ FIXED (bootstrap)
 - **Repro:** `Stack<T> { items: [T] }` generaba `write!(f, "Stack {{ items: {:?} }}", self.items)` con `impl<T: Clone + Display>` — falta `Debug` para `{:?}` → E0277.
 - **Fix:** Pre-scan los campos antes de emitir el `impl Display`. Si alguno usa `{:?}` (Array / Map / Set / Optional / enum), añadir `std::fmt::Debug` a las bounds de cada type param.
-- **Test:** `bootstrap_apps/app23_stack.liva`.
+- **Test:** `selfhost_apps/app23_stack.liva`.
 
 ### B153 — Free generic functions sin bounds `Clone` rompían en patrones comunes ⚡ ✅ FIXED (bootstrap)
 - **Repro:** `firstOf<T>(items: [T], fallback: T): T { return items[0] }` emitía `items[0].clone()` pero el type param `T` no tenía bound `Clone` → E0599.
 - **Fix:** Auto-añadir `Clone + std::fmt::Display` a cada type param de funciones libres genéricas (mismo trato que ya recibían las clases vía B103). Si el usuario define constraints explícitas, se anexan.
-- **Tests:** `bootstrap_apps/app23_stack.liva`. Snapshot `feature_generic_function` actualizada para reflejar las nuevas bounds.
+- **Tests:** `selfhost_apps/app23_stack.liva`. Snapshot `feature_generic_function` actualizada para reflejar las nuevas bounds.
 
 ### B154 — `expect(receiver.method())` se reescribe a `.iter().filter().count()` cuando method devuelve `i32` 🔶 OPEN
 - **Repro:** En un `*.test.liva`, `expect(makeStore().count()).toBe(3)` (donde `count()` retorna `number`) genera `make_store().iter().filter().count() as i32` en lugar de `make_store().count()` → E0599 "no method named `iter` for TaskStore".
@@ -393,7 +393,7 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Detección:** auditoría F.4 del bench `Particle sim` (2026-05-05). El benchmark medía 0.44× contra Rust precisamente porque LLVM eliminaba todo el cuerpo del bucle al ser código muerto.
 - **Fix:** flag `suppress_index_elem_clone` (Rust) / `_suppressIndexElemClone` (Liva) puesto a true cuando el receiver de un method-call es `Expr::Index { .. }`. La emisión de `Expr::Index` consulta el flag y omite el `.clone()` final, dejando que `IndexMut` produzca `&mut Element`. Adicionalmente, el análisis `mutated_vars` del bootstrap ahora marca el var base de `arr[i].method()` como mutado (necesario para emitir `let mut arr`).
 - **Test de regresión:** `compiler/tests/liva/compile/index_mut_method.test.liva` (2 tests, pasan).
-- **Validación:** 533 cargo tests · 21/21 bootstrap_apps · 5/5 regression · gen-2 ≡ gen-3 idempotente.
+- **Validación:** 533 cargo tests · 21/21 selfhost_apps · 5/5 regression · gen-2 ≡ gen-3 idempotente.
 
 
 ## Carencias del lenguaje detectadas
@@ -418,13 +418,13 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Decisión pendiente:** unificar al estilo Python (separador espacio) para consistencia. Afecta `complex_apps` snapshots si se cambia.
 
 ### GAP-005 — Gen-2 lag en patrones avanzados de error handling y Map<K,V> (V no-trivial) 🔶
-- **Síntomas observados al ejecutar `bootstrap_apps/app8_orders.liva` y `app9_graph.liva` con gen-2:**
+- **Síntomas observados al ejecutar `selfhost_apps/app8_orders.liva` y `app9_graph.liva` con gen-2:**
   - Parser de gen-2 rechaza el sufijo `T!` ("Expected identifier").
   - `let q = [start]` no clona Identifiers no-Copy en array literals (E0382).
   - `let listA = m.get(k) or []; listA.push(...)` no infiere `mut`.
   - `Map.get(k) or fail "msg"` cae a `unwrap_or_default()` (igual que bootstrap antes de B132).
   - Error binding `e.message` post-narrowing emite `.get_field("message")` (igual que bootstrap antes de B130).
-- **Plan:** mirror las correcciones B127–B133 en `compiler/src/codegen.liva` cuando se decida priorizar paridad. Mientras tanto los apps que disparan estos casos viven en `compiler/tests/bootstrap_apps/` (no se ejecutan contra gen-2).
+- **Plan:** mirror las correcciones B127–B133 en `compiler/src/codegen.liva` cuando se decida priorizar paridad. Mientras tanto los apps que disparan estos casos viven en `compiler/tests/selfhost_apps/` (no se ejecutan contra gen-2).
 
 ### GAP-006 — String interpolation no admite escapes `\"` dentro de `{...}` 🔷
 - **Repro:** `print($"k:{m.get(\"key\")}")` produce literalmente `k:{m.get(\"key\")}` (no expande la interpolación).
@@ -446,7 +446,7 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
   - Parser: `parse_base_type` acepta `() => U`, `(T) => U`, `(T1, T2) => U` (peek de `Token::Arrow` después del `)`).
   - Codegen: `function_param_types: HashMap<String, Vec<Option<TypeRef>>>` para wrapping automático de args `Lambda` en `Box::new(...)` cuando el parámetro espera `Box<dyn Fn>`.
   - Cascade: arms `TypeRef::Fn` añadidos en `type_contains_param`, `expand_type_alias`, `substitute_type_params_codegen`, `format_type_ref`, `collect_type_ref_usages`, `type_ref_contains_name` (semantic), `substitute_type_params` (semantic), `type_supports_length`, `validate_type_ref`, `validate_json_parse_type_hint` (rechaza con E0904).
-- **Stress app:** `compiler/tests/bootstrap_apps/app28_closures.liva` cubre `apply` y `compose` con tipos `(number) => number`.
+- **Stress app:** `compiler/tests/selfhost_apps/app28_closures.liva` cubre `apply` y `compose` con tipos `(number) => number`.
 - **Limitaciones:** la inferencia de closures-as-return (Repro 2 sin anotación explícita) sigue requiriendo el tipo explícito. Cuando se anota el retorno como `(T) => U`, funciona; sin anotación, codegen infiere `-> f64`. Para currying / factories funciona con tipo explícito.
 
 

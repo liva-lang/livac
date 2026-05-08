@@ -668,8 +668,8 @@
 
 ## Self-hosting — Phase 9: Gen-2 Parity & Hardening (2026-04-30)
 
-> **Objetivo:** llevar gen-2 (compilador self-hosted) a paridad funcional completa con bootstrap_apps + medir calidad real (cobertura, clippy, examples).
-> **Punto de partida:** 16/21 bootstrap_apps; ERR-UNIFY no implementado; sin medición de cobertura del gen-2; sin run sistemático contra examples/.
+> **Objetivo:** llevar gen-2 (compilador self-hosted) a paridad funcional completa con selfhost_apps + medir calidad real (cobertura, clippy, examples).
+> **Punto de partida:** 16/21 selfhost_apps; ERR-UNIFY no implementado; sin medición de cobertura del gen-2; sin run sistemático contra examples/.
 
 ### 9.1 — Gen-2 parity 21/21 ✅ DONE
 
@@ -677,7 +677,7 @@
 - [x] **ERR-UNIFY core** — `Result<T, liva_rt::Error>` + or-fail Option/Result match + `liva_rt` inline minimalista (commit `487bcfd`)
 - [x] **Tier 2 final** — app16_fsm (Default-derived enums, fallible-main `Ok(())`, no double Result wrap), app17_pipeline (reduce/fold point-free wrap, comma-sep err binding), app18_template (Map param tracking, indexOf with fromIdx) (commit `d9c5de4`)
 - [x] **Display vs Debug** — `print(arr)` / `println(arr)` emite `{:?}` para Vec/HashMap/HashSet (commit `525f955`)
-- [x] **Validación 4-gate verde:** `rebuild_selfhost` 4/4 idempotente · `bootstrap_apps/run.sh` 21/21 · `bootstrap_apps/run_gen2.sh` 21/21 · `regression` 5/5 · `complex_apps` 4/4 · `e2e_selfhost` 5/5
+- [x] **Validación 4-gate verde:** `rebuild_selfhost` 4/4 idempotente · `selfhost_apps/run.sh` 21/21 · `selfhost_apps/run_gen2.sh` 21/21 · `regression` 5/5 · `complex_apps` 4/4 · `e2e_selfhost` 5/5
 
 ### 9.2 — Calidad medida (2026-04-30)
 
@@ -685,11 +685,11 @@
 - gen-2 `check`: **105/106 pass**
 - 1 diferencia: `destructuring.test.liva` — gen-2 panics donde bootstrap retorna error E2000 limpio. Ambos rechazan, pero gen-2 lo hace mal (panic vs error estructurado). Bug menor de calidad de error, no de corrección. **Aplazado a v2.x** (requiere try/catch en Liva o panic_hook codegen-level).
 
-**Tamaño Rust generado (21 bootstrap_apps):**
+**Tamaño Rust generado (21 selfhost_apps):**
 - bootstrap: 9962 líneas totales
 - gen-2: **2175 líneas totales (-78%)** — runtime mínimo `mod liva_rt { Error{message, cause} }` vs ~350 líneas inlineadas por programa en bootstrap.
 
-**Clippy (21 bootstrap_apps):**
+**Clippy (21 selfhost_apps):**
 - **0 errors** · 222 warnings totales (~10.6/app, todo estilístico: `unneeded return`, `.clone() on Copy`, missing `Default` impl)
 - gen-2 emite código **más limpio que bootstrap** (app10_stats: gen-2 5 vs bootstrap 17 warnings).
 
@@ -703,7 +703,7 @@ app19_pq        bs=678   g2=813   1.20x
 ```
 Banda 0.81x–1.20x → **paridad efectiva** (algunas mejoras por menos imports/runtime más liviano).
 
-**Cobertura del gen-2 (llvm-cov, 25 inputs: 21 bootstrap_apps + 4 e2e_progs):**
+**Cobertura del gen-2 (llvm-cov, 25 inputs: 21 selfhost_apps + 4 e2e_progs):**
 
 | Archivo | Lines | Functions | Notas |
 |---|---|---|---|
@@ -732,7 +732,7 @@ Resultado de compilar+ejecutar 5 ejemplos deterministas (con `main()`) con boots
 
 - [ ] **Multi-file imports en gen-2** — corregir re-declaración de constantes/funciones importadas (audit de `module.liva` + `_emitImport` en codegen)
 - [ ] **HTTP `serde_json::json!` macro** — emitir tokens válidos del macro DSL para route bodies (audit de `_emitObjectLit` cuando context es serde_json)
-- [x] **Multi-file tests** — añadir 2-3 programas multi-file a `bootstrap_apps/` o `e2e_progs/` para que `module.rs` deje de estar al 0%. **DONE 2026-05-07** — multifile_apps tiene ahora 5 fixtures (m1_basic, m2_class, m3_stdlib, m4_enum cross-module enum payloads + switch, m5_chain transitive imports a→b→c). m5_chain destapó y bloqueó un bug en `main.liva` donde gen-2 no declaraba sub-módulos transitivos en `main.rs` (rustc E0432); fix landed in commit `0d181d1`.
+- [x] **Multi-file tests** — añadir 2-3 programas multi-file a `selfhost_apps/` o `e2e_progs/` para que `module.rs` deje de estar al 0%. **DONE 2026-05-07** — multifile_apps tiene ahora 5 fixtures (m1_basic, m2_class, m3_stdlib, m4_enum cross-module enum payloads + switch, m5_chain transitive imports a→b→c). m5_chain destapó y bloqueó un bug en `main.liva` donde gen-2 no declaraba sub-módulos transitivos en `main.rs` (rustc E0432); fix landed in commit `0d181d1`.
 - [ ] **CLI subcmd tests** — `livac run`, `livac fmt`, `livac test` actualmente sin cobertura en gen-2
 - [x] **destructuring.test.liva** — convertir `throw` del parser a propagación Result o instalar `panic_hook` clean en `main.liva`. **DONE 2026-05-07** — instalado `std::panic::set_hook` con bloque `rust { }` al inicio de `main()` en `compiler/src/main.liva`. Ahora panics del parser/lexer (compiled from `throw`) emiten `Error: <msg>` y exit 1, en vez del backtrace `thread 'main' panicked at src/parser.rs:N:M:`. Mejora la paridad con bootstrap en errores de sintaxis.
 - [ ] **`-D warnings` en gen-2 emit** — opcional: hacer que gen-2 emita `#![deny(...)]` selectivo si así lo quiere el usuario
@@ -741,7 +741,7 @@ Resultado de compilar+ejecutar 5 ejemplos deterministas (con `main()`) con boots
 
 Self-host codegen polish committed on `feat/self-hosting-v2` after the
 v2.0 release-ready freeze. All five validation gates remain green
-(rebuild_selfhost idempotente gen-2≡gen-3 src+bin, bootstrap_apps
+(rebuild_selfhost idempotente gen-2≡gen-3 src+bin, selfhost_apps
 21/21, regression 5/5, complex_apps 4/4, e2e_selfhost 5/5,
 cargo test --release 528+).
 
@@ -841,7 +841,7 @@ cargo test --release 528+).
       ambigüedad. (Refactor profundo de contenido aplazado a v2.1.) ✅
 
 > **Gates de aceptación de Fase 11:** los 5 originales (rebuild_selfhost
-> idempotente, bootstrap_apps 21/21, regression 5/5, complex_apps 4/4,
+> idempotente, selfhost_apps 21/21, regression 5/5, complex_apps 4/4,
 > e2e_selfhost 5/5, cargo test 528+) **+** `compiler/tests/run_all.sh`
 > verde en una sola invocación + `compiler/src/codegen.liva` ≤ 1 500 LOC.
 
@@ -1055,9 +1055,9 @@ y tests LSP manuales — no representan gap real.
 - [x] **B148–B150** — patrones de constructor (`this.X` reads, mut locals, literal-string args) — verificados en gen-2 con `compiler/tests/regression/b148_b150_gen2.liva` (2026-05-07)
 - [x] **GAP-007** — function types `(T) => U` → `Box<dyn Fn>` para inline lambda args en gen-2 (verificado 2026-05-07 con `compiler/tests/regression/gap007_fn_types.liva`. Caso let-bound closure pasado por identifier sigue OPEN: bootstrap está FROZEN y gen-2 mirrors that behavior; documentado.)
 - [x] **B134–B137** — Map for-loop typing, switch-arm if-tail, Set.size, user `method.count(literal)` — verificados en gen-2 con `compiler/tests/regression/b134_b137_gen2.liva` (2026-05-07)
-- [x] **B138** — `fail` en posición de expresión — verificado en gen-2 vía PARITY.md Tier 2 (probe + bootstrap_apps 21/21 verde 2026-05-07). Bootstrap re-wrap bug en ternary-with-fail dentro de `T!` queda como deuda menor; bootstrap está FROZEN.
+- [x] **B138** — `fail` en posición de expresión — verificado en gen-2 vía PARITY.md Tier 2 (probe + selfhost_apps 21/21 verde 2026-05-07). Bootstrap re-wrap bug en ternary-with-fail dentro de `T!` queda como deuda menor; bootstrap está FROZEN.
 - [x] **B139** — switch arms en `T!` auto-wrap `Ok(...)` — verificado en gen-2 vía PARITY.md Tier 2 (probe `classify(n): string!`).
-- [x] **B127–B133** — error handling completo — verificados en gen-2 vía PARITY.md Tier 2 (`err_unify_gen2.test.liva` 5/5, probes B129/B130/B132/B133, bootstrap_apps 21/21 verde 2026-05-07).
+- [x] **B127–B133** — error handling completo — verificados en gen-2 vía PARITY.md Tier 2 (`err_unify_gen2.test.liva` 5/5, probes B129/B130/B132/B133, selfhost_apps 21/21 verde 2026-05-07).
 - [x] **B116, B117, B120, B124** — indexed self-field assign, self.field.concat, .len() cast, m.set(p.field, p) partial-move — verificados en gen-2 con `compiler/tests/regression/b116_b124_gen2.liva` (2026-05-07; B118/B121/B122/B123/B125 ya estaban pineados)
 
 > **Fase D status (2026-05-07): COMPLETA.** Todos los items B116–B153 y GAP-007 cerrados.
@@ -1065,8 +1065,8 @@ y tests LSP manuales — no representan gap real.
 > Pre-condición para `src/FROZEN.md` unfreeze (eliminar bootstrap) cumplida.
 
 ### Fase E — Promover apps a self-host
-- [x] `bootstrap_apps/*.liva` (21 apps) deben pasar también con gen-2 — verificado 2026-05-07 (`compiler/tests/bootstrap_apps/run_gen2.sh` 21/21).
-- [ ] Renombrar a `selfhost_apps/` cuando todas pasen.
+- [x] `selfhost_apps/*.liva` (21 apps) deben pasar también con gen-2 — verificado 2026-05-07 (`compiler/tests/selfhost_apps/run_gen2.sh` 21/21).
+- [x] Renombrar a `selfhost_apps/` cuando todas pasen. ✅ 2026-05-07: directorio renombrado, scripts y docs actualizados, gauntlet 7/7 verde.
 - [ ] CI: ejecutar la suite contra ambos compiladores hasta el corte final.
 
 ### Fase F — Cortar la cuerda

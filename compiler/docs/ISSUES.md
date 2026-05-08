@@ -3,7 +3,7 @@
 > ⚠️ **DOCUMENTO HISTÓRICO.**  
 > Inventario de bugs/limitaciones encontrados durante el self-hosting
 > Phase 7–9. Muchos items están resueltos en práctica y cubiertos por
-> los gates actuales (`compiler/tests/run_all.sh`: bootstrap_apps 21/21,
+> los gates actuales (`compiler/tests/run_all.sh`: selfhost_apps 21/21,
 > multifile_apps 3/3, regression 5/5, complex_apps 4/4, e2e_selfhost 5/5).  
 > **Fuente de verdad actual:** `compiler/PARITY.md` (paridad gen-2 vs
 > bootstrap por feature) + `BACKLOG.md` Fase 11/12.

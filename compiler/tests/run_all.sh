@@ -47,7 +47,7 @@ OVERALL=0
 if [[ "$QUICK" != "--quick" ]]; then
     run_gate "rebuild_selfhost (gen-2 ≡ gen-3)" "bash $SCRIPT_DIR/rebuild_selfhost.sh" || OVERALL=1
 fi
-run_gate "bootstrap_apps (gen-2)"   "bash $SCRIPT_DIR/bootstrap_apps/run_gen2.sh"   || OVERALL=1
+run_gate "selfhost_apps (gen-2)"   "bash $SCRIPT_DIR/selfhost_apps/run_gen2.sh"   || OVERALL=1
 run_gate "multifile_apps (gen-2)"   "bash $SCRIPT_DIR/multifile_apps/run.sh"        || OVERALL=1
 run_gate "regression"               "bash $SCRIPT_DIR/regression/run.sh"            || OVERALL=1
 run_gate "complex_apps"             "bash $SCRIPT_DIR/complex_apps/run.sh"          || OVERALL=1

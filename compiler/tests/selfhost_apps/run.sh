@@ -7,7 +7,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIVAC_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 BOOT="$LIVAC_ROOT/target/release/livac"
-OUT_DIR="${TMPDIR:-/tmp}/liva_bootstrap_apps_out"
+OUT_DIR="${TMPDIR:-/tmp}/liva_selfhost_apps_out"
 mkdir -p "$OUT_DIR"
 
 PASS=0; FAIL=0

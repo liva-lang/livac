@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Run bootstrap_apps against the gen-2 self-hosted compiler.
+# Run selfhost_apps against the gen-2 self-hosted compiler.
 # Used to track parity between bootstrap (Rust) and gen-2 (Liva).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIVAC_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 GEN2="$LIVAC_ROOT/target/livac-gen2-release"
-APPS_DIR="$LIVAC_ROOT/compiler/tests/bootstrap_apps"
+APPS_DIR="$LIVAC_ROOT/compiler/tests/selfhost_apps"
 OUT_DIR="${TMPDIR:-/tmp}/liva_gen2_apps_out"
 mkdir -p "$OUT_DIR"
 
@@ -36,7 +36,7 @@ for src in "$APPS_DIR"/*.liva; do
     fi
 done
 echo "===================="
-echo "  Gen-2 vs bootstrap_apps: $PASS pass / $FAIL fail"
+echo "  Gen-2 vs selfhost_apps: $PASS pass / $FAIL fail"
 if [ ${#FAILED[@]} -gt 0 ]; then
     echo "  Failed:"
     for f in "${FAILED[@]}"; do echo "    - $f"; done

@@ -5,7 +5,7 @@
 # Usage:
 #   ./compile_speed.sh                  # default 3 runs, all corpora
 #   ./compile_speed.sh --runs 5         # 5 runs per program
-#   ./compile_speed.sh --quick          # only bootstrap_apps (fastest corpus)
+#   ./compile_speed.sh --quick          # only selfhost_apps (fastest corpus)
 
 set -uo pipefail
 
@@ -102,10 +102,10 @@ echo "- Runs per program: $RUNS"
 echo "- Mode: \`check\` (front-end) and \`build --release\` (full pipeline + rustc)"
 echo ""
 
-run_corpus "bootstrap_apps" "$ROOT/compiler/tests/bootstrap_apps/*.liva" "check"
+run_corpus "selfhost_apps" "$ROOT/compiler/tests/selfhost_apps/*.liva" "check"
 
 if [ "$QUICK" = "0" ]; then
-    run_corpus "bootstrap_apps_full" "$ROOT/compiler/tests/bootstrap_apps/*.liva" "build"
+    run_corpus "selfhost_apps_full" "$ROOT/compiler/tests/selfhost_apps/*.liva" "build"
 fi
 
 echo ""
