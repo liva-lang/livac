@@ -8930,12 +8930,28 @@ RustEmitter {
         let jIdx = 0
         for e in entries {
             if jIdx > 0 { this._write(", ") }
-            this._emitJsonArg(e.key)
+            this._emitJsonKey(e.key)
             this._write(": ")
             this._emitJsonArg(e.value)
             jIdx += 1
         }
         this._write("}")
+    }
+
+    // serde_json::json! requires raw string-literal keys; emit string-lit
+    // keys bare without `.to_string()`, and fall back to _emitJsonArg
+    // (which adds .to_string()) for non-literal keys (rare/dynamic).
+    _emitJsonKey(key: Expr) {
+        let _ = switch key {
+            Expr.Literal(klit) => {
+                let _ = switch klit {
+                    Literal.Str(ks) => { this._write("\"" + ks + "\""); 0 },
+                    _ => { this._emitLiteral(klit); 0 }
+                }
+                0
+            },
+            _ => { this._emitJsonArg(key); 0 }
+        }
     }
 
     _emitJsonArrayElems(elements: [Expr]) {

@@ -141,6 +141,47 @@ if [[ -f "$T5/demo_proj/main.liva" ]]; then
     fi
 fi
 
+# ---------------------------------------------------------------------------
+# Test 6 — `livac build` on an HTTP file that uses `Response.json` with
+# both bare-ident and quoted-string keys must produce Rust that
+# `cargo build` accepts. This pins the fix for the
+# `serde_json::json!({"key".to_string(): ...})` bug. We don't run the
+# binary (it would block on app.listen), only verify cargo accepts it.
+# ---------------------------------------------------------------------------
+T6="$OUT/http_json_keys"; mkdir -p "$T6"
+cat > "$T6/srv.liva" <<'EOF'
+main() {
+    let app = Server.create()
+    app.get("/health", (req) => {
+        Response.json({ status: "ok", service: "demo" })
+    })
+    app.get("/err", (req) => {
+        Response.json({ "error": "Not found" })
+    })
+    app.listen(3000)
+}
+EOF
+"$G2" build --output "$T6/out" "$T6/srv.liva" >"$T6/build.log" 2>&1
+rc=$?
+if [[ $rc -ne 0 ]]; then
+    check_fail "livac build srv.liva (gen-2)" "rc=$rc; log:\n$(tail -10 "$T6/build.log")"
+else
+    # Inspect emitted main.rs: keys must be bare quoted, not "k".to_string().
+    if grep -qE '"[A-Za-z_][A-Za-z0-9_]*"\.to_string\(\)\s*:' "$T6/out/src/main.rs" 2>/dev/null; then
+        check_fail "Response.json keys are bare in serde_json::json!" \
+                   "found '\"k\".to_string():' in emitted main.rs"
+    else
+        # Cargo build to make sure rustc accepts the json! macro.
+        (cd "$T6/out" && cargo build --quiet) >"$T6/cargo.log" 2>&1
+        rc2=$?
+        if [[ $rc2 -eq 0 ]]; then
+            check_ok "Response.json with bare+quoted keys compiles via gen-2 + cargo"
+        else
+            check_fail "cargo build of HTTP gen-2 output" "rc=$rc2; log:\n$(tail -15 "$T6/cargo.log")"
+        fi
+    fi
+fi
+
 echo "===================="
 echo "  CLI subcmds: $PASS pass / $FAIL fail"
 [[ $FAIL -eq 0 ]]
