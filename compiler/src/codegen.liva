@@ -7117,6 +7117,10 @@ RustEmitter {
         }
 
         // Enum variant constructor: EnumName.Variant(args) → EnumName::Variant(args)
+        // Only when EnumName is a known enum OR the variant is registered.
+        // Without this guard, ANY uppercase identifier (e.g. an imported
+        // const like MAX_GRADE) gets misemitted as `MAX_GRADE::method(...)`
+        // — see m6_diamond regression.
         let isEnumVariant = false
         let enumNameMC = ""
         let _ = switch obj {
@@ -7124,8 +7128,11 @@ RustEmitter {
                 if name.length > 0 {
                     let fc = name.charAt(0)
                     if fc >= "A" && fc <= "Z" {
-                        isEnumVariant = true
-                        enumNameMC = name
+                        let candidateKey = name + "::" + method
+                        if this._globalEnums.has(name) or this._enumVariantFields.has(candidateKey) {
+                            isEnumVariant = true
+                            enumNameMC = name
+                        }
                     }
                 }
                 0

@@ -1,0 +1,7 @@
+const MAX_GRADE = 100
+const MIN_GRADE = 0
+const PASSING_GRADE = 60
+
+isPassingScore(score: int): bool => score >= PASSING_GRADE
+
+clamp(value: int, min: int, max: int): int => Math.max(Math.min(value, max), min)

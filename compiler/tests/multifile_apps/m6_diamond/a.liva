@@ -1,0 +1,3 @@
+import { SHARED, dbl } from "./c"
+
+usingA(): int => SHARED + dbl(1)

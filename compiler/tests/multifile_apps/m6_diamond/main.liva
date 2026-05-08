@@ -1,0 +1,26 @@
+// EXPECT: a=44 b=46 shared=42
+//        clamped=100 passing=true max=100
+
+// m6_diamond — pins multi-file import scenarios that historically
+// suffered from constant re-declaration bugs (BACKLOG 9.3/9.4):
+//   1. Diamond import: main → a, b → c, where a and b each
+//      re-export `SHARED` and `dbl` from c. main also imports
+//      SHARED directly from c. Must compile without "duplicate
+//      const" or "ambiguous import" errors.
+//   2. Multiple constants imported in a single statement
+//      (MAX_GRADE, MIN_GRADE, PASSING_GRADE) along with
+//      functions that reference them internally.
+
+import { usingA } from "./a"
+import { usingB } from "./b"
+import { SHARED } from "./c"
+import { MAX_GRADE, MIN_GRADE, PASSING_GRADE, isPassingScore, clamp } from "./grades"
+
+main() {
+    print($"a={usingA()} b={usingB()} shared={SHARED}")
+
+    let raw = 105
+    let c = clamp(raw, MIN_GRADE, MAX_GRADE)
+    let suffix = $"passing={isPassingScore(c).toString()} max={MAX_GRADE.toString()}"
+    print($"clamped={c.toString()} {suffix}")
+}
