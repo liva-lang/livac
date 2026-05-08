@@ -49,6 +49,7 @@ if [[ "$QUICK" != "--quick" ]]; then
 fi
 run_gate "selfhost_apps (gen-2)"   "bash $SCRIPT_DIR/selfhost_apps/run_gen2.sh"   || OVERALL=1
 run_gate "multifile_apps (gen-2)"   "bash $SCRIPT_DIR/multifile_apps/run.sh"        || OVERALL=1
+run_gate "cli_subcmds (gen-2)"      "bash $SCRIPT_DIR/cli_subcmds/run.sh"           || OVERALL=1
 run_gate "regression"               "bash $SCRIPT_DIR/regression/run.sh"            || OVERALL=1
 run_gate "complex_apps"             "bash $SCRIPT_DIR/complex_apps/run.sh"          || OVERALL=1
 run_gate "e2e_selfhost"             "bash $SCRIPT_DIR/e2e_selfhost.sh"              || OVERALL=1
