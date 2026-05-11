@@ -198,6 +198,7 @@ RustEmitter {
     // initializer or a top-level *.listen( call in the `main` function. When
     // set, `_emitFunction` will emit `#[tokio::main] async fn main`.
     _mainNeedsAsync: bool
+    _taskHandleVars: Map<string, bool>
     _warnings: [string]
 
     constructor(typeCtx: TypeContext, liveCtx: LivenessContext) {
@@ -261,6 +262,7 @@ RustEmitter {
         this._dbVars = Map {}
         this._serverRequestParam = ""
         this._mainNeedsAsync = false
+        this._taskHandleVars = Map {}
         this._warnings = []
     }
 
@@ -3428,6 +3430,22 @@ RustEmitter {
             _ => { 0 }
         }
 
+        let initTaskSnap2 = decl.init
+        let _ = switch initTaskSnap2 {
+            Expr.Call(_, _, taskPolicy, _) => {
+                let isTaskPolicy = switch taskPolicy {
+                    ExecPolicy.TaskAsync => true,
+                    ExecPolicy.TaskPar => true,
+                    _ => false
+                }
+                if isTaskPolicy && sanitized != "_" {
+                    this._taskHandleVars.set(sanitized, true)
+                }
+                0
+            },
+            _ => { 0 }
+        }
+
         this._writeIndent()
 
         // Determine mutability — skip mut for _ (Rust doesn't allow let mut _)
@@ -4956,6 +4974,17 @@ RustEmitter {
                     ExecPolicy.TaskPar => true,
                     _ => false
                 }
+                let isTask = switch policy {
+                    ExecPolicy.TaskAsync => true,
+                    ExecPolicy.TaskPar => true,
+                    _ => false
+                }
+                if isTask {
+                    this._write("tokio::spawn(async move { ")
+                    this._emitCall(callee, callArgs)
+                    this._write(" })")
+                    return
+                }
                 let unwrapped = false
                 if isExecWrap && callArgs.length == 0 {
                     let _ = switch callee {
@@ -5858,8 +5887,21 @@ RustEmitter {
                 0
             },
             UnOp.Await => {
+                let isTaskHandle = false
+                let _ = switch operand {
+                    Expr.Identifier(awn) => {
+                        let snAw = this._sanitizeName(awn)
+                        if this._taskHandleVars.has(snAw) { isTaskHandle = true }
+                        0
+                    },
+                    _ => { 0 }
+                }
                 this._emitExpr(operand)
-                this._write(".await")
+                if isTaskHandle {
+                    this._write(".await.unwrap()")
+                } else {
+                    this._write(".await")
+                }
                 0
             }
         }
@@ -10422,27 +10464,60 @@ RustEmitter {
 
     _scanStmtsForAsync(blk: BlockStmt) {
         for s in blk.stmts {
-            let trig = false
-            let _ = switch s {
-                Stmt.VarDecl(d) => {
-                    if this._exprIsAsyncTrigger(d.init) { trig = true }
-                    0
-                },
-                Stmt.ConstDecl(d) => {
-                    if this._exprIsAsyncTrigger(d.init) { trig = true }
-                    0
-                },
-                Stmt.Assign(a) => {
-                    if this._exprIsAsyncTrigger(a.value) { trig = true }
-                    0
-                },
-                Stmt.ExprStmt(e) => {
-                    if this._exprIsAsyncTrigger(e) { trig = true }
-                    0
-                },
-                _ => { 0 }
-            }
-            if trig { this._mainNeedsAsync = true }
+            this._scanStmtForAsync(s)
+        }
+    }
+
+    _scanStmtForAsync(s: Stmt) {
+        let _ = switch s {
+            Stmt.VarDecl(d) => {
+                if this._exprIsAsyncTrigger(d.init) { this._mainNeedsAsync = true }
+                0
+            },
+            Stmt.ConstDecl(d) => {
+                if this._exprIsAsyncTrigger(d.init) { this._mainNeedsAsync = true }
+                0
+            },
+            Stmt.Assign(a) => {
+                if this._exprIsAsyncTrigger(a.target) { this._mainNeedsAsync = true }
+                if this._exprIsAsyncTrigger(a.value) { this._mainNeedsAsync = true }
+                0
+            },
+            Stmt.ExprStmt(e) => {
+                if this._exprIsAsyncTrigger(e) { this._mainNeedsAsync = true }
+                0
+            },
+            Stmt.Return(re) => {
+                let rOpt = re
+                if rOpt != null {
+                    if this._exprIsAsyncTrigger(rOpt) { this._mainNeedsAsync = true }
+                }
+                0
+            },
+            Stmt.Throw(e) => {
+                if this._exprIsAsyncTrigger(e) { this._mainNeedsAsync = true }
+                0
+            },
+            Stmt.While(ws) => {
+                if this._exprIsAsyncTrigger(ws.condition) { this._mainNeedsAsync = true }
+                this._scanStmtsForAsync(ws.body)
+                0
+            },
+            Stmt.For(fs) => {
+                if this._exprIsAsyncTrigger(fs.iterable) { this._mainNeedsAsync = true }
+                this._scanStmtsForAsync(fs.body)
+                0
+            },
+            Stmt.TryCatch(tc) => {
+                this._scanStmtsForAsync(tc.tryBlock)
+                this._scanStmtsForAsync(tc.catchBlock)
+                0
+            },
+            Stmt.Block(b) => {
+                this._scanStmtsForAsync(b)
+                0
+            },
+            _ => { 0 }
         }
     }
 
@@ -10451,7 +10526,7 @@ RustEmitter {
     _exprIsAsyncTrigger(e: Expr): bool {
         let result = false
         let _ = switch e {
-            Expr.MethodCall(obj, method, _) => {
+            Expr.MethodCall(obj, method, args) => {
                 if method == "listen" { result = true }
                 let _ = switch obj {
                     Expr.Identifier(n) => {
@@ -10465,6 +10540,58 @@ RustEmitter {
                     },
                     _ => { 0 }
                 }
+                if this._exprIsAsyncTrigger(obj) { result = true }
+                for a in args {
+                    if this._exprIsAsyncTrigger(a) { result = true }
+                }
+                0
+            },
+            Expr.Unary(op, sub) => {
+                let isAwait = switch op {
+                    UnOp.Await => true,
+                    _ => false
+                }
+                if isAwait { result = true }
+                if this._exprIsAsyncTrigger(sub) { result = true }
+                0
+            },
+            Expr.Binary(_, lhs, rhs) => {
+                if this._exprIsAsyncTrigger(lhs) { result = true }
+                if this._exprIsAsyncTrigger(rhs) { result = true }
+                0
+            },
+            Expr.Call(callee, callArgs, policy, _) => {
+                let isAsyncPolicy = switch policy {
+                    ExecPolicy.Async => true,
+                    ExecPolicy.Par => true,
+                    ExecPolicy.TaskAsync => true,
+                    ExecPolicy.TaskPar => true,
+                    _ => false
+                }
+                if isAsyncPolicy { result = true }
+                if this._exprIsAsyncTrigger(callee) { result = true }
+                for a2 in callArgs {
+                    if this._exprIsAsyncTrigger(a2) { result = true }
+                }
+                0
+            },
+            Expr.MemberAccess(base, _) => {
+                if this._exprIsAsyncTrigger(base) { result = true }
+                0
+            },
+            Expr.Index(base2, idx) => {
+                if this._exprIsAsyncTrigger(base2) { result = true }
+                if this._exprIsAsyncTrigger(idx) { result = true }
+                0
+            },
+            Expr.Ternary(c, t, f) => {
+                if this._exprIsAsyncTrigger(c) { result = true }
+                if this._exprIsAsyncTrigger(t) { result = true }
+                if this._exprIsAsyncTrigger(f) { result = true }
+                0
+            },
+            Expr.RustBlock(code) => {
+                if code.indexOf(".await") >= 0 { result = true }
                 0
             },
             _ => { 0 }
