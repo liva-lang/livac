@@ -5624,6 +5624,21 @@ RustEmitter {
                 0
             },
             _ => {
+                // Array concatenation: arr1 + arr2 → [arr1, arr2].concat().
+                // Rust's Vec does not implement Add; slice .concat() flattens
+                // Vec<Vec<T>> back to Vec<T>.
+                if opStr == "+" {
+                    let lTag = this._getExprTypeName(left)
+                    let rTag = this._getExprTypeName(right)
+                    if lTag == "array" || rTag == "array" {
+                        this._write("[")
+                        this._emitExpr(left)
+                        this._write(", ")
+                        this._emitExpr(right)
+                        this._write("].concat()")
+                        return
+                    }
+                }
                 if opStr == "+" and (this._isStringExpr(left) or this._isStringExpr(right)) {
                     // Phase 8: push_str chain — x = x + y → x.push_str(&y)
                     if this._pushStrTarget != "" {
