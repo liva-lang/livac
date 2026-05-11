@@ -5,8 +5,7 @@
 > `CHANGELOG.md` (released versions, Keep-a-Changelog format).  
 > **Plan de diseño:** `docs/plans/PLAN_PRODUCTION_READINESS.md`  
 > **Prioridad:** Orden por versión = orden de implementación  
-> **Última actualización:** 2026-05-04
-
+> **Última actualización:** 2026-05-11
 ---
 
 ## v1.4 — Stdlib P0: String, Array, Math ✅
@@ -845,6 +844,41 @@ cargo test --release 528+).
 > idempotente, selfhost_apps 21/21, regression 5/5, complex_apps 4/4,
 > e2e_selfhost 5/5, cargo test 528+) **+** `compiler/tests/run_all.sh`
 > verde en una sola invocación + `compiler/src/codegen.liva` ≤ 1 500 LOC.
+
+---
+
+## Post-v2.0-rc1 — Codegen bug-fix cycles (2026-05-08 → 2026-05-11)
+
+> **Origen:** auditoría post-rc1 de ejemplos reales (http-api, http-crud, github-dashboard-real, crypto-tracker, dogfooding-v*, tests/*). Cada ciclo: bounded fix → rebuild self-host (gen1→gen2→gen3 idempotente) → 8-gate gauntlet GREEN → commit local.
+> **Estado:** EN CURSO. 10 commits acumulados, gauntlet 8/8 verde, push pendiente de autorización.
+
+### Cerrado ✅
+
+- [x] **Cycle 6** (`1460e4d`) — `JsonValueExt` trait sobre `serde_json::Value` (as_int/as_float/as_string/as_bool/as_array_owned/length). Fixes http-api.
+- [x] **Cycle 7** (`243540f`) — Rename `as_array` → `as_array_owned` para evitar shadow + rewrite en codegen. Fixes http-crud.
+- [x] **Cycle 8** (`7bc1931`) — `_jsonValueVars` tracking + rewrite `obj.forEach(...)` → `obj.as_array_owned().into_iter().for_each(...)` cuando obj es JSON Value. Fixes github-dashboard-real.
+- [x] **Cycle 9** (`de0c48f`) — JSON tracking propagación a través de `Expr.Index` / `Expr.MemberAccess` + `obj[strKey]` → `obj[&(k)[..]].clone()` + `!= null` sobre JSON → `!v.is_null()`. Fixes crypto-tracker.
+- [x] **Cycle 10** (`6845489`) — `[a, b]` (array + array) en `_emitBinaryWithRight` → `[a, b].concat()`. Fixes dogfooding-v2.
+- [x] **Cycle 11** (`4741438`) — print(literal) fast path: escape `\n`/`\t`/`\\` etc. ANTES de escape de llaves. Fixes parser-error en parallel-search.
+- [x] **Cycle 12** (`5c1b78f`) — Auto `impl std::fmt::Display for <Enum>` delegando a Debug. Fixes enum_test.
+- [x] **Cycle 13** (`5a238b7`) — `arr.sortBy(fn)` + `arr.groupBy(fn)` codegen (closure estable + `HashMap<K, Vec<V>>` aggregation). Fixes test_sort_group.
+- [x] **Cycle 14** (`91367a1`) — `.length` sobre user class con campo `length` declarado emite field access (no `.len() as i32`). Fixes test_bug90_94.
+- [x] **Cycle 15** (`2713e71`) — Paréntesis alrededor de lambdas inline en `findIndex`/`count`/`flatMap` + cast f64 explícito en `Math.clamp` args. Fixes test_stdlib_p0.
+
+### Pendiente — ciclos bounded (probablemente abordables)
+
+- [ ] **Async/await runtime** (4 ejemplos bloqueados: `concurrency`, `parallel-search`, `ai/chat-server`, `ai/web-scraper`). Necesita scoping del binding `await` solo dentro de funciones `async`, posible integración tokio para top-level. Posible Cycle 16+.
+- [ ] **`rust { use ... }` inside function body** — `web-scraper` emite `return use std::time::...` (statements `use` injectados dentro de la expresión de retorno). Requiere prefijar `use`-stmts antes del `return`.
+- [ ] Examples con parser errors (probablemente issues de sintaxis, no codegen): `ai/csv-reader` (línea 284 EOF), `ai/mini-interpreter` (línea 39), `ai/text-search` (línea 217), `ai/todo-list` (línea 33). Auditar uno a uno.
+- [ ] Examples con muchos errors estructurales: `ai/rest-api` (12), `ai/snake-game` (18), `ai/calculator` (30), `ai/json-parser` (37). Posiblemente combinación de async + parsing + features no portados.
+
+### Pendiente — out-of-scope estructural
+
+- [ ] Test framework Jest-style completo: `async.test.liva`, `lifecycle.test.liva` (uso de `beforeEach` top-level), `math_jest.test.liva`, `stdlib_*.test.liva` (sin `main fn` — test runner debe ejecutar `test_*` funciones).
+
+### Push pendiente
+
+- [ ] **182 commits locales** ahead de `origin/feat/self-hosting-v2`. Push requiere autorización explícita del usuario (regla 5-may-2026).
 
 ---
 
