@@ -9100,15 +9100,40 @@ RustEmitter {
             return
         }
 
-        // .length → .len() as i32 for strings and arrays
+        // .length → .len() as i32 for strings and arrays.
+        // But if the receiver is a user class with a declared `length` field,
+        // treat it as a regular field access instead.
         if prop == "length" {
-            let savedAT = this._inAssignTarget
-            this._inAssignTarget = true
-            this._write("(")
-            this._emitExpr(obj)
-            this._write(".len() as i32)")
-            this._inAssignTarget = savedAT
-            return
+            let isUserClassWithLengthField = false
+            let _ = switch obj {
+                Expr.Identifier(idn) => {
+                    if idn != "this" && idn != "self" {
+                        let varType = this._lookupVarTypeRef(idn)
+                        let className = ""
+                        let _ = switch varType {
+                            TypeRef.Simple(cn) => { className = cn; 0 },
+                            _ => { 0 }
+                        }
+                        if className != "" && this._typeCtx.classes.has(className) {
+                            let fkeyLen = className + ".length"
+                            if this._typeCtx.fieldTypes.has(fkeyLen) {
+                                isUserClassWithLengthField = true
+                            }
+                        }
+                    }
+                    0
+                },
+                _ => { 0 }
+            }
+            if not isUserClassWithLengthField {
+                let savedAT = this._inAssignTarget
+                this._inAssignTarget = true
+                this._write("(")
+                this._emitExpr(obj)
+                this._write(".len() as i32)")
+                this._inAssignTarget = savedAT
+                return
+            }
         }
 
         // .size → .len() as i32 for maps and sets
