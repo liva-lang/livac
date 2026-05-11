@@ -3125,9 +3125,31 @@ RustEmitter {
             },
             Stmt.Fail(failExpr, line) => {
                 this._writeIndent()
-                this._write("return Err(liva_rt::Error::from(format!(\"{}\", ")
-                this._emitExpr(failExpr)
-                this._write(")));")
+                // If failExpr is an identifier bound as an error binding
+                // (Option<liva_rt::Error>), re-raise it directly using its
+                // own message. Otherwise emit format!("{}", expr).
+                let failIsErrBind = false
+                let failErrName = ""
+                let _ = switch failExpr {
+                    Expr.Identifier(fn0) => {
+                        let fSan = this._sanitizeName(fn0)
+                        if this._errBindings.has(fSan) {
+                            failIsErrBind = true
+                            failErrName = fSan
+                        }
+                        0
+                    },
+                    _ => { 0 }
+                }
+                if failIsErrBind {
+                    this._write("return Err(liva_rt::Error::from(")
+                    this._write(failErrName)
+                    this._write(".as_ref().unwrap().message.clone()));")
+                } else {
+                    this._write("return Err(liva_rt::Error::from(format!(\"{}\", ")
+                    this._emitExpr(failExpr)
+                    this._write(")));")
+                }
                 this._newline()
                 0
             },
