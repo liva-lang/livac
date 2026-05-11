@@ -1218,6 +1218,19 @@ RustEmitter {
             if !effectiveAsync2 && funcName == "main" && this._mainNeedsAsync {
                 effectiveAsync2 = true
             }
+            // For non-main functions: scan body for triggers (await,
+            // Server.listen, task-based calls). Reuse the same scanner used
+            // for main inference by snapshotting _mainNeedsAsync.
+            if !effectiveAsync2 && funcName != "main" {
+                let prevNeed = this._mainNeedsAsync
+                this._mainNeedsAsync = false
+                let bOpt2 = decl.body
+                if bOpt2 != null {
+                    this._scanStmtsForAsync(bOpt2)
+                }
+                if this._mainNeedsAsync { effectiveAsync2 = true }
+                this._mainNeedsAsync = prevNeed
+            }
             let asyncKw2 = ""
             if effectiveAsync2 {
                 asyncKw2 = "async "
