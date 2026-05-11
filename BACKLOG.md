@@ -864,13 +864,19 @@ cargo test --release 528+).
 - [x] **Cycle 13** (`5a238b7`) — `arr.sortBy(fn)` + `arr.groupBy(fn)` codegen (closure estable + `HashMap<K, Vec<V>>` aggregation). Fixes test_sort_group.
 - [x] **Cycle 14** (`91367a1`) — `.length` sobre user class con campo `length` declarado emite field access (no `.len() as i32`). Fixes test_bug90_94.
 - [x] **Cycle 15** (`2713e71`) — Paréntesis alrededor de lambdas inline en `findIndex`/`count`/`flatMap` + cast f64 explícito en `Math.clamp` args. Fixes test_stdlib_p0.
+- [x] **Cycle 16** (`1b8db03`) — Async runtime: `task async f(args)` / `task par f(args)` → `tokio::spawn(async move { f(...) })`; `await taskHandle` → `.await.unwrap()` (JoinHandle yields `Result<T, JoinError>`). Recursive `_scanStmtForAsync`/`_exprIsAsyncTrigger` covers VarDecl/Assign/Return/Throw/While/For/TryCatch/Block + Unary(Await)/Binary/Call(Async|Par|Task*)/MethodCall(Server.listen)/Member/Index/Ternary/RustBlock(.await). Validated end-to-end with `examples/concurrency/main.liva`.
+- [x] **Cycle 17** (`6a46098`) — `Stmt.Fail(identifier)` where identifier ∈ `_errBindings` (Option<liva_rt::Error>) → `Error::from(err.as_ref().unwrap().message.clone())` instead of `format!("{}", err)` (which doesn't impl Display). Reduces `ai/calculator` self-host errors 29 → 19.
+- [x] **Cycle 18** (`457d76a`) — Stdlib: `Sys.input(prompt): string`, `Console.log/info/error/warn`, `Console.input/prompt` (stdin). Generates `print!()` + `stdout().flush()` + `stdin().lock().read_line()` + trim '\n'/'\r'. Probe `compiler/tests/probe/stdin_probe.liva` validated. Unblocks REPL-style examples (calculator, todo-list).
 
 ### Pendiente — ciclos bounded (probablemente abordables)
 
-- [ ] **Async/await runtime** (4 ejemplos bloqueados: `concurrency`, `parallel-search`, `ai/chat-server`, `ai/web-scraper`). Necesita scoping del binding `await` solo dentro de funciones `async`, posible integración tokio para top-level. Posible Cycle 16+.
+- [x] **Async/await runtime** — implementado en Cycle 16. `examples/concurrency/main.liva` builds + runs end-to-end. (Antes bloqueaba 4 ejemplos.)
 - [ ] **`rust { use ... }` inside function body** — `web-scraper` emite `return use std::time::...` (statements `use` injectados dentro de la expresión de retorno). Requiere prefijar `use`-stmts antes del `return`.
-- [ ] Examples con parser errors (probablemente issues de sintaxis, no codegen): `ai/csv-reader` (línea 284 EOF), `ai/mini-interpreter` (línea 39), `ai/text-search` (línea 217), `ai/todo-list` (línea 33). Auditar uno a uno.
-- [ ] Examples con muchos errors estructurales: `ai/rest-api` (12), `ai/snake-game` (18), `ai/calculator` (30), `ai/json-parser` (37). Posiblemente combinación de async + parsing + features no portados.
+- [ ] Examples con parser errors (sintaxis no-Liva, generada por IA): `ai/csv-reader` (usa `switch ... { case X: ... default: ... }` estilo C en lugar de `switch x { val => body }`), `ai/mini-interpreter`, `ai/text-search`, `ai/todo-list`, `ai/json-parser` (string template malformado). Requieren reescritura completa a sintaxis Liva válida.
+- [ ] Examples con muchos errors estructurales (self-host codegen gaps):
+    - `ai/calculator` — 1 error tras Cycles 17+18: hay que cambiar `console.prompt` → `Sys.input` (o quedará resuelto al normalizar las APIs). Bug subyacente: arrow methods sin tipo de retorno explícito emiten `-> ()` en lugar de inferir desde la expresión (workaround: anotar el tipo, ya aplicado a `_current(): Token`).
+    - `ai/rest-api`, `ai/snake-game`, `ai/json-parser` — pendientes de auditoría individual.
+- [ ] **Arrow-method return type inference (self-host)** — Métodos `_name() => expr` sin tipo de retorno explícito emiten `fn _name(&self) {` en lugar de inferir desde la expresión. El path de funciones libres (1140-1180) ya tiene inferencia parcial; replicarlo en `_emitMethod` (lectura de tipos de campo de clase cuando la expresión es `this.field` o `this.field[idx]`).
 
 ### Pendiente — out-of-scope estructural
 
@@ -878,7 +884,7 @@ cargo test --release 528+).
 
 ### Push pendiente
 
-- [ ] **182 commits locales** ahead de `origin/feat/self-hosting-v2`. Push requiere autorización explícita del usuario (regla 5-may-2026).
+- [ ] **186 commits locales** ahead de `origin/feat/self-hosting-v2`. Push requiere autorización explícita del usuario (regla 5-may-2026).
 
 ---
 
