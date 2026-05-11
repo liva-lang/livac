@@ -455,13 +455,12 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 
 ## Self-host (gen-2) — Bugs específicos del compilador en Liva
 
-### BUG-3 — gen-2 HTTP route closures move captured fallible bindings 🔶 OPEN
+### BUG-3 — gen-2 HTTP route closures move captured fallible bindings ✅ FIXED (2026-05-11)
 
-**Status:** Open (2026-05-08). Diferido a v2.1. Documenta el fallo más visible
-de `examples/dogfooding-v3/main.liva` tras cerrar el bug `serde_json::json!`
-(`8da6bd4`) y el de `format!` con err-bindings (`a92e18b`).
+**Status:** Fixed on `feat/self-hosting-v2`. Pinned by Test 9 in
+`compiler/tests/cli_subcmds/run.sh`.
 
-**Síntoma:** `cargo build` del Rust generado por gen-2 falla con E0382
+**Síntoma original:** `cargo build` del Rust generado por gen-2 fallaba con E0382
 `use of moved value: 'db' / 'id'` en route handlers que usan DB.
 
 **Repro mínimo:**
@@ -508,3 +507,20 @@ HTTP.
 
 **Workaround:** usar `unsafe` block + `Arc::clone(&db)` manual en bloques
 `rust { ... }`, o expresar las rutas en bootstrap hasta el fix.
+
+**Fix aplicado (2026-05-11):**
+1. Tracking: nuevo `_dbVars: Map<string, bool>` en `compiler/src/codegen.liva`,
+   poblado en `_emitVarDecl` para `let v, err = DB.open(...)`.
+2. Route wrap: `_emitServerRoute` ahora envuelve cada `app.route(...)` en
+   `{ let <db> = <db>.clone(); ... }` por cada var en `_dbVars`. Espejo de
+   `livac/src/codegen.rs::generate_server_method_call` (bootstrap).
+3. `vec![<id>].iter().map(...)` → `vec![<id>.to_string()]`: nuevo helper
+   `_emitDbParamsVec(expr)` que, cuando el arg es `ArrayLiteral`, emite cada
+   elemento con `.to_string()` sufijo (clona, no mueve String). Bootstrap
+   parity con `generate_db_params_vec`.
+4. `__params.get(&"id".to_string().to_string())` doble-`to_string()`:
+   en `_emitMethodCall`, para `req.params.get(<strLit>)`, emite la key como
+   raw `"id"` y deja que la cola `.to_string())` la promocione una sola vez.
+
+`examples/dogfooding-v3/main.liva` ahora compila limpio con gen-2 + cargo.
+8/8 gauntlet GREEN.

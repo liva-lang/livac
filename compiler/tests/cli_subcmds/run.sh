@@ -225,6 +225,65 @@ else
     fi
 fi
 
+# ---------------------------------------------------------------------------
+# Test 9 — HTTP route closures that capture DB connection vars + path params
+# must compile. Pins BUG-3 fix: each `app.route(...)` is wrapped in
+# `{ let db = db.clone(); ... }` so multiple routes don't fight over the
+# moved `Arc<Mutex<Connection>>`. Also pins the `vec![<ident>.to_string()]`
+# emission for SQL params (was `vec![<ident>].iter().map(|s| s.to_string())`
+# which moved `<ident>` and broke subsequent uses inside the same handler).
+# Build-only — app.listen would block.
+# ---------------------------------------------------------------------------
+T9="$OUT/http_db_routes"; mkdir -p "$T9"
+cat > "$T9/srv.liva" <<'EOF'
+main() {
+    let db, _ = DB.open("test.db")
+    let app = Server.create()
+    app.get("/items", (req) => {
+        let _, qerr = DB.query(db, "SELECT * FROM items", [])
+        if qerr {
+            return Response.json({ "error": "query failed" })
+        }
+        Response.json({ "ok": "list" })
+    })
+    app.get("/items/:id", (req) => {
+        let id = req.params.get("id")
+        let _, qerr = DB.query(db, "SELECT * FROM items WHERE id = ?", [id])
+        if qerr {
+            return Response.json({ "error": "not found" })
+        }
+        Response.json({ "id": id })
+    })
+    app.listen(3000)
+}
+EOF
+"$G2" build --output "$T9/out" "$T9/srv.liva" >"$T9/build.log" 2>&1
+rc=$?
+if [[ $rc -ne 0 ]]; then
+    check_fail "livac build http_db_routes srv.liva (gen-2)" \
+               "rc=$rc; log:\n$(tail -10 "$T9/build.log")"
+else
+    # Sanity: emitted main.rs must contain `let db = db.clone();` shim
+    # exactly twice (one per route).
+    shim_count=$(grep -c 'let db = db.clone();' "$T9/out/src/main.rs" 2>/dev/null || echo 0)
+    if [[ "$shim_count" -lt 2 ]]; then
+        check_fail "BUG-3 db.clone() shim missing in route" \
+                   "expected >=2 shims, got $shim_count in $T9/out/src/main.rs"
+    elif grep -qE '"id"\.to_string\(\)\.to_string\(\)' "$T9/out/src/main.rs" 2>/dev/null; then
+        check_fail "double .to_string() on path-param key" \
+                   "found '\"id\".to_string().to_string()' in emitted main.rs"
+    else
+        (cd "$T9/out" && cargo build --quiet) >"$T9/cargo.log" 2>&1
+        rc2=$?
+        if [[ $rc2 -eq 0 ]]; then
+            check_ok "HTTP routes with DB capture + path param compile (gen-2)"
+        else
+            check_fail "cargo build of http_db_routes gen-2 output" \
+                       "rc=$rc2; log:\n$(tail -15 "$T9/cargo.log")"
+        fi
+    fi
+fi
+
 echo "===================="
 echo "  CLI subcmds: $PASS pass / $FAIL fail"
 [[ $FAIL -eq 0 ]]

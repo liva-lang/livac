@@ -182,6 +182,11 @@ RustEmitter {
     // Detected at let init; used by _emitMethodCall to rewrite
     // `app.get(path, handler)` into `app = app.route(...)` etc.
     _serverVars: Map<string, bool>
+    // BUG-3 fix: Vars assigned to `DB.open()` (Arc<Mutex<rusqlite::Connection>>).
+    // Detected at fallible-destructure `let v, err = DB.open(...)`. Used by
+    // `_emitServerRoute` to wrap each route in `{ let v = v.clone(); ... }` so
+    // each async closure gets its own Arc clone (bootstrap parity).
+    _dbVars: Map<string, bool>
     // A.3: when emitting an HTTP route handler lambda body, name of the
     // request param (lambda's first param). Inside the body, `req.params`
     // → `__params`, `req.body` → `body.clone()`,
@@ -251,6 +256,7 @@ RustEmitter {
         this._inConstructor = false
         this._constructorAssignedFields = Map {}
         this._serverVars = Map {}
+        this._dbVars = Map {}
         this._serverRequestParam = ""
         this._mainNeedsAsync = false
         this._warnings = []
@@ -3114,6 +3120,25 @@ RustEmitter {
                 // ERR-UNIFY: register err-binding for `if err` rewrite
                 this._errBindings.set(errName, true)
                 this._optionalVars.set(errName, true)
+                // BUG-3 fix: track DB.open result so route closures get cloned
+                let initSnapDb = decl.init
+                let _ = switch initSnapDb {
+                    Expr.MethodCall(dbObj, dbMethod, _) => {
+                        if dbMethod == "open" {
+                            let _ = switch dbObj {
+                                Expr.Identifier(dbObjName) => {
+                                    if dbObjName == "DB" && valName != "_" {
+                                        this._dbVars.set(valName, true)
+                                    }
+                                    0
+                                },
+                                _ => { 0 }
+                            }
+                        }
+                        0
+                    },
+                    _ => { 0 }
+                }
                 this._writeIndent()
                 this._write("let (")
                 if valName == "_" {
@@ -6269,9 +6294,31 @@ RustEmitter {
                 _ => { 0 }
             }
             if isReqParamsGet {
+                // BUG-3 fix: avoid `"k".to_string().to_string()` — for a bare
+                // string literal arg, emit the raw `"k"` and let the trailing
+                // `.to_string()` lift it to String once.
                 this._write("__params.get(&")
+                let argIsRawStrLit = false
                 if args.length >= 1 {
-                    this._emitExpr(args[0])
+                    let _ = switch args[0] {
+                        Expr.Literal(litK) => {
+                            let _ = switch litK {
+                                Literal.Str(ks) => {
+                                    this._write("\"")
+                                    this._write(ks)
+                                    this._write("\"")
+                                    argIsRawStrLit = true
+                                    0
+                                },
+                                _ => { 0 }
+                            }
+                            0
+                        },
+                        _ => { 0 }
+                    }
+                    if !argIsRawStrLit {
+                        this._emitExpr(args[0])
+                    }
                 }
                 this._write(".to_string()).cloned().unwrap_or_default()")
                 return
@@ -6776,9 +6823,7 @@ RustEmitter {
                     if isEmptyParams {
                         this._write("let __param_refs: Vec<&dyn rusqlite::types::ToSql> = Vec::new();")
                     } else {
-                        this._write($"{DB_PARAM_BINDING}")
-                        this._emitExpr(args[2])
-                        this._write($"{DB_PARAM_BINDING_TAIL}")
+                        this._emitDbParamsVec(args[2])
                     }
                     this._write(" match ")
                     this._emitExpr(args[0])
@@ -6806,9 +6851,7 @@ RustEmitter {
                     if isEmptyParams {
                         this._write("let __param_refs: Vec<&dyn rusqlite::types::ToSql> = Vec::new();")
                     } else {
-                        this._write($"{DB_PARAM_BINDING}")
-                        this._emitExpr(args[2])
-                        this._write($"{DB_PARAM_BINDING_TAIL}")
+                        this._emitDbParamsVec(args[2])
                     }
                     this._write(" match ")
                     this._emitExpr(args[0])
@@ -8954,6 +8997,36 @@ RustEmitter {
         }
     }
 
+    // BUG-3 fix: emit the `__params` Vec<String> binding for a DB.exec/query
+    // params argument. When the param expr is an `ArrayLiteral`, emit each
+    // element with a trailing `.to_string()` directly inside `vec![]` so
+    // String identifiers are cloned (`.to_string()` returns a new String)
+    // instead of moved by `vec!`. Mirrors bootstrap `generate_db_params_vec`.
+    // Fallback path (non-literal expr) keeps the `.iter().map(...)` form
+    // which is fine for &[T] / Vec<T> references.
+    _emitDbParamsVec(expr: Expr) {
+        let _ = switch expr {
+            Expr.ArrayLiteral(elems) => {
+                this._write("let __params: Vec<String> = vec![")
+                let i = 0
+                for elem in elems {
+                    if i > 0 { this._write(", ") }
+                    this._emitExpr(elem)
+                    this._write(".to_string()")
+                    i += 1
+                }
+                this._write("]; let __param_refs: Vec<&dyn rusqlite::types::ToSql> = __params.iter().map(|s| s as &dyn rusqlite::types::ToSql).collect();")
+                0
+            },
+            _ => {
+                this._write($"{DB_PARAM_BINDING}")
+                this._emitExpr(expr)
+                this._write($"{DB_PARAM_BINDING_TAIL}")
+                0
+            }
+        }
+    }
+
     // Emit an expression in `format!`-arg position. If the expr is an
     // identifier bound as Option<liva_rt::Error> via a fallible
     // destructure (let v, err = call()), unwrap with as_ref().map().
@@ -9695,6 +9768,18 @@ RustEmitter {
 
         let isWrite = method == "post" || method == "put"
 
+        // BUG-3 fix: wrap each route in `{ let db = db.clone(); ... }` for every
+        // tracked DB connection var. Each async closure consumes its own Arc
+        // clone instead of moving the outer var (bootstrap parity).
+        let hasDbClones = false
+        for _k in this._dbVars.keys() { hasDbClones = true }
+        if hasDbClones {
+            this._write("{ ")
+            for dbName in this._dbVars.keys() {
+                this._write($"let {dbName} = {dbName}.clone(); ")
+            }
+        }
+
         this._write(serverVar)
         this._write(" = ")
         this._write(serverVar)
@@ -9785,12 +9870,14 @@ RustEmitter {
                 this._dedent()
                 this._writeIndent()
                 this._write("}))")
+                if hasDbClones { this._write(" }") }
                 0
             },
             _ => {
                 // Non-lambda: emit unchanged (likely user error).
                 this._emitExpr(args[1])
                 this._write("))")
+                if hasDbClones { this._write(" }") }
                 0
             }
         }
