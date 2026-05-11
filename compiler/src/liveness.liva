@@ -405,7 +405,18 @@ LivenessAnalyzer {
                 this._analyzeExpr(ocObj)
                 0
             },
-            Expr.RustBlock(code) => { 0 }
+            Expr.RustBlock(code) => {
+                // Mark all params of current function as escaping. The
+                // raw Rust code inside the block is opaque to liveness
+                // analysis but typically references params expecting
+                // owned String — borrowing them would produce a `&str`
+                // signature that doesn't match the embedded Rust usage.
+                for paramName in this._currentParams.keys() {
+                    let escKey = $"{this._currentFunc}:{paramName}"
+                    this._paramEscapes.set(escKey, 1)
+                }
+                0
+            }
         }
     }
 
