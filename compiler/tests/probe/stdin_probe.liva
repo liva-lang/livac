@@ -1,0 +1,9 @@
+// Probe for Sys.input + Console.log/error/input
+main() {
+    Console.log("hello world")
+    Console.error("an error")
+    let line = Sys.input("> ")
+    Console.log($"got: {line}")
+    let line2 = Console.input("again> ")
+    Console.log($"got2: {line2}")
+}

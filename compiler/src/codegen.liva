@@ -6994,6 +6994,38 @@ RustEmitter {
                 this._write(" as i32)")
                 return
             }
+            if method == "input" {
+                // Sys.input(prompt: string): string — read a line from stdin.
+                // Prints the prompt without newline, flushes, then reads one line
+                // (with the trailing '\n' stripped).
+                this._write("{ use std::io::{Write as _, BufRead as _}; print!(\"{}\", ")
+                this._emitExpr(args[0])
+                this._write("); std::io::stdout().flush().ok(); let mut __ln = String::new(); std::io::stdin().lock().read_line(&mut __ln).ok(); let __ln = __ln.trim_end_matches('\\n').trim_end_matches('\\r').to_string(); __ln }")
+                return
+            }
+        }
+
+        // ── Console module — JS/TS familiarity ──
+        if stdlibName == "Console" || stdlibName == "console" {
+            if method == "log" || method == "info" {
+                this._write("println!(\"{}\", ")
+                this._emitExpr(args[0])
+                this._write(")")
+                return
+            }
+            if method == "error" || method == "warn" {
+                this._write("eprintln!(\"{}\", ")
+                this._emitExpr(args[0])
+                this._write(")")
+                return
+            }
+            if method == "input" || method == "prompt" {
+                // Console.input/prompt(message: string): string — read a line from stdin.
+                this._write("{ use std::io::{Write as _, BufRead as _}; print!(\"{}\", ")
+                this._emitExpr(args[0])
+                this._write("); std::io::stdout().flush().ok(); let mut __ln = String::new(); std::io::stdin().lock().read_line(&mut __ln).ok(); let __ln = __ln.trim_end_matches('\\n').trim_end_matches('\\r').to_string(); __ln }")
+                return
+            }
         }
 
         // ── Env module (5 functions) — D.4 PLAN ──

@@ -16,7 +16,7 @@ Evaluator {
     }
 
     // Retorna el token actual sin avanzar
-    _current() => this.tokens[this.pos]
+    _current(): Token => this.tokens[this.pos]
 
     // Avanza al siguiente token
     _advance() {
