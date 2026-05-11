@@ -100,6 +100,7 @@ RustEmitter {
     _mapVars: Map<string, bool>
     _setVars: Map<string, bool>
     _stringVars: Map<string, bool>
+    _jsonValueVars: Map<string, bool>
     _currentReturnOptional: bool
     _currentReturnFallible: bool
     _inIfCondition: bool
@@ -224,6 +225,7 @@ RustEmitter {
         this._mapVars = Map {}
         this._setVars = Map {}
         this._stringVars = Map {}
+        this._jsonValueVars = Map {}
         this._currentReturnOptional = false
         this._currentReturnFallible = false
         this._inIfCondition = false
@@ -3203,6 +3205,17 @@ RustEmitter {
                                 _ => { 0 }
                             }
                         }
+                        if dbMethod == "parse" {
+                            let _ = switch dbObj {
+                                Expr.Identifier(jObjName) => {
+                                    if jObjName == "JSON" && valName != "_" {
+                                        this._jsonValueVars.set(valName, true)
+                                    }
+                                    0
+                                },
+                                _ => { 0 }
+                            }
+                        }
                         0
                     },
                     _ => { 0 }
@@ -3268,6 +3281,26 @@ RustEmitter {
             let isStdTupS = this._isStdlibTupleCall(initProbeS)
             if isSimpleIdent && isStdTupS {
                 let sanU = this._sanitizeName(bName)
+                // Track JSON.parse single-binding so .forEach / iteration on
+                // the resulting serde_json::Value is rewritten correctly.
+                let initProbeJ = decl.init
+                let _ = switch initProbeJ {
+                    Expr.MethodCall(jObj, jMethod, _) => {
+                        if jMethod == "parse" {
+                            let _ = switch jObj {
+                                Expr.Identifier(jObjName) => {
+                                    if jObjName == "JSON" && sanU != "_" {
+                                        this._jsonValueVars.set(sanU, true)
+                                    }
+                                    0
+                                },
+                                _ => { 0 }
+                            }
+                        }
+                        0
+                    },
+                    _ => { 0 }
+                }
                 this._writeIndent()
                 if sanU == "_" {
                     this._write("let _ = ")
@@ -7769,6 +7802,22 @@ RustEmitter {
             this._emitExpr(obj)
             this._write(".as_array_owned()")
             return
+        }
+        // .forEach on a tracked JSON Value variable — Value is not Iterator,
+        // so route through the trait helper that returns Vec<Value>.
+        if method == "forEach" {
+            let jvName = ""
+            let _ = switch obj {
+                Expr.Identifier(jn) => { jvName = this._sanitizeName(jn); 0 },
+                _ => { 0 }
+            }
+            if jvName != "" && this._jsonValueVars.has(jvName) {
+                this._emitExpr(obj)
+                this._write(".as_array_owned().into_iter().for_each(")
+                if args.length > 0 { this._emitExpr(args[0]) }
+                this._write(")")
+                return
+            }
         }
 
         // String methods that require &str args — handle in generic fallback
