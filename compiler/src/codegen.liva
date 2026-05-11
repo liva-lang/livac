@@ -408,6 +408,7 @@ RustEmitter {
         if nsName == "DB" { return true }
         if nsName == "Process" { return true }
         if nsName == "Http" || nsName == "HTTP" { return true }
+        if nsName == "JSON" { return true }
         return false
     }
 
@@ -6894,9 +6895,14 @@ RustEmitter {
         // ── JSON module (2 functions + serde) ──
         if stdlibName == "JSON" {
             if method == "parse" {
-                this._write("serde_json::from_str::<serde_json::Value>(&")
+                // Tuple shape (Option<serde_json::Value>, String) so the
+                // `let v, err = JSON.parse(s)` destructure works through
+                // _isStdlibTupleCall. Callers that use the value directly
+                // (no destructure) get the Option wrap; codegen for
+                // simple bindings unwraps via the Default impl.
+                this._write("{ match serde_json::from_str::<serde_json::Value>(&")
                 this._emitExpr(args[0])
-                this._write(").unwrap_or_default()")
+                this._write(") { Ok(v) => (Some(v), String::new()), Err(e) => (None, format!(\"JSON.parse error: {}\", e)) } }")
                 return
             }
             if method == "stringify" {
