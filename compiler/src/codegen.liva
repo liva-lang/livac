@@ -2857,6 +2857,14 @@ RustEmitter {
 
         this._dedent()
         this._writeln("}")
+        // Auto Display impl so that `println!("{}", color)` and
+        // `format!("{}", v)` work like in the bootstrap. Reuses the
+        // derived Debug formatter for variant rendering.
+        this._writeln("impl std::fmt::Display for " + enumName + " {")
+        this._writeln("    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {")
+        this._writeln("        std::fmt::Debug::fmt(self, f)")
+        this._writeln("    }")
+        this._writeln("}")
         this._writeRaw("")
     }
 
