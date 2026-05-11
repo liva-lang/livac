@@ -5205,7 +5205,13 @@ RustEmitter {
                 0
             },
             Expr.RustBlock(code) => {
+                // Wrap in `{ ... }` so the embedded code can contain `use`
+                // statements (and any other items/stmts) before its trailing
+                // expression. The block evaluates to its last expression — the
+                // semantics callers expect (the user wrote `return rust { ... }`).
+                this._write("{ ")
                 this._write(code)
+                this._write(" }")
                 0
             }
         }
