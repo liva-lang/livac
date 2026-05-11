@@ -7720,7 +7720,7 @@ RustEmitter {
     }
 
     _isKnownArrayMethod(m: string): bool {
-        return m == "push" || m == "pop" || m == "map" || m == "filter" || m == "forEach" || m == "join" || m == "includes" || m == "indexOf" || m == "find" || m == "findIndex" || m == "some" || m == "every" || m == "reduce" || m == "slice" || m == "concat" || m == "sort" || m == "reverse" || m == "reversed" || m == "flat" || m == "flatMap" || m == "flatten" || m == "first" || m == "last" || m == "count" || m == "min" || m == "max" || m == "isEmpty" || m == "contains" || m == "distinct" || m == "sum" || m == "take" || m == "drop" || m == "zip" || m == "chunks" || m == "insert" || m == "remove"
+        return m == "push" || m == "pop" || m == "map" || m == "filter" || m == "forEach" || m == "join" || m == "includes" || m == "indexOf" || m == "find" || m == "findIndex" || m == "some" || m == "every" || m == "reduce" || m == "slice" || m == "concat" || m == "sort" || m == "sortBy" || m == "groupBy" || m == "reverse" || m == "reversed" || m == "flat" || m == "flatMap" || m == "flatten" || m == "first" || m == "last" || m == "count" || m == "min" || m == "max" || m == "isEmpty" || m == "contains" || m == "distinct" || m == "sum" || m == "take" || m == "drop" || m == "zip" || m == "chunks" || m == "insert" || m == "remove"
     }
 
     _isKnownMapMethod(m: string): bool {
@@ -8449,6 +8449,71 @@ RustEmitter {
                 this._write(".clone(); __v.reverse(); __v }")
             }
             return true
+        }
+        // arr.sortBy(fn) — sort by key extraction function (Liva idiom).
+        // Bootstrap parity: emit a closure that re-evaluates the key
+        // extractor for both compare sides, since sort_by requires Ord
+        // on the cmp result rather than on the key directly.
+        if method == "sortBy" && args.length > 0 {
+            let isLamSB = false
+            let _ = switch args[0] {
+                Expr.Lambda(_) => { isLamSB = true; 0 },
+                _ => { 0 }
+            }
+            if isLamSB {
+                let _ = switch args[0] {
+                    Expr.Lambda(lamSB) => {
+                        let paramSB = "__x"
+                        for lp in lamSB.params {
+                            let _ = switch lp.pattern {
+                                BindingPattern.Identifier(pn) => { paramSB = this._sanitizeName(pn); 0 },
+                                _ => { 0 }
+                            }
+                            break
+                        }
+                        this._write("{ let mut __v = ")
+                        this._emitExpr(obj)
+                        this._write(".clone(); __v.sort_by(|__a, __b| { let " + paramSB + " = (*__a).clone(); let __ka = ")
+                        this._emitLambdaBodyInline(lamSB)
+                        this._write("; let " + paramSB + " = (*__b).clone(); let __kb = ")
+                        this._emitLambdaBodyInline(lamSB)
+                        this._write("; __ka.partial_cmp(&__kb).unwrap_or(std::cmp::Ordering::Equal) }); __v }")
+                        0
+                    },
+                    _ => { 0 }
+                }
+                return true
+            }
+        }
+        // arr.groupBy(fn) — group by key extractor → HashMap<K, Vec<V>>.
+        if method == "groupBy" && args.length > 0 {
+            let isLamGB = false
+            let _ = switch args[0] {
+                Expr.Lambda(_) => { isLamGB = true; 0 },
+                _ => { 0 }
+            }
+            if isLamGB {
+                let _ = switch args[0] {
+                    Expr.Lambda(lamGB) => {
+                        let paramGB = "__x"
+                        for lp in lamGB.params {
+                            let _ = switch lp.pattern {
+                                BindingPattern.Identifier(pn) => { paramGB = this._sanitizeName(pn); 0 },
+                                _ => { 0 }
+                            }
+                            break
+                        }
+                        this._write("{ let mut __m: std::collections::HashMap<_, Vec<_>> = std::collections::HashMap::new(); for __item in ")
+                        this._emitExpr(obj)
+                        this._write(".iter() { let " + paramGB + " = (*__item).clone(); let __key = ")
+                        this._emitLambdaBodyInline(lamGB)
+                        this._write("; __m.entry(__key).or_insert_with(Vec::new).push((*__item).clone()); } __m }")
+                        0
+                    },
+                    _ => { 0 }
+                }
+                return true
+            }
         }
         if method == "sort" {
             // Phase 10.4: in statement position, emit `obj.sort()` directly so the
@@ -9526,6 +9591,37 @@ RustEmitter {
     }
 
     // -- Lambda --
+
+    // Emit only the body of a lambda as an expression (no |params| header).
+    // Used by stdlib synthesizers (sortBy/groupBy) that wrap the body
+    // in their own scope and parameter bindings.
+    _emitLambdaBodyInline(lam: LambdaExpr) {
+        let _ = switch lam.body {
+            LambdaBody.Expr(lamExprs) => {
+                if lamExprs.length == 1 {
+                    for le in lamExprs { this._emitExpr(le); break }
+                } else {
+                    this._write("{ ")
+                    for e in lamExprs {
+                        this._emitExpr(e)
+                        this._write("; ")
+                    }
+                    this._write("}")
+                }
+                0
+            },
+            LambdaBody.Block(lamBlock) => {
+                this._write("{")
+                this._newline()
+                this._indent()
+                this._emitBlock(lamBlock)
+                this._dedent()
+                this._writeIndent()
+                this._write("}")
+                0
+            }
+        }
+    }
 
     _emitLambda(lam: LambdaExpr) {
         if lam.isMove {
