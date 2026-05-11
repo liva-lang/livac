@@ -6411,6 +6411,8 @@ RustEmitter {
             Expr.Identifier(sn) => { stdlibName = sn; 0 },
             _ => { 0 }
         }
+        // Accept both `Http.*` and `HTTP.*` — bootstrap accepts either casing.
+        if stdlibName == "HTTP" { stdlibName = "Http" }
 
         // ── File module (11 functions) ──
         if stdlibName == "File" {
@@ -9952,7 +9954,7 @@ RustEmitter {
                 let _ = switch obj {
                     Expr.Identifier(n) => {
                         if n == "Server" { result = true }
-                        if n == "HTTP" {
+                        if n == "HTTP" || n == "Http" {
                             if method == "get" || method == "post" || method == "put" || method == "delete" {
                                 result = true
                             }
