@@ -3214,6 +3214,38 @@ RustEmitter {
                 return
             }
         }
+        // Single-binding stdlib tuple unwrap: `let x = JSON.parse(s)` (or any
+        // other File/Dir/CSV/DB/Http/JSON tuple-returning method) used WITHOUT
+        // destructure should yield the bare value, not the (Option<T>, String)
+        // tuple. Without this, downstream `x.method()` / `x[k]` would target
+        // the tuple type and fail E0608/E0599. Mirrors the destructure path
+        // by emitting `let mut x = { let (__opt, __err) = <call>; __opt.unwrap_or_default() };`.
+        if not decl.isFallible && decl.bindings.length == 1 {
+            let isSimpleIdent = false
+            let bName = ""
+            for bSingle in decl.bindings {
+                let _ = switch bSingle.pattern {
+                    BindingPattern.Identifier(n) => { isSimpleIdent = true; bName = n; 0 },
+                    _ => { 0 }
+                }
+            }
+            let initProbeS = decl.init
+            let isStdTupS = this._isStdlibTupleCall(initProbeS)
+            if isSimpleIdent && isStdTupS {
+                let sanU = this._sanitizeName(bName)
+                this._writeIndent()
+                if sanU == "_" {
+                    this._write("let _ = ")
+                } else {
+                    this._write($"let mut {sanU} = ")
+                }
+                this._write("{ let (__opt, __err) = ")
+                this._emitExpr(decl.init)
+                this._write("; let _ = __err; __opt.unwrap_or_default() };")
+                this._newline()
+                return
+            }
+        }
         for b in decl.bindings {
             this._emitBinding(b, decl)
         }
@@ -4839,6 +4871,42 @@ RustEmitter {
                 0
             },
             Expr.Index(idxObj, idxExpr) => {
+                // Detect string-literal index: emit map/json-style indexing
+                // (no `as usize` cast). HashMap<String,V> impls Index<&Q>
+                // where K: Borrow<Q>, so `m["k"]` works; serde_json::Value
+                // impls Index<&str> directly. Either way, drop the usize
+                // cast that the numeric-index path emits.
+                let isStrIdx = false
+                let strKey = ""
+                let _ = switch idxExpr {
+                    Expr.Literal(_il) => {
+                        let _ = switch _il {
+                            Literal.Str(sv) => { isStrIdx = true; strKey = sv; 0 },
+                            _ => { 0 }
+                        }
+                        0
+                    },
+                    _ => { 0 }
+                }
+                if isStrIdx {
+                    let savedAssignTargetS = this._inAssignTarget
+                    this._inAssignTarget = true
+                    this._emitExpr(idxObj)
+                    this._inAssignTarget = savedAssignTargetS
+                    // Emit raw string-literal index (no .to_string()) so
+                    // HashMap<String,V> Borrow impl and serde_json::Value
+                    // Index<&str> both resolve.
+                    this._write("[\"")
+                    this._write(strKey)
+                    this._write("\"")
+                    if this._suppressIndexElemClone {
+                        this._write("]")
+                    } else {
+                        this._write("].clone()")
+                    }
+                    this._suppressIndexElemClone = false
+                    return
+                }
                 // Suppress self.field auto-clone for the base object
                 // We only need to clone the element, not the entire Vec
                 let savedAssignTarget = this._inAssignTarget
