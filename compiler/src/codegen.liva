@@ -3386,6 +3386,40 @@ RustEmitter {
             _ => { 0 }
         }
 
+        // Propagate JSON-value tracking through index/member access so that
+        // downstream operations (string-key indexing, .is_null() null check,
+        // .forEach rewrite) work on derivatives like `let coin = data[coinId]`.
+        let initJsonSnap = decl.init
+        let _ = switch initJsonSnap {
+            Expr.Index(jIdxObj, _) => {
+                let _ = switch jIdxObj {
+                    Expr.Identifier(jIdxObjName) => {
+                        let jSan = this._sanitizeName(jIdxObjName)
+                        if this._jsonValueVars.has(jSan) && sanitized != "_" {
+                            this._jsonValueVars.set(sanitized, true)
+                        }
+                        0
+                    },
+                    _ => { 0 }
+                }
+                0
+            },
+            Expr.MemberAccess(jMaObj, _) => {
+                let _ = switch jMaObj {
+                    Expr.Identifier(jMaObjName) => {
+                        let jSan2 = this._sanitizeName(jMaObjName)
+                        if this._jsonValueVars.has(jSan2) && sanitized != "_" {
+                            this._jsonValueVars.set(sanitized, true)
+                        }
+                        0
+                    },
+                    _ => { 0 }
+                }
+                0
+            },
+            _ => { 0 }
+        }
+
         this._writeIndent()
 
         // Determine mutability — skip mut for _ (Rust doesn't allow let mut _)
@@ -4979,8 +5013,49 @@ RustEmitter {
                 // We only need to clone the element, not the entire Vec
                 let savedAssignTarget = this._inAssignTarget
                 this._inAssignTarget = true
+                // JSON-tracked receiver: serde_json::Value impls Index<&str>
+                // and Index<usize>. Avoid the unconditional `as usize` cast
+                // (which fails for string keys); pick the right form based
+                // on whether the index identifier is a string-typed var.
+                let jsonObjName = ""
+                let _ = switch idxObj {
+                    Expr.Identifier(jon) => { jsonObjName = this._sanitizeName(jon); 0 },
+                    _ => { 0 }
+                }
+                let isJsonRecv = jsonObjName != "" && this._jsonValueVars.has(jsonObjName)
                 this._emitExpr(idxObj)
                 this._inAssignTarget = savedAssignTarget
+                if isJsonRecv {
+                    let idxIsStr = false
+                    let _ = switch idxExpr {
+                        Expr.Identifier(idn) => {
+                            let idSan = this._sanitizeName(idn)
+                            if this._stringVars.has(idSan) { idxIsStr = true }
+                            0
+                        },
+                        _ => { 0 }
+                    }
+                    if idxIsStr {
+                        this._write("[&(")
+                        this._emitExpr(idxExpr)
+                        this._write(")[..]")
+                        if this._suppressIndexElemClone {
+                            this._write("]")
+                        } else {
+                            this._write("].clone()")
+                        }
+                    } else {
+                        this._write("[(")
+                        this._emitExpr(idxExpr)
+                        if this._suppressIndexElemClone {
+                            this._write(") as usize]")
+                        } else {
+                            this._write(") as usize].clone()")
+                        }
+                    }
+                    this._suppressIndexElemClone = false
+                    return
+                }
                 this._write("[(")
                 this._emitExpr(idxExpr)
                 // Phase 8: skip .clone() for Copy-type array elements
@@ -5333,7 +5408,16 @@ RustEmitter {
                         let _ = switch left {
                             Expr.Identifier(lName) => {
                                 let san = this._sanitizeName(lName)
-                                this._write($"let Some({san}) = {san}")
+                                // JSON-value receivers are not Option<T>: emit
+                                // an !is_null() guard instead of an if-let.
+                                if this._jsonValueVars.has(san) {
+                                    let savedJ = this._inIfCondition
+                                    this._inIfCondition = false
+                                    this._write($"!{san}.is_null()")
+                                    this._inIfCondition = savedJ
+                                } else {
+                                    this._write($"let Some({san}) = {san}")
+                                }
                                 0
                             },
                             Expr.MemberAccess(maObj, maProp) => {
