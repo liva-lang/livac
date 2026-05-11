@@ -1,14 +1,12 @@
 // ─────────────────────────────────────────────────────────────
-// CSV Employee Manager
-// Lee un archivo CSV de empleados, filtra por departamento,
-// ordena por salario y exporta resultados a un nuevo CSV.
-// Incluye estadísticas: promedio salarial y conteo por depto.
+// CSV Employee Manager — Liva-syntax rewrite
+// Reads a CSV file of employees, filters by department, sorts
+// by salary and exports results to a new CSV. Includes stats:
+// average salary and per-department count.
 // ─────────────────────────────────────────────────────────────
 
-// ── Parseo del CSV ──────────────────────────────────────────
+// ── CSV parsing ──────────────────────────────────────────────
 
-// Convierte el contenido CSV en un array de registros.
-// Cada registro es [nombre, edad, departamento, salario].
 parseCSV(content: string): [[string]] {
     let lines = content.split("\n")
     let employees: [[string]] = []
@@ -32,12 +30,12 @@ parseCSV(content: string): [[string]] {
     return employees
 }
 
-// ── Mostrar empleados ───────────────────────────────────────
+// ── Pretty-print employees ───────────────────────────────────
 
 printEmployees(employees: [[string]]) {
     print("")
-    print("  Nombre                  Edad  Departamento    Salario")
-    print("  ───────────────────────────────────────────────────────")
+    print("  Name                    Age   Department      Salary")
+    print("  ------------------------------------------------------")
     for emp in employees {
         let name = emp[0].padEnd(24, " ")
         let age = emp[1].padStart(4, " ")
@@ -45,17 +43,17 @@ printEmployees(employees: [[string]]) {
         let salary = emp[3].padStart(8, " ")
         print($"  {name} {age}  {dept} ${salary}")
     }
-    print($"\n  Total: {employees.length} empleado(s)")
+    print($"\n  Total: {employees.length} employee(s)")
 }
 
-// ── Filtrar por departamento ────────────────────────────────
+// ── Filter by department ─────────────────────────────────────
 
 filterByDepartment(employees: [[string]], dept: string): [[string]] {
     let deptLower = dept.toLowerCase()
     return employees.filter(emp => emp[2].toLowerCase() == deptLower)
 }
 
-// ── Obtener departamentos únicos ────────────────────────────
+// ── Unique departments ───────────────────────────────────────
 
 getUniqueDepartments(employees: [[string]]): [string] {
     let depts: [string] = []
@@ -68,7 +66,7 @@ getUniqueDepartments(employees: [[string]]): [string] {
     return depts.sort()
 }
 
-// ── Ordenar por salario (selección) ────────────────────────
+// ── Sort by salary (selection sort) ──────────────────────────
 
 sortBySalary(employees: [[string]], ascending: bool): [[string]] {
     let sorted: [[string]] = []
@@ -110,23 +108,23 @@ sortBySalary(employees: [[string]], ascending: bool): [[string]] {
     return sorted
 }
 
-// ── Estadísticas ────────────────────────────────────────────
+// ── Statistics ───────────────────────────────────────────────
 
 showStats(employees: [[string]]) {
     if employees.isEmpty() {
-        print("\n  No hay empleados para calcular estadísticas.")
+        print("\n  No employees to compute statistics for.")
         return
     }
 
-    // Promedio salarial general
     let totalSalary = 0.0
     for emp in employees {
         let sal, _ = parseFloat(emp[3])
         totalSalary = totalSalary + sal
     }
-    let avgSalary = totalSalary / employees.length
+    let countF = 0.0
+    for _e in employees { countF = countF + 1.0 }
+    let avgSalary = totalSalary / countF
 
-    // Salario mín y máx
     let minSal, _ = parseFloat(employees[0][3])
     let maxSal = minSal
     let minName = employees[0][0]
@@ -144,18 +142,17 @@ showStats(employees: [[string]]) {
         }
     }
 
-    print("\n  ═══════════════════════════════════════════")
-    print("           ESTADÍSTICAS DE EMPLEADOS")
-    print("  ═══════════════════════════════════════════")
-    print($"\n  Total empleados:     {employees.length}")
-    print($"  Salario promedio:    ${avgSalary}")
-    print($"  Salario mínimo:      ${minSal}  ({minName})")
-    print($"  Salario máximo:      ${maxSal}  ({maxName})")
+    print("\n  =========================================")
+    print("           EMPLOYEE STATISTICS")
+    print("  =========================================")
+    print($"\n  Total employees:     {employees.length}")
+    print($"  Average salary:      ${avgSalary}")
+    print($"  Min salary:          ${minSal}  ({minName})")
+    print($"  Max salary:          ${maxSal}  ({maxName})")
 
-    // Conteo y promedio por departamento
     let depts = getUniqueDepartments(employees)
 
-    print("\n  ─── Por departamento ─────────────────────")
+    print("\n  --- By department ----------------------")
     for dept in depts {
         let deptEmployees = filterByDepartment(employees, dept)
         let deptTotal = 0.0
@@ -163,46 +160,48 @@ showStats(employees: [[string]]) {
             let sal, _ = parseFloat(emp[3])
             deptTotal = deptTotal + sal
         }
-        let deptAvg = deptTotal / deptEmployees.length
+        let deptCountF = 0.0
+        for _e in deptEmployees { deptCountF = deptCountF + 1.0 }
+        let deptAvg = deptTotal / deptCountF
         let deptName = dept.padEnd(15, " ")
-        print($"  {deptName} → {deptEmployees.length} empleado(s), promedio: ${deptAvg}")
+        print($"  {deptName} -> {deptEmployees.length} employee(s), avg: ${deptAvg}")
     }
     print("")
 }
 
-// ── Exportar a CSV ──────────────────────────────────────────
+// ── Export to CSV ────────────────────────────────────────────
 
 exportCSV(employees: [[string]], filename: string) {
-    let lines: [string] = ["nombre,edad,departamento,salario"]
+    let lines: [string] = ["name,age,department,salary"]
     for emp in employees {
         lines.push($"{emp[0]},{emp[1]},{emp[2]},{emp[3]}")
     }
     let content = lines.join("\n")
     let writeErr = File.write(filename, content)
     if writeErr {
-        console.error($"Error al escribir {filename}: {writeErr}")
+        Console.error($"Error writing {filename}: {writeErr}")
     } else {
-        print($"\n  ✓ Exportado a '{filename}' ({employees.length} registros)")
+        print($"\n  Exported to '{filename}' ({employees.length} records)")
     }
 }
 
-// ── Menú principal ──────────────────────────────────────────
+// ── Menu ─────────────────────────────────────────────────────
 
 showMenu() {
-    print("\n  ╔═══════════════════════════════════════╗")
-    print("  ║     CSV EMPLOYEE MANAGER - LIVA       ║")
-    print("  ╠═══════════════════════════════════════╣")
-    print("  ║  1. Mostrar todos los empleados       ║")
-    print("  ║  2. Filtrar por departamento           ║")
-    print("  ║  3. Ordenar por salario (ascendente)   ║")
-    print("  ║  4. Ordenar por salario (descendente)  ║")
-    print("  ║  5. Mostrar estadísticas               ║")
-    print("  ║  6. Exportar resultados a CSV          ║")
-    print("  ║  7. Salir                              ║")
-    print("  ╚═══════════════════════════════════════╝")
+    print("\n  +-------------------------------------+")
+    print("  |     CSV EMPLOYEE MANAGER - LIVA     |")
+    print("  +-------------------------------------+")
+    print("  |  1. Show all employees              |")
+    print("  |  2. Filter by department            |")
+    print("  |  3. Sort by salary (ascending)      |")
+    print("  |  4. Sort by salary (descending)     |")
+    print("  |  5. Show statistics                 |")
+    print("  |  6. Export results to CSV           |")
+    print("  |  7. Quit                            |")
+    print("  +-------------------------------------+")
 }
 
-// ── Programa principal ──────────────────────────────────────
+// ── Main ─────────────────────────────────────────────────────
 
 main() {
     let args = Sys.args()
@@ -211,73 +210,64 @@ main() {
         filename = args[1]
     }
 
-    // Leer archivo CSV
     let content, readErr = File.read(filename)
     if readErr {
-        console.error($"Error al leer '{filename}': {readErr}")
-        console.error("Uso: csv-reader [archivo.csv]")
+        Console.error($"Error reading '{filename}': {readErr}")
+        Console.error("Usage: csv-reader [file.csv]")
         Sys.exit(1)
     }
 
     let allEmployees = parseCSV(content)
     if allEmployees.isEmpty() {
-        console.error("El archivo CSV no contiene datos de empleados.")
+        Console.error("CSV file contains no employee data.")
         Sys.exit(1)
     }
 
-    print($"\n  Cargados {allEmployees.length} empleados desde '{filename}'")
+    print($"\n  Loaded {allEmployees.length} employees from '{filename}'")
 
-    // Estado actual de los datos (puede cambiar con filtros/ordenamientos)
     let currentData = allEmployees
     let running = true
 
     while running {
         showMenu()
-        let option = console.prompt("\n  Seleccione una opción: ")
+        let raw = Sys.input("\n  Choose an option: ")
+        let option = raw.trim()
 
-        switch option.trim() {
-            case "1":
-                print("\n  ── Todos los empleados ──")
-                currentData = allEmployees
+        if option == "1" {
+            print("\n  -- All employees --")
+            printEmployees(allEmployees)
+            currentData = parseCSV(content)
+        } else if option == "2" {
+            let depts = getUniqueDepartments(allEmployees)
+            let joined = depts.join(", ")
+            print($"\n  Available departments: {joined}")
+            let deptIn = Sys.input("  Enter department: ")
+            let deptName = deptIn.trim()
+            currentData = filterByDepartment(allEmployees, deptName)
+            if currentData.isEmpty() {
+                print($"\n  No employees found in '{deptName}'")
+            } else {
+                print($"\n  -- Employees in {deptName} --")
                 printEmployees(currentData)
-
-            case "2":
-                let depts = getUniqueDepartments(allEmployees)
-                print($"\n  Departamentos disponibles: {depts.join(", ")}")
-                let dept = console.prompt("  Ingrese departamento: ")
-                currentData = filterByDepartment(allEmployees, dept.trim())
-                if currentData.isEmpty() {
-                    print($"\n  No se encontraron empleados en '{dept.trim()}'")
-                } else {
-                    print($"\n  ── Empleados en {dept.trim()} ──")
-                    printEmployees(currentData)
-                }
-
-            case "3":
-                currentData = sortBySalary(currentData, true)
-                print("\n  ── Ordenados por salario (menor a mayor) ──")
-                printEmployees(currentData)
-
-            case "4":
-                currentData = sortBySalary(currentData, false)
-                print("\n  ── Ordenados por salario (mayor a menor) ──")
-                printEmployees(currentData)
-
-            case "5":
-                showStats(currentData)
-
-            case "6":
-                let outFile = console.prompt("  Nombre del archivo de salida (ej: resultado.csv): ")
-                exportCSV(currentData, outFile.trim())
-
-            case "7":
-                print("\n  ¡Hasta luego!\n")
-                running = false
-
-            default:
-                print("\n  ⚠ Opción no válida. Intente de nuevo.")
+            }
+        } else if option == "3" {
+            currentData = sortBySalary(currentData, true)
+            print("\n  -- Sorted by salary (asc) --")
+            printEmployees(currentData)
+        } else if option == "4" {
+            currentData = sortBySalary(currentData, false)
+            print("\n  -- Sorted by salary (desc) --")
+            printEmployees(currentData)
+        } else if option == "5" {
+            showStats(currentData)
+        } else if option == "6" {
+            let outFile = Sys.input("  Output filename (e.g. result.csv): ")
+            exportCSV(currentData, outFile.trim())
+        } else if option == "7" {
+            print("\n  Goodbye!\n")
+            running = false
+        } else {
+            print("\n  ! Invalid option. Try again.")
         }
     }
 }
-
-main()
