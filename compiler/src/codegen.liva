@@ -7266,9 +7266,9 @@ RustEmitter {
                 return
             }
             if method == "stringify" {
-                this._write("serde_json::to_string(&")
+                this._write("{ match serde_json::to_string(&")
                 this._emitExpr(args[0])
-                this._write(").unwrap_or_default()")
+                this._write(") { Ok(s) => (Some(s), String::new()), Err(e) => (None, format!(\"JSON.stringify error: {}\", e)) } }")
                 return
             }
         }
