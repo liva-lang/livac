@@ -6281,8 +6281,10 @@ RustEmitter {
                 _ => { 0 }
             }
             if isLiteral {
-                // Escape braces for println! macro
-                let escaped = litVal.replaceAll("{", "{{").replaceAll("}", "}}")
+                // Escape Rust special chars first (\, ", \n, ...) then escape
+                // braces for println! formatting placeholders.
+                let escapedRust = this._escapeRustStr(litVal)
+                let escaped = escapedRust.replaceAll("{", "{{").replaceAll("}", "}}")
                 this._write($"println!(\"{escaped}\")")
             } else {
                 // Phase 8: check if arg is StringTemplate → emit format directly
