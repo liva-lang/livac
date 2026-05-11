@@ -692,7 +692,7 @@ RustEmitter {
             this._writeln("        fn as_float(&self) -> f64;")
             this._writeln("        fn as_string(&self) -> String;")
             this._writeln("        fn as_bool_or(&self, def: bool) -> bool;")
-            this._writeln("        fn as_array(&self) -> Vec<serde_json::Value>;")
+            this._writeln("        fn as_array_owned(&self) -> Vec<serde_json::Value>;")
             this._writeln("        fn length(&self) -> usize;")
             this._writeln("    }")
             this._writeln("    impl JsonValueExt for serde_json::Value {")
@@ -702,7 +702,7 @@ RustEmitter {
             this._writeln("            match self { serde_json::Value::String(s) => s.clone(), _ => self.to_string() }")
             this._writeln("        }")
             this._writeln("        fn as_bool_or(&self, def: bool) -> bool { self.as_bool().unwrap_or(def) }")
-            this._writeln("        fn as_array(&self) -> Vec<serde_json::Value> {")
+            this._writeln("        fn as_array_owned(&self) -> Vec<serde_json::Value> {")
             this._writeln("            match self { serde_json::Value::Array(a) => a.clone(), _ => Vec::new() }")
             this._writeln("        }")
             this._writeln("        fn length(&self) -> usize {")
@@ -7760,6 +7760,14 @@ RustEmitter {
             this._write("(")
             this._emitExpr(obj)
             this._write(".len() as i32)")
+            return
+        }
+        // .as_array() on JSON Values — disambiguate from native Value::as_array
+        // (which returns Option<&Vec<Value>>) by routing through the
+        // JsonValueExt trait method that returns Vec<Value> directly.
+        if method == "as_array" {
+            this._emitExpr(obj)
+            this._write(".as_array_owned()")
             return
         }
 
