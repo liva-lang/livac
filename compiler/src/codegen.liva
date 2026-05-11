@@ -378,12 +378,36 @@ RustEmitter {
             },
             _ => { 0 }
         }
+        if !isMethodCall {
+            // Async/par-wrapped form: `async HTTP.get(url)` parses as
+            // Expr.Call(MethodCall(...), [], Async). Peek through the
+            // empty-args wrapper so stdlib tuple destructuring still
+            // works on those call sites.
+            let _ = switch init {
+                Expr.Call(inner, _wargs, _wpol, _wt) => {
+                    let _ = switch inner {
+                        Expr.MethodCall(obj2, _m2, _a2) => {
+                            isMethodCall = true
+                            let _ = switch obj2 {
+                                Expr.Identifier(n2) => { nsName = n2; 0 },
+                                _ => { 0 }
+                            }
+                            0
+                        },
+                        _ => { 0 }
+                    }
+                    0
+                },
+                _ => { 0 }
+            }
+        }
         if !isMethodCall { return false }
         if nsName == "File" { return true }
         if nsName == "Dir" { return true }
         if nsName == "CSV" { return true }
         if nsName == "DB" { return true }
         if nsName == "Process" { return true }
+        if nsName == "Http" || nsName == "HTTP" { return true }
         return false
     }
 
@@ -4767,7 +4791,34 @@ RustEmitter {
                 0
             },
             Expr.Call(callee, callArgs, policy, tArgs) => {
-                this._emitCall(callee, callArgs)
+                // Parser wraps `async X.m(args)` / `par X.m(args)` as
+                // `Expr.Call(MethodCall(...), [], <policy>, _)`. Without
+                // a full async runtime, emit the inner MethodCall and
+                // drop the spurious empty-args invocation so generated
+                // Rust stays well-typed. Only unwrap when the wrapper
+                // carries a non-Normal policy (Normal+0args+MethodCall
+                // can legitimately mean `obj.getFn()()`).
+                let isExecWrap = switch policy {
+                    ExecPolicy.Async => true,
+                    ExecPolicy.Par => true,
+                    ExecPolicy.TaskAsync => true,
+                    ExecPolicy.TaskPar => true,
+                    _ => false
+                }
+                let unwrapped = false
+                if isExecWrap && callArgs.length == 0 {
+                    let _ = switch callee {
+                        Expr.MethodCall(_mco, _mcm, _mca) => {
+                            this._emitExpr(callee)
+                            unwrapped = true
+                            0
+                        },
+                        _ => { 0 }
+                    }
+                }
+                if !unwrapped {
+                    this._emitCall(callee, callArgs)
+                }
                 0
             },
             Expr.MethodCall(mcObj, method, mcArgs) => {
