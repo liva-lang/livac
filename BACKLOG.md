@@ -903,6 +903,8 @@ cargo test --release 528+).
 
 - [x] **Cycle 31** (audit 2026-05-12) — AI examples audit con `gen-2` + `cargo build --release`. Resultado: **8/10 limpios** (calculator, chat-server, csv-reader, json-parser, mini-interpreter, snake-game, text-search, todo-list). Residuales: `web-scraper` (6 errors — async JoinHandle codegen) y `rest-api` (~58 errors — actix-web requiere Serialize derives). Ambos documentados como post-v2.0 con causa raíz identificada.
 
+- [x] **Cycle 32** (`c097bfd`) — Auto-`.await` para spawned async user fns. Pre-pass `_collectAsyncFns` (nuevo) recorre `program.items` y registra cada `TopLevel.Function` cuyo cuerpo dispara async (`await`, `Server.listen`, `task async/par`) escaneando con `_scanStmtsForAsync`. Nuevo Map<string, bool> `_asyncFnNames` poblado por la pre-pass. En la emisión de `task async f(args)`, si `f` está en `_asyncFnNames` se emite `tokio::spawn(async move { f(args).await })` (antes: `tokio::spawn(async move { f(args) })`, que producía `JoinHandle<impl Future<...>>` con un Future anidado sin awaitar — error E0277 al await el handle). Gauntlet 8/8 verde + idempotencia gen-2 ≡ gen-3. Web-scraper sigue con errores residuales no-async (main no se promociona a `#[tokio::main]` cuando solo hay `task async` indirectos + `for t in &tasks` clona JoinHandle no-Clone) — documentados como follow-up.
+
 ### Pendiente — out-of-scope estructural
 
 - [ ] Test framework Jest-style completo: `async.test.liva`, `lifecycle.test.liva` (uso de `beforeEach` top-level), `math_jest.test.liva`, `stdlib_*.test.liva` (sin `main fn` — test runner debe ejecutar `test_*` funciones).
