@@ -1,0 +1,23 @@
+// Probe: statement-position switch without explicit `_ => {}` arm.
+// User-friendly: don't force a no-op default when nothing else matches.
+
+enum Action {
+    Greet(name: string),
+    Quit,
+    Ignore
+}
+
+handle(a: Action) {
+    switch a {
+        Action.Greet(n) => print($"hello {n}")
+        Action.Quit => print("bye")
+        // No explicit `_ => {}` for Action.Ignore — should be auto-synthesized.
+    }
+}
+
+main() {
+    handle(Action.Greet("world"))
+    handle(Action.Quit)
+    handle(Action.Ignore)  // should silently do nothing
+    print("done")
+}

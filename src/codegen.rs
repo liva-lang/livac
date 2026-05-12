@@ -9593,6 +9593,18 @@ impl CodeGenerator {
             self.output.push(',');
         }
 
+        // If the user did not write a wildcard `_ =>` arm, synthesize one
+        // so Rust's match remains exhaustive in statement position.
+        let has_wildcard = switch_expr
+            .arms
+            .iter()
+            .any(|arm| matches!(arm.pattern, Pattern::Wildcard));
+        if !has_wildcard {
+            self.output.push('\n');
+            self.write_indent();
+            self.output.push_str("_ => {},");
+        }
+
         self.dedent();
         self.output.push('\n');
         self.write_indent();

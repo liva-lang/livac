@@ -42,6 +42,10 @@ pub struct SemanticAnalyzer {
     type_aliases: HashMap<String, (Vec<TypeParameter>, TypeRef)>,
     // Enum variants: map from enum name to list of variant names
     enum_variants: HashMap<String, Vec<String>>,
+    // True when validating an `Expr::Switch` that appears directly as a
+    // statement. In that case, codegen auto-injects `_ => {}` so we skip
+    // exhaustiveness checks (Cycle 33).
+    in_stmt_switch: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -107,6 +111,7 @@ impl SemanticAnalyzer {
             json_classes: HashSet::new(),
             type_aliases: HashMap::new(),
             enum_variants: HashMap::new(),
+            in_stmt_switch: false,
         }
     }
 
@@ -1656,7 +1661,13 @@ impl SemanticAnalyzer {
                 self.validate_stmt(&defer_stmt.body)?;
             }
             Stmt::Expr(expr_stmt) => {
-                self.validate_expr(&expr_stmt.expr)?;
+                let prev = self.in_stmt_switch;
+                if matches!(&expr_stmt.expr, Expr::Switch(_)) {
+                    self.in_stmt_switch = true;
+                }
+                let result = self.validate_expr(&expr_stmt.expr);
+                self.in_stmt_switch = prev;
+                result?;
 
                 // Fallible function call validation is now done in validate_call_expr
                 // which is called from validate_expr
@@ -1806,6 +1817,10 @@ impl SemanticAnalyzer {
                 Ok(())
             }
             Expr::Switch(switch_expr) => {
+                // Capture stmt-position flag and reset for nested expressions.
+                let is_stmt_switch = self.in_stmt_switch;
+                self.in_stmt_switch = false;
+
                 self.validate_expr(&switch_expr.discriminant)?;
 
                 // Validate all arms
@@ -1826,8 +1841,11 @@ impl SemanticAnalyzer {
                     }
                 }
 
-                // Check exhaustiveness
-                self.check_switch_exhaustiveness(switch_expr)?;
+                // Check exhaustiveness — skip in statement position (codegen
+                // synthesizes a `_ => {}` arm).
+                if !is_stmt_switch {
+                    self.check_switch_exhaustiveness(switch_expr)?;
+                }
 
                 Ok(())
             }

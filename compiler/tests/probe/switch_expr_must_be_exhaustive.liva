@@ -1,0 +1,12 @@
+// Probe: expression-position switch WITHOUT catch-all should still error.
+
+enum Color { Red, Green }
+
+main() {
+    let c = Color.Red
+    let n = switch c {
+        Color.Red => 1
+        // missing Green and no `_` — should error
+    }
+    print(n)
+}

@@ -9839,6 +9839,23 @@ RustEmitter {
             this._emitSwitchArm(arm)
         }
 
+        // Statement-position switch: if the user did not write a catch-all
+        // `_ => ...` arm, synthesize `_ => {}`. Otherwise Rust's match would
+        // be non-exhaustive (E0004). For expression-position switches the
+        // user must still provide all arms (they produce a value).
+        if this._switchInStmtPosition {
+            let hasWildcard = false
+            for arm in arms {
+                switch arm.pattern {
+                    Pattern.Wildcard => { hasWildcard = true },
+                    _ => {}
+                }
+            }
+            if not hasWildcard {
+                this._write("_ => {}, ")
+            }
+        }
+
         this._write("}")
     }
 
