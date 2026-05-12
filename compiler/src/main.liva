@@ -27,7 +27,7 @@ import { TokenKind, Token, lookupKeyword, tokenKindName } from "./token"
 import {
     TypeRef, Expr, Stmt, BlockStmt, TopLevel, Program,
     FunctionDecl, ClassDecl, EnumDecl, Param,
-    ImportDecl
+    ImportDecl, UseRustDecl
 } from "./ast"
 import { Lexer, tokenize } from "./lexer"
 import { Parser, parse } from "./parser"
@@ -155,6 +155,70 @@ CompilationResult {
     moduleFiles: Map<string, string>
 }
 
+// Render a `use rust "<crate>" [version "<v>"] [features [...]]` decl as a
+// Cargo.toml dependency line.
+renderUseRustLine(decl: UseRustDecl): string {
+    let name = decl.crateName
+    let ver = "*"
+    let optVer = decl.version
+    if optVer != null {
+        ver = optVer
+    }
+    let q = "\""
+    if decl.features.length > 0 {
+        let parts: [string] = []
+        for f in decl.features {
+            parts.push(q + f + q)
+        }
+        let feats = parts.join(", ")
+        return name + " = { version = " + q + ver + q + ", features = [" + feats + "] }"
+    }
+    return name + " = " + q + ver + q
+}
+
+// Walk a parsed Program's items and emit Cargo dep lines for every UseRust
+// decl. Skipping aliases is fine — Cargo only cares about crate name+version.
+collectUseRustLines(items: [TopLevel]): [string] {
+    let lines: [string] = []
+    for item in items {
+        let _ = switch item {
+            TopLevel.UseRust(decl) => {
+                lines.push(renderUseRustLine(decl))
+                0
+            },
+            _ => { 0 }
+        }
+    }
+    return lines
+}
+
+// Append extra Cargo dep lines (from `use rust` decls), deduping against
+// what generateCargoToml already emitted (e.g. `serde_json = "1"`).
+appendUseRustDeps(cargoToml: string, extraLines: [string]): string {
+    if extraLines.length == 0 { return cargoToml }
+    let seenCrates: Map<string, bool> = Map {}
+    for line in cargoToml.split("\n") {
+        let eq = line.indexOf(" = ")
+        if eq > 0 {
+            let cname = line.substring(0, eq)
+            seenCrates.set(cname, true)
+        }
+    }
+    let extras: [string] = []
+    let addedHere: Map<string, bool> = Map {}
+    for line in extraLines {
+        let eq = line.indexOf(" = ")
+        if eq <= 0 { continue }
+        let cname = line.substring(0, eq)
+        if seenCrates.has(cname) { continue }
+        if addedHere.has(cname) { continue }
+        addedHere.set(cname, true)
+        extras.push(line)
+    }
+    if extras.length == 0 { return cargoToml }
+    return cargoToml + "\n" + extras.join("\n")
+}
+
 // -- Single file compilation --
 
 compileSingleFile(source: string, fileName: string, checkOnly: bool): CompilationResult {
@@ -219,6 +283,12 @@ compileSingleFile(source: string, fileName: string, checkOnly: bool): Compilatio
     let cargoToml = emitter.generateCargoToml(
         projectName, sfUsesAsync, sfUsesRegex, sfUsesHttp, sfUsesDb, sfUsesJson, sfUsesChrono, sfUsesRandom, sfUsesCrypto, sfUsesRayon, sfUsesHttpClient
     )
+
+    // Phase 12 — also propagate `use rust "crate"` decls to Cargo.toml so
+    // examples relying on external crates (crossterm, actix_web, etc.) build
+    // under the self-hosted compiler.
+    let useRustLines = collectUseRustLines(program.items)
+    cargoToml = appendUseRustDeps(cargoToml, useRustLines)
 
     return CompilationResult(true, rustCode, cargoToml, errors, moduleFiles)
 }
@@ -504,6 +574,22 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
     let cargoToml = emitter.generateCargoToml(
         projectName, usesAsync, usesRegex, usesHttp, usesDb, usesJson, usesChrono, usesRandom, usesCrypto, usesRayon, usesHttpClient
     )
+
+    // Phase 12 — propagate `use rust "crate"` decls from every parsed module
+    // to Cargo.toml.
+    let useRustLines: [string] = []
+    for modPath in compileOrder {
+        let progs = parsedModules.get(modPath)
+        if progs.length > 0 {
+            let prog0: Program = progs[0]
+            let items: [TopLevel] = prog0.items
+            let lines = collectUseRustLines(items)
+            for l in lines {
+                useRustLines.push(l)
+            }
+        }
+    }
+    cargoToml = appendUseRustDeps(cargoToml, useRustLines)
 
     return CompilationResult(true, mainRs, cargoToml, errors, moduleFiles)
 }
