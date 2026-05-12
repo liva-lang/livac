@@ -1077,6 +1077,58 @@ RustEmitter {
 
     // -- Function declaration --
 
+    // Cycle 36 — does this block end with a statement that always returns?
+    // Used to decide whether a fallible function body needs an implicit
+    // trailing `Ok(())`. We treat `Stmt.Return`, `Stmt.Fail`, `Stmt.Throw`
+    // and any `Stmt.If` where both branches end with one of those as a
+    // "definite return". Conservative: any other stmt (including a `for`
+    // loop or expression stmt) means we still need the trailing Ok(()).
+    _stmtsAlwaysReturn(stmts: [Stmt]): bool {
+        let n = stmts.length
+        if n == 0 { return false }
+        let i = 0
+        let last: Stmt = Stmt.Continue
+        for s in stmts {
+            if i == n - 1 { last = s }
+            i = i + 1
+        }
+        return this._stmtAlwaysReturns(last)
+    }
+
+    _blockEndsWithReturn(bOpt: BlockStmt?): bool {
+        if bOpt == null { return false }
+        let result = false
+        if bOpt != null {
+            let b: BlockStmt = bOpt
+            result = this._stmtsAlwaysReturn(b.stmts)
+        }
+        return result
+    }
+
+    _stmtAlwaysReturns(s: Stmt): bool {
+        switch s {
+            Stmt.Return(_) => { return true },
+            Stmt.Fail(_, _) => { return true },
+            Stmt.Throw(_) => { return true },
+            Stmt.If(ifs) => {
+                let eb = ifs.elseBranch
+                if eb == null { return false }
+                let thenStmts = this._ifBodyStmts(ifs.thenBranch)
+                if !this._stmtsAlwaysReturn(thenStmts) { return false }
+                if eb != null {
+                    let ebVal: IfBody = eb
+                    let elseStmts = this._ifBodyStmts(ebVal)
+                    return this._stmtsAlwaysReturn(elseStmts)
+                }
+                return false
+            },
+            Stmt.Block(b3) => {
+                return this._stmtsAlwaysReturn(b3.stmts)
+            }
+        }
+        return false
+    }
+
     _emitFunction(decl: FunctionDecl) {
         let funcName = this._sanitizeName(decl.name)
         let prevFunc = $"{this._currentFunc}"
@@ -1215,10 +1267,33 @@ RustEmitter {
             }
             this._writeln("pub " + asyncKw2 + "fn " + funcName + typeParamStr + "(" + paramList + ")" + retStr + " {")
             this._indent()
+            // Cycle 36 — snapshot whether the body already ends with an
+            // unconditional return/fail BEFORE we move `decl.body` into
+            // _emitBlockOpt. We also detect whether the inferred result
+            // type wraps `()` by inspecting the emitted retStr — fast and
+            // avoids a second walk of `decl.returnType` (already moved).
+            let bodyEndsInReturn = this._blockEndsWithReturn(decl.body.clone())
             this._emitBlockOpt(decl.body)
-            // ERR-UNIFY: fallible main must end with Ok(())
-            if funcName == "main" && this._currentReturnFallible {
-                this._writeln("Ok(())")
+            // ERR-UNIFY: fallible function body must end with a value of
+            // the Result type. For main we always emit Ok(()). For other
+            // fallible fns we append Ok(()) when the return type is
+            // Result<()...> and the body doesn't already end with a
+            // return/fail statement (avoiding unreachable_code).
+            if this._currentReturnFallible {
+                let appendOk = false
+                if funcName == "main" {
+                    appendOk = true
+                } else {
+                    // retStr looks like " -> Result<(), liva_rt::Error>"
+                    // or " -> Result<T, liva_rt::Error>". Check for unit.
+                    let isUnitFallible = retStr.contains("Result<()")
+                    if isUnitFallible && !bodyEndsInReturn {
+                        appendOk = true
+                    }
+                }
+                if appendOk {
+                    this._writeln("Ok(())")
+                }
             }
         }
 
