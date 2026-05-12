@@ -2973,7 +2973,11 @@ RustEmitter {
                 }
             }
         }
-        // Const string must be &str, not String
+        // Const string must be &str, not String. Also coerce explicit
+        // `string` annotations (which build to `String`) to `&str`, since
+        // Rust forbids non-const `String::to_string` in const contexts
+        // (E0015). Cycle 37.
+        if typeStr == "String" { typeStr = "&str" }
         let isConstStr = typeStr == "&str"
         this._writeIndent()
         if isConstStr {
