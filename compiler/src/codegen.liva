@@ -173,6 +173,11 @@ RustEmitter {
     // trailing `;` would discard the value. Propagated through if/else
     // bodies so nested if-as-tail works inside switch arms.
     _inExprBlock: bool
+    // When true, the switch arm currently being emitted is in statement
+    // position (parser produced `Stmt.ExprStmt(Expr.SwitchExpr(...))`).
+    // Each arm body is wrapped to evaluate to `()` so arm types unify and
+    // no `let _ = switch ... { ...; 0 }, _ => { 0 } }` workaround is needed.
+    _switchInStmtPosition: bool
     // B148: when emitting a constructor body, `this.X` reads are rewritten
     // to `__field_X` for fields that have already been assigned earlier
     // in the body. This lets constructors use field reads in conditions,
@@ -256,6 +261,7 @@ RustEmitter {
         this._inIterChain = false
         this._inExprStmt = false
         this._inExprBlock = false
+        this._switchInStmtPosition = false
         this._inConstructor = false
         this._constructorAssignedFields = Map {}
         this._serverVars = Map {}
@@ -3170,6 +3176,33 @@ RustEmitter {
             Stmt.Break => { this._writeln("break;"); 0 },
             Stmt.Continue => { this._writeln("continue;"); 0 },
             Stmt.ExprStmt(expr) => {
+                // Modern arrow-form switch in statement position:
+                // `switch x { Pat => stmt, _ => {} }` parses to
+                // Stmt.ExprStmt(Expr.SwitchExpr(...)) — emit it as a Rust
+                // `match { ... };` whose arms each evaluate to `()` so the
+                // user does NOT need a `let _ = switch ... { ...; 0 }, _ => { 0 } }`
+                // wrapper or trailing `0` filler in each arm.
+                let isSwitchStmt = false
+                let _ = switch expr {
+                    Expr.SwitchExpr(_, _) => { isSwitchStmt = true; 0 },
+                    _ => { 0 }
+                }
+                if isSwitchStmt {
+                    let _ = switch expr {
+                        Expr.SwitchExpr(disc, arms) => {
+                            this._writeIndent()
+                            let savedFlag = this._switchInStmtPosition
+                            this._switchInStmtPosition = true
+                            this._emitSwitchExpr(disc, arms)
+                            this._switchInStmtPosition = savedFlag
+                            this._write(";")
+                            this._newline()
+                            0
+                        },
+                        _ => { 0 }
+                    }
+                    return
+                }
                 this._writeIndent()
                 let savedExprStmt = this._inExprStmt
                 this._inExprStmt = true
@@ -10070,7 +10103,18 @@ RustEmitter {
         let clones = this._pendingRefClones
         let _ = switch arm.body {
             SwitchArmBody.Expr(armExpr) => {
-                if hasDerefs || hasClones {
+                if this._switchInStmtPosition {
+                    // Force `()`-typed arm so a statement-position match unifies.
+                    this._write("{ ")
+                    for d in derefs {
+                        this._write("let " + d + " = *" + d + ".clone(); ")
+                    }
+                    for c in clones {
+                        this._write("let " + c + " = " + c + ".clone(); ")
+                    }
+                    this._emitExpr(armExpr)
+                    this._write("; }, ")
+                } else if hasDerefs || hasClones {
                     this._write("{ ")
                     for d in derefs {
                         this._write("let " + d + " = *" + d + ".clone(); ")
@@ -10094,18 +10138,30 @@ RustEmitter {
                 for c2 in clones {
                     this._write("let " + c2 + " = " + c2 + ".clone(); ")
                 }
-                // Switch arm bodies are expression positions — the last stmt is a tail expr.
-                let savedExprBlock = this._inExprBlock
-                this._inExprBlock = true
-                let aTotal = armStmts.length
-                let aIdx = 0
-                for s in armStmts {
-                    this._stmtIsLastInBlock = (aIdx == aTotal - 1)
-                    this._emitStmt(s)
-                    aIdx += 1
+                if this._switchInStmtPosition {
+                    // Statement-position arm: every stmt (incl. last) terminates
+                    // with its normal `;`, so the block evaluates to `()`.
+                    let savedExprBlock = this._inExprBlock
+                    this._inExprBlock = false
+                    for s in armStmts {
+                        this._stmtIsLastInBlock = false
+                        this._emitStmt(s)
+                    }
+                    this._inExprBlock = savedExprBlock
+                } else {
+                    // Switch arm bodies are expression positions — the last stmt is a tail expr.
+                    let savedExprBlock = this._inExprBlock
+                    this._inExprBlock = true
+                    let aTotal = armStmts.length
+                    let aIdx = 0
+                    for s in armStmts {
+                        this._stmtIsLastInBlock = (aIdx == aTotal - 1)
+                        this._emitStmt(s)
+                        aIdx += 1
+                    }
+                    this._stmtIsLastInBlock = false
+                    this._inExprBlock = savedExprBlock
                 }
-                this._stmtIsLastInBlock = false
-                this._inExprBlock = savedExprBlock
                 this._write("}, ")
                 0
             }

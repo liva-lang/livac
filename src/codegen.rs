@@ -7727,6 +7727,15 @@ impl CodeGenerator {
                 self.output.push_str("continue;\n");
             }
             Stmt::Expr(expr_stmt) => {
+                // Modern arrow-form switch in statement position:
+                // `switch x { Pat => stmt, _ => {} }` parses to
+                // Stmt::Expr(Expr::Switch(...)) — emit it as a `match` whose
+                // arms each return `()` so the user does NOT need a `let _ =`
+                // wrapper or trailing `0` filler in each arm.
+                if let Expr::Switch(sw) = &expr_stmt.expr {
+                    self.generate_switch_stmt(sw)?;
+                    return Ok(());
+                }
                 // liva/test: describe(), test(), lifecycle hooks generate blocks — no trailing ;
                 let is_test_block_call = if let Expr::Call(call) = &expr_stmt.expr {
                     if let Expr::Identifier(name) = call.callee.as_ref() {
@@ -9482,6 +9491,112 @@ impl CodeGenerator {
         }
         self.output.push('}');
 
+        Ok(())
+    }
+
+    /// Emit a modern arrow-form `switch` in statement position as a Rust
+    /// `match { ... };`. Each arm body is wrapped to evaluate to `()` so the
+    /// arms' types unify automatically and the user does NOT need a
+    /// `let _ = switch ... { ...; 0 }, _ => { 0 } }` workaround.
+    fn generate_switch_stmt(&mut self, switch_expr: &SwitchExpr) -> Result<()> {
+        let union_type_name = self.detect_union_switch(switch_expr);
+        let is_string_switch = switch_expr.arms.iter().any(|arm| match &arm.pattern {
+            Pattern::Literal(Literal::String(_)) => true,
+            Pattern::Or(patterns) => patterns
+                .iter()
+                .any(|p| matches!(p, Pattern::Literal(Literal::String(_)))),
+            _ => false,
+        });
+        let needs_ref_b97 = self.in_method
+            && !self.current_method_is_mut
+            && matches!(&*switch_expr.discriminant, Expr::Member { object, .. }
+                if matches!(object.as_ref(), Expr::Identifier(n) if n == "this"));
+        let is_enum_data_switch = !is_string_switch
+            && switch_expr.arms.iter().any(|arm| {
+                matches!(&arm.pattern,
+                    Pattern::EnumVariant { bindings, .. } if !bindings.is_empty())
+            });
+        let needs_ref = needs_ref_b97
+            || (is_enum_data_switch
+                && matches!(&*switch_expr.discriminant, Expr::Identifier(_)));
+
+        self.write_indent();
+        self.output.push_str("match ");
+        if needs_ref {
+            self.output.push('&');
+        }
+        self.generate_expr(&switch_expr.discriminant)?;
+        if is_string_switch {
+            self.output.push_str(".as_str()");
+        }
+        self.output.push_str(" {");
+        self.indent();
+
+        for arm in &switch_expr.arms {
+            self.output.push('\n');
+            self.write_indent();
+            if let Some(ref union_name) = union_type_name {
+                self.generate_union_pattern(&arm.pattern, union_name)?;
+            } else {
+                self.generate_pattern(&arm.pattern)?;
+            }
+            if let Some(guard) = &arm.guard {
+                self.output.push_str(" if ");
+                self.generate_expr(guard)?;
+            }
+            self.output.push_str(" => ");
+
+            let boxed_bindings = self.get_boxed_pattern_bindings(&arm.pattern);
+            let ref_clone_bindings = if needs_ref {
+                self.get_ref_clone_bindings(&arm.pattern, &boxed_bindings)
+            } else {
+                Vec::new()
+            };
+            let registered_bindings = self.register_pattern_bindings(&arm.pattern);
+
+            // Emit each arm body as a `()`-typed block so the match arms unify.
+            self.output.push('{');
+            self.indent();
+            for binding in &boxed_bindings {
+                self.output.push('\n');
+                self.write_indent();
+                if needs_ref {
+                    write!(self.output, "let {} = *{}.clone();", binding, binding).unwrap();
+                } else {
+                    write!(self.output, "let {} = *{};", binding, binding).unwrap();
+                }
+            }
+            for binding in &ref_clone_bindings {
+                self.output.push('\n');
+                self.write_indent();
+                write!(self.output, "let {} = {}.clone();", binding, binding).unwrap();
+            }
+            match &arm.body {
+                SwitchBody::Expr(expr) => {
+                    self.output.push('\n');
+                    self.write_indent();
+                    self.generate_expr(expr)?;
+                    self.output.push(';');
+                }
+                SwitchBody::Block(stmts) => {
+                    for stmt in stmts {
+                        self.generate_stmt(stmt)?;
+                    }
+                }
+            }
+            self.dedent();
+            self.output.push('\n');
+            self.write_indent();
+            self.output.push('}');
+
+            self.unregister_pattern_bindings(&registered_bindings);
+            self.output.push(',');
+        }
+
+        self.dedent();
+        self.output.push('\n');
+        self.write_indent();
+        self.output.push_str("};\n");
         Ok(())
     }
 

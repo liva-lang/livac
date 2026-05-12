@@ -1328,6 +1328,56 @@ Parser {
         if this._match(TokenKind.KwSwitch) {
             let discriminant = this._parseExpression()
             this._expect(TokenKind.LBrace)
+
+            // Disambiguate: modern arrow form (`pattern => body`) vs legacy
+            // C-style form (`case <expr>:` / `default:`). If the first inner
+            // token is `case` or `default`, use the legacy parser; otherwise
+            // parse as modern switch arms and emit a Stmt.ExprStmt wrapping
+            // the resulting Expr.SwitchExpr — codegen detects the wrap and
+            // emits `match { ... }` in statement position with no `let _ =`
+            // and no `0` filler required.
+            let isLegacySwitch = false
+            if this._check(TokenKind.KwCase) or this._check(TokenKind.KwDefault) => isLegacySwitch = true
+
+            if not isLegacySwitch {
+                let arms: [SwitchArm] = []
+                while not this._isAtEnd() and not this._check(TokenKind.RBrace) {
+                    let pattern = this._parsePattern()
+                    let guard: Expr? = null
+                    if this._match(TokenKind.KwIf) => guard = this._parseExpression()
+                    this._expect(TokenKind.Arrow)
+
+                    let body = SwitchArmBody.Expr(Expr.Literal(Literal.Null))
+                    if this._check(TokenKind.LBrace) {
+                        this._advance()
+                        let stmts: [Stmt] = []
+                        while not this._isAtEnd() and not this._check(TokenKind.RBrace) {
+                            stmts.push(this._parseStatement())
+                        }
+                        this._expect(TokenKind.RBrace)
+                        body = SwitchArmBody.Block(stmts)
+                    } else {
+                        // Statement-position arm: body may be a full simple
+                        // statement (expression, assignment, return, break,
+                        // continue, ...). Unwrap pure expressions so codegen
+                        // can keep its tight `Expr =>` shape; wrap anything
+                        // else as a one-element Block.
+                        let stmt = this._parseSimpleStatement()
+                        let _ = switch stmt {
+                            Stmt.ExprStmt(e) => { body = SwitchArmBody.Expr(e); 0 },
+                            _ => { body = SwitchArmBody.Block([stmt]); 0 }
+                        }
+                    }
+
+                    arms.push(SwitchArm(pattern, guard, body))
+                    this._match(TokenKind.Comma)
+                }
+                this._expect(TokenKind.RBrace)
+                this._match(TokenKind.Semicolon)
+                if arms.length == 0 => this._error("Switch statement must have at least one arm")
+                return Stmt.ExprStmt(Expr.SwitchExpr(discriminant, arms))
+            }
+
             let cases: [CaseClause] = []
             let defaultBody: [Stmt]? = null
 

@@ -1731,6 +1731,62 @@ impl Parser {
         if self.match_token(&Token::Switch) {
             let discriminant = self.parse_expression()?;
             self.expect(Token::LBrace)?;
+
+            // Disambiguate: modern arrow form (`pattern => body`) vs legacy
+            // C-style form (`case <expr>:` / `default:`). When the first
+            // inner token is `case` or `default`, fall through to the legacy
+            // path. Otherwise parse the body as switch-expression arms and
+            // wrap the resulting `Expr::Switch` in `Stmt::ExprStmt`. Codegen
+            // detects this wrap and emits a `match { ... }` in statement
+            // position with no `let _ =` and no trailing-`0` filler needed.
+            let is_legacy_switch = self.check(&Token::Case) || self.check(&Token::Default);
+
+            if !is_legacy_switch {
+                let mut arms = Vec::new();
+                while !self.is_at_end() && !self.check(&Token::RBrace) {
+                    let pattern = self.parse_pattern()?;
+                    let guard = if self.match_token(&Token::If) {
+                        Some(Box::new(self.parse_expression()?))
+                    } else {
+                        None
+                    };
+                    self.expect(Token::Arrow)?;
+                    let body = if self.check(&Token::LBrace) {
+                        self.advance();
+                        let mut stmts = Vec::new();
+                        while !self.is_at_end() && !self.check(&Token::RBrace) {
+                            stmts.push(self.parse_statement()?);
+                        }
+                        self.expect(Token::RBrace)?;
+                        SwitchBody::Block(stmts)
+                    } else {
+                        // Statement-position: arm body may be any simple statement
+                        // (expression, assignment, return, break, continue, etc.).
+                        // Wrap a single statement as a one-element Block so codegen
+                        // emits it cleanly with `()` typing.
+                        let stmt = self.parse_simple_statement()?;
+                        if let Stmt::Expr(es) = stmt {
+                            SwitchBody::Expr(Box::new(es.expr))
+                        } else {
+                            SwitchBody::Block(vec![stmt])
+                        }
+                    };
+                    arms.push(SwitchArm { pattern, guard, body });
+                    self.match_token(&Token::Comma);
+                }
+                self.expect(Token::RBrace)?;
+                self.match_token(&Token::Semicolon);
+                if arms.is_empty() {
+                    return Err(self.error("Switch statement must have at least one arm".into()));
+                }
+                return Ok(Stmt::Expr(ExprStmt {
+                    expr: Expr::Switch(SwitchExpr {
+                        discriminant: Box::new(discriminant),
+                        arms,
+                    }),
+                }));
+            }
+
             let mut cases = Vec::new();
             let mut default = None;
 

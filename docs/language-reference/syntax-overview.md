@@ -111,15 +111,20 @@ while counter < 10 {
 
 ### Switch Statements
 
+Modern arrow form (recommended) — patterns separated by `=>`, `_` as wildcard:
+
 ```liva
 switch status {
-  case "active": print("Active")
-  case "inactive": print("Inactive")
-  default: print("Unknown")
+  "active" => print("Active")
+  "inactive" => print("Inactive")
+  _ => print("Unknown")
 }
 ```
 
-> See [control-flow.md](control-flow.md) for full reference.
+Legacy C-style form (`case` / `default:`) is still supported for back-compat.
+
+> See [control-flow.md](control-flow.md) for full reference, guards, or-patterns, and the
+> expression form (`let x = switch ... { ... }`).
 
 ## Operators
 

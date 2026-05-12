@@ -21,20 +21,75 @@ if !valid return "Invalid"
 if debug => print("trace")
 ```
 
+## Switch
+
+Liva's `switch` supports two surface syntaxes:
+
+### Modern arrow form (recommended)
+
+Patterns separated by `=>`, `_` as the wildcard:
+
+```liva
+switch status {
+    "active"   => print("Active")
+    "inactive" => print("Inactive")
+    _          => print("Unknown")
+}
+```
+
+It works in two positions:
+
+- **Statement** — side-effect-only arms. Each arm's body may be any single
+  statement (expression, assignment, `return`, `break`, `continue`, …) or a
+  `{ ... }` block. Arms do **not** need to return the same value; the
+  `match` evaluates to `()` and you do **not** need a `let _ = ...` wrapper
+  or a `0` filler in each arm.
+
+  ```liva
+  switch op {
+      Op.Add(x, y) => print("add = " + (x + y).to_string())
+      Op.Sub(x, y) => result = x - y           // assignment OK
+      _            => return                   // control flow OK
+  }
+  ```
+
+- **Expression** — arms produce a value of the same type:
+
+  ```liva
+  let label = switch n {
+      0          => "zero"
+      1 | 2 | 3  => "small"
+      n if n < 0 => "negative"
+      _          => "large"
+  }
+  ```
+
+### Legacy `case` / `default:` form
+
+Still supported for backward compatibility:
+
+```liva
+switch status {
+    case "active": print("Active")
+    case "inactive": print("Inactive")
+    default: print("Unknown")
+}
+```
+
+Switches have **no fall-through** — each arm is independent (unlike C/Java).
+
 ## Switch Guards
 
 Bind the matched value and add a condition with `if`:
 
 ```liva
 switch temperature {
-    case t if t < 0: print("Freezing")
-    case t if t < 20: print("Cold")
-    case t if t < 30: print("Warm")
-    default: print("Hot")
+    t if t < 0  => print("Freezing")
+    t if t < 20 => print("Cold")
+    t if t < 30 => print("Warm")
+    _           => print("Hot")
 }
 ```
-
-Switches have **no fall-through** — each case is independent (unlike C/Java).
 
 ## Try-Catch
 

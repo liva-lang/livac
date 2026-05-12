@@ -879,12 +879,14 @@ cargo test --release 528+).
 
 ### Pendiente — ciclos bounded (probablemente abordables)
 
-- [ ] **`switch` como sentencia (sin `let _ =` y sin `0` filler) — pre-v2.0** — Hoy en self-host `switch` solo existe como expresión, así que para usarlo por sus efectos secundarios el código auto-hosted está plagado de `let _ = switch x { Arm => { ...; 0 }, _ => { 0 } }`. El `let _ =` es para que parsee como expresión; el `0` final unifica el tipo de las ramas (evita E0308) y desactiva el move-check que dispara E0382 cuando la última posición es un `this._write(...)` o un `if`. Plan:
-  1. Añadir `Stmt.Switch(SwitchStmt)` al AST y `_parseSwitchStmt` en `parser.liva` para que `switch` como statement sea reconocido directamente sin envoltura.
-  2. En `codegen.liva` `_emitStmt`, emitir `match { ... }` con cada rama terminando en `;` (ramas tipo `()` puro), sin `let _ =`.
-  3. Mantener compatibilidad con `switch` como expresión (la forma actual sigue válida, solo deja de ser obligatoria).
-  4. Codemod sed-asistido sobre `compiler/src/*.liva` para colapsar `let _ = switch ... { ...; 0 }, _ => { 0 } }` → `switch ... { ... }, _ => {} }` y verificar que self-host gen-2 ≡ gen-3 sigue idempotente.
-  5. Validación: gauntlet 8/8 + cargo tests 531+ + build de ai/* sin regresiones.
+- [x] **Cycle 28** — `switch` como sentencia (sin `let _ =` y sin `0` filler) — Hoy en self-host `switch` solo existía como expresión, así que para usarlo por sus efectos secundarios el código auto-hosted estaba plagado de `let _ = switch x { Arm => { ...; 0 }, _ => { 0 } }`. **Implementado**:
+  1. `parser.liva` + `src/parser.rs`: en posición de statement, tras `switch x {` se hace peek: si el primer token interior es `case` o `default`, se mantiene la forma legacy; si es otra cosa, se parsean los arms (`pat => body`, body = expr | `{ stmts }` | simple statement) y se envuelve en `Stmt.ExprStmt(Expr.SwitchExpr(...))`.
+  2. `codegen.liva`: nueva flag `_switchInStmtPosition`; en `Stmt.ExprStmt` se detecta `Expr.SwitchExpr` y se activa, escribiendo `;` final. En `_emitSwitchArm` los bodies se envuelven como `{ expr; }` (Expr arm) o `{ stmts;... }` (Block arm), lo cual fuerza tipo `()` uniforme y elimina la necesidad de `0` filler.
+  3. `src/codegen.rs`: nuevo helper `generate_switch_stmt` con la misma semántica (emite `match { ... };` con arms `()`-typed).
+  4. La forma de expresión (`let x = switch ... { ... }`) sigue funcionando idéntica.
+  5. Docs actualizados: `docs/language-reference/syntax-overview.md` muestra la forma moderna; `docs/language-reference/control-flow.md` documenta ambas posiciones (statement / expression) y marca el `case/default:` como legacy.
+  6. Validación: gauntlet 8/8 ✅ (rebuild_selfhost 70s, selfhost_apps 71s, multifile 77s, cli 27s, regression 291s, complex 108s, e2e 111s, cargo test 14s) + idempotencia gen-2 ≡ gen-3 (source + binary).
+  7. **Pendiente como follow-up** (opcional): codemod sed-asistido sobre `compiler/src/*.liva` para colapsar `let _ = switch ... { ...; 0 }, _ => { 0 } }` → `switch ... { ... }, _ => {} }`. La feature ya está disponible; el codemod limpiará la deuda histórica.
 
 - [x] **Async/await runtime** — implementado en Cycle 16. `examples/concurrency/main.liva` builds + runs end-to-end. (Antes bloqueaba 4 ejemplos.)
 - [ ] **`rust { use ... }` inside function body** — `web-scraper` emite `return use std::time::...` (statements `use` injectados dentro de la expresión de retorno). Requiere prefijar `use`-stmts antes del `return`.
