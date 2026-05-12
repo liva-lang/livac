@@ -178,6 +178,13 @@ RustEmitter {
     // Each arm body is wrapped to evaluate to `()` so arm types unify and
     // no `let _ = switch ... { ...; 0 }, _ => { 0 } }` workaround is needed.
     _switchInStmtPosition: bool
+    // Cycle 29: pre-built return-type suffix per field for the class
+    // currently being emitted. Used by `_inferArrowReturnType` so an arrow
+    // method `_get() => this.value` infers its return type from the
+    // class field declaration instead of falling back to `-> ()`. Keys are
+    // field names; values are the Rust suffix string (e.g. " -> i32",
+    // " -> String"). Empty when not inside a class impl.
+    _currentClassFieldRetSuffix: Map<string, string>
     // B148: when emitting a constructor body, `this.X` reads are rewritten
     // to `__field_X` for fields that have already been assigned earlier
     // in the body. This lets constructors use field reads in conditions,
@@ -262,6 +269,7 @@ RustEmitter {
         this._inExprStmt = false
         this._inExprBlock = false
         this._switchInStmtPosition = false
+        this._currentClassFieldRetSuffix = Map {}
         this._inConstructor = false
         this._constructorAssignedFields = Map {}
         this._serverVars = Map {}
@@ -1166,34 +1174,16 @@ RustEmitter {
         if feb != null {
             // One-liner function: infer return type if not explicit
             if retStr == "" {
-                let _ = switch feb {
-                    Expr.Literal(lit) => {
-                        let _ = switch lit {
-                            Literal.Int(_) => { retStr = " -> i32"; 0 },
-                            Literal.Float(_) => { retStr = " -> f64"; 0 },
-                            Literal.Bool(_) => { retStr = " -> bool"; 0 },
-                            Literal.Str(_) => { retStr = " -> String"; 0 },
-                            _ => { 0 }
-                        }
-                        0
-                    },
-                    Expr.Binary(op, _, _) => {
-                        let _ = switch op {
-                            BinOp.Lt => { retStr = " -> bool"; 0 },
-                            BinOp.Le => { retStr = " -> bool"; 0 },
-                            BinOp.Gt => { retStr = " -> bool"; 0 },
-                            BinOp.Ge => { retStr = " -> bool"; 0 },
-                            BinOp.Eq => { retStr = " -> bool"; 0 },
-                            BinOp.Ne => { retStr = " -> bool"; 0 },
-                            BinOp.And => { retStr = " -> bool"; 0 },
-                            BinOp.Or => { retStr = " -> bool"; 0 },
-                            _ => { retStr = " -> i32"; 0 }
-                        }
-                        0
-                    },
-                    Expr.StringTemplate(_) => { retStr = " -> String"; 0 },
-                    Expr.Unary(_, _) => { retStr = " -> i32"; 0 },
-                    _ => { retStr = " -> i32"; 0 }
+                let febProbe = decl.exprBody
+                if febProbe != null {
+                    let inferredFn = this._inferArrowReturnType(febProbe)
+                    if inferredFn != "" {
+                        retStr = inferredFn
+                    } else {
+                        retStr = " -> i32"
+                    }
+                } else {
+                    retStr = " -> i32"
                 }
             }
             // Determine async keyword
@@ -1457,6 +1447,67 @@ RustEmitter {
             return isMap
         }
         return false
+    }
+
+    // Phase 12+: infer the Rust return-type suffix for an arrow-body function
+    // / method when no explicit type was given. Mirrors the inline logic
+    // previously baked into `_emitFunction`; centralising it here keeps
+    // `_emitMethod` aligned (was emitting `fn _name(&self) {` for arrow
+    // methods, which downstream cargo build rejected for non-`()` returns).
+    // Returns `""` when nothing useful can be inferred — callers default to
+    // `" -> i32"` in that case for backwards-compat with the prior behaviour.
+    _inferArrowReturnType(expr: Expr): string {
+        let inferred = ""
+        let _ = switch expr {
+            Expr.Literal(lit) => {
+                let _ = switch lit {
+                    Literal.Int(_) => { inferred = " -> i32"; 0 },
+                    Literal.Float(_) => { inferred = " -> f64"; 0 },
+                    Literal.Bool(_) => { inferred = " -> bool"; 0 },
+                    Literal.Str(_) => { inferred = " -> String"; 0 },
+                    _ => { 0 }
+                }
+                0
+            },
+            Expr.Binary(op, _, _) => {
+                let _ = switch op {
+                    BinOp.Lt => { inferred = " -> bool"; 0 },
+                    BinOp.Le => { inferred = " -> bool"; 0 },
+                    BinOp.Gt => { inferred = " -> bool"; 0 },
+                    BinOp.Ge => { inferred = " -> bool"; 0 },
+                    BinOp.Eq => { inferred = " -> bool"; 0 },
+                    BinOp.Ne => { inferred = " -> bool"; 0 },
+                    BinOp.And => { inferred = " -> bool"; 0 },
+                    BinOp.Or => { inferred = " -> bool"; 0 },
+                    _ => { inferred = " -> i32"; 0 }
+                }
+                0
+            },
+            Expr.StringTemplate(_) => { inferred = " -> String"; 0 },
+            Expr.Unary(_, _) => { inferred = " -> i32"; 0 },
+            // `this.field` lookup using per-class field map populated by
+            // `_emitClassImpl`. Only fires inside an `impl` block.
+            Expr.MemberAccess(obj, prop) => {
+                let isThis = false
+                let _ = switch obj {
+                    Expr.Identifier(name) => {
+                        if name == "this" {
+                            isThis = true
+                        }
+                        0
+                    },
+                    _ => { 0 }
+                }
+                if isThis {
+                    if this._currentClassFieldRetSuffix.has(prop) {
+                        inferred = this._currentClassFieldRetSuffix.get(prop)
+                    }
+                }
+                0
+            },
+            _ => { 0 }
+        }
+        return inferred
     }
 
     _buildReturnType(optRef: TypeRef?, isFallible: bool): string {
@@ -1829,6 +1880,26 @@ RustEmitter {
         this._currentClassName = $"{className}"
         this._inMethod = true
 
+        // Cycle 29: build field → return-suffix map for this class so arrow
+        // methods `_get() => this.value` infer their return type from the
+        // declared field type. Save/restore the prior map to handle nested
+        // class emission cleanly (e.g. inner type aliases).
+        let prevFieldRet = this._currentClassFieldRetSuffix
+        let fieldRet: Map<string, string> = Map {}
+        for m in decl.members {
+            let _ = switch m {
+                Member.Field(f) => {
+                    let suffix = this._buildReturnType(f.typeRef, false)
+                    if suffix != "" {
+                        fieldRet.set(f.name, suffix)
+                    }
+                    0
+                },
+                _ => { 0 }
+            }
+        }
+        this._currentClassFieldRetSuffix = fieldRet
+
         // Build per-class transitive set of methods needing &mut self.
         // Must run BEFORE emitting any method so each _emitMethod call sees
         // the complete set when deciding self receiver.
@@ -1854,6 +1925,7 @@ RustEmitter {
 
         this._currentClassName = prevClass
         this._inMethod = prevMethod
+        this._currentClassFieldRetSuffix = prevFieldRet
 
         this._dedent()
         this._writeln("}")
@@ -2814,6 +2886,21 @@ RustEmitter {
         let effectiveAsyncM = decl.isAsyncInferred
         if effectiveAsyncM {
             asyncKw = "async "
+        }
+        // Arrow-body methods without explicit return type — infer from
+        // body expression (mirrors `_emitFunction`). Previously these
+        // emitted `fn name(&self) {` (i.e. `-> ()`), which downstream cargo
+        // rejected when the body produced a value. We only override when
+        // inference yields a concrete type so side-effect-only arrow
+        // methods (`_log() => print(x)`) keep their `-> ()` signature.
+        let ebProbe = decl.exprBody
+        if ebProbe != null {
+            if retStr == "" {
+                let inferredM = this._inferArrowReturnType(ebProbe)
+                if inferredM != "" {
+                    retStr = inferredM
+                }
+            }
         }
         this._writeln("pub " + asyncKw + "fn " + methodName + "(" + fullParams + ")" + retStr + " {")
         this._indent()

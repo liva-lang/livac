@@ -1,0 +1,30 @@
+// Probe: modern arrow-form switch in statement position.
+
+classify(n: int): string {
+    let result = ""
+    switch n {
+        0 => result = "zero"
+        1 | 2 | 3 => result = "small"
+        n if n < 0 => result = "negative"
+        _ => result = "large"
+    }
+    return result
+}
+
+main() {
+    print(classify(0))
+    print(classify(2))
+    print(classify(-5))
+    print(classify(100))
+
+    // Block-bodied arms with multiple statements.
+    let mode = "active"
+    switch mode {
+        "active" => {
+            let msg = "running"
+            print(msg)
+        }
+        "idle" => print("idle")
+        _ => {}
+    }
+}

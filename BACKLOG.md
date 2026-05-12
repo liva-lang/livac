@@ -894,7 +894,7 @@ cargo test --release 528+).
 - [ ] Examples con muchos errors estructurales (self-host codegen gaps):
     - `ai/calculator` — 1 error tras Cycles 17+18: hay que cambiar `console.prompt` → `Sys.input` (o quedará resuelto al normalizar las APIs). Bug subyacente: arrow methods sin tipo de retorno explícito emiten `-> ()` en lugar de inferir desde la expresión (workaround: anotar el tipo, ya aplicado a `_current(): Token`).
     - `ai/rest-api`, `ai/snake-game`, `ai/json-parser` — pendientes de auditoría individual.
-- [ ] **Arrow-method return type inference (self-host)** — Métodos `_name() => expr` sin tipo de retorno explícito emiten `fn _name(&self) {` en lugar de inferir desde la expresión. El path de funciones libres (1140-1180) ya tiene inferencia parcial; replicarlo en `_emitMethod` (lectura de tipos de campo de clase cuando la expresión es `this.field` o `this.field[idx]`).
+- [x] **Cycle 29** — Arrow-method return type inference (self-host) — Métodos `_name() => expr` sin tipo de retorno explícito ahora infieren `-> i32` / `-> bool` / `-> String` desde Literal, Binary (Lt/Le/Gt/Ge/Eq/Ne/And/Or → bool), Unary, StringTemplate. Además, `_get() => this.field` consulta `_currentClassFieldRetSuffix` (Map<string, string> de field-name → " -> T") que `_emitClassImpl` construye desde las declaraciones de campo de la clase actual antes de emitir cada método. Helper `_inferArrowReturnType` extraído (también usado por `_emitFunction`). Cuando la inferencia no produce nada en `_emitMethod`, se mantiene `-> ()` (importante: métodos arrow side-effect-only como `_log() => print(x)` siguen funcionando). Gauntlet 8/8 verde + idempotencia gen-2 ≡ gen-3.
 
 ### Pendiente — out-of-scope estructural
 
