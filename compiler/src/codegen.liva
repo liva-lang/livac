@@ -587,29 +587,36 @@ RustEmitter {
     // -- Top-level generation --
 
     generate(program: Program): string {
-        // A.3: pre-detect async-needs for `main` (HTTP server / .listen).
-        this._detectMainAsync(program)
-        // Cycle 32: pre-collect async free-fn names so `task async f(args)`
-        // can append `.await` inside the spawned closure. Detect async via
-        // either explicit `isAsyncInferred` OR body scan (same heuristic
-        // used by `_emitFunction` to choose the `async` keyword).
-        for item in program.items {
-            switch item {
-                TopLevel.Function(fd) => {
-                    let isAsync = fd.isAsyncInferred
-                    if !isAsync {
-                        let prevNeed = this._mainNeedsAsync
-                        this._mainNeedsAsync = false
-                        this._scanStmtsForAsyncOpt(fd.body)
-                        if this._mainNeedsAsync { isAsync = true }
-                        this._mainNeedsAsync = prevNeed
-                    }
-                    if isAsync {
-                        this._asyncFnNames.set(this._sanitizeName(fd.name), true)
+        // Cycle 32 + Cycle 35: pre-collect async free-fn names (fixpoint).
+        // Must run BEFORE `_detectMainAsync` so transitive callers are
+        // discovered when main's body scan consults `_asyncFnNames` via
+        // `_exprIsAsyncTrigger`.
+        let changed = true
+        while changed {
+            changed = false
+            for item in program.items {
+                switch item {
+                    TopLevel.Function(fd) => {
+                        let sn = this._sanitizeName(fd.name)
+                        if this._asyncFnNames.has(sn) { continue }
+                        let isAsync = fd.isAsyncInferred
+                        if !isAsync {
+                            let prevNeed = this._mainNeedsAsync
+                            this._mainNeedsAsync = false
+                            this._scanStmtsForAsyncOpt(fd.body)
+                            if this._mainNeedsAsync { isAsync = true }
+                            this._mainNeedsAsync = prevNeed
+                        }
+                        if isAsync {
+                            this._asyncFnNames.set(sn, true)
+                            changed = true
+                        }
                     }
                 }
             }
         }
+        // A.3: pre-detect async-needs for `main` (HTTP server / .listen).
+        this._detectMainAsync(program)
         // Pre-populate enum variant field registry from AST items
         // This registers field names for all enums defined in this module
         for item in program.items {
@@ -4403,9 +4410,130 @@ RustEmitter {
 
     // -- For loop --
 
+    // Cycle 35 — detect `await loopVar` inside the for-body so we iterate the
+    // collection by value (move) instead of by reference. Required for
+    // tokio::JoinHandle (which is not Clone), and harmless for any other
+    // type since the array is consumed at end-of-scope anyway.
+    _inAsyncContext(): bool {
+        let cf = this._currentFunc
+        if cf == "main" { return this._mainNeedsAsync }
+        // Class methods are stored as "Class.method"; sanitize the trailing
+        // segment to match `_asyncFnNames` (only used for free fns today).
+        return this._asyncFnNames.has(cf)
+    }
+
+    _blockAwaitsIdent(blk: BlockStmt, name: string): bool {
+        for s in blk.stmts {
+            if this._stmtAwaitsIdent(s, name) { return true }
+        }
+        return false
+    }
+
+    _stmtAwaitsIdent(s: Stmt, name: string): bool {
+        switch s {
+            Stmt.VarDecl(d) => {
+                if this._exprAwaitsIdent(d.init, name) { return true }
+            },
+            Stmt.ConstDecl(d) => {
+                if this._exprAwaitsIdent(d.init, name) { return true }
+            },
+            Stmt.Assign(a) => {
+                if this._exprAwaitsIdent(a.value, name) { return true }
+            },
+            Stmt.ExprStmt(e) => {
+                if this._exprAwaitsIdent(e, name) { return true }
+            },
+            Stmt.Return(re) => {
+                let rOpt = re
+                if rOpt != null {
+                    if this._exprAwaitsIdent(rOpt, name) { return true }
+                }
+            },
+            Stmt.If(ifs) => {
+                if this._exprAwaitsIdent(ifs.condition, name) { return true }
+                switch ifs.thenBranch {
+                    IfBody.Block(b) => {
+                        if this._blockAwaitsIdent(b, name) { return true }
+                    },
+                    IfBody.SingleStmt(ss) => {
+                        for sub in ss {
+                            if this._stmtAwaitsIdent(sub, name) { return true }
+                        }
+                    }
+                }
+                let eb = ifs.elseBranch
+                if eb != null {
+                    switch eb {
+                        IfBody.Block(b) => {
+                            if this._blockAwaitsIdent(b, name) { return true }
+                        },
+                        IfBody.SingleStmt(ss) => {
+                            for sub in ss {
+                                if this._stmtAwaitsIdent(sub, name) { return true }
+                            }
+                        }
+                    }
+                }
+            },
+            Stmt.While(ws) => {
+                if this._exprAwaitsIdent(ws.condition, name) { return true }
+                if this._blockAwaitsIdent(ws.body, name) { return true }
+            },
+            Stmt.For(fs) => {
+                if this._exprAwaitsIdent(fs.iterable, name) { return true }
+                if this._blockAwaitsIdent(fs.body, name) { return true }
+            },
+            Stmt.Block(b) => {
+                if this._blockAwaitsIdent(b, name) { return true }
+            }
+        }
+        return false
+    }
+
+    _exprAwaitsIdent(e: Expr, name: string): bool {
+        switch e {
+            Expr.Unary(op, operand) => {
+                switch op {
+                    UnOp.Await => {
+                        switch operand {
+                            Expr.Identifier(n) => {
+                                if n == name { return true }
+                            }
+                        }
+                    }
+                }
+                return this._exprAwaitsIdent(operand, name)
+            },
+            Expr.Binary(_op, l, r) => {
+                if this._exprAwaitsIdent(l, name) { return true }
+                return this._exprAwaitsIdent(r, name)
+            },
+            Expr.Call(callee, args, _ep, _ta) => {
+                if this._exprAwaitsIdent(callee, name) { return true }
+                for a in args {
+                    if this._exprAwaitsIdent(a, name) { return true }
+                }
+            },
+            Expr.MethodCall(obj, _m, args) => {
+                if this._exprAwaitsIdent(obj, name) { return true }
+                for a in args {
+                    if this._exprAwaitsIdent(a, name) { return true }
+                }
+            },
+            Expr.MemberAccess(obj, _p) => {
+                return this._exprAwaitsIdent(obj, name)
+            },
+            Expr.Index(obj, idx) => {
+                if this._exprAwaitsIdent(obj, name) { return true }
+                return this._exprAwaitsIdent(idx, name)
+            }
+        }
+        return false
+    }
+
     _emitFor(stmt: ForStmt) {
         this._writeIndent()
-        let varName = this._sanitizeName(stmt.variable)
+        let varName = this._sanitizeName(stmt.variable.clone())
         let iterableExpr = stmt.iterable
 
         // Check if there's an index variable (for i, item in array)
@@ -4449,6 +4577,28 @@ RustEmitter {
                 this._write(".iter().enumerate()")
             }
         } else {
+            // Cycle 35 — body awaits the loop variable (e.g. JoinHandle).
+            // Iterate by value to consume each item; never insert the
+            // borrow-with-clone wrapper (JoinHandle is not Clone).
+            let awaitsLoopVar = this._blockAwaitsIdent(stmt.body.clone(), stmt.variable.clone())
+            if awaitsLoopVar {
+                // Register the loop var as a JoinHandle so `await t` emits
+                // `t.await.unwrap()` (JoinHandle::await yields a Result).
+                this._taskHandleVars.set(varName, true)
+                this._write($"for {varName} in ")
+                this._emitExpr(iterableExpr)
+                this._forNeedsInnerClone = false
+                this._write(" {")
+                this._newline()
+                this._indent()
+                let savedExprBlockA = this._inExprBlock
+                this._inExprBlock = false
+                this._emitBlock(stmt.body)
+                this._inExprBlock = savedExprBlockA
+                this._dedent()
+                this._writeln("}")
+                return
+            }
             // Phase 9.4: array of Copy elements → `for &x in &arr` (no inner clone)
             let useCopyDeref = false
             switch iterableExpr {
@@ -4846,6 +4996,26 @@ RustEmitter {
                 }
                 if !unwrapped {
                     this._emitCall(callee, callArgs)
+                    // Cycle 35: auto-`.await` direct calls to async user fns
+                    // when we are emitting from inside an async context.
+                    // Without this, a caller like
+                    //   let r = process_batch(xs)
+                    // emits a bare `process_batch(xs)` which yields an
+                    // `impl Future<...>` instead of the awaited value.
+                    if !isExecWrap {
+                        let isAsyncCallee = false
+                        switch callee {
+                            Expr.Identifier(cn2) => {
+                                let scn2 = this._sanitizeName(cn2)
+                                if this._asyncFnNames.has(scn2) {
+                                    isAsyncCallee = true
+                                }
+                            }
+                        }
+                        if isAsyncCallee && this._inAsyncContext() {
+                            this._write(".await")
+                        }
+                    }
                 }
             },
             Expr.MethodCall(mcObj, method, mcArgs) => {
@@ -10180,6 +10350,12 @@ RustEmitter {
                     _ => false
                 }
                 if isAsyncPolicy { result = true }
+                // Cycle 35 — call to a user-defined async fn (transitive).
+                switch callee {
+                    Expr.Identifier(fnName) => {
+                        if this._asyncFnNames.has(this._sanitizeName(fnName)) { result = true }
+                    }
+                }
                 if this._exprIsAsyncTrigger(callee) { result = true }
                 for a2 in callArgs {
                     if this._exprIsAsyncTrigger(a2) { result = true }
