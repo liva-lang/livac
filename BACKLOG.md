@@ -5,7 +5,7 @@
 > `CHANGELOG.md` (released versions, Keep-a-Changelog format).  
 > **Plan de diseño:** `docs/plans/PLAN_PRODUCTION_READINESS.md`  
 > **Prioridad:** Orden por versión = orden de implementación  
-> **Última actualización:** 2026-05-11
+> **Última actualización:** 2026-05-12
 ---
 
 ## v1.4 — Stdlib P0: String, Array, Math ✅
@@ -661,7 +661,7 @@
 
 - [x] Tier 1 completo (10.1 + 10.2 + 10.3)
 - [x] Tier 2 parcial (10.4 implementado — Word counting 1.79x→1.23x, CSV 1.17x→1.00x, Map 1.14x→1.09x)
-- [ ] **v2.0 al 100% — pendiente:** ver sección siguiente "v2.0 al 100% — 5 bloques pendientes". Bloque 1 cierra Word counting <1.15x, Bloque 2 cierra 10.5 Box<str>, Bloque 3 mide cobertura, Bloque 4 valida E2E self-host, Bloque 5 limpieza.
+- [x] **v2.0 al 100% — completado:** los 5 bloques originales cerraron antes del tag rc1 (Bloque 1 Word counting 1.79x→0.98x, Bloque 2 Box<str> analizado y descartado por bench, Bloque 3 cobertura medida con `cargo-llvm-cov` 62.81% regions / 62.36% lines, Bloque 4 E2E self-host 5/5, Bloque 5 limpieza de BACKLOG/ROADMAP/CHANGELOG). Phase 12 (21-item audit) también cerrada. Ver banner del workspace y `livac/.github/copilot-instructions.md` para resumen.
 
 ---
 
