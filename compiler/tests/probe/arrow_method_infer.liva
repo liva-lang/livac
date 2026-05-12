@@ -1,0 +1,32 @@
+// Probe: arrow-method return type inference (Cycle 29).
+
+Counter {
+    value: int
+
+    init(v: int) {
+        this.value = v
+    }
+
+    // Arrow method without explicit return type — should infer `-> i32`.
+    _get() => this.value
+
+    // Arrow method with bool inference.
+    _isPositive() => this.value > 0
+
+    // Arrow method with String inference.
+    _label() => "counter"
+
+    // Arrow method with explicit return type — unchanged.
+    increment(): int {
+        this.value = this.value + 1
+        return this.value
+    }
+}
+
+main() {
+    let c = Counter(5)
+    print(c._get())
+    print(c._isPositive())
+    print(c._label())
+    print(c.increment())
+}

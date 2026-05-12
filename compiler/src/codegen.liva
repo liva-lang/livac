@@ -211,6 +211,14 @@ RustEmitter {
     // set, `_emitFunction` will emit `#[tokio::main] async fn main`.
     _mainNeedsAsync: bool
     _taskHandleVars: Map<string, bool>
+    // Cycle 32: pre-pass result. Set of free-function names (sanitized)
+    // that are declared async (via `async fn` or `isAsyncInferred`). Used
+    // by `task async f(args)` codegen to emit `.await` inside the spawned
+    // closure so it returns the actual value, not a nested Future. Without
+    // this `tokio::spawn(async move { fetch_page(&url) })` produces
+    // JoinHandle<Future<...>> and `for t in &tasks { let r = t.await }`
+    // fails to compile.
+    _asyncFnNames: Map<string, bool>
     _warnings: [string]
 
     constructor(typeCtx: TypeContext, liveCtx: LivenessContext) {
@@ -277,6 +285,7 @@ RustEmitter {
         this._serverRequestParam = ""
         this._mainNeedsAsync = false
         this._taskHandleVars = Map {}
+        this._asyncFnNames = Map {}
         this._warnings = []
     }
 
@@ -587,6 +596,28 @@ RustEmitter {
     generate(program: Program): string {
         // A.3: pre-detect async-needs for `main` (HTTP server / .listen).
         this._detectMainAsync(program)
+        // Cycle 32: pre-collect async free-fn names so `task async f(args)`
+        // can append `.await` inside the spawned closure. Detect async via
+        // either explicit `isAsyncInferred` OR body scan (same heuristic
+        // used by `_emitFunction` to choose the `async` keyword).
+        for item in program.items {
+            switch item {
+                TopLevel.Function(fd) => {
+                    let isAsync = fd.isAsyncInferred
+                    if !isAsync {
+                        let prevNeed = this._mainNeedsAsync
+                        this._mainNeedsAsync = false
+                        this._scanStmtsForAsyncOpt(fd.body)
+                        if this._mainNeedsAsync { isAsync = true }
+                        this._mainNeedsAsync = prevNeed
+                    }
+                    if isAsync {
+                        this._asyncFnNames.set(this._sanitizeName(fd.name), true)
+                    }
+                },
+                _ => {}
+            }
+        }
         // Pre-populate enum variant field registry from AST items
         // This registers field names for all enums defined in this module
         for item in program.items {
@@ -4906,8 +4937,25 @@ RustEmitter {
                     _ => false
                 }
                 if isTask {
+                    // Cycle 32: when the callee is a known-async free fn,
+                    // we must `.await` it inside the spawned future so the
+                    // JoinHandle yields the actual value rather than a
+                    // nested Future. Detect by sanitizing the callee name.
+                    let calleeIsAsync = false
+                    switch callee {
+                        Expr.Identifier(cn) => {
+                            let scn = this._sanitizeName(cn)
+                            if this._asyncFnNames.has(scn) {
+                                calleeIsAsync = true
+                            }
+                        },
+                        _ => {}
+                    }
                     this._write("tokio::spawn(async move { ")
                     this._emitCall(callee, callArgs)
+                    if calleeIsAsync {
+                        this._write(".await")
+                    }
                     this._write(" })")
                     return
                 }
