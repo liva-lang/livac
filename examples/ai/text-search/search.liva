@@ -106,18 +106,34 @@ computeFrequency(files: [string]): [string] {
         if seen.has(file) { continue }
         seen.set(file, true)
 
-        let count = files.filter(f => f == file).length
+        let count = 0
+        for f in files {
+            if f == file { count = count + 1 }
+        }
         let padded = toString(count).padStart(6, "0")
         results.push($"{padded}|{file}")
     }
 
-    return results.sort().reversed()
+    let sorted = results.sort()
+    let reversed: [string] = []
+    let i = sorted.length - 1
+    while i >= 0 {
+        reversed.push(sorted[i])
+        i = i - 1
+    }
+    return reversed
 }
 
 // Intersect two file-name arrays (keeps only files in both)
 intersectFiles(a: [string], b: [string]): [string] {
     let uniqueA = a.distinct()
-    return uniqueA.filter(f => b.includes(f))
+    let result: [string] = []
+    for f in uniqueA {
+        if b.includes(f) {
+            result.push(f)
+        }
+    }
+    return result
 }
 
 // ──────────────────────────────────────────────────────────
@@ -176,13 +192,24 @@ executeSearch(index: Map<string, string>, query: string) {
             let totalCount = 0
             for term in termsList {
                 let termFiles = searchWord(index, term)
-                totalCount = totalCount + termFiles.filter(f => f == file).length
+                let inc = 0
+                for f in termFiles {
+                    if f == file { inc = inc + 1 }
+                }
+                totalCount = totalCount + inc
             }
             let padded = toString(totalCount).padStart(6, "0")
             freqResults.push($"{padded}|{file}")
         }
 
-        displayResults(freqResults.sort().reversed(), query)
+        let fSorted = freqResults.sort()
+        let fReversed: [string] = []
+        let j = fSorted.length - 1
+        while j >= 0 {
+            fReversed.push(fSorted[j])
+            j = j - 1
+        }
+        displayResults(fReversed, query)
         return
     }
 
@@ -214,40 +241,42 @@ executeSearch(index: Map<string, string>, query: string) {
 // Main
 // ════════════════════════════════════════════════════════════
 
-let args = Sys.args()
-let dataDir = "data"
-if args.length > 0 {
-    dataDir = args[0]
-}
+main() {
+    let args = Sys.args()
+    let dataDir = "data"
+    if args.length > 0 {
+        dataDir = args[0]
+    }
 
-print("╔══════════════════════════════════════════════╗")
-print("║        Text Search Engine  (Liva)            ║")
-print("╚══════════════════════════════════════════════╝")
-print("")
-
-// Build the inverted index
-let index = buildIndex(dataDir)
-
-let totalWords = index.keys().length
-print($"\nIndex built: {totalWords} unique words indexed.\n")
-
-if totalWords == 0 {
-    print("Nothing to search. Add .txt files to the data/ directory.")
-    Sys.exit(0)
-}
-
-// Interactive search loop
-print("Enter a query (word, 'w1 AND w2', or 'w1 OR w2'). Type 'quit' to exit.\n")
-
-while true {
-    let query = console.prompt("search> ")
-
-    if query.trim().isEmpty() { continue }
-    if query.trim().toLowerCase() == "quit" { break }
-    if query.trim().toLowerCase() == "exit" { break }
-
-    executeSearch(index, query.trim())
+    print("╔══════════════════════════════════════════════╗")
+    print("║        Text Search Engine  (Liva)            ║")
+    print("╚══════════════════════════════════════════════╝")
     print("")
-}
 
-print("\nGoodbye!")
+    // Build the inverted index
+    let index = buildIndex(dataDir)
+
+    let totalWords = index.keys().length
+    print($"\nIndex built: {totalWords} unique words indexed.\n")
+
+    if totalWords == 0 {
+        print("Nothing to search. Add .txt files to the data/ directory.")
+        Sys.exit(0)
+    }
+
+    // Interactive search loop
+    print("Enter a query (word, 'w1 AND w2', or 'w1 OR w2'). Type 'quit' to exit.\n")
+
+    while true {
+        let query = Sys.input("search> ")
+
+        if query.trim().isEmpty() { continue }
+        if query.trim().toLowerCase() == "quit" { break }
+        if query.trim().toLowerCase() == "exit" { break }
+
+        executeSearch(index, query.trim())
+        print("")
+    }
+
+    print("\nGoodbye!")
+}
