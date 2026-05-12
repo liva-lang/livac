@@ -107,8 +107,7 @@ ModuleResolver {
             switch item {
                 TopLevel.Import(decl) => {
                     imports.push($"{decl.source}")
-                },
-                _ => {}
+                }
             }
         }
         return imports
@@ -140,8 +139,7 @@ ModuleResolver {
                 },
                 TopLevel.TypeAlias(decl) => {
                     names.push($"{decl.name}")
-                },
-                _ => {}
+                }
             }
         }
         return names

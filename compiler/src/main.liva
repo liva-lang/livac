@@ -184,8 +184,7 @@ collectUseRustLines(items: [TopLevel]): [string] {
         switch item {
             TopLevel.UseRust(decl) => {
                 lines.push(renderUseRustLine(decl))
-            },
-            _ => {}
+            }
         }
     }
     return lines
@@ -390,8 +389,7 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
             switch item {
                 TopLevel.Enum(decl) => {
                     allEnumNames.push(decl.name)
-                },
-                _ => {}
+                }
             }
         }
     }
@@ -428,8 +426,7 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
                                         isBoxed = true
                                     }
                                 },
-                                TypeRef.OptionalType(_) => { isOpt = true },
-                                _ => {}
+                                TypeRef.OptionalType(_) => { isOpt = true }
                             }
                             fieldBoxed.push(isBoxed)
                             fieldOptional.push(isOpt)
@@ -438,8 +435,7 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
                         allEnumFieldBoxed.set(key, fieldBoxed)
                         allEnumFieldOptional.set(key, fieldOptional)
                     }
-                },
-                _ => {}
+                }
             }
         }
 

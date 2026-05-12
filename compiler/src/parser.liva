@@ -2299,21 +2299,18 @@ Parser {
             Expr.Binary(bop, bLeft, bRight) => {
                 let isOr = false
                 switch bop {
-                    BinOp.Or => { isOr = true },
-                    _ => {}
+                    BinOp.Or => { isOr = true }
                 }
                 if isOr {
                     let leftIsCall = false
                     switch bLeft {
-                        Expr.Call(_, _, _, _) => { leftIsCall = true },
-                        _ => {}
+                        Expr.Call(_, _, _, _) => { leftIsCall = true }
                     }
                     if leftIsCall {
                         result = bRight
                     }
                 }
-            },
-            _ => {}
+            }
         }
         return result
     }
@@ -2324,8 +2321,7 @@ Parser {
         switch expr {
             Expr.Binary(_, bLeft, _) => {
                 result = bLeft
-            },
-            _ => {}
+            }
         }
         if result != null {
             return result

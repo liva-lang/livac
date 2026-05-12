@@ -106,8 +106,7 @@ LivenessAnalyzer {
     _analyzeTopLevel(item: TopLevel) {
         switch item {
             TopLevel.Function(decl) => { this._analyzeFunction(decl) },
-            TopLevel.Class(decl) => { this._analyzeClassDecl(decl) },
-            _ => {}
+            TopLevel.Class(decl) => { this._analyzeClassDecl(decl) }
         }
     }
 
@@ -130,8 +129,7 @@ LivenessAnalyzer {
             switch m {
                 Member.Method(md) => {
                     this._analyzeMethod(className, md)
-                },
-                _ => {}
+                }
             }
         }
     }
@@ -205,8 +203,7 @@ LivenessAnalyzer {
                 // Phase 8.6: detect push/set/insert in ExprStmt context for escape marking
                 this._checkExprStmtEscape(expr)
             },
-            Stmt.Block(blk) => { this._analyzeBlock(blk) },
-            _ => {}
+            Stmt.Block(blk) => { this._analyzeBlock(blk) }
         }
     }
 
@@ -222,8 +219,7 @@ LivenessAnalyzer {
                     BindingPattern.Identifier(n) => {
                         let key = $"{this._currentFunc}:{n}"
                         this._declaredInLoop.set(key, 1)
-                    },
-                    _ => {}
+                    }
                 }
             }
         }
@@ -500,8 +496,7 @@ LivenessAnalyzer {
                         this._collectEscapingIdents(ma)
                     }
                 }
-            },
-            _ => {}
+            }
         }
     }
 
@@ -515,11 +510,9 @@ LivenessAnalyzer {
                 switch maObj {
                     Expr.Identifier(objName) => {
                         if objName == "this" { isMemberAssign = true }
-                    },
-                    _ => {}
+                    }
                 }
-            },
-            _ => {}
+            }
         }
         if isMemberAssign {
             this._collectEscapingIdents(asgn.value)
@@ -553,8 +546,7 @@ LivenessAnalyzer {
                         this._collectEscapingIdents(ma)
                     }
                 }
-            },
-            _ => {}
+            }
         }
     }
 

@@ -502,8 +502,7 @@ SemanticAnalyzer {
             },
             Expr.RustBlock(code) => {
                 result = TypeRef.Simple("unknown")
-            },
-            _ => {}
+            }
         }
         return result
     }
@@ -594,8 +593,7 @@ SemanticAnalyzer {
         switch callee {
             Expr.Identifier(name) => {
                 result = this._inferCallByName(name)
-            },
-            _ => {}
+            }
         }
         return result
     }
@@ -628,8 +626,7 @@ SemanticAnalyzer {
             },
             TypeRef.SetType(inner) => {
                 result = this._inferSetMethodType(method, inner)
-            },
-            _ => {}
+            }
         }
         return result
     }
@@ -699,8 +696,7 @@ SemanticAnalyzer {
             },
             TypeRef.Array(inner) => {
                 result = this._inferMemberOnArray(property)
-            },
-            _ => {}
+            }
         }
         return result
     }
@@ -911,8 +907,7 @@ SemanticAnalyzer {
                 TopLevel.Class(decl) => { this._registerClass(decl) },
                 TopLevel.Enum(decl) => { this._registerEnum(decl) },
                 TopLevel.TypeAlias(decl) => { this._registerTypeAlias(decl) },
-                TopLevel.ConstDecl(decl) => { this._registerConst(decl) },
-                _ => {}
+                TopLevel.ConstDecl(decl) => { this._registerConst(decl) }
             }
         }
     }
@@ -1079,8 +1074,7 @@ SemanticAnalyzer {
         for item in program.items {
             switch item {
                 TopLevel.Function(decl) => { this._indexFuncRetType(decl) },
-                TopLevel.Class(decl) => { this._indexClassTypes(decl) },
-                _ => {}
+                TopLevel.Class(decl) => { this._indexClassTypes(decl) }
             }
         }
     }
@@ -1156,8 +1150,7 @@ SemanticAnalyzer {
             TopLevel.Function(decl) => { this._analyzeFunction(decl) },
             TopLevel.Class(decl) => { this._analyzeClass(decl) },
             TopLevel.ConstDecl(decl) => { this._analyzeConstDecl(decl) },
-            TopLevel.Test(decl) => { this._analyzeBlock(decl.body) },
-            _ => {}
+            TopLevel.Test(decl) => { this._analyzeBlock(decl.body) }
         }
     }
 
@@ -1230,8 +1223,7 @@ SemanticAnalyzer {
                     this._currentFuncName = prevFunc
                     this._currentFuncFallible = prevFallible
                     this._leaveScope()
-                },
-                _ => {}
+                }
             }
         }
     }
@@ -1274,8 +1266,7 @@ SemanticAnalyzer {
             Stmt.ExprStmt(expr) => { this._analyzeExpr(expr) },
             Stmt.Return(expr) => { this._analyzeReturnOpt(expr) },
             Stmt.Throw(expr) => { this._analyzeExpr(expr) },
-            Stmt.Fail(expr, line) => { this._currentFuncFallible = true; this._analyzeExpr(expr) },
-            _ => {}
+            Stmt.Fail(expr, line) => { this._currentFuncFallible = true; this._analyzeExpr(expr) }
         }
     }
 
@@ -1349,8 +1340,7 @@ SemanticAnalyzer {
         switch callee {
             Expr.Identifier(name) => {
                 this._validateCallByName(name, args)
-            },
-            _ => {}
+            }
         }
     }
 
@@ -1392,8 +1382,7 @@ SemanticAnalyzer {
         switch callee {
             Expr.Identifier(name) => {
                 this._checkCalleeFallible(name)
-            },
-            _ => {}
+            }
         }
     }
 
@@ -1512,8 +1501,7 @@ SemanticAnalyzer {
             },
             Expr.Fail(inner) => {
                 this._currentFuncFallible = true
-            },
-            _ => {}
+            }
         }
     }
 
@@ -1636,8 +1624,7 @@ SemanticAnalyzer {
             },
             TypeRef.Simple(n) => {
                 result = this._inferIterableSimpleElem(n)
-            },
-            _ => {}
+            }
         }
         return result
     }

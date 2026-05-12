@@ -397,11 +397,9 @@ RustEmitter {
                 switch obj {
                     Expr.Identifier(name) => {
                         nsName = name
-                    },
-                    _ => {}
+                    }
                 }
-            },
-            _ => {}
+            }
         }
         if !isMethodCall {
             // Async/par-wrapped form: `async HTTP.get(url)` parses as
@@ -414,14 +412,11 @@ RustEmitter {
                         Expr.MethodCall(obj2, _m2, _a2) => {
                             isMethodCall = true
                             switch obj2 {
-                                Expr.Identifier(n2) => { nsName = n2 },
-                                _ => {}
+                                Expr.Identifier(n2) => { nsName = n2 }
                             }
-                        },
-                        _ => {}
+                        }
                     }
-                },
-                _ => {}
+                }
             }
         }
         if !isMethodCall { return false }
@@ -445,11 +440,9 @@ RustEmitter {
             Expr.MethodCall(obj, m, _) => {
                 methodName = m
                 switch obj {
-                    Expr.Identifier(n) => { objName = n },
-                    _ => {}
+                    Expr.Identifier(n) => { objName = n }
                 }
-            },
-            _ => {}
+            }
         }
         if objName == "DB" && methodName == "open" {
             return "std::sync::Arc::new(std::sync::Mutex::new(rusqlite::Connection::open_in_memory().unwrap()))"
@@ -614,8 +607,7 @@ RustEmitter {
                     if isAsync {
                         this._asyncFnNames.set(this._sanitizeName(fd.name), true)
                     }
-                },
-                _ => {}
+                }
             }
         }
         // Pre-populate enum variant field registry from AST items
@@ -624,8 +616,7 @@ RustEmitter {
             switch item {
                 TopLevel.Enum(decl) => {
                     this._registerEnumDeclFields(decl)
-                },
-                _ => {}
+                }
             }
         }
 
@@ -656,12 +647,10 @@ RustEmitter {
                                         let sanMK = $"{cn}.{this._sanitizeName(md.name)}"
                                         this._preRegisterBorrowedParams(rawMK, sanMK, md.params)
                                     }
-                                },
-                                _ => {}
+                                }
                             }
                         }
-                    },
-                    _ => {}
+                    }
                 }
             }
         }
@@ -764,8 +753,7 @@ RustEmitter {
                 TopLevel.Class(cd) => {
                     if cd.name == "HashMap" { userHasHashMap = true }
                     if cd.name == "HashSet" { userHasHashSet = true }
-                },
-                _ => {}
+                }
             }
         }
         let importMap = not userHasHashMap
@@ -806,8 +794,7 @@ RustEmitter {
                             needsBox = true
                         }
                     },
-                    TypeRef.OptionalType(_) => { isOpt = true },
-                    _ => {}
+                    TypeRef.OptionalType(_) => { isOpt = true }
                 }
                 fieldBoxed.push(needsBox)
                 fieldOptional.push(isOpt)
@@ -834,8 +821,7 @@ RustEmitter {
             TopLevel.ConstDecl(decl) => { this._emitConstDecl(decl) },
             TopLevel.Import(decl) => { this._emitImport(decl) },
             TopLevel.Test(decl) => { this._emitTestDecl(decl) },
-            TopLevel.ExprStmt(expr) => { this._emitTopLevelExpr(expr) },
-            _ => {}
+            TopLevel.ExprStmt(expr) => { this._emitTopLevelExpr(expr) }
         }
     }
 
@@ -852,8 +838,7 @@ RustEmitter {
             Expr.Call(callee, callArgs, _, _) => {
                 let fnName = ""
                 switch callee {
-                    Expr.Identifier(n) => { fnName = n },
-                    _ => {}
+                    Expr.Identifier(n) => { fnName = n }
                 }
                 if fnName == "describe" {
                     this._emitDescribe(callArgs)
@@ -879,11 +864,9 @@ RustEmitter {
         switch args[0] {
             Expr.Literal(lit) => {
                 switch lit {
-                    Literal.Str(s) => { modName = this._sanitizeTestName(s) },
-                    _ => {}
+                    Literal.Str(s) => { modName = this._sanitizeTestName(s) }
                 }
-            },
-            _ => {}
+            }
         }
 
         this._writeln("#[cfg(test)]")
@@ -913,8 +896,7 @@ RustEmitter {
                         }
                     }
                 }
-            },
-            _ => {}
+            }
         }
 
         this._inTestBlock = wasInTest
@@ -932,8 +914,7 @@ RustEmitter {
                     Expr.Call(callee, callArgs, _, _) => {
                         let fnName = ""
                         switch callee {
-                            Expr.Identifier(n) => { fnName = n },
-                            _ => {}
+                            Expr.Identifier(n) => { fnName = n }
                         }
                         if fnName == "test" {
                             this._emitTestCase(callArgs)
@@ -961,11 +942,9 @@ RustEmitter {
         switch args[0] {
             Expr.Literal(lit) => {
                 switch lit {
-                    Literal.Str(s) => { testName = this._sanitizeTestName(s) },
-                    _ => {}
+                    Literal.Str(s) => { testName = this._sanitizeTestName(s) }
                 }
-            },
-            _ => {}
+            }
         }
         // Deduplicate
         if this._usedTestNames.has(testName) {
@@ -997,8 +976,7 @@ RustEmitter {
                         }
                     }
                 }
-            },
-            _ => {}
+            }
         }
 
         this._dedent()
@@ -1118,8 +1096,7 @@ RustEmitter {
             let fpType = fp.typeRef
             if fpType != null {
                 switch fpType {
-                    TypeRef.FnType(_, _) => { isFn = true },
-                    _ => {}
+                    TypeRef.FnType(_, _) => { isFn = true }
                 }
             }
             if isFn { fnMask += "1" } else { fnMask += "0" }
@@ -1134,11 +1111,9 @@ RustEmitter {
                 switch dv {
                     Expr.Literal(lit) => {
                         switch lit {
-                            Literal.Str(_) => { isStrLit = true },
-                            _ => {}
+                            Literal.Str(_) => { isStrLit = true }
                         }
-                    },
-                    _ => {}
+                    }
                 }
                 let dvStr = this._exprToString(dv)
                 if isStrLit {
@@ -1424,8 +1399,7 @@ RustEmitter {
                 TypeRef.Array(_) => { result = "Vec::new()" },
                 TypeRef.MapType(_, _) => { result = "HashMap::new()" },
                 TypeRef.SetType(_) => { result = "HashSet::new()" },
-                TypeRef.OptionalType(_) => { result = "None" },
-                _ => {}
+                TypeRef.OptionalType(_) => { result = "None" }
             }
         }
         return result
@@ -1437,8 +1411,7 @@ RustEmitter {
         if optRef != null {
             let isMap = false
             switch optRef {
-                TypeRef.MapType(_, _) => { isMap = true },
-                _ => {}
+                TypeRef.MapType(_, _) => { isMap = true }
             }
             return isMap
         }
@@ -1460,8 +1433,7 @@ RustEmitter {
                     Literal.Int(_) => { inferred = " -> i32" },
                     Literal.Float(_) => { inferred = " -> f64" },
                     Literal.Bool(_) => { inferred = " -> bool" },
-                    Literal.Str(_) => { inferred = " -> String" },
-                    _ => {}
+                    Literal.Str(_) => { inferred = " -> String" }
                 }
             },
             Expr.Binary(op, _, _) => {
@@ -1488,16 +1460,14 @@ RustEmitter {
                         if name == "this" {
                             isThis = true
                         }
-                    },
-                    _ => {}
+                    }
                 }
                 if isThis {
                     if this._currentClassFieldRetSuffix.has(prop) {
                         inferred = this._currentClassFieldRetSuffix.get(prop)
                     }
                 }
-            },
-            _ => {}
+            }
         }
         return inferred
     }
@@ -1509,8 +1479,7 @@ RustEmitter {
             // the body also contains `fail` (containsFail would be redundant).
             let isAlreadyFallible = false
             switch optRef {
-                TypeRef.Fallible(_) => { isAlreadyFallible = true },
-                _ => {}
+                TypeRef.Fallible(_) => { isAlreadyFallible = true }
             }
             let typeStr = this._emitType(optRef)
             if isFallible && not isAlreadyFallible {
@@ -1533,8 +1502,7 @@ RustEmitter {
                     Literal.Int(_) => { result = "i32" },
                     Literal.Float(_) => { result = "f64" },
                     Literal.Bool(_) => { result = "bool" },
-                    Literal.Str(_) => { result = "String" },
-                    _ => {}
+                    Literal.Str(_) => { result = "String" }
                 }
             },
             Expr.Binary(op, left, right) => {
@@ -1558,8 +1526,7 @@ RustEmitter {
             Expr.ArrayLiteral(_) => { result = "Vec<i32>" },
             Expr.Unary(_, inner) => {
                 result = this._inferExprType(inner)
-            },
-            _ => {}
+            }
         }
         return result
     }
@@ -1608,8 +1575,7 @@ RustEmitter {
                         let fName = this._sanitizeName(f.name)
                         this._mapVars.set(fName, true)
                     }
-                },
-                _ => {}
+                }
             }
         }
 
@@ -1689,8 +1655,7 @@ RustEmitter {
                                 if this._globalEnums.has(dcTn) {
                                     dcHasEnumField = true
                                 }
-                            },
-                            _ => {}
+                            }
                         }
                     }
                 }
@@ -1709,8 +1674,7 @@ RustEmitter {
             switch m {
                 Member.Field(f) => {
                     this._emitField(f)
-                },
-                _ => {}
+                }
             }
         }
 
@@ -1737,8 +1701,7 @@ RustEmitter {
             switch m {
                 Member.Field(f) => {
                     if this._fieldNeedsDebug(f.typeRef) { anyDebugField = true }
-                },
-                _ => {}
+                }
             }
         }
 
@@ -1786,8 +1749,7 @@ RustEmitter {
                 Member.Field(f) => {
                     fieldNames.push(this._sanitizeName(f.name))
                     fieldNeedsDbg.push(this._fieldNeedsDebug(f.typeRef))
-                },
-                _ => {}
+                }
             }
         }
 
@@ -1836,8 +1798,7 @@ RustEmitter {
                 TypeRef.Tuple(_) => { needs = true },
                 TypeRef.Simple(name) => {
                     if this._globalEnums.has(name) { needs = true }
-                },
-                _ => {}
+                }
             }
             return needs
         }
@@ -1872,8 +1833,7 @@ RustEmitter {
                     if suffix != "" {
                         fieldRet.set(f.name, suffix)
                     }
-                },
-                _ => {}
+                }
             }
         }
         this._currentClassFieldRetSuffix = fieldRet
@@ -1895,8 +1855,7 @@ RustEmitter {
                     if md.name != "constructor" {
                         this._emitMethod($"{className}", md)
                     }
-                },
-                _ => {}
+                }
             }
         }
 
@@ -1914,8 +1873,7 @@ RustEmitter {
         let fields: [FieldDecl] = []
         for m in decl.members {
             switch m {
-                Member.Field(f) => { fields.push(f) },
-                _ => {}
+                Member.Field(f) => { fields.push(f) }
             }
         }
 
@@ -1936,8 +1894,7 @@ RustEmitter {
                             ctorStmts = this._blockStmts(body)
                         }
                     }
-                },
-                _ => {}
+                }
             }
         }
 
@@ -1972,14 +1929,11 @@ RustEmitter {
                                             faName = this._sanitizeName(prop)
                                             faExpr = asgn.value
                                         }
-                                    },
-                                    _ => {}
+                                    }
                                 }
-                            },
-                            _ => {}
+                            }
                         }
-                    },
-                    _ => {}
+                    }
                 }
                 if isFieldAssign {
                     let alreadyAssigned = this._constructorAssignedFields.has(faName)
@@ -2004,8 +1958,7 @@ RustEmitter {
                         },
                         Expr.SetLiteral(sItems) => {
                             if sItems.length == 0 { initIsEmptySet = true }
-                        },
-                        _ => {}
+                        }
                     }
 
                     this._writeIndent()
@@ -2100,8 +2053,7 @@ RustEmitter {
             Expr.Identifier(n) => {
                 if n == "this" { result = true }
                 if n == "self" { result = true }
-            },
-            _ => {}
+            }
         }
         return result
     }
@@ -2116,8 +2068,7 @@ RustEmitter {
             Expr.Index(obj, _) => {
                 if this._isThisOrSelfIdent(obj) { result = true }
                 else if this._targetInvolvesSelf(obj) { result = true }
-            },
-            _ => {}
+            }
         }
         return result
     }
@@ -2200,8 +2151,7 @@ RustEmitter {
             },
             Expr.SetLiteral(elems) => {
                 if this._anyExprModifiesSelf(elems) { result = true }
-            },
-            _ => {}
+            }
         }
         return result
     }
@@ -2236,8 +2186,7 @@ RustEmitter {
             switch p {
                 StringTemplatePart.ExprPart(e) => {
                     if this._exprModifiesSelf(e) { return true }
-                },
-                _ => {}
+                }
             }
         }
         return false
@@ -2321,8 +2270,7 @@ RustEmitter {
             },
             Stmt.Block(b) => {
                 if this._blockModifiesSelf(b) { result = true }
-            },
-            _ => {}
+            }
         }
         return result
     }
@@ -2450,8 +2398,7 @@ RustEmitter {
             },
             Expr.SetLiteral(elems) => {
                 if this._anyExprCallsThisInSet(elems) { result = true }
-            },
-            _ => {}
+            }
         }
         return result
     }
@@ -2486,8 +2433,7 @@ RustEmitter {
             switch p {
                 StringTemplatePart.ExprPart(e) => {
                     if this._exprCallsThisInSet(e) { return true }
-                },
-                _ => {}
+                }
             }
         }
         return false
@@ -2567,8 +2513,7 @@ RustEmitter {
             },
             Stmt.Block(b) => {
                 if this._blockCallsThisInSet(b) { result = true }
-            },
-            _ => {}
+            }
         }
         return result
     }
@@ -2629,12 +2574,10 @@ RustEmitter {
                                                 hasEnumField = true
                                             }
                                             typeNames.push($"{tnCopy}")
-                                        },
-                                        _ => {}
+                                        }
                                     }
                                 }
-                            },
-                            _ => {}
+                            }
                         }
                     }
                     if hasEnumField {
@@ -2643,8 +2586,7 @@ RustEmitter {
                     }
                     let cnKey = $"{cn}"
                     classFieldTypes.set(cnKey, typeNames)
-                },
-                _ => {}
+                }
             }
         }
         // Fixpoint propagation: a class becomes no-Default if any of its
@@ -2708,8 +2650,7 @@ RustEmitter {
                             this._classMutMethods.set(mnB, true)
                         }
                     }
-                },
-                _ => {}
+                }
             }
         }
         // Pass 2: fixpoint over `this.<m>()` calls
@@ -2727,8 +2668,7 @@ RustEmitter {
                                 changed = true
                             }
                         }
-                    },
-                    _ => {}
+                    }
                 }
             }
         }
@@ -2918,8 +2858,7 @@ RustEmitter {
                     result = true
                 }
             },
-            TypeRef.Array(inner) => {},
-            _ => {}
+            TypeRef.Array(inner) => {}
         }
         return result
     }
@@ -2947,11 +2886,9 @@ RustEmitter {
                         Literal.Int(_) => { typeStr = "i32" },
                         Literal.Float(_) => { typeStr = "f64" },
                         Literal.Bool(_) => { typeStr = "bool" },
-                        Literal.Str(_) => { typeStr = "&str" },
-                        _ => {}
+                        Literal.Str(_) => { typeStr = "&str" }
                     }
-                },
-                _ => {}
+                }
             }
         }
         // Const string must be &str, not String
@@ -3018,12 +2955,10 @@ RustEmitter {
                                         forBody = fs.body
                                         matched = true
                                     }
-                                },
-                                _ => {}
+                                }
                             }
                         }
-                    },
-                    _ => {}
+                    }
                 }
                 if matched {
                     let liveKey = $"{this._currentFunc}:{heldName}"
@@ -3055,8 +2990,7 @@ RustEmitter {
                             for b in d.bindings {
                                 if bIdx == 0 {
                                     switch b.pattern {
-                                        BindingPattern.Identifier(n) => { candName = n },
-                                        _ => {}
+                                        BindingPattern.Identifier(n) => { candName = n }
                                     }
                                 }
                                 bIdx += 1
@@ -3068,12 +3002,10 @@ RustEmitter {
                                         isCandidate = true
                                         candInit = dInit
                                     }
-                                },
-                                _ => {}
+                                }
                             }
                         }
-                    },
-                    _ => {}
+                    }
                 }
                 if isCandidate && candName != "" {
                     heldBuf.push(s)
@@ -3131,8 +3063,7 @@ RustEmitter {
                             failIsErrBind = true
                             failErrName = fSan
                         }
-                    },
-                    _ => {}
+                    }
                 }
                 if failIsErrBind {
                     this._write("return Err(liva_rt::Error::from(")
@@ -3157,8 +3088,7 @@ RustEmitter {
                 // wrapper or trailing `0` filler in each arm.
                 let isSwitchStmt = false
                 switch expr {
-                    Expr.SwitchExpr(_, _) => { isSwitchStmt = true },
-                    _ => {}
+                    Expr.SwitchExpr(_, _) => { isSwitchStmt = true }
                 }
                 if isSwitchStmt {
                     switch expr {
@@ -3170,8 +3100,7 @@ RustEmitter {
                             this._switchInStmtPosition = savedFlag
                             this._write(";")
                             this._newline()
-                        },
-                        _ => {}
+                        }
                     }
                     return
                 }
@@ -3225,8 +3154,7 @@ RustEmitter {
                     BindingPattern.Identifier(bn) => {
                         if bIdx == 0 { bName0 = bn }
                         else { bName1 = bn }
-                    },
-                    _ => {}
+                    }
                 }
                 bIdx += 1
             }
@@ -3246,8 +3174,7 @@ RustEmitter {
                                     if dbObjName == "DB" && valName != "_" {
                                         this._dbVars.set(valName, true)
                                     }
-                                },
-                                _ => {}
+                                }
                             }
                         }
                         if dbMethod == "parse" {
@@ -3256,12 +3183,10 @@ RustEmitter {
                                     if jObjName == "JSON" && valName != "_" {
                                         this._jsonValueVars.set(valName, true)
                                     }
-                                },
-                                _ => {}
+                                }
                             }
                         }
-                    },
-                    _ => {}
+                    }
                 }
                 this._writeIndent()
                 this._write("let (")
@@ -3316,8 +3241,7 @@ RustEmitter {
             let bName = ""
             for bSingle in decl.bindings {
                 switch bSingle.pattern {
-                    BindingPattern.Identifier(n) => { isSimpleIdent = true; bName = n },
-                    _ => {}
+                    BindingPattern.Identifier(n) => { isSimpleIdent = true; bName = n }
                 }
             }
             let initProbeS = decl.init
@@ -3335,12 +3259,10 @@ RustEmitter {
                                     if jObjName == "JSON" && sanU != "_" {
                                         this._jsonValueVars.set(sanU, true)
                                     }
-                                },
-                                _ => {}
+                                }
                             }
                         }
-                    },
-                    _ => {}
+                    }
                 }
                 this._writeIndent()
                 if sanU == "_" {
@@ -3413,12 +3335,10 @@ RustEmitter {
                             if initObjName == "Server" {
                                 this._serverVars.set(sanitized, true)
                             }
-                        },
-                        _ => {}
+                        }
                     }
                 }
-            },
-            _ => {}
+            }
         }
 
         // Propagate JSON-value tracking through index/member access so that
@@ -3433,8 +3353,7 @@ RustEmitter {
                         if this._jsonValueVars.has(jSan) && sanitized != "_" {
                             this._jsonValueVars.set(sanitized, true)
                         }
-                    },
-                    _ => {}
+                    }
                 }
             },
             Expr.MemberAccess(jMaObj, _) => {
@@ -3444,11 +3363,9 @@ RustEmitter {
                         if this._jsonValueVars.has(jSan2) && sanitized != "_" {
                             this._jsonValueVars.set(sanitized, true)
                         }
-                    },
-                    _ => {}
+                    }
                 }
-            },
-            _ => {}
+            }
         }
 
         let initTaskSnap2 = decl.init
@@ -3462,8 +3379,7 @@ RustEmitter {
                 if isTaskPolicy && sanitized != "_" {
                     this._taskHandleVars.set(sanitized, true)
                 }
-            },
-            _ => {}
+            }
         }
 
         this._writeIndent()
@@ -3581,8 +3497,7 @@ RustEmitter {
                             this._write("HashSet::new()")
                             emittedSetEmpty = true
                         }
-                    },
-                    _ => {}
+                    }
                 }
             }
             if emittedSetEmpty {
@@ -3597,16 +3512,14 @@ RustEmitter {
                     initIsOwned = true
                     let isOr = false
                     switch op {
-                        BinOp.Or => { isOr = true },
-                        _ => {}
+                        BinOp.Or => { isOr = true }
                     }
                     if isOr {
                         let isCall = false
                         let isFreeCall = false
                         switch left {
                             Expr.Call(_, _, _, _) => { isCall = true; isFreeCall = true },
-                            Expr.MethodCall(_, _, _) => { isCall = true },
-                            _ => {}
+                            Expr.MethodCall(_, _, _) => { isCall = true }
                         }
                         // Detect collection .get() returning Option<V> (NOT a fallible
                         // tuple). For these, emit `.cloned().unwrap_or(default)` directly.
@@ -3628,13 +3541,11 @@ RustEmitter {
                                             Expr.MemberAccess(_, mp) => {
                                                 let sp = this._sanitizeName(mp)
                                                 if this._mapVars.has(sp) { isOptionGet = true }
-                                            },
-                                            _ => {}
+                                            }
                                         }
                                     }
                                 }
-                            },
-                            _ => {}
+                            }
                         }
                         if isOptionGet {
                             // Re-emit the inner method call without the trailing
@@ -3643,8 +3554,7 @@ RustEmitter {
                             switch left {
                                 Expr.MethodCall(mObj, mName, mArgs) => {
                                     this._emitOptionGetWithDefault(mObj, mName, mArgs, right)
-                                },
-                                _ => {}
+                                }
                             }
                         } else if isFreeCall {
                             // User-defined fallible call → returns Result<T, Error>.
@@ -3665,8 +3575,7 @@ RustEmitter {
                                 Expr.MethodCall(_, mName, _) => {
                                     if mName == "toInt" { isParseOr = true; parseTy = "i32" }
                                     if mName == "toFloat" { isParseOr = true; parseTy = "f64" }
-                                },
-                                _ => {}
+                                }
                             }
                             if isParseOr {
                                 switch left {
@@ -3677,8 +3586,7 @@ RustEmitter {
                                         this._write(">().unwrap_or(")
                                         this._emitExpr(right)
                                         this._write(")")
-                                    },
-                                    _ => {}
+                                    }
                                 }
                             } else {
                                 // MethodCall (stdlib / user methods) → emits inline
@@ -4028,8 +3936,7 @@ RustEmitter {
                                 if bopStr == "+" {
                                     isPushStrCandidate = this._leftmostLeafIsTarget(left, san)
                                 }
-                            },
-                            _ => {}
+                            }
                         }
                     }
                     if isPushStrCandidate {
@@ -4103,11 +4010,9 @@ RustEmitter {
             switch value {
                 Expr.Literal(lit2) => {
                     switch lit2 {
-                        Literal.Str(_) => { isLitStr = true },
-                        _ => {}
+                        Literal.Str(_) => { isLitStr = true }
                     }
-                },
-                _ => {}
+                }
             }
             if isLitStr {
                 this._write(".push_str(")
@@ -4208,12 +4113,10 @@ RustEmitter {
                             condIsHas = true
                             condMapName = cn
                             for k in ca { condKeyE = this._entryKeyEmit(k); break }
-                        },
-                        _ => {}
+                        }
                     }
                 }
-            },
-            _ => {}
+            }
         }
         if not condIsHas { return false }
         if condKeyE == "" { return false }
@@ -4244,8 +4147,7 @@ RustEmitter {
                     if decl.bindings.length == 1 and not decl.isFallible {
                         for b in decl.bindings {
                             switch b.pattern {
-                                BindingPattern.Identifier(bn) => { cName = bn },
-                                _ => {}
+                                BindingPattern.Identifier(bn) => { cName = bn }
                             }
                             break
                         }
@@ -4258,17 +4160,14 @@ RustEmitter {
                                                 getMapName = gn
                                                 for k in ga { getKeyE = this._entryKeyEmit(k); break }
                                                 if getKeyE != "" { stmt0Ok = true }
-                                            },
-                                            _ => {}
+                                            }
                                         }
                                     }
-                                },
-                                _ => {}
+                                }
                             }
                         }
                     }
-                },
-                _ => {}
+                }
             }
             break
         }
@@ -4289,8 +4188,7 @@ RustEmitter {
                             Expr.MethodCall(so, sm, sa) => {
                                 if sm == "set" and sa.length == 2 {
                                     switch so {
-                                        Expr.Identifier(sn) => { setMapName = sn },
-                                        _ => {}
+                                        Expr.Identifier(sn) => { setMapName = sn }
                                     }
                                     if setMapName != "" {
                                         // First pass: extract key (idx 0) into a string
@@ -4310,42 +4208,35 @@ RustEmitter {
                                                         let opOk = false
                                                         switch bop {
                                                             BinOp.Add => { opOk = true; opIsAdd = true },
-                                                            BinOp.Sub => { opOk = true; opIsAdd = false },
-                                                            _ => {}
+                                                            BinOp.Sub => { opOk = true; opIsAdd = false }
                                                         }
                                                         if opOk {
                                                             let leftOk = false
                                                             switch bl {
                                                                 Expr.Identifier(ln) => {
                                                                     if ln == cName { leftOk = true }
-                                                                },
-                                                                _ => {}
+                                                                }
                                                             }
                                                             if leftOk {
                                                                 switch br {
                                                                     Expr.Literal(rlit) => {
                                                                         switch rlit {
-                                                                            Literal.Int(rv) => { rVal = rv; stmt1Ok = true },
-                                                                            _ => {}
+                                                                            Literal.Int(rv) => { rVal = rv; stmt1Ok = true }
                                                                         }
-                                                                    },
-                                                                    _ => {}
+                                                                    }
                                                                 }
                                                             }
                                                         }
-                                                    },
-                                                    _ => {}
+                                                    }
                                                 }
                                             }
                                             vIdx += 1
                                         }
                                     }
                                 }
-                            },
-                            _ => {}
+                            }
                         }
-                    },
-                    _ => {}
+                    }
                 }
                 break
             }
@@ -4366,8 +4257,7 @@ RustEmitter {
                         Expr.MethodCall(eo, em, ea) => {
                             if em == "set" and ea.length == 2 {
                                 switch eo {
-                                    Expr.Identifier(en) => { elseMapName = en },
-                                    _ => {}
+                                    Expr.Identifier(en) => { elseMapName = en }
                                 }
                                 if elseMapName != "" {
                                     let kIdx2 = 0
@@ -4383,22 +4273,18 @@ RustEmitter {
                                             switch vArg2 {
                                                 Expr.Literal(lit) => {
                                                     switch lit {
-                                                        Literal.Int(iv) => { initN = iv; stmt2Ok = true },
-                                                        _ => {}
+                                                        Literal.Int(iv) => { initN = iv; stmt2Ok = true }
                                                     }
-                                                },
-                                                _ => {}
+                                                }
                                             }
                                         }
                                         vIdx2 += 1
                                     }
                                 }
                             }
-                        },
-                        _ => {}
+                        }
                     }
-                },
-                _ => {}
+                }
             }
             break
         }
@@ -4476,11 +4362,9 @@ RustEmitter {
             },
             Expr.Literal(l) => {
                 switch l {
-                    Literal.Int(v) => { result = $"{v}" },
-                    _ => {}
+                    Literal.Int(v) => { result = $"{v}" }
                 }
-            },
-            _ => {}
+            }
         }
         return result
     }
@@ -4552,8 +4436,7 @@ RustEmitter {
                     if this._mapVars.has(sp) {
                         isMapIteration = true
                     }
-                },
-                _ => {}
+                }
             }
             if isMapIteration {
                 this._write($"for ({idxName}, {itemName}) in ")
@@ -4573,8 +4456,7 @@ RustEmitter {
                     if this._arrayIdentNameIsCopyElem(iterName) {
                         useCopyDeref = true
                     }
-                },
-                _ => {}
+                }
             }
             if useCopyDeref {
                 this._write($"for &{varName} in ")
@@ -4588,8 +4470,7 @@ RustEmitter {
                         let san = this._sanitizeName(iterName)
                         this._write($"&{san}")
                         emitted = true
-                    },
-                    _ => {}
+                    }
                 }
                 if not emitted {
                     this._emitForIterable(iterableExpr)
@@ -4694,8 +4575,7 @@ RustEmitter {
                         Expr.Identifier(on) => {
                             let osn = this._sanitizeName(on)
                             if this._strRefParams.has(osn) { objIsStrRef = true }
-                        },
-                        _ => {}
+                        }
                     }
                     this._emitExpr(obj)
                     this._write(".split(")
@@ -4715,8 +4595,7 @@ RustEmitter {
                 let isRange = false
                 switch op {
                     BinOp.Range => { isRange = true },
-                    BinOp.RangeInclusive => { isRange = true },
-                    _ => {}
+                    BinOp.RangeInclusive => { isRange = true }
                 }
                 if isRange {
                     this._emitExpr(left)
@@ -4771,11 +4650,9 @@ RustEmitter {
             switch c.value {
                 Expr.Literal(lit) => {
                     switch lit {
-                        Literal.Str(_) => { isStringSwitch = true },
-                        _ => {}
+                        Literal.Str(_) => { isStringSwitch = true }
                     }
-                },
-                _ => {}
+                }
             }
             break
         }
@@ -4948,8 +4825,7 @@ RustEmitter {
                             if this._asyncFnNames.has(scn) {
                                 calleeIsAsync = true
                             }
-                        },
-                        _ => {}
+                        }
                     }
                     this._write("tokio::spawn(async move { ")
                     this._emitCall(callee, callArgs)
@@ -4965,8 +4841,7 @@ RustEmitter {
                         Expr.MethodCall(_mco, _mcm, _mca) => {
                             this._emitExpr(callee)
                             unwrapped = true
-                        },
-                        _ => {}
+                        }
                     }
                 }
                 if !unwrapped {
@@ -4990,11 +4865,9 @@ RustEmitter {
                 switch idxExpr {
                     Expr.Literal(_il) => {
                         switch _il {
-                            Literal.Str(sv) => { isStrIdx = true; strKey = sv },
-                            _ => {}
+                            Literal.Str(sv) => { isStrIdx = true; strKey = sv }
                         }
-                    },
-                    _ => {}
+                    }
                 }
                 if isStrIdx {
                     let savedAssignTargetS = this._inAssignTarget
@@ -5025,8 +4898,7 @@ RustEmitter {
                 // on whether the index identifier is a string-typed var.
                 let jsonObjName = ""
                 switch idxObj {
-                    Expr.Identifier(jon) => { jsonObjName = this._sanitizeName(jon) },
-                    _ => {}
+                    Expr.Identifier(jon) => { jsonObjName = this._sanitizeName(jon) }
                 }
                 let isJsonRecv = jsonObjName != "" && this._jsonValueVars.has(jsonObjName)
                 this._emitExpr(idxObj)
@@ -5037,8 +4909,7 @@ RustEmitter {
                         Expr.Identifier(idn) => {
                             let idSan = this._sanitizeName(idn)
                             if this._stringVars.has(idSan) { idxIsStr = true }
-                        },
-                        _ => {}
+                        }
                     }
                     if idxIsStr {
                         this._write("[&(")
@@ -5253,8 +5124,7 @@ RustEmitter {
                 Expr.MethodCall(_, mName, _) => {
                     if mName == "toInt" { isParseOr = true; parseTy = "i32" }
                     if mName == "toFloat" { isParseOr = true; parseTy = "f64" }
-                },
-                _ => {}
+                }
             }
             if isParseOr {
                 switch left {
@@ -5265,8 +5135,7 @@ RustEmitter {
                         this._write(">().unwrap_or(")
                         this._emitExpr(right)
                         this._write(")")
-                    },
-                    _ => {}
+                    }
                 }
                 return
             }
@@ -5297,13 +5166,11 @@ RustEmitter {
                                         // weak to be sure, so prefer option-get lowering.
                                         isOptionGet = true
                                     }
-                                },
-                                _ => {}
+                                }
                             }
                         }
                     }
-                },
-                _ => {}
+                }
             }
             if isOptionGet {
                 // Use the shared helper (suppresses the trailing .unwrap()
@@ -5311,8 +5178,7 @@ RustEmitter {
                 switch left {
                     Expr.MethodCall(mObj2, mName2, mArgs2) => {
                         this._emitOptionGetWithDefault(mObj2, mName2, mArgs2, right)
-                    },
-                    _ => {}
+                    }
                 }
                 return
             }
@@ -5342,8 +5208,7 @@ RustEmitter {
                 Expr.Identifier(eName) => {
                     let eSan = this._sanitizeName(eName)
                     if this._errBindings.has(eSan) { isErrIdent = true }
-                },
-                _ => {}
+                }
             }
             let rIsEmptyStr = false
             if isErrIdent {
@@ -5352,11 +5217,9 @@ RustEmitter {
                         switch rLitE {
                             Literal.Str(rs) => {
                                 if rs == "" { rIsEmptyStr = true }
-                            },
-                            _ => {}
+                            }
                         }
-                    },
-                    _ => {}
+                    }
                 }
             }
             if isErrIdent && rIsEmptyStr {
@@ -5380,8 +5243,7 @@ RustEmitter {
                 let rIsString = false
                 switch rLit {
                     Literal.Null => { rIsNull = true },
-                    Literal.Str(_) => { rIsString = true },
-                    _ => {}
+                    Literal.Str(_) => { rIsString = true }
                 }
                 if rIsNull && opStr == "==" {
                     this._emitExpr(left)
@@ -5424,8 +5286,7 @@ RustEmitter {
                         switch left {
                             Expr.Identifier(lName2) => {
                                 if this._sanitizeName(lName2) == this._pushStrTarget { leftIsTarget2 = true }
-                            },
-                            _ => {}
+                            }
                         }
                         if leftIsTarget2 {
                             let pst1 = this._pushStrTarget
@@ -5469,8 +5330,7 @@ RustEmitter {
                         switch left {
                             Expr.Identifier(lName3) => {
                                 if this._sanitizeName(lName3) == this._pushStrTarget { leftIsTarget3 = true }
-                            },
-                            _ => {}
+                            }
                         }
                         if leftIsTarget3 {
                             let pst3 = this._pushStrTarget
@@ -5515,11 +5375,9 @@ RustEmitter {
         switch left {
             Expr.Literal(lLit) => {
                 switch lLit {
-                    Literal.Null => { leftIsNull = true },
-                    _ => {}
+                    Literal.Null => { leftIsNull = true }
                 }
-            },
-            _ => {}
+            }
         }
         if leftIsNull && opStr == "==" {
             this._emitLiteral(rightLit)
@@ -5554,8 +5412,7 @@ RustEmitter {
                 let lIsString = false
                 switch lLit {
                     Literal.Null => { lIsNull = true },
-                    Literal.Str(_) => { lIsString = true },
-                    _ => {}
+                    Literal.Str(_) => { lIsString = true }
                 }
                 if lIsNull && opStr == "==" {
                     this._emitExpr(right)
@@ -5622,8 +5479,7 @@ RustEmitter {
                         switch left {
                             Expr.Identifier(lName) => {
                                 if this._sanitizeName(lName) == this._pushStrTarget { leftIsTarget = true }
-                            },
-                            _ => {}
+                            }
                         }
                         if leftIsTarget {
                             // x + y → x.push_str(&y) when y is already a String,
@@ -5692,11 +5548,9 @@ RustEmitter {
         switch expr {
             Expr.Literal(lit) => {
                 switch lit {
-                    Literal.Null => { result = true },
-                    _ => {}
+                    Literal.Null => { result = true }
                 }
-            },
-            _ => {}
+            }
         }
         return result
     }
@@ -5709,11 +5563,9 @@ RustEmitter {
                     Literal.Bool(_) => { result = true },
                     Literal.Int(_) => { result = true },
                     Literal.Float(_) => { result = true },
-                    Literal.Null => { result = true },
-                    _ => {}
+                    Literal.Null => { result = true }
                 }
-            },
-            _ => {}
+            }
         }
         return result
     }
@@ -5729,8 +5581,7 @@ RustEmitter {
             },
             Expr.Identifier(lName) => {
                 if this._sanitizeName(lName) == target { result = true }
-            },
-            _ => {}
+            }
         }
         return result
     }
@@ -5740,8 +5591,7 @@ RustEmitter {
         switch expr {
             Expr.Literal(lit) => {
                 switch lit {
-                    Literal.Str(_) => { result = true },
-                    _ => {}
+                    Literal.Str(_) => { result = true }
                 }
             },
             Expr.StringTemplate(_) => { result = true },
@@ -5757,8 +5607,7 @@ RustEmitter {
             Expr.Identifier(name) => {
                 let tag = this._getExprTypeName(expr)
                 if tag == "string" { result = true }
-            },
-            _ => {}
+            }
         }
         return result
     }
@@ -5817,8 +5666,7 @@ RustEmitter {
                     Expr.Identifier(awn) => {
                         let snAw = this._sanitizeName(awn)
                         if this._taskHandleVars.has(snAw) { isTaskHandle = true }
-                    },
-                    _ => {}
+                    }
                 }
                 this._emitExpr(operand)
                 if isTaskHandle {
@@ -5868,8 +5716,7 @@ RustEmitter {
             TypeRef.MapType(_, _) => { tag = "map" },
             TypeRef.SetType(_) => { tag = "set" },
             TypeRef.OptionalType(_) => { tag = "optional" },
-            TypeRef.Fallible(_) => { tag = "fallible" },
-            _ => {}
+            TypeRef.Fallible(_) => { tag = "fallible" }
         }
         return tag
     }
@@ -5894,8 +5741,7 @@ RustEmitter {
                 switch maObj {
                     Expr.Identifier(idn) => {
                         if idn == "this" { isThis = true }
-                    },
-                    _ => {}
+                    }
                 }
                 if isThis && this._currentClassName != "" {
                     let fkey = $"{this._currentClassName}.{prop}"
@@ -5904,12 +5750,10 @@ RustEmitter {
                         baseType = this._typeCtx.typePool[fidx]
                     }
                 }
-            },
-            _ => {}
+            }
         }
         switch baseType {
-            TypeRef.MapType(_, v) => { result = v },
-            _ => {}
+            TypeRef.MapType(_, v) => { result = v }
         }
         return result
     }
@@ -5927,8 +5771,7 @@ RustEmitter {
                 switch maObj {
                     Expr.Identifier(idn) => {
                         if idn == "this" { isThis = true }
-                    },
-                    _ => {}
+                    }
                 }
                 if isThis && this._currentClassName != "" {
                     let fkey = $"{this._currentClassName}.{prop}"
@@ -5937,12 +5780,10 @@ RustEmitter {
                         baseType = this._typeCtx.typePool[fidx]
                     }
                 }
-            },
-            _ => {}
+            }
         }
         switch baseType {
-            TypeRef.Array(elem) => { result = elem },
-            _ => {}
+            TypeRef.Array(elem) => { result = elem }
         }
         return result
     }
@@ -5961,8 +5802,7 @@ RustEmitter {
         switch vt {
             TypeRef.Array(elem) => {
                 if this._isCopyType(elem) { result = true }
-            },
-            _ => {}
+            }
         }
         return result
     }
@@ -5974,8 +5814,7 @@ RustEmitter {
             Literal.Int(_) => { litTag = "number" },
             Literal.Float(_) => { litTag = "float" },
             Literal.Bool(_) => { litTag = "bool" },
-            Literal.Char(_) => { litTag = "char" },
-            _ => {}
+            Literal.Char(_) => { litTag = "char" }
         }
         return litTag
     }
@@ -6001,8 +5840,7 @@ RustEmitter {
                 switch maObj {
                     Expr.Identifier(idn) => {
                         if idn == "this" { isThis = true }
-                    },
-                    _ => {}
+                    }
                 }
                 if isThis && this._currentClassName != "" {
                     let fkey = $"{this._currentClassName}.{prop}"
@@ -6020,8 +5858,7 @@ RustEmitter {
                                 let varType = this._lookupVarTypeRef(varName)
                                 let className = ""
                                 switch varType {
-                                    TypeRef.Simple(cn) => { className = cn },
-                                    _ => {}
+                                    TypeRef.Simple(cn) => { className = cn }
                                 }
                                 if className != "" && this._typeCtx.classes.has(className) {
                                     let fkey2 = $"{className}.{prop}"
@@ -6032,8 +5869,7 @@ RustEmitter {
                                     }
                                 }
                             }
-                        },
-                        _ => {}
+                        }
                     }
                 }
                 // Chain resolution: this.field.subField
@@ -6046,12 +5882,10 @@ RustEmitter {
                             switch innerObj {
                                 Expr.Identifier(inn) => {
                                     if inn == "this" { innerIsThis = true }
-                                },
-                                _ => {}
+                                }
                             }
                             innerField = iProp
-                        },
-                        _ => {}
+                        }
                     }
                     if innerIsThis && innerField != "" && this._currentClassName != "" {
                         let innerKey = $"{this._currentClassName}.{innerField}"
@@ -6061,8 +5895,7 @@ RustEmitter {
                             // If inner type is a class, look up prop on that class
                             let innerClassName = ""
                             switch innerType {
-                                TypeRef.Simple(cn) => { innerClassName = cn },
-                                _ => {}
+                                TypeRef.Simple(cn) => { innerClassName = cn }
                             }
                             if innerClassName != "" && this._typeCtx.classes.has(innerClassName) {
                                 let subKey = $"{innerClassName}.{prop}"
@@ -6082,8 +5915,7 @@ RustEmitter {
             Expr.StringTemplate(_) => { tag = "string" },
             Expr.ArrayLiteral(_) => { tag = "array" },
             Expr.MapLiteral(_) => { tag = "map" },
-            Expr.SetLiteral(_) => { tag = "set" },
-            _ => {}
+            Expr.SetLiteral(_) => { tag = "set" }
         }
         return tag
     }
@@ -6102,8 +5934,7 @@ RustEmitter {
                 else if fnName == "toFloat" { callType = "toFloat" }
                 else if fnName == "parseInt" { callType = "parseInt" }
                 else if fnName == "parseFloat" { callType = "parseFloat" }
-            },
-            _ => {}
+            }
         }
 
         // Dispatch — args consumed in exactly one branch
@@ -6142,8 +5973,7 @@ RustEmitter {
                             className = fnName
                         }
                     }
-                },
-                _ => {}
+                }
             }
             if isConstructor {
                 this._write(className + "::new(")
@@ -6157,8 +5987,7 @@ RustEmitter {
                 switch callee {
                     Expr.Identifier(fnBorrow) => {
                         calleeForBorrow = this._sanitizeName(fnBorrow)
-                    },
-                    _ => {}
+                    }
                 }
             }
             let aIdx = 0
@@ -6175,8 +6004,7 @@ RustEmitter {
                 }
                 let isLambdaArg = false
                 switch a {
-                    Expr.Lambda(_) => { isLambdaArg = true },
-                    _ => {}
+                    Expr.Lambda(_) => { isLambdaArg = true }
                 }
                 if isFnParam && isLambdaArg {
                     this._write("Box::new(")
@@ -6196,8 +6024,7 @@ RustEmitter {
             // Inject default parameter values for missing arguments
             let calleeFnName = ""
             switch callee {
-                Expr.Identifier(fn2) => { calleeFnName = this._sanitizeName(fn2) },
-                _ => {}
+                Expr.Identifier(fn2) => { calleeFnName = this._sanitizeName(fn2) }
             }
             if calleeFnName != "" && this._functionParamCount.has(calleeFnName) {
                 let totalParams = this._functionParamCount.get(calleeFnName)
@@ -6228,11 +6055,9 @@ RustEmitter {
             switch args[0] {
                 Expr.Literal(lit) => {
                     switch lit {
-                        Literal.Str(s) => { isLiteral = true; litVal = s },
-                        _ => {}
+                        Literal.Str(s) => { isLiteral = true; litVal = s }
                     }
-                },
-                _ => {}
+                }
             }
             if isLiteral {
                 // Escape Rust special chars first (\, ", \n, ...) then escape
@@ -6244,8 +6069,7 @@ RustEmitter {
                 // Phase 8: check if arg is StringTemplate → emit format directly
                 let isTemplate = false
                 switch args[0] {
-                    Expr.StringTemplate(_) => { isTemplate = true },
-                    _ => {}
+                    Expr.StringTemplate(_) => { isTemplate = true }
                 }
                 if isTemplate {
                     // println($"...") → println!("fmt", args) instead of println!("{}", format!(...))
@@ -6293,11 +6117,9 @@ RustEmitter {
             switch args[0] {
                 Expr.Literal(lit) => {
                     switch lit {
-                        Literal.Str(s) => { isLiteral = true; litVal = s },
-                        _ => {}
+                        Literal.Str(s) => { isLiteral = true; litVal = s }
                     }
-                },
-                _ => {}
+                }
             }
             if isLiteral {
                 let escaped = litVal.replaceAll("{", "{{").replaceAll("}", "}}")
@@ -6306,8 +6128,7 @@ RustEmitter {
                 // Phase 8: check if arg is StringTemplate → emit format directly
                 let isTemplate2 = false
                 switch args[0] {
-                    Expr.StringTemplate(_) => { isTemplate2 = true },
-                    _ => {}
+                    Expr.StringTemplate(_) => { isTemplate2 = true }
                 }
                 if isTemplate2 {
                     this._write("println!(")
@@ -6387,8 +6208,7 @@ RustEmitter {
             Expr.Call(callee, cArgs, _, _) => {
                 let fnName = ""
                 switch callee {
-                    Expr.Identifier(n) => { fnName = n },
-                    _ => {}
+                    Expr.Identifier(n) => { fnName = n }
                 }
                 if fnName == "expect" and cArgs.length > 0 {
                     isExpect = true
@@ -6398,11 +6218,9 @@ RustEmitter {
                             Expr.Identifier(varName) => {
                                 let vt = this._lookupVarTypeRef(varName)
                                 switch vt {
-                                    TypeRef.OptionalType(_) => { isOption = true },
-                                    _ => {}
+                                    TypeRef.OptionalType(_) => { isOption = true }
                                 }
-                            },
-                            _ => {}
+                            }
                         }
                         actualCode = this._exprToString(ca)
                         break
@@ -6416,8 +6234,7 @@ RustEmitter {
                         Expr.Call(callee2, cArgs2, _, _) => {
                             let fnName2 = ""
                             switch callee2 {
-                                Expr.Identifier(n2) => { fnName2 = n2 },
-                                _ => {}
+                                Expr.Identifier(n2) => { fnName2 = n2 }
                             }
                             if fnName2 == "expect" and cArgs2.length > 0 {
                                 isExpect = true
@@ -6427,22 +6244,18 @@ RustEmitter {
                                         Expr.Identifier(varName2) => {
                                             let vt2 = this._lookupVarTypeRef(varName2)
                                             switch vt2 {
-                                                TypeRef.OptionalType(_) => { isOption = true },
-                                                _ => {}
+                                                TypeRef.OptionalType(_) => { isOption = true }
                                             }
-                                        },
-                                        _ => {}
+                                        }
                                     }
                                     actualCode = this._exprToString(ca2)
                                     break
                                 }
                             }
-                        },
-                        _ => {}
+                        }
                     }
                 }
-            },
-            _ => {}
+            }
         }
 
         if not isExpect { return false }
@@ -6459,11 +6272,9 @@ RustEmitter {
                 switch a2 {
                     Expr.Literal(lit) => {
                         switch lit {
-                            Literal.Null => { expectedIsNull = true },
-                            _ => {}
+                            Literal.Null => { expectedIsNull = true }
                         }
-                    },
-                    _ => {}
+                    }
                 }
                 break
             }
@@ -6550,8 +6361,7 @@ RustEmitter {
                     isServerCall = true
                     serverVarName = svSan
                 }
-            },
-            _ => {}
+            }
         }
         if isServerCall {
             if method == "get" or method == "post" or method == "put" or method == "delete" {
@@ -6574,12 +6384,10 @@ RustEmitter {
                         switch reqObj {
                             Expr.Identifier(reqName) => {
                                 if reqName == this._serverRequestParam { isReqParamsGet = true }
-                            },
-                            _ => {}
+                            }
                         }
                     }
-                },
-                _ => {}
+                }
             }
             if isReqParamsGet {
                 // BUG-3 fix: avoid `"k".to_string().to_string()` — for a bare
@@ -6596,11 +6404,9 @@ RustEmitter {
                                     this._write(ks)
                                     this._write("\"")
                                     argIsRawStrLit = true
-                                },
-                                _ => {}
+                                }
                             }
-                        },
-                        _ => {}
+                        }
                     }
                     if !argIsRawStrLit {
                         this._emitExpr(args[0])
@@ -6614,8 +6420,7 @@ RustEmitter {
         let savedSuppressIdx = this._suppressIndexElemClone
         this._suppressIndexElemClone = false
         switch obj {
-            Expr.Index(idxObj, idxExpr) => { this._suppressIndexElemClone = true },
-            _ => {}
+            Expr.Index(idxObj, idxExpr) => { this._suppressIndexElemClone = true }
         }
         // ── liva/test: expect(x).toBe(y) chain → assert_eq!(x, y) ──
         // Check first WITHOUT consuming args (avoids E0382 move error)
@@ -6624,8 +6429,7 @@ RustEmitter {
             Expr.Call(callee, _, _, _) => {
                 let fnName = ""
                 switch callee {
-                    Expr.Identifier(n) => { fnName = n },
-                    _ => {}
+                    Expr.Identifier(n) => { fnName = n }
                 }
                 if fnName == "expect" { isExpectChain = true }
             },
@@ -6635,16 +6439,13 @@ RustEmitter {
                         Expr.Call(callee2, _, _, _) => {
                             let fnName2 = ""
                             switch callee2 {
-                                Expr.Identifier(n2) => { fnName2 = n2 },
-                                _ => {}
+                                Expr.Identifier(n2) => { fnName2 = n2 }
                             }
                             if fnName2 == "expect" { isExpectChain = true }
-                        },
-                        _ => {}
+                        }
                     }
                 }
-            },
-            _ => {}
+            }
         }
         if isExpectChain {
             this._tryEmitExpectChain(obj, method, args)
@@ -6671,14 +6472,11 @@ RustEmitter {
                         switch maInner2 {
                             Expr.Identifier(iName2) => {
                                 if iName2 == "this" { isSelfField = true }
-                            },
-                            _ => {}
+                            }
                         }
-                    },
-                    _ => {}
+                    }
                 }
-            },
-            _ => {}
+            }
         }
         if isSelfField {
             this._inAssignTarget = true
@@ -6687,8 +6485,7 @@ RustEmitter {
         // Handle stdlib type static calls (File, Dir, Process, Sys, Config, CSV, JSON, DB, Server, Http, Response)
         let stdlibName = ""
         switch obj {
-            Expr.Identifier(sn) => { stdlibName = sn },
-            _ => {}
+            Expr.Identifier(sn) => { stdlibName = sn }
         }
         // Accept both `Http.*` and `HTTP.*` — bootstrap accepts either casing.
         if stdlibName == "HTTP" { stdlibName = "Http" }
@@ -7134,8 +6931,7 @@ RustEmitter {
                     switch args[2] {
                         Expr.ArrayLiteral(elems) => {
                             if elems.length == 0 { isEmptyParams = true }
-                        },
-                        _ => {}
+                        }
                     }
                     if isEmptyParams {
                         this._write("let __param_refs: Vec<&dyn rusqlite::types::ToSql> = Vec::new();")
@@ -7161,8 +6957,7 @@ RustEmitter {
                     switch args[2] {
                         Expr.ArrayLiteral(elems) => {
                             if elems.length == 0 { isEmptyParams = true }
-                        },
-                        _ => {}
+                        }
                     }
                     if isEmptyParams {
                         this._write("let __param_refs: Vec<&dyn rusqlite::types::ToSql> = Vec::new();")
@@ -7494,8 +7289,7 @@ RustEmitter {
                         }
                     }
                 }
-            },
-            _ => {}
+            }
         }
         if isEnumVariant {
             // Look up field names for struct-style variant constructor
@@ -7589,12 +7383,10 @@ RustEmitter {
                             if cn != "" and this._typeCtx.classes.has(cn) {
                                 isUserClassInstance = true
                             }
-                        },
-                        _ => {}
+                        }
                     }
                 }
-            },
-            _ => {}
+            }
         }
 
         // Classify method target without consuming args
@@ -7638,8 +7430,7 @@ RustEmitter {
         if not isUserClassInstance && target == "generic" {
             let objIdName = ""
             switch obj {
-                Expr.Identifier(oName) => { objIdName = this._sanitizeName(oName) },
-                _ => {}
+                Expr.Identifier(oName) => { objIdName = this._sanitizeName(oName) }
             }
             if objIdName != "" {
                 if this._mapVars.has(objIdName) && this._isKnownMapMethod(method) { target = "map" }
@@ -7772,12 +7563,10 @@ RustEmitter {
                             if cn != "" && this._typeCtx.classes.has(cn) {
                                 isUserClassRecv = true
                             }
-                        },
-                        _ => {}
+                        }
                     }
                 }
-            },
-            _ => {}
+            }
         }
 
         // Map/Set .get() with type detection or runtime tracking
@@ -7786,8 +7575,7 @@ RustEmitter {
             if not isMap {
                 let getObjIdName = ""
                 switch obj {
-                    Expr.Identifier(gn) => { getObjIdName = this._sanitizeName(gn) },
-                    _ => {}
+                    Expr.Identifier(gn) => { getObjIdName = this._sanitizeName(gn) }
                 }
                 if getObjIdName != "" && this._mapVars.has(getObjIdName) {
                     isMap = true
@@ -7823,8 +7611,7 @@ RustEmitter {
             if not isMap {
                 let objIdName = ""
                 switch obj {
-                    Expr.Identifier(hn) => { objIdName = this._sanitizeName(hn) },
-                    _ => {}
+                    Expr.Identifier(hn) => { objIdName = this._sanitizeName(hn) }
                 }
                 if objIdName != "" && this._mapVars.has(objIdName) {
                     isMap = true
@@ -7869,8 +7656,7 @@ RustEmitter {
         if method == "forEach" {
             let jvName = ""
             switch obj {
-                Expr.Identifier(jn) => { jvName = this._sanitizeName(jn) },
-                _ => {}
+                Expr.Identifier(jn) => { jvName = this._sanitizeName(jn) }
             }
             if jvName != "" && this._jsonValueVars.has(jvName) {
                 this._emitExpr(obj)
@@ -7997,8 +7783,7 @@ RustEmitter {
                 if oName == "this" && this._currentClassName != "" {
                     methodCalleeForBorrow = $"{this._currentClassName}.{sanitizedMethod}"
                 }
-            },
-            _ => {}
+            }
         }
         let aIdx = 0
         for a in args {
@@ -8292,8 +8077,7 @@ RustEmitter {
                 if m2 == "map" || m2 == "filter" || m2 == "flatMap" {
                     isChain = true
                 }
-            },
-            _ => {}
+            }
         }
         if isChain {
             let savedChain = this._inIterChain
@@ -8312,8 +8096,7 @@ RustEmitter {
                     isPar = true
                     this._emitExpr(inner)
                 }
-            },
-            _ => {}
+            }
         }
         if not isPar {
             this._emitExpr(obj)
@@ -8406,8 +8189,7 @@ RustEmitter {
         if method == "sortBy" && args.length > 0 {
             let isLamSB = false
             switch args[0] {
-                Expr.Lambda(_) => { isLamSB = true },
-                _ => {}
+                Expr.Lambda(_) => { isLamSB = true }
             }
             if isLamSB {
                 switch args[0] {
@@ -8415,8 +8197,7 @@ RustEmitter {
                         let paramSB = "__x"
                         for lp in lamSB.params {
                             switch lp.pattern {
-                                BindingPattern.Identifier(pn) => { paramSB = this._sanitizeName(pn) },
-                                _ => {}
+                                BindingPattern.Identifier(pn) => { paramSB = this._sanitizeName(pn) }
                             }
                             break
                         }
@@ -8427,8 +8208,7 @@ RustEmitter {
                         this._write("; let " + paramSB + " = (*__b).clone(); let __kb = ")
                         this._emitLambdaBodyInline(lamSB)
                         this._write("; __ka.partial_cmp(&__kb).unwrap_or(std::cmp::Ordering::Equal) }); __v }")
-                    },
-                    _ => {}
+                    }
                 }
                 return true
             }
@@ -8437,8 +8217,7 @@ RustEmitter {
         if method == "groupBy" && args.length > 0 {
             let isLamGB = false
             switch args[0] {
-                Expr.Lambda(_) => { isLamGB = true },
-                _ => {}
+                Expr.Lambda(_) => { isLamGB = true }
             }
             if isLamGB {
                 switch args[0] {
@@ -8446,8 +8225,7 @@ RustEmitter {
                         let paramGB = "__x"
                         for lp in lamGB.params {
                             switch lp.pattern {
-                                BindingPattern.Identifier(pn) => { paramGB = this._sanitizeName(pn) },
-                                _ => {}
+                                BindingPattern.Identifier(pn) => { paramGB = this._sanitizeName(pn) }
                             }
                             break
                         }
@@ -8456,8 +8234,7 @@ RustEmitter {
                         this._write(".iter() { let " + paramGB + " = (*__item).clone(); let __key = ")
                         this._emitLambdaBodyInline(lamGB)
                         this._write("; __m.entry(__key).or_insert_with(Vec::new).push((*__item).clone()); } __m }")
-                    },
-                    _ => {}
+                    }
                 }
                 return true
             }
@@ -8694,8 +8471,7 @@ RustEmitter {
             if args.length > 1 {
                 let isLam = false
                 switch args[1] {
-                    Expr.Lambda(_) => { isLam = true },
-                    _ => {}
+                    Expr.Lambda(_) => { isLam = true }
                 }
                 if isLam {
                     this._write("|acc, x| { let x = x.clone(); (")
@@ -8938,8 +8714,7 @@ RustEmitter {
     _emitExprNoMemberClone(expr: Expr) {
         let isMember = false
         switch expr {
-            Expr.MemberAccess(_, _) => { isMember = true },
-            _ => {}
+            Expr.MemberAccess(_, _) => { isMember = true }
         }
         if isMember {
             let saved = this._inAssignTarget
@@ -8959,8 +8734,7 @@ RustEmitter {
             switch obj {
                 Expr.Identifier(reqName) => {
                     if reqName == this._serverRequestParam { isReqMember = true }
-                },
-                _ => {}
+                }
             }
             if isReqMember {
                 if prop == "params" { this._write("__params"); return }
@@ -8975,8 +8749,7 @@ RustEmitter {
             switch obj {
                 Expr.Identifier(thisName) => {
                     if thisName == "this" || thisName == "self" { isThisX = true }
-                },
-                _ => {}
+                }
             }
             if isThisX {
                 let sanProp = this._sanitizeName(prop)
@@ -9001,15 +8774,13 @@ RustEmitter {
                     this._write(snErr2 + ".as_ref().unwrap().message.clone()")
                     return
                 }
-            },
-            _ => {}
+            }
         }
 
         // Stdlib module property access before generic enum/class handling
         let stdlibPropName = ""
         switch obj {
-            Expr.Identifier(sn) => { stdlibPropName = sn },
-            _ => {}
+            Expr.Identifier(sn) => { stdlibPropName = sn }
         }
         // Math constants: Math.PI, Math.E
         if stdlibPropName == "Math" && prop == "PI" { this._write("std::f64::consts::PI"); return }
@@ -9035,8 +8806,7 @@ RustEmitter {
                         enumName = name
                     }
                 }
-            },
-            _ => {}
+            }
         }
         if isEnumAccess {
             this._write(enumName + "::" + prop)
@@ -9054,8 +8824,7 @@ RustEmitter {
                         let varType = this._lookupVarTypeRef(idn)
                         let className = ""
                         switch varType {
-                            TypeRef.Simple(cn) => { className = cn },
-                            _ => {}
+                            TypeRef.Simple(cn) => { className = cn }
                         }
                         if className != "" && this._typeCtx.classes.has(className) {
                             let fkeyLen = className + ".length"
@@ -9064,8 +8833,7 @@ RustEmitter {
                             }
                         }
                     }
-                },
-                _ => {}
+                }
             }
             if not isUserClassWithLengthField {
                 let savedAT = this._inAssignTarget
@@ -9108,8 +8876,7 @@ RustEmitter {
                 if oName == "this" {
                     isSelfAccess = true
                 }
-            },
-            _ => {}
+            }
         }
         this._emitExpr(obj)
         let snField = this._sanitizeName(prop)
@@ -9146,8 +8913,7 @@ RustEmitter {
         let isLiteral = false
         switch argExpr {
             Expr.Literal(_) => { isLiteral = true },
-            Expr.StringTemplate(_) => { isLiteral = true },
-            _ => {}
+            Expr.StringTemplate(_) => { isLiteral = true }
         }
         if isLiteral {
             this._suppressToString = true
@@ -9173,8 +8939,7 @@ RustEmitter {
                     let declaredInLoop = this._liveCtx.declaredInLoop.has(liveKey)
                     if uc <= 1 && declaredInLoop { result = true }
                 }
-            },
-            _ => {}
+            }
         }
         return result
     }
@@ -9206,8 +8971,7 @@ RustEmitter {
                         identSan = sn
                     }
                 }
-            },
-            _ => {}
+            }
         }
         if isStrRef {
             this._emitExpr(argExpr)
@@ -9227,11 +8991,9 @@ RustEmitter {
         switch argExpr {
             Expr.Literal(aLit) => {
                 switch aLit {
-                    Literal.Str(_) => { isStrLit = true },
-                    _ => {}
+                    Literal.Str(_) => { isStrLit = true }
                 }
-            },
-            _ => {}
+            }
         }
         if isStrLit {
             // String literal is already &str in Rust — just suppress .to_string()
@@ -9293,12 +9055,10 @@ RustEmitter {
                             let fc = oName.charAt(0)
                             if fc >= "A" && fc <= "Z" { isEnumOrType = true }
                         }
-                    },
-                    _ => {}
+                    }
                 }
                 if not isSelf && not isEnumOrType { needsClone = true }
-            },
-            _ => {}
+            }
         }
         this._emitExpr(argExpr)
         if needsClone {
@@ -9443,8 +9203,7 @@ RustEmitter {
                 if this._errBindings.has(snErr) {
                     isErrBinding = true
                 }
-            },
-            _ => {}
+            }
         }
         if isErrBinding {
             this._emitExpr(expr)
@@ -9495,8 +9254,7 @@ RustEmitter {
                             this._write(".clone()")
                             cloned = true
                         }
-                    },
-                    _ => {}
+                    }
                 }
                 if not cloned {
                     this._emitExpr(e)
@@ -9627,16 +9385,14 @@ RustEmitter {
         if parts.length == 1 {
             let isSingleExpr = false
             switch parts[0] {
-                StringTemplatePart.ExprPart(_) => { isSingleExpr = true },
-                _ => {}
+                StringTemplatePart.ExprPart(_) => { isSingleExpr = true }
             }
             if isSingleExpr {
                 switch parts[0] {
                     StringTemplatePart.ExprPart(expr) => {
                         this._emitExpr(expr)
                         this._write(".to_string()")
-                    },
-                    _ => {}
+                    }
                 }
                 return
             }
@@ -9701,8 +9457,7 @@ RustEmitter {
                             if this._errBindings.has(snErr) {
                                 isErrBinding = true
                             }
-                        },
-                        _ => {}
+                        }
                     }
                     if isErrBinding {
                         this._emitExpr(spExpr)
@@ -9710,8 +9465,7 @@ RustEmitter {
                     } else {
                         this._emitExpr(spExpr)
                     }
-                },
-                _ => {}
+                }
             }
         }
     }
@@ -9725,8 +9479,7 @@ RustEmitter {
             switch arm.pattern {
                 Pattern.LiteralPat(lit) => {
                     switch lit {
-                        Literal.Str(_) => { isStr = true },
-                        _ => {}
+                        Literal.Str(_) => { isStr = true }
                     }
                 },
                 Pattern.OrPat(patterns) => {
@@ -9735,16 +9488,13 @@ RustEmitter {
                         switch subP {
                             Pattern.LiteralPat(lit2) => {
                                 switch lit2 {
-                                    Literal.Str(_) => { isStr = true },
-                                    _ => {}
+                                    Literal.Str(_) => { isStr = true }
                                 }
-                            },
-                            _ => {}
+                            }
                         }
                         break
                     }
-                },
-                _ => {}
+                }
             }
             break
         }
@@ -9766,8 +9516,7 @@ RustEmitter {
                 if this._errBindings.has(sn2) {
                     result = sn2
                 }
-            },
-            _ => {}
+            }
         }
         this._inIfCondition = true
         this._emitExpr(cond)
@@ -9806,8 +9555,7 @@ RustEmitter {
             switch arm.pattern {
                 Pattern.LiteralPat(lit) => {
                     switch lit {
-                        Literal.Str(_) => { stringSwitch = true },
-                        _ => {}
+                        Literal.Str(_) => { stringSwitch = true }
                     }
                 },
                 Pattern.OrPat(patterns) => {
@@ -9815,16 +9563,13 @@ RustEmitter {
                         switch subP {
                             Pattern.LiteralPat(lit2) => {
                                 switch lit2 {
-                                    Literal.Str(_) => { stringSwitch = true },
-                                    _ => {}
+                                    Literal.Str(_) => { stringSwitch = true }
                                 }
-                            },
-                            _ => {}
+                            }
                         }
                         break
                     }
-                },
-                _ => {}
+                }
             }
             break
         }
@@ -9847,8 +9592,7 @@ RustEmitter {
             let hasWildcard = false
             for arm in arms {
                 switch arm.pattern {
-                    Pattern.Wildcard => { hasWildcard = true },
-                    _ => {}
+                    Pattern.Wildcard => { hasWildcard = true }
                 }
             }
             if not hasWildcard {
@@ -10194,11 +9938,9 @@ RustEmitter {
         switch args[0] {
             Expr.Literal(litVal) => {
                 switch litVal {
-                    Literal.Str(s) => { pathLiteral = s; havePathLit = true },
-                    _ => {}
+                    Literal.Str(s) => { pathLiteral = s; havePathLit = true }
                 }
-            },
-            _ => {}
+            }
         }
         let hasParams = false
         if havePathLit && pathLiteral.contains(":") { hasParams = true }
@@ -10260,8 +10002,7 @@ RustEmitter {
                     if !_fp_seen {
                         _fp_seen = true
                         switch p.pattern {
-                            BindingPattern.Identifier(pn) => { firstParamName = pn },
-                            _ => {}
+                            BindingPattern.Identifier(pn) => { firstParamName = pn }
                         }
                     }
                 }
@@ -10282,8 +10023,7 @@ RustEmitter {
                                         this._writeIndent()
                                         this._emitExpr(eExpr)
                                         this._newline()
-                                    },
-                                    _ => {}
+                                    }
                                 }
                                 if !isExprStmt {
                                     this._emitStmt(s)
@@ -10338,8 +10078,7 @@ RustEmitter {
                     if fd.name == "main" {
                         this._scanStmtsForAsyncOpt(fd.body)
                     }
-                },
-                _ => {}
+                }
             }
         }
     }
@@ -10394,8 +10133,7 @@ RustEmitter {
             },
             Stmt.Block(b) => {
                 this._scanStmtsForAsync(b)
-            },
-            _ => {}
+            }
         }
     }
 
@@ -10414,8 +10152,7 @@ RustEmitter {
                                 result = true
                             }
                         }
-                    },
-                    _ => {}
+                    }
                 }
                 if this._exprIsAsyncTrigger(obj) { result = true }
                 for a in args {
@@ -10462,8 +10199,7 @@ RustEmitter {
             },
             Expr.RustBlock(code) => {
                 if code.indexOf(".await") >= 0 { result = true }
-            },
-            _ => {}
+            }
         }
         return result
     }
@@ -10563,8 +10299,7 @@ collectBorrowedParams(program: Program, liveCtx: LivenessContext): Map<string, b
                         pIdx += 1
                     }
                 }
-            },
-            _ => {}
+            }
         }
     }
     return registry
@@ -10583,8 +10318,7 @@ _typeRefIsStringSimple(t: TypeRef): bool {
     switch t {
         TypeRef.Simple(tn) => {
             if tn == "string" { result = true }
-        },
-        _ => {}
+        }
     }
     return result
 }
