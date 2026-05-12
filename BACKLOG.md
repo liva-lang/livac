@@ -909,6 +909,11 @@ cargo test --release 528+).
 
 - [x] **Cycle 34** (`11fa24c`) — Codemod elimina 297 `_ => {}` redundantes en `compiler/src/*.liva` ahora que son opcionales. Tool: `scripts/codemod_strip_wildcard.py` (quita la línea wildcard + coma de cierre del arm anterior; conserva sole-arm). Counts: codegen 266, semantic 13, liveness 8, parser 4, main 4, module 2. 4 wildcards sole-arm conservados. Net -226 LOC. Gauntlet 8/8.
 
+- [x] **Cycle 35** (`a9e5abf`) — Async transitivo end-to-end (cierra los 2 residuales no-async de web-scraper). Tres cambios en `compiler/src/codegen.liva`:
+    1. **Fixpoint** de descubrimiento de async fns: el collector de Cycle 32 era single-pass, ahora itera hasta estabilizar `_asyncFnNames`. Se ejecuta **antes** de `_detectMainAsync` para que main se promocione cuando llama transitivamente a una async fn.
+    2. **Auto-`.await`** en sitios de llamada. `Expr.Call(Expr.Identifier(fn), args)` añade `.await` cuando (a) `fn` está en `_asyncFnNames` y (b) estamos en contexto async (`_inAsyncContext()` consulta `_currentFunc` contra `_asyncFnNames`, o `main` contra `_mainNeedsAsync`). `_exprIsAsyncTrigger` también detecta estas llamadas para que main se promocione a `#[tokio::main] async fn main()`.
+    3. **Iteración by-value** de JoinHandle. Nuevos helpers `_blockAwaitsIdent` / `_stmtAwaitsIdent` / `_exprAwaitsIdent` recorren el for-body buscando `Expr.Unary(UnOp.Await, Expr.Identifier(loopVar))`. Si lo encuentran, `_emitFor` consume el iterable by value (sin `&`, sin `let t = t.clone()` que rompía con JoinHandle no-Clone) y registra el loop var en `_taskHandleVars` para que el await emita `t.await.unwrap()` (JoinHandle::await yields Result). Gauntlet 8/8 (rebuild 96s, regression 318s, cargo test 13s) + gen-2 ≡ gen-3 + web-scraper genera Rust limpio que compila sin errores.
+
 ### Pendiente — out-of-scope estructural
 
 - [ ] Test framework Jest-style completo: `async.test.liva`, `lifecycle.test.liva` (uso de `beforeEach` top-level), `math_jest.test.liva`, `stdlib_*.test.liva` (sin `main fn` — test runner debe ejecutar `test_*` funciones).
