@@ -104,10 +104,10 @@ LivenessAnalyzer {
     // -- Top-level dispatch --
 
     _analyzeTopLevel(item: TopLevel) {
-        let _ = switch item {
-            TopLevel.Function(decl) => { this._analyzeFunction(decl); 0 },
-            TopLevel.Class(decl) => { this._analyzeClassDecl(decl); 0 },
-            _ => { 0 }
+        switch item {
+            TopLevel.Function(decl) => { this._analyzeFunction(decl) },
+            TopLevel.Class(decl) => { this._analyzeClassDecl(decl) },
+            _ => {}
         }
     }
 
@@ -127,12 +127,11 @@ LivenessAnalyzer {
     _analyzeClassDecl(decl: ClassDecl) {
         let className = $"{decl.name}"
         for m in decl.members {
-            let _ = switch m {
+            switch m {
                 Member.Method(md) => {
                     this._analyzeMethod(className, md)
-                    0
                 },
-                _ => { 0 }
+                _ => {}
             }
         }
     }
@@ -178,39 +177,36 @@ LivenessAnalyzer {
     }
 
     _analyzeStmt(stmt: Stmt) {
-        let _ = switch stmt {
-            Stmt.VarDecl(decl) => { this._analyzeVarDecl(decl); 0 },
-            Stmt.ConstDecl(cdecl) => { this._analyzeExpr(cdecl.init); 0 },
+        switch stmt {
+            Stmt.VarDecl(decl) => { this._analyzeVarDecl(decl) },
+            Stmt.ConstDecl(cdecl) => { this._analyzeExpr(cdecl.init) },
             Stmt.Assign(asgn) => {
                 // Pass `asgn` whole FIRST (bootstrap clones at call site).
                 // Then analyze target/value via partial moves on the original.
                 this._checkAssignEscape(asgn)
                 this._analyzeExpr(asgn.target)
                 this._analyzeExpr(asgn.value)
-                0
             },
-            Stmt.If(ifStmt) => { this._analyzeIf(ifStmt); 0 },
-            Stmt.While(wStmt) => { this._analyzeWhile(wStmt); 0 },
-            Stmt.For(fStmt) => { this._analyzeFor(fStmt); 0 },
-            Stmt.Switch(swStmt) => { this._analyzeSwitchStmt(swStmt); 0 },
-            Stmt.TryCatch(tcStmt) => { this._analyzeTryCatch(tcStmt); 0 },
-            Stmt.Throw(throwExpr) => { this._analyzeExpr(throwExpr); 0 },
-            Stmt.Fail(failExpr, line) => { this._analyzeExpr(failExpr); 0 },
+            Stmt.If(ifStmt) => { this._analyzeIf(ifStmt) },
+            Stmt.While(wStmt) => { this._analyzeWhile(wStmt) },
+            Stmt.For(fStmt) => { this._analyzeFor(fStmt) },
+            Stmt.Switch(swStmt) => { this._analyzeSwitchStmt(swStmt) },
+            Stmt.TryCatch(tcStmt) => { this._analyzeTryCatch(tcStmt) },
+            Stmt.Throw(throwExpr) => { this._analyzeExpr(throwExpr) },
+            Stmt.Fail(failExpr, line) => { this._analyzeExpr(failExpr) },
             Stmt.Return(retExpr) => {
                 this._analyzeExprOpt(retExpr)
                 // Escape: return param → param escapes as return value
                 this._checkReturnEscape(retExpr)
-                0
             },
-            Stmt.Defer(deferStmt) => { this._analyzeStmt(deferStmt); 0 },
+            Stmt.Defer(deferStmt) => { this._analyzeStmt(deferStmt) },
             Stmt.ExprStmt(expr) => {
                 this._analyzeExpr(expr)
                 // Phase 8.6: detect push/set/insert in ExprStmt context for escape marking
                 this._checkExprStmtEscape(expr)
-                0
             },
-            Stmt.Block(blk) => { this._analyzeBlock(blk); 0 },
-            _ => { 0 }
+            Stmt.Block(blk) => { this._analyzeBlock(blk) },
+            _ => {}
         }
     }
 
@@ -222,13 +218,12 @@ LivenessAnalyzer {
         // is recorded so codegen can enable move-on-last-use safely.
         if this._inLoop {
             for b in decl.bindings {
-                let _ = switch b.pattern {
+                switch b.pattern {
                     BindingPattern.Identifier(n) => {
                         let key = $"{this._currentFunc}:{n}"
                         this._declaredInLoop.set(key, 1)
-                        0
                     },
-                    _ => { 0 }
+                    _ => {}
                 }
             }
         }
@@ -241,13 +236,12 @@ LivenessAnalyzer {
     }
 
     _analyzeIfBody(body: IfBody) {
-        let _ = switch body {
-            IfBody.Block(block) => { this._analyzeBlock(block); 0 },
+        switch body {
+            IfBody.Block(block) => { this._analyzeBlock(block) },
             IfBody.SingleStmt(stmts) => {
                 for s in stmts {
                     this._analyzeStmt(s)
                 }
-                0
             }
         }
     }
@@ -308,102 +302,80 @@ LivenessAnalyzer {
     }
 
     _analyzeExpr(expr: Expr) {
-        let _ = switch expr {
+        switch expr {
             Expr.Identifier(name) => {
                 this._recordUse(name)
-                0
             },
-            Expr.Literal(lit) => { 0 },
+            Expr.Literal(lit) => {},
             Expr.Binary(op, left, right) => {
                 this._analyzeExpr(left)
                 this._analyzeExpr(right)
-                0
             },
             Expr.Unary(op, operand) => {
                 this._analyzeExpr(operand)
-                0
             },
             Expr.Ternary(cond, thenE, elseE) => {
                 this._analyzeExpr(cond)
                 this._analyzeExpr(thenE)
                 this._analyzeExpr(elseE)
-                0
             },
             Expr.Call(callee, callArgs, policy, tArgs) => {
                 this._analyzeExpr(callee)
                 this._analyzeExprList(callArgs)
-                0
             },
             Expr.MemberAccess(maObj, prop) => {
                 this._analyzeExpr(maObj)
-                0
             },
             Expr.Index(idxObj, idxExpr) => {
                 this._analyzeExpr(idxObj)
                 this._analyzeExpr(idxExpr)
-                0
             },
             Expr.ObjectLiteral(objFields) => {
                 this._analyzeObjFields(objFields)
-                0
             },
             Expr.StructLiteral(typeName, sFields) => {
                 this._analyzeObjFields(sFields)
-                0
             },
             Expr.ArrayLiteral(arrElems) => {
                 this._analyzeExprList(arrElems)
-                0
             },
             Expr.MapLiteral(entries) => {
                 this._analyzeMapEntries(entries)
-                0
             },
             Expr.SetLiteral(setElems) => {
                 this._analyzeExprList(setElems)
-                0
             },
             Expr.TupleLiteral(tupElems) => {
                 this._analyzeExprList(tupElems)
-                0
             },
             Expr.Lambda(lam) => {
                 this._analyzeLambda(lam)
-                0
             },
             Expr.StringTemplate(parts) => {
                 this._analyzeStringParts(parts)
-                0
             },
             Expr.Fail(fExpr) => {
                 this._analyzeExpr(fExpr)
-                0
             },
             Expr.MethodCall(mcObj, method, mcArgs) => {
                 this._analyzeExpr(mcObj)
                 this._analyzeExprList(mcArgs)
-                0
             },
             Expr.SwitchExpr(disc, arms) => {
                 this._analyzeExpr(disc)
                 this._analyzeSwitchArms(arms)
-                0
             },
             Expr.MethodRef(refName, refMethod) => {
                 this._recordUse(refName)
-                0
             },
             Expr.Unwrap(uwExpr) => {
                 this._analyzeExpr(uwExpr)
-                0
             },
             Expr.Try(tryExpr) => {
                 this._analyzeExpr(tryExpr)
-                0
             },
             Expr.OptionalChain(ocObj, ocProp) => {
                 this._analyzeExpr(ocObj)
-                0
             },
             Expr.RustBlock(code) => {
                 // Mark all params of current function as escaping. The
@@ -415,7 +387,6 @@ LivenessAnalyzer {
                     let escKey = $"{this._currentFunc}:{paramName}"
                     this._paramEscapes.set(escKey, 1)
                 }
-                0
             }
         }
     }
@@ -443,25 +414,22 @@ LivenessAnalyzer {
 
     _analyzeStringParts(parts: [StringTemplatePart]) {
         for p in parts {
-            let _ = switch p {
-                StringTemplatePart.Text(text) => { 0 },
+            switch p {
+                StringTemplatePart.Text(text) => {},
                 StringTemplatePart.ExprPart(spExpr) => {
                     this._analyzeExpr(spExpr)
-                    0
                 }
             }
         }
     }
 
     _analyzeLambda(lam: LambdaExpr) {
-        let _ = switch lam.body {
+        switch lam.body {
             LambdaBody.Expr(lamExprs) => {
                 this._analyzeExprList(lamExprs)
-                0
             },
             LambdaBody.Block(lamBlock) => {
                 this._analyzeBlock(lamBlock)
-                0
             }
         }
     }
@@ -469,16 +437,14 @@ LivenessAnalyzer {
     _analyzeSwitchArms(arms: [SwitchArm]) {
         for arm in arms {
             this._analyzeExprOpt(arm.guard)
-            let _ = switch arm.body {
+            switch arm.body {
                 SwitchArmBody.Expr(armExpr) => {
                     this._analyzeExpr(armExpr)
-                    0
                 },
                 SwitchArmBody.Block(armStmts) => {
                     for s in armStmts {
                         this._analyzeStmt(s)
                     }
-                    0
                 }
             }
         }
@@ -527,16 +493,15 @@ LivenessAnalyzer {
     // Phase 8.6: detect push/set/insert on collections in ExprStmt
     // this._warnings.push(msg) → msg escapes into the collection
     _checkExprStmtEscape(expr: Expr) {
-        let _ = switch expr {
+        switch expr {
             Expr.MethodCall(mcObj, mcMethod, mcArgs) => {
                 if mcMethod == "push" || mcMethod == "set" || mcMethod == "insert" {
                     for ma in mcArgs {
                         this._collectEscapingIdents(ma)
                     }
                 }
-                0
             },
-            _ => { 0 }
+            _ => {}
         }
     }
 
@@ -545,18 +510,16 @@ LivenessAnalyzer {
         if asgn.op != null { return }
         // Check if target is this.field — then value escapes into class field
         let isMemberAssign = false
-        let _ = switch asgn.target {
+        switch asgn.target {
             Expr.MemberAccess(maObj, maProp) => {
-                let _ = switch maObj {
+                switch maObj {
                     Expr.Identifier(objName) => {
                         if objName == "this" { isMemberAssign = true }
-                        0
                     },
-                    _ => { 0 }
+                    _ => {}
                 }
-                0
             },
-            _ => { 0 }
+            _ => {}
         }
         if isMemberAssign {
             this._collectEscapingIdents(asgn.value)
@@ -565,27 +528,23 @@ LivenessAnalyzer {
 
     _collectEscapingIdents(expr: Expr) {
         // Walk expression tree; any Identifier that is a current param → escapes
-        let _ = switch expr {
+        switch expr {
             Expr.Identifier(name) => {
                 if this._currentParams.has(name) {
                     this._markParamEscape(name)
                 }
-                0
             },
             Expr.Binary(op, left, right) => {
                 // Binary op creates a new value — operands are borrowed, not consumed
-                0
             },
             Expr.Call(callee, callArgs, policy, tArgs) => {
                 // All args passed to a call might escape (conservative)
                 for ca in callArgs {
                     this._collectEscapingIdents(ca)
                 }
-                0
             },
             Expr.StringTemplate(parts) => {
                 // String interpolation doesn't consume — result is new string
-                0
             },
             Expr.MethodCall(mcObj, method, mcArgs) => {
                 // push/set/insert → value escapes into collection
@@ -594,9 +553,8 @@ LivenessAnalyzer {
                         this._collectEscapingIdents(ma)
                     }
                 }
-                0
             },
-            _ => { 0 }
+            _ => {}
         }
     }
 
@@ -617,20 +575,19 @@ LivenessAnalyzer {
 
     _borrowForTypeRef(typeRef: TypeRef): number {
         let result = 0
-        let _ = switch typeRef {
+        switch typeRef {
             TypeRef.Simple(name) => {
                 result = this._borrowForSimple(name)
-                0
             },
-            TypeRef.Array(inner) => { result = 1; 0 },
-            TypeRef.MapType(k, v) => { result = 1; 0 },
-            TypeRef.SetType(inner) => { result = 1; 0 },
-            TypeRef.Tuple(elems) => { result = 1; 0 },
-            TypeRef.OptionalType(inner) => { result = 1; 0 },
-            TypeRef.Fallible(inner) => { result = 1; 0 },
-            TypeRef.Generic(base, gArgs) => { result = 1; 0 },
-            TypeRef.Union(parts) => { result = 1; 0 },
-            TypeRef.FnType(params, ret) => { result = 1; 0 }
+            TypeRef.Array(inner) => { result = 1 },
+            TypeRef.MapType(k, v) => { result = 1 },
+            TypeRef.SetType(inner) => { result = 1 },
+            TypeRef.Tuple(elems) => { result = 1 },
+            TypeRef.OptionalType(inner) => { result = 1 },
+            TypeRef.Fallible(inner) => { result = 1 },
+            TypeRef.Generic(base, gArgs) => { result = 1 },
+            TypeRef.Union(parts) => { result = 1 },
+            TypeRef.FnType(params, ret) => { result = 1 }
         }
         return result
     }

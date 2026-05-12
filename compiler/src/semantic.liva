@@ -16,7 +16,7 @@
 //   - Single-char loop vars for imported struct arrays (heuristic: len==1)
 //   - Map<K,V> fields directly on the class (so codegen tracks map_vars)
 //   - Flat symbol table ("scopeId:name" -> Symbol) avoids nested Map access
-//   - All standalone enum switches use "let _ = switch ..." (expression form)
+//   - All standalone enum switches use "switch ..." (expression form)
 //   - Switch arms returning void wrapped as { method(); 0 } for type consistency
 //   - Lookup methods return bool (Map.get adds unwrap_or_default in codegen)
 //   - Type pool + index maps: TypeRef stored in _typePool, lookups via _varTypeIdx
@@ -373,32 +373,26 @@ SemanticAnalyzer {
 
     resolveTypeRef(t: TypeRef): TypeRef {
         let result = TypeRef.Simple("unknown")
-        let _ = switch t {
+        switch t {
             TypeRef.Simple(n) => {
                 result = this._resolveSimpleName(n)
-                0
             },
             TypeRef.Array(inner) => {
                 result = TypeRef.Array(this.resolveTypeRef(inner))
-                0
             },
             TypeRef.MapType(k, v) => {
                 let rk = this.resolveTypeRef(k)
                 let rv = this.resolveTypeRef(v)
                 result = TypeRef.MapType(rk, rv)
-                0
             },
             TypeRef.SetType(inner) => {
                 result = TypeRef.SetType(this.resolveTypeRef(inner))
-                0
             },
             TypeRef.OptionalType(inner) => {
                 result = TypeRef.OptionalType(this.resolveTypeRef(inner))
-                0
             },
             TypeRef.Fallible(inner) => {
                 result = TypeRef.Fallible(this.resolveTypeRef(inner))
-                0
             },
             TypeRef.Tuple(elems) => {
                 let tupleResolved: [TypeRef] = []
@@ -406,7 +400,6 @@ SemanticAnalyzer {
                     tupleResolved.push(this.resolveTypeRef(e))
                 }
                 result = TypeRef.Tuple(tupleResolved)
-                0
             },
             TypeRef.Generic(base, args) => {
                 let genResolved: [TypeRef] = []
@@ -414,7 +407,6 @@ SemanticAnalyzer {
                     genResolved.push(this.resolveTypeRef(a))
                 }
                 result = TypeRef.Generic(base, genResolved)
-                0
             },
             TypeRef.Union(types) => {
                 let unionResolved: [TypeRef] = []
@@ -422,7 +414,6 @@ SemanticAnalyzer {
                     unionResolved.push(this.resolveTypeRef(u))
                 }
                 result = TypeRef.Union(unionResolved)
-                0
             },
             TypeRef.FnType(params, ret) => {
                 let fnParams: [TypeRef] = []
@@ -430,7 +421,6 @@ SemanticAnalyzer {
                     fnParams.push(this.resolveTypeRef(p))
                 }
                 result = TypeRef.FnType(fnParams, this.resolveTypeRef(ret))
-                0
             }
         }
         return result
@@ -446,94 +436,74 @@ SemanticAnalyzer {
 
     inferExprType(expr: Expr): TypeRef {
         let result = TypeRef.Simple("unknown")
-        let _ = switch expr {
+        switch expr {
             Expr.Literal(lit) => {
                 result = this._inferLiteralType(lit)
-                0
             },
             Expr.Identifier(name) => {
                 result = this.lookupVarType(name)
-                0
             },
             Expr.StringTemplate(parts) => {
                 result = TypeRef.Simple("string")
-                0
             },
             Expr.ArrayLiteral(elements) => {
                 result = this._inferArrayLitType(elements)
-                0
             },
             Expr.MapLiteral(entries) => {
                 result = TypeRef.MapType(TypeRef.Simple("unknown"), TypeRef.Simple("unknown"))
-                0
             },
             Expr.SetLiteral(elements) => {
                 result = this._inferSetLitType(elements)
-                0
             },
             Expr.TupleLiteral(elements) => {
                 result = this._inferTupleLitType(elements)
-                0
             },
             Expr.Binary(op, left, right) => {
                 result = this._inferBinaryType(op, left, right)
-                0
             },
             Expr.Unary(op, operand) => {
                 result = this._inferUnaryType(op, operand)
-                0
             },
             Expr.Call(callee, args, execPolicy, typeArgs) => {
                 result = this._inferCallType(callee)
-                0
             },
             Expr.MethodCall(object, method, args) => {
                 result = this._inferMethodCallType(object, method)
-                0
             },
             Expr.MemberAccess(object, property) => {
                 result = this._inferMemberAccessType(object, property)
-                0
             },
             Expr.Lambda(lam) => {
                 result = TypeRef.Simple("fn")
-                0
             },
             Expr.Ternary(cond, thenExpr, elseExpr) => {
                 result = this.inferExprType(thenExpr)
-                0
             },
             Expr.StructLiteral(name, fields) => {
                 // Phase 2.5: validate constructor fields (must use name before moving into TypeRef)
                 this._validateStructLiteral($"{name}", fields)
                 result = TypeRef.Simple(name)
-                0
             },
             Expr.Unwrap(inner) => {
                 let innerType = this.inferExprType(inner)
                 result = this._unwrapOptionalType(innerType)
-                0
             },
             Expr.Try(inner) => {
                 // `expr?` propagates the error and yields the success value
                 // type, which is the same as `inner`'s value type.
                 result = this.inferExprType(inner)
-                0
             },
             Expr.OptionalChain(object, property) => {
                 let propType = this._inferMemberAccessType(object, property)
                 result = TypeRef.OptionalType(propType)
-                0
             },
             Expr.Fail(inner) => {
                 result = TypeRef.Simple("never")
-                0
             },
             Expr.RustBlock(code) => {
                 result = TypeRef.Simple("unknown")
-                0
             },
-            _ => { 0 }
+            _ => {}
         }
         return result
     }
@@ -621,12 +591,11 @@ SemanticAnalyzer {
 
     _inferCallType(callee: Expr): TypeRef {
         let result = TypeRef.Simple("unknown")
-        let _ = switch callee {
+        switch callee {
             Expr.Identifier(name) => {
                 result = this._inferCallByName(name)
-                0
             },
-            _ => { 0 }
+            _ => {}
         }
         return result
     }
@@ -647,24 +616,20 @@ SemanticAnalyzer {
     _inferMethodCallType(object: Expr, method: string): TypeRef {
         let objType = this.inferExprType(object)
         let result = TypeRef.Simple("unknown")
-        let _ = switch objType {
+        switch objType {
             TypeRef.Simple(n) => {
                 result = this._inferMethodOnSimple(n, method)
-                0
             },
             TypeRef.Array(inner) => {
                 result = this._inferArrayMethodType(method, inner)
-                0
             },
             TypeRef.MapType(k, v) => {
                 result = this._inferMapMethodType(method, k, v)
-                0
             },
             TypeRef.SetType(inner) => {
                 result = this._inferSetMethodType(method, inner)
-                0
             },
-            _ => { 0 }
+            _ => {}
         }
         return result
     }
@@ -728,16 +693,14 @@ SemanticAnalyzer {
     _inferMemberAccessType(object: Expr, property: string): TypeRef {
         let objType = this.inferExprType(object)
         let result = TypeRef.Simple("unknown")
-        let _ = switch objType {
+        switch objType {
             TypeRef.Simple(n) => {
                 result = this._inferMemberOnSimple(n, property)
-                0
             },
             TypeRef.Array(inner) => {
                 result = this._inferMemberOnArray(property)
-                0
             },
-            _ => { 0 }
+            _ => {}
         }
         return result
     }
@@ -806,17 +769,17 @@ SemanticAnalyzer {
 
     _unwrapOptionalType(t: TypeRef): TypeRef {
         let result = TypeRef.Simple("unknown")
-        let _ = switch t {
-            TypeRef.OptionalType(inner) => { result = inner; 0 },
-            TypeRef.Fallible(inner) => { result = inner; 0 },
-            TypeRef.Simple(n) => { result = TypeRef.Simple(n); 0 },
-            TypeRef.Array(inner) => { result = TypeRef.Array(inner); 0 },
-            TypeRef.MapType(k, v) => { result = TypeRef.MapType(k, v); 0 },
-            TypeRef.SetType(inner) => { result = TypeRef.SetType(inner); 0 },
-            TypeRef.Tuple(elems) => { result = TypeRef.Tuple(elems); 0 },
-            TypeRef.Generic(base, args) => { result = TypeRef.Generic(base, args); 0 },
-            TypeRef.Union(types) => { result = TypeRef.Union(types); 0 },
-            TypeRef.FnType(params, ret) => { result = TypeRef.FnType(params, ret); 0 }
+        switch t {
+            TypeRef.OptionalType(inner) => { result = inner },
+            TypeRef.Fallible(inner) => { result = inner },
+            TypeRef.Simple(n) => { result = TypeRef.Simple(n) },
+            TypeRef.Array(inner) => { result = TypeRef.Array(inner) },
+            TypeRef.MapType(k, v) => { result = TypeRef.MapType(k, v) },
+            TypeRef.SetType(inner) => { result = TypeRef.SetType(inner) },
+            TypeRef.Tuple(elems) => { result = TypeRef.Tuple(elems) },
+            TypeRef.Generic(base, args) => { result = TypeRef.Generic(base, args) },
+            TypeRef.Union(types) => { result = TypeRef.Union(types) },
+            TypeRef.FnType(params, ret) => { result = TypeRef.FnType(params, ret) }
         }
         return result
     }
@@ -839,27 +802,22 @@ SemanticAnalyzer {
 
     _typeToString(t: TypeRef): string {
         let result = "unknown"
-        let _ = switch t {
-            TypeRef.Simple(n) => { result = n; 0 },
+        switch t {
+            TypeRef.Simple(n) => { result = n },
             TypeRef.Array(inner) => {
                 result = $"[{this._typeToString(inner)}]"
-                0
             },
             TypeRef.MapType(k, v) => {
                 result = $"Map<{this._typeToString(k)},{this._typeToString(v)}>"
-                0
             },
             TypeRef.SetType(inner) => {
                 result = $"Set<{this._typeToString(inner)}>"
-                0
             },
             TypeRef.OptionalType(inner) => {
                 result = $"{this._typeToString(inner)}?"
-                0
             },
             TypeRef.Fallible(inner) => {
                 result = $"{this._typeToString(inner)}!"
-                0
             },
             TypeRef.Tuple(elems) => {
                 let tupleParts: [string] = []
@@ -867,7 +825,6 @@ SemanticAnalyzer {
                     tupleParts.push(this._typeToString(e))
                 }
                 result = $"({tupleParts.join(", ")})"
-                0
             },
             TypeRef.Generic(base, args) => {
                 let argParts: [string] = []
@@ -875,7 +832,6 @@ SemanticAnalyzer {
                     argParts.push(this._typeToString(a))
                 }
                 result = $"{base}<{argParts.join(", ")}>"
-                0
             },
             TypeRef.Union(types) => {
                 let unionParts: [string] = []
@@ -883,7 +839,6 @@ SemanticAnalyzer {
                     unionParts.push(this._typeToString(u))
                 }
                 result = unionParts.join(" | ")
-                0
             },
             TypeRef.FnType(params, ret) => {
                 let fnParts: [string] = []
@@ -891,7 +846,6 @@ SemanticAnalyzer {
                     fnParts.push(this._typeToString(p))
                 }
                 result = $"({fnParts.join(", ")}) => {this._typeToString(ret)}"
-                0
             }
         }
         return result
@@ -951,14 +905,14 @@ SemanticAnalyzer {
 
     registerDeclarations(program: Program) {
         for item in program.items {
-            let _ = switch item {
-                TopLevel.Import(decl) => { this._registerImport(decl); 0 },
-                TopLevel.Function(decl) => { this._registerFunction(decl); 0 },
-                TopLevel.Class(decl) => { this._registerClass(decl); 0 },
-                TopLevel.Enum(decl) => { this._registerEnum(decl); 0 },
-                TopLevel.TypeAlias(decl) => { this._registerTypeAlias(decl); 0 },
-                TopLevel.ConstDecl(decl) => { this._registerConst(decl); 0 },
-                _ => { 0 }
+            switch item {
+                TopLevel.Import(decl) => { this._registerImport(decl) },
+                TopLevel.Function(decl) => { this._registerFunction(decl) },
+                TopLevel.Class(decl) => { this._registerClass(decl) },
+                TopLevel.Enum(decl) => { this._registerEnum(decl) },
+                TopLevel.TypeAlias(decl) => { this._registerTypeAlias(decl) },
+                TopLevel.ConstDecl(decl) => { this._registerConst(decl) },
+                _ => {}
             }
         }
     }
@@ -1033,10 +987,9 @@ SemanticAnalyzer {
         let methods: [FunctionSig] = []
 
         for m in decl.members {
-            let _ = switch m {
+            switch m {
                 Member.Field(f) => {
                     fields.push(makeFieldInfo(f.name, f.typeRef, f.isOptional, f.visibility))
-                    0
                 },
                 Member.Method(d) => {
                     let mParams: [ParamSig] = []
@@ -1057,7 +1010,6 @@ SemanticAnalyzer {
                         d.name, mParams, d.returnType,
                         d.isAsyncInferred, d.containsFail, mTypeParams
                     ))
-                    0
                 }
             }
         }
@@ -1125,10 +1077,10 @@ SemanticAnalyzer {
 
     _indexTypeInfo(program: Program) {
         for item in program.items {
-            let _ = switch item {
-                TopLevel.Function(decl) => { this._indexFuncRetType(decl); 0 },
-                TopLevel.Class(decl) => { this._indexClassTypes(decl); 0 },
-                _ => { 0 }
+            switch item {
+                TopLevel.Function(decl) => { this._indexFuncRetType(decl) },
+                TopLevel.Class(decl) => { this._indexClassTypes(decl) },
+                _ => {}
             }
         }
     }
@@ -1143,14 +1095,12 @@ SemanticAnalyzer {
     _indexClassTypes(decl: ClassDecl) {
         let className = $"{decl.name}"
         for m in decl.members {
-            let _ = switch m {
+            switch m {
                 Member.Field(f) => {
                     this._indexFieldType(className, f)
-                    0
                 },
                 Member.Method(d) => {
                     this._indexMethodRetType(className, d)
-                    0
                 }
             }
         }
@@ -1202,12 +1152,12 @@ SemanticAnalyzer {
     // -- Top-level analysis --
 
     _analyzeTopLevel(item: TopLevel) {
-        let _ = switch item {
-            TopLevel.Function(decl) => { this._analyzeFunction(decl); 0 },
-            TopLevel.Class(decl) => { this._analyzeClass(decl); 0 },
-            TopLevel.ConstDecl(decl) => { this._analyzeConstDecl(decl); 0 },
-            TopLevel.Test(decl) => { this._analyzeBlock(decl.body); 0 },
-            _ => { 0 }
+        switch item {
+            TopLevel.Function(decl) => { this._analyzeFunction(decl) },
+            TopLevel.Class(decl) => { this._analyzeClass(decl) },
+            TopLevel.ConstDecl(decl) => { this._analyzeConstDecl(decl) },
+            TopLevel.Test(decl) => { this._analyzeBlock(decl.body) },
+            _ => {}
         }
     }
 
@@ -1246,7 +1196,7 @@ SemanticAnalyzer {
 
     _analyzeClass(decl: ClassDecl) {
         for m in decl.members {
-            let _ = switch m {
+            switch m {
                 Member.Method(d) => {
                     this._enterScope()
                     let prevFunc = $"{this._currentFuncName}"
@@ -1280,9 +1230,8 @@ SemanticAnalyzer {
                     this._currentFuncName = prevFunc
                     this._currentFuncFallible = prevFallible
                     this._leaveScope()
-                    0
                 },
-                _ => { 0 }
+                _ => {}
             }
         }
     }
@@ -1312,21 +1261,21 @@ SemanticAnalyzer {
     }
 
     _analyzeStmt(stmt: Stmt) {
-        let _ = switch stmt {
-            Stmt.VarDecl(decl) => { this._analyzeVarDecl(decl); 0 },
-            Stmt.ConstDecl(decl) => { this._analyzeConstDecl(decl); 0 },
-            Stmt.Assign(s) => { this._analyzeAssign(s); 0 },
-            Stmt.If(s) => { this._analyzeIf(s); 0 },
-            Stmt.While(s) => { this._analyzeWhile(s); 0 },
-            Stmt.For(s) => { this._analyzeFor(s); 0 },
-            Stmt.Switch(s) => { this._analyzeSwitch(s); 0 },
-            Stmt.TryCatch(s) => { this._analyzeTryCatch(s); 0 },
-            Stmt.Block(block) => { this._analyzeBlock(block); 0 },
-            Stmt.ExprStmt(expr) => { this._analyzeExpr(expr); 0 },
-            Stmt.Return(expr) => { this._analyzeReturnOpt(expr); 0 },
-            Stmt.Throw(expr) => { this._analyzeExpr(expr); 0 },
-            Stmt.Fail(expr, line) => { this._currentFuncFallible = true; this._analyzeExpr(expr); 0 },
-            _ => { 0 }
+        switch stmt {
+            Stmt.VarDecl(decl) => { this._analyzeVarDecl(decl) },
+            Stmt.ConstDecl(decl) => { this._analyzeConstDecl(decl) },
+            Stmt.Assign(s) => { this._analyzeAssign(s) },
+            Stmt.If(s) => { this._analyzeIf(s) },
+            Stmt.While(s) => { this._analyzeWhile(s) },
+            Stmt.For(s) => { this._analyzeFor(s) },
+            Stmt.Switch(s) => { this._analyzeSwitch(s) },
+            Stmt.TryCatch(s) => { this._analyzeTryCatch(s) },
+            Stmt.Block(block) => { this._analyzeBlock(block) },
+            Stmt.ExprStmt(expr) => { this._analyzeExpr(expr) },
+            Stmt.Return(expr) => { this._analyzeReturnOpt(expr) },
+            Stmt.Throw(expr) => { this._analyzeExpr(expr) },
+            Stmt.Fail(expr, line) => { this._currentFuncFallible = true; this._analyzeExpr(expr) },
+            _ => {}
         }
     }
 
@@ -1397,12 +1346,11 @@ SemanticAnalyzer {
     // Checks arg count against declared function signature.
 
     _validateCallArgs(callee: Expr, args: [Expr]) {
-        let _ = switch callee {
+        switch callee {
             Expr.Identifier(name) => {
                 this._validateCallByName(name, args)
-                0
             },
-            _ => { 0 }
+            _ => {}
         }
     }
 
@@ -1441,12 +1389,11 @@ SemanticAnalyzer {
     // the current function is marked as needing fallibility.
 
     _trackCallFallibility(callee: Expr) {
-        let _ = switch callee {
+        switch callee {
             Expr.Identifier(name) => {
                 this._checkCalleeFallible(name)
-                0
             },
-            _ => { 0 }
+            _ => {}
         }
     }
 
@@ -1558,17 +1505,15 @@ SemanticAnalyzer {
         let _ = this.inferExprType(expr)
 
         // Phase 2.4: validate calls + track fallibility
-        let _ = switch expr {
+        switch expr {
             Expr.Call(callee, args, execPolicy, typeArgs) => {
                 this._validateCallArgs(callee, args)
                 this._trackCallFallibility(callee)
-                0
             },
             Expr.Fail(inner) => {
                 this._currentFuncFallible = true
-                0
             },
-            _ => { 0 }
+            _ => {}
         }
     }
 
@@ -1598,31 +1543,27 @@ SemanticAnalyzer {
         let initIdx = this._addType(initType)
 
         for b in decl.bindings {
-            let _ = switch b.pattern {
+            switch b.pattern {
                 BindingPattern.Identifier(name) => {
                     this.declareVar(name, b.typeRef)
                     let recovered = this._getType(initIdx)
                     this._setVarType(name, recovered)
-                    0
                 },
                 BindingPattern.ObjectPat(fields) => {
                     for f in fields {
                         this.declareVar(f.binding, null)
                     }
-                    0
                 },
                 BindingPattern.ArrayPat(elements, rest) => {
                     for e in elements {
                         this._declareVarOpt(e, null)
                     }
                     if rest != "" => this.declareVar(rest, null)
-                    0
                 },
                 BindingPattern.TuplePat(elements) => {
                     for e in elements {
                         this.declareVar(e, null)
                     }
-                    0
                 }
             }
         }
@@ -1631,13 +1572,12 @@ SemanticAnalyzer {
     _analyzeIf(stmt: IfStmt) {
         this._analyzeExpr(stmt.condition)
 
-        let _ = switch stmt.thenBranch {
-            IfBody.Block(block) => { this._analyzeBlock(block); 0 },
+        switch stmt.thenBranch {
+            IfBody.Block(block) => { this._analyzeBlock(block) },
             IfBody.SingleStmt(stmts) => {
                 for s in stmts {
                     this._analyzeStmt(s)
                 }
-                0
             }
         }
 
@@ -1647,13 +1587,12 @@ SemanticAnalyzer {
     // Helper: analyze an Optional IfBody (for else branches)
     _analyzeIfBodyOpt(body: IfBody?) {
         if body != null {
-            let _ = switch body {
-                IfBody.Block(block) => { this._analyzeBlock(block); 0 },
+            switch body {
+                IfBody.Block(block) => { this._analyzeBlock(block) },
                 IfBody.SingleStmt(stmts) => {
                     for s in stmts {
                         this._analyzeStmt(s)
                     }
-                    0
                 }
             }
         }
@@ -1689,18 +1628,16 @@ SemanticAnalyzer {
 
     _inferIterableElemType(iterType: TypeRef): TypeRef {
         let result = TypeRef.Simple("unknown")
-        let _ = switch iterType {
-            TypeRef.Array(inner) => { result = inner; 0 },
-            TypeRef.SetType(inner) => { result = inner; 0 },
+        switch iterType {
+            TypeRef.Array(inner) => { result = inner },
+            TypeRef.SetType(inner) => { result = inner },
             TypeRef.MapType(k, v) => {
                 result = TypeRef.Tuple([k, v])
-                0
             },
             TypeRef.Simple(n) => {
                 result = this._inferIterableSimpleElem(n)
-                0
             },
-            _ => { 0 }
+            _ => {}
         }
         return result
     }

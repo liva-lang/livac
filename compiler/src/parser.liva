@@ -1363,9 +1363,9 @@ Parser {
                         // can keep its tight `Expr =>` shape; wrap anything
                         // else as a one-element Block.
                         let stmt = this._parseSimpleStatement()
-                        let _ = switch stmt {
-                            Stmt.ExprStmt(e) => { body = SwitchArmBody.Expr(e); 0 },
-                            _ => { body = SwitchArmBody.Block([stmt]); 0 }
+                        switch stmt {
+                            Stmt.ExprStmt(e) => { body = SwitchArmBody.Expr(e) },
+                            _ => { body = SwitchArmBody.Block([stmt]) }
                         }
                     }
 
@@ -2295,26 +2295,25 @@ Parser {
     // Returns right side of Binary(Or, Call, right) if applicable, else null
     _trySplitOrRight(expr: Expr): Expr? {
         let result: Expr? = null
-        let _ = switch expr {
+        switch expr {
             Expr.Binary(bop, bLeft, bRight) => {
                 let isOr = false
-                let _ = switch bop {
-                    BinOp.Or => { isOr = true; 0 },
-                    _ => { 0 }
+                switch bop {
+                    BinOp.Or => { isOr = true },
+                    _ => {}
                 }
                 if isOr {
                     let leftIsCall = false
-                    let _ = switch bLeft {
-                        Expr.Call(_, _, _, _) => { leftIsCall = true; 0 },
-                        _ => { 0 }
+                    switch bLeft {
+                        Expr.Call(_, _, _, _) => { leftIsCall = true },
+                        _ => {}
                     }
                     if leftIsCall {
                         result = bRight
                     }
                 }
-                0
             },
-            _ => { 0 }
+            _ => {}
         }
         return result
     }
@@ -2322,12 +2321,11 @@ Parser {
     // Returns left side of Binary(_, left, _) — the Call expr
     _trySplitOrLeft(expr: Expr): Expr {
         let result: Expr? = null
-        let _ = switch expr {
+        switch expr {
             Expr.Binary(_, bLeft, _) => {
                 result = bLeft
-                0
             },
-            _ => { 0 }
+            _ => {}
         }
         if result != null {
             return result

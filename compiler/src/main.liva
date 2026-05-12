@@ -181,12 +181,11 @@ renderUseRustLine(decl: UseRustDecl): string {
 collectUseRustLines(items: [TopLevel]): [string] {
     let lines: [string] = []
     for item in items {
-        let _ = switch item {
+        switch item {
             TopLevel.UseRust(decl) => {
                 lines.push(renderUseRustLine(decl))
-                0
             },
-            _ => { 0 }
+            _ => {}
         }
     }
     return lines
@@ -388,12 +387,11 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
         let modTokens = tokenize(modSrc)
         let modProgram = parse(modTokens, modSrc)
         for item in modProgram.items {
-            let _ = switch item {
+            switch item {
                 TopLevel.Enum(decl) => {
                     allEnumNames.push(decl.name)
-                    0
                 },
-                _ => { 0 }
+                _ => {}
             }
         }
     }
@@ -412,7 +410,7 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
 
         // Extract enum field info from this parse
         for item in modProgram2.items {
-            let _ = switch item {
+            switch item {
                 TopLevel.Enum(decl) => {
                     let enumName = $"{decl.name}"
                     for v in decl.variants {
@@ -424,15 +422,14 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
                             fieldNames.push(sanitizeFieldName(f.name))
                             let isBoxed = false
                             let isOpt = false
-                            let _ = switch f.typeRef {
+                            switch f.typeRef {
                                 TypeRef.Simple(typeName) => {
                                     if allEnumNames.includes(typeName) {
                                         isBoxed = true
                                     }
-                                    0
                                 },
-                                TypeRef.OptionalType(_) => { isOpt = true; 0 },
-                                _ => { 0 }
+                                TypeRef.OptionalType(_) => { isOpt = true },
+                                _ => {}
                             }
                             fieldBoxed.push(isBoxed)
                             fieldOptional.push(isOpt)
@@ -441,9 +438,8 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
                         allEnumFieldBoxed.set(key, fieldBoxed)
                         allEnumFieldOptional.set(key, fieldOptional)
                     }
-                    0
                 },
-                _ => { 0 }
+                _ => {}
             }
         }
 

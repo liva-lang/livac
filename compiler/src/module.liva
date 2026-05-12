@@ -104,12 +104,11 @@ ModuleResolver {
     extractImports(program: Program): [string] {
         let imports: [string] = []
         for item in program.items {
-            let _ = switch item {
+            switch item {
                 TopLevel.Import(decl) => {
                     imports.push($"{decl.source}")
-                    0
                 },
-                _ => { 0 }
+                _ => {}
             }
         }
         return imports
@@ -120,34 +119,29 @@ ModuleResolver {
     extractPublicNames(program: Program): [string] {
         let names: [string] = []
         for item in program.items {
-            let _ = switch item {
+            switch item {
                 TopLevel.Function(decl) => {
                     let fname = $"{decl.name}"
                     if not fname.startsWith("_") {
                         names.push(fname)
                     }
-                    0
                 },
                 TopLevel.Class(decl) => {
                     names.push($"{decl.name}")
-                    0
                 },
                 TopLevel.Enum(decl) => {
                     names.push($"{decl.name}")
-                    0
                 },
                 TopLevel.ConstDecl(decl) => {
                     let cname = $"{decl.name}"
                     if not cname.startsWith("_") {
                         names.push(cname)
                     }
-                    0
                 },
                 TopLevel.TypeAlias(decl) => {
                     names.push($"{decl.name}")
-                    0
                 },
-                _ => { 0 }
+                _ => {}
             }
         }
         return names
