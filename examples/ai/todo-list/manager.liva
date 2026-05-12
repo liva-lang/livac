@@ -11,10 +11,10 @@ TaskManager {
 
     addTask(title: string, description: string, priorityStr: string, date: string): Task {
         let priority = priorityFromString(priorityStr)
-        let task = Task(this.nextId, title, description, priority, date)
-        this.tasks.push(task)
+        let newTask = Task(this.nextId, title, description, priority, date)
+        this.tasks.push(newTask)
         this.nextId = this.nextId + 1
-        return task
+        return newTask
     }
 
     listAll() {
@@ -23,8 +23,8 @@ TaskManager {
             return
         }
         print("\n━━━ Lista de Tareas ━━━")
-        for task in this.tasks {
-            print(task.display())
+        for t in this.tasks {
+            print(t.display())
             print("")
         }
     }
@@ -36,8 +36,8 @@ TaskManager {
             return
         }
         print("\n━━━ Tareas Pendientes ━━━")
-        for task in pending {
-            print(task.display())
+        for t in pending {
+            print(t.display())
             print("")
         }
     }
@@ -49,18 +49,20 @@ TaskManager {
             return
         }
         print("\n━━━ Tareas Completadas ━━━")
-        for task in done {
-            print(task.display())
+        for t in done {
+            print(t.display())
             print("")
         }
     }
 
     completeTask(id: number): bool {
-        for task in this.tasks {
-            if task.id == id {
-                task.completed = true
+        let i = 0
+        while i < this.tasks.length {
+            if this.tasks[i].id == id {
+                this.tasks[i].completed = true
                 return true
             }
+            i = i + 1
         }
         return false
     }

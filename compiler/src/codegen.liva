@@ -1372,7 +1372,7 @@ RustEmitter {
                 return $"{sanitized}: &str"
             }
         }
-        return $"{sanitized}: {typeStr}"
+        return $"mut {sanitized}: {typeStr}"
     }
 
     // Pre-pass: register borrowed param indices for all functions/methods

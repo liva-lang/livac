@@ -26,12 +26,12 @@ showMenu() {
 
 handleAdd(manager: TaskManager) {
     print("\n── Nueva Tarea ──")
-    let title = console.input("  Título: ")
-    let description = console.input("  Descripción: ")
-    let priorityStr = console.input("  Prioridad (alta/media/baja): ")
+    let title = Sys.input("  Título: ")
+    let description = Sys.input("  Descripción: ")
+    let priorityStr = Sys.input("  Prioridad (alta/media/baja): ")
     let date = currentDate()
-    let task = manager.addTask(title, description, priorityStr, date)
-    print($"\n  ✓ Tarea #{task.id} creada exitosamente.")
+    let newTask = manager.addTask(title, description, priorityStr, date)
+    print($"\n  ✓ Tarea #{newTask.id} creada exitosamente.")
 }
 
 handleComplete(manager: TaskManager) {
@@ -40,7 +40,7 @@ handleComplete(manager: TaskManager) {
         return
     }
     manager.listPending()
-    let input = console.input("  ID de la tarea a completar: ")
+    let input = Sys.input("  ID de la tarea a completar: ")
     let id, err = parseInt(input)
     if err {
         print("  ✗ ID inválido.")
@@ -60,13 +60,13 @@ handleDelete(manager: TaskManager) {
         return
     }
     manager.listAll()
-    let input = console.input("  ID de la tarea a eliminar: ")
+    let input = Sys.input("  ID de la tarea a eliminar: ")
     let id, err = parseInt(input)
     if err {
         print("  ✗ ID inválido.")
         return
     }
-    let confirm = console.input($"  ¿Eliminar tarea #{id}? (s/n): ")
+    let confirm = Sys.input($"  ¿Eliminar tarea #{id}? (s/n): ")
     if confirm.toLowerCase().trim() != "s" {
         print("  Operación cancelada.")
         return
@@ -88,29 +88,27 @@ main() {
     let running = true
     while running {
         showMenu()
-        let option = console.input("\n  Opción: ")
+        let option = Sys.input("\n  Opción: ")
         let trimmed = option.trim()
 
-        switch trimmed {
-            case "1":
-                handleAdd(manager)
-            case "2":
-                manager.listAll()
-            case "3":
-                manager.listPending()
-            case "4":
-                manager.listCompleted()
-            case "5":
-                handleComplete(manager)
-            case "6":
-                handleDelete(manager)
-            case "7":
-                print("\n  ¡Hasta luego! 👋\n")
-                running = false
-            default:
-                print("\n  ✗ Opción no válida. Intente de nuevo.")
+        if trimmed == "1" {
+            handleAdd(manager)
+        } else if trimmed == "2" {
+            manager.listAll()
+        } else if trimmed == "3" {
+            manager.listPending()
+        } else if trimmed == "4" {
+            manager.listCompleted()
+        } else if trimmed == "5" {
+            handleComplete(manager)
+        } else if trimmed == "6" {
+            handleDelete(manager)
+        } else if trimmed == "7" {
+            print("\n  ¡Hasta luego!\n")
+            running = false
+        } else {
+            print("\n  ✗ Opción no válida. Intente de nuevo.")
         }
     }
 }
 
-main()
