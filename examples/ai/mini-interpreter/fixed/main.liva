@@ -1230,7 +1230,9 @@ evaluate(node: ASTNode, env: Environment): EvalResult {
                 return EvalResult(makeNumValue(left.numVal + right.numVal), env)
             }
             if left.tag == "string" or right.tag == "string" {
-                return EvalResult(makeStrValue(valueToString(left) + valueToString(right)), env)
+                let ls = valueToString(left)
+                let rs = valueToString(right)
+                return EvalResult(makeStrValue($"{ls}{rs}"), env)
             }
             fail $"Cannot add {left.tag} and {right.tag}"
         }
@@ -1569,22 +1571,10 @@ main() {
         Sys.exit(1)
     }
 
-    let tokens, lexErr = tokenize(source)
-    if lexErr {
-        print($"Lexer Error: {lexErr}")
-        Sys.exit(1)
-    }
+    let tokens = tokenize(source) or fail "lex"
 
-    let ast, parseErr = parseTokens(tokens)
-    if parseErr {
-        print($"Parser Error: {parseErr}")
-        Sys.exit(1)
-    }
+    let ast = parseTokens(tokens)
 
     let env = Environment()
-    let result, evalErr = evaluate(ast, env)
-    if evalErr {
-        print($"Runtime Error: {evalErr}")
-        Sys.exit(1)
-    }
+    let result = evaluate(ast, env) or fail "eval"
 }

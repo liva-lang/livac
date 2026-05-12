@@ -1,0 +1,61 @@
+// ============================================================
+// main.liva — Mini-language interpreter entry point
+// ============================================================
+// Usage: livac run main.liva -- <script.mini>
+// Reads a .mini script file and interprets it through
+// lexer → parser → evaluator pipeline.
+
+import { tokenize } from "./src/lexer.liva"
+import { parseTokens } from "./src/parser.liva"
+import { evaluate, Environment, EvalResult } from "./src/evaluator.liva"
+
+main() {
+    let args = Sys.args()
+
+    if args.length < 2 {
+        print("Mini-Language Interpreter v1.0")
+        print("Usage: mini-interpreter <script.mini>")
+        print("")
+        print("Supported features:")
+        print("  - Variables:     let x = 10")
+        print("  - Arithmetic:   +, -, *, /, %")
+        print("  - Comparisons:  ==, !=, <, <=, >, >=")
+        print("  - Logic:        and, or, not")
+        print("  - Conditionals: if (cond) { ... } else { ... }")
+        print("  - Loops:        while (cond) { ... }")
+        print("  - Functions:    func name(params) { ... }")
+        print("  - Print:        print(expr)")
+        print("  - Comments:     // single line")
+        Sys.exit(1)
+    }
+
+    let filename = args[1]
+    let source, readErr = File.read(filename)
+    if readErr {
+        print($"Error: Could not read file '{filename}'")
+        print($"  {readErr.message}")
+        Sys.exit(1)
+    }
+
+    // Phase 1: Lexing (tokenization)
+    let tokens, lexErr = tokenize(source)
+    if lexErr {
+        print($"Lexer Error: {lexErr.message}")
+        Sys.exit(1)
+    }
+
+    // Phase 2: Parsing (AST generation)
+    let ast, parseErr = parseTokens(tokens)
+    if parseErr {
+        print($"Parser Error: {parseErr.message}")
+        Sys.exit(1)
+    }
+
+    // Phase 3: Evaluation (AST traversal)
+    let env = Environment()
+    let result, evalErr = evaluate(ast, env)
+    if evalErr {
+        print($"Runtime Error: {evalErr.message}")
+        Sys.exit(1)
+    }
+}
