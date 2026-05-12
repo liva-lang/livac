@@ -139,6 +139,14 @@ let name = switch color {
     Color.Green => "green"   // no _ needed
     Color.Blue => "blue"     // E0904 if any variant missing
 }
+
+// Statement-position switch (v2.0+) — `_ => {}` is optional
+switch action {
+    Action.Quit  => print("bye")
+    Action.Save  => save()
+    // No `_ => {}` needed — unhandled variants silently no-op.
+    // Exhaustiveness is only enforced in expression-position switches.
+}
 ```
 
 Switch statements use `case X:` with colon. Switch expressions use `X => val` with arrow.

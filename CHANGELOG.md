@@ -9,6 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > **Companion docs:** `BACKLOG.md` (open tasks, work-in-progress),
 > `ROADMAP.md` (high-level vision and phases).
 
+## [Unreleased] — post-rc1 work
+
+### Added
+- **Statement-position switch — implicit `_ => {}`** (Cycle 33). The
+  catch-all arm is now optional when a `switch` appears as a statement;
+  unhandled cases silently no-op. Expression-position switches still
+  require exhaustiveness (E0904). Bootstrap `src/codegen.rs` synthesizes
+  the wildcard in the emitted Rust match; `src/semantic.rs` skips the
+  E0904 check in stmt position via a new `in_stmt_switch` flag. Self-host
+  `compiler/src/codegen.liva::_emitSwitchExpr` mirrors the synthesis.
+
+### Changed
+- **Transitive async detection** (Cycle 35) — `_asyncFnNames` is now
+  populated by a fixpoint loop that runs **before** `_detectMainAsync`,
+  so a function that only awaits transitively (via another user fn) is
+  correctly inferred as async and `main` is promoted to
+  `#[tokio::main] async fn main()` when needed.
+- **Auto-`.await` on direct calls to async user fns** (Cycle 35) — inside
+  an async context, `let x = foo(args)` now emits `foo(args).await` when
+  `foo` is known async, removing the need to write `await` explicitly
+  for the most common case.
+- **By-value iteration when awaiting the loop variable** (Cycle 35) —
+  `for t in handles { let r = await t }` now consumes `handles` by value
+  (no `&` borrow, no `.clone()` insertion). Required because
+  `tokio::JoinHandle` is not `Clone`. The loop variable is registered as
+  a task handle so `await t` emits `t.await.unwrap()`.
+
+### Internal
+- **Cycle 34** — codemod removed 297 redundant `_ => {}` arms from
+  `compiler/src/*.liva` now that they are optional (net −226 LOC).
+- **Cycle 32** — `task async f(args)` emits
+  `tokio::spawn(async move { f(args).await })` when `f` is a known async
+  fn (fixes `JoinHandle<impl Future<...>>` mis-typing).
+
 ## [2.0.0-rc1] — 2026-05-04 — Phase 12 release gate
 
 ### Added

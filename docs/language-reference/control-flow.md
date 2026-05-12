@@ -53,6 +53,20 @@ It works in two positions:
   }
   ```
 
+  The catch-all `_ => {}` arm is **optional** in statement position. If you
+  omit it, the compiler implicitly treats the unhandled cases as no-ops:
+
+  ```liva
+  switch action {
+      Action.Quit  => print("bye")
+      Action.Save  => save()
+      // No `_ => {}` needed — Action.Ignore silently does nothing
+  }
+  ```
+
+  Expression-position switches still need to cover every variant (or use
+  `_`) since they produce a value.
+
 - **Expression** — arms produce a value of the same type:
 
   ```liva

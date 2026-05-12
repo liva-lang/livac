@@ -920,7 +920,7 @@ cargo test --release 528+).
 
 ### Push pendiente
 
-- [ ] **186 commits locales** ahead de `origin/feat/self-hosting-v2`. Push requiere autorización explícita del usuario (regla 5-may-2026).
+- [x] **209 commits locales** pusheados a `origin/feat/self-hosting-v2` (2026-05-12, autorización explícita del usuario).
 
 ---
 

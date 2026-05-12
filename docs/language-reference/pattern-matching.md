@@ -95,8 +95,12 @@ let result = switch x {
 
 ## Exhaustiveness Details
 
-| Type | Requirement |
-|------|-------------|
+Exhaustiveness is enforced in **expression-position** switches (those that
+produce a value). In **statement-position** switches the catch-all
+`_ => {}` is implicit, so omitted variants silently no-op.
+
+| Type | Requirement (expression position) |
+|------|-----------------------------------|
 | `bool` | Cover `true` + `false`, or use `_` |
 | `int`, `i8`–`i128`, `u8`–`u128` | Requires wildcard/binding |
 | `string` | Requires wildcard/binding |
@@ -108,12 +112,19 @@ let result = switch x {
 ```liva
 enum Color { Red, Green, Blue }
 
-// ❌ E0904: Missing Color.Blue
+// ❌ E0904: Missing Color.Blue (expression position requires exhaustiveness)
 let label = switch color {
     Color.Red => "red"
     Color.Green => "green"
 }
 // Error: Pattern matching on enum `Color` is not exhaustive — missing variant(s): Color.Blue
+
+// ✅ OK in statement position — uncovered variants do nothing
+switch color {
+    Color.Red   => print("red")
+    Color.Green => print("green")
+    // Color.Blue is silently a no-op
+}
 ```
 
 ---
