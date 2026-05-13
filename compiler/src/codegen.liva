@@ -526,19 +526,7 @@ RustEmitter {
         return result
     }
 
-    _emitSimpleType(name: string): string {
-        if name == "string" { return "String" }
-        if name == "number" { return "i32" }
-        if name == "int" { return "i32" }
-        if name == "float" { return "f64" }
-        if name == "bool" { return "bool" }
-        if name == "char" { return "char" }
-        if name == "void" { return "()" }
-        if name == "never" { return "!" }
-        if name == "any" { return "serde_json::Value" }
-        // User-defined type (class, enum) — keep PascalCase
-        return name
-    }
+    _emitSimpleType(name: string): string { return emitSimpleType(name) }
 
     _emitTupleType(elems: [TypeRef]): string {
         let parts: [string] = []
@@ -964,21 +952,7 @@ RustEmitter {
 
     // -- Test name sanitizer: "my test name!" → "my_test_name" --
 
-    _sanitizeTestName(name: string): string {
-        let result = ""
-        for ch in name {
-            let isLetter = ch >= "a" and ch <= "z"
-            let isUpperLetter = ch >= "A" and ch <= "Z"
-            let isDigit = ch >= "0" and ch <= "9"
-            if isLetter or isUpperLetter or isDigit {
-                result += ch.toLowerCase()
-            } else if ch == " " or ch == "-" or ch == "/" {
-                result += "_"
-            }
-            // skip other characters
-        }
-        return result
-    }
+    _sanitizeTestName(name: string): string { return sanitizeTestName(name) }
 
     // -- Import emission --
 
@@ -1024,28 +998,7 @@ RustEmitter {
         this._writeRaw("")
     }
 
-    _extractModuleName(source: string): string {
-        // "./token.liva" → "token", "../utils.liva" → "utils"
-        let name = $"{source}"
-        // Strip path prefixes
-        let lastSlash = -1
-        let idx = 0
-        for ch in name {
-            if ch == "/" {
-                lastSlash = idx
-            }
-            idx += 1
-        }
-        if lastSlash >= 0 {
-            // Take everything after the last slash
-            name = name.slice(lastSlash + 1, name.length)
-        }
-        // Strip .liva extension
-        if name.endsWith(".liva") {
-            name = name.slice(0, name.length - 5)
-        }
-        return name
-    }
+    _extractModuleName(source: string): string { return extractModuleName(source) }
 
     // -- Function declaration --
 
@@ -10800,6 +10753,57 @@ isKnownSetMethod(m: string): bool {
 
 isKnownDateMethod(m: string): bool {
     return m == "format" || m == "add" || m == "diff"
+}
+
+// Cycle 50 (A1 step 6) — more pure helpers extracted to free functions.
+emitSimpleType(name: string): string {
+    if name == "string" { return "String" }
+    if name == "number" { return "i32" }
+    if name == "int" { return "i32" }
+    if name == "float" { return "f64" }
+    if name == "bool" { return "bool" }
+    if name == "char" { return "char" }
+    if name == "void" { return "()" }
+    if name == "never" { return "!" }
+    if name == "any" { return "serde_json::Value" }
+    // User-defined type (class, enum) — keep PascalCase
+    return name
+}
+
+sanitizeTestName(name: string): string {
+    let result = ""
+    for ch in name {
+        let isLetter = ch >= "a" and ch <= "z"
+        let isUpperLetter = ch >= "A" and ch <= "Z"
+        let isDigit = ch >= "0" and ch <= "9"
+        if isLetter or isUpperLetter or isDigit {
+            result += ch.toLowerCase()
+        } else if ch == " " or ch == "-" or ch == "/" {
+            result += "_"
+        }
+        // skip other characters
+    }
+    return result
+}
+
+extractModuleName(source: string): string {
+    // "./token.liva" → "token", "../utils.liva" → "utils"
+    let name = $"{source}"
+    let lastSlash = -1
+    let idx = 0
+    for ch in name {
+        if ch == "/" {
+            lastSlash = idx
+        }
+        idx += 1
+    }
+    if lastSlash >= 0 {
+        name = name.slice(lastSlash + 1, name.length)
+    }
+    if name.endsWith(".liva") {
+        name = name.slice(0, name.length - 5)
+    }
+    return name
 }
 
 main() {
