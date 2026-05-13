@@ -552,8 +552,14 @@ HTTP.
   file has 1 switch-on-Expr free function (`inferArrowReturnType`) plus
   multiple non-Expr-switch helpers (`isAllUnitEnum`, `escapeRustStr`,
   `escapeRustChar`, `binOpToRust`) all coexisting fine.
-- **Workaround:** keep extractions to non-Expr switches until BS-FRAG-1 is
-  understood/fixed. Documented in BACKLOG.
+- **Refinement (Cycle 52):** extending the refinement — `switch IfBody` in
+  a free function (even alone) ALSO triggers the same `String += String`
+  regression. So the safe class is now: switch on `TypeRef`, `BinOp`,
+  `EnumDecl`, plus pure (non-switch) free functions. `Expr`, `IfBody`, and
+  presumably `Stmt` are unsafe for free-function switches (Cycle 52 was
+  reverted: `ifBodyStmts` alone reproduces the bug).
+- **Workaround:** keep extractions to non-Expr / non-IfBody / non-Stmt
+  switches until BS-FRAG-1 is understood/fixed. Documented in BACKLOG.
 
 ### BS-FRAG-2 — Adding nested `switch Expr.Literal` corrupts lexer for `&` in templates
 - **Repro:** Inside `_emitVariableDecl` (around line 3515), adding any nested
