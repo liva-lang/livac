@@ -1435,40 +1435,10 @@ RustEmitter {
 
     // B148: default initializer for a field that the constructor body does
     // not explicitly assign to. Mirrors bootstrap behavior.
-    _fieldDefault(optRef: TypeRef?): string {
-        if optRef == null { return "Default::default()" }
-        let result = "Default::default()"
-        if optRef != null {
-            let tref = optRef
-            switch tref {
-                TypeRef.Simple(n) => {
-                    if n == "number" || n == "int" { result = "0" }
-                    else if n == "float" { result = "0.0" }
-                    else if n == "bool" { result = "false" }
-                    else if n == "string" || n == "String" { result = "String::new()" }
-                    else if n == "char" { result = "'\\0'" }
-                },
-                TypeRef.Array(_) => { result = "Vec::new()" },
-                TypeRef.MapType(_, _) => { result = "HashMap::new()" },
-                TypeRef.SetType(_) => { result = "HashSet::new()" },
-                TypeRef.OptionalType(_) => { result = "None" }
-            }
-        }
-        return result
-    }
+    _fieldDefault(optRef: TypeRef?): string { return fieldDefault(optRef) }
 
     // B125: Helper that returns true when the optional TypeRef is a Map<K,V>.
-    // Mirrors the `if optRef != null` narrowing used by _buildParamType.
-    _isMapType(optRef: TypeRef?): bool {
-        if optRef != null {
-            let isMap = false
-            switch optRef {
-                TypeRef.MapType(_, _) => { isMap = true }
-            }
-            return isMap
-        }
-        return false
-    }
+    _isMapType(optRef: TypeRef?): bool { return isMapType(optRef) }
 
     // Cycle 42 — _inferArrowReturnType extracted to free function
     // `inferArrowReturnType(e: RustEmitter, expr)` (see bottom of file). This
@@ -10804,6 +10774,41 @@ extractModuleName(source: string): string {
         name = name.slice(0, name.length - 5)
     }
     return name
+}
+
+// Cycle 51 (A1 step 7) — pure TypeRef helpers extracted to free functions.
+// Switch on TypeRef (not Expr) so BS-FRAG-1 safe.
+fieldDefault(optRef: TypeRef?): string {
+    if optRef == null { return "Default::default()" }
+    let result = "Default::default()"
+    if optRef != null {
+        let tref = optRef
+        switch tref {
+            TypeRef.Simple(n) => {
+                if n == "number" || n == "int" { result = "0" }
+                else if n == "float" { result = "0.0" }
+                else if n == "bool" { result = "false" }
+                else if n == "string" || n == "String" { result = "String::new()" }
+                else if n == "char" { result = "'\\0'" }
+            },
+            TypeRef.Array(_) => { result = "Vec::new()" },
+            TypeRef.MapType(_, _) => { result = "HashMap::new()" },
+            TypeRef.SetType(_) => { result = "HashSet::new()" },
+            TypeRef.OptionalType(_) => { result = "None" }
+        }
+    }
+    return result
+}
+
+isMapType(optRef: TypeRef?): bool {
+    if optRef != null {
+        let isMap = false
+        switch optRef {
+            TypeRef.MapType(_, _) => { isMap = true }
+        }
+        return isMap
+    }
+    return false
 }
 
 main() {
