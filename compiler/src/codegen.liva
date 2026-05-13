@@ -5749,26 +5749,7 @@ RustEmitter {
         return TypeRef.Simple("unknown")
     }
 
-    _typeRefToTag(t: TypeRef): string {
-        // Returns a simple tag string for dispatch: "string", "array", "map", "set", etc.
-        let tag = "unknown"
-        switch t {
-            TypeRef.Simple(name) => {
-                if name == "string" { tag = "string" }
-                if name == "number" { tag = "number" }
-                if name == "int" { tag = "number" }
-                if name == "float" { tag = "float" }
-                if name == "bool" { tag = "bool" }
-                if name == "char" { tag = "char" }
-            },
-            TypeRef.Array(_) => { tag = "array" },
-            TypeRef.MapType(_, _) => { tag = "map" },
-            TypeRef.SetType(_) => { tag = "set" },
-            TypeRef.OptionalType(_) => { tag = "optional" },
-            TypeRef.Fallible(_) => { tag = "fallible" }
-        }
-        return tag
-    }
+    _typeRefToTag(t: TypeRef): string { return typeRefToTag(t) }
 
     // Phase 9.1: Single source of truth for Rust Copy-type detection.
     // Used by clone elision, .copied() dispatch, and deref patterns.
@@ -10790,6 +10771,26 @@ emitGenericType(em: RustEmitter, base: string, args: [TypeRef]): string {
         argParts.push(em._emitType(a))
     }
     return $"{base}<{argParts.join(", ")}>"
+}
+
+typeRefToTag(t: TypeRef): string {
+    let tag = "unknown"
+    switch t {
+        TypeRef.Simple(name) => {
+            if name == "string" { tag = "string" }
+            if name == "number" { tag = "number" }
+            if name == "int" { tag = "number" }
+            if name == "float" { tag = "float" }
+            if name == "bool" { tag = "bool" }
+            if name == "char" { tag = "char" }
+        },
+        TypeRef.Array(_) => { tag = "array" },
+        TypeRef.MapType(_, _) => { tag = "map" },
+        TypeRef.SetType(_) => { tag = "set" },
+        TypeRef.OptionalType(_) => { tag = "optional" },
+        TypeRef.Fallible(_) => { tag = "fallible" }
+    }
+    return tag
 }
 
 buildTypeParamStr(typeParams: [TypeParameter]): string {
