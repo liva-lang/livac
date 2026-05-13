@@ -5753,10 +5753,7 @@ RustEmitter {
 
     // Phase 9.1: Single source of truth for Rust Copy-type detection.
     // Used by clone elision, .copied() dispatch, and deref patterns.
-    _isCopyType(t: TypeRef): bool {
-        let tag = this._typeRefToTag(t)
-        return tag == "number" or tag == "float" or tag == "bool" or tag == "char"
-    }
+    _isCopyType(t: TypeRef): bool { return isCopyType(t) }
 
     // Phase 9.1: Resolve the value type V of a Map<K,V> expression, or unknown.
     _getMapValueTypeRef(obj: Expr): TypeRef {
@@ -10791,6 +10788,11 @@ typeRefToTag(t: TypeRef): string {
         TypeRef.Fallible(_) => { tag = "fallible" }
     }
     return tag
+}
+
+isCopyType(t: TypeRef): bool {
+    let tag = typeRefToTag(t)
+    return tag == "number" or tag == "float" or tag == "bool" or tag == "char"
 }
 
 buildTypeParamStr(typeParams: [TypeParameter]): string {
