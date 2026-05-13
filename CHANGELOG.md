@@ -11,6 +11,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — post-rc1 work
 
+### Fixed
+- **Implicit `Ok(())` for all fallible unit fns** (Cycle 36, fixes E0317).
+  Previously the self-host emitted a trailing `Ok(())` only for `main`;
+  user-defined functions returning `Result<(), Error>` whose body ended
+  with a chain of `if cond { fail "..." }` guards triggered Rust's
+  E0317 (`if/else expression with no else evaluates to ()`). Codegen now
+  detects whether the body already ends with an unconditional return
+  via new helpers `_blockEndsWithReturn` / `_stmtsAlwaysReturn` /
+  `_stmtAlwaysReturns` (which recognize `Stmt.Return`, `Stmt.Fail`,
+  `Stmt.Throw`, `Stmt.Block` and `Stmt.If` with both branches always
+  returning), and only appends `Ok(())` when the return type wraps `()`
+  and the body falls through.
+- **`const X: string = "..."` no longer emits invalid Rust const**
+  (Cycle 37, fixes E0015). Top-level `const` strings were emitted as
+  `pub const X: String = "...".to_string()`, which Rust rejects because
+  `to_string` is not const. `_emitConstDecl` now coerces the explicit
+  `string` annotation to `&str`, matching the inferred-type path for
+  string literals.
+
 ### Added
 - **Statement-position switch — implicit `_ => {}`** (Cycle 33). The
   catch-all arm is now optional when a `switch` appears as a statement;
