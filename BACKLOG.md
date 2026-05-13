@@ -819,18 +819,20 @@ cargo test --release 528+).
         proceder en v2.1 con esta arquitectura.
       Acceptance: gauntlet 7/7 GREEN tras cada cycle, ai/* sigue limpio. ✅
 
-- [ ] **A1.** ~~Modularizar `compiler/src/codegen.liva` en 7 archivos.~~
-      **Diferido a v2.1.** Requiere soporte del lenguaje para *partial
-      classes* o *extension methods*. Liva actualmente exige que toda
-      la clase `RustEmitter` viva en un único archivo (la sintaxis
-      `RustEmitter { … }` declara la clase entera). Las alternativas
-      (free functions + `EmitContext` struct pasado por referencia
-      mutable) chocan con el known-issue de `Map<K,V>` que se mueve al
-      pasar como parámetro (E0382 documentado en `conversation
-      summary § 2`). Plan v2.1: añadir `partial` keyword o pivotar a
-      arquitectura free-function una vez Liva soporte mut-borrow de Map.
-      **Update 2026-05-13:** desbloqueado por A0 (Cycle 42). Se hará
-      después de Cycles 38-41.
+- [~] **A1.** ~~Modularizar `compiler/src/codegen.liva` en 7 archivos.~~
+      **Iniciado 2026-05-13 (parcial) — diferido a v2.1 (rest).**
+      Cycle 43 extrajo `_isAllUnitEnum` como free function (paso 1 del
+      pattern free-function-with-`e: RustEmitter`). Bisect descubrió
+      un **bug latente del bootstrap frozen**: definir una SEGUNDA
+      free function que `switch`-ee sobre `Expr` corrompe el estado
+      del codegen del optimizer `+=` → `.push_str(&...)`, generando
+      Rust inválido (`String += String`) downstream. Sólo `inferArrowReturnType`
+      (Cycle 42) puede convivir como switch-on-Expr. El resto de
+      helpers que necesiten pattern matching sobre `Expr`/`Literal`
+      deben permanecer como class methods hasta que regeneremos el
+      bootstrap. Cycle 43 commit: TBD; gauntlet 8/8 GREEN.
+      **Próximo paso v2.1:** regenerar bootstrap desde gen-3 (que ya
+      no tiene el bug), luego retomar A1 con extracciones masivas.
 
 - [ ] **A2.** ~~Consolidar los 25+ `Map<string, …>` dispersos en
       `EmitContext`.~~ **Diferido a v2.1** por el mismo bloqueo que A1

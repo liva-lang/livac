@@ -2881,7 +2881,7 @@ RustEmitter {
         let enumName = $"{decl.name}"
 
         // Check if all variants are unit (no data) — can derive Copy + Default
-        let allUnit = this._isAllUnitEnum(decl)
+        let allUnit = isAllUnitEnum(decl)
 
         if allUnit {
             this._writeln("#[derive(Clone, Copy, Debug, PartialEq, Default)]")
@@ -2912,13 +2912,6 @@ RustEmitter {
         this._writeln("    }")
         this._writeln("}")
         this._writeRaw("")
-    }
-
-    _isAllUnitEnum(decl: EnumDecl): bool {
-        for v in decl.variants {
-            if v.fields.length > 0 { return false }
-        }
-        return true
     }
 
     _emitVariant(enumName: string, v: EnumVariant) {
@@ -10788,6 +10781,25 @@ inferArrowReturnType(e: RustEmitter, expr: Expr): string {
         }
     }
     return inferred
+}
+
+// Cycle 43 (A1 step 1): pure helper `_isAllUnitEnum` extracted to a
+// free function. Doesn't access RustEmitter state.
+//
+// NOTE on bootstrap limitation: the frozen Rust-based bootstrap has a
+// latent bug — defining a SECOND free function in this file that
+// `switch`-es on `Expr` corrupts the codegen state used by the
+// `+=` → `.push_str(&...)` String concatenation optimization,
+// producing invalid Rust (`String += String`) downstream. Until the
+// bootstrap is regenerated, only ONE switch-on-Expr free function is
+// supported (currently `inferArrowReturnType`). Other helpers that
+// need pattern matching on Expr/Literal must remain class methods.
+// See BACKLOG § Cycle 43 for the bisect log.
+isAllUnitEnum(decl: EnumDecl): bool {
+    for v in decl.variants {
+        if v.fields.length > 0 { return false }
+    }
+    return true
 }
 
 main() {

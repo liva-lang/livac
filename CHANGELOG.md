@@ -48,6 +48,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `e._currentClassFieldRetSuffix.has(prop)` / `.get(prop)`. The class
     method is kept as a thin pointer / docs anchor. Self-host idempotent
     (gen-2 ≡ gen-3, source + binary), 8/8 gates GREEN, `ai/*` 9/9 GREEN.
+  - **Cycle 43 — A1 step 1 (partial).** Extracted pure helper
+    `_isAllUnitEnum` as free function `isAllUnitEnum(decl: EnumDecl)`.
+    First step toward modularizing `codegen.liva`. **Bisect found
+    latent bootstrap bug**: defining a SECOND free function that
+    `switch`-es on `Expr` corrupts state for the `+=` → `.push_str(&...)`
+    String optimization downstream (emits invalid `String += String`).
+    Workaround: only `inferArrowReturnType` is allowed as
+    switch-on-Expr free function until bootstrap is regenerated.
+    Future extractions of switch-on-Expr helpers (`_isNullExpr`,
+    `_isCopyLiteral`, `_isStringExpr`, etc.) must stay class methods
+    for now. 8/8 gauntlet GREEN.
   - **Side fix:** `_emitConstructor` now sets
     `_currentFunc = "{ClassName}.constructor"` before
     `_buildParamList` so liveness escape lookups hit the right key
