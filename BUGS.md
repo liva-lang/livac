@@ -558,8 +558,18 @@ HTTP.
   `EnumDecl`, plus pure (non-switch) free functions. `Expr`, `IfBody`, and
   presumably `Stmt` are unsafe for free-function switches (Cycle 52 was
   reverted: `ifBodyStmts` alone reproduces the bug).
+- **Refinement (Cycle 56):** A *pure* free function (no switch) with a
+  `for x in <Array<string>>` loop and inner `result += "/"` (string+=str
+  literal) ALSO triggers a different but related corruption: the emit for
+  the *other* `for ch in <string>` loops in pre-existing free functions
+  loses its `.chars()` adapter (`for ch in name` instead of
+  `for ch in name.chars().map(...)`). Cycle 56 attempted to extract
+  `convertRoutePath` alone; reverted. `typeRefToTag` (switch TypeRef)
+  extracted cleanly in the same cycle.
 - **Workaround:** keep extractions to non-Expr / non-IfBody / non-Stmt
-  switches until BS-FRAG-1 is understood/fixed. Documented in BACKLOG.
+  switches and avoid pure free functions with `for X in <string-array>` +
+  `result += <literal>` patterns until BS-FRAG-1 is understood/fixed.
+  Documented in BACKLOG.
 
 ### BS-FRAG-2 — Adding nested `switch Expr.Literal` corrupts lexer for `&` in templates
 - **Repro:** Inside `_emitVariableDecl` (around line 3515), adding any nested
