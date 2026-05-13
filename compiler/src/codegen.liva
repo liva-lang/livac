@@ -528,21 +528,9 @@ RustEmitter {
 
     _emitSimpleType(name: string): string { return emitSimpleType(name) }
 
-    _emitTupleType(elems: [TypeRef]): string {
-        let parts: [string] = []
-        for e in elems {
-            parts.push(this._emitType(e))
-        }
-        return $"({parts.join(", ")})"
-    }
+    _emitTupleType(elems: [TypeRef]): string { return emitTupleType(this, elems) }
 
-    _emitGenericType(base: string, args: [TypeRef]): string {
-        let argParts: [string] = []
-        for a in args {
-            argParts.push(this._emitType(a))
-        }
-        return $"{base}<{argParts.join(", ")}>"
-    }
+    _emitGenericType(base: string, args: [TypeRef]): string { return emitGenericType(this, base, args) }
 
     // -- Top-level generation --
 
@@ -10814,6 +10802,22 @@ fieldNeedsDebug(e: RustEmitter, optRef: TypeRef?): bool {
         return needs
     }
     return false
+}
+
+emitTupleType(em: RustEmitter, elems: [TypeRef]): string {
+    let parts: [string] = []
+    for e in elems {
+        parts.push(em._emitType(e))
+    }
+    return $"({parts.join(", ")})"
+}
+
+emitGenericType(em: RustEmitter, base: string, args: [TypeRef]): string {
+    let argParts: [string] = []
+    for a in args {
+        argParts.push(em._emitType(a))
+    }
+    return $"{base}<{argParts.join(", ")}>"
 }
 
 main() {
