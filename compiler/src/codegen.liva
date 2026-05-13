@@ -135,6 +135,12 @@ RustEmitter {
     _borrowedParamMutIndices: Map<string, bool>
     _suppressCloneForBorrow: bool
     _strRefParams: Map<string, bool>
+    // Cycle 40: params emitted as `&HashMap`, `&Vec`, `&HashSet`, `&mut HashMap`, etc.
+    // When such a name is used in arg position with isSingleUse=true, we still
+    // need `.clone()` (dereferencing the borrow) instead of moving — you can't
+    // move out of a `&T`. Without this, `parse(tokens) { Parser(tokens, ...) }`
+    // tries to move `&Vec<Token>` into `Parser::new(tokens: Vec<Token>)`.
+    _collRefParams: Map<string, bool>
     // Cross-module enum registry: populated via primeGlobalEnum() before generate()
     // so that field-type checks (e.g. _emitClassStruct's Default-derive logic)
     // recognize enums declared in OTHER modules. Without this, _typeCtx.enums
@@ -270,6 +276,7 @@ RustEmitter {
         this._noDefaultClasses = Map {}
         this._suppressCloneForBorrow = false
         this._strRefParams = Map {}
+        this._collRefParams = Map {}
         this._enableStrRef = true
         this._buildParamIdx = 0
         this._lastEmittedStrRef = false
@@ -1436,7 +1443,9 @@ RustEmitter {
         // Cycle 39 — auto-`&mut HashMap<K,V>` for Map params mutated locally
         // but not escaping (return / this.field / other.field). Liveness
         // distinguishes mutated (mutating method receiver) from escape.
-        if this._enableStrRef && (this._currentFuncIsMethod || not this._inMethod) && typeStr.contains("HashMap") && this._currentFunc != "main" {
+        // Cycle 40 — same treatment for Vec<T> (and Cycle 41 for HashSet<T>).
+        let isBorrowableContainer = typeStr.contains("HashMap") || typeStr.startsWith("Vec<") || typeStr.startsWith("HashSet<")
+        if this._enableStrRef && (this._currentFuncIsMethod || not this._inMethod) && isBorrowableContainer && this._currentFunc != "main" {
             let key = $"{this._currentFunc}:{rawName}"
             let isBorrow = 0
             if this._liveCtx.paramBorrow.has(key) {
@@ -1453,6 +1462,7 @@ RustEmitter {
             if isBorrow == 1 && isEscape == 0 {
                 let bKey = $"{this._currentFuncBorrowKey}:{this._buildParamIdx}"
                 this._borrowedParamIndices.set(bKey, true)
+                this._collRefParams.set(sanitized, true)
                 if isMutated == 1 {
                     this._borrowedParamMutIndices.set(bKey, true)
                     return $"{sanitized}: &mut {typeStr}"
@@ -1475,9 +1485,11 @@ RustEmitter {
             let typeStr = this._buildParamType(p.typeRef)
             let isBorrowable = false
             if typeStr == "String" { isBorrowable = true }
-            // Cycle 38 — register Map params (HashMap<K,V>) as borrowed when
+            // Cycle 38/40/41 — register Map/Vec/Set params as borrowed when
             // liveness says they don't escape. Same gate as String above.
             else if typeStr.contains("HashMap") { isBorrowable = true }
+            else if typeStr.startsWith("Vec<") { isBorrowable = true }
+            else if typeStr.startsWith("HashSet<") { isBorrowable = true }
             if isBorrowable {
                 // Liveness key uses raw func name and raw param name
                 let livenessKey = $"{rawFuncKey}:{rawName}"
@@ -2032,7 +2044,14 @@ RustEmitter {
 
         if hasConstructor {
             // Class has explicit constructor — use ctor params and body
+            // Cycle 38/39/40: liveness keys for ctor params live under
+            // "ClassName.constructor", so set _currentFunc accordingly while
+            // building the param list (otherwise paramEscapes lookups miss
+            // and `this.field = arg` patterns wrongly auto-borrow the arg).
+            let savedFuncCtor = $"{this._currentFunc}"
+            this._currentFunc = $"{className}.constructor"
             let paramStr = this._buildParamList(ctorParams)
+            this._currentFunc = savedFuncCtor
 
             this._writeln("pub fn new(" + paramStr + ") -> Self {")
             this._indent()
@@ -4740,14 +4759,13 @@ RustEmitter {
             if useCopyDeref {
                 this._write($"for &{varName} in ")
                 // Phase 9: with `&{var}` pattern we need an iterator over references.
-                // Emit `&{ident}` directly to avoid `_emitForIterable` choosing a
-                // by-value move path (which would yield owned Copy values and break
-                // the `&{var}` pattern).
+                // Cycle 40: use `.iter()` instead of `&{ident}` so the pattern
+                // works for both owned `Vec<T>` and borrowed `&Vec<T>` params.
                 let emitted = false
                 switch iterableExpr {
                     Expr.Identifier(iterName) => {
                         let san = this._sanitizeName(iterName)
-                        this._write($"&{san}")
+                        this._write($"{san}.iter()")
                         emitted = true
                     }
                 }
@@ -4818,11 +4836,19 @@ RustEmitter {
                         let declaredInLoop = this._liveCtx.declaredInLoop.has(liveKey)
                         if uc <= 1 && (not inLoop || declaredInLoop) { isSingleUse = true }
                     }
+                    // Cycle 40: borrowed collection params cannot be moved.
+                    if this._collRefParams.has(sanitized) {
+                        isSingleUse = false
+                    }
                     if isSingleUse {
                         this._write(sanitized)
                     } else {
-                        // Phase 8.6: borrow instead of clone — saves Vec allocation
-                        this._write($"&{sanitized}")
+                        // Phase 8.6: borrow instead of clone — saves Vec allocation.
+                        // Cycle 40: emit `.iter()` instead of `&{name}` so the
+                        // pattern works regardless of whether `name` is owned
+                        // (Vec<T>) or already a reference (&Vec<T> from a Cycle 40
+                        // borrowed param). Iteration semantics are identical.
+                        this._write($"{sanitized}.iter()")
                         this._forNeedsInnerClone = true
                     }
                 }
@@ -9351,6 +9377,13 @@ RustEmitter {
                             let declaredInLoop = this._liveCtx.declaredInLoop.has(liveKey)
                             if uc <= 1 && (not inLoop || declaredInLoop) { isSingleUse = true }
                         }
+                        // Cycle 40: params emitted as `&Vec/&HashMap/&HashSet`
+                        // (or `&mut`) cannot be moved — force a clone so the
+                        // call site dereferences the borrow into an owned value.
+                        let sanCheck = this._sanitizeName(name)
+                        if this._collRefParams.has(sanCheck) {
+                            isSingleUse = false
+                        }
                         if isSingleUse {
                             needsClone = false
                         } else {
@@ -10659,6 +10692,8 @@ _typeRefIsBorrowable(t: TypeRef): bool {
             if tn == "string" { result = true }
         },
         TypeRef.MapType(k, v) => { result = true },
+        TypeRef.Array(inner) => { result = true },
+        TypeRef.SetType(inner) => { result = true },
         _ => {}
     }
     return result
