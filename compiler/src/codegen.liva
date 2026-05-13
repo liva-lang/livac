@@ -1266,35 +1266,7 @@ RustEmitter {
         return parts.join(", ")
     }
 
-    _buildTypeParamStr(typeParams: [TypeParameter]): string {
-        if typeParams.length == 0 { return "" }
-        let parts: [string] = []
-        for tp in typeParams {
-            // Each type param needs Clone + Debug + PartialEq to work in Rust
-            let tpName = tp.name
-            if tp.constraints.length > 0 {
-                // Map Liva constraint names to Rust traits
-                let mappedBounds: [string] = []
-                for c in tp.constraints {
-                    if c == "Numeric" || c == "Number" {
-                        mappedBounds.push("std::ops::Add<Output = " + tpName + "> + std::ops::Sub<Output = " + tpName + "> + PartialOrd + Default + Copy")
-                    } else if c == "Comparable" {
-                        mappedBounds.push("PartialOrd")
-                    } else if c == "Printable" {
-                        mappedBounds.push("std::fmt::Display")
-                    } else {
-                        mappedBounds.push(c)
-                    }
-                }
-                let bounds = mappedBounds.join(" + ")
-                parts.push(tpName + ": Clone + std::fmt::Debug + PartialEq + " + bounds)
-            } else {
-                parts.push(tpName + ": Clone + std::fmt::Debug + PartialEq")
-            }
-        }
-        let joined = parts.join(", ")
-        return "<" + joined + ">"
-    }
+    _buildTypeParamStr(typeParams: [TypeParameter]): string { return buildTypeParamStr(typeParams) }
 
     _buildParam(p: Param): string {
         // Bootstrap workaround: switch consumes the value, so we extract the name
@@ -10818,6 +10790,34 @@ emitGenericType(em: RustEmitter, base: string, args: [TypeRef]): string {
         argParts.push(em._emitType(a))
     }
     return $"{base}<{argParts.join(", ")}>"
+}
+
+buildTypeParamStr(typeParams: [TypeParameter]): string {
+    if typeParams.length == 0 { return "" }
+    let parts: [string] = []
+    for tp in typeParams {
+        let tpName = tp.name
+        if tp.constraints.length > 0 {
+            let mappedBounds: [string] = []
+            for c in tp.constraints {
+                if c == "Numeric" || c == "Number" {
+                    mappedBounds.push("std::ops::Add<Output = " + tpName + "> + std::ops::Sub<Output = " + tpName + "> + PartialOrd + Default + Copy")
+                } else if c == "Comparable" {
+                    mappedBounds.push("PartialOrd")
+                } else if c == "Printable" {
+                    mappedBounds.push("std::fmt::Display")
+                } else {
+                    mappedBounds.push(c)
+                }
+            }
+            let bounds = mappedBounds.join(" + ")
+            parts.push(tpName + ": Clone + std::fmt::Debug + PartialEq + " + bounds)
+        } else {
+            parts.push(tpName + ": Clone + std::fmt::Debug + PartialEq")
+        }
+    }
+    let joined = parts.join(", ")
+    return "<" + joined + ">"
 }
 
 main() {
