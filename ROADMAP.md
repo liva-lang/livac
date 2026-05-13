@@ -49,6 +49,12 @@ The roadmap is organized into focused phases:
 
 ## 📍 Current Status (v2.0.0-dev — RELEASE READY)
 
+> **2026-05-13 — Auto-borrow inference para colecciones (Cycles 38-42)**
+> Extender el mecanismo de auto-`&str` (Phase 8.5) a `Map`/`Vec`/`Set`.
+> Desbloquea A1 (modularización de `codegen.liva`), elimina `.clone()`
+> defensivos en self-host y mejora Word Counting bench. Plan en
+> `BACKLOG.md` § Tier A — A0. Tag v2.0.0 final esperar a este bloque.
+
 > **2026-04-30 — Decisión estratégica: v2.1 Self-Hosted Migration**
 > A partir de hoy el bootstrap Rust queda **CONGELADO** post-`ba7f263`.
 > Todo trabajo nuevo se hace sobre el compilador escrito en Liva

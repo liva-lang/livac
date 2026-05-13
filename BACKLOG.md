@@ -771,6 +771,26 @@ cargo test --release 528+).
       `CSV_ESCAPE_FIELD`). Eliminada la duplicación de `DB.query` y de
       las dos rutas de parse de CSV. Commit `654127f`.
 
+- [ ] **A0.** **Auto-`&mut`/`&` inference para colecciones** (Map/Vec/Set).
+      Extiende el mecanismo existente de auto-`&str` (Phase 8.5) a tipos
+      no-`Copy` de colecciones. Pre-requisito para A1/A2 y unblocker de
+      Word Counting bench. Plan incremental:
+      - **Cycle 38** — `Map<K,V>` ReadOnly. Detectar params Map usados solo
+        en lectura (`.get`, `.has`, `.size`, iteración) y emitir `&HashMap`.
+        Call-sites añaden `&`. Bootstrap + self-host.
+      - **Cycle 39** — `Map<K,V>` Mutated. Detectar `.insert`/`.remove`/
+        `.clear` sobre params → emitir `&mut HashMap`. Call-sites: `&mut`
+        + propagar `let mut` al binding del caller. Detectar conflicto de
+        aliasing (mismo var como dos `&mut` simultáneos → error).
+      - **Cycle 40** — `[T]` (Vec): ReadOnly + Mutated. Mismas reglas.
+      - **Cycle 41** — `Set<T>` + aplicar al self-host (eliminar `.clone()`
+        defensivos en `compiler/src/*.liva`).
+      - **Cycle 42** — desbloquea **A1** (modularizar codegen.liva) sin
+        necesidad de `partial class`: free functions toman `e: RustEmitter`
+        (instance) y los Maps internos siguen accesibles vía `e._field`.
+      Acceptance: gauntlet 8/8 GREEN tras cada cycle, bench Word Counting
+      <1.0x, ai/* sigue limpio.
+
 - [ ] **A1.** ~~Modularizar `compiler/src/codegen.liva` en 7 archivos.~~
       **Diferido a v2.1.** Requiere soporte del lenguaje para *partial
       classes* o *extension methods*. Liva actualmente exige que toda
@@ -781,6 +801,8 @@ cargo test --release 528+).
       pasar como parámetro (E0382 documentado en `conversation
       summary § 2`). Plan v2.1: añadir `partial` keyword o pivotar a
       arquitectura free-function una vez Liva soporte mut-borrow de Map.
+      **Update 2026-05-13:** desbloqueado por A0 (Cycle 42). Se hará
+      después de Cycles 38-41.
 
 - [ ] **A2.** ~~Consolidar los 25+ `Map<string, …>` dispersos en
       `EmitContext`.~~ **Diferido a v2.1** por el mismo bloqueo que A1
