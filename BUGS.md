@@ -546,8 +546,14 @@ HTTP.
 - **Cause:** unknown bootstrap state-leak between codegen passes when a 2nd
   `switch <Expr>` free function is registered. The push_str optimization for
   `result += ch.toLowerCase()` regresses to literal `+=` emission.
-- **Workaround:** keep extractions to non-`Expr` switches (Cycle 43 minimal
-  shipped only `_isAllUnitEnum`). Documented in BACKLOG.
+- **Refinement (Cycle 47):** the trigger is *specifically* a 2nd
+  switch-**on-`Expr`** free function. Free functions that switch on other
+  enums (e.g. `binOpToRust` switches on `BinOp`) are unaffected. So far this
+  file has 1 switch-on-Expr free function (`inferArrowReturnType`) plus
+  multiple non-Expr-switch helpers (`isAllUnitEnum`, `escapeRustStr`,
+  `escapeRustChar`, `binOpToRust`) all coexisting fine.
+- **Workaround:** keep extractions to non-Expr switches until BS-FRAG-1 is
+  understood/fixed. Documented in BACKLOG.
 
 ### BS-FRAG-2 — Adding nested `switch Expr.Literal` corrupts lexer for `&` in templates
 - **Repro:** Inside `_emitVariableDecl` (around line 3515), adding any nested
