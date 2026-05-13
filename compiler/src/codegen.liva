@@ -1422,6 +1422,27 @@ RustEmitter {
                 return $"{sanitized}: &str"
             }
         }
+        // Cycle 38 — auto-`&HashMap<K,V>` for Map params that are only read.
+        // Same gate as &str: liveness must say borrow=1 and escape=0. The
+        // escape pass marks the param when any mutating method (push, insert,
+        // remove, clear, sort, ...) is called on it as a receiver. When safe,
+        // we emit `&HashMap<K,V>` so callers can pass `&map` with zero alloc.
+        if this._enableStrRef && (this._currentFuncIsMethod || not this._inMethod) && typeStr.contains("HashMap") && this._currentFunc != "main" {
+            let key = $"{this._currentFunc}:{rawName}"
+            let isBorrow = 0
+            if this._liveCtx.paramBorrow.has(key) {
+                isBorrow = this._liveCtx.paramBorrow.get(key)
+            }
+            let isEscape = 0
+            if this._liveCtx.paramEscapes.has(key) {
+                isEscape = this._liveCtx.paramEscapes.get(key)
+            }
+            if isBorrow == 1 && isEscape == 0 {
+                let bKey = $"{this._currentFuncBorrowKey}:{this._buildParamIdx}"
+                this._borrowedParamIndices.set(bKey, true)
+                return $"{sanitized}: &{typeStr}"
+            }
+        }
         return $"mut {sanitized}: {typeStr}"
     }
 
@@ -1435,7 +1456,12 @@ RustEmitter {
                 _ => "_"
             }
             let typeStr = this._buildParamType(p.typeRef)
-            if typeStr == "String" {
+            let isBorrowable = false
+            if typeStr == "String" { isBorrowable = true }
+            // Cycle 38 — register Map params (HashMap<K,V>) as borrowed when
+            // liveness says they don't escape. Same gate as String above.
+            else if typeStr.contains("HashMap") { isBorrowable = true }
+            if isBorrowable {
                 // Liveness key uses raw func name and raw param name
                 let livenessKey = $"{rawFuncKey}:{rawName}"
                 let isBorrow = 0
@@ -10535,9 +10561,8 @@ collectBorrowedParams(program: Program, liveCtx: LivenessContext): Map<string, b
                             BindingPattern.Identifier(n) => n,
                             _ => "_"
                         }
-                        let isStringType = paramTypeIsString(p.typeRef)
-                        if isStringType {
-                            let livenessKey = $"{rawFK}:{rawName}"
+                        let isBorrowable = paramTypeIsBorrowable(p.typeRef)
+                        if isBorrowable {                            let livenessKey = $"{rawFK}:{rawName}"
                             let isBorrow = 0
                             if liveCtx.paramBorrow.has(livenessKey) {
                                 isBorrow = liveCtx.paramBorrow.get(livenessKey)
@@ -10566,6 +10591,44 @@ paramTypeIsString(optRef: TypeRef?): bool {
         return _typeRefIsStringSimple(optRef)
     }
     return false
+}
+
+// Standalone helper: returns true iff `optRef` wraps a Map type.
+paramTypeIsMap(optRef: TypeRef?): bool {
+    if optRef != null {
+        return _typeRefIsMap(optRef)
+    }
+    return false
+}
+
+// Combined helper: returns true if `optRef` is a borrowable type (string or Map).
+// Used by `collectBorrowedParams` to avoid double-consuming the Option<TypeRef>.
+paramTypeIsBorrowable(optRef: TypeRef?): bool {
+    if optRef != null {
+        return _typeRefIsBorrowable(optRef)
+    }
+    return false
+}
+
+_typeRefIsBorrowable(t: TypeRef): bool {
+    let result = false
+    switch t {
+        TypeRef.Simple(tn) => {
+            if tn == "string" { result = true }
+        },
+        TypeRef.MapType(k, v) => { result = true },
+        _ => {}
+    }
+    return result
+}
+
+_typeRefIsMap(t: TypeRef): bool {
+    let result = false
+    switch t {
+        TypeRef.MapType(k, v) => { result = true },
+        _ => {}
+    }
+    return result
 }
 
 _typeRefIsStringSimple(t: TypeRef): bool {

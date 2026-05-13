@@ -488,12 +488,43 @@ LivenessAnalyzer {
 
     // Phase 8.6: detect push/set/insert on collections in ExprStmt
     // this._warnings.push(msg) → msg escapes into the collection
+    //
+    // Cycle 38 extension: when the receiver `mcObj` is itself a current
+    // param, mark IT as escape too — a mutating method on a Map/Vec/Set
+    // param means we cannot pass the param by `&T` borrow. The set of
+    // mutating methods mirrors the per-class `_classMutMethods` heuristic
+    // used in codegen for `&mut self` detection.
     _checkExprStmtEscape(expr: Expr) {
         switch expr {
             Expr.MethodCall(mcObj, mcMethod, mcArgs) => {
                 if mcMethod == "push" || mcMethod == "set" || mcMethod == "insert" {
                     for ma in mcArgs {
                         this._collectEscapingIdents(ma)
+                    }
+                }
+                // Cycle 38 — receiver-as-param escape detection for mut methods.
+                let isMutMethod = false
+                if mcMethod == "push" { isMutMethod = true }
+                else if mcMethod == "pop" { isMutMethod = true }
+                else if mcMethod == "insert" { isMutMethod = true }
+                else if mcMethod == "remove" { isMutMethod = true }
+                else if mcMethod == "delete" { isMutMethod = true }
+                else if mcMethod == "clear" { isMutMethod = true }
+                else if mcMethod == "set" { isMutMethod = true }
+                else if mcMethod == "add" { isMutMethod = true }
+                else if mcMethod == "sort" { isMutMethod = true }
+                else if mcMethod == "sortBy" { isMutMethod = true }
+                else if mcMethod == "reverse" { isMutMethod = true }
+                else if mcMethod == "extend" { isMutMethod = true }
+                else if mcMethod == "retain" { isMutMethod = true }
+                else if mcMethod == "truncate" { isMutMethod = true }
+                if isMutMethod {
+                    switch mcObj {
+                        Expr.Identifier(rcvName) => {
+                            if this._currentParams.has(rcvName) {
+                                this._markParamEscape(rcvName)
+                            }
+                        }
                     }
                 }
             }
@@ -503,15 +534,14 @@ LivenessAnalyzer {
     _checkAssignEscape(asgn: AssignStmt) {
         // Compound assignment (+=, -=, etc.) borrows the value — doesn't escape
         if asgn.op != null { return }
-        // Check if target is this.field — then value escapes into class field
+        // Check if target is a member access (this.field or other.field).
+        // Cycle 38: extended from this.field-only to ANY member access — a
+        // param assigned into ANY object's field is still escaping ownership
+        // and cannot be borrowed.
         let isMemberAssign = false
         switch asgn.target {
             Expr.MemberAccess(maObj, maProp) => {
-                switch maObj {
-                    Expr.Identifier(objName) => {
-                        if objName == "this" { isMemberAssign = true }
-                    }
-                }
+                isMemberAssign = true
             }
         }
         if isMemberAssign {
