@@ -1426,12 +1426,7 @@ RustEmitter {
         }
     }
 
-    _buildParamType(optRef: TypeRef?): string {
-        if optRef != null {
-            return this._emitType(optRef)
-        }
-        return "/* inferred */"
-    }
+    _buildParamType(optRef: TypeRef?): string { return buildParamType(this, optRef) }
 
     // B148: default initializer for a field that the constructor body does
     // not explicitly assign to. Mirrors bootstrap behavior.
@@ -1446,26 +1441,7 @@ RustEmitter {
     // body lives below the class declaration as a proof-of-concept that the
     // partial-class-via-free-functions pattern works (unblocks A1).
 
-    _buildReturnType(optRef: TypeRef?, isFallible: bool): string {
-        if optRef != null {
-            // ERR-UNIFY: if return type is already TypeRef.Fallible(T), it's
-            // already Result<T, liva_rt::Error> — don't double-wrap even if
-            // the body also contains `fail` (containsFail would be redundant).
-            let isAlreadyFallible = false
-            switch optRef {
-                TypeRef.Fallible(_) => { isAlreadyFallible = true }
-            }
-            let typeStr = this._emitType(optRef)
-            if isFallible && not isAlreadyFallible {
-                return $" -> Result<{typeStr}, liva_rt::Error>"
-            }
-            return $" -> {typeStr}"
-        }
-        if isFallible {
-            return " -> Result<(), liva_rt::Error>"
-        }
-        return ""
-    }
+    _buildReturnType(optRef: TypeRef?, isFallible: bool): string { return buildReturnType(this, optRef, isFallible) }
 
     // Infer Rust type from an expression (for one-liner functions without explicit return type)
     _inferExprType(expr: Expr): string {
@@ -1761,23 +1737,7 @@ RustEmitter {
 
     // B152: returns true if a field of the given (optional) TypeRef should be
     // formatted via `{:?}` instead of `{}` (Vec/Map/Set/Optional/Tuple/enum).
-    _fieldNeedsDebug(optRef: TypeRef?): bool {
-        if optRef != null {
-            let needs = false
-            switch optRef {
-                TypeRef.Array(_) => { needs = true },
-                TypeRef.MapType(_, _) => { needs = true },
-                TypeRef.SetType(_) => { needs = true },
-                TypeRef.OptionalType(_) => { needs = true },
-                TypeRef.Tuple(_) => { needs = true },
-                TypeRef.Simple(name) => {
-                    if this._globalEnums.has(name) { needs = true }
-                }
-            }
-            return needs
-        }
-        return false
-    }
+    _fieldNeedsDebug(optRef: TypeRef?): bool { return fieldNeedsDebug(this, optRef) }
 
     _emitClassImpl(className: string, decl: ClassDecl) {
         let typeParamStr = this._classTypeParamStr
@@ -10807,6 +10767,51 @@ isMapType(optRef: TypeRef?): bool {
             TypeRef.MapType(_, _) => { isMap = true }
         }
         return isMap
+    }
+    return false
+}
+
+// Cycle 53 — buildParamType extracted using e: RustEmitter pattern
+// (proven by inferArrowReturnType in Cycle 42).
+buildParamType(e: RustEmitter, optRef: TypeRef?): string {
+    if optRef != null {
+        return e._emitType(optRef)
+    }
+    return "/* inferred */"
+}
+
+buildReturnType(e: RustEmitter, optRef: TypeRef?, isFallible: bool): string {
+    if optRef != null {
+        let isAlreadyFallible = false
+        switch optRef {
+            TypeRef.Fallible(_) => { isAlreadyFallible = true }
+        }
+        let typeStr = e._emitType(optRef)
+        if isFallible && not isAlreadyFallible {
+            return $" -> Result<{typeStr}, liva_rt::Error>"
+        }
+        return $" -> {typeStr}"
+    }
+    if isFallible {
+        return " -> Result<(), liva_rt::Error>"
+    }
+    return ""
+}
+
+fieldNeedsDebug(e: RustEmitter, optRef: TypeRef?): bool {
+    if optRef != null {
+        let needs = false
+        switch optRef {
+            TypeRef.Array(_) => { needs = true },
+            TypeRef.MapType(_, _) => { needs = true },
+            TypeRef.SetType(_) => { needs = true },
+            TypeRef.OptionalType(_) => { needs = true },
+            TypeRef.Tuple(_) => { needs = true },
+            TypeRef.Simple(name) => {
+                if e._globalEnums.has(name) { needs = true }
+            }
+        }
+        return needs
     }
     return false
 }
