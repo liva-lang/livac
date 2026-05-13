@@ -5834,17 +5834,7 @@ RustEmitter {
         return result
     }
 
-    _getLiteralTypeName(lit: Literal): string {
-        let litTag = "unknown"
-        switch lit {
-            Literal.Str(_) => { litTag = "string" },
-            Literal.Int(_) => { litTag = "number" },
-            Literal.Float(_) => { litTag = "float" },
-            Literal.Bool(_) => { litTag = "bool" },
-            Literal.Char(_) => { litTag = "char" }
-        }
-        return litTag
-    }
+    _getLiteralTypeName(lit: Literal): string { return getLiteralTypeName(lit) }
 
     _getExprTypeName(expr: Expr): string {
         // Lightweight type inference for codegen dispatch
@@ -10793,6 +10783,18 @@ typeRefToTag(t: TypeRef): string {
 isCopyType(t: TypeRef): bool {
     let tag = typeRefToTag(t)
     return tag == "number" or tag == "float" or tag == "bool" or tag == "char"
+}
+
+getLiteralTypeName(lit: Literal): string {
+    let litTag = "unknown"
+    switch lit {
+        Literal.Str(_) => { litTag = "string" },
+        Literal.Int(_) => { litTag = "number" },
+        Literal.Float(_) => { litTag = "float" },
+        Literal.Bool(_) => { litTag = "bool" },
+        Literal.Char(_) => { litTag = "char" }
+    }
+    return litTag
 }
 
 buildTypeParamStr(typeParams: [TypeParameter]): string {
