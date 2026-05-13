@@ -384,23 +384,7 @@ RustEmitter {
     // Converts Liva identifiers to valid Rust identifiers.
     // camelCase → snake_case, keywords → r#keyword or renamed.
 
-    _sanitizeName(name: string): string {
-        // Rust keywords that need escaping
-        if name == "type" { return "r#type" }
-        if name == "match" { return "r#match" }
-        if name == "ref" { return "r#ref" }
-        if name == "mod" { return "r#mod" }
-        if name == "use" { return "r#use" }
-        if name == "impl" { return "r#impl" }
-        if name == "trait" { return "r#trait" }
-        if name == "where" { return "r#where" }
-        if name == "async" { return "r#async" }
-        if name == "await" { return "r#await" }
-        if name == "move" { return "r#move" }
-        if name == "self" { return "self_" }
-        if name == "default" { return "default_val" }
-        return this._toSnakeCase(name)
-    }
+    _sanitizeName(name: string): string { return sanitizeName(name) }
 
     // A.5: Stdlib tuple-returning calls — File/Dir/CSV/DB/Process methods
     // that codegen emits as `(Option<T>, String)` directly (NOT Result).
@@ -467,36 +451,7 @@ RustEmitter {
         return ""
     }
 
-    _toSnakeCase(name: string): string {
-        // If the name is ALL_CAPS (constant style e.g. VERSION, MAX_SIZE), keep as-is
-        let allCaps = true
-        for ch in name {
-            let isUpper = ch >= "A" && ch <= "Z"
-            let isUnderscore = ch == "_"
-            let isDigit = ch >= "0" && ch <= "9"
-            if not isUpper && not isUnderscore && not isDigit {
-                allCaps = false
-            }
-        }
-        if allCaps && name.length > 1 {
-            return name
-        }
-        // camelCase → snake_case: insert _ before uppercase, then lowercase
-        let result = ""
-        let i = 0
-        for ch in name {
-            if ch >= "A" && ch <= "Z" {
-                if i > 0 {
-                    result += "_"
-                }
-                result += ch.toLowerCase()
-            } else {
-                result += ch
-            }
-            i += 1
-        }
-        return result
-    }
+    _toSnakeCase(name: string): string { return toSnakeCaseStandalone(name) }
 
     // -- Type emission --
     // Converts Liva TypeRef to Rust type string.
