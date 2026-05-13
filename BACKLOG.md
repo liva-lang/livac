@@ -833,6 +833,17 @@ cargo test --release 528+).
       bootstrap. Cycle 43 commit: TBD; gauntlet 8/8 GREEN.
       **Próximo paso v2.1:** regenerar bootstrap desde gen-3 (que ya
       no tiene el bug), luego retomar A1 con extracciones masivas.
+      **Cycle 44 (2026-05-XX) — investigación adicional:** intento de
+      portar la parity logic `let x = "literal"` → `_stringVars` (que el
+      bootstrap tiene en `src/codegen.rs:6403` y la self-host omite)
+      destapó **dos bugs adicionales** del bootstrap (BS-FRAG-2, BS-FRAG-3
+      en `BUGS.md`): cualquier nested `switch Expr.Literal` corrompe el
+      lexer para `&` en template literals 1200 líneas después; y añadir
+      siquiera un `or method == "X"` a la branch MethodCall de
+      `_isStringExpr` corrompe el parser 2300 líneas antes. Conclusión:
+      **toda edición a `codegen.liva` está bloqueada hasta regenerar el
+      bootstrap**. Cycle 44 entrega: documentación de los 3 bugs de
+      fragility en `BUGS.md` § "Bootstrap fragility".
 
 - [ ] **A2.** ~~Consolidar los 25+ `Map<string, …>` dispersos en
       `EmitContext`.~~ **Diferido a v2.1** por el mismo bloqueo que A1

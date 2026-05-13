@@ -524,3 +524,55 @@ HTTP.
 
 `examples/dogfooding-v3/main.liva` ahora compila limpio con gen-2 + cargo.
 8/8 gauntlet GREEN.
+
+---
+
+## Bootstrap fragility — Cycle 44 investigation (2026-05-XX)
+
+> **Status:** OPEN — known fragility in the FROZEN bootstrap. Constrains what
+> can be added to `compiler/src/codegen.liva` until the bootstrap is rebuilt
+> from current self-host source (post-A1).
+
+### BS-FRAG-1 — Adding a 2nd switch-on-`Expr` free function corrupts `+=` push_str
+- **Repro (Cycle 43):** Extracting `_isAllUnitEnum` as a free function works.
+  Extracting a 2nd helper that uses `switch <Expr>` (e.g. `_isNullExpr`,
+  `_isCopyLiteral`) — even with body `return false` — causes `gen-2 cargo build`
+  to fail with 7×`E0308 String += String` in `_to_snake_case`,
+  `_sanitize_test_name`, `sanitize_field_name`, `to_snake_case_standalone`.
+- **Cause:** unknown bootstrap state-leak between codegen passes when a 2nd
+  `switch <Expr>` free function is registered. The push_str optimization for
+  `result += ch.toLowerCase()` regresses to literal `+=` emission.
+- **Workaround:** keep extractions to non-`Expr` switches (Cycle 43 minimal
+  shipped only `_isAllUnitEnum`). Documented in BACKLOG.
+
+### BS-FRAG-2 — Adding nested `switch Expr.Literal` corrupts lexer for `&` in templates
+- **Repro:** Inside `_emitVariableDecl` (around line 3515), adding any nested
+  `switch initLitProbe { Expr.Literal(lpx) => { switch lp { Literal.Str(_) => ... } } }`
+  causes the bootstrap to error with
+  `E1000 Invalid token '&' at <input>:4722:35` on the pre-existing
+  `this._write($"for &{varName} in ")` template literal — a line that builds
+  fine in baseline.
+- **Cause:** unknown lexer state leak — the nested switch globally corrupts
+  `&` tokenization in subsequent template strings. Independent of let-binding
+  extraction or arm padding.
+
+### BS-FRAG-3 — Extending `_isStringExpr` MethodCall arm corrupts parser 2000 lines earlier
+- **Repro:** In `_isStringExpr` (line ~5857), adding even a single
+  `or method == "toLowerCase"` to the existing arm — or breaking the arm
+  into multiple `if` statements — causes the bootstrap to error with
+  `E2000 Parse Error at <input>:3517:20` (`expected identifier` at `} else {`).
+  Line 3517 is `this._write(" = ")` inside `_emitVariableDecl`, completely
+  unrelated to `_isStringExpr`.
+- **Cause:** unknown parser state leak. Token-count or buffer-offset sensitive.
+- **Impact:** Cycle 44 (extending push_str detection to more string-returning
+  methods like `toLowerCase`, `trim`, `replace`) is **blocked** by this.
+
+### Implications
+1. The B112 (defer mutability) and B155 (mut inference through `expect()`)
+   bug-fixes that would normally live in `compiler/src/codegen.liva` are
+   currently un-applyable through direct edits.
+2. **Path forward:** Rebuild the bootstrap from current self-host source
+   (`make bootstrap-from-selfhost` style) so the new bootstrap is built by a
+   compiler that doesn't have these latent bugs. Then resume A1 modularization.
+3. Until then, codegen.liva edits must be empirically validated via
+   `compiler/tests/rebuild_selfhost.sh` for every change, no matter how small.
