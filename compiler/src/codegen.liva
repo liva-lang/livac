@@ -5884,27 +5884,8 @@ RustEmitter {
         return result
     }
 
-    _binOpToRust(op: BinOp): string {
-        let result = switch op {
-            BinOp.Add => "+",
-            BinOp.Sub => "-",
-            BinOp.Mul => "*",
-            BinOp.Div => "/",
-            BinOp.Mod => "%",
-            BinOp.Lt => "<",
-            BinOp.Le => "<=",
-            BinOp.Gt => ">",
-            BinOp.Ge => ">=",
-            BinOp.Eq => "==",
-            BinOp.Ne => "!=",
-            BinOp.And => "&&",
-            BinOp.Or => "||",
-            BinOp.Range => "..",
-            BinOp.RangeInclusive => "..=",
-            _ => "/* op */"
-        }
-        return result
-    }
+    // Cycle 46 — thin wrapper around free function `binOpToRust(op)`.
+    _binOpToRust(op: BinOp): string { return binOpToRust(op) }
 
     // -- Unary operations --
 
@@ -10826,6 +10807,29 @@ escapeRustChar(s: string): string {
     result = result.replace("\t", "\\t")
     result = result.replace("\r", "\\r")
     result = result.replace("\0", "\\0")
+    return result
+}
+
+// Cycle 46 (A1 step 3) — pure BinOp → Rust operator string mapper.
+binOpToRust(op: BinOp): string {
+    let result = "/* op */"
+    switch op {
+        BinOp.Add => { result = "+" },
+        BinOp.Sub => { result = "-" },
+        BinOp.Mul => { result = "*" },
+        BinOp.Div => { result = "/" },
+        BinOp.Mod => { result = "%" },
+        BinOp.Lt => { result = "<" },
+        BinOp.Le => { result = "<=" },
+        BinOp.Gt => { result = ">" },
+        BinOp.Ge => { result = ">=" },
+        BinOp.Eq => { result = "==" },
+        BinOp.Ne => { result = "!=" },
+        BinOp.And => { result = "&&" },
+        BinOp.Or => { result = "||" },
+        BinOp.Range => { result = ".." },
+        BinOp.RangeInclusive => { result = "..=" }
+    }
     return result
 }
 
