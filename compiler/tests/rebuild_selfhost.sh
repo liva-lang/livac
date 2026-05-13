@@ -20,7 +20,17 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-BOOTSTRAP="$REPO_ROOT/target/release/livac"
+# Cycle 44: allow overriding the bootstrap binary to work around fragility
+# bugs in the FROZEN rust bootstrap (BS-FRAG-1/2/3 in BUGS.md). When
+# LIVAC_BOOTSTRAP is set (or target/livac-bootstrap exists), use that
+# instead of target/release/livac.
+if [[ -n "${LIVAC_BOOTSTRAP:-}" ]]; then
+    BOOTSTRAP="$LIVAC_BOOTSTRAP"
+elif [[ -x "$REPO_ROOT/target/livac-bootstrap" ]]; then
+    BOOTSTRAP="$REPO_ROOT/target/livac-bootstrap"
+else
+    BOOTSTRAP="$REPO_ROOT/target/release/livac"
+fi
 SELF_SRC="$REPO_ROOT/compiler/src/main.liva"
 
 GEN1_DIR="$HOME/tmp/gen1_build"

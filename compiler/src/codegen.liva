@@ -5872,7 +5872,24 @@ RustEmitter {
                 }
             },
             Expr.MethodCall(_, method, _) => {
+                // Cycle 44: recognise string-returning methods so that
+                // `result += ch.toLowerCase()` etc. emit `.push_str()`
+                // instead of `String += String` (which is invalid Rust).
                 if method == "toString" { result = true }
+                if method == "toLowerCase" { result = true }
+                if method == "toUpperCase" { result = true }
+                if method == "trim" { result = true }
+                if method == "trimStart" { result = true }
+                if method == "trimEnd" { result = true }
+                if method == "replace" { result = true }
+                if method == "replaceAll" { result = true }
+                if method == "substring" { result = true }
+                if method == "padStart" { result = true }
+                if method == "padEnd" { result = true }
+                if method == "capitalize" { result = true }
+                if method == "removePrefix" { result = true }
+                if method == "removeSuffix" { result = true }
+                if method == "repeat" { result = true }
             },
             Expr.Identifier(name) => {
                 let tag = this._getExprTypeName(expr)

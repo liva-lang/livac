@@ -527,11 +527,15 @@ HTTP.
 
 ---
 
-## Bootstrap fragility — Cycle 44 investigation (2026-05-XX)
+## Bootstrap fragility — Cycle 44 investigation (2026-05-13)
 
-> **Status:** OPEN — known fragility in the FROZEN bootstrap. Constrains what
-> can be added to `compiler/src/codegen.liva` until the bootstrap is rebuilt
-> from current self-host source (post-A1).
+> **Status:** ✅ UNBLOCKED — workaround in place. The 3 fragility bugs below
+> still exist in the FROZEN rust bootstrap (`livac/src/*.rs`), but
+> `rebuild_selfhost.sh` now honours `LIVAC_BOOTSTRAP` /
+> `target/livac-bootstrap` as override. Any working self-hosted binary (e.g.
+> a previous gen-3) can act as the new "bootstrap", which sidesteps every
+> latent bug below. Cycle 44 (extended `_isStringExpr.MethodCall` arm)
+> shipped through this path — full 7/7 gauntlet GREEN.
 
 ### BS-FRAG-1 — Adding a 2nd switch-on-`Expr` free function corrupts `+=` push_str
 - **Repro (Cycle 43):** Extracting `_isAllUnitEnum` as a free function works.
@@ -570,9 +574,13 @@ HTTP.
 ### Implications
 1. The B112 (defer mutability) and B155 (mut inference through `expect()`)
    bug-fixes that would normally live in `compiler/src/codegen.liva` are
-   currently un-applyable through direct edits.
-2. **Path forward:** Rebuild the bootstrap from current self-host source
-   (`make bootstrap-from-selfhost` style) so the new bootstrap is built by a
-   compiler that doesn't have these latent bugs. Then resume A1 modularization.
-3. Until then, codegen.liva edits must be empirically validated via
-   `compiler/tests/rebuild_selfhost.sh` for every change, no matter how small.
+   now applyable: edit the `.liva` source, then build with
+   `LIVAC_BOOTSTRAP=target/livac-bootstrap bash compiler/tests/rebuild_selfhost.sh`
+   where `target/livac-bootstrap` is a previously-good gen-3 binary.
+2. **Long-term path (v2.1):** Replace the FROZEN rust bootstrap with a
+   self-hosted binary at release time so the chain is `livac-bootstrap → gen-1
+   → gen-2 → gen-3` with the bootstrap itself being a Liva-generated binary.
+3. Cycle 44 itself shipped through this path: extended `_isStringExpr` to
+   recognise 14 string-returning methods (`toLowerCase`, `trim`, `replace`,
+   etc.) so `result += method.call()` emits `.push_str()` instead of
+   invalid `String += String`. Full 7/7 gauntlet GREEN.
