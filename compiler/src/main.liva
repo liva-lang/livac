@@ -561,7 +561,7 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
     let emptyTypeCtx = TypeContext(
         [], Map {}, Map {}, Map {}, Map {}, [], [], Map {}, Map {}, Map {}, Map {}, [], Map {}
     )
-    let emptyLiveCtx = LivenessContext(Map {}, Map {}, Map {}, Map {}, Map {})
+    let emptyLiveCtx = LivenessContext(Map {}, Map {}, Map {}, Map {}, Map {}, Map {})
     let emitter = RustEmitter(emptyTypeCtx, emptyLiveCtx)
     let cargoToml = emitter.generateCargoToml(
         projectName, usesAsync, usesRegex, usesHttp, usesDb, usesJson, usesChrono, usesRandom, usesCrypto, usesRayon, usesHttpClient

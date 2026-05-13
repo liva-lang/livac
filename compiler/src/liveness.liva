@@ -59,6 +59,11 @@ LivenessContext {
     // Codegen uses this to know that each iteration is a fresh binding,
     // enabling move/no-clone in patterns like the entry-API peephole.
     declaredInLoop: Map<string, number>
+    // Cycle 39: params mutated locally (via mutating method calls or
+    // member-set on the param) but NOT escaping (return / this.field /
+    // other.field). Codegen uses this to emit `&mut T` for Map/Vec/Set
+    // params instead of moving them in.
+    paramMutated: Map<string, number>
 }
 
 // =====================================================================
@@ -70,6 +75,7 @@ LivenessAnalyzer {
     _loopUseCounts: Map<string, number>
     _paramBorrow: Map<string, number>
     _paramEscapes: Map<string, number>
+    _paramMutated: Map<string, number>
     _declaredInLoop: Map<string, number>
     _currentFunc: string
     _inLoop: bool
@@ -80,6 +86,7 @@ LivenessAnalyzer {
         this._loopUseCounts = Map {}
         this._paramBorrow = Map {}
         this._paramEscapes = Map {}
+        this._paramMutated = Map {}
         this._declaredInLoop = Map {}
         this._currentFunc = ""
         this._inLoop = false
@@ -97,7 +104,8 @@ LivenessAnalyzer {
             this._loopUseCounts,
             this._paramBorrow,
             this._paramEscapes,
-            this._declaredInLoop
+            this._declaredInLoop,
+            this._paramMutated
         )
     }
 
@@ -480,6 +488,13 @@ LivenessAnalyzer {
         this._paramEscapes.set(key, 1)
     }
 
+    // Cycle 39: mark a param as locally mutated (NOT escape). Codegen uses
+    // this to emit `&mut T` for Map/Vec/Set params instead of moving them in.
+    _markParamMutated(varName: string) {
+        let key = $"{this._currentFunc}:{varName}"
+        this._paramMutated.set(key, 1)
+    }
+
     _checkReturnEscape(retExpr: Expr?) {
         if retExpr != null {
             this._collectEscapingIdents(retExpr)
@@ -522,7 +537,7 @@ LivenessAnalyzer {
                     switch mcObj {
                         Expr.Identifier(rcvName) => {
                             if this._currentParams.has(rcvName) {
-                                this._markParamEscape(rcvName)
+                                this._markParamMutated(rcvName)
                             }
                         }
                     }
