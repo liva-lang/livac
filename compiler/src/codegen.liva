@@ -5294,28 +5294,13 @@ RustEmitter {
     }
 
     // -- Escape helpers for Rust output --
+    // Cycle 45 — thin wrappers; real work happens in `escapeRustStr` /
+    // `escapeRustChar` free functions at the bottom of the file. Pure
+    // string transformations — no RustEmitter state, no switch on Expr,
+    // so unaffected by BS-FRAG-1 (which only triggers on Expr switches).
+    _escapeRustStr(s: string): string { return escapeRustStr(s) }
 
-    _escapeRustStr(s: string): string {
-        let result = s
-        result = result.replace("\\", "\\\\")
-        result = result.replace("\"", "\\\"")
-        result = result.replace("\n", "\\n")
-        result = result.replace("\t", "\\t")
-        result = result.replace("\r", "\\r")
-        result = result.replace("\0", "\\0")
-        return result
-    }
-
-    _escapeRustChar(s: string): string {
-        let result = s
-        result = result.replace("\\", "\\\\")
-        result = result.replace("'", "\\'")
-        result = result.replace("\n", "\\n")
-        result = result.replace("\t", "\\t")
-        result = result.replace("\r", "\\r")
-        result = result.replace("\0", "\\0")
-        return result
-    }
+    _escapeRustChar(s: string): string { return escapeRustChar(s) }
 
     // -- Literals --
 
@@ -10817,6 +10802,31 @@ isAllUnitEnum(decl: EnumDecl): bool {
         if v.fields.length > 0 { return false }
     }
     return true
+}
+
+// Cycle 45 (A1 step 2) — pure string-escape helpers extracted to free
+// functions. No Expr switch, no RustEmitter state — not subject to
+// BS-FRAG-1.
+escapeRustStr(s: string): string {
+    let result = s
+    result = result.replace("\\", "\\\\")
+    result = result.replace("\"", "\\\"")
+    result = result.replace("\n", "\\n")
+    result = result.replace("\t", "\\t")
+    result = result.replace("\r", "\\r")
+    result = result.replace("\0", "\\0")
+    return result
+}
+
+escapeRustChar(s: string): string {
+    let result = s
+    result = result.replace("\\", "\\\\")
+    result = result.replace("'", "\\'")
+    result = result.replace("\n", "\\n")
+    result = result.replace("\t", "\\t")
+    result = result.replace("\r", "\\r")
+    result = result.replace("\0", "\\0")
+    return result
 }
 
 main() {
