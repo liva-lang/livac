@@ -54,6 +54,14 @@ The roadmap is organized into focused phases:
 > Desbloquea A1 (modularización de `codegen.liva`), elimina `.clone()`
 > defensivos en self-host y mejora Word Counting bench. Plan en
 > `BACKLOG.md` § Tier A — A0. Tag v2.0.0 final esperar a este bloque.
+>
+> **Estado 2026-05-13 (post-Cycles 38-41):** 4/5 cycles completados —
+> commits `6e2ee0d` (Cycle 38 `&HashMap`), `09f8844` (Cycle 39
+> `&mut HashMap`), `ad1ed52` (Cycles 40+41 `&Vec`/`&HashSet` con
+> for-loop refactor a `.iter()`). 48 `&Vec<...>` borrows ya emitidos
+> en `codegen.rs` self-host. Idempotencia gen-2 ≡ gen-3 mantenida.
+> Gauntlet 7/7 + ai/* 9/9 GREEN. Cycle 42 (modularización codegen.liva
+> en N archivos) pendiente.
 
 > **2026-04-30 — Decisión estratégica: v2.1 Self-Hosted Migration**
 > A partir de hoy el bootstrap Rust queda **CONGELADO** post-`ba7f263`.

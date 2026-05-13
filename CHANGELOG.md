@@ -11,6 +11,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — post-rc1 work
 
+### Added
+- **Auto-`&`/`&mut` borrow inference for collection params** (Cycles 38–41,
+  commits `6e2ee0d`/`09f8844`/`ad1ed52`). Phase 8.5's auto-`&str`
+  mechanism is now extended to `Map<K,V>` (HashMap), `[T]` (Vec) and
+  `Set<T>` (HashSet) params of free functions and methods.
+  - **Cycle 38 — `&HashMap<K,V>` (read-only).** Map params used only via
+    `.get`/`.has`/`.keys`/`.values`/iteration emit `&HashMap<K,V>` in the
+    signature; call sites prepend `&`. Cross-module borrows propagate
+    through the existing `globalBorrow` registry seeded by
+    `collectBorrowedParams`.
+  - **Cycle 39 — `&mut HashMap<K,V>` (mutated).** New flag
+    `paramMutated: Map<string, number>` in `LivenessContext`. When a Map
+    param is mutated locally (via `.set`/`.insert`/`.delete`/`.clear`/
+    `.add`/`.sort`/...) but does not escape (return / `this.field` /
+    other-`obj.field`), the signature emits `&mut HashMap<K,V>` and call
+    sites emit `&mut arg`. New parallel registry
+    `_borrowedParamMutIndices`, helper `_emitMutBorrowedArg`, and public
+    method `primeBorrowedParamMut` for cross-module priming.
+  - **Cycle 40 — `&Vec<T>` / `&mut Vec<T>`.** Same machinery applied to
+    array params. For-loop emission refactored from `for x in &vec` to
+    `for x in vec.iter()` so the pattern works regardless of whether the
+    iterable is owned `Vec<T>` or borrowed `&Vec<T>`. New tracker
+    `_collRefParams` forces `.clone()` whenever a borrowed container
+    name is used in arg position (overrides the "single-use → move"
+    heuristic — you can't move out of `&T`).
+  - **Cycle 41 — `&HashSet<T>` / `&mut HashSet<T>`.** Generalisation of
+    the borrowable-container check in `_buildParam`,
+    `_preRegisterBorrowedParams` and `paramTypeIsBorrowable`.
+  - **Side fix:** `_emitConstructor` now sets
+    `_currentFunc = "{ClassName}.constructor"` before
+    `_buildParamList` so liveness escape lookups hit the right key
+    (previously a stale `_currentFunc` caused ctor params later moved
+    into `this.field` to be wrongly auto-borrowed).
+  - **Validation:** 7/7 gates GREEN (`rebuild_selfhost` idempotent,
+    `selfhost_apps`, `multifile_apps`, `cli_subcmds`, `regression`,
+    `complex_apps`, `e2e_selfhost`, `cargo test --release`).
+    `ai/*` gauntlet 9/9 GREEN. Generated `codegen.rs` self-host now
+    emits 48 `&Vec<...>` borrows (vs 0 pre-Cycle 40).
+
 ### Fixed
 - **Implicit `Ok(())` for all fallible unit fns** (Cycle 36, fixes E0317).
   Previously the self-host emitted a trailing `Ok(())` only for `main`;

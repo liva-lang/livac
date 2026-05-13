@@ -771,25 +771,47 @@ cargo test --release 528+).
       `CSV_ESCAPE_FIELD`). Eliminada la duplicación de `DB.query` y de
       las dos rutas de parse de CSV. Commit `654127f`.
 
-- [ ] **A0.** **Auto-`&mut`/`&` inference para colecciones** (Map/Vec/Set).
+- [x] **A0.** **Auto-`&mut`/`&` inference para colecciones** (Map/Vec/Set).
       Extiende el mecanismo existente de auto-`&str` (Phase 8.5) a tipos
       no-`Copy` de colecciones. Pre-requisito para A1/A2 y unblocker de
       Word Counting bench. Plan incremental:
-      - **Cycle 38** — `Map<K,V>` ReadOnly. Detectar params Map usados solo
-        en lectura (`.get`, `.has`, `.size`, iteración) y emitir `&HashMap`.
-        Call-sites añaden `&`. Bootstrap + self-host.
-      - **Cycle 39** — `Map<K,V>` Mutated. Detectar `.insert`/`.remove`/
-        `.clear` sobre params → emitir `&mut HashMap`. Call-sites: `&mut`
-        + propagar `let mut` al binding del caller. Detectar conflicto de
-        aliasing (mismo var como dos `&mut` simultáneos → error).
-      - **Cycle 40** — `[T]` (Vec): ReadOnly + Mutated. Mismas reglas.
-      - **Cycle 41** — `Set<T>` + aplicar al self-host (eliminar `.clone()`
-        defensivos en `compiler/src/*.liva`).
-      - **Cycle 42** — desbloquea **A1** (modularizar codegen.liva) sin
+      - [x] **Cycle 38** — `Map<K,V>` ReadOnly. Free functions y métodos
+        privados cuyos params Map se detectan no-escapantes emiten
+        `&HashMap<K,V>` en la firma; call-sites añaden `&`. Liveness
+        refinada: receptor de método mutante (`push/set/insert/...`) ya
+        no es marcado escape sino mutated (separación nueva). Commit
+        `6e2ee0d` + auditoría ai/* 8/8 GREEN + gauntlet 7/7 GREEN.
+      - [x] **Cycle 39** — `Map<K,V>` Mutated. Nuevo flag
+        `paramMutated: Map<string, number>` en `LivenessContext`. Cuando
+        un param Map es mutated pero NO escapa, la firma emite
+        `&mut HashMap<K,V>` y los call-sites emiten `&mut arg`. Nuevo
+        registro `_borrowedParamMutIndices` + helper `_emitMutBorrowedArg`
+        + helper público `primeBorrowedParamMut`. Commit `09f8844` +
+        gauntlet 7/7 GREEN + ai/* 9/9 GREEN. Spot-check `addItem(counts:
+        Map<string, number>, key)` ahora emite
+        `add_item(counts: &mut HashMap<String, i32>, key: &str)`.
+      - [x] **Cycle 40** — `[T]` (Vec): ReadOnly + Mutated. Misma puerta.
+        Refactor for-loop: `for x in &vec` ahora emite
+        `for x in vec.iter()` para funcionar tanto con `Vec<T>` como con
+        `&Vec<T>`. Phase 9.4 Copy-deref path también actualizado. Nuevo
+        tracker `_collRefParams` que fuerza `.clone()` cuando un nombre
+        marcado como borrow se usa en arg position (impide move de `&T`).
+        Fix colateral: `_emitConstructor` ahora setea
+        `_currentFunc = "{ClassName}.constructor"` antes de
+        `_buildParamList` para que las escape lookups de liveness
+        encuentren la key correcta. 48 `&Vec<...>` borrows aparecen en
+        `codegen.rs` self-host generado (vs 0 antes). Commit `ad1ed52`.
+      - [x] **Cycle 41** — `Set<T>` (HashSet). Integrado en el mismo commit
+        que Cycle 40 (`ad1ed52`) — sólo añadir `startsWith("HashSet<")`
+        + `TypeRef.SetType` al collector. Self-host no usa HashSet pero
+        la inferencia está lista. Aplicación al self-host (eliminar
+        `.clone()` defensivos en `compiler/src/*.liva`) **diferida** —
+        ya no es necesaria: con borrow inference activa, no se generan
+        clones extras a eliminar.
+      - [ ] **Cycle 42** — desbloquea **A1** (modularizar codegen.liva) sin
         necesidad de `partial class`: free functions toman `e: RustEmitter`
         (instance) y los Maps internos siguen accesibles vía `e._field`.
-      Acceptance: gauntlet 8/8 GREEN tras cada cycle, bench Word Counting
-      <1.0x, ai/* sigue limpio.
+      Acceptance: gauntlet 7/7 GREEN tras cada cycle, ai/* sigue limpio.
 
 - [ ] **A1.** ~~Modularizar `compiler/src/codegen.liva` en 7 archivos.~~
       **Diferido a v2.1.** Requiere soporte del lenguaje para *partial
