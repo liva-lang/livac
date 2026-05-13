@@ -1224,7 +1224,7 @@ RustEmitter {
             if retStr == "" {
                 let febProbe = decl.exprBody
                 if febProbe != null {
-                    let inferredFn = this._inferArrowReturnType(febProbe)
+                    let inferredFn = inferArrowReturnType(this, febProbe)
                     if inferredFn != "" {
                         retStr = inferredFn
                     } else {
@@ -1562,59 +1562,11 @@ RustEmitter {
         return false
     }
 
-    // Phase 12+: infer the Rust return-type suffix for an arrow-body function
-    // / method when no explicit type was given. Mirrors the inline logic
-    // previously baked into `_emitFunction`; centralising it here keeps
-    // `_emitMethod` aligned (was emitting `fn _name(&self) {` for arrow
-    // methods, which downstream cargo build rejected for non-`()` returns).
-    // Returns `""` when nothing useful can be inferred — callers default to
-    // `" -> i32"` in that case for backwards-compat with the prior behaviour.
-    _inferArrowReturnType(expr: Expr): string {
-        let inferred = ""
-        switch expr {
-            Expr.Literal(lit) => {
-                switch lit {
-                    Literal.Int(_) => { inferred = " -> i32" },
-                    Literal.Float(_) => { inferred = " -> f64" },
-                    Literal.Bool(_) => { inferred = " -> bool" },
-                    Literal.Str(_) => { inferred = " -> String" }
-                }
-            },
-            Expr.Binary(op, _, _) => {
-                switch op {
-                    BinOp.Lt => { inferred = " -> bool" },
-                    BinOp.Le => { inferred = " -> bool" },
-                    BinOp.Gt => { inferred = " -> bool" },
-                    BinOp.Ge => { inferred = " -> bool" },
-                    BinOp.Eq => { inferred = " -> bool" },
-                    BinOp.Ne => { inferred = " -> bool" },
-                    BinOp.And => { inferred = " -> bool" },
-                    BinOp.Or => { inferred = " -> bool" },
-                    _ => { inferred = " -> i32" }
-                }
-            },
-            Expr.StringTemplate(_) => { inferred = " -> String" },
-            Expr.Unary(_, _) => { inferred = " -> i32" },
-            // `this.field` lookup using per-class field map populated by
-            // `_emitClassImpl`. Only fires inside an `impl` block.
-            Expr.MemberAccess(obj, prop) => {
-                let isThis = false
-                switch obj {
-                    Expr.Identifier(name) => {
-                        if name == "this" {
-                            isThis = true
-                        }
-                    }
-                }
-                if isThis {
-                    if this._currentClassFieldRetSuffix.has(prop) {
-                        inferred = this._currentClassFieldRetSuffix.get(prop)
-                    }
-                }
-            }
-        }
-        return inferred
-    }
+    // Cycle 42 — _inferArrowReturnType extracted to free function
+    // `inferArrowReturnType(e: RustEmitter, expr)` (see bottom of file). This
+    // method is the thin wrapper kept for backwards-compat / readability; the
+    // body lives below the class declaration as a proof-of-concept that the
+    // partial-class-via-free-functions pattern works (unblocks A1).
 
     _buildReturnType(optRef: TypeRef?, isFallible: bool): string {
         if optRef != null {
@@ -2882,7 +2834,7 @@ RustEmitter {
         let ebProbe = decl.exprBody
         if ebProbe != null {
             if retStr == "" {
-                let inferredM = this._inferArrowReturnType(ebProbe)
+                let inferredM = inferArrowReturnType(this, ebProbe)
                 if inferredM != "" {
                     retStr = inferredM
                 }
@@ -10783,6 +10735,59 @@ sanitizeName(name: string): string {
     if name == "self" { return "self_" }
     if name == "default" { return "default_val" }
     return toSnakeCaseStandalone(name)
+}
+
+// Cycle 42 PoC — free function operating on a RustEmitter instance via
+// `e: RustEmitter` and accessing private fields via `e._field`. Mirrors the
+// pattern that A1 (modularize codegen.liva into multiple files) will use to
+// move methods out of the class without needing partial-class support.
+// Pattern validated: Liva already permits `e._privateField` access from
+// outside the class (see `generateRust` which writes `emitter._enumVariantFields`).
+inferArrowReturnType(e: RustEmitter, expr: Expr): string {
+    let inferred = ""
+    switch expr {
+        Expr.Literal(lit) => {
+            switch lit {
+                Literal.Int(_) => { inferred = " -> i32" },
+                Literal.Float(_) => { inferred = " -> f64" },
+                Literal.Bool(_) => { inferred = " -> bool" },
+                Literal.Str(_) => { inferred = " -> String" }
+            }
+        },
+        Expr.Binary(op, _, _) => {
+            switch op {
+                BinOp.Lt => { inferred = " -> bool" },
+                BinOp.Le => { inferred = " -> bool" },
+                BinOp.Gt => { inferred = " -> bool" },
+                BinOp.Ge => { inferred = " -> bool" },
+                BinOp.Eq => { inferred = " -> bool" },
+                BinOp.Ne => { inferred = " -> bool" },
+                BinOp.And => { inferred = " -> bool" },
+                BinOp.Or => { inferred = " -> bool" },
+                _ => { inferred = " -> i32" }
+            }
+        },
+        Expr.StringTemplate(_) => { inferred = " -> String" },
+        Expr.Unary(_, _) => { inferred = " -> i32" },
+        // `this.field` lookup using per-class field map populated by
+        // `_emitClassImpl`. Only fires inside an `impl` block.
+        Expr.MemberAccess(obj, prop) => {
+            let isThis = false
+            switch obj {
+                Expr.Identifier(name) => {
+                    if name == "this" {
+                        isThis = true
+                    }
+                }
+            }
+            if isThis {
+                if e._currentClassFieldRetSuffix.has(prop) {
+                    inferred = e._currentClassFieldRetSuffix.get(prop)
+                }
+            }
+        }
+    }
+    return inferred
 }
 
 main() {

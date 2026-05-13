@@ -808,10 +808,16 @@ cargo test --release 528+).
         `.clone()` defensivos en `compiler/src/*.liva`) **diferida** —
         ya no es necesaria: con borrow inference activa, no se generan
         clones extras a eliminar.
-      - [ ] **Cycle 42** — desbloquea **A1** (modularizar codegen.liva) sin
+      - [x] **Cycle 42** — desbloquea **A1** (modularizar codegen.liva) sin
         necesidad de `partial class`: free functions toman `e: RustEmitter`
         (instance) y los Maps internos siguen accesibles vía `e._field`.
-      Acceptance: gauntlet 7/7 GREEN tras cada cycle, ai/* sigue limpio.
+        PoC: `_inferArrowReturnType` extraída a free function
+        `inferArrowReturnType(e: RustEmitter, expr)` accediendo a
+        `e._currentClassFieldRetSuffix.has(prop)` / `.get(prop)`. Self-host
+        rebuild idempotent (gen-2 ≡ gen-3, src + bin), gauntlet 8/8 GREEN,
+        ai/* 9/9 GREEN. Pattern validado: A1 (multi-file split) ahora puede
+        proceder en v2.1 con esta arquitectura.
+      Acceptance: gauntlet 7/7 GREEN tras cada cycle, ai/* sigue limpio. ✅
 
 - [ ] **A1.** ~~Modularizar `compiler/src/codegen.liva` en 7 archivos.~~
       **Diferido a v2.1.** Requiere soporte del lenguaje para *partial

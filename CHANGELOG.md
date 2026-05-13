@@ -39,6 +39,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Cycle 41 — `&HashSet<T>` / `&mut HashSet<T>`.** Generalisation of
     the borrowable-container check in `_buildParam`,
     `_preRegisterBorrowedParams` and `paramTypeIsBorrowable`.
+  - **Cycle 42 — modularization unblock PoC.** Demonstrates that
+    A1 (split `codegen.liva` into multiple files) can proceed without
+    needing `partial class` support: free functions can take
+    `e: RustEmitter` and read/write `e._field` from outside the class.
+    `_inferArrowReturnType` extracted to free function
+    `inferArrowReturnType(e: RustEmitter, expr)` accessing
+    `e._currentClassFieldRetSuffix.has(prop)` / `.get(prop)`. The class
+    method is kept as a thin pointer / docs anchor. Self-host idempotent
+    (gen-2 ≡ gen-3, source + binary), 8/8 gates GREEN, `ai/*` 9/9 GREEN.
   - **Side fix:** `_emitConstructor` now sets
     `_currentFunc = "{ClassName}.constructor"` before
     `_buildParamList` so liveness escape lookups hit the right key
