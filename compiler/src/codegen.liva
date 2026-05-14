@@ -349,13 +349,7 @@ RustEmitter {
         this._currentLine = ""
     }
 
-    _writeIndent() {
-        let i = 0
-        while i < this._indentLevel {
-            this._currentLine += "    "
-            i += 1
-        }
-    }
+    _writeIndent() { writeIndent(this) }
 
     _indent() { indent(this) }
 
@@ -10804,6 +10798,14 @@ indent(e: RustEmitter) {
 dedent(e: RustEmitter) {
     if e._indentLevel > 0 {
         e._indentLevel -= 1
+    }
+}
+
+writeIndent(e: RustEmitter) {
+    let i = 0
+    while i < e._indentLevel {
+        e._currentLine += "    "
+        i += 1
     }
 }
 
