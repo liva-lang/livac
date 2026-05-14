@@ -2906,9 +2906,7 @@ RustEmitter {
         this._stmtIsLastInBlock = prev
     }
 
-    _blockStmts(block: BlockStmt): [Stmt] {
-        return block.stmts
-    }
+    _blockStmts(block: BlockStmt): [Stmt] { return blockStmts(block) }
 
     _emitStmt(stmt: Stmt) {
         switch stmt {
@@ -10807,6 +10805,10 @@ writeIndent(e: RustEmitter) {
         e._currentLine += "    "
         i += 1
     }
+}
+
+blockStmts(block: BlockStmt): [Stmt] {
+    return block.stmts
 }
 
 buildTypeParamStr(typeParams: [TypeParameter]): string {
