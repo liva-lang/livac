@@ -1,0 +1,528 @@
+// ============================================================================
+// codegen_mutself.liva — RustEmitter extension: mut-self analysis pre-pass
+// ============================================================================
+// Extracted from codegen.liva via `extend RustEmitter { ... }`.
+//
+// Pure AST walkers that detect:
+//   - whether a method body mutates `self`            → _methodModifiesSelf
+//   - whether an expression mutates `self`            → _exprModifiesSelf
+//   - whether a method transitively calls another     → _methodCallsAnyMutMethod
+//     method in the per-class mut-method set
+//
+// Together they let _emitMethod pick `&mut self` vs `&self` correctly.
+//
+// Fields it touches on RustEmitter: _classMutMethodSets, _curClassName.
+
+import { Expr, Stmt, BlockStmt, MethodDecl, SwitchArm, StringTemplatePart, CaseClause } from "./ast"
+import { isMutatingMethodName } from "./codegen_methods"
+import { RustEmitter } from "./codegen"
+
+extend RustEmitter {
+
+    _isMutatingMethodName(m: string): bool { return isMutatingMethodName(m) }
+
+    _isThisOrSelfIdent(e: Expr): bool {
+        let result = false
+        switch e {
+            Expr.Identifier(n) => {
+                if n == "this" { result = true }
+                if n == "self" { result = true }
+            }
+        }
+        return result
+    }
+
+    _targetInvolvesSelf(target: Expr): bool {
+        let result = false
+        switch target {
+            Expr.MemberAccess(obj, _) => {
+                if this._isThisOrSelfIdent(obj) { result = true }
+                else if this._targetInvolvesSelf(obj) { result = true }
+            },
+            Expr.Index(obj, _) => {
+                if this._isThisOrSelfIdent(obj) { result = true }
+                else if this._targetInvolvesSelf(obj) { result = true }
+            }
+        }
+        return result
+    }
+
+    _exprModifiesSelf(expr: Expr): bool {
+        let result = false
+        switch expr {
+            Expr.MethodCall(obj, m, args) => {
+                // Direct mutation only:
+                //  - this.<knownMutMethod>()  e.g. self.push(...) on self being a collection field — rare
+                //  - this.field.<knownMutMethod>()  e.g. self._grades.push(...)
+                // Calls to user-defined methods on this/this.field are handled
+                // separately via the per-class transitive set (see _emitClass).
+                if this._isMutatingMethodName(m) {
+                    if this._isThisOrSelfIdent(obj) { result = true }
+                    else if this._targetInvolvesSelf(obj) { result = true }
+                }
+                if not result {
+                    if this._exprModifiesSelf(obj) { result = true }
+                }
+                if not result {
+                    for a in args {
+                        if this._exprModifiesSelf(a) { result = true }
+                    }
+                }
+            },
+            Expr.Call(callee, args, _, _) => {
+                if this._exprModifiesSelf(callee) { result = true }
+                if not result {
+                    for a in args {
+                        if this._exprModifiesSelf(a) { result = true }
+                    }
+                }
+            },
+            Expr.Binary(_, l, r) => {
+                if this._exprModifiesSelf(l) { result = true }
+                else if this._exprModifiesSelf(r) { result = true }
+            },
+            Expr.Unary(_, op) => {
+                if this._exprModifiesSelf(op) { result = true }
+            },
+            Expr.Ternary(c, t, e2) => {
+                if this._exprModifiesSelf(c) { result = true }
+                else if this._exprModifiesSelf(t) { result = true }
+                else if this._exprModifiesSelf(e2) { result = true }
+            },
+            Expr.SwitchExpr(disc, arms) => {
+                if this._exprModifiesSelf(disc) { result = true }
+                if not result {
+                    if this._anyArmModifiesSelf(arms) { result = true }
+                }
+            },
+            Expr.MemberAccess(obj, _) => {
+                if this._exprModifiesSelf(obj) { result = true }
+            },
+            Expr.Index(obj, idx) => {
+                if this._exprModifiesSelf(obj) { result = true }
+                else if this._exprModifiesSelf(idx) { result = true }
+            },
+            Expr.OptionalChain(obj, _) => {
+                if this._exprModifiesSelf(obj) { result = true }
+            },
+            Expr.Unwrap(e) => {
+                if this._exprModifiesSelf(e) { result = true }
+            },
+            Expr.Try(e) => {
+                if this._exprModifiesSelf(e) { result = true }
+            },
+            Expr.Fail(e) => {
+                if this._exprModifiesSelf(e) { result = true }
+            },
+            Expr.StringTemplate(parts) => {
+                if this._anyTemplatePartModifiesSelf(parts) { result = true }
+            },
+            Expr.ArrayLiteral(elems) => {
+                if this._anyExprModifiesSelf(elems) { result = true }
+            },
+            Expr.TupleLiteral(elems) => {
+                if this._anyExprModifiesSelf(elems) { result = true }
+            },
+            Expr.SetLiteral(elems) => {
+                if this._anyExprModifiesSelf(elems) { result = true }
+            }
+        }
+        return result
+    }
+
+    _anyExprModifiesSelf(exprs: [Expr]): bool {
+        for e in exprs {
+            if this._exprModifiesSelf(e) { return true }
+        }
+        return false
+    }
+
+    _anyArmModifiesSelf(arms: [SwitchArm]): bool {
+        for arm in arms {
+            let g = arm.guard
+            if g != null {
+                if this._exprModifiesSelf(g) { return true }
+            }
+            switch arm.body {
+                SwitchArmBody.Expr(e) => {
+                    if this._exprModifiesSelf(e) { return true }
+                },
+                SwitchArmBody.Block(stmts) => {
+                    if this._stmtsModifySelf(stmts) { return true }
+                }
+            }
+        }
+        return false
+    }
+
+    _anyTemplatePartModifiesSelf(parts: [StringTemplatePart]): bool {
+        for p in parts {
+            switch p {
+                StringTemplatePart.ExprPart(e) => {
+                    if this._exprModifiesSelf(e) { return true }
+                }
+            }
+        }
+        return false
+    }
+
+    _stmtModifiesSelf(stmt: Stmt): bool {
+        let result = false
+        switch stmt {
+            Stmt.Assign(a) => {
+                if this._targetInvolvesSelf(a.target) { result = true }
+                else if this._exprModifiesSelf(a.value) { result = true }
+            },
+            Stmt.ExprStmt(e) => {
+                if this._exprModifiesSelf(e) { result = true }
+            },
+            Stmt.VarDecl(d) => {
+                if this._exprModifiesSelf(d.init) { result = true }
+            },
+            Stmt.Return(re) => {
+                let rOpt = re
+                if rOpt != null {
+                    if this._exprModifiesSelf(rOpt) { result = true }
+                }
+            },
+            Stmt.If(s) => {
+                if this._exprModifiesSelf(s.condition) { result = true }
+                if not result {
+                    switch s.thenBranch {
+                        IfBody.Block(b) => {
+                            if this._blockModifiesSelf(b) { result = true }
+                        },
+                        IfBody.SingleStmt(stmts) => {
+                            for ss in stmts {
+                                if this._stmtModifiesSelf(ss) { result = true }
+                            }
+                        }
+                    }
+                }
+                if not result {
+                    let eb = s.elseBranch
+                    if eb != null {
+                        switch eb {
+                            IfBody.Block(b) => {
+                                if this._blockModifiesSelf(b) { result = true }
+                            },
+                            IfBody.SingleStmt(stmts) => {
+                                for ss in stmts {
+                                    if this._stmtModifiesSelf(ss) { result = true }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            Stmt.While(s) => {
+                if this._exprModifiesSelf(s.condition) { result = true }
+                else if this._blockModifiesSelf(s.body) { result = true }
+            },
+            Stmt.For(s) => {
+                if this._exprModifiesSelf(s.iterable) { result = true }
+                else if this._blockModifiesSelf(s.body) { result = true }
+            },
+            Stmt.Switch(s) => {
+                if this._exprModifiesSelf(s.discriminant) { result = true }
+                if not result {
+                    if this._anyCaseModifiesSelf(s.cases) { result = true }
+                }
+                if not result {
+                    let dbOpt = s.defaultBody
+                    if dbOpt != null {
+                        if this._stmtsModifySelf(dbOpt) { result = true }
+                    }
+                }
+            },
+            Stmt.TryCatch(s) => {
+                if this._blockModifiesSelf(s.tryBlock) { result = true }
+                else if this._blockModifiesSelf(s.catchBlock) { result = true }
+            },
+            Stmt.Defer(body) => {
+                if this._stmtModifiesSelf(body) { result = true }
+            },
+            Stmt.Block(b) => {
+                if this._blockModifiesSelf(b) { result = true }
+            }
+        }
+        return result
+    }
+
+    _blockModifiesSelf(block: BlockStmt): bool {
+        for s in block.stmts {
+            if this._stmtModifiesSelf(s) { return true }
+        }
+        return false
+    }
+
+    _stmtsModifySelf(stmts: [Stmt]): bool {
+        for s in stmts {
+            if this._stmtModifiesSelf(s) { return true }
+        }
+        return false
+    }
+
+    _anyCaseModifiesSelf(cases: [CaseClause]): bool {
+        for cc in cases {
+            if this._stmtsModifySelf(cc.body) { return true }
+        }
+        return false
+    }
+
+    _methodModifiesSelf(decl: MethodDecl): bool {
+        // Setters: setX where X starts uppercase
+        let nm = decl.name
+        if nm.startsWith("set") && nm.length > 3 {
+            let c = nm.substring(3, 4)
+            if c >= "A" && c <= "Z" { return true }
+        }
+        // Per-class transitive set wins (built once in _emitClass).
+        if this._classMutMethods.has(nm) {
+            return true
+        }
+        let bodyOpt = decl.body
+        if bodyOpt != null {
+            return this._blockModifiesSelf(bodyOpt)
+        }
+        let ebOpt = decl.exprBody
+        if ebOpt != null {
+            return this._exprModifiesSelf(ebOpt)
+        }
+        return false
+    }
+
+    // -- Per-class mut-self fixpoint --
+    //
+    // A method calls `this.<m>()` (directly on `this`/`self`) where m is in
+    // the class-level mut set. Since callee needs &mut self, caller must too.
+    // Walks Stmt and Expr trees to find such calls. Consults
+    // `this._classMutMethods` directly (no param threading) since bootstrap
+    // self-host moves Map values across calls and would invalidate them.
+
+    _exprCallsThisInSet(expr: Expr): bool {
+        let result = false
+        switch expr {
+            Expr.MethodCall(obj, m, args) => {
+                if this._isThisOrSelfIdent(obj) {
+                    if this._classMutMethods.has(m) { result = true }
+                }
+                if not result {
+                    if this._exprCallsThisInSet(obj) { result = true }
+                }
+                if not result {
+                    for a in args {
+                        if this._exprCallsThisInSet(a) { result = true }
+                    }
+                }
+            },
+            Expr.Call(callee, args, _, _) => {
+                if this._exprCallsThisInSet(callee) { result = true }
+                if not result {
+                    for a in args {
+                        if this._exprCallsThisInSet(a) { result = true }
+                    }
+                }
+            },
+            Expr.Binary(_, l, r) => {
+                if this._exprCallsThisInSet(l) { result = true }
+                else if this._exprCallsThisInSet(r) { result = true }
+            },
+            Expr.Unary(_, op) => {
+                if this._exprCallsThisInSet(op) { result = true }
+            },
+            Expr.Ternary(c, t, e2) => {
+                if this._exprCallsThisInSet(c) { result = true }
+                else if this._exprCallsThisInSet(t) { result = true }
+                else if this._exprCallsThisInSet(e2) { result = true }
+            },
+            Expr.SwitchExpr(disc, arms) => {
+                if this._exprCallsThisInSet(disc) { result = true }
+                if not result {
+                    if this._anyArmCallsThisInSet(arms) { result = true }
+                }
+            },
+            Expr.MemberAccess(obj, _) => {
+                if this._exprCallsThisInSet(obj) { result = true }
+            },
+            Expr.Index(obj, idx) => {
+                if this._exprCallsThisInSet(obj) { result = true }
+                else if this._exprCallsThisInSet(idx) { result = true }
+            },
+            Expr.OptionalChain(obj, _) => {
+                if this._exprCallsThisInSet(obj) { result = true }
+            },
+            Expr.Unwrap(e) => {
+                if this._exprCallsThisInSet(e) { result = true }
+            },
+            Expr.Try(e) => {
+                if this._exprCallsThisInSet(e) { result = true }
+            },
+            Expr.Fail(e) => {
+                if this._exprCallsThisInSet(e) { result = true }
+            },
+            Expr.StringTemplate(parts) => {
+                if this._anyTemplatePartCallsThisInSet(parts) { result = true }
+            },
+            Expr.ArrayLiteral(elems) => {
+                if this._anyExprCallsThisInSet(elems) { result = true }
+            },
+            Expr.TupleLiteral(elems) => {
+                if this._anyExprCallsThisInSet(elems) { result = true }
+            },
+            Expr.SetLiteral(elems) => {
+                if this._anyExprCallsThisInSet(elems) { result = true }
+            }
+        }
+        return result
+    }
+
+    _anyExprCallsThisInSet(exprs: [Expr]): bool {
+        for e in exprs {
+            if this._exprCallsThisInSet(e) { return true }
+        }
+        return false
+    }
+
+    _anyArmCallsThisInSet(arms: [SwitchArm]): bool {
+        for arm in arms {
+            let g = arm.guard
+            if g != null {
+                if this._exprCallsThisInSet(g) { return true }
+            }
+            switch arm.body {
+                SwitchArmBody.Expr(e) => {
+                    if this._exprCallsThisInSet(e) { return true }
+                },
+                SwitchArmBody.Block(stmts) => {
+                    if this._stmtsCallThisInSet(stmts) { return true }
+                }
+            }
+        }
+        return false
+    }
+
+    _anyTemplatePartCallsThisInSet(parts: [StringTemplatePart]): bool {
+        for p in parts {
+            switch p {
+                StringTemplatePart.ExprPart(e) => {
+                    if this._exprCallsThisInSet(e) { return true }
+                }
+            }
+        }
+        return false
+    }
+
+    _stmtCallsThisInSet(stmt: Stmt): bool {
+        let result = false
+        switch stmt {
+            Stmt.Assign(a) => {
+                if this._exprCallsThisInSet(a.target) { result = true }
+                else if this._exprCallsThisInSet(a.value) { result = true }
+            },
+            Stmt.ExprStmt(e) => {
+                if this._exprCallsThisInSet(e) { result = true }
+            },
+            Stmt.VarDecl(d) => {
+                if this._exprCallsThisInSet(d.init) { result = true }
+            },
+            Stmt.Return(re) => {
+                let rOpt = re
+                if rOpt != null {
+                    if this._exprCallsThisInSet(rOpt) { result = true }
+                }
+            },
+            Stmt.If(s) => {
+                if this._exprCallsThisInSet(s.condition) { result = true }
+                if not result {
+                    switch s.thenBranch {
+                        IfBody.Block(b) => {
+                            if this._blockCallsThisInSet(b) { result = true }
+                        },
+                        IfBody.SingleStmt(stmts) => {
+                            if this._stmtsCallThisInSet(stmts) { result = true }
+                        }
+                    }
+                }
+                if not result {
+                    let eb = s.elseBranch
+                    if eb != null {
+                        switch eb {
+                            IfBody.Block(b) => {
+                                if this._blockCallsThisInSet(b) { result = true }
+                            },
+                            IfBody.SingleStmt(stmts) => {
+                                if this._stmtsCallThisInSet(stmts) { result = true }
+                            }
+                        }
+                    }
+                }
+            },
+            Stmt.While(s) => {
+                if this._exprCallsThisInSet(s.condition) { result = true }
+                else if this._blockCallsThisInSet(s.body) { result = true }
+            },
+            Stmt.For(s) => {
+                if this._exprCallsThisInSet(s.iterable) { result = true }
+                else if this._blockCallsThisInSet(s.body) { result = true }
+            },
+            Stmt.Switch(s) => {
+                if this._exprCallsThisInSet(s.discriminant) { result = true }
+                if not result {
+                    if this._anyCaseCallsThisInSet(s.cases) { result = true }
+                }
+                if not result {
+                    let dbOpt = s.defaultBody
+                    if dbOpt != null {
+                        if this._stmtsCallThisInSet(dbOpt) { result = true }
+                    }
+                }
+            },
+            Stmt.TryCatch(s) => {
+                if this._blockCallsThisInSet(s.tryBlock) { result = true }
+                else if this._blockCallsThisInSet(s.catchBlock) { result = true }
+            },
+            Stmt.Defer(body) => {
+                if this._stmtCallsThisInSet(body) { result = true }
+            },
+            Stmt.Block(b) => {
+                if this._blockCallsThisInSet(b) { result = true }
+            }
+        }
+        return result
+    }
+
+    _stmtsCallThisInSet(stmts: [Stmt]): bool {
+        for s in stmts {
+            if this._stmtCallsThisInSet(s) { return true }
+        }
+        return false
+    }
+
+    _blockCallsThisInSet(block: BlockStmt): bool {
+        return this._stmtsCallThisInSet(block.stmts)
+    }
+
+    _anyCaseCallsThisInSet(cases: [CaseClause]): bool {
+        for cc in cases {
+            if this._stmtsCallThisInSet(cc.body) { return true }
+        }
+        return false
+    }
+
+    _methodCallsAnyMutMethod(decl: MethodDecl): bool {
+        let bodyOpt = decl.body
+        if bodyOpt != null {
+            return this._blockCallsThisInSet(bodyOpt)
+        }
+        let ebOpt = decl.exprBody
+        if ebOpt != null {
+            return this._exprCallsThisInSet(ebOpt)
+        }
+        return false
+    }
+}
+
+// Sentinel symbol so main.liva can import this module and bring its
+// `extend RustEmitter { ... }` block into the compile graph.
+codegenMutselfExtensionLoaded(): bool { return true }
