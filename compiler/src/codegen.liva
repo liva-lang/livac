@@ -40,6 +40,10 @@ import {
 import {
     LivenessContext, isCopyTypeName
 } from "./liveness"
+import {
+    isMutatingMethodName, isKnownStringMethod, isKnownArrayMethod,
+    isKnownMapMethod, isKnownSetMethod, isKnownDateMethod
+} from "./codegen_methods"
 
 // =====================================================================
 //  Stdlib runtime snippets (Phase 11 § A3)
@@ -10560,33 +10564,6 @@ binOpToRust(op: BinOp): string {
     return result
 }
 
-// Cycle 49 (A1 step 5) — pure method-name predicates extracted to free
-// functions. No switches at all. BS-FRAG-1 safe.
-isMutatingMethodName(m: string): bool {
-    return m == "push" || m == "pop" || m == "remove" || m == "clear" || m == "insert" || m == "sort" || m == "reverse" || m == "extend" || m == "retain" || m == "truncate" || m == "set" || m == "add" || m == "delete" || m == "set_str" || m == "push_str"
-}
-
-isKnownStringMethod(m: string): bool {
-    return m == "contains" || m == "replace" || m == "replaceAll" || m == "split" || m == "trim" || m == "trimStart" || m == "trimEnd" || m == "startsWith" || m == "endsWith" || m == "toUpperCase" || m == "toLowerCase" || m == "substring" || m == "indexOf" || m == "lastIndexOf" || m == "slice" || m == "padStart" || m == "padEnd" || m == "repeat" || m == "charAt" || m == "chars" || m == "bytes" || m == "capitalize" || m == "isBlank" || m == "isEmpty" || m == "removePrefix" || m == "removeSuffix" || m == "countMatches" || m == "truncate" || m == "reverse" || m == "toInt" || m == "toFloat" || m == "toString"
-}
-
-isKnownArrayMethod(m: string): bool {
-    return m == "push" || m == "pop" || m == "map" || m == "filter" || m == "forEach" || m == "join" || m == "includes" || m == "indexOf" || m == "find" || m == "findIndex" || m == "some" || m == "every" || m == "reduce" || m == "slice" || m == "concat" || m == "sort" || m == "sortBy" || m == "groupBy" || m == "reverse" || m == "reversed" || m == "flat" || m == "flatMap" || m == "flatten" || m == "first" || m == "last" || m == "count" || m == "min" || m == "max" || m == "isEmpty" || m == "contains" || m == "distinct" || m == "sum" || m == "take" || m == "drop" || m == "zip" || m == "chunks" || m == "insert" || m == "remove"
-}
-
-isKnownMapMethod(m: string): bool {
-    return m == "get" || m == "set" || m == "has" || m == "delete" || m == "keys" || m == "values" || m == "entries" || m == "clear" || m == "forEach" || m == "isEmpty"
-}
-
-isKnownSetMethod(m: string): bool {
-    return m == "add" || m == "has" || m == "delete" || m == "clear" || m == "values" || m == "forEach" || m == "union" || m == "intersection" || m == "difference" || m == "isEmpty" || m == "size" || m == "count"
-}
-
-isKnownDateMethod(m: string): bool {
-    return m == "format" || m == "add" || m == "diff"
-}
-
-// Cycle 50 (A1 step 6) — more pure helpers extracted to free functions.
 emitSimpleType(name: string): string {
     if name == "string" { return "String" }
     if name == "number" { return "i32" }
