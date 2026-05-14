@@ -33,7 +33,8 @@ import { Lexer, tokenize } from "./lexer"
 import { Parser, parse } from "./parser"
 import { SemanticAnalyzer, TypeContext, DiagnosticLevel, analyzeProgram } from "./semantic"
 import { LivenessAnalyzer, LivenessContext, analyzeLiveness } from "./liveness"
-import { RustEmitter, generateRust, generateModuleRust, sanitizeFieldName, collectBorrowedParams } from "./codegen"
+import { RustEmitter, generateRust, generateModuleRust, collectBorrowedParams } from "./codegen"
+import { sanitizeFieldName } from "./codegen_utils"
 import { ModuleResolver, LivaModule } from "./module"
 
 // =====================================================================

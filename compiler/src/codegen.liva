@@ -44,6 +44,11 @@ import {
     isMutatingMethodName, isKnownStringMethod, isKnownArrayMethod,
     isKnownMapMethod, isKnownSetMethod, isKnownDateMethod
 } from "./codegen_methods"
+import {
+    sanitizeFieldName, toSnakeCaseStandalone, sanitizeName,
+    escapeRustStr, escapeRustChar, emitSimpleType,
+    sanitizeTestName, extractModuleName
+} from "./codegen_utils"
 
 // =====================================================================
 //  Stdlib runtime snippets (Phase 11 § A3)
@@ -10377,73 +10382,6 @@ _typeRefIsStringSimple(t: TypeRef): bool {
     return result
 }
 
-// Reusable name sanitization: camelCase → snake_case + keyword escaping
-sanitizeFieldName(name: string): string {
-    // camelCase → snake_case: insert _ before uppercase, then lowercase
-    let result = ""
-    let i = 0
-    for ch in name {
-        if ch >= "A" && ch <= "Z" {
-            if i > 0 {
-                result += "_"
-            }
-            result += ch.toLowerCase()
-        } else {
-            result += ch
-        }
-        i += 1
-    }
-    return result
-}
-
-// Standalone version of `_toSnakeCase` (used by `collectBorrowedParams`).
-toSnakeCaseStandalone(name: string): string {
-    let allCaps = true
-    for ch in name {
-        let isUpper = ch >= "A" && ch <= "Z"
-        let isUnderscore = ch == "_"
-        let isDigit = ch >= "0" && ch <= "9"
-        if not isUpper && not isUnderscore && not isDigit {
-            allCaps = false
-        }
-    }
-    if allCaps && name.length > 1 {
-        return name
-    }
-    let result = ""
-    let i = 0
-    for ch in name {
-        if ch >= "A" && ch <= "Z" {
-            if i > 0 {
-                result += "_"
-            }
-            result += ch.toLowerCase()
-        } else {
-            result += ch
-        }
-        i += 1
-    }
-    return result
-}
-
-// Standalone version of `_sanitizeName` (used by `collectBorrowedParams`).
-sanitizeName(name: string): string {
-    if name == "type" { return "r#type" }
-    if name == "match" { return "r#match" }
-    if name == "ref" { return "r#ref" }
-    if name == "mod" { return "r#mod" }
-    if name == "use" { return "r#use" }
-    if name == "impl" { return "r#impl" }
-    if name == "trait" { return "r#trait" }
-    if name == "where" { return "r#where" }
-    if name == "async" { return "r#async" }
-    if name == "await" { return "r#await" }
-    if name == "move" { return "r#move" }
-    if name == "self" { return "self_" }
-    if name == "default" { return "default_val" }
-    return toSnakeCaseStandalone(name)
-}
-
 // Cycle 42 PoC — free function operating on a RustEmitter instance via
 // `e: RustEmitter` and accessing private fields via `e._field`. Mirrors the
 // pattern that A1 (modularize codegen.liva into multiple files) will use to
@@ -10516,31 +10454,6 @@ isAllUnitEnum(decl: EnumDecl): bool {
     return true
 }
 
-// Cycle 45 (A1 step 2) — pure string-escape helpers extracted to free
-// functions. No Expr switch, no RustEmitter state — not subject to
-// BS-FRAG-1.
-escapeRustStr(s: string): string {
-    let result = s
-    result = result.replace("\\", "\\\\")
-    result = result.replace("\"", "\\\"")
-    result = result.replace("\n", "\\n")
-    result = result.replace("\t", "\\t")
-    result = result.replace("\r", "\\r")
-    result = result.replace("\0", "\\0")
-    return result
-}
-
-escapeRustChar(s: string): string {
-    let result = s
-    result = result.replace("\\", "\\\\")
-    result = result.replace("'", "\\'")
-    result = result.replace("\n", "\\n")
-    result = result.replace("\t", "\\t")
-    result = result.replace("\r", "\\r")
-    result = result.replace("\0", "\\0")
-    return result
-}
-
 // Cycle 46 (A1 step 3) — pure BinOp → Rust operator string mapper.
 binOpToRust(op: BinOp): string {
     let result = "/* op */"
@@ -10562,56 +10475,6 @@ binOpToRust(op: BinOp): string {
         BinOp.RangeInclusive => { result = "..=" }
     }
     return result
-}
-
-emitSimpleType(name: string): string {
-    if name == "string" { return "String" }
-    if name == "number" { return "i32" }
-    if name == "int" { return "i32" }
-    if name == "float" { return "f64" }
-    if name == "bool" { return "bool" }
-    if name == "char" { return "char" }
-    if name == "void" { return "()" }
-    if name == "never" { return "!" }
-    if name == "any" { return "serde_json::Value" }
-    // User-defined type (class, enum) — keep PascalCase
-    return name
-}
-
-sanitizeTestName(name: string): string {
-    let result = ""
-    for ch in name {
-        let isLetter = ch >= "a" and ch <= "z"
-        let isUpperLetter = ch >= "A" and ch <= "Z"
-        let isDigit = ch >= "0" and ch <= "9"
-        if isLetter or isUpperLetter or isDigit {
-            result += ch.toLowerCase()
-        } else if ch == " " or ch == "-" or ch == "/" {
-            result += "_"
-        }
-        // skip other characters
-    }
-    return result
-}
-
-extractModuleName(source: string): string {
-    // "./token.liva" → "token", "../utils.liva" → "utils"
-    let name = $"{source}"
-    let lastSlash = -1
-    let idx = 0
-    for ch in name {
-        if ch == "/" {
-            lastSlash = idx
-        }
-        idx += 1
-    }
-    if lastSlash >= 0 {
-        name = name.slice(lastSlash + 1, name.length)
-    }
-    if name.endsWith(".liva") {
-        name = name.slice(0, name.length - 5)
-    }
-    return name
 }
 
 // Cycle 51 (A1 step 7) — pure TypeRef helpers extracted to free functions.
