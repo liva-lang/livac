@@ -1,0 +1,12 @@
+// EXPECT: 54
+//        27
+
+import { Cube } from "./cube"
+import { geomLoaded } from "./cube_geom"
+
+main() {
+    let _ = geomLoaded()
+    let c = Cube(3)
+    print(c.area().toString())
+    print(c.volume().toString())
+}

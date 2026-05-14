@@ -1,0 +1,13 @@
+import { Cube } from "./cube"
+
+extend Cube {
+    area(): int {
+        return 6 * this.side * this.side
+    }
+
+    volume(): int {
+        return this.side * this.side * this.side
+    }
+}
+
+geomLoaded(): bool { return true }

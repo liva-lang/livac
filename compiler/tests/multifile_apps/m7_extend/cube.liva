@@ -1,0 +1,7 @@
+Cube {
+    side: int
+
+    constructor(s: int) {
+        this.side = s
+    }
+}
