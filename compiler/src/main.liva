@@ -504,14 +504,22 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
     // fails with E0432 "could not find module". Walk compileOrder and inject
     // any missing declarations into main.rs.
     let mainRs2 = moduleFiles.get("main.rs")
-    let modDeclsToAdd = ""
+    let missingMods: [string] = []
     for modPath in compileOrder {
         if modPath == entryPath { continue }
         let modName = resolver.pathToModName(modPath)
         let needle = "mod " + modName + ";"
         if !mainRs2.contains(needle) {
-            modDeclsToAdd = modDeclsToAdd + needle + "\n"
+            missingMods.push(modName)
         }
+    }
+    // Sort alphabetically for deterministic output. The topological sort
+    // is keyed on a HashMap whose iteration order is randomised, which
+    // would otherwise cause non-idempotent self-host rebuilds.
+    missingMods.sort()
+    let modDeclsToAdd = ""
+    for modName in missingMods {
+        modDeclsToAdd = modDeclsToAdd + "mod " + modName + ";\n"
     }
     if modDeclsToAdd.length > 0 {
         // Insert right after the first newline (preserves the #![allow] header

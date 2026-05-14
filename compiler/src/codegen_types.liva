@@ -139,3 +139,57 @@ buildTypeParamStr(typeParams: [TypeParameter]): string {
     let joined = parts.join(", ")
     return "<" + joined + ">"
 }
+
+paramTypeIsString(optRef: TypeRef?): bool {
+    if optRef != null {
+        return _typeRefIsStringSimple(optRef)
+    }
+    return false
+}
+
+paramTypeIsMap(optRef: TypeRef?): bool {
+    if optRef != null {
+        return _typeRefIsMap(optRef)
+    }
+    return false
+}
+
+paramTypeIsBorrowable(optRef: TypeRef?): bool {
+    if optRef != null {
+        return _typeRefIsBorrowable(optRef)
+    }
+    return false
+}
+
+_typeRefIsBorrowable(t: TypeRef): bool {
+    let result = false
+    switch t {
+        TypeRef.Simple(tn) => {
+            if tn == "string" { result = true }
+        },
+        TypeRef.MapType(k, v) => { result = true },
+        TypeRef.Array(inner) => { result = true },
+        TypeRef.SetType(inner) => { result = true },
+        _ => {}
+    }
+    return result
+}
+
+_typeRefIsMap(t: TypeRef): bool {
+    let result = false
+    switch t {
+        TypeRef.MapType(k, v) => { result = true },
+        _ => {}
+    }
+    return result
+}
+
+_typeRefIsStringSimple(t: TypeRef): bool {
+    let result = false
+    switch t {
+        TypeRef.Simple(tn) => {
+            if tn == "string" { result = true }
+        }
+    }
+    return result
+}

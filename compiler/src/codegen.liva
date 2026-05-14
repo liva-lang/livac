@@ -52,7 +52,8 @@ import {
 import {
     isAllUnitEnum, binOpToRust, fieldDefault, isMapType,
     typeRefToTag, isCopyType, getLiteralTypeName, blockStmts,
-    buildTypeParamStr
+    buildTypeParamStr, paramTypeIsString, paramTypeIsMap,
+    paramTypeIsBorrowable
 } from "./codegen_types"
 
 // =====================================================================
@@ -10327,64 +10328,6 @@ collectBorrowedParams(program: Program, liveCtx: LivenessContext): Map<string, b
         }
     }
     return registry
-}
-
-// Standalone helper: returns true iff `optRef` is `Some(TypeRef.Simple("string"))`.
-paramTypeIsString(optRef: TypeRef?): bool {
-    if optRef != null {
-        return _typeRefIsStringSimple(optRef)
-    }
-    return false
-}
-
-// Standalone helper: returns true iff `optRef` wraps a Map type.
-paramTypeIsMap(optRef: TypeRef?): bool {
-    if optRef != null {
-        return _typeRefIsMap(optRef)
-    }
-    return false
-}
-
-// Combined helper: returns true if `optRef` is a borrowable type (string or Map).
-// Used by `collectBorrowedParams` to avoid double-consuming the Option<TypeRef>.
-paramTypeIsBorrowable(optRef: TypeRef?): bool {
-    if optRef != null {
-        return _typeRefIsBorrowable(optRef)
-    }
-    return false
-}
-
-_typeRefIsBorrowable(t: TypeRef): bool {
-    let result = false
-    switch t {
-        TypeRef.Simple(tn) => {
-            if tn == "string" { result = true }
-        },
-        TypeRef.MapType(k, v) => { result = true },
-        TypeRef.Array(inner) => { result = true },
-        TypeRef.SetType(inner) => { result = true },
-        _ => {}
-    }
-    return result
-}
-
-_typeRefIsMap(t: TypeRef): bool {
-    let result = false
-    switch t {
-        TypeRef.MapType(k, v) => { result = true },
-        _ => {}
-    }
-    return result
-}
-
-_typeRefIsStringSimple(t: TypeRef): bool {
-    let result = false
-    switch t {
-        TypeRef.Simple(tn) => {
-            if tn == "string" { result = true }
-        }
-    }
-    return result
 }
 
 // Cycle 42 PoC — free function operating on a RustEmitter instance via
