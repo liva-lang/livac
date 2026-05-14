@@ -4303,13 +4303,7 @@ RustEmitter {
     // collection by value (move) instead of by reference. Required for
     // tokio::JoinHandle (which is not Clone), and harmless for any other
     // type since the array is consumed at end-of-scope anyway.
-    _inAsyncContext(): bool {
-        let cf = this._currentFunc
-        if cf == "main" { return this._mainNeedsAsync }
-        // Class methods are stored as "Class.method"; sanitize the trailing
-        // segment to match `_asyncFnNames` (only used for free fns today).
-        return this._asyncFnNames.has(cf)
-    }
+    _inAsyncContext(): bool { return inAsyncContext(this) }
 
     _blockAwaitsIdent(blk: BlockStmt, name: string): bool {
         for s in blk.stmts {
@@ -5816,10 +5810,7 @@ RustEmitter {
     }
 
     // Phase 8: Check if array indexing expression has Copy-type elements
-    _isIndexExprCopyType(obj: Expr): bool {
-        let elem = this._getArrayElemTypeRef(obj)
-        return this._isCopyType(elem)
-    }
+    _isIndexExprCopyType(obj: Expr): bool { return isIndexExprCopyType(this, obj) }
 
     // Phase 9.4: returns true iff named var is Array<T> with T Copy.
     // (Map<K,V> is filtered automatically by the TypeRef.Array arm.)
@@ -10795,6 +10786,17 @@ getLiteralTypeName(lit: Literal): string {
         Literal.Char(_) => { litTag = "char" }
     }
     return litTag
+}
+
+inAsyncContext(e: RustEmitter): bool {
+    let cf = e._currentFunc
+    if cf == "main" { return e._mainNeedsAsync }
+    return e._asyncFnNames.has(cf)
+}
+
+isIndexExprCopyType(e: RustEmitter, obj: Expr): bool {
+    let elem = e._getArrayElemTypeRef(obj)
+    return isCopyType(elem)
 }
 
 buildTypeParamStr(typeParams: [TypeParameter]): string {
