@@ -35,6 +35,7 @@ import { Parser, parse } from "./parser"
 import { SemanticAnalyzer, TypeContext, DiagnosticLevel, analyzeProgram } from "./semantic"
 import { LivenessAnalyzer, LivenessContext, analyzeLiveness } from "./liveness"
 import { RustEmitter, generateRust, generateModuleRust, collectBorrowedParams } from "./codegen"
+import { codegenTestExtensionLoaded } from "./codegen_test"
 import { sanitizeFieldName } from "./codegen_utils"
 import { ModuleResolver, LivaModule } from "./module"
 
@@ -175,8 +176,8 @@ hoistClassExtensions(parsedModules: Map<string, [Program]>, compileOrder: [strin
     let pending: Map<string, [MethodDecl]> = Map {}
 
     for modPath in compileOrder {
-        let progs0 = parsedModules.get(modPath)
-        let prog0 = progs0[0]
+        let progs0: [Program] = parsedModules.get(modPath)
+        let prog0: Program = progs0[0]
         for item in prog0.items {
             switch item {
                 TopLevel.ClassExtension(ext) => {
@@ -201,8 +202,8 @@ hoistClassExtensions(parsedModules: Map<string, [Program]>, compileOrder: [strin
     //    declared class names.
     let declared: Map<string, bool> = Map {}
     for modPath2 in compileOrder {
-        let progsD = parsedModules.get(modPath2)
-        let progD = progsD[0]
+        let progsD: [Program] = parsedModules.get(modPath2)
+        let progD: Program = progsD[0]
         for itemD in progD.items {
             switch itemD {
                 TopLevel.Class(cd) => {
@@ -223,17 +224,17 @@ hoistClassExtensions(parsedModules: Map<string, [Program]>, compileOrder: [strin
     //    injecting extension methods into matching ClassDecls.
     let rebuilt: Map<string, [Program]> = Map {}
     for modPath3 in compileOrder {
-        let progs = parsedModules.get(modPath3)
+        let progs: [Program] = parsedModules.get(modPath3)
         let newCopies: [Program] = []
         let copyIdx = 0
         while copyIdx < progs.length {
-            let prog = progs[copyIdx]
+            let prog: Program = progs[copyIdx]
             let newItems: [TopLevel] = []
             for it in prog.items {
                 switch it {
                     TopLevel.Class(c) => {
                         if pending.has(c.name) {
-                            let extras = pending.get(c.name)
+                            let extras: [MethodDecl] = pending.get(c.name)
                             // Existing method names — for E0912.
                             let seen: Map<string, bool> = Map {}
                             for mem in c.members {
@@ -634,9 +635,12 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
     // any missing declarations into main.rs.
     let mainRs2 = moduleFiles.get("main.rs")
     let missingMods: [string] = []
+    let seenMods: Map<string, bool> = Map {}
     for modPath in compileOrder {
         if modPath == entryPath { continue }
         let modName = resolver.pathToModName(modPath)
+        if seenMods.has(modName) { continue }
+        seenMods.set(modName, true)
         let needle = "mod " + modName + ";"
         if !mainRs2.contains(needle) {
             missingMods.push(modName)
@@ -1276,6 +1280,10 @@ _runInitCommand(opts: CliOptions) {
 // =====================================================================
 
 main() {
+    // Force-load codegen_test extension (extend RustEmitter) into the
+    // compile graph; the symbol itself is a sentinel.
+    let _testExt = codegenTestExtensionLoaded()
+
     // Install a clean panic hook so parser/lexer panics (compiled from
     // `throw` statements) are reported as compact E2000-style messages
     // instead of the default `thread 'main' panicked at src/parser.rs:N:M:`
