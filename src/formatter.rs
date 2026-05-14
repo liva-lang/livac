@@ -142,6 +142,12 @@ impl Formatter {
             TopLevel::Test(decl) => self.format_test(decl),
             TopLevel::ConstDecl(decl) => self.format_const_decl_stmt(decl),
             TopLevel::ExprStmt(_) => { /* top-level expressions don't need formatting */ }
+            TopLevel::ClassExtension(_) => {
+                // Class extensions are hoisted into their owner class before
+                // codegen; formatter currently preserves source order so we
+                // skip explicit emission here.
+                // TODO: emit `extend Name { ... }` verbatim when round-tripping is required.
+            }
         }
     }
 

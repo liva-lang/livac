@@ -1,0 +1,9 @@
+import { Shape } from "./shape"
+
+const AREA_EXT_LOADED: bool = true
+
+extend Shape {
+    area(): number {
+        return 42
+    }
+}

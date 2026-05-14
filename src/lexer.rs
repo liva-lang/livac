@@ -24,6 +24,8 @@ pub enum Token {
     Type,
     #[token("enum")]
     Enum,
+    #[token("extend")]
+    Extend,
     #[token("test")]
     Test,
     #[token("if")]

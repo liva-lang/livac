@@ -1,0 +1,9 @@
+Shape {
+    name: string
+    constructor(name: string) {
+        this.name = name
+    }
+    describe(): string {
+        return $"shape: {this.name}"
+    }
+}

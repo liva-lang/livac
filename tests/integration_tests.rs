@@ -178,6 +178,72 @@ fn test_extensionless_import_integration() {
     test_integration_project("proj_extensionless_import");
 }
 
+// ---------------------------------------------------------------------------
+// `extend ClassName { ... }` — class extensions across files.
+// See docs/language-reference/class-extensions.md.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_extend_basic_integration() {
+    test_integration_project("proj_extend_basic");
+}
+
+/// Helper: compile a single file expecting a specific error-code substring.
+fn expect_compile_error(main_liva: &str, expected_marker: &str) {
+    let main_liva_path = PathBuf::from(main_liva);
+    let temp_dir = TempDir::new().unwrap();
+    let options = CompilerOptions {
+        input: main_liva_path,
+        output: Some(temp_dir.path().to_path_buf()),
+        verbose: false,
+        check_only: true,
+    };
+    match compile_file(&options) {
+        Ok(_) => panic!("Expected compile error containing `{}` but got success for {}", expected_marker, main_liva),
+        Err(e) => {
+            let msg = format!("{}", e);
+            assert!(
+                msg.contains(expected_marker),
+                "Expected error to contain `{}`, got: {}",
+                expected_marker,
+                msg
+            );
+        }
+    }
+}
+
+#[test]
+fn test_extend_rejects_field() {
+    expect_compile_error(
+        "tests/integration/proj_extend_errors/main_field.liva",
+        "E0910",
+    );
+}
+
+#[test]
+fn test_extend_rejects_constructor() {
+    expect_compile_error(
+        "tests/integration/proj_extend_errors/main_ctor.liva",
+        "E0913",
+    );
+}
+
+#[test]
+fn test_extend_unknown_class() {
+    expect_compile_error(
+        "tests/integration/proj_extend_errors/main_unknown.liva",
+        "E0911",
+    );
+}
+
+#[test]
+fn test_extend_duplicate_method() {
+    expect_compile_error(
+        "tests/integration/proj_extend_errors/main_dup.liva",
+        "E0912",
+    );
+}
+
 #[test]
 fn test_compile_check_only() {
     let project_path = PathBuf::from("tests/integration/proj_hello");

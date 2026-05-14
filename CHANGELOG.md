@@ -12,6 +12,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] — post-rc1 work
 
 ### Added
+- **`extend ClassName { ... }` — class extensions across files.** Lets a
+  single class be defined in one owner file (fields + constructor + core
+  methods) and have additional methods added from any other file via
+  `extend ClassName { ... }`. Motivation: modularize large classes (e.g.
+  the compiler's own ~250-method `RustEmitter`) without inheritance,
+  partial-class soup, or breaking BS-FRAG-1.
+  - Methods only — extensions cannot declare fields (`E0910`) or
+    constructors (`E0913`).
+  - Resolution is import-based: the target class must be in scope (no
+    global search). Unknown target → `E0911`.
+  - Method names must be unique across the base class and all
+    extensions; duplicates → `E0912`.
+  - Implementation is a pre-codegen hoisting pass in `ModuleResolver`
+    that merges extension methods back into the owner `ClassDecl`, so
+    codegen still emits a single `impl` block (no Rust changes, no
+    runtime overhead).
+  - Spec: `docs/language-reference/class-extensions.md`.
+  - Regression tests: `tests/integration/proj_extend_basic`,
+    `tests/integration/proj_extend_errors` (4 error scenarios).
 - **Auto-`&`/`&mut` borrow inference for collection params** (Cycles 38–41,
   commits `6e2ee0d`/`09f8844`/`ad1ed52`). Phase 8.5's auto-`&str`
   mechanism is now extended to `Map<K,V>` (HashMap), `[T]` (Vec) and

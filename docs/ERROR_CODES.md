@@ -74,6 +74,10 @@
 | E0903 | Non-exhaustive string match — needs `_` wildcard |
 | E0904 | Non-exhaustive enum match — missing variant(s). Cover all variants or add `_` |
 | E0906 | Incompatible or-pattern bindings — `\|` alternatives must bind same variables |
+| E0910 | `extend ClassName` declares a field — extensions add behavior, not state |
+| E0911 | `extend ClassName` target class not found in any module |
+| E0912 | `extend ClassName` defines a method already on the base or another extension |
+| E0913 | `extend ClassName` declares a constructor — constructors only in the owner file |
 
 ## E1xxx–E2xxx: Lexer & Parser Errors
 

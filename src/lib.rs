@@ -185,15 +185,28 @@ fn compile_with_modules(
 
     // 1. Resolve all modules starting from entry point
     let mut resolver = ModuleResolver::new(entry_point)?;
-    let compilation_order = resolver.resolve_all()?;
+    {
+        let compilation_order = resolver.resolve_all()?;
 
-    if options.verbose {
-        eprintln!("📦 Module resolution complete:");
-        eprintln!("   Found {} modules", compilation_order.len());
-        for (i, module) in compilation_order.iter().enumerate() {
-            eprintln!("   {}. {}", i + 1, module.path.display());
+        if options.verbose {
+            eprintln!("📦 Module resolution complete:");
+            eprintln!("   Found {} modules", compilation_order.len());
+            for (i, module) in compilation_order.iter().enumerate() {
+                eprintln!("   {}. {}", i + 1, module.path.display());
+            }
         }
     }
+
+    // 1b. Hoist `extend ClassName { ... }` items into their owner ClassDecl.
+    //     See docs/language-reference/class-extensions.md.
+    resolver.hoist_class_extensions()?;
+
+    // Re-acquire the compilation order after hoisting (modules were mutated).
+    let order_paths = resolver.compilation_order()?;
+    let compilation_order: Vec<&crate::module::Module> = order_paths
+        .iter()
+        .filter_map(|p| resolver.get_module(p))
+        .collect();
 
     // For now, compile only the entry point module
     // TODO: Phase 3.5 - Generate multi-file Rust project

@@ -3007,6 +3007,12 @@ impl CodeGenerator {
                 self.output.push_str(";\n");
                 Ok(())
             }
+            TopLevel::ClassExtension(_) => {
+                // Class extensions are hoisted into their owner class before
+                // codegen runs (see ModuleResolver::hoist_class_extensions).
+                // If one survives to here, ignore safely.
+                Ok(())
+            }
         }
     }
 
@@ -17665,6 +17671,12 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext, al
 
                 module_body.push_str(&code);
                 module_body.push('\n');
+            }
+            TopLevel::ClassExtension(_) => {
+                // Class extensions are hoisted into their owner class before
+                // codegen runs (see ModuleResolver::hoist_class_extensions).
+                // If one survives to here it's a compiler bug; ignore safely.
+                continue;
             }
         }
     }

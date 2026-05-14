@@ -424,6 +424,49 @@ impl Parser {
             return self.parse_enum_decl();
         }
 
+        // Class extension: extend ClassName { method+ }
+        // Adds methods to an existing class declared (or imported) in scope.
+        // See docs/language-reference/class-extensions.md.
+        if self.match_token(&Token::Extend) {
+            let ext_span = self.previous_span();
+            let name = self.parse_identifier()?;
+            self.expect(Token::LBrace)?;
+            let members = self.parse_members()?;
+            self.expect(Token::RBrace)?;
+
+            let mut methods = Vec::new();
+            for m in members {
+                match m {
+                    Member::Method(method) => {
+                        if method.name == "constructor" {
+                            return Err(self.error(format!(
+                                "E0913: `extend {}` cannot declare a constructor. \
+                                 Constructors belong in the owner file. \
+                                 See docs/language-reference/class-extensions.md.",
+                                name
+                            )));
+                        }
+                        methods.push(method);
+                    }
+                    Member::Field(field) => {
+                        return Err(self.error(format!(
+                            "E0910: `extend {}` cannot declare a field `{}`. \
+                             Extensions add behavior, not state. \
+                             Move the field to the owner class. \
+                             See docs/language-reference/class-extensions.md.",
+                            name, field.name
+                        )));
+                    }
+                }
+            }
+
+            return Ok(TopLevel::ClassExtension(ClassExtensionDecl {
+                name,
+                methods,
+                span: ext_span,
+            }));
+        }
+
         if self.match_token(&Token::Test) {
             let is_string_name = if let Some(Token::StringLiteral(_)) = self.peek() {
                 true

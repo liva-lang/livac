@@ -80,7 +80,8 @@ impl SymbolTable {
             | TopLevel::UseRust(_)
             | TopLevel::Test(_)
             | TopLevel::ExprStmt(_)
-            | TopLevel::Enum(_) => {
+            | TopLevel::Enum(_)
+            | TopLevel::ClassExtension(_) => {
                 // Skip for now
             }
         }

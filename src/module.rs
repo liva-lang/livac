@@ -458,6 +458,112 @@ impl ModuleResolver {
     pub fn compilation_order(&self) -> Result<Vec<PathBuf>> {
         self.dependency_graph.topological_sort()
     }
+
+    /// Hoist `extend ClassName { ... }` items into their owner `ClassDecl`.
+    ///
+    /// Walks every resolved module:
+    /// 1. Builds a map `class_name -> (owner_module_path, member_count_before)`.
+    /// 2. For each `TopLevel::ClassExtension`, locates the owner class (any
+    ///    module) and appends its methods to the owner's `members`.
+    /// 3. Strips `TopLevel::ClassExtension` items from every module.
+    ///
+    /// Errors:
+    /// - E0911 if the extension target class isn't declared in any module.
+    /// - E0912 if a method already exists (in the owner or another extension).
+    ///
+    /// See `docs/language-reference/class-extensions.md`.
+    pub fn hoist_class_extensions(&mut self) -> Result<()> {
+        use crate::ast::{Member, TopLevel};
+        use std::collections::HashSet;
+
+        // Pass 1: index every ClassDecl by name -> owning module path.
+        let mut owner_by_name: HashMap<String, PathBuf> = HashMap::new();
+        for (path, module) in &self.modules {
+            for item in &module.ast.items {
+                if let TopLevel::Class(class) = item {
+                    owner_by_name.insert(class.name.clone(), path.clone());
+                }
+            }
+        }
+
+        // Pass 2: collect all extensions (drain them from their source modules).
+        // We collect (target_name, methods) so we can mutate the owner module.
+        let mut extensions: Vec<(String, Vec<crate::ast::MethodDecl>)> = Vec::new();
+        for module in self.modules.values_mut() {
+            let mut kept = Vec::with_capacity(module.ast.items.len());
+            for item in module.ast.items.drain(..) {
+                match item {
+                    TopLevel::ClassExtension(ext) => {
+                        extensions.push((ext.name, ext.methods));
+                    }
+                    other => kept.push(other),
+                }
+            }
+            module.ast.items = kept;
+        }
+
+        // Pass 3: apply extensions to their owner class, validating.
+        for (target_name, methods) in extensions {
+            let owner_path = owner_by_name.get(&target_name).ok_or_else(|| {
+                CompilerError::CodegenError(SemanticErrorInfo::new(
+                    "E0911",
+                    &format!(
+                        "Cannot find class `{}` to extend",
+                        target_name
+                    ),
+                    &format!(
+                        "`extend {}` requires the class `{}` to be declared in this project (any module). \
+                         Hint: did you forget to declare it, or are you trying to extend a built-in/stdlib type? \
+                         See docs/language-reference/class-extensions.md.",
+                        target_name, target_name
+                    ),
+                ))
+            })?;
+
+            let owner = self.modules.get_mut(owner_path).expect("owner module must exist");
+            // Find the ClassDecl inside owner.
+            let class = owner
+                .ast
+                .items
+                .iter_mut()
+                .find_map(|it| match it {
+                    TopLevel::Class(c) if c.name == target_name => Some(c),
+                    _ => None,
+                })
+                .expect("class must exist in owner module by construction");
+
+            // Collect existing method names (base + previously hoisted) for dup check.
+            let mut existing: HashSet<String> = class
+                .members
+                .iter()
+                .filter_map(|m| match m {
+                    Member::Method(md) => Some(md.name.clone()),
+                    _ => None,
+                })
+                .collect();
+
+            for m in methods {
+                if !existing.insert(m.name.clone()) {
+                    return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
+                        "E0912",
+                        &format!(
+                            "Duplicate method `{}.{}` introduced by `extend`",
+                            target_name, m.name
+                        ),
+                        &format!(
+                            "Method `{}` is already defined on `{}` (in the owner file or another `extend` block). \
+                             Rename the extension method, or remove the duplicate. \
+                             See docs/language-reference/class-extensions.md.",
+                            m.name, target_name
+                        ),
+                    )));
+                }
+                class.members.push(Member::Method(m));
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]

@@ -1,0 +1,9 @@
+// Negative test: extending a class that doesn't exist → E0911.
+// Single-file path skips the hoister so this needs imports to trigger.
+import { Circle } from "./circle"
+
+extend NonExistent {
+    foo(): number { return 1 }
+}
+
+main(): void { print(Circle(1).radius) }

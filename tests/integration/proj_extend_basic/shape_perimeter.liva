@@ -1,0 +1,9 @@
+import { Shape } from "./shape"
+
+const PERIMETER_EXT_LOADED: bool = true
+
+extend Shape {
+    perimeter(): number {
+        return 16
+    }
+}

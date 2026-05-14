@@ -1,0 +1,16 @@
+// Negative test: extension declares a field → E0910.
+
+Circle {
+    radius: number
+    constructor(r: number) { this.radius = r }
+}
+
+extend Circle {
+    color: string   // <-- should fail: E0910
+    paint(): string { return this.color }
+}
+
+main(): void {
+    let c = Circle(2)
+    print(c.paint())
+}

@@ -1,0 +1,15 @@
+// Negative test: duplicate method between owner class and extension → E0912.
+
+import { Circle } from "./circle"
+
+extend Circle {
+    radius(): number { return 99 }   // 'radius' clashes with field? Actually field, not method.
+                                       // To trigger E0912 we need method dup.
+    describe(): string { return "ext" }
+}
+
+extend Circle {
+    describe(): string { return "dup" }  // <-- duplicate from previous extension
+}
+
+main(): void { print(Circle(1).describe()) }

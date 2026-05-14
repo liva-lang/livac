@@ -1,0 +1,12 @@
+// Negative test: extension declares a constructor → E0913.
+
+Circle {
+    radius: number
+    constructor(r: number) { this.radius = r }
+}
+
+extend Circle {
+    constructor(r: number, c: string) { this.radius = r }
+}
+
+main(): void { print("unreachable") }

@@ -78,6 +78,12 @@ pub const E0902_NON_EXHAUSTIVE_INT: &str = "E0902";
 pub const E0903_NON_EXHAUSTIVE_STRING: &str = "E0903";
 pub const E0906_INCOMPATIBLE_OR_BINDINGS: &str = "E0906";
 
+// Class extensions (`extend ClassName { ... }`)
+pub const E0910_EXTENSION_FIELD: &str = "E0910";
+pub const E0911_EXTENSION_TARGET_NOT_FOUND: &str = "E0911";
+pub const E0912_EXTENSION_DUPLICATE_METHOD: &str = "E0912";
+pub const E0913_EXTENSION_CONSTRUCTOR: &str = "E0913";
+
 // ============================================================================
 // E1xxx: Lexer Errors
 // ============================================================================

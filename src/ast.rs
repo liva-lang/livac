@@ -57,6 +57,18 @@ pub enum TopLevel {
     ConstDecl(ConstDecl),
     /// Top-level expression statement (e.g., describe(...) from liva/test)
     ExprStmt(Expr),
+    /// `extend ClassName { method+ }` — adds methods to an existing class.
+    /// See docs/language-reference/class-extensions.md.
+    ClassExtension(ClassExtensionDecl),
+}
+
+/// `extend ClassName { method+ }`
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ClassExtensionDecl {
+    pub name: String,
+    pub methods: Vec<MethodDecl>,
+    #[serde(skip)]
+    pub span: Option<crate::span::Span>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

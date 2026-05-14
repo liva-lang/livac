@@ -1,0 +1,10 @@
+import { Shape } from "./shape"
+import { AREA_EXT_LOADED } from "./shape_area"
+import { PERIMETER_EXT_LOADED } from "./shape_perimeter"
+
+main(): void {
+    let s = Shape("square")
+    print(s.describe())
+    print(s.area())
+    print(s.perimeter())
+}

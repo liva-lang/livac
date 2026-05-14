@@ -838,10 +838,28 @@ cargo test --release 528+).
       `LIVAC_BOOTSTRAP` / `target/livac-bootstrap` como override del
       bootstrap por defecto. Cualquier gen-3 binario previo (no afectado
       por los 3 bugs de fragility) puede servir como bootstrap. Cycle 44
-      probó el camino extendiendo `_isStringExpr.MethodCall` para
-      reconocer 14 métodos string-returning (`toLowerCase`, `trim`,
       `replace`, etc.) → `result += method.call()` emite `.push_str()`
       ahora. Full 7/7 gauntlet GREEN. **A1 desbloqueado** para v2.1.
+      **Cycles 45-62 (2026-05-13 → 2026-05-14) — SPRINT COMPLETADO** ✅
+      ~35 helpers extraídos a free functions en `codegen.liva`. Gauntlet
+      7/7 verde en cada ciclo. Helpers finales: `inferArrowReturnType`,
+      `isAllUnitEnum`, `escapeRustStr/Char`, `binOpToRust`,
+      `toSnakeCaseStandalone`, `sanitizeName`, `isMutatingMethodName`,
+      `isKnown*Method` (string/array/map/set/date), `emitSimpleType`,
+      `sanitizeTestName`, `extractModuleName`, `fieldDefault`,
+      `isMapType`, `buildParamType/Return`, `fieldNeedsDebug`,
+      `emitTupleType/Generic`, `buildTypeParamStr`, `typeRefToTag`,
+      `isCopyType`, `getLiteralTypeName`, `inAsyncContext`,
+      `isIndexExprCopyType`, `warn`, `writeRaw`, `indent`, `dedent`,
+      `writeIndent`, `blockStmts`, `paramTypeIsString/Map/Borrowable`,
+      `collectBorrowedParams`, `sanitizeFieldName`, `generateRust`,
+      `generateModuleRust`. **Techo natural alcanzado** — el resto de
+      métodos del `RustEmitter` están bloqueados por BS-FRAG-1 (6
+      variantes documentadas en BUGS.md): switches sobre `Expr`/`IfBody`/
+      `Stmt` desde free function, acceso de 2 niveles `e._typeCtx.X`,
+      asignación `e._currentLine = ""`, llamada a `e._method()`. Quedan
+      como class methods hasta regenerar bootstrap. Próximo paso v2.1:
+      split de `codegen.liva` en módulos físicos.
 
 - [ ] **A2.** ~~Consolidar los 25+ `Map<string, …>` dispersos en
       `EmitContext`.~~ **Diferido a v2.1** por el mismo bloqueo que A1
@@ -1184,6 +1202,88 @@ y tests LSP manuales — no representan gap real.
 - [ ] Introducir abstracción `Emitter` (push, pushIndent, scope) para reemplazar la concatenación manual de strings.
 - [ ] `TypeContext` centralizado (un solo struct con var_types, map_vars, array_vars, etc.) en lugar de HashMaps dispersos.
 - [ ] Tests unitarios por módulo en `compiler/tests/codegen_modules/`.
+
+### Fase C.1 — Class extensions (`extend Foo { }`) — feature de lenguaje 🆕
+> **Motivación:** Modularizar `RustEmitter` (250+ métodos) sin sacarlos como free
+> functions (bloqueado por BS-FRAG-1). Permite declarar la misma clase en N
+> archivos: el "propietario" tiene campos+constructor+métodos básicos, los demás
+> añaden solo comportamiento (estilo Swift `extension` / Rust múltiples `impl`).
+> **Estado:** 🆕 propuesto 2026-05-14. Diseño cerrado, pendiente implementar.
+
+**Sintaxis acordada:**
+```liva
+// codegen.liva  ← propietario
+RustEmitter {
+    _lines: [string]
+    _indentLevel: number
+    constructor(...) { ... }
+}
+
+// codegen_expr.liva  ← extensión
+import { RustEmitter } from "./codegen"
+extend RustEmitter {
+    _emitExpr(e: Expr): string {
+        this._lines.push(...)   // acceso completo a campos
+    }
+}
+```
+
+**Reglas:**
+- [ ] Nueva keyword `extend`.
+- [ ] Resolución del nombre por scope normal de imports (no búsqueda global).
+- [ ] Solo métodos en extensiones — **prohibido declarar campos** (estilo Swift/Rust).
+- [ ] Error semántico si el método ya está definido en la clase original o en otra extensión.
+- [ ] Cross-crate prohibido (orphan rules tipo Rust).
+- [ ] `this._campo` funciona normal — acceso completo a privados.
+
+**Plan de implementación (bootstrap Rust):**
+- [ ] Lexer: keyword `extend` (~5 líneas en `lexer.rs`).
+- [ ] AST: variante `TopLevel::ClassExtension { name, methods }` (~10 líneas).
+- [ ] Parser: parsear `extend Name { method+ }` (~40 líneas).
+- [ ] Semántico: pre-pass que fusiona extensiones con su `ClassInfo`, valida que
+      no hay campos en extensiones, no hay métodos duplicados, y la clase está
+      en scope (~80 líneas).
+- [ ] Codegen: emitir `impl ClassName { /* métodos de la extensión */ }` por
+      cada `ClassExtension` (~20 líneas, Rust ya acepta múltiples `impl`).
+- [ ] Regression tests:
+  - `extend_basic.liva` — extend de la misma clase desde otro módulo, llama
+    correctamente.
+  - `extend_no_fields.liva` — error al declarar campo en extensión.
+  - `extend_no_duplicate_method.liva` — error al re-declarar método.
+  - `extend_not_imported.liva` — error si la clase no está en scope.
+  - `extend_multifile.liva` — 3+ archivos extendiendo la misma clase.
+- [ ] Docs:
+  - `docs/language-reference/class-extensions.md` (doc principal del feature).
+  - `docs/language-reference/classes-basics.md` — sección "Splitting a class
+    across files" con link.
+  - `docs/language-reference/modules.md` — párrafo sobre import-then-extend.
+  - `docs/language-reference/syntax-overview.md` — añadir `extend` a keywords.
+  - `docs/QUICK_REFERENCE.md` — entrada en la tabla de clases.
+  - `docs/ERROR_CODES.md` — códigos nuevos (E0905+).
+  - `docs/guides/module-best-practices.md` — sección "When to split a class".
+  - `docs/guides/style-guide.md` — convención de nombres de archivo (`mod.liva`
+    + `mod_X.liva`).
+- [ ] VS Code extension:
+  - `vscode-extension/snippets/liva.json` — snippet `extend`.
+  - `vscode-extension/syntaxes/liva.tmLanguage.json` — keyword highlight.
+- [ ] Skill portable:
+  - `skills/liva-lang/SKILL.md` — añadir al cheatsheet.
+
+**Tras aterrizar en el bootstrap:**
+- [ ] Regenerar `gen-1 → gen-2 → gen-3`.
+- [ ] Portar el cambio a self-host (parser/semántico/codegen en `compiler/src/*.liva`).
+- [ ] Modularizar `RustEmitter` de verdad — dividir el monolito de 10.500 líneas:
+  - `codegen.liva` — propietario, campos + constructor + métodos básicos
+    (~2-3k líneas).
+  - `codegen_emit_expr.liva` — extensión, `_emitExpr*` (~2-2.5k).
+  - `codegen_emit_stmt.liva` — extensión, `_emitStmt*` (~2k).
+  - `codegen_emit_type.liva` — extensión, `_emitType*` (~1.5k).
+  - `codegen_emit_class.liva` — extensión, `_emitClass*` (~2k).
+
+**LSP (puede ir más tarde):**
+- [ ] Workspace symbols mostrando `Foo (extension)` por archivo (~50 líneas).
+- [ ] Document outline para `extend` (~20 líneas).
+- [ ] Incremental invalidation cross-file cuando cambia una extensión (~30 líneas).
 
 ### Fase D — Portar fixes (orden recomendado, fáciles primero)
 - [x] **B151** — string escape `\"` dentro de `${...}` (gen-2 parser ya maneja `\"`, `\\`, `\n`, `\r`, `\t` en placeholder; verificado 2026-05-07 con `print($"a:{m.get(\"apple\")}")` → `a:1`)
