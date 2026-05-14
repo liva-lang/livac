@@ -1,0 +1,1256 @@
+// ============================================================================
+// codegen_stdlib_methods.liva — RustEmitter extension: stdlib method lowering
+// ============================================================================
+// Extracted from codegen.liva via `extend RustEmitter { ... }`.
+//
+// Owns lowering of method calls on built-in types:
+//   - Date.*  (chrono)
+//   - String.*
+//   - [T].*   (Array)
+//   - Map<K, V>.*
+//   - Set<T>.*
+//
+// Each `_emit{Type}Method` returns true if it handled the call (some return
+// no value — see signatures). Pure dispatch — relies only on existing
+// RustEmitter helpers (`_emitExpr`, `_emitRefArg`, `_write`, etc.).
+
+import { Expr } from "./ast"
+import { RustEmitter } from "./codegen"
+
+extend RustEmitter {
+
+    _emitDateMethod(obj: Expr, method: string, args: [Expr]) {
+        if method == "format" && args.length >= 1 {
+            this._emitExpr(obj)
+            this._write(".format(&")
+            this._emitExpr(args[0])
+            this._write(".replace(\"YYYY\", \"%Y\").replace(\"MM\", \"%m\").replace(\"DD\", \"%d\").replace(\"HH\", \"%H\").replace(\"mm\", \"%M\").replace(\"ss\", \"%S\")).to_string()")
+            return
+        }
+        if method == "add" && args.length >= 2 {
+            this._write("{ let __liva_unit = (")
+            this._emitExpr(args[1])
+            this._write(").to_string(); let __liva_n = ")
+            this._emitExpr(args[0])
+            this._write(" as i64; let __liva_dur = match __liva_unit.as_str() { \"days\" => chrono::Duration::days(__liva_n), \"hours\" => chrono::Duration::hours(__liva_n), \"minutes\" => chrono::Duration::minutes(__liva_n), \"seconds\" => chrono::Duration::seconds(__liva_n), \"weeks\" => chrono::Duration::weeks(__liva_n), _ => chrono::Duration::days(__liva_n), }; ")
+            this._emitExpr(obj)
+            this._write(" + __liva_dur }")
+            return
+        }
+        if method == "diff" && args.length >= 2 {
+            this._write("{ let __liva_diff = ")
+            this._emitExpr(obj)
+            this._write(".signed_duration_since(")
+            this._emitExpr(args[0])
+            this._write("); let __liva_unit = (")
+            this._emitExpr(args[1])
+            this._write(").to_string(); (match __liva_unit.as_str() { \"days\" => __liva_diff.num_days(), \"hours\" => __liva_diff.num_hours(), \"minutes\" => __liva_diff.num_minutes(), \"seconds\" => __liva_diff.num_seconds(), \"weeks\" => __liva_diff.num_weeks(), \"years\" => __liva_diff.num_days() / 365, \"months\" => __liva_diff.num_days() / 30, _ => __liva_diff.num_days(), }) as i32 }")
+            return
+        }
+        // Fallback — user method on a Date-like object
+        let sanitizedMethod = this._sanitizeName(method)
+        this._emitExpr(obj)
+        this._write($".{sanitizedMethod}(")
+        let aIdx = 0
+        for a in args {
+            if aIdx > 0 { this._write(", ") }
+            this._emitExpr(a)
+            aIdx += 1
+        }
+        this._write(")")
+    }
+
+    // -- Helper: emit `obj.<mName>(...) or default` as
+    // -- `obj.get(k).cloned().unwrap_or(default)` for collections
+    // -- whose `get`/`first`/`last`/`find` returns Option<V>.
+
+    _emitOptionGetWithDefault(obj: Expr, mName: string, args: [Expr], defaultExpr: Expr) {
+        this._emitExpr(obj)
+        if mName == "get" {
+            this._write(".get(")
+            if args.length > 0 { this._emitMapKeyArg(args[0]) }
+            this._write(").cloned().unwrap_or(")
+        } else {
+            this._write(".")
+            this._write(mName)
+            this._write("().cloned().unwrap_or(")
+        }
+        this._emitExpr(defaultExpr)
+        this._write(")")
+    }
+
+    // -- Generic fallback for user-defined methods + unknown types --
+
+    _emitGenericMethodCall(obj: Expr, method: string, args: [Expr]) {
+        // Use type detection for Map dispatch
+        let objTag = this._getExprTypeName(obj)
+
+        // Detect user-class receiver (TypeRef.Simple matching a registered class).
+        // When present, skip Map-style default dispatch for `get`/`has` —
+        // the call should be a plain user-method call instead.
+        let isUserClassRecv = false
+        switch obj {
+            Expr.Identifier(uName) => {
+                if uName == "this" || uName == "self" {
+                    if this._currentClassName != "" { isUserClassRecv = true }
+                } else {
+                    let uType = this._lookupVarTypeRef(uName)
+                    switch uType {
+                        TypeRef.Simple(cn) => {
+                            if cn != "" && this._typeCtx.classes.has(cn) {
+                                isUserClassRecv = true
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Map/Set .get() with type detection or runtime tracking
+        if method == "get" && not isUserClassRecv {
+            let isMap = objTag == "map"
+            if not isMap {
+                let getObjIdName = ""
+                switch obj {
+                    Expr.Identifier(gn) => { getObjIdName = this._sanitizeName(gn) }
+                }
+                if getObjIdName != "" && this._mapVars.has(getObjIdName) {
+                    isMap = true
+                }
+            }
+            if isMap {
+                this._emitExpr(obj)
+                this._write(".get(")
+                if args.length > 0 { this._emitMapKeyArg(args[0]) }
+                this._write(").cloned().unwrap()")
+            } else if objTag == "set" || objTag == "array" || objTag == "string" {
+                this._emitExpr(obj)
+                this._write(".get(")
+                let gi = 0
+                for ga in args {
+                    if gi > 0 { this._write(", ") }
+                    this._emitExpr(ga)
+                    gi += 1
+                }
+                this._write(")")
+            } else {
+                // Default: assume Map-style get for unknown types
+                this._emitExpr(obj)
+                this._write(".get(")
+                if args.length > 0 { this._emitMapKeyArg(args[0]) }
+                this._write(").cloned().unwrap()")
+            }
+            return
+        }
+        // Map/Set .has() with type detection or runtime tracking
+        if method == "has" && not isUserClassRecv {
+            let isMap = objTag == "map"
+            if not isMap {
+                let objIdName = ""
+                switch obj {
+                    Expr.Identifier(hn) => { objIdName = this._sanitizeName(hn) }
+                }
+                if objIdName != "" && this._mapVars.has(objIdName) {
+                    isMap = true
+                }
+            }
+            if isMap {
+                this._emitExpr(obj)
+                this._write(".contains_key(")
+                if args.length > 0 { this._emitMapKeyArg(args[0]) }
+                this._write(")")
+            } else if objTag == "set" {
+                this._emitExpr(obj)
+                this._write(".contains(")
+                if args.length > 0 { this._emitMapKeyArg(args[0]) }
+                this._write(")")
+            } else {
+                // Default: assume Map (has() is predominantly used on Maps)
+                this._emitExpr(obj)
+                this._write(".contains_key(")
+                if args.length > 0 { this._emitMapKeyArg(args[0]) }
+                this._write(")")
+            }
+            return
+        }
+        // .length/.len — works for any collection
+        if method == "length" || method == "len" {
+            this._write("(")
+            this._emitExpr(obj)
+            this._write(".len() as i32)")
+            return
+        }
+        // .as_array() on JSON Values — disambiguate from native Value::as_array
+        // (which returns Option<&Vec<Value>>) by routing through the
+        // JsonValueExt trait method that returns Vec<Value> directly.
+        if method == "as_array" {
+            this._emitExpr(obj)
+            this._write(".as_array_owned()")
+            return
+        }
+        // .forEach on a tracked JSON Value variable — Value is not Iterator,
+        // so route through the trait helper that returns Vec<Value>.
+        if method == "forEach" {
+            let jvName = ""
+            switch obj {
+                Expr.Identifier(jn) => { jvName = this._sanitizeName(jn) }
+            }
+            if jvName != "" && this._jsonValueVars.has(jvName) {
+                this._emitExpr(obj)
+                this._write(".as_array_owned().into_iter().for_each(")
+                if args.length > 0 { this._emitExpr(args[0]) }
+                this._write(")")
+                return
+            }
+        }
+
+        // String methods that require &str args — handle in generic fallback
+        // These methods are common on String but type detection may fail for local vars
+        if method == "contains" || method == "startsWith" || method == "endsWith" || method == "trim" || method == "trimStart" || method == "trimEnd" {
+            let rustMethod = ""
+            if method == "startsWith" { rustMethod = "starts_with" }
+            else if method == "endsWith" { rustMethod = "ends_with" }
+            else if method == "trimStart" { rustMethod = "trim_start" }
+            else if method == "trimEnd" { rustMethod = "trim_end" }
+            else if method == "contains" { rustMethod = "contains" }
+            else if method == "trim" { rustMethod = "trim" }
+            this._emitExpr(obj)
+            if method == "trim" || method == "trimStart" || method == "trimEnd" {
+                this._write($".{rustMethod}().to_string()")
+            } else {
+                this._write($".{rustMethod}(")
+                if args.length > 0 { this._emitRefArg(args[0]) }
+                this._write(")")
+            }
+            return
+        }
+        // split — collect into Vec for compatibility
+        if method == "split" {
+            this._emitExpr(obj)
+            this._write(".split(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            this._write(").map(|s| s.to_string()).collect::<Vec<_>>()")
+            return
+        }
+        // keys/values — collect into Vec (Map methods)
+        if method == "keys" {
+            this._emitExpr(obj)
+            this._write(".keys().cloned().collect::<Vec<_>>()")
+            return
+        }
+        if method == "values" {
+            this._emitExpr(obj)
+            this._write(".values().cloned().collect::<Vec<_>>()")
+            return
+        }
+        if method == "replace" || method == "replaceAll" {
+            this._emitExpr(obj)
+            this._write(".replace(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            if args.length > 1 {
+                this._write(", ")
+                this._emitRefArg(args[1])
+            }
+            this._write(")")
+            return
+        }
+        // Case/char methods — correct snake_case for Rust
+        if method == "toLowerCase" || method == "toUpperCase" {
+            this._emitExpr(obj)
+            if method == "toLowerCase" { this._write(".to_lowercase().to_string()") }
+            else { this._write(".to_uppercase().to_string()") }
+            return
+        }
+        if method == "charAt" {
+            this._emitExpr(obj)
+            this._write(".chars().nth((")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(") as usize).map(|c| c.to_string()).unwrap_or_default()")
+            return
+        }
+        if method == "substring" {
+            // C.10: char-indexed (UTF-8 safe).
+            this._write("{ let __s = &(")
+            this._emitExpr(obj)
+            this._write("); let __a = (")
+            if args.length > 0 { this._emitExpr(args[0]) } else { this._write("0") }
+            this._write(") as usize; ")
+            if args.length > 1 {
+                this._write("let __b = (")
+                this._emitExpr(args[1])
+                this._write(") as usize; __s.chars().skip(__a).take(__b.saturating_sub(__a)).collect::<String>() }")
+            } else {
+                this._write("__s.chars().skip(__a).collect::<String>() }")
+            }
+            return
+        }
+        if method == "indexOf" {
+            this._emitExpr(obj)
+            this._write(".find(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            this._write(").map(|i| i as i32).unwrap_or(-1)")
+            return
+        }
+        // slice — default to string semantics when type unknown.
+        // C.10: char-indexed (UTF-8 safe).
+        if method == "slice" {
+            this._write("{ let __s = &(")
+            this._emitExpr(obj)
+            this._write("); let __a = (")
+            if args.length > 0 { this._emitExpr(args[0]) } else { this._write("0") }
+            this._write(") as usize; ")
+            if args.length > 1 {
+                this._write("let __b = (")
+                this._emitExpr(args[1])
+                this._write(") as usize; __s.chars().skip(__a).take(__b.saturating_sub(__a)).collect::<String>() }")
+            } else {
+                this._write("__s.chars().skip(__a).collect::<String>() }")
+            }
+            return
+        }
+
+        // Catch-all: user-defined method → obj.method(args...)
+        let sanitizedMethod = this._sanitizeName(method)
+        this._emitExpr(obj)
+        this._write($".{sanitizedMethod}(")
+        // Phase 8.5: resolve callee for borrowed-param lookup on self methods
+        let methodCalleeForBorrow = ""
+        switch obj {
+            Expr.Identifier(oName) => {
+                if oName == "this" && this._currentClassName != "" {
+                    methodCalleeForBorrow = $"{this._currentClassName}.{sanitizedMethod}"
+                }
+            }
+        }
+        let aIdx = 0
+        for a in args {
+            if aIdx > 0 { this._write(", ") }
+            let bKey = $"{methodCalleeForBorrow}:{aIdx}"
+            if methodCalleeForBorrow != "" && this._borrowedParamIndices.has(bKey) {
+                if this._borrowedParamMutIndices.has(bKey) {
+                    this._emitMutBorrowedArg(a)
+                } else {
+                    this._emitBorrowedArg(a)
+                }
+            } else {
+                this._emitClonedArg(a)
+            }
+            aIdx += 1
+        }
+        this._write(")")
+    }
+
+    // -- String methods → Rust equivalents --
+
+    _emitStringMethod(obj: Expr, method: string, args: [Expr]): bool {
+        if method == "contains" {
+            this._emitExpr(obj)
+            this._write(".contains(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            this._write(")")
+            return true
+        }
+        if method == "replace" {
+            this._emitExpr(obj)
+            this._write(".replace(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            if args.length > 1 {
+                this._write(", ")
+                this._emitRefArg(args[1])
+            }
+            this._write(")")
+            return true
+        }
+        if method == "replaceAll" {
+            this._emitExpr(obj)
+            this._write(".replace(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            if args.length > 1 {
+                this._write(", ")
+                this._emitRefArg(args[1])
+            }
+            this._write(")")
+            return true
+        }
+        if method == "split" {
+            this._emitExpr(obj)
+            this._write(".split(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            this._write(").map(|s| s.to_string()).collect::<Vec<String>>()")
+            return true
+        }
+        if method == "trim" {
+            this._emitExpr(obj)
+            this._write(".trim().to_string()")
+            return true
+        }
+        if method == "trimStart" {
+            this._emitExpr(obj)
+            this._write(".trim_start().to_string()")
+            return true
+        }
+        if method == "trimEnd" {
+            this._emitExpr(obj)
+            this._write(".trim_end().to_string()")
+            return true
+        }
+        if method == "toUpperCase" {
+            this._emitExpr(obj)
+            this._write(".to_uppercase()")
+            return true
+        }
+        if method == "toLowerCase" {
+            this._emitExpr(obj)
+            this._write(".to_lowercase()")
+            return true
+        }
+        if method == "startsWith" {
+            this._emitExpr(obj)
+            this._write(".starts_with(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            this._write(")")
+            return true
+        }
+        if method == "endsWith" {
+            this._emitExpr(obj)
+            this._write(".ends_with(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            this._write(")")
+            return true
+        }
+        if method == "charAt" {
+            this._emitExpr(obj)
+            this._write(".chars().nth((")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(") as usize).map(|c| c.to_string()).unwrap_or_default()")
+            return true
+        }
+        if method == "substring" {
+            // C.10: char-indexed (UTF-8 safe).
+            this._write("{ let __s = &(")
+            this._emitExpr(obj)
+            this._write("); let __a = (")
+            if args.length > 0 { this._emitExpr(args[0]) } else { this._write("0") }
+            this._write(") as usize; ")
+            if args.length > 1 {
+                this._write("let __b = (")
+                this._emitExpr(args[1])
+                this._write(") as usize; __s.chars().skip(__a).take(__b.saturating_sub(__a)).collect::<String>() }")
+            } else {
+                this._write("__s.chars().skip(__a).collect::<String>() }")
+            }
+            return true
+        }
+        if method == "indexOf" {
+            if args.length >= 2 {
+                this._write("{ let __s = ")
+                this._emitExpr(obj)
+                this._write(".clone(); let __from = (")
+                this._emitExpr(args[1])
+                this._write(") as usize; if __from >= __s.len() { -1i32 } else { __s[__from..].find(")
+                this._emitRefArg(args[0])
+                this._write(").map(|i| (i + __from) as i32).unwrap_or(-1) } }")
+                return true
+            }
+            this._emitExpr(obj)
+            this._write(".find(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            this._write(").map(|i| i as i32).unwrap_or(-1)")
+            return true
+        }
+        if method == "lastIndexOf" {
+            if args.length >= 2 {
+                this._write("{ let __s = ")
+                this._emitExpr(obj)
+                this._write(".clone(); let __to = (")
+                this._emitExpr(args[1])
+                this._write(") as usize; let __end = if __to > __s.len() { __s.len() } else { __to }; __s[..__end].rfind(")
+                this._emitRefArg(args[0])
+                this._write(").map(|i| i as i32).unwrap_or(-1) }")
+                return true
+            }
+            this._emitExpr(obj)
+            this._write(".rfind(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            this._write(").map(|i| i as i32).unwrap_or(-1)")
+            return true
+        }
+        if method == "repeat" {
+            this._emitExpr(obj)
+            this._write(".repeat((")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(") as usize)")
+            return true
+        }
+        if method == "isEmpty" {
+            this._emitExpr(obj)
+            this._write(".is_empty()")
+            return true
+        }
+        if method == "reverse" {
+            this._emitExpr(obj)
+            this._write(".chars().rev().collect::<String>()")
+            return true
+        }
+        if method == "toInt" {
+            this._emitExpr(obj)
+            this._write(".parse::<i32>().unwrap_or(0)")
+            return true
+        }
+        if method == "toFloat" {
+            this._emitExpr(obj)
+            this._write(".parse::<f64>().unwrap_or(0.0)")
+            return true
+        }
+        if method == "toString" {
+            this._emitExpr(obj)
+            this._write(".to_string()")
+            return true
+        }
+        if method == "chars" {
+            this._emitExpr(obj)
+            this._write(".chars().map(|c| c.to_string()).collect::<Vec<String>>()")
+            return true
+        }
+        if method == "bytes" {
+            // bytes() -> Vec<i32> with raw UTF-8 byte values
+            this._emitExpr(obj)
+            this._write(".bytes().map(|b| b as i32).collect::<Vec<i32>>()")
+            return true
+        }
+        if method == "slice" {
+            // C.10: char-indexed (UTF-8 safe).
+            this._write("{ let __s = &(")
+            this._emitExpr(obj)
+            this._write("); let __a = (")
+            if args.length > 0 { this._emitExpr(args[0]) } else { this._write("0") }
+            this._write(") as usize; ")
+            if args.length > 1 {
+                this._write("let __b = (")
+                this._emitExpr(args[1])
+                this._write(") as usize; __s.chars().skip(__a).take(__b.saturating_sub(__a)).collect::<String>() }")
+            } else {
+                this._write("__s.chars().skip(__a).collect::<String>() }")
+            }
+            return true
+        }
+        if method == "capitalize" {
+            this._write("{ let __s = &(")
+            this._emitExpr(obj)
+            this._write("); let mut __c = __s.chars(); match __c.next() { None => String::new(), Some(__f) => __f.to_uppercase().to_string() + __c.as_str() } }")
+            return true
+        }
+        if method == "countMatches" {
+            this._emitExpr(obj)
+            this._write(".matches(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            this._write(").count() as i32")
+            return true
+        }
+        if method == "padStart" {
+            this._write("{ let __s = &(")
+            this._emitExpr(obj)
+            this._write("); let __len = (")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(") as usize; if __s.len() >= __len { __s.to_string() } else { ")
+            if args.length > 1 {
+                this._emitExpr(args[1])
+            } else {
+                this._write("\" \"")
+            }
+            this._write(".repeat(__len - __s.len()) + __s } }")
+            return true
+        }
+        if method == "padEnd" {
+            this._write("{ let __s = &(")
+            this._emitExpr(obj)
+            this._write("); let __len = (")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(") as usize; if __s.len() >= __len { __s.to_string() } else { __s.to_string() + &")
+            if args.length > 1 {
+                this._emitExpr(args[1])
+            } else {
+                this._write("\" \"")
+            }
+            this._write(".repeat(__len - __s.len()) } }")
+            return true
+        }
+        if method == "isBlank" {
+            this._emitExpr(obj)
+            this._write(".trim().is_empty()")
+            return true
+        }
+        if method == "truncate" {
+            this._emitExpr(obj)
+            this._write(".chars().take((")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(") as usize).collect::<String>()")
+            return true
+        }
+        if method == "removePrefix" {
+            this._write("{ let __s = &(")
+            this._emitExpr(obj)
+            this._write("); match __s.strip_prefix(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            this._write(") { Some(r) => r.to_string(), None => __s.to_string() } }")
+            return true
+        }
+        if method == "removeSuffix" {
+            this._write("{ let __s = &(")
+            this._emitExpr(obj)
+            this._write("); match __s.strip_suffix(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            this._write(") { Some(r) => r.to_string(), None => __s.to_string() } }")
+            return true
+        }
+        // Not a known string method
+        return false
+    }
+
+    // -- Helper: emit iterator prefix, detecting .par() chains --
+    _emitIterPrefix(obj: Expr, withCloned: bool) {
+        // Phase 10.3: if obj is itself a chainable iterator method, emit it
+        // as a bare iterator (no .iter().cloned() prefix, no .collect() suffix)
+        // so the new method extends the same iterator chain.
+        let isChain = false
+        switch obj {
+            Expr.MethodCall(_, m2, _) => {
+                if m2 == "map" || m2 == "filter" || m2 == "flatMap" {
+                    isChain = true
+                }
+            }
+        }
+        if isChain {
+            let savedChain = this._inIterChain
+            this._inIterChain = true
+            this._emitExpr(obj)
+            this._inIterChain = savedChain
+            // Already an iterator — no .iter() / .copied() needed.
+            return
+        }
+
+        // Check if obj is arr.par() → use par_iter instead of iter
+        let isPar = false
+        switch obj {
+            Expr.MethodCall(inner, m, _) => {
+                if m == "par" {
+                    isPar = true
+                    this._emitExpr(inner)
+                }
+            }
+        }
+        if not isPar {
+            this._emitExpr(obj)
+        }
+        if isPar {
+            this._write(".par_iter()")
+        } else {
+            this._write(".iter()")
+        }
+        if withCloned {
+            // Phase 9.6: emit .copied() for Copy element types (LLVM inlines
+            // trivially; semantically identical to .cloned() for Copy).
+            let elemType = this._getArrayElemTypeRef(obj)
+            if this._isCopyType(elemType) {
+                this._write(".copied()")
+            } else {
+                this._write(".cloned()")
+            }
+        }
+    }
+
+    // -- Array methods → Rust equivalents --
+
+    _emitArrayMethod(obj: Expr, method: string, args: [Expr]): bool {
+        // Phase 10.4: capture statement-position flag and clear it for nested
+        // expression emissions (only sort/reverse/reversed consult it).
+        let isStmtCtx = this._inExprStmt
+        this._inExprStmt = false
+        if method == "push" {
+            this._emitExpr(obj)
+            this._write(".push(")
+            if args.length > 0 { this._emitClonedArg(args[0]) }
+            this._write(")")
+            return true
+        }
+        if method == "pop" {
+            this._emitExpr(obj)
+            this._write(".pop().expect(\"pop from empty array\")")
+            return true
+        }
+        if method == "join" {
+            this._emitExpr(obj)
+            this._write(".join(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            this._write(")")
+            return true
+        }
+        if method == "reverse" {
+            // B147: in expression context, emit a block returning the reversed Vec.
+            // (`Vec::reverse` is mutating and returns `()`, which fails when used
+            // as an expression like `let asc = desc.reverse()`.)
+            if isStmtCtx {
+                this._emitExpr(obj)
+                this._write(".reverse()")
+                return true
+            }
+            let useMoveR = this._canMoveIdent(obj)
+            this._write("{ let mut __v = ")
+            this._emitExpr(obj)
+            if useMoveR {
+                this._write("; __v.reverse(); __v }")
+            } else {
+                this._write(".clone(); __v.reverse(); __v }")
+            }
+            return true
+        }
+        if method == "reversed" {
+            // Phase 10.4: in statement position, emit `obj.reverse()` directly
+            // (mutates in place — block-expression result is discarded anyway).
+            if isStmtCtx {
+                this._emitExpr(obj)
+                this._write(".reverse()")
+                return true
+            }
+            // Phase 10.4: move when single-use + declaredInLoop
+            let useMove = this._canMoveIdent(obj)
+            this._write("{ let mut __v = ")
+            this._emitExpr(obj)
+            if useMove {
+                this._write("; __v.reverse(); __v }")
+            } else {
+                this._write(".clone(); __v.reverse(); __v }")
+            }
+            return true
+        }
+        // arr.sortBy(fn) — sort by key extraction function (Liva idiom).
+        // Bootstrap parity: emit a closure that re-evaluates the key
+        // extractor for both compare sides, since sort_by requires Ord
+        // on the cmp result rather than on the key directly.
+        if method == "sortBy" && args.length > 0 {
+            let isLamSB = false
+            switch args[0] {
+                Expr.Lambda(_) => { isLamSB = true }
+            }
+            if isLamSB {
+                switch args[0] {
+                    Expr.Lambda(lamSB) => {
+                        let paramSB = "__x"
+                        for lp in lamSB.params {
+                            switch lp.pattern {
+                                BindingPattern.Identifier(pn) => { paramSB = this._sanitizeName(pn) }
+                            }
+                            break
+                        }
+                        this._write("{ let mut __v = ")
+                        this._emitExpr(obj)
+                        this._write(".clone(); __v.sort_by(|__a, __b| { let " + paramSB + " = (*__a).clone(); let __ka = ")
+                        this._emitLambdaBodyInline(lamSB)
+                        this._write("; let " + paramSB + " = (*__b).clone(); let __kb = ")
+                        this._emitLambdaBodyInline(lamSB)
+                        this._write("; __ka.partial_cmp(&__kb).unwrap_or(std::cmp::Ordering::Equal) }); __v }")
+                    }
+                }
+                return true
+            }
+        }
+        // arr.groupBy(fn) — group by key extractor → HashMap<K, Vec<V>>.
+        if method == "groupBy" && args.length > 0 {
+            let isLamGB = false
+            switch args[0] {
+                Expr.Lambda(_) => { isLamGB = true }
+            }
+            if isLamGB {
+                switch args[0] {
+                    Expr.Lambda(lamGB) => {
+                        let paramGB = "__x"
+                        for lp in lamGB.params {
+                            switch lp.pattern {
+                                BindingPattern.Identifier(pn) => { paramGB = this._sanitizeName(pn) }
+                            }
+                            break
+                        }
+                        this._write("{ let mut __m: std::collections::HashMap<_, Vec<_>> = std::collections::HashMap::new(); for __item in ")
+                        this._emitExpr(obj)
+                        this._write(".iter() { let " + paramGB + " = (*__item).clone(); let __key = ")
+                        this._emitLambdaBodyInline(lamGB)
+                        this._write("; __m.entry(__key).or_insert_with(Vec::new).push((*__item).clone()); } __m }")
+                    }
+                }
+                return true
+            }
+        }
+        if method == "sort" {
+            // Phase 10.4: in statement position, emit `obj.sort()` directly so the
+            // user's `arr.sort()` mutates in place — no clone, no temp Vec.
+            if isStmtCtx {
+                let elemTypeS = this._getArrayElemTypeRef(obj)
+                let tagS = this._typeRefToTag(elemTypeS)
+                this._emitExpr(obj)
+                if tagS == "number" || tagS == "bool" || tagS == "char" {
+                    this._write(".sort()")
+                } else {
+                    this._write(".sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))")
+                }
+                return true
+            }
+            // Phase 9.5: use .sort() for primitive Copy types (avoids partial_cmp overhead)
+            // Phase 10.4: move (no clone) when obj is an Identifier that is single-use
+            // and declared inside a loop (each iteration is a fresh binding).
+            let elemType = this._getArrayElemTypeRef(obj)
+            let tag = this._typeRefToTag(elemType)
+            let useMove = this._canMoveIdent(obj)
+            this._write("{ let mut __v = ")
+            this._emitExpr(obj)
+            if useMove {
+                if tag == "number" || tag == "bool" || tag == "char" {
+                    this._write("; __v.sort(); __v }")
+                } else {
+                    this._write("; __v.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)); __v }")
+                }
+            } else {
+                if tag == "number" || tag == "bool" || tag == "char" {
+                    this._write(".clone(); __v.sort(); __v }")
+                } else {
+                    this._write(".clone(); __v.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)); __v }")
+                }
+            }
+            return true
+        }
+        if method == "isEmpty" {
+            this._emitExpr(obj)
+            this._write(".is_empty()")
+            return true
+        }
+        if method == "contains" {
+            this._emitExpr(obj)
+            this._write(".contains(")
+            if args.length > 0 { this._emitRefArg(args[0]) }
+            this._write(")")
+            return true
+        }
+        if method == "remove" {
+            this._emitExpr(obj)
+            this._write(".remove((")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(") as usize)")
+            return true
+        }
+        if method == "insert" {
+            this._emitExpr(obj)
+            this._write(".insert((")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(") as usize, ")
+            if args.length > 1 { this._emitExpr(args[1]) }
+            this._write(")")
+            return true
+        }
+        if method == "first" {
+            this._emitExpr(obj)
+            // Phase 9.3: .copied() for Copy element types
+            let elemType = this._getArrayElemTypeRef(obj)
+            if this._isCopyType(elemType) {
+                this._write(".first().copied().unwrap()")
+            } else {
+                this._write(".first().cloned().unwrap()")
+            }
+            return true
+        }
+        if method == "last" {
+            this._emitExpr(obj)
+            let elemType = this._getArrayElemTypeRef(obj)
+            if this._isCopyType(elemType) {
+                this._write(".last().copied().unwrap()")
+            } else {
+                this._write(".last().cloned().unwrap()")
+            }
+            return true
+        }
+        if method == "slice" {
+            this._emitExpr(obj)
+            this._write("[(")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            if args.length > 1 {
+                this._write(") as usize..(")
+                this._emitExpr(args[1])
+                this._write(") as usize].to_vec()")
+            } else {
+                this._write(") as usize..].to_vec()")
+            }
+            return true
+        }
+        if method == "take" {
+            this._emitExpr(obj)
+            this._write("[..(")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(") as usize].to_vec()")
+            return true
+        }
+        if method == "drop" {
+            this._emitExpr(obj)
+            this._write("[(")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(") as usize..].to_vec()")
+            return true
+        }
+        if method == "flat" {
+            this._emitExpr(obj)
+            this._write(".concat()")
+            return true
+        }
+        if method == "flatten" {
+            this._emitExpr(obj)
+            this._write(".concat()")
+            return true
+        }
+        if method == "sum" {
+            this._emitExpr(obj)
+            this._write(".iter().sum::<i32>()")
+            return true
+        }
+        // Iterator pipeline methods: map, filter, forEach, find, reduce, some, every, etc.
+        if method == "map" {
+            this._emitIterPrefix(obj, true)
+            this._write(".map(")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(")")
+            if not this._inIterChain { this._write(".collect::<Vec<_>>()") }
+            return true
+        }
+        if method == "filter" {
+            // Bootstrap parity: for non-Copy element types (e.g. classes),
+            // emit `.iter().filter(...).cloned().collect()` (cloned AFTER filter)
+            // because pre-cloning yields an owned-iterator over T, and the
+            // closure pattern `|&x|` would then try to move out of `&T`.
+            // For Copy element types we keep the original `.iter().copied().filter(...)`
+            // form because the closure already destructures one ref-level
+            // via `_derefClosureParams`.
+            let elemTypeF = this._getArrayElemTypeRef(obj)
+            let isCopyF = this._isCopyType(elemTypeF)
+            this._emitIterPrefix(obj, isCopyF)
+            this._write(".filter(")
+            // Check if arg is a point-free function ref (Identifier) vs Lambda
+            let filterArgIsRef = false
+            if args.length > 0 {
+                switch args[0] {
+                    Expr.Lambda(_) => {},
+                    _ => { filterArgIsRef = true }
+                }
+            }
+            if filterArgIsRef {
+                // Wrap point-free ref: filter(|&x| fn(x))
+                this._write("|&__x| ")
+                if args.length > 0 { this._emitExpr(args[0]) }
+                this._write("(__x)")
+            } else {
+                this._derefClosureParams = true
+                if args.length > 0 { this._emitExpr(args[0]) }
+                this._derefClosureParams = false
+            }
+            this._write(")")
+            if not this._inIterChain {
+                if not isCopyF {
+                    // Append .cloned() AFTER filter so resulting Vec contains
+                    // owned values (filter alone yields &T iterator).
+                    this._write(".cloned()")
+                }
+                this._write(".collect::<Vec<_>>()")
+            }
+            return true
+        }
+        if method == "forEach" {
+            this._emitIterPrefix(obj, true)
+            this._write(".for_each(")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(")")
+            return true
+        }
+        if method == "find" {
+            this._emitIterPrefix(obj, true)
+            this._write(".find(")
+            this._derefClosureParams = true
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._derefClosureParams = false
+            this._write(").unwrap()")
+            return true
+        }
+        if method == "includes" {
+            this._emitExpr(obj)
+            this._write(".iter().any(|__x| __x == &(")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write("))")
+            return true
+        }
+        if method == "indexOf" {
+            this._emitExpr(obj)
+            this._write(".iter().position(|__x| __x == &(")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(")).map(|i| i as i32).unwrap_or(-1)")
+            return true
+        }
+        if method == "some" {
+            this._emitIterPrefix(obj, true)
+            this._write(".any(")
+            // any() passes T directly (not &T), so no deref needed
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(")")
+            return true
+        }
+        if method == "every" {
+            this._emitIterPrefix(obj, true)
+            this._write(".all(")
+            // all() passes T directly (not &T), so no deref needed
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(")")
+            return true
+        }
+        if method == "reduce" {
+            this._emitIterPrefix(obj, false)
+            this._write(".fold(")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(", ")
+            if args.length > 1 {
+                let isLam = false
+                switch args[1] {
+                    Expr.Lambda(_) => { isLam = true }
+                }
+                if isLam {
+                    this._write("|acc, x| { let x = x.clone(); (")
+                    this._emitExpr(args[1])
+                    this._write(")(acc, x) }")
+                } else {
+                    // Function reference — wrap explicitly
+                    this._write("|acc, x| ")
+                    this._emitExpr(args[1])
+                    this._write("(acc, x.clone())")
+                }
+            }
+            this._write(")")
+            return true
+        }
+        if method == "flatMap" {
+            this._emitIterPrefix(obj, false)
+            this._write(".flat_map(|x| (")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(")(x.clone()))")
+            if not this._inIterChain { this._write(".collect::<Vec<_>>()") }
+            return true
+        }
+        if method == "findIndex" {
+            this._emitExpr(obj)
+            this._write(".iter().position(|x| { let x = x.clone(); (")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(")(x) }).map(|i| i as i32).unwrap_or(-1)")
+            return true
+        }
+        if method == "count" {
+            this._emitExpr(obj)
+            this._write(".iter().filter(|x| { let x = (*x).clone(); (")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(")(x) }).count() as i32")
+            return true
+        }
+        if method == "distinct" {
+            this._write("{ let mut __seen = std::collections::HashSet::new(); ")
+            this._emitExpr(obj)
+            this._write(".iter().filter(|x| __seen.insert((*x).clone())).cloned().collect::<Vec<_>>() }")
+            return true
+        }
+        if method == "chunks" {
+            this._emitExpr(obj)
+            this._write(".chunks((")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(") as usize).map(|c| c.to_vec()).collect::<Vec<Vec<_>>>()")
+            return true
+        }
+        if method == "zip" {
+            this._emitExpr(obj)
+            this._write(".iter().zip(")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(".iter()).map(|(a, b)| (a.clone(), b.clone())).collect::<Vec<_>>()")
+            return true
+        }
+        if method == "concat" {
+            this._write("{ let mut __v = ")
+            this._emitExpr(obj)
+            this._write(".clone(); __v.extend(")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write("); __v }")
+            return true
+        }
+        if method == "min" {
+            this._emitExpr(obj)
+            this._write(".iter().min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)).cloned().unwrap()")
+            return true
+        }
+        if method == "max" {
+            this._emitExpr(obj)
+            this._write(".iter().max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)).cloned().unwrap()")
+            return true
+        }
+        // Not a known array method
+        return false
+    }
+
+    // -- Map methods → Rust equivalents --
+
+    _emitMapMethod(obj: Expr, method: string, args: [Expr]): bool {
+        if method == "get" {
+            this._emitExpr(obj)
+            this._write(".get(")
+            if args.length > 0 { this._emitMapKeyArg(args[0]) }
+            // Phase 9.2: use .copied() for Copy value types (zero-cost)
+            let valType = this._getMapValueTypeRef(obj)
+            if this._isCopyType(valType) {
+                this._write(").copied().unwrap()")
+            } else {
+                this._write(").cloned().unwrap()")
+            }
+            return true
+        }
+        if method == "set" {
+            this._emitExpr(obj)
+            this._write(".insert(")
+            if args.length > 0 {
+                this._emitClonedArg(args[0])
+            }
+            this._write(", ")
+            if args.length > 1 {
+                this._emitClonedArg(args[1])
+            }
+            this._write(")")
+            return true
+        }
+        if method == "has" {
+            this._emitExpr(obj)
+            this._write(".contains_key(")
+            if args.length > 0 { this._emitMapKeyArg(args[0]) }
+            this._write(")")
+            return true
+        }
+        if method == "delete" {
+            this._emitExpr(obj)
+            this._write(".remove(")
+            if args.length > 0 { this._emitMapKeyArg(args[0]) }
+            this._write(")")
+            return true
+        }
+        if method == "keys" {
+            this._emitExpr(obj)
+            this._write(".keys().cloned().collect::<Vec<_>>()")
+            return true
+        }
+        if method == "values" {
+            this._emitExpr(obj)
+            this._write(".values().cloned().collect::<Vec<_>>()")
+            return true
+        }
+        if method == "entries" {
+            this._emitExpr(obj)
+            this._write(".iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>()")
+            return true
+        }
+        if method == "clear" {
+            this._emitExpr(obj)
+            this._write(".clear()")
+            return true
+        }
+        if method == "forEach" {
+            this._emitExpr(obj)
+            this._write(".iter().for_each(|(k, v)| { (")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(")(k.clone(), v.clone()); })")
+            return true
+        }
+        if method == "isEmpty" {
+            this._emitExpr(obj)
+            this._write(".is_empty()")
+            return true
+        }
+        // Not a known map method
+        return false
+    }
+
+    // -- Set methods → Rust equivalents --
+
+    _emitSetMethod(obj: Expr, method: string, args: [Expr]): bool {
+        if method == "add" {
+            this._emitExpr(obj)
+            this._write(".insert(")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(")")
+            return true
+        }
+        if method == "has" {
+            this._emitExpr(obj)
+            this._write(".contains(&(")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write("))")
+            return true
+        }
+        if method == "delete" {
+            this._emitExpr(obj)
+            this._write(".remove(")
+            if args.length > 0 { this._emitMapKeyArg(args[0]) }
+            this._write(")")
+            return true
+        }
+        if method == "clear" {
+            this._emitExpr(obj)
+            this._write(".clear()")
+            return true
+        }
+        if method == "values" {
+            this._emitExpr(obj)
+            this._write(".iter().cloned().collect::<Vec<_>>()")
+            return true
+        }
+        if method == "forEach" {
+            this._emitExpr(obj)
+            this._write(".iter().for_each(")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(")")
+            return true
+        }
+        if method == "union" {
+            this._emitExpr(obj)
+            this._write(".union(&(")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(")).cloned().collect::<std::collections::HashSet<_>>()")
+            return true
+        }
+        if method == "intersection" {
+            this._emitExpr(obj)
+            this._write(".intersection(&(")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(")).cloned().collect::<std::collections::HashSet<_>>()")
+            return true
+        }
+        if method == "difference" {
+            this._emitExpr(obj)
+            this._write(".difference(&(")
+            if args.length > 0 { this._emitExpr(args[0]) }
+            this._write(")).cloned().collect::<std::collections::HashSet<_>>()")
+            return true
+        }
+        if method == "isEmpty" {
+            this._emitExpr(obj)
+            this._write(".is_empty()")
+            return true
+        }
+        if method == "size" || method == "count" {
+            this._write("(")
+            this._emitExpr(obj)
+            this._write(".len() as i32)")
+            return true
+        }
+        // Not a known set method
+        return false
+    }
+
+    // -- Member access (type-directed) --
+}
+
+// Sentinel symbol so main.liva can import this module and bring its
+// `extend RustEmitter { ... }` block into the compile graph.
+codegenStdlibMethodsExtensionLoaded(): bool { return true }
