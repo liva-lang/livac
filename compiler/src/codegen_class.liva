@@ -1,0 +1,758 @@
+// ============================================================================
+// codegen_class.liva — RustEmitter extension: class declaration lowering
+// ============================================================================
+// Extracted from codegen.liva via `extend RustEmitter { ... }`.
+//
+// Owns the lowering of `class Foo { ... }` into Rust:
+//   - _emitClass             entry point (struct + Display + impl block)
+//   - _emitClassStruct       `pub struct Foo { fields }` + derives
+//   - _emitField             one field with its sanitized name + type
+//   - _emitClassDisplay      auto-derived `impl Display for Foo`
+//   - _emitClassImpl         `impl Foo { constructor + methods }`
+//   - _emitConstructor       `pub fn new(...) -> Self` generation
+//   - _buildNoDefaultClasses transitive no-Default set pre-pass
+//   - _buildClassMutMethods  transitive mut-method set per class
+//   - _emitMethod            one method (chooses &self / &mut self)
+//
+// Pure relocation — only calls back into existing RustEmitter helpers.
+
+import { ClassDecl, MethodDecl, FieldDecl, Program } from "./ast"
+import { RustEmitter } from "./codegen"
+
+extend RustEmitter {
+
+    _emitClass(decl: ClassDecl) {
+        let className = $"{decl.name}"
+
+        // Interface detection: class with no fields AND all methods bodyless
+        // (no body, no exprBody) is treated as a compile-time-only interface
+        // and is NOT emitted. Bootstrap behavior (interfaces are validation only).
+        let hasField = false
+        let hasImplMethod = false
+        for m in decl.members {
+            switch m {
+                Member.Field(_) => { hasField = true },
+                Member.Method(md) => {
+                    let bodyOpt = md.body
+                    let exprOpt = md.exprBody
+                    if bodyOpt != null { hasImplMethod = true }
+                    if exprOpt != null { hasImplMethod = true }
+                }
+            }
+        }
+        let isInterface = false
+        if hasField == false {
+            if hasImplMethod == false {
+                if decl.members.length > 0 {
+                    isInterface = true
+                }
+            }
+        }
+        if isInterface {
+            return
+        }
+
+        // B125: register Map-typed field names in `_mapVars` so that downstream
+        // checks (`for k, v in obj.field`, `obj.field.get(k) or ...`) recognize
+        // member-access receivers as Map-typed without needing full type
+        // inference at every callsite.
+        for m in decl.members {
+            switch m {
+                Member.Field(f) => {
+                    if this._isMapType(f.typeRef) {
+                        let fName = this._sanitizeName(f.name)
+                        this._mapVars.set(fName, true)
+                    }
+                }
+            }
+        }
+
+        // Build type param string via for-loop (auto-clones, avoids partial move of decl)
+        let tpParts: [string] = []
+        let tpNames: [string] = []
+        for tp in decl.typeParams {
+            tpNames.push(tp.name)
+            let bnds = "Clone + std::fmt::Debug + PartialEq"
+            for c in tp.constraints {
+                if c == "Numeric" || c == "Number" {
+                    bnds = bnds + " + std::ops::Add<Output = " + tp.name + "> + std::ops::Sub<Output = " + tp.name + "> + PartialOrd + Default + Copy"
+                } else if c == "Comparable" {
+                    bnds = bnds + " + PartialOrd"
+                } else if c == "Printable" {
+                    bnds = bnds + " + std::fmt::Display"
+                } else {
+                    bnds = bnds + " + " + c
+                }
+            }
+            tpParts.push(tp.name + ": " + bnds)
+        }
+        if tpParts.length > 0 {
+            this._classTypeParamStr = "<" + tpParts.join(", ") + ">"
+            this._classTypeParamStrNoBounds = "<" + tpNames.join(", ") + ">"
+        } else {
+            this._classTypeParamStr = ""
+            this._classTypeParamStrNoBounds = ""
+        }
+
+        // Emit struct definition
+        this._emitClassStruct(className, decl)
+
+        // Emit impl block with constructor + methods
+        this._emitClassImpl(className, decl)
+
+        // B152: auto-emit `impl Display for ClassName` for any class with
+        // fields, mirroring bootstrap's BUG-004 fix. Without this, code like
+        // `print($"{stack}")` fails to compile because gen-2 generates
+        // `println!("{}", stack)` and Display is not derived. Uses {:?} for
+        // container/enum fields and {} for everything else.
+        if hasField {
+            this._emitClassDisplay(className, decl)
+        }
+
+        this._classTypeParamStr = ""
+        this._classTypeParamStrNoBounds = ""
+    }
+
+    _emitClassStruct(className: string, decl: ClassDecl) {
+        // Derive clause — include PartialEq so enum variants containing this struct support ==
+        // Bootstrap rule (B99): derive Default for data classes (no ctor) AND for non-data
+        // classes when no field is an enum type (enum variants don't impl Default).
+        // This makes try/catch lowering `(Default::default(), Some(e))` type-check when
+        // the success type is the class itself.
+        let dcHasCtor = false
+        let dcHasEnumField = false
+        // Transitive: this class can't derive Default if it appears in the
+        // pre-computed no-Default set (computed in `generate` via fixpoint
+        // over field-type chains and enum membership).
+        if this._noDefaultClasses.has(className) {
+            dcHasEnumField = true
+        }
+        for dcM in decl.members {
+            switch dcM {
+                Member.Method(dcMd) => {
+                    if dcMd.name == "constructor" { dcHasCtor = true }
+                },
+                Member.Field(dcF) => {
+                    let dcTr = dcF.typeRef
+                    if dcTr != null {
+                        switch dcTr {
+                            TypeRef.Simple(dcTn) => {
+                                if this._typeCtx.enums.has(dcTn) {
+                                    dcHasEnumField = true
+                                }
+                                if this._globalEnums.has(dcTn) {
+                                    dcHasEnumField = true
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if dcHasEnumField {
+            this._writeln("#[derive(Clone, Debug, PartialEq)]")
+        } else {
+            this._writeln("#[derive(Clone, Debug, Default, PartialEq)]")
+        }
+        let typeParamStr = this._classTypeParamStr
+        this._writeln("pub struct " + className + typeParamStr + " {")
+        this._indent()
+
+        for m in decl.members {
+            switch m {
+                Member.Field(f) => {
+                    this._emitField(f)
+                }
+            }
+        }
+
+        this._dedent()
+        this._writeln("}")
+        this._writeRaw("")
+    }
+
+    _emitField(f: FieldDecl) {
+        let fieldName = this._sanitizeName(f.name)
+        let typeStr = this._buildParamType(f.typeRef)
+        this._writeln($"pub {fieldName}: {typeStr},")
+    }
+
+    // B152: auto-emit Display impl for user classes with fields.
+    // Without this, `print($"{instance}")` fails to compile because gen-2
+    // emits `println!("{}", x)` and Display is not derived. Uses `{:?}` for
+    // container/enum fields and `{}` for scalars/strings.
+    _emitClassDisplay(className: string, decl: ClassDecl) {
+        // Pre-scan: are any fields formatted via `{:?}` (Vec/Map/Set/Optional/enum)?
+        // If so, type params need an extra `Debug` bound on top of the impl.
+        let anyDebugField = false
+        for m in decl.members {
+            switch m {
+                Member.Field(f) => {
+                    if this._fieldNeedsDebug(f.typeRef) { anyDebugField = true }
+                }
+            }
+        }
+
+        // Build impl-line type-param section. Reuse the class's bounds and add
+        // `std::fmt::Display` (always) and `std::fmt::Debug` (if any debug field).
+        // Note: `_classTypeParamStr` already includes Clone+Debug+PartialEq, so
+        // we only need to inject Display when type params exist.
+        let implTypeParamStr = ""
+        let implTypeArgs = this._classTypeParamStrNoBounds
+        if decl.typeParams.length > 0 {
+            let parts: [string] = []
+            for tp in decl.typeParams {
+                let bnds = "Clone + std::fmt::Debug + PartialEq + std::fmt::Display"
+                for c in tp.constraints {
+                    if c == "Numeric" or c == "Number" {
+                        bnds = bnds + " + std::ops::Add<Output = " + tp.name + "> + std::ops::Sub<Output = " + tp.name + "> + PartialOrd + Default + Copy"
+                    } else if c == "Comparable" {
+                        bnds = bnds + " + PartialOrd"
+                    } else if c == "Printable" {
+                        // already added above
+                    } else {
+                        bnds = bnds + " + " + c
+                    }
+                }
+                parts.push(tp.name + ": " + bnds)
+            }
+            implTypeParamStr = "<" + parts.join(", ") + ">"
+        }
+
+        this._writeln("")
+        if implTypeParamStr != "" {
+            this._writeln("impl" + implTypeParamStr + " std::fmt::Display for " + className + implTypeArgs + " {")
+        } else {
+            this._writeln("impl std::fmt::Display for " + className + " {")
+        }
+        this._indent()
+        this._writeln("fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {")
+        this._indent()
+
+        // Collect field decls in order.
+        let fieldNames: [string] = []
+        let fieldNeedsDbg: [bool] = []
+        for m in decl.members {
+            switch m {
+                Member.Field(f) => {
+                    fieldNames.push(this._sanitizeName(f.name))
+                    fieldNeedsDbg.push(this._fieldNeedsDebug(f.typeRef))
+                }
+            }
+        }
+
+        // Build the format string: `ClassName {{ f1: {}, f2: {:?}, ... }}`.
+        // Doubled braces escape `{`/`}` for Rust's format!/write! macros.
+        let fmtStr = className + " {{ "
+        let i = 0
+        while i < fieldNames.length {
+            if i > 0 { fmtStr = fmtStr + ", " }
+            fmtStr = fmtStr + fieldNames[i] + ": "
+            if fieldNeedsDbg[i] {
+                fmtStr = fmtStr + "{:?}"
+            } else {
+                fmtStr = fmtStr + "{}"
+            }
+            i += 1
+        }
+        fmtStr = fmtStr + " }}"
+
+        // Emit `write!(f, "...", self.f1, self.f2, ...)`.
+        let line = "write!(f, \"" + fmtStr + "\""
+        let j = 0
+        while j < fieldNames.length {
+            line = line + ", self." + fieldNames[j]
+            j += 1
+        }
+        line = line + ")"
+        this._writeln(line)
+
+        this._dedent()
+        this._writeln("}")
+        this._dedent()
+        this._writeln("}")
+    }
+
+    // B152: returns true if a field of the given (optional) TypeRef should be
+    // formatted via `{:?}` instead of `{}` (Vec/Map/Set/Optional/Tuple/enum).
+    _fieldNeedsDebug(optRef: TypeRef?): bool { return fieldNeedsDebug(this, optRef) }
+
+    _emitClassImpl(className: string, decl: ClassDecl) {
+        let typeParamStr = this._classTypeParamStr
+        let typeParamStrNoBounds = this._classTypeParamStrNoBounds
+        if typeParamStr != "" {
+            this._writeln("impl" + typeParamStr + " " + className + typeParamStrNoBounds + " {")
+        } else {
+            this._writeln("impl " + className + " {")
+        }
+        this._indent()
+
+        let prevClass = $"{this._currentClassName}"
+        let prevMethod = this._inMethod
+        this._currentClassName = $"{className}"
+        this._inMethod = true
+
+        // Cycle 29: build field → return-suffix map for this class so arrow
+        // methods `_get() => this.value` infer their return type from the
+        // declared field type. Save/restore the prior map to handle nested
+        // class emission cleanly (e.g. inner type aliases).
+        let prevFieldRet = this._currentClassFieldRetSuffix
+        let fieldRet: Map<string, string> = Map {}
+        for m in decl.members {
+            switch m {
+                Member.Field(f) => {
+                    let suffix = this._buildReturnType(f.typeRef, false)
+                    if suffix != "" {
+                        fieldRet.set(f.name, suffix)
+                    }
+                }
+            }
+        }
+        this._currentClassFieldRetSuffix = fieldRet
+
+        // Build per-class transitive set of methods needing &mut self.
+        // Must run BEFORE emitting any method so each _emitMethod call sees
+        // the complete set when deciding self receiver.
+        this._buildClassMutMethods(decl)
+
+        // Emit constructor (if class has fields, generate new() method)
+        this._emitConstructor($"{className}", decl)
+
+        // Emit methods
+        for m in decl.members {
+            switch m {
+                Member.Method(md) => {
+                    // B148: skip the `constructor` method — its body is fully
+                    // inlined inside `pub fn new(...)` by `_emitConstructor`.
+                    if md.name != "constructor" {
+                        this._emitMethod($"{className}", md)
+                    }
+                }
+            }
+        }
+
+        this._currentClassName = prevClass
+        this._inMethod = prevMethod
+        this._currentClassFieldRetSuffix = prevFieldRet
+
+        this._dedent()
+        this._writeln("}")
+        this._writeRaw("")
+    }
+
+    _emitConstructor(className: string, decl: ClassDecl) {
+        // Find all fields
+        let fields: [FieldDecl] = []
+        for m in decl.members {
+            switch m {
+                Member.Field(f) => { fields.push(f) }
+            }
+        }
+
+        if fields.length == 0 { return }
+
+        // Find constructor method (if exists)
+        let hasConstructor = false
+        let ctorParams: [Param] = []
+        let ctorStmts: [Stmt] = []
+        for m in decl.members {
+            switch m {
+                Member.Method(md) => {
+                    if md.name == "constructor" {
+                        hasConstructor = true
+                        ctorParams = md.params
+                        let body = md.body
+                        if body != null {
+                            ctorStmts = this._blockStmts(body)
+                        }
+                    }
+                }
+            }
+        }
+
+        if hasConstructor {
+            // Class has explicit constructor — use ctor params and body
+            // Cycle 38/39/40: liveness keys for ctor params live under
+            // "ClassName.constructor", so set _currentFunc accordingly while
+            // building the param list (otherwise paramEscapes lookups miss
+            // and `this.field = arg` patterns wrongly auto-borrow the arg).
+            let savedFuncCtor = $"{this._currentFunc}"
+            this._currentFunc = $"{className}.constructor"
+            let paramStr = this._buildParamList(ctorParams)
+            this._currentFunc = savedFuncCtor
+
+            this._writeln("pub fn new(" + paramStr + ") -> Self {")
+            this._indent()
+
+            // B148: walk body in source order. For top-level `this.X = expr`,
+            // emit `let mut __field_X = expr;` (or `__field_X = expr;` on
+            // subsequent reassigns). For other stmts, emit normally — `this.X`
+            // reads inside them are rewritten to `__field_X` (B148) by
+            // `_emitMemberAccess` and `_emitMethodCall`.
+            this._inConstructor = true
+            this._constructorAssignedFields = Map {}
+            let assignedList: [string] = []
+
+            for stmt in ctorStmts {
+                let isFieldAssign = false
+                let faName = ""
+                let faExpr: Expr = Expr.Identifier("")
+                switch stmt {
+                    Stmt.Assign(asgn) => {
+                        switch asgn.target {
+                            Expr.MemberAccess(obj, prop) => {
+                                switch obj {
+                                    Expr.Identifier(name) => {
+                                        if name == "this" || name == "self" {
+                                            isFieldAssign = true
+                                            faName = this._sanitizeName(prop)
+                                            faExpr = asgn.value
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if isFieldAssign {
+                    let alreadyAssigned = this._constructorAssignedFields.has(faName)
+                    // Look up field type for empty-collection special cases
+                    let fieldIsMap = false
+                    let fieldIsSet = false
+                    for f in fields {
+                        if this._sanitizeName(f.name) == faName {
+                            let ftRef = f.typeRef
+                            if ftRef != null {
+                                let fTag = this._typeRefToTag(ftRef)
+                                if fTag == "map" { fieldIsMap = true }
+                                if fTag == "set" { fieldIsSet = true }
+                            }
+                        }
+                    }
+                    let initIsEmptyObj = false
+                    let initIsEmptySet = false
+                    switch faExpr {
+                        Expr.ObjectLiteral(oFields) => {
+                            if oFields.length == 0 { initIsEmptyObj = true }
+                        },
+                        Expr.SetLiteral(sItems) => {
+                            if sItems.length == 0 { initIsEmptySet = true }
+                        }
+                    }
+
+                    this._writeIndent()
+                    if alreadyAssigned {
+                        this._write($"__field_{faName} = ")
+                    } else {
+                        this._write($"let mut __field_{faName} = ")
+                        this._constructorAssignedFields.set(faName, true)
+                        assignedList.push(faName)
+                    }
+
+                    if initIsEmptyObj && fieldIsMap {
+                        this._write("HashMap::new()")
+                    } else {
+                        let isEmptySetInit = false
+                        if initIsEmptyObj { if fieldIsSet { isEmptySetInit = true } }
+                        if initIsEmptySet { if fieldIsSet { isEmptySetInit = true } }
+                        if isEmptySetInit {
+                            this._write("HashSet::new()")
+                        } else {
+                            this._emitExpr(faExpr)
+                        }
+                    }
+                    this._write(";")
+                    this._newline()
+                } else {
+                    this._emitStmt(stmt)
+                }
+            }
+
+            // Emit Self { ... } initializer
+            this._writeln("Self {")
+            this._indent()
+            for f in fields {
+                let fname = this._sanitizeName(f.name)
+                if this._constructorAssignedFields.has(fname) {
+                    this._writeln($"{fname}: __field_{fname},")
+                } else {
+                    let dflt = this._fieldDefault(f.typeRef)
+                    this._writeln($"{fname}: {dflt},")
+                }
+            }
+            this._dedent()
+            this._writeln("}")
+
+            this._inConstructor = false
+            this._constructorAssignedFields = Map {}
+
+            this._dedent()
+            this._writeln("}")
+            this._writeRaw("")
+        } else {
+            // No explicit constructor — generate new() with all fields as params
+            let paramParts: [string] = []
+            for f in fields {
+                let fname = this._sanitizeName(f.name)
+                let ftype = this._buildParamType(f.typeRef)
+                paramParts.push($"{fname}: {ftype}")
+            }
+            let paramStr = paramParts.join(", ")
+
+            this._writeln("pub fn new(" + paramStr + ") -> Self {")
+            this._indent()
+            this._writeln("Self {")
+            this._indent()
+            for f in fields {
+                let fname = this._sanitizeName(f.name)
+                this._writeln($"{fname},")
+            }
+            this._dedent()
+            this._writeln("}")
+            this._dedent()
+            this._writeln("}")
+            this._writeRaw("")
+        }
+    }
+
+    // -- Self-mutation analysis (drives &self vs &mut self choice) --
+    //
+    // Mirrors bootstrap's method_modifies_self / block_modifies_self.
+    // Returns true if `decl` writes to a field of `this`/`self` directly
+    // (this.field = ...) or transitively via a mutating method call
+    // (this.field.push(...), etc.). Setters (setX) are also considered mut.
+
+
+    // Build the per-program transitive no-Default class set. Called once at
+    // the start of `generate(program)`. See `_noDefaultClasses` doc comment.
+    _buildNoDefaultClasses(program: Program) {
+        this._noDefaultClasses = Map {}
+        let classFieldTypes: Map<string, [string]> = Map {}
+        for item in program.items {
+            switch item {
+                TopLevel.Class(cd) => {
+                    let cn = $"{cd.name}"
+                    let typeNames: [string] = []
+                    let hasEnumField = false
+                    for m in cd.members {
+                        switch m {
+                            Member.Field(f) => {
+                                let trOpt = f.typeRef
+                                if trOpt != null {
+                                    switch trOpt {
+                                        TypeRef.Simple(tn) => {
+                                            let tnCopy = $"{tn}"
+                                            if this._typeCtx.enums.has(tnCopy) {
+                                                hasEnumField = true
+                                            }
+                                            if this._globalEnums.has(tnCopy) {
+                                                hasEnumField = true
+                                            }
+                                            typeNames.push($"{tnCopy}")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if hasEnumField {
+                        let cnSet = $"{cn}"
+                        this._noDefaultClasses.set(cnSet, true)
+                    }
+                    let cnKey = $"{cn}"
+                    classFieldTypes.set(cnKey, typeNames)
+                }
+            }
+        }
+        // Fixpoint propagation: a class becomes no-Default if any of its
+        // field types is already in the no-Default set.
+        let ndChanged = true
+        while ndChanged {
+            ndChanged = false
+            for cnIter in classFieldTypes.keys() {
+                let cnLook = $"{cnIter}"
+                if not this._noDefaultClasses.has(cnLook) {
+                    let types = classFieldTypes.get(cnLook)
+                    let propagate = false
+                    for t in types {
+                        let tCopy = $"{t}"
+                        if this._noDefaultClasses.has(tCopy) {
+                            propagate = true
+                        }
+                    }
+                    if propagate {
+                        let cnAdd = $"{cnLook}"
+                        this._noDefaultClasses.set(cnAdd, true)
+                        ndChanged = true
+                    }
+                }
+            }
+        }
+    }
+
+    // Build per-class transitive mut-self set. Called once at the start of
+    // _emitClass so subsequent _methodModifiesSelf calls are O(1) lookups.
+    _buildClassMutMethods(decl: ClassDecl) {
+        this._classMutMethods = Map {}
+        // Pass 1: direct mutations + setter heuristic
+        for m in decl.members {
+            switch m {
+                Member.Method(md) => {
+                    let mn = $"{md.name}"
+                    let isSetter = false
+                    if mn.startsWith("set") && mn.length > 3 {
+                        let c = mn.substring(3, 4)
+                        if c >= "A" && c <= "Z" { isSetter = true }
+                    }
+                    if isSetter {
+                        let mnA = $"{mn}"
+                        this._classMutMethods.set(mnA, true)
+                        let _setterDone = 0
+                    } else {
+                        let bodyOpt = md.body
+                        let ebOpt = md.exprBody
+                        let direct = false
+                        if bodyOpt != null {
+                            if this._blockModifiesSelf(bodyOpt) { direct = true }
+                        }
+                        if not direct {
+                            if ebOpt != null {
+                                if this._exprModifiesSelf(ebOpt) { direct = true }
+                            }
+                        }
+                        if direct {
+                            let mnB = $"{mn}"
+                            this._classMutMethods.set(mnB, true)
+                        }
+                    }
+                }
+            }
+        }
+        // Pass 2: fixpoint over `this.<m>()` calls
+        let changed = true
+        while changed {
+            changed = false
+            for m in decl.members {
+                switch m {
+                    Member.Method(md) => {
+                        let mn = $"{md.name}"
+                        if not this._classMutMethods.has(mn) {
+                            if this._methodCallsAnyMutMethod(md) {
+                                let mnSet = $"{mn}"
+                                this._classMutMethods.set(mnSet, true)
+                                changed = true
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    _emitMethod(className: string, decl: MethodDecl) {
+        let methodName = this._sanitizeName(decl.name)
+        let prevFunc = $"{this._currentFunc}"
+        this._currentFunc = $"{className}.{decl.name}"
+        this._currentFuncBorrowKey = $"{className}.{methodName}"
+        // Phase 8.6: only private methods (_prefix) → always called via this._method()
+        let mStart = decl.name.substring(0, 1)
+        this._currentFuncIsMethod = mStart == "_"
+        let prevRetOpt = this._currentReturnOptional
+        let prevRetFail = this._currentReturnFallible
+        let prevStrRefParams = this._strRefParams
+        let prevErrBindings = this._errBindings
+        let prevTruthyErrBindings = this._truthyErrBindings
+        this._currentReturnOptional = false
+        this._currentReturnFallible = false
+        this._strRefParams = Map {}
+        this._errBindings = Map {}
+        this._truthyErrBindings = Map {}
+
+        // Bootstrap parity: methods that don't mutate self/self-fields take &self
+        // (avoids E0596 'cannot borrow as mutable' at call sites with non-mut bindings).
+        // Setters (setX) and any method whose body assigns this.field or invokes a
+        // mutating method on this/this.field need &mut self.
+        let modifiesSelf = this._methodModifiesSelf(decl)
+        let selfParam = "&self"
+        if modifiesSelf {
+            selfParam = "&mut self"
+        }
+
+        let paramList = this._buildParamList(decl.params)
+        let fullParams = $"{selfParam}"
+        if paramList != "" {
+            fullParams = $"{selfParam}, {paramList}"
+        }
+
+        let retStr = this._buildReturnType(decl.returnType, decl.containsFail)
+        if retStr.contains("Option<") {
+            this._currentReturnOptional = true
+        }
+        if retStr.contains("Result<") {
+            this._currentReturnFallible = true
+        }
+
+        let asyncKw = ""
+        let effectiveAsyncM = decl.isAsyncInferred
+        if effectiveAsyncM {
+            asyncKw = "async "
+        }
+        // Arrow-body methods without explicit return type — infer from
+        // body expression (mirrors `_emitFunction`). Previously these
+        // emitted `fn name(&self) {` (i.e. `-> ()`), which downstream cargo
+        // rejected when the body produced a value. We only override when
+        // inference yields a concrete type so side-effect-only arrow
+        // methods (`_log() => print(x)`) keep their `-> ()` signature.
+        let ebProbe = decl.exprBody
+        if ebProbe != null {
+            if retStr == "" {
+                let inferredM = inferArrowReturnType(this, ebProbe)
+                if inferredM != "" {
+                    retStr = inferredM
+                }
+            }
+        }
+        this._writeln("pub " + asyncKw + "fn " + methodName + "(" + fullParams + ")" + retStr + " {")
+        this._indent()
+
+        // Handle one-liner methods (=> expr)
+        let eb = decl.exprBody
+        if eb != null {
+            this._writeIndent()
+            this._write("return ")
+            if this._currentReturnOptional {
+                this._emitSomeWrapped(eb)
+            } else if this._currentReturnFallible {
+                this._write("Ok(")
+                this._emitExpr(eb)
+                this._write(")")
+            } else {
+                this._emitExpr(eb)
+            }
+            this._write(";")
+            this._newline()
+        } else {
+            this._emitBlockOpt(decl.body)
+        }
+
+        this._dedent()
+        this._writeln("}")
+        this._writeRaw("")
+
+        this._currentFunc = prevFunc
+        this._currentReturnOptional = prevRetOpt
+        this._currentReturnFallible = prevRetFail
+        this._strRefParams = prevStrRefParams
+        this._errBindings = prevErrBindings
+        this._truthyErrBindings = prevTruthyErrBindings
+    }
+
+    // -- Enum declaration --
+
+    // -- Type alias --
+
+}
+
+// Sentinel symbol so main.liva can import this module and bring its
+// `extend RustEmitter { ... }` block into the compile graph.
+codegenClassExtensionLoaded(): bool { return true }

@@ -41,6 +41,7 @@ import { codegenServerExtensionLoaded } from "./codegen_server"
 import { codegenAsyncExtensionLoaded } from "./codegen_async"
 import { codegenStdlibMethodsExtensionLoaded } from "./codegen_stdlib_methods"
 import { codegenMutselfExtensionLoaded } from "./codegen_mutself"
+import { codegenClassExtensionLoaded } from "./codegen_class"
 import { sanitizeFieldName } from "./codegen_utils"
 import { ModuleResolver, LivaModule } from "./module"
 
@@ -1311,6 +1312,7 @@ main() {
     let _asyncExt = codegenAsyncExtensionLoaded()
     let _stdlibExt = codegenStdlibMethodsExtensionLoaded()
     let _mutselfExt = codegenMutselfExtensionLoaded()
+    let _classExt = codegenClassExtensionLoaded()
 
     // Install a clean panic hook so parser/lexer panics (compiled from
     // `throw` statements) are reported as compact E2000-style messages
