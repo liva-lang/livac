@@ -49,6 +49,11 @@ import {
     escapeRustStr, escapeRustChar, emitSimpleType,
     sanitizeTestName, extractModuleName
 } from "./codegen_utils"
+import {
+    isAllUnitEnum, binOpToRust, fieldDefault, isMapType,
+    typeRefToTag, isCopyType, getLiteralTypeName, blockStmts,
+    buildTypeParamStr
+} from "./codegen_types"
 
 // =====================================================================
 //  Stdlib runtime snippets (Phase 11 § A3)
@@ -10447,70 +10452,9 @@ inferArrowReturnType(e: RustEmitter, expr: Expr): string {
 // supported (currently `inferArrowReturnType`). Other helpers that
 // need pattern matching on Expr/Literal must remain class methods.
 // See BACKLOG § Cycle 43 for the bisect log.
-isAllUnitEnum(decl: EnumDecl): bool {
-    for v in decl.variants {
-        if v.fields.length > 0 { return false }
-    }
-    return true
-}
-
-// Cycle 46 (A1 step 3) — pure BinOp → Rust operator string mapper.
-binOpToRust(op: BinOp): string {
-    let result = "/* op */"
-    switch op {
-        BinOp.Add => { result = "+" },
-        BinOp.Sub => { result = "-" },
-        BinOp.Mul => { result = "*" },
-        BinOp.Div => { result = "/" },
-        BinOp.Mod => { result = "%" },
-        BinOp.Lt => { result = "<" },
-        BinOp.Le => { result = "<=" },
-        BinOp.Gt => { result = ">" },
-        BinOp.Ge => { result = ">=" },
-        BinOp.Eq => { result = "==" },
-        BinOp.Ne => { result = "!=" },
-        BinOp.And => { result = "&&" },
-        BinOp.Or => { result = "||" },
-        BinOp.Range => { result = ".." },
-        BinOp.RangeInclusive => { result = "..=" }
-    }
-    return result
-}
 
 // Cycle 51 (A1 step 7) — pure TypeRef helpers extracted to free functions.
 // Switch on TypeRef (not Expr) so BS-FRAG-1 safe.
-fieldDefault(optRef: TypeRef?): string {
-    if optRef == null { return "Default::default()" }
-    let result = "Default::default()"
-    if optRef != null {
-        let tref = optRef
-        switch tref {
-            TypeRef.Simple(n) => {
-                if n == "number" || n == "int" { result = "0" }
-                else if n == "float" { result = "0.0" }
-                else if n == "bool" { result = "false" }
-                else if n == "string" || n == "String" { result = "String::new()" }
-                else if n == "char" { result = "'\\0'" }
-            },
-            TypeRef.Array(_) => { result = "Vec::new()" },
-            TypeRef.MapType(_, _) => { result = "HashMap::new()" },
-            TypeRef.SetType(_) => { result = "HashSet::new()" },
-            TypeRef.OptionalType(_) => { result = "None" }
-        }
-    }
-    return result
-}
-
-isMapType(optRef: TypeRef?): bool {
-    if optRef != null {
-        let isMap = false
-        switch optRef {
-            TypeRef.MapType(_, _) => { isMap = true }
-        }
-        return isMap
-    }
-    return false
-}
 
 // Cycle 53 — buildParamType extracted using e: RustEmitter pattern
 // (proven by inferArrowReturnType in Cycle 42).
@@ -10573,43 +10517,6 @@ emitGenericType(em: RustEmitter, base: string, args: [TypeRef]): string {
     return $"{base}<{argParts.join(", ")}>"
 }
 
-typeRefToTag(t: TypeRef): string {
-    let tag = "unknown"
-    switch t {
-        TypeRef.Simple(name) => {
-            if name == "string" { tag = "string" }
-            if name == "number" { tag = "number" }
-            if name == "int" { tag = "number" }
-            if name == "float" { tag = "float" }
-            if name == "bool" { tag = "bool" }
-            if name == "char" { tag = "char" }
-        },
-        TypeRef.Array(_) => { tag = "array" },
-        TypeRef.MapType(_, _) => { tag = "map" },
-        TypeRef.SetType(_) => { tag = "set" },
-        TypeRef.OptionalType(_) => { tag = "optional" },
-        TypeRef.Fallible(_) => { tag = "fallible" }
-    }
-    return tag
-}
-
-isCopyType(t: TypeRef): bool {
-    let tag = typeRefToTag(t)
-    return tag == "number" or tag == "float" or tag == "bool" or tag == "char"
-}
-
-getLiteralTypeName(lit: Literal): string {
-    let litTag = "unknown"
-    switch lit {
-        Literal.Str(_) => { litTag = "string" },
-        Literal.Int(_) => { litTag = "number" },
-        Literal.Float(_) => { litTag = "float" },
-        Literal.Bool(_) => { litTag = "bool" },
-        Literal.Char(_) => { litTag = "char" }
-    }
-    return litTag
-}
-
 inAsyncContext(e: RustEmitter): bool {
     let cf = e._currentFunc
     if cf == "main" { return e._mainNeedsAsync }
@@ -10645,38 +10552,6 @@ writeIndent(e: RustEmitter) {
         e._currentLine += "    "
         i += 1
     }
-}
-
-blockStmts(block: BlockStmt): [Stmt] {
-    return block.stmts
-}
-
-buildTypeParamStr(typeParams: [TypeParameter]): string {
-    if typeParams.length == 0 { return "" }
-    let parts: [string] = []
-    for tp in typeParams {
-        let tpName = tp.name
-        if tp.constraints.length > 0 {
-            let mappedBounds: [string] = []
-            for c in tp.constraints {
-                if c == "Numeric" || c == "Number" {
-                    mappedBounds.push("std::ops::Add<Output = " + tpName + "> + std::ops::Sub<Output = " + tpName + "> + PartialOrd + Default + Copy")
-                } else if c == "Comparable" {
-                    mappedBounds.push("PartialOrd")
-                } else if c == "Printable" {
-                    mappedBounds.push("std::fmt::Display")
-                } else {
-                    mappedBounds.push(c)
-                }
-            }
-            let bounds = mappedBounds.join(" + ")
-            parts.push(tpName + ": Clone + std::fmt::Debug + PartialEq + " + bounds)
-        } else {
-            parts.push(tpName + ": Clone + std::fmt::Debug + PartialEq")
-        }
-    }
-    let joined = parts.join(", ")
-    return "<" + joined + ">"
 }
 
 main() {
