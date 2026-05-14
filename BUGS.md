@@ -566,6 +566,15 @@ HTTP.
   `for ch in name.chars().map(...)`). Cycle 56 attempted to extract
   `convertRoutePath` alone; reverted. `typeRefToTag` (switch TypeRef)
   extracted cleanly in the same cycle.
+- **Refinement (Cycle 60-61):** Two more trigger patterns identified:
+  (a) Two-level field access on `e: RustEmitter` parameter, e.g.
+      `e._typeCtx.enums.has(name)` (where `_typeCtx` is itself a struct).
+      `fieldNeedsDebug` works (one level `e._globalEnums.has(name)`).
+      `needsBoxing`/`arrayIdentNameIsCopyElem` fail (two levels).
+  (b) String assignment to an `e._field` from within a free function,
+      e.g. `e._currentLine = ""`. `newline`/`write`/`writeln`/`getOutput`
+      all fail; `warn`/`writeRaw`/`indent`/`dedent`/`writeIndent` work
+      (push/+=/arithmetic on `e._field` are fine, just not `=`).
 - **Workaround:** keep extractions to non-Expr / non-IfBody / non-Stmt
   switches and avoid pure free functions with `for X in <string-array>` +
   `result += <literal>` patterns until BS-FRAG-1 is understood/fixed.
