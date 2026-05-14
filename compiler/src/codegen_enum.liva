@@ -1,0 +1,104 @@
+// ============================================================================
+// codegen_enum.liva — RustEmitter extension: enum / variant emission
+// ============================================================================
+// Extracted from codegen.liva via `extend RustEmitter { ... }`.
+//
+// Owns the lowering of:
+//   - `enum Color { Red, Green, Blue }`     → `pub enum Color { ... }` + Display
+//   - variant fields, recursive boxing      → `Variant { a: i32, b: Box<Self> }`
+//   - recursive-enum detection helper       → _needsBoxing
+//
+// Fields it touches on RustEmitter: _typeCtx, _enumVariantFields.
+
+import { EnumDecl, EnumVariant, TypeRef } from "./ast"
+import { isAllUnitEnum } from "./codegen_types"
+import { RustEmitter } from "./codegen"
+
+extend RustEmitter {
+
+    _emitEnum(decl: EnumDecl) {
+        let enumName = $"{decl.name}"
+
+        // Check if all variants are unit (no data) — can derive Copy + Default
+        let allUnit = isAllUnitEnum(decl)
+
+        if allUnit {
+            this._writeln("#[derive(Clone, Copy, Debug, PartialEq, Default)]")
+        } else {
+            this._writeln("#[derive(Clone, Debug, PartialEq)]")
+        }
+
+        this._writeln("pub enum " + enumName + " {")
+        this._indent()
+
+        let firstUnit = true
+        for v in decl.variants {
+            if allUnit && firstUnit {
+                this._writeln("#[default]")
+                firstUnit = false
+            }
+            this._emitVariant(enumName, v)
+        }
+
+        this._dedent()
+        this._writeln("}")
+        // Auto Display impl so that `println!("{}", color)` and
+        // `format!("{}", v)` work like in the bootstrap. Reuses the
+        // derived Debug formatter for variant rendering.
+        this._writeln("impl std::fmt::Display for " + enumName + " {")
+        this._writeln("    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {")
+        this._writeln("        std::fmt::Debug::fmt(self, f)")
+        this._writeln("    }")
+        this._writeln("}")
+        this._writeRaw("")
+    }
+
+    _emitVariant(enumName: string, v: EnumVariant) {
+        if v.fields.length == 0 {
+            this._writeln($"{v.name},")
+            // Register empty variant
+            let key = enumName + "::" + v.name
+            this._enumVariantFields.set(key, [])
+        } else {
+            let fieldParts: [string] = []
+            let fieldNames: [string] = []
+            for f in v.fields {
+                let fname = this._sanitizeName(f.name)
+                fieldNames.push(fname)
+                // W-003: Call _emitType first, then check boxing via enum name lookup
+                // This avoids double-use of f.typeRef (move semantics)
+                let ftype = this._emitType(f.typeRef)
+                let needsBox = this._typeCtx.enums.has(ftype)
+                if needsBox {
+                    fieldParts.push($"{fname}: Box<{ftype}>")
+                } else {
+                    fieldParts.push($"{fname}: {ftype}")
+                }
+            }
+            let fieldsStr = fieldParts.join(", ")
+            this._writeln(v.name + " { " + fieldsStr + " },")
+            // Register variant field names
+            let key2 = enumName + "::" + v.name
+            this._enumVariantFields.set(key2, fieldNames)
+        }
+    }
+
+    _needsBoxing(t: TypeRef): bool {
+        // Recursive enum field detection — simplified heuristic
+        // If the field's type matches a known enum name, it might be recursive
+        let result = false
+        switch t {
+            TypeRef.Simple(name) => {
+                if this._typeCtx.enums.has(name) {
+                    result = true
+                }
+            },
+            TypeRef.Array(inner) => {}
+        }
+        return result
+    }
+}
+
+// Sentinel symbol so main.liva can import this module and bring its
+// `extend RustEmitter { ... }` block into the compile graph.
+codegenEnumExtensionLoaded(): bool { return true }

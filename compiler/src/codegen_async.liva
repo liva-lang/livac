@@ -1,0 +1,159 @@
+// ============================================================================
+// codegen_async.liva — RustEmitter extension: async detection pre-pass
+// ============================================================================
+// Extracted from codegen.liva via `extend RustEmitter { ... }`.
+//
+// Owns the lowering of: detecting whether `main()` should be `#[tokio::main]
+// async fn`. Walks the AST looking for await, exec policies (.async/.par),
+// HTTP server calls, `.listen(`, and calls into other user async fns.
+//
+// Fields it touches on RustEmitter: _mainNeedsAsync, _asyncFnNames.
+
+import { Program, TopLevel, BlockStmt, Stmt, Expr, UnOp, ExecPolicy } from "./ast"
+import { RustEmitter } from "./codegen"
+
+extend RustEmitter {
+
+    _detectMainAsync(program: Program) {
+        for item in program.items {
+            switch item {
+                TopLevel.Function(fd) => {
+                    if fd.name == "main" {
+                        this._scanStmtsForAsyncOpt(fd.body)
+                    }
+                }
+            }
+        }
+    }
+
+    _scanStmtsForAsyncOpt(blkOpt: BlockStmt?) {
+        if blkOpt != null {
+            this._scanStmtsForAsync(blkOpt)
+        }
+    }
+
+    _scanStmtsForAsync(blk: BlockStmt) {
+        for s in blk.stmts {
+            this._scanStmtForAsync(s)
+        }
+    }
+
+    _scanStmtForAsync(s: Stmt) {
+        switch s {
+            Stmt.VarDecl(d) => {
+                if this._exprIsAsyncTrigger(d.init) { this._mainNeedsAsync = true }
+            },
+            Stmt.ConstDecl(d) => {
+                if this._exprIsAsyncTrigger(d.init) { this._mainNeedsAsync = true }
+            },
+            Stmt.Assign(a) => {
+                if this._exprIsAsyncTrigger(a.target) { this._mainNeedsAsync = true }
+                if this._exprIsAsyncTrigger(a.value) { this._mainNeedsAsync = true }
+            },
+            Stmt.ExprStmt(e) => {
+                if this._exprIsAsyncTrigger(e) { this._mainNeedsAsync = true }
+            },
+            Stmt.Return(re) => {
+                let rOpt = re
+                if rOpt != null {
+                    if this._exprIsAsyncTrigger(rOpt) { this._mainNeedsAsync = true }
+                }
+            },
+            Stmt.Throw(e) => {
+                if this._exprIsAsyncTrigger(e) { this._mainNeedsAsync = true }
+            },
+            Stmt.While(ws) => {
+                if this._exprIsAsyncTrigger(ws.condition) { this._mainNeedsAsync = true }
+                this._scanStmtsForAsync(ws.body)
+            },
+            Stmt.For(fs) => {
+                if this._exprIsAsyncTrigger(fs.iterable) { this._mainNeedsAsync = true }
+                this._scanStmtsForAsync(fs.body)
+            },
+            Stmt.TryCatch(tc) => {
+                this._scanStmtsForAsync(tc.tryBlock)
+                this._scanStmtsForAsync(tc.catchBlock)
+            },
+            Stmt.Block(b) => {
+                this._scanStmtsForAsync(b)
+            }
+        }
+    }
+
+    // Direct trigger detection on an expression — matches MethodCall on Server,
+    // HTTP.{get,post,put,delete}, or any `.listen(`.
+    _exprIsAsyncTrigger(e: Expr): bool {
+        let result = false
+        switch e {
+            Expr.MethodCall(obj, method, args) => {
+                if method == "listen" { result = true }
+                switch obj {
+                    Expr.Identifier(n) => {
+                        if n == "Server" { result = true }
+                        if n == "HTTP" || n == "Http" {
+                            if method == "get" || method == "post" || method == "put" || method == "delete" {
+                                result = true
+                            }
+                        }
+                    }
+                }
+                if this._exprIsAsyncTrigger(obj) { result = true }
+                for a in args {
+                    if this._exprIsAsyncTrigger(a) { result = true }
+                }
+            },
+            Expr.Unary(op, sub) => {
+                let isAwait = switch op {
+                    UnOp.Await => true,
+                    _ => false
+                }
+                if isAwait { result = true }
+                if this._exprIsAsyncTrigger(sub) { result = true }
+            },
+            Expr.Binary(_, lhs, rhs) => {
+                if this._exprIsAsyncTrigger(lhs) { result = true }
+                if this._exprIsAsyncTrigger(rhs) { result = true }
+            },
+            Expr.Call(callee, callArgs, policy, _) => {
+                let isAsyncPolicy = switch policy {
+                    ExecPolicy.Async => true,
+                    ExecPolicy.Par => true,
+                    ExecPolicy.TaskAsync => true,
+                    ExecPolicy.TaskPar => true,
+                    _ => false
+                }
+                if isAsyncPolicy { result = true }
+                // Cycle 35 — call to a user-defined async fn (transitive).
+                switch callee {
+                    Expr.Identifier(fnName) => {
+                        if this._asyncFnNames.has(this._sanitizeName(fnName)) { result = true }
+                    }
+                }
+                if this._exprIsAsyncTrigger(callee) { result = true }
+                for a2 in callArgs {
+                    if this._exprIsAsyncTrigger(a2) { result = true }
+                }
+            },
+            Expr.MemberAccess(base, _) => {
+                if this._exprIsAsyncTrigger(base) { result = true }
+            },
+            Expr.Index(base2, idx) => {
+                if this._exprIsAsyncTrigger(base2) { result = true }
+                if this._exprIsAsyncTrigger(idx) { result = true }
+            },
+            Expr.Ternary(c, t, f) => {
+                if this._exprIsAsyncTrigger(c) { result = true }
+                if this._exprIsAsyncTrigger(t) { result = true }
+                if this._exprIsAsyncTrigger(f) { result = true }
+            },
+            Expr.RustBlock(code) => {
+                if code.indexOf(".await") >= 0 { result = true }
+            }
+        }
+        return result
+    }
+}
+
+// Sentinel symbol so main.liva can import this module and bring its
+// `extend RustEmitter { ... }` block into the compile graph.
+codegenAsyncExtensionLoaded(): bool { return true }

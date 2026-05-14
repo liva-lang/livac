@@ -36,6 +36,9 @@ import { SemanticAnalyzer, TypeContext, DiagnosticLevel, analyzeProgram } from "
 import { LivenessAnalyzer, LivenessContext, analyzeLiveness } from "./liveness"
 import { RustEmitter, generateRust, generateModuleRust, collectBorrowedParams } from "./codegen"
 import { codegenTestExtensionLoaded } from "./codegen_test"
+import { codegenEnumExtensionLoaded } from "./codegen_enum"
+import { codegenServerExtensionLoaded } from "./codegen_server"
+import { codegenAsyncExtensionLoaded } from "./codegen_async"
 import { sanitizeFieldName } from "./codegen_utils"
 import { ModuleResolver, LivaModule } from "./module"
 
@@ -234,7 +237,25 @@ hoistClassExtensions(parsedModules: Map<string, [Program]>, compileOrder: [strin
                 switch it {
                     TopLevel.Class(c) => {
                         if pending.has(c.name) {
-                            let extras: [MethodDecl] = pending.get(c.name)
+                            let extrasRaw: [MethodDecl] = pending.get(c.name)
+                            // Deterministic merge: sort extension methods by name
+                            // so generation N and N+1 see the same RustEmitter
+                            // class layout regardless of compileOrder shuffle.
+                            // Without this, multi-extension self-host loses
+                            // idempotence (gen-2 .rs != gen-3 .rs).
+                            let extraNames: [string] = []
+                            let byName: Map<string, MethodDecl> = Map {}
+                            for em in extrasRaw {
+                                if not byName.has(em.name) {
+                                    extraNames.push(em.name)
+                                }
+                                byName.set(em.name, em)
+                            }
+                            extraNames.sort()
+                            let extras: [MethodDecl] = []
+                            for nm in extraNames {
+                                extras.push(byName.get(nm))
+                            }
                             // Existing method names — for E0912.
                             let seen: Map<string, bool> = Map {}
                             for mem in c.members {
@@ -1283,6 +1304,9 @@ main() {
     // Force-load codegen_test extension (extend RustEmitter) into the
     // compile graph; the symbol itself is a sentinel.
     let _testExt = codegenTestExtensionLoaded()
+    let _enumExt = codegenEnumExtensionLoaded()
+    let _serverExt = codegenServerExtensionLoaded()
+    let _asyncExt = codegenAsyncExtensionLoaded()
 
     // Install a clean panic hook so parser/lexer panics (compiled from
     // `throw` statements) are reported as compact E2000-style messages
