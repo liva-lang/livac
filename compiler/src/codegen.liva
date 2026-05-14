@@ -327,9 +327,7 @@ RustEmitter {
         return this._warnings
     }
 
-    _warn(msg: string) {
-        this._warnings.push(msg)
-    }
+    _warn(msg: string) { warn(this, msg) }
 
     // -- Output primitives --
 
@@ -344,9 +342,7 @@ RustEmitter {
         this._currentLine = ""
     }
 
-    _writeRaw(text: string) {
-        this._lines.push(text)
-    }
+    _writeRaw(text: string) { writeRaw(this, text) }
 
     _newline() {
         this._lines.push($"{this._currentLine}")
@@ -361,15 +357,9 @@ RustEmitter {
         }
     }
 
-    _indent() {
-        this._indentLevel += 1
-    }
+    _indent() { indent(this) }
 
-    _dedent() {
-        if this._indentLevel > 0 {
-            this._indentLevel -= 1
-        }
-    }
+    _dedent() { dedent(this) }
 
     _getOutput(): string {
         // Flush any remaining current line
@@ -10797,6 +10787,24 @@ inAsyncContext(e: RustEmitter): bool {
 isIndexExprCopyType(e: RustEmitter, obj: Expr): bool {
     let elem = e._getArrayElemTypeRef(obj)
     return isCopyType(elem)
+}
+
+warn(e: RustEmitter, msg: string) {
+    e._warnings.push(msg)
+}
+
+writeRaw(e: RustEmitter, text: string) {
+    e._lines.push(text)
+}
+
+indent(e: RustEmitter) {
+    e._indentLevel += 1
+}
+
+dedent(e: RustEmitter) {
+    if e._indentLevel > 0 {
+        e._indentLevel -= 1
+    }
 }
 
 buildTypeParamStr(typeParams: [TypeParameter]): string {
