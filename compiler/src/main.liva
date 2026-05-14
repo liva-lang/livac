@@ -27,7 +27,8 @@ import { TokenKind, Token, lookupKeyword, tokenKindName } from "./token"
 import {
     TypeRef, Expr, Stmt, BlockStmt, TopLevel, Program,
     FunctionDecl, ClassDecl, EnumDecl, Param,
-    ImportDecl, UseRustDecl
+    ImportDecl, UseRustDecl,
+    Member, MethodDecl, ClassExtensionDecl
 } from "./ast"
 import { Lexer, tokenize } from "./lexer"
 import { Parser, parse } from "./parser"
@@ -154,6 +155,128 @@ CompilationResult {
     cargoToml: string
     errors: [string]
     moduleFiles: Map<string, string>
+}
+
+// =====================================================================
+//  Class extensions — pre-codegen hoister
+// =====================================================================
+// For each `extend ClassName { method+ }` in any module, append its methods
+// back into the owner `ClassDecl` (wherever it lives) and remove the
+// extension item from the items list. Validates target exists (E0911) and
+// no duplicate methods across base + all extensions (E0912).
+//
+// Returns a NEW Map<path, [Program]> with three cloned copies per module
+// (mirroring the caching contract used by Pass 2).
+// See docs/language-reference/class-extensions.md.
+
+hoistClassExtensions(parsedModules: Map<string, [Program]>, compileOrder: [string]): Map<string, [Program]> {
+    // 1. Collect all extensions across all modules:
+    //    pending[className] = [methods…]  (ordered by appearance across modules)
+    let pending: Map<string, [MethodDecl]> = Map {}
+
+    for modPath in compileOrder {
+        let progs0 = parsedModules.get(modPath)
+        let prog0 = progs0[0]
+        for item in prog0.items {
+            switch item {
+                TopLevel.ClassExtension(ext) => {
+                    let buf: [MethodDecl] = []
+                    if pending.has(ext.name) {
+                        let prev = pending.get(ext.name)
+                        for pm in prev {
+                            buf.push(pm)
+                        }
+                    }
+                    for em in ext.methods {
+                        buf.push(em)
+                    }
+                    pending.set(ext.name, buf)
+                },
+                _ => {}
+            }
+        }
+    }
+
+    // 2. Validate every extension target class actually exists. Collect
+    //    declared class names.
+    let declared: Map<string, bool> = Map {}
+    for modPath2 in compileOrder {
+        let progsD = parsedModules.get(modPath2)
+        let progD = progsD[0]
+        for itemD in progD.items {
+            switch itemD {
+                TopLevel.Class(cd) => {
+                    declared.set(cd.name, true)
+                },
+                _ => {}
+            }
+        }
+    }
+    for tname in pending.keys() {
+        if not declared.has(tname) {
+            print($"Error: E0911: Cannot find class `{tname}` to extend. The class must be declared in this project (any module). See docs/language-reference/class-extensions.md.")
+            // Best-effort: keep going; downstream parse/typecheck will also fail.
+        }
+    }
+
+    // 3. Rebuild each cached program, removing ClassExtension items and
+    //    injecting extension methods into matching ClassDecls.
+    let rebuilt: Map<string, [Program]> = Map {}
+    for modPath3 in compileOrder {
+        let progs = parsedModules.get(modPath3)
+        let newCopies: [Program] = []
+        let copyIdx = 0
+        while copyIdx < progs.length {
+            let prog = progs[copyIdx]
+            let newItems: [TopLevel] = []
+            for it in prog.items {
+                switch it {
+                    TopLevel.Class(c) => {
+                        if pending.has(c.name) {
+                            let extras = pending.get(c.name)
+                            // Existing method names — for E0912.
+                            let seen: Map<string, bool> = Map {}
+                            for mem in c.members {
+                                switch mem {
+                                    Member.Method(md) => {
+                                        seen.set(md.name, true)
+                                    },
+                                    _ => {}
+                                }
+                            }
+                            let mergedMembers: [Member] = []
+                            for mem2 in c.members {
+                                mergedMembers.push(mem2)
+                            }
+                            for emeth in extras {
+                                if seen.has(emeth.name) {
+                                    print($"Error: E0912: Duplicate method `{c.name}.{emeth.name}` introduced by `extend`. Already defined on the base class or another extension. See docs/language-reference/class-extensions.md.")
+                                } else {
+                                    seen.set(emeth.name, true)
+                                    mergedMembers.push(Member.Method(emeth))
+                                }
+                            }
+                            let merged = ClassDecl(c.name, c.typeParams, c.implements, mergedMembers, c.needsSerde, c.isData)
+                            newItems.push(TopLevel.Class(merged))
+                        } else {
+                            newItems.push(it)
+                        }
+                    },
+                    TopLevel.ClassExtension(_) => {
+                        // drop — already merged
+                    },
+                    _ => {
+                        newItems.push(it)
+                    }
+                }
+            }
+            newCopies.push(Program(newItems))
+            copyIdx = copyIdx + 1
+        }
+        rebuilt.set(modPath3, newCopies)
+    }
+
+    return rebuilt
 }
 
 // Render a `use rust "<crate>" [version "<v>"] [features [...]]` decl as a
@@ -446,6 +569,12 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
         let copy3 = modProgram2
         parsedModules.set(modPath, [copy1, copy2, copy3])
     }
+
+    // Sub-pass H: hoist `extend ClassName { ... }` items into their owner
+    // ClassDecl across modules, then drop the ClassExtension items. After
+    // this, semantic/liveness/codegen see one merged class per name.
+    // See docs/language-reference/class-extensions.md.
+    parsedModules = hoistClassExtensions(parsedModules, compileOrder)
 
     // Phase 10.5 Bloque 1 — Pass 2a: build global borrow registry across all
     // modules. For each free function param of type `string`, if liveness says

@@ -775,7 +775,10 @@ RustEmitter {
             TopLevel.ConstDecl(decl) => { this._emitConstDecl(decl) },
             TopLevel.Import(decl) => { this._emitImport(decl) },
             TopLevel.Test(decl) => { this._emitTestDecl(decl) },
-            TopLevel.ExprStmt(expr) => { this._emitTopLevelExpr(expr) }
+            TopLevel.ExprStmt(expr) => { this._emitTopLevelExpr(expr) },
+            // ClassExtension items are hoisted into their owner ClassDecl
+            // before codegen runs (see module.liva). Skip if any survive.
+            TopLevel.ClassExtension(_) => {}
         }
     }
 

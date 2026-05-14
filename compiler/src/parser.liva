@@ -11,7 +11,7 @@
 import { TokenKind, Token, lookupKeyword, tokenKindName } from "./token"
 import {
     Program, TopLevel, ImportDecl, UseRustDecl, TypeAliasDecl,
-    ClassDecl, EnumDecl, EnumVariant, EnumField, FunctionDecl,
+    ClassDecl, ClassExtensionDecl, EnumDecl, EnumVariant, EnumField, FunctionDecl,
     TestDecl, ConstDecl, TypeRef, TypeParameter,
     Member, FieldDecl, MethodDecl, Visibility, visibilityFromName,
     Param, BindingPattern, ObjectPatternField, VarBinding,
@@ -552,6 +552,33 @@ Parser {
 
         // ── enum ──────────────────────────────────────────────────
         if this._match(TokenKind.KwEnum) => return this._parseEnumDecl()
+
+        // ── extend ClassName { method+ } ──────────────────────────
+        // Class extensions add methods to an existing class declared
+        // (or imported) in scope. See docs/language-reference/class-extensions.md.
+        if this._match(TokenKind.KwExtend) {
+            let extName = this._parseIdentifier()
+            this._expect(TokenKind.LBrace)
+            let extMembers = this._parseMembers()
+            this._expect(TokenKind.RBrace)
+
+            let extMethods: [MethodDecl] = []
+            for m in extMembers {
+                switch m {
+                Member.Method(md) => {
+                    if md.name == "constructor" {
+                        this._error($"E0913: extend {extName} cannot declare a constructor. Constructors belong in the owner file. See docs/language-reference/class-extensions.md.")
+                    }
+                    extMethods.push(md)
+                },
+                Member.Field(fd) => {
+                    this._error($"E0910: extend {extName} cannot declare a field `{fd.name}`. Extensions add behavior, not state. Move the field to the owner class. See docs/language-reference/class-extensions.md.")
+                }
+                }
+            }
+
+            return TopLevel.ClassExtension(ClassExtensionDecl(extName, extMethods))
+        }
 
         // ── test ──────────────────────────────────────────────────
         if this._match(TokenKind.KwTest) {

@@ -23,7 +23,10 @@ enum TopLevel {
     Function(decl: FunctionDecl),
     Test(decl: TestDecl),
     ConstDecl(decl: ConstDecl),
-    ExprStmt(expr: Expr)
+    ExprStmt(expr: Expr),
+    // `extend ClassName { method+ }` — adds methods to an existing class.
+    // See docs/language-reference/class-extensions.md.
+    ClassExtension(decl: ClassExtensionDecl)
 }
 
 // =====================================================================
@@ -92,6 +95,14 @@ ClassDecl {
     members: [Member]
     needsSerde: bool
     isData: bool
+}
+
+// `extend ClassName { method+ }` — adds methods to an existing class.
+// Hoisted into the owner's ClassDecl by ModuleResolver before codegen.
+// See docs/language-reference/class-extensions.md.
+ClassExtensionDecl {
+    name: string
+    methods: [MethodDecl]
 }
 
 enum Member {
