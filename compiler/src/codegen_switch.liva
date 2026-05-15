@@ -1,0 +1,451 @@
+// ============================================================================
+// codegen_switch.liva — RustEmitter extension: switch / pattern emission
+// ============================================================================
+// Extracted from codegen.liva via `extend RustEmitter { ... }`.
+//
+// Owns the lowering of `switch` (statement + expression) and patterns:
+//   - statement form: _isStringSwitchStmt, _emitSwitch, _emitCaseClause
+//   - expression form: _isStringSwitchPattern, _emitSwitchHead,
+//     _emitSwitchExpr, _emitSwitchArm
+//   - pattern leaves: _emitLiteralPattern, _emitPattern
+//
+// Pure relocation — only calls back into existing RustEmitter helpers.
+
+import { Expr, SwitchStmt, CaseClause, SwitchArm, Literal, Pattern } from "./ast"
+import { RustEmitter } from "./codegen"
+
+extend RustEmitter {
+
+    _isStringSwitchPattern(arms: [SwitchArm]): bool {
+        if arms.length == 0 { return false }
+        let isStr = false
+        for arm in arms {
+            switch arm.pattern {
+                Pattern.LiteralPat(lit) => {
+                    switch lit {
+                        Literal.Str(_) => { isStr = true }
+                    }
+                },
+                Pattern.OrPat(patterns) => {
+                    // Check first sub-pattern in OR pattern
+                    for subP in patterns {
+                        switch subP {
+                            Pattern.LiteralPat(lit2) => {
+                                switch lit2 {
+                                    Literal.Str(_) => { isStr = true }
+                                }
+                            }
+                        }
+                        break
+                    }
+                }
+            }
+            break
+        }
+        return isStr
+    }
+
+    // B130 (gen-2 truthy narrow): detect `if errBinding { ... }` so the
+    // then-branch can rewrite `err.message` to the unwrapped form, AND emit
+    // the condition expression. We do both inside this helper because `cond`
+    // is bound as a method parameter — bootstrap auto-clones parameters at
+    // every use, but does NOT auto-clone field accesses (`stmt.condition`),
+    // so doing match + emit at the call-site would E0382. Returns the
+    // sanitized binding name (or "" if not applicable).
+    _emitIfConditionAndDetectTruthy(cond: Expr): string {
+        let result = ""
+        switch cond {
+            Expr.Identifier(condName) => {
+                let sn2 = this._sanitizeName(condName)
+                if this._errBindings.has(sn2) {
+                    result = sn2
+                }
+            }
+        }
+        this._inIfCondition = true
+        this._emitExpr(cond)
+        this._inIfCondition = false
+        return result
+    }
+
+    // Helper: emit `match <disc>` or `match &<disc>` (with optional `.as_str()`)
+    // depending on whether it's a string switch or a Copy-type discriminant.
+    // Taking `disc` as a parameter lets bootstrap codegen auto-clone the value
+    // across multiple uses inside this method (B135).
+    _emitSwitchHead(disc: Expr, isStringSwitch: bool) {
+        if isStringSwitch {
+            this._write("match ")
+            this._emitExpr(disc)
+            if !this._lastEmittedStrRef {
+                this._write(".as_str()")
+            }
+            return
+        }
+        // B135 fix: Copy-type (number/bool/float) discriminants don't need `&`.
+        let discTag = this._getExprTypeName(disc)
+        if discTag == "number" || discTag == "bool" || discTag == "float" {
+            this._write("match ")
+            this._emitExpr(disc)
+        } else {
+            this._write("match &")
+            this._emitExpr(disc)
+        }
+    }
+
+    _emitSwitchExpr(disc: Expr, arms: [SwitchArm]) {
+        // Detect string switch from first arm pattern (inline to avoid moving arms)
+        let stringSwitch = false
+        for arm in arms {
+            switch arm.pattern {
+                Pattern.LiteralPat(lit) => {
+                    switch lit {
+                        Literal.Str(_) => { stringSwitch = true }
+                    }
+                },
+                Pattern.OrPat(patterns) => {
+                    for subP in patterns {
+                        switch subP {
+                            Pattern.LiteralPat(lit2) => {
+                                switch lit2 {
+                                    Literal.Str(_) => { stringSwitch = true }
+                                }
+                            }
+                        }
+                        break
+                    }
+                }
+            }
+            break
+        }
+
+        let cloneDisc = true
+        if stringSwitch { cloneDisc = false }
+        // Use shared head emitter (B135 — Copy-type discriminants skip `&`).
+        this._emitSwitchHead(disc, stringSwitch)
+        this._write(" { ")
+
+        for arm in arms {
+            this._emitSwitchArm(arm)
+        }
+
+        // Statement-position switch: if the user did not write a catch-all
+        // `_ => ...` arm, synthesize `_ => {}`. Otherwise Rust's match would
+        // be non-exhaustive (E0004). For expression-position switches the
+        // user must still provide all arms (they produce a value).
+        if this._switchInStmtPosition {
+            let hasWildcard = false
+            for arm in arms {
+                switch arm.pattern {
+                    Pattern.Wildcard => { hasWildcard = true }
+                }
+            }
+            if not hasWildcard {
+                this._write("_ => {}, ")
+            }
+        }
+
+        this._write("}")
+    }
+
+    _emitSwitchArm(arm: SwitchArm) {
+        // Clear pending derefs/clones before emitting pattern
+        this._pendingDerefs = []
+        this._pendingRefClones = []
+        this._emitPattern(arm.pattern)
+
+        let guardExpr = arm.guard
+        if guardExpr != null {
+            this._write(" if ")
+            this._emitExpr(guardExpr)
+        }
+
+        this._write(" => ")
+
+        // Fields become references due to match &x.
+        // Boxed fields need *field.clone(), non-boxed need field.clone()
+        let hasDerefs = this._pendingDerefs.length > 0
+        let hasClones = this._pendingRefClones.length > 0
+        let derefs = this._pendingDerefs
+        let clones = this._pendingRefClones
+        switch arm.body {
+            SwitchArmBody.Expr(armExpr) => {
+                if this._switchInStmtPosition {
+                    // Force `()`-typed arm so a statement-position match unifies.
+                    this._write("{ ")
+                    for d in derefs {
+                        this._write("let " + d + " = *" + d + ".clone(); ")
+                    }
+                    for c in clones {
+                        this._write("let " + c + " = " + c + ".clone(); ")
+                    }
+                    this._emitExpr(armExpr)
+                    this._write("; }, ")
+                } else if hasDerefs || hasClones {
+                    this._write("{ ")
+                    for d in derefs {
+                        this._write("let " + d + " = *" + d + ".clone(); ")
+                    }
+                    for c in clones {
+                        this._write("let " + c + " = " + c + ".clone(); ")
+                    }
+                    this._emitExpr(armExpr)
+                    this._write(" }, ")
+                } else {
+                    this._emitExpr(armExpr)
+                    this._write(", ")
+                }
+            },
+            SwitchArmBody.Block(armStmts) => {
+                this._write("{ ")
+                for d2 in derefs {
+                    this._write("let " + d2 + " = *" + d2 + ".clone(); ")
+                }
+                for c2 in clones {
+                    this._write("let " + c2 + " = " + c2 + ".clone(); ")
+                }
+                if this._switchInStmtPosition {
+                    // Statement-position arm: every stmt (incl. last) terminates
+                    // with its normal `;`, so the block evaluates to `()`.
+                    let savedExprBlock = this._inExprBlock
+                    this._inExprBlock = false
+                    for s in armStmts {
+                        this._stmtIsLastInBlock = false
+                        this._emitStmt(s)
+                    }
+                    this._inExprBlock = savedExprBlock
+                } else {
+                    // Switch arm bodies are expression positions — the last stmt is a tail expr.
+                    let savedExprBlock = this._inExprBlock
+                    this._inExprBlock = true
+                    let aTotal = armStmts.length
+                    let aIdx = 0
+                    for s in armStmts {
+                        this._stmtIsLastInBlock = (aIdx == aTotal - 1)
+                        this._emitStmt(s)
+                        aIdx += 1
+                    }
+                    this._stmtIsLastInBlock = false
+                    this._inExprBlock = savedExprBlock
+                }
+                this._write("}, ")
+            }
+        }
+    }
+
+    // Emit literal in pattern context — no .to_string() for strings
+    _emitLiteralPattern(lit: Literal) {
+        switch lit {
+            Literal.Int(v) => { this._write($"{v}") },
+            Literal.Float(v) => { this._write($"{v}") },
+            Literal.Str(v) => {
+                let escaped = this._escapeRustStr(v)
+                this._write("\"" + escaped + "\"")
+            },
+            Literal.Char(v) => {
+                let escapedC = this._escapeRustChar(v)
+                this._write("'" + escapedC + "'")
+            },
+            Literal.Bool(v) => {
+                if v { this._write("true") } else { this._write("false") }
+            },
+            Literal.Null => { this._write("None") }
+        }
+    }
+
+    _emitPattern(pat: Pattern) {
+        switch pat {
+            Pattern.LiteralPat(lit) => { this._emitLiteralPattern(lit) },
+            Pattern.Wildcard => { this._write("_") },
+            Pattern.Binding(name) => {
+                let snBind = this._sanitizeName(name)
+                this._write(snBind)
+            },
+            Pattern.Typed(name, typeRef) => {
+                let snTyped = this._sanitizeName(name)
+                this._write(snTyped)
+            },
+            Pattern.Range(rangeStart, rangeEnd, inclusive) => {
+                let rs = rangeStart
+                if rs != null { this._emitExpr(rs) }
+                if inclusive {
+                    this._write("..=")
+                } else {
+                    this._write("..")
+                }
+                let re = rangeEnd
+                if re != null { this._emitExpr(re) }
+            },
+            Pattern.TuplePat(patterns) => {
+                this._write("(")
+                let tpIdx = 0
+                for tp in patterns {
+                    if tpIdx > 0 { this._write(", ") }
+                    this._emitPattern(tp)
+                    tpIdx += 1
+                }
+                this._write(")")
+            },
+            Pattern.ArrayPat(patterns) => {
+                this._write("[")
+                let apIdx = 0
+                for ap in patterns {
+                    if apIdx > 0 { this._write(", ") }
+                    this._emitPattern(ap)
+                    apIdx += 1
+                }
+                this._write("]")
+            },
+            Pattern.OrPat(patterns) => {
+                let opIdx = 0
+                for op in patterns {
+                    if opIdx > 0 { this._write(" | ") }
+                    this._emitPattern(op)
+                    opIdx += 1
+                }
+            },
+            Pattern.EnumVariant(enumName, variantName, bindings) => {
+                this._write($"{enumName}::{variantName}")
+                if bindings.length > 0 {
+                    // Check if all bindings are wildcards
+                    let allWildcard = true
+                    for bnd in bindings {
+                        if bnd != "_" { allWildcard = false }
+                    }
+                    if allWildcard {
+                        this._write(" { .. }")
+                    } else {
+                        // Look up field names and boxing info
+                        let variantKey = enumName + "::" + variantName
+                        let fieldNames: [string] = []
+                        let fieldBoxed: [bool] = []
+                        if this._enumVariantFields.has(variantKey) {
+                            fieldNames = this._enumVariantFields.get(variantKey)
+                        }
+                        if this._enumVariantFieldBoxed.has(variantKey) {
+                            fieldBoxed = this._enumVariantFieldBoxed.get(variantKey)
+                        }
+                        this._write(" { ")
+                        let bIdx = 0
+                        for bnd in bindings {
+                            if bIdx > 0 { this._write(", ") }
+                            if bnd == "_" {
+                                // Use field_name: _ if we know the field name
+                                if bIdx < fieldNames.length {
+                                    this._write(fieldNames[bIdx] + ": _")
+                                } else {
+                                    this._write("_")
+                                }
+                            } else {
+                                let sanitized = this._sanitizeName(bnd)
+                                if bIdx < fieldNames.length {
+                                    let fieldName = fieldNames[bIdx]
+                                    if fieldName != sanitized {
+                                        this._write(fieldName + ": " + sanitized)
+                                    } else {
+                                        this._write(sanitized)
+                                    }
+                                } else {
+                                    this._write(sanitized)
+                                }
+                                // Register pending deref if field is boxed
+                                let isBoxed = false
+                                if bIdx < fieldBoxed.length {
+                                    isBoxed = fieldBoxed[bIdx]
+                                }
+                                if isBoxed {
+                                    this._pendingDerefs.push(sanitized)
+                                } else {
+                                    // Non-boxed field: needs .clone() when matching by reference
+                                    this._pendingRefClones.push(sanitized)
+                                }
+                            }
+                            bIdx += 1
+                        }
+                        this._write(" }")
+                    }
+                }
+            }
+        }
+    }
+
+    _isStringSwitchStmt(cases: [CaseClause]): bool {
+        // NOTE: this method does NOT consume 'cases' — it only checks the first element
+        if cases.length > 0 {
+            let isStr = false
+            // Using a simple heuristic: we'll check after we know
+            return false  // Determined below from first case
+        }
+        return false
+    }
+
+    _emitSwitch(stmt: SwitchStmt) {
+        // Detect string switch: if first case value is a string literal, use .as_str()
+        let isStringSwitch = false
+        for c in stmt.cases {
+            switch c.value {
+                Expr.Literal(lit) => {
+                    switch lit {
+                        Literal.Str(_) => { isStringSwitch = true }
+                    }
+                }
+            }
+            break
+        }
+
+        this._writeIndent()
+        // Delegate to helper so the parameter (auto-cloned in bootstrap codegen)
+        // can be used both for type-tag inspection and for emission. Field
+        // access on `stmt.discriminant` is consumed on first use.
+        this._emitSwitchHead(stmt.discriminant, isStringSwitch)
+        this._write(" {")
+        this._newline()
+        this._indent()
+
+        for c in stmt.cases {
+            this._emitCaseClause(c, false)
+        }
+
+        // Default arm
+        let defBody = stmt.defaultBody
+        if defBody != null {
+            this._writeln("_ => {")
+            this._indent()
+            for s in defBody {
+                this._emitStmt(s)
+            }
+            this._dedent()
+            this._writeln("}")
+        }
+
+        this._dedent()
+        this._writeln("}")
+    }
+
+    _emitCaseClause(c: CaseClause, isStrSwitch: bool) {
+        this._pendingDerefs = []
+        this._pendingRefClones = []
+        this._writeIndent()
+        this._emitExpr(c.value)
+        this._write(" => {")
+        this._newline()
+        this._indent()
+        // Emit clone/deref bindings for match-by-reference fields
+        for d in this._pendingDerefs {
+            this._writeln("let " + d + " = *" + d + ".clone();")
+        }
+        for rc in this._pendingRefClones {
+            this._writeln("let " + rc + " = " + rc + ".clone();")
+        }
+        for s in c.body {
+            this._emitStmt(s)
+        }
+        this._dedent()
+        this._writeln("}")
+    }
+
+    // -- Try/catch --
+}
+
+// Sentinel symbol so main.liva can import this module and bring its
+// `extend RustEmitter { ... }` block into the compile graph.
+codegenSwitchExtensionLoaded(): bool { return true }

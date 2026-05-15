@@ -1,0 +1,439 @@
+// ============================================================================
+// codegen_args.liva — RustEmitter extension: argument / literal emission
+// ============================================================================
+// Extracted from codegen.liva via `extend RustEmitter { ... }`.
+//
+// Owns the lowering of:
+//   - call-site argument modifiers: _emitRefArg, _emitBorrowedArg,
+//     _emitMutBorrowedArg, _emitClonedArg, _emitMapKeyArg, _emitFormatArg
+//   - literals: _emitStructLiteral, _emitObjectLiteral, _emitArrayLiteral,
+//     _emitMapLiteral, _emitSetLiteral
+//   - JSON-aware arg helpers: _emitJsonArg, _emitJsonObjectFields,
+//     _emitJsonMapEntries, _emitJsonKey, _emitJsonArrayElems
+//   - DB params packing: _emitDbParamsVec
+//   - move/copy classification: _canMoveIdent
+//
+// Pure relocation — only calls back into existing RustEmitter helpers.
+
+import { Expr, ObjField, MapEntry } from "./ast"
+import { RustEmitter } from "./codegen"
+
+extend RustEmitter {
+
+    _emitRefArg(argExpr: Expr) {
+        // String literals don't need & prefix (auto-refs) but must suppress .to_string()
+        let isLiteral = false
+        switch argExpr {
+            Expr.Literal(_) => { isLiteral = true },
+            Expr.StringTemplate(_) => { isLiteral = true }
+        }
+        if isLiteral {
+            this._suppressToString = true
+            this._emitExpr(argExpr)
+            this._suppressToString = false
+        } else {
+            this._write("&")
+            this._emitExpr(argExpr)
+        }
+    }
+
+    // Phase 10.4: returns true if `e` is an Identifier that the compiler can
+    // move (consume) safely instead of clone — used by sort/reversed/etc to
+    // avoid Vec::clone() in the dominant pattern `let arr = ...; arr.sort()`
+    // inside a loop body where arr is dead after the call.
+    _canMoveIdent(e: Expr): bool {
+        let result = false
+        switch e {
+            Expr.Identifier(n) => {
+                let liveKey = $"{this._currentFunc}:{n}"
+                if this._liveCtx.useCounts.has(liveKey) {
+                    let uc = this._liveCtx.useCounts.get(liveKey)
+                    let declaredInLoop = this._liveCtx.declaredInLoop.has(liveKey)
+                    if uc <= 1 && declaredInLoop { result = true }
+                }
+            }
+        }
+        return result
+    }
+
+    // Phase 10.4: peephole — fuse `let X = expr.split(sep); for Y in X { body }`
+    // into `for Y in expr.split(sep).map(|s| s.to_string()) { body }` when X is
+    // single-use. The fusion is performed inline in `_emitBlock` (see above).
+    // Phase 8.6: Emit map/set key arg — &str params don't need &() wrapping
+    // HashMap<String,_>::contains_key/get takes &Q where String: Borrow<Q>.
+    // Since String: Borrow<str>, passing &str directly works. Adding &() creates &&str which fails.
+    //
+    // Phase 10.4: when key is an Identifier holding a String, emit `key.as_str()` instead
+    // of `&(key)` so the Map APIs lookup against `&str` directly (skips one auto-deref).
+    _emitMapKeyArg(argExpr: Expr) {
+        let isStrRef = false
+        let isStringIdent = false
+        let identSan = ""
+        switch argExpr {
+            Expr.Identifier(aName) => {
+                let aNameCopy = $"{aName}"
+                let sn = this._sanitizeName(aName)
+                if this._strRefParams.has(sn) {
+                    isStrRef = true
+                } else {
+                    let varType = this._lookupVarTypeRef(aNameCopy)
+                    let tag = this._typeRefToTag(varType)
+                    if tag == "string" {
+                        isStringIdent = true
+                        identSan = sn
+                    }
+                }
+            }
+        }
+        if isStrRef {
+            this._emitExpr(argExpr)
+        } else if isStringIdent {
+            this._write(identSan)
+            this._write(".as_str()")
+        } else {
+            this._write("&(")
+            this._emitExpr(argExpr)
+            this._write(")")
+        }
+    }
+
+    // Phase 8.5: Emit arg for &str param — string literals as-is, others with & prefix
+    _emitBorrowedArg(argExpr: Expr) {
+        let isStrLit = false
+        switch argExpr {
+            Expr.Literal(aLit) => {
+                switch aLit {
+                    Literal.Str(_) => { isStrLit = true }
+                }
+            }
+        }
+        if isStrLit {
+            // String literal is already &str in Rust — just suppress .to_string()
+            this._suppressCloneForBorrow = true
+            this._emitExpr(argExpr)
+            this._suppressCloneForBorrow = false
+        } else {
+            // & prefix converts String → &str via Deref, &&str auto-derefs
+            // Suppress .clone() from _emitMemberAccess → direct borrow is cheaper
+            let savedAT = this._inAssignTarget
+            this._inAssignTarget = true
+            this._write("&")
+            this._emitExpr(argExpr)
+            this._inAssignTarget = savedAT
+        }
+    }
+
+    // Cycle 39: emit `&mut <arg>` for params declared as `&mut T`. Skips the
+    // identifier-clone path so we get a direct mutable borrow.
+    _emitMutBorrowedArg(argExpr: Expr) {
+        let savedAT = this._inAssignTarget
+        this._inAssignTarget = true
+        this._write("&mut ")
+        this._emitExpr(argExpr)
+        this._inAssignTarget = savedAT
+    }
+
+    // Emit expression with .clone() for non-Copy types (identifiers, member access)
+    _emitClonedArg(argExpr: Expr) {
+        let needsClone = false
+        switch argExpr {
+            Expr.Identifier(name) => {
+                // Don't clone literals-like identifiers (this is handled by emitExpr)
+                if name != "true" && name != "false" && name != "null" {
+                    // Phase 9.1: skip clone for Copy types via unified helper
+                    let varType = this._lookupVarTypeRef(name)
+                    if this._isCopyType(varType) {
+                        needsClone = false
+                    } else {
+                        // Phase 8: skip clone for single-use vars NOT in loops
+                        // Phase 10.2: also skip clone when var is declared inside the
+                        // current loop body (single-use-per-iteration is move-safe).
+                        let isSingleUse = false
+                        let liveKey = $"{this._currentFunc}:{name}"
+                        if this._liveCtx.useCounts.has(liveKey) {
+                            let uc = this._liveCtx.useCounts.get(liveKey)
+                            let inLoop = this._liveCtx.loopUseCounts.has(liveKey)
+                            let declaredInLoop = this._liveCtx.declaredInLoop.has(liveKey)
+                            if uc <= 1 && (not inLoop || declaredInLoop) { isSingleUse = true }
+                        }
+                        // Cycle 40: params emitted as `&Vec/&HashMap/&HashSet`
+                        // (or `&mut`) cannot be moved — force a clone so the
+                        // call site dereferences the borrow into an owned value.
+                        let sanCheck = this._sanitizeName(name)
+                        if this._collRefParams.has(sanCheck) {
+                            isSingleUse = false
+                        }
+                        if isSingleUse {
+                            needsClone = false
+                        } else {
+                            needsClone = true
+                        }
+                    }
+                }
+            },
+            Expr.MemberAccess(maObj, _) => {
+                // this.field is auto-cloned in _emitMemberAccess — skip here
+                // Enum/type variant (PascalCase) is a value constructor — always owned, no clone
+                // other.field needs clone when passed as arg
+                let isSelf = false
+                let isEnumOrType = false
+                switch maObj {
+                    Expr.Identifier(oName) => {
+                        if oName == "this" { isSelf = true }
+                        if oName.length > 0 {
+                            let fc = oName.charAt(0)
+                            if fc >= "A" && fc <= "Z" { isEnumOrType = true }
+                        }
+                    }
+                }
+                if not isSelf && not isEnumOrType { needsClone = true }
+            }
+        }
+        this._emitExpr(argExpr)
+        if needsClone {
+            // Phase 8.6: &str params — .into() works universally (String or &str callees)
+            if this._lastEmittedStrRef {
+                this._write(".into()")
+            } else {
+                this._write(".clone()")
+            }
+        } else if this._lastEmittedStrRef {
+            // Single-use &str params: .into() converts to expected type (String or &str)
+            this._write(".into()")
+        }
+    }
+
+    // -- Struct literal (constructor call) --
+
+    _emitStructLiteral(typeName: string, fields: [ObjField]) {
+        this._write($"{typeName}::new(")
+        let fIdx = 0
+        for f in fields {
+            if fIdx > 0 { this._write(", ") }
+            this._emitClonedArg(f.value)
+            fIdx += 1
+        }
+        this._write(")")
+    }
+
+    // -- Object literal (anonymous Map) --
+
+    _emitObjectLiteral(fields: [ObjField]) {
+        this._write("{ let mut _map = HashMap::new(); ")
+        for f in fields {
+            let key = $"{f.key}"
+            this._write($"_map.insert(\"{key}\".to_string(), ")
+            this._emitExpr(f.value)
+            this._write("); ")
+        }
+        this._write("_map }")
+    }
+
+    // -- JSON literal arg for serde_json::json!() — emits {"key": expr, ...} --
+
+    _emitJsonArg(expr: Expr) {
+        switch expr {
+            Expr.ObjectLiteral(jFields) => {
+                this._emitJsonObjectFields(jFields)
+            },
+            Expr.MapLiteral(jEntries) => {
+                this._emitJsonMapEntries(jEntries)
+            },
+            Expr.ArrayLiteral(jElems) => {
+                this._emitJsonArrayElems(jElems)
+            },
+            _ => {
+                this._emitExpr(expr)
+            }
+        }
+    }
+
+    _emitJsonObjectFields(fields: [ObjField]) {
+        this._write("{")
+        let jIdx = 0
+        for f in fields {
+            if jIdx > 0 { this._write(", ") }
+            let key = $"{f.key}"
+            this._write($"\"{key}\": ")
+            this._emitJsonArg(f.value)
+            jIdx += 1
+        }
+        this._write("}")
+    }
+
+    _emitJsonMapEntries(entries: [MapEntry]) {
+        this._write("{")
+        let jIdx = 0
+        for e in entries {
+            if jIdx > 0 { this._write(", ") }
+            this._emitJsonKey(e.key)
+            this._write(": ")
+            this._emitJsonArg(e.value)
+            jIdx += 1
+        }
+        this._write("}")
+    }
+
+    // serde_json::json! requires raw string-literal keys; emit string-lit
+    // keys bare without `.to_string()`, and fall back to _emitJsonArg
+    // (which adds .to_string()) for non-literal keys (rare/dynamic).
+    _emitJsonKey(key: Expr) {
+        switch key {
+            Expr.Literal(klit) => {
+                switch klit {
+                    Literal.Str(ks) => { this._write("\"" + ks + "\"") },
+                    _ => { this._emitLiteral(klit) }
+                }
+            },
+            _ => { this._emitJsonArg(key) }
+        }
+    }
+
+    // BUG-3 fix: emit the `__params` Vec<String> binding for a DB.exec/query
+    // params argument. When the param expr is an `ArrayLiteral`, emit each
+    // element with a trailing `.to_string()` directly inside `vec![]` so
+    // String identifiers are cloned (`.to_string()` returns a new String)
+    // instead of moved by `vec!`. Mirrors bootstrap `generate_db_params_vec`.
+    // Fallback path (non-literal expr) keeps the `.iter().map(...)` form
+    // which is fine for &[T] / Vec<T> references.
+    _emitDbParamsVec(expr: Expr) {
+        switch expr {
+            Expr.ArrayLiteral(elems) => {
+                this._write("let __params: Vec<String> = vec![")
+                let i = 0
+                for elem in elems {
+                    if i > 0 { this._write(", ") }
+                    this._emitExpr(elem)
+                    this._write(".to_string()")
+                    i += 1
+                }
+                this._write("]; let __param_refs: Vec<&dyn rusqlite::types::ToSql> = __params.iter().map(|s| s as &dyn rusqlite::types::ToSql).collect();")
+            },
+            _ => {
+                this._write($"{DB_PARAM_BINDING}")
+                this._emitExpr(expr)
+                this._write($"{DB_PARAM_BINDING_TAIL}")
+            }
+        }
+    }
+
+    // Emit an expression in `format!`-arg position. If the expr is an
+    // identifier bound as Option<liva_rt::Error> via a fallible
+    // destructure (let v, err = call()), unwrap with as_ref().map().
+    // Without this, `"prefix" + err` would emit
+    //   format!("{}{}", "prefix".to_string(), err)
+    // which fails: Option<liva_rt::Error> doesn't impl Display.
+    // Mirrors the existing handling in _emitStringTemplateInner.
+    _emitFormatArg(expr: Expr) {
+        let isErrBinding = false
+        switch expr {
+            Expr.Identifier(spName) => {
+                let snErr = this._sanitizeName(spName)
+                if this._errBindings.has(snErr) {
+                    isErrBinding = true
+                }
+            }
+        }
+        if isErrBinding {
+            this._emitExpr(expr)
+            this._write(".as_ref().map(|e| format!(\"{}\", e)).unwrap_or_default()")
+        } else {
+            this._emitExpr(expr)
+        }
+    }
+
+    _emitJsonArrayElems(elements: [Expr]) {
+        this._write("[")
+        let jIdx = 0
+        for e in elements {
+            if jIdx > 0 { this._write(", ") }
+            this._emitJsonArg(e)
+            jIdx += 1
+        }
+        this._write("]")
+    }
+
+    // -- Array literal --
+
+    _emitArrayLiteral(elements: [Expr]) {
+        if elements.length == 0 {
+            this._write("vec![]")
+        } else {
+            this._write("vec![")
+            let aIdx = 0
+            for e in elements {
+                if aIdx > 0 { this._write(", ") }
+                // Clone non-Copy identifiers (String / array / map / set / class)
+                // to avoid moving a binding that may be used after the literal.
+                // Mirrors the bootstrap behavior `vec![start.clone()]`.
+                let cloned = false
+                switch e {
+                    Expr.Identifier(elName) => {
+                        let elNameCopy = $"{elName}"
+                        let varType = this._lookupVarTypeRef(elNameCopy)
+                        let elTag = this._typeRefToTag(varType)
+                        let isNonCopy = false
+                        if elTag == "string" { isNonCopy = true }
+                        if elTag == "array" { isNonCopy = true }
+                        if elTag == "map" { isNonCopy = true }
+                        if elTag == "set" { isNonCopy = true }
+                        if elTag == "class" { isNonCopy = true }
+                        if isNonCopy {
+                            this._emitExpr(e)
+                            this._write(".clone()")
+                            cloned = true
+                        }
+                    }
+                }
+                if not cloned {
+                    this._emitExpr(e)
+                }
+                aIdx += 1
+            }
+            this._write("]")
+        }
+    }
+
+    // -- Map literal --
+
+    _emitMapLiteral(entries: [MapEntry]) {
+        if entries.length == 0 {
+            this._write("HashMap::new()")
+        } else {
+            this._write("{ let mut _map = HashMap::new(); ")
+            for e in entries {
+                this._write("_map.insert(")
+                this._emitExpr(e.key)
+                this._write(", ")
+                this._emitExpr(e.value)
+                this._write("); ")
+            }
+            this._write("_map }")
+        }
+    }
+
+    // -- Set literal --
+
+    _emitSetLiteral(elements: [Expr]) {
+        if elements.length == 0 {
+            this._write("HashSet::new()")
+        } else {
+            this._write("{ let mut _set = HashSet::new(); ")
+            for e in elements {
+                this._write("_set.insert(")
+                this._emitExpr(e)
+                this._write("); ")
+            }
+            this._write("_set }")
+        }
+    }
+
+    // -- Lambda --
+
+    // Emit only the body of a lambda as an expression (no |params| header).
+    // Used by stdlib synthesizers (sortBy/groupBy) that wrap the body
+}
+
+// Sentinel symbol so main.liva can import this module and bring its
+// `extend RustEmitter { ... }` block into the compile graph.
+codegenArgsExtensionLoaded(): bool { return true }
