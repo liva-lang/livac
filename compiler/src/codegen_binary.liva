@@ -1,0 +1,546 @@
+// ============================================================================
+// codegen_binary.liva — RustEmitter extension: binary operator emission
+// ============================================================================
+// Extracted from codegen.liva via `extend RustEmitter { ... }`.
+//
+// Owns the lowering of `a OP b` for all binary operators, including the
+// String / Option / numeric coercion peepholes:
+//   - dispatch entry            : _emitBinary
+//   - right-side specialization : _emitBinaryWithRight
+//   - left-side null/copy paths : _emitBinaryLeftCheck, _emitBinaryLeftDefault
+//   - helpers                   : _isNullExpr, _isCopyLiteral,
+//                                 _leftmostLeafIsTarget, _isStringExpr
+//
+// Pure relocation — only calls back into existing RustEmitter helpers.
+
+import { Expr, BinOp, Literal } from "./ast"
+import { RustEmitter } from "./codegen"
+
+extend RustEmitter {
+
+    _emitBinary(op: BinOp, left: Expr, right: Expr) {
+        let opStr = this._binOpToRust(op)
+        // `||` is always logical OR now — `or <value>` is handled at parser level
+        // Wrap in parens to preserve precedence when used as operand of &&
+        if opStr == "||" {
+            // B140: detect `s.toInt() or default` and `s.toFloat() or default`
+            // in expression position (not let-binding). The standard `toInt`
+            // emission produces `.parse::<i32>().unwrap_or(0)`; with an explicit
+            // default we need to thread it into the unwrap_or call instead of
+            // emitting `<expr> || <default>` (boolean OR).
+            let isParseOr = false
+            let parseTy = ""
+            switch left {
+                Expr.MethodCall(_, mName, _) => {
+                    if mName == "toInt" { isParseOr = true; parseTy = "i32" }
+                    if mName == "toFloat" { isParseOr = true; parseTy = "f64" }
+                }
+            }
+            if isParseOr {
+                switch left {
+                    Expr.MethodCall(pObj, _, _) => {
+                        this._emitExpr(pObj)
+                        this._write(".to_string().parse::<")
+                        this._write(parseTy)
+                        this._write(">().unwrap_or(")
+                        this._emitExpr(right)
+                        this._write(")")
+                    }
+                }
+                return
+            }
+
+            // B?: detect `Map.get(k) or default` (or array.get/first/last/find)
+            // outside of a var-decl. The parser only desugars these inside
+            // `let x = call() or default`, so for `return call() or default`
+            // (and similar expression positions) we lower here.
+            let isOptionGet = false
+            switch left {
+                Expr.MethodCall(mObj, mName, _) => {
+                    if mName == "get" or mName == "first" or mName == "last" or mName == "find" {
+                        let mTag = this._getExprTypeName(mObj)
+                        if mTag == "map" or mTag == "array" or mTag == "set" {
+                            isOptionGet = true
+                        } else {
+                            switch mObj {
+                                Expr.Identifier(gn) => {
+                                    let sn = this._sanitizeName(gn)
+                                    if this._mapVars.has(sn) or this._setVars.has(sn) { isOptionGet = true }
+                                },
+                                Expr.MemberAccess(_, _) => {
+                                    // `this.fieldMap.get(...)` etc.
+                                    if mTag == "" or mTag == "unknown" {
+                                        // Conservatively treat field method-calls of `get` as
+                                        // option-returning when the method name is a known
+                                        // collection accessor; runtime type-tracking is too
+                                        // weak to be sure, so prefer option-get lowering.
+                                        isOptionGet = true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if isOptionGet {
+                // Use the shared helper (suppresses the trailing .unwrap()
+                // that the normal Map.get path emits).
+                switch left {
+                    Expr.MethodCall(mObj2, mName2, mArgs2) => {
+                        this._emitOptionGetWithDefault(mObj2, mName2, mArgs2, right)
+                    }
+                }
+                return
+            }
+            this._write("(")
+            this._emitExpr(left)
+            this._write(" || ")
+            this._emitExpr(right)
+            this._write(")")
+            return
+        }
+        // Delegate to helper that classifies + emits right in ONE switch
+        this._emitBinaryWithRight(opStr, left, right)
+    }
+
+    _emitBinaryWithRight(opStr: string, left: Expr, right: Expr) {
+        // ERR-UNIFY: rewrite `err == ""` / `err != ""` (idiomatic Liva
+        // "no error" check) to `err.is_none()` / `err.is_some()` when
+        // `err` is a fallible-tuple err-binding holding
+        // Option<liva_rt::Error>. Bootstrap stores err as String and
+        // accepts the raw compare; self-host normalizes to Option, so
+        // the literal `""` compare otherwise emits
+        // `err.is_some() == ""` (under _inIfCondition rewrite) or
+        // `err == ""` (outside it), neither of which type-checks.
+        if opStr == "==" || opStr == "!=" {
+            let isErrIdent = false
+            switch left {
+                Expr.Identifier(eName) => {
+                    let eSan = this._sanitizeName(eName)
+                    if this._errBindings.has(eSan) { isErrIdent = true }
+                }
+            }
+            let rIsEmptyStr = false
+            if isErrIdent {
+                switch right {
+                    Expr.Literal(rLitE) => {
+                        switch rLitE {
+                            Literal.Str(rs) => {
+                                if rs == "" { rIsEmptyStr = true }
+                            }
+                        }
+                    }
+                }
+            }
+            if isErrIdent && rIsEmptyStr {
+                let savedInIf = this._inIfCondition
+                this._inIfCondition = false
+                this._emitExpr(left)
+                this._inIfCondition = savedInIf
+                if opStr == "==" {
+                    this._write(".is_none()")
+                } else {
+                    this._write(".is_some()")
+                }
+                return
+            }
+        }
+        // Single switch on right that both classifies and handles output
+        switch right {
+            Expr.Literal(rLit) => {
+                // Check if right is null
+                let rIsNull = false
+                let rIsString = false
+                switch rLit {
+                    Literal.Null => { rIsNull = true },
+                    Literal.Str(_) => { rIsString = true }
+                }
+                if rIsNull && opStr == "==" {
+                    this._emitExpr(left)
+                    this._write(".is_none()")
+                } else if rIsNull && opStr == "!=" {
+                    // Detect variable for if-let narrowing (x != null → let Some(x) = x)
+                    // ONLY valid directly in if/while conditions
+                    if this._inIfCondition {
+                        switch left {
+                            Expr.Identifier(lName) => {
+                                let san = this._sanitizeName(lName)
+                                // JSON-value receivers are not Option<T>: emit
+                                // an !is_null() guard instead of an if-let.
+                                if this._jsonValueVars.has(san) {
+                                    let savedJ = this._inIfCondition
+                                    this._inIfCondition = false
+                                    this._write($"!{san}.is_null()")
+                                    this._inIfCondition = savedJ
+                                } else {
+                                    this._write($"let Some({san}) = {san}")
+                                }
+                            },
+                            Expr.MemberAccess(maObj, maProp) => {
+                                this._emitExpr(Expr.MemberAccess(maObj, maProp))
+                                this._write(".is_some()")
+                            },
+                            _ => {
+                                this._write("true /* != null */")
+                            }
+                        }
+                    } else {
+                        this._emitExpr(left)
+                        this._write(".is_some()")
+                    }
+                } else if rIsString && opStr == "+" {
+                    // Phase 8: push_str for string literal
+                    if this._pushStrTarget != "" {
+                        this._pushStrUsed = true
+                        let leftIsTarget2 = false
+                        switch left {
+                            Expr.Identifier(lName2) => {
+                                if this._sanitizeName(lName2) == this._pushStrTarget { leftIsTarget2 = true }
+                            }
+                        }
+                        if leftIsTarget2 {
+                            let pst1 = this._pushStrTarget
+                            this._write(pst1)
+                            this._write(".push_str(")
+                            this._inCompoundAdd = true
+                            this._emitLiteral(rLit)
+                            this._inCompoundAdd = false
+                            this._write(")")
+                        } else {
+                            this._emitExpr(left)
+                            this._write(";")
+                            this._newline()
+                            this._writeIndent()
+                            let pst2 = this._pushStrTarget
+                            this._write(pst2)
+                            this._write(".push_str(")
+                            this._inCompoundAdd = true
+                            this._emitLiteral(rLit)
+                            this._inCompoundAdd = false
+                            this._write(")")
+                        }
+                    } else {
+                        this._write("format!(\"{}{}\", ")
+                        this._emitFormatArg(left)
+                        this._write(", ")
+                        this._emitLiteral(rLit)
+                        this._write(")")
+                    }
+                } else {
+                    // Right is a non-null, non-string literal — check left for null
+                    this._emitBinaryLeftCheck(opStr, left, rLit)
+                }
+            },
+            Expr.StringTemplate(rParts) => {
+                // Right is a string template — string concat
+                if opStr == "+" {
+                    if this._pushStrTarget != "" {
+                        this._pushStrUsed = true
+                        let leftIsTarget3 = false
+                        switch left {
+                            Expr.Identifier(lName3) => {
+                                if this._sanitizeName(lName3) == this._pushStrTarget { leftIsTarget3 = true }
+                            }
+                        }
+                        if leftIsTarget3 {
+                            let pst3 = this._pushStrTarget
+                            this._write(pst3)
+                            this._write(".push_str(&")
+                            this._emitStringTemplate(rParts)
+                            this._write(")")
+                        } else {
+                            this._emitExpr(left)
+                            this._write(";")
+                            this._newline()
+                            this._writeIndent()
+                            let pst4 = this._pushStrTarget
+                            this._write(pst4)
+                            this._write(".push_str(&")
+                            this._emitStringTemplate(rParts)
+                            this._write(")")
+                        }
+                    } else {
+                        this._write("format!(\"{}{}\", ")
+                        this._emitFormatArg(left)
+                        this._write(", ")
+                        this._emitStringTemplate(rParts)
+                        this._write(")")
+                    }
+                } else {
+                    this._emitExpr(left)
+                    this._write($" {opStr} ")
+                    this._emitStringTemplate(rParts)
+                }
+            },
+            _ => {
+                // Right is a general expression — check left for null/string
+                this._emitBinaryLeftDefault(opStr, left, right)
+            }
+        }
+    }
+
+    _emitBinaryLeftCheck(opStr: string, left: Expr, rightLit: Literal) {
+        // Right was a normal literal. Check left for null.
+        let leftIsNull = false
+        switch left {
+            Expr.Literal(lLit) => {
+                switch lLit {
+                    Literal.Null => { leftIsNull = true }
+                }
+            }
+        }
+        if leftIsNull && opStr == "==" {
+            this._emitLiteral(rightLit)
+            this._write(".is_none()")
+        } else if leftIsNull && opStr == "!=" {
+            this._emitLiteral(rightLit)
+            this._write(".is_some()")
+        } else {
+            // Phase 8.5: emit left, then check if it was &str → suppress .to_string() on right
+            // Phase 8.8: suppress self.field clone in comparison context
+            this._emitExprNoMemberClone(left)
+            let leftIsStrRef = this._lastEmittedStrRef
+            this._write($" {opStr} ")
+            // Suppress .to_string() for == and != — String implements PartialEq<str>
+            // Also suppress for all comparisons when left is &str
+            if opStr == "==" || opStr == "!=" || leftIsStrRef {
+                let saved = this._suppressToString
+                this._suppressToString = true
+                this._emitLiteral(rightLit)
+                this._suppressToString = saved
+            } else {
+                this._emitLiteral(rightLit)
+            }
+        }
+    }
+
+    _emitBinaryLeftDefault(opStr: string, left: Expr, right: Expr) {
+        // Right is a general expr. Check left for null/string.
+        switch left {
+            Expr.Literal(lLit) => {
+                let lIsNull = false
+                let lIsString = false
+                switch lLit {
+                    Literal.Null => { lIsNull = true },
+                    Literal.Str(_) => { lIsString = true }
+                }
+                if lIsNull && opStr == "==" {
+                    this._emitExpr(right)
+                    this._write(".is_none()")
+                } else if lIsNull && opStr == "!=" {
+                    this._emitExpr(right)
+                    this._write(".is_some()")
+                } else if lIsString && opStr == "+" {
+                    this._write("format!(\"{}{}\", ")
+                    this._emitLiteral(lLit)
+                    this._write(", ")
+                    this._emitFormatArg(right)
+                    this._write(")")
+                } else {
+                    // Suppress .to_string() for == and != — String implements PartialEq<str>
+                    if opStr == "==" || opStr == "!=" {
+                        let saved = this._suppressToString
+                        this._suppressToString = true
+                        this._emitLiteral(lLit)
+                        this._suppressToString = saved
+                    } else {
+                        this._emitLiteral(lLit)
+                    }
+                    this._write($" {opStr} ")
+                    // Phase 8.8: suppress self.field clone on right of literal comparison
+                    this._emitExprNoMemberClone(right)
+                }
+            },
+            Expr.StringTemplate(lParts) => {
+                if opStr == "+" {
+                    this._write("format!(\"{}{}\", ")
+                    this._emitStringTemplate(lParts)
+                    this._write(", ")
+                    this._emitFormatArg(right)
+                    this._write(")")
+                } else {
+                    this._emitStringTemplate(lParts)
+                    this._write($" {opStr} ")
+                    this._emitExpr(right)
+                }
+            },
+            _ => {
+                // Array concatenation: arr1 + arr2 → [arr1, arr2].concat().
+                // Rust's Vec does not implement Add; slice .concat() flattens
+                // Vec<Vec<T>> back to Vec<T>.
+                if opStr == "+" {
+                    let lTag = this._getExprTypeName(left)
+                    let rTag = this._getExprTypeName(right)
+                    if lTag == "array" || rTag == "array" {
+                        this._write("[")
+                        this._emitExpr(left)
+                        this._write(", ")
+                        this._emitExpr(right)
+                        this._write("].concat()")
+                        return
+                    }
+                }
+                if opStr == "+" and (this._isStringExpr(left) or this._isStringExpr(right)) {
+                    // Phase 8: push_str chain — x = x + y → x.push_str(&y)
+                    if this._pushStrTarget != "" {
+                        this._pushStrUsed = true
+                        // Check if left is the target identifier (1-level: x + y)
+                        let leftIsTarget = false
+                        switch left {
+                            Expr.Identifier(lName) => {
+                                if this._sanitizeName(lName) == this._pushStrTarget { leftIsTarget = true }
+                            }
+                        }
+                        if leftIsTarget {
+                            // x + y → x.push_str(&y) when y is already a String,
+                            // else x.push_str(&(y).to_string()) for primitives.
+                            let pst5 = this._pushStrTarget
+                            let rightIsString = this._isStringExpr(right)
+                            this._write(pst5)
+                            if rightIsString {
+                                // Phase 10.4: skip useless `.to_string()` on a String.
+                                this._write(".push_str(&(")
+                                this._emitExpr(right)
+                                this._write("))")
+                            } else {
+                                this._write(".push_str(&(")
+                                this._emitExpr(right)
+                                this._write(").to_string())")
+                            }
+                        } else {
+                            // Left is not the target (maybe nested: (x + a) + b)
+                            // Emit left (which recurses and may emit push_str for inner chain)
+                            this._emitExpr(left)
+                            // Now emit push_str for right
+                            this._write(";")
+                            this._newline()
+                            this._writeIndent()
+                            let pst6 = this._pushStrTarget
+                            let rightIsString2 = this._isStringExpr(right)
+                            this._write(pst6)
+                            if rightIsString2 {
+                                this._write(".push_str(&(")
+                                this._emitExpr(right)
+                                this._write("))")
+                            } else {
+                                this._write(".push_str(&(")
+                                this._emitExpr(right)
+                                this._write(").to_string())")
+                            }
+                        }
+                    } else {
+                        // Normal string concat: format!("{}{}", left, right)
+                        this._write("format!(\"{}{}\", ")
+                        this._emitFormatArg(left)
+                        this._write(", ")
+                        this._emitFormatArg(right)
+                        this._write(")")
+                    }
+                } else {
+                    // Phase 8.8: suppress self.field clone in comparison context
+                    let isComp = opStr == "==" || opStr == "!=" || opStr == "<" || opStr == ">" || opStr == "<=" || opStr == ">="
+                    if isComp {
+                        this._emitExprNoMemberClone(left)
+                        this._write($" {opStr} ")
+                        this._emitExprNoMemberClone(right)
+                    } else {
+                        this._emitExpr(left)
+                        this._write($" {opStr} ")
+                        this._emitExpr(right)
+                    }
+                }
+            }
+        }
+    }
+
+    _isNullExpr(expr: Expr): bool {
+        let result = false
+        switch expr {
+            Expr.Literal(lit) => {
+                switch lit {
+                    Literal.Null => { result = true }
+                }
+            }
+        }
+        return result
+    }
+
+    _isCopyLiteral(expr: Expr): bool {
+        let result = false
+        switch expr {
+            Expr.Literal(lit) => {
+                switch lit {
+                    Literal.Bool(_) => { result = true },
+                    Literal.Int(_) => { result = true },
+                    Literal.Float(_) => { result = true },
+                    Literal.Null => { result = true }
+                }
+            }
+        }
+        return result
+    }
+
+    _leftmostLeafIsTarget(expr: Expr, target: string): bool {
+        let result = false
+        switch expr {
+            Expr.Binary(bop, left, _) => {
+                let bopStr = this._binOpToRust(bop)
+                if bopStr == "+" {
+                    result = this._leftmostLeafIsTarget(left, target)
+                }
+            },
+            Expr.Identifier(lName) => {
+                if this._sanitizeName(lName) == target { result = true }
+            }
+        }
+        return result
+    }
+
+    _isStringExpr(expr: Expr): bool {
+        let result = false
+        switch expr {
+            Expr.Literal(lit) => {
+                switch lit {
+                    Literal.Str(_) => { result = true }
+                }
+            },
+            Expr.StringTemplate(_) => { result = true },
+            Expr.Binary(op, left, right) => {
+                let opCheck = this._binOpToRust(op)
+                if opCheck == "+" && (this._isStringExpr(left) || this._isStringExpr(right)) {
+                    result = true
+                }
+            },
+            Expr.MethodCall(_, method, _) => {
+                // Cycle 44: recognise string-returning methods so that
+                // `result += ch.toLowerCase()` etc. emit `.push_str()`
+                // instead of `String += String` (which is invalid Rust).
+                if method == "toString" { result = true }
+                if method == "toLowerCase" { result = true }
+                if method == "toUpperCase" { result = true }
+                if method == "trim" { result = true }
+                if method == "trimStart" { result = true }
+                if method == "trimEnd" { result = true }
+                if method == "replace" { result = true }
+                if method == "replaceAll" { result = true }
+                if method == "substring" { result = true }
+                if method == "padStart" { result = true }
+                if method == "padEnd" { result = true }
+                if method == "capitalize" { result = true }
+                if method == "removePrefix" { result = true }
+                if method == "removeSuffix" { result = true }
+                if method == "repeat" { result = true }
+            },
+            Expr.Identifier(name) => {
+                let tag = this._getExprTypeName(expr)
+                if tag == "string" { result = true }
+            }
+        }
+        return result
+    }
+
+}
+
+// Sentinel symbol so main.liva can import this module and bring its
+// `extend RustEmitter { ... }` block into the compile graph.
+codegenBinaryExtensionLoaded(): bool { return true }

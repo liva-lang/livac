@@ -1,0 +1,768 @@
+// ============================================================================
+// codegen_controlflow.liva — RustEmitter extension: if / while / for emission
+// ============================================================================
+// Extracted from codegen.liva via `extend RustEmitter { ... }`.
+//
+// Owns the lowering of:
+//   - if / else if / else                : _emitIf, _emitIfBody, _ifBodyStmts
+//   - has+get+set peephole → Entry API   : _tryEmitEntryApi, _entryKeyEmit
+//   - while                              : _emitWhile
+//   - async-context detection for loops  : _inAsyncContext, _blockAwaitsIdent,
+//                                          _stmtAwaitsIdent, _exprAwaitsIdent
+//   - for (range / iter)                 : _emitFor, _emitForIterable
+//
+// Pure relocation — only calls back into existing RustEmitter helpers.
+
+import { IfStmt, IfBody, WhileStmt, ForStmt, BlockStmt, Stmt, Expr } from "./ast"
+import { RustEmitter } from "./codegen"
+
+extend RustEmitter {
+
+    _emitIf(stmt: IfStmt) {
+        // Phase 9.8: peephole — has+get+set → entry API
+        if this._tryEmitEntryApi(stmt) { return }
+
+        // If this `if` has no `else`, it is an `if (cond) { … }` statement —
+        // its branch must yield `()`. Clear `_inExprBlock` while emitting the
+        // body so an inner `Stmt.ExprStmt` doesn't drop its `;` and create a
+        // type mismatch (e.g. `String` instead of `()`).
+        let elsePartCheck = stmt.elseBranch
+        let savedExprBlockIf = this._inExprBlock
+        if elsePartCheck == null {
+            this._inExprBlock = false
+        }
+
+        this._writeIndent()
+        this._write("if ")
+        // B130 (truthy form): detect+emit in a single helper to avoid
+        // double-consumption of `stmt.condition` (field accesses don't
+        // auto-clone in bootstrap). Returns the sanitized err-binding name
+        // when condition is `if errBinding`.
+        let truthyErrName = this._emitIfConditionAndDetectTruthy(stmt.condition)
+        this._write(" {")
+        this._newline()
+        this._indent()
+        if truthyErrName != "" {
+            this._truthyErrBindings.set(truthyErrName, true)
+        }
+        this._emitIfBody(stmt.thenBranch)
+        if truthyErrName != "" {
+            this._truthyErrBindings.delete(truthyErrName)
+        }
+        this._dedent()
+
+        let elsePart = stmt.elseBranch
+        if elsePart != null {
+            this._writeln("} else {")
+            this._indent()
+            this._emitIfBody(elsePart)
+            this._dedent()
+        }
+        this._writeln("}")
+        this._inExprBlock = savedExprBlockIf
+    }
+
+    // Phase 9.8: detect the canonical "increment/decrement-or-init" pattern on a Map
+    // and lower it to Rust's `*m.entry(k).or_insert(X) += R;` form.
+    //
+    //     if m.has(K) {
+    //         let c = m.get(K)
+    //         m.set(K, c + R)        // or c - R
+    //     } else {
+    //         m.set(K, INIT)
+    //     }
+    //
+    //  →  *m.entry(K.clone()).or_insert(INIT - R) += R;        (Add)
+    //  →  *m.entry(K.clone()).or_insert(INIT + R) -= R;        (Sub)
+    //
+    // Conservative guards: only when R and INIT are integer literals, the four
+    // K occurrences are syntactically equal (Identifier or Int/Str literal),
+    // and m is a known Map variable. Otherwise fall through to the regular
+    // if/else lowering. Returns true iff the optimized form was emitted.
+    _tryEmitEntryApi(stmt: IfStmt): bool {
+        // 1. Condition: m.has(K)
+        let condIsHas = false
+        let condMapName = ""
+        let condKeyE = ""
+        switch stmt.condition {
+            Expr.MethodCall(co, cm, ca) => {
+                if cm == "has" and ca.length == 1 {
+                    switch co {
+                        Expr.Identifier(cn) => {
+                            condIsHas = true
+                            condMapName = cn
+                            for k in ca { condKeyE = this._entryKeyEmit(k); break }
+                        }
+                    }
+                }
+            }
+        }
+        if not condIsHas { return false }
+        if condKeyE == "" { return false }
+        let condMapSan: string = this._sanitizeName(condMapName)
+        if not this._mapVars.has(condMapSan) { return false }
+
+        // 2. then-branch: must contain exactly 2 stmts
+        let thenStmts: [Stmt] = this._ifBodyStmts(stmt.thenBranch)
+        if thenStmts.length != 2 { return false }
+
+        // 3. else-branch: must be present and contain exactly 1 stmt
+        let elseBranch = stmt.elseBranch
+        if elseBranch == null { return false }
+        let elseStmts: [Stmt] = []
+        if elseBranch != null {
+            elseStmts = this._ifBodyStmts(elseBranch)
+        }
+        if elseStmts.length != 1 { return false }
+
+        // 4. then[0]: VarDecl single Identifier `cName`, init = m.get(K)
+        let cName = ""
+        let getMapName = ""
+        let getKeyE = ""
+        let stmt0Ok = false
+        for s0 in thenStmts {
+            switch s0 {
+                Stmt.VarDecl(decl) => {
+                    if decl.bindings.length == 1 and not decl.isFallible {
+                        for b in decl.bindings {
+                            switch b.pattern {
+                                BindingPattern.Identifier(bn) => { cName = bn }
+                            }
+                            break
+                        }
+                        if cName != "" {
+                            switch decl.init {
+                                Expr.MethodCall(go, gm, ga) => {
+                                    if gm == "get" and ga.length == 1 {
+                                        switch go {
+                                            Expr.Identifier(gn) => {
+                                                getMapName = gn
+                                                for k in ga { getKeyE = this._entryKeyEmit(k); break }
+                                                if getKeyE != "" { stmt0Ok = true }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            break
+        }
+        if not stmt0Ok { return false }
+
+        // 5. then[1]: ExprStmt(MethodCall(m, "set", [K, Binary(Add|Sub, Identifier(cName), Int(R))]))
+        let setMapName = ""
+        let setKeyE = ""
+        let opIsAdd = false
+        let rVal = 0
+        let stmt1Ok = false
+        let idx0 = 0
+        for s1 in thenStmts {
+            if idx0 == 1 {
+                switch s1 {
+                    Stmt.ExprStmt(se) => {
+                        switch se {
+                            Expr.MethodCall(so, sm, sa) => {
+                                if sm == "set" and sa.length == 2 {
+                                    switch so {
+                                        Expr.Identifier(sn) => { setMapName = sn }
+                                    }
+                                    if setMapName != "" {
+                                        // First pass: extract key (idx 0) into a string
+                                        let kIdx = 0
+                                        for kArg in sa {
+                                            if kIdx == 0 {
+                                                setKeyE = this._entryKeyEmit(kArg)
+                                            }
+                                            kIdx += 1
+                                        }
+                                        // Second pass: validate value (idx 1) is `c <op> Int`
+                                        let vIdx = 0
+                                        for vArg in sa {
+                                            if vIdx == 1 {
+                                                switch vArg {
+                                                    Expr.Binary(bop, bl, br) => {
+                                                        let opOk = false
+                                                        switch bop {
+                                                            BinOp.Add => { opOk = true; opIsAdd = true },
+                                                            BinOp.Sub => { opOk = true; opIsAdd = false }
+                                                        }
+                                                        if opOk {
+                                                            let leftOk = false
+                                                            switch bl {
+                                                                Expr.Identifier(ln) => {
+                                                                    if ln == cName { leftOk = true }
+                                                                }
+                                                            }
+                                                            if leftOk {
+                                                                switch br {
+                                                                    Expr.Literal(rlit) => {
+                                                                        switch rlit {
+                                                                            Literal.Int(rv) => { rVal = rv; stmt1Ok = true }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            vIdx += 1
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                break
+            }
+            idx0 += 1
+        }
+        if not stmt1Ok { return false }
+        if setKeyE == "" { return false }
+
+        // 6. else[0]: ExprStmt(MethodCall(m, "set", [K, Literal.Int(initN)]))
+        let elseMapName = ""
+        let elseKeyE = ""
+        let initN = 0
+        let stmt2Ok = false
+        for e0 in elseStmts {
+            switch e0 {
+                Stmt.ExprStmt(ee) => {
+                    switch ee {
+                        Expr.MethodCall(eo, em, ea) => {
+                            if em == "set" and ea.length == 2 {
+                                switch eo {
+                                    Expr.Identifier(en) => { elseMapName = en }
+                                }
+                                if elseMapName != "" {
+                                    let kIdx2 = 0
+                                    for kArg2 in ea {
+                                        if kIdx2 == 0 {
+                                            elseKeyE = this._entryKeyEmit(kArg2)
+                                        }
+                                        kIdx2 += 1
+                                    }
+                                    let vIdx2 = 0
+                                    for vArg2 in ea {
+                                        if vIdx2 == 1 {
+                                            switch vArg2 {
+                                                Expr.Literal(lit) => {
+                                                    switch lit {
+                                                        Literal.Int(iv) => { initN = iv; stmt2Ok = true }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        vIdx2 += 1
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            break
+        }
+        if not stmt2Ok { return false }
+        if elseKeyE == "" { return false }
+
+        // 7. All four map references must name the same variable
+        if condMapName != getMapName { return false }
+        if condMapName != setMapName { return false }
+        if condMapName != elseMapName { return false }
+
+        // 8. All four keys must be syntactically equal
+        if condKeyE != getKeyE { return false }
+        if condKeyE != setKeyE { return false }
+        if condKeyE != elseKeyE { return false }
+
+        // 9. Compute the seed for or_insert so that, after the compound op,
+        //    the "missing key" branch yields exactly INIT.
+        let seed = initN - rVal
+        let opStr = "+"
+        if not opIsAdd {
+            seed = initN + rVal
+            opStr = "-"
+        }
+
+        // 10. Emit `*<m>.entry(<K>).or_insert(<seed>) <op>= <r>;`
+        this._writeIndent()
+        let mapName = this._sanitizeName(condMapName)
+        this._write($"*{mapName}.entry({condKeyE}).or_insert({seed}) {opStr}= {rVal};")
+        this._newline()
+        return true
+    }
+
+    // Helper: flattens an IfBody (Block or SingleStmt) into a plain [Stmt].
+    // Used by the entry-API peephole so the caller has a single use of the
+    // IfBody value (avoiding self-host codegen move limitations).
+    _ifBodyStmts(body: IfBody): [Stmt] {
+        let result: [Stmt] = []
+        switch body {
+            IfBody.Block(b) => {
+                for s in b.stmts { result.push(s) }
+            },
+            IfBody.SingleStmt(stmts) => {
+                for s in stmts { result.push(s) }
+            }
+        }
+        return result
+    }
+
+    // Helper: returns a Rust emission string for a key expression suitable
+    // for use inside `HashMap::entry(...)`. Identifier emits as `name.clone()`
+    // (a no-op for Copy types — accepting the small redundancy avoids a
+    // second use of the binding inside the match arm, which the self-host
+    // codegen doesn't clone yet). Int literal emits as the integer text.
+    // Returns "" for any other shape so the peephole bails out cleanly.
+    //
+    // Phase 10.1: when the key is an identifier declared INSIDE a loop body
+    // AND the if-statement being rewritten is the last statement of its
+    // enclosing block (so the binding is dead after the rewrite), we emit
+    // a move (`san`) instead of `.clone()`. This eliminates the dominant
+    // allocation hot-path in the word-counting benchmark.
+    _entryKeyEmit(e: Expr): string {
+        let result = ""
+        switch e {
+            Expr.Identifier(n) => {
+                let key = $"{this._currentFunc}:{n}"
+                let san = this._sanitizeName(n)
+                let canMove = this._stmtIsLastInBlock
+                    && this._liveCtx.declaredInLoop.has(key)
+                if canMove {
+                    result = san
+                } else {
+                    result = $"{san}.clone()"
+                }
+            },
+            Expr.Literal(l) => {
+                switch l {
+                    Literal.Int(v) => { result = $"{v}" }
+                }
+            }
+        }
+        return result
+    }
+
+    _emitIfBody(body: IfBody) {
+        switch body {
+            IfBody.Block(block) => { this._emitBlock(block) },
+            IfBody.SingleStmt(stmts) => {
+                for s in stmts {
+                    this._emitStmt(s)
+                }
+            }
+        }
+    }
+
+    // -- While loop --
+
+    _emitWhile(stmt: WhileStmt) {
+        this._writeIndent()
+        this._write("while ")
+        this._inIfCondition = true
+        this._emitExpr(stmt.condition)
+        this._inIfCondition = false
+        this._write(" {")
+        this._newline()
+        this._indent()
+        // The while-body is a stmt-only block; do not inherit expr-block
+        // context from any enclosing switch arm.
+        let savedExprBlockW = this._inExprBlock
+        this._inExprBlock = false
+        this._emitBlock(stmt.body)
+        this._inExprBlock = savedExprBlockW
+        this._dedent()
+        this._writeln("}")
+    }
+
+    // -- For loop --
+
+    // Cycle 35 — detect `await loopVar` inside the for-body so we iterate the
+    // collection by value (move) instead of by reference. Required for
+    // tokio::JoinHandle (which is not Clone), and harmless for any other
+    // type since the array is consumed at end-of-scope anyway.
+    _inAsyncContext(): bool {
+        let cf = this._currentFunc
+        if cf == "main" { return this._mainNeedsAsync }
+        return this._asyncFnNames.has(cf)
+    }
+
+    _blockAwaitsIdent(blk: BlockStmt, name: string): bool {
+        for s in blk.stmts {
+            if this._stmtAwaitsIdent(s, name) { return true }
+        }
+        return false
+    }
+
+    _stmtAwaitsIdent(s: Stmt, name: string): bool {
+        switch s {
+            Stmt.VarDecl(d) => {
+                if this._exprAwaitsIdent(d.init, name) { return true }
+            },
+            Stmt.ConstDecl(d) => {
+                if this._exprAwaitsIdent(d.init, name) { return true }
+            },
+            Stmt.Assign(a) => {
+                if this._exprAwaitsIdent(a.value, name) { return true }
+            },
+            Stmt.ExprStmt(e) => {
+                if this._exprAwaitsIdent(e, name) { return true }
+            },
+            Stmt.Return(re) => {
+                let rOpt = re
+                if rOpt != null {
+                    if this._exprAwaitsIdent(rOpt, name) { return true }
+                }
+            },
+            Stmt.If(ifs) => {
+                if this._exprAwaitsIdent(ifs.condition, name) { return true }
+                switch ifs.thenBranch {
+                    IfBody.Block(b) => {
+                        if this._blockAwaitsIdent(b, name) { return true }
+                    },
+                    IfBody.SingleStmt(ss) => {
+                        for sub in ss {
+                            if this._stmtAwaitsIdent(sub, name) { return true }
+                        }
+                    }
+                }
+                let eb = ifs.elseBranch
+                if eb != null {
+                    switch eb {
+                        IfBody.Block(b) => {
+                            if this._blockAwaitsIdent(b, name) { return true }
+                        },
+                        IfBody.SingleStmt(ss) => {
+                            for sub in ss {
+                                if this._stmtAwaitsIdent(sub, name) { return true }
+                            }
+                        }
+                    }
+                }
+            },
+            Stmt.While(ws) => {
+                if this._exprAwaitsIdent(ws.condition, name) { return true }
+                if this._blockAwaitsIdent(ws.body, name) { return true }
+            },
+            Stmt.For(fs) => {
+                if this._exprAwaitsIdent(fs.iterable, name) { return true }
+                if this._blockAwaitsIdent(fs.body, name) { return true }
+            },
+            Stmt.Block(b) => {
+                if this._blockAwaitsIdent(b, name) { return true }
+            }
+        }
+        return false
+    }
+
+    _exprAwaitsIdent(e: Expr, name: string): bool {
+        switch e {
+            Expr.Unary(op, operand) => {
+                switch op {
+                    UnOp.Await => {
+                        switch operand {
+                            Expr.Identifier(n) => {
+                                if n == name { return true }
+                            }
+                        }
+                    }
+                }
+                return this._exprAwaitsIdent(operand, name)
+            },
+            Expr.Binary(_op, l, r) => {
+                if this._exprAwaitsIdent(l, name) { return true }
+                return this._exprAwaitsIdent(r, name)
+            },
+            Expr.Call(callee, args, _ep, _ta) => {
+                if this._exprAwaitsIdent(callee, name) { return true }
+                for a in args {
+                    if this._exprAwaitsIdent(a, name) { return true }
+                }
+            },
+            Expr.MethodCall(obj, _m, args) => {
+                if this._exprAwaitsIdent(obj, name) { return true }
+                for a in args {
+                    if this._exprAwaitsIdent(a, name) { return true }
+                }
+            },
+            Expr.MemberAccess(obj, _p) => {
+                return this._exprAwaitsIdent(obj, name)
+            },
+            Expr.Index(obj, idx) => {
+                if this._exprAwaitsIdent(obj, name) { return true }
+                return this._exprAwaitsIdent(idx, name)
+            }
+        }
+        return false
+    }
+
+    _emitFor(stmt: ForStmt) {
+        this._writeIndent()
+        let varName = this._sanitizeName(stmt.variable.clone())
+        let iterableExpr = stmt.iterable
+
+        // Check if there's an index variable (for i, item in array)
+        let var2 = stmt.variable2
+        let hasVar2 = var2 != null
+        let var2Name = ""
+        if var2 != null {
+            var2Name = this._sanitizeName(var2)
+        }
+        // Track map iteration outside the if so the body can suppress `i as i32` shadowing.
+        let isMapIteration = false
+        if hasVar2 {
+            // Two-variable for loop
+            let idxName = $"{varName}"
+            let itemName = $"{var2Name}"
+            // Detect Map iteration: for key, value in map → .iter()
+            // B125: also recognize `obj.field` and `this.field` Map fields. We
+            // pre-registered Map field names in `_mapVars` during _emitClass.
+            switch iterableExpr {
+                Expr.Identifier(iterName) => {
+                    let sn = this._sanitizeName(iterName)
+                    if this._mapVars.has(sn) {
+                        isMapIteration = true
+                    }
+                },
+                Expr.MemberAccess(_, prop) => {
+                    let sp = this._sanitizeName(prop)
+                    if this._mapVars.has(sp) {
+                        isMapIteration = true
+                    }
+                }
+            }
+            if isMapIteration {
+                this._write($"for ({idxName}, {itemName}) in ")
+                this._emitExpr(iterableExpr)
+                this._write(".iter()")
+            } else {
+                // Array: for i, item → .iter().enumerate()
+                this._write($"for ({idxName}, {itemName}) in ")
+                this._emitExpr(iterableExpr)
+                this._write(".iter().enumerate()")
+            }
+        } else {
+            // Cycle 35 — body awaits the loop variable (e.g. JoinHandle).
+            // Iterate by value to consume each item; never insert the
+            // borrow-with-clone wrapper (JoinHandle is not Clone).
+            let awaitsLoopVar = this._blockAwaitsIdent(stmt.body.clone(), stmt.variable.clone())
+            if awaitsLoopVar {
+                // Register the loop var as a JoinHandle so `await t` emits
+                // `t.await.unwrap()` (JoinHandle::await yields a Result).
+                this._taskHandleVars.set(varName, true)
+                this._write($"for {varName} in ")
+                this._emitExpr(iterableExpr)
+                this._forNeedsInnerClone = false
+                this._write(" {")
+                this._newline()
+                this._indent()
+                let savedExprBlockA = this._inExprBlock
+                this._inExprBlock = false
+                this._emitBlock(stmt.body)
+                this._inExprBlock = savedExprBlockA
+                this._dedent()
+                this._writeln("}")
+                return
+            }
+            // Phase 9.4: array of Copy elements → `for &x in &arr` (no inner clone)
+            let useCopyDeref = false
+            switch iterableExpr {
+                Expr.Identifier(iterName) => {
+                    if this._arrayIdentNameIsCopyElem(iterName) {
+                        useCopyDeref = true
+                    }
+                }
+            }
+            if useCopyDeref {
+                this._write($"for &{varName} in ")
+                // Phase 9: with `&{var}` pattern we need an iterator over references.
+                // Cycle 40: use `.iter()` instead of `&{ident}` so the pattern
+                // works for both owned `Vec<T>` and borrowed `&Vec<T>` params.
+                let emitted = false
+                switch iterableExpr {
+                    Expr.Identifier(iterName) => {
+                        let san = this._sanitizeName(iterName)
+                        this._write($"{san}.iter()")
+                        emitted = true
+                    }
+                }
+                if not emitted {
+                    this._emitForIterable(iterableExpr)
+                }
+            } else {
+                this._write($"for {varName} in ")
+                this._emitForIterable(iterableExpr)
+            }
+            // Suppress inner clone — we already have the Copy value via deref pattern
+            if useCopyDeref {
+                this._forNeedsInnerClone = false
+            }
+        }
+
+        this._write(" {")
+        this._newline()
+        this._indent()
+        // If two-variable enumerate loop, shadow index var as i32
+        if hasVar2 {
+            if not isMapIteration {
+                // enumerate(): index is usize → shadow as i32 (Liva number)
+                this._writeln($"let {varName} = {varName} as i32;")
+            } else {
+                // map.iter(): key is &K → clone for owned access in body
+                this._writeln($"let {varName} = {varName}.clone();")
+            }
+            // Clone item to avoid move issues
+            this._writeln($"let {var2Name} = {var2Name}.clone();")
+        }
+        // Phase 8.6: inner clone for borrow-iteration (for x in &vec)
+        if this._forNeedsInnerClone {
+            this._writeln($"let {varName} = {varName}.clone();")
+            this._forNeedsInnerClone = false
+        }
+        // The for-body is a stmt-only block; do not inherit expr-block context.
+        let savedExprBlockF = this._inExprBlock
+        this._inExprBlock = false
+        this._emitBlock(stmt.body)
+        this._inExprBlock = savedExprBlockF
+        this._dedent()
+        this._writeln("}")
+    }
+
+    // Helper: emit iterable expression with appropriate iteration suffix
+    // Handles iterator methods (.keys/.values), ranges, and default (array) cases
+    // Everything in one switch to avoid double-consuming the value
+    _emitForIterable(iterable: Expr) {
+        switch iterable {
+            Expr.Identifier(name) => {
+                // Check if variable is a string type → use .chars() instead of .iter()
+                let varType = this._lookupVarTypeRef(name)
+                let tag = this._typeRefToTag(varType)
+                let sanitized = this._sanitizeName(name)
+                if tag == "string" {
+                    this._write(sanitized)
+                    this._write(".chars().map(|c| c.to_string())")
+                } else {
+                    // Phase 8: move instead of clone if var is single-use and NOT in a loop
+                    // Phase 10.2: also allow move when var is declared inside the loop body
+                    // (each iteration is a fresh binding — safe to move on its single use).
+                    let isSingleUse = false
+                    let liveKey = $"{this._currentFunc}:{name}"
+                    if this._liveCtx.useCounts.has(liveKey) {
+                        let uc = this._liveCtx.useCounts.get(liveKey)
+                        let inLoop = this._liveCtx.loopUseCounts.has(liveKey)
+                        let declaredInLoop = this._liveCtx.declaredInLoop.has(liveKey)
+                        if uc <= 1 && (not inLoop || declaredInLoop) { isSingleUse = true }
+                    }
+                    // Cycle 40: borrowed collection params cannot be moved.
+                    if this._collRefParams.has(sanitized) {
+                        isSingleUse = false
+                    }
+                    if isSingleUse {
+                        this._write(sanitized)
+                    } else {
+                        // Phase 8.6: borrow instead of clone — saves Vec allocation.
+                        // Cycle 40: emit `.iter()` instead of `&{name}` so the
+                        // pattern works regardless of whether `name` is owned
+                        // (Vec<T>) or already a reference (&Vec<T> from a Cycle 40
+                        // borrowed param). Iteration semantics are identical.
+                        this._write($"{sanitized}.iter()")
+                        this._forNeedsInnerClone = true
+                    }
+                }
+            },
+            Expr.MethodCall(obj, m, args) => {
+                if m == "keys" {
+                    // map.keys() already returns an iterator
+                    this._emitExpr(obj)
+                    this._write(".keys().cloned()")
+                } else if m == "values" {
+                    this._emitExpr(obj)
+                    this._write(".values().cloned()")
+                } else if m == "chars" {
+                    this._emitExpr(obj)
+                    this._write(".chars().map(|c| c.to_string())")
+                } else if m == "bytes" {
+                    this._emitExpr(obj)
+                    this._write(".bytes().map(|b| b as i32)")
+                } else if m == "split" && args.length > 0 {
+                    // Phase 10.4: in `for x in str.split(sep)`, skip the
+                    // `.collect::<Vec<String>>()` — we iterate the lazy iterator
+                    // directly. Saves O(n) Vec allocation per call.
+                    // Phase 10.5 Bloque 1: when the source is an &str-borrowed
+                    // identifier (function param in `_strRefParams`), the loop
+                    // var can be &str directly. Skip `.map(|s| s.to_string())`
+                    // so each iteration yields &str instead of an owned String.
+                    let objIsStrRef = false
+                    switch obj {
+                        Expr.Identifier(on) => {
+                            let osn = this._sanitizeName(on)
+                            if this._strRefParams.has(osn) { objIsStrRef = true }
+                        }
+                    }
+                    this._emitExpr(obj)
+                    this._write(".split(")
+                    this._emitRefArg(args[0])
+                    if objIsStrRef {
+                        this._write(")")
+                    } else {
+                        this._write(").map(|s| s.to_string())")
+                    }
+                } else {
+                    // Other method call returns a collection
+                    this._emitMethodCall(obj, m, args)
+                }
+            },
+            // Range expressions: 1..5 or 1..=5 — don't add .iter().cloned()
+            Expr.Binary(op, left, right) => {
+                let isRange = false
+                switch op {
+                    BinOp.Range => { isRange = true },
+                    BinOp.RangeInclusive => { isRange = true }
+                }
+                if isRange {
+                    this._emitExpr(left)
+                    let opStr = switch op {
+                        BinOp.Range => " .. ",
+                        BinOp.RangeInclusive => " ..= ",
+                        _ => " .. "
+                    }
+                    this._write(opStr)
+                    this._emitExpr(right)
+                } else {
+                    this._emitExpr(iterable)
+                    this._write(".clone()")
+                }
+            },
+            Expr.ArrayLiteral(_) => {
+                // Inline array literal: [1, 2, 3] → vec![...] (already owned)
+                this._emitExpr(iterable)
+            },
+            Expr.MemberAccess(_, _) => {
+                // self.field: can't borrow with & if loop body mutates self
+                // Must clone to avoid E0502 (immutable + mutable borrow of self)
+                let savedAT = this._inAssignTarget
+                this._inAssignTarget = true
+                this._emitExpr(iterable)
+                this._inAssignTarget = savedAT
+                this._write(".clone()")
+            },
+            _ => {
+                this._emitExpr(iterable)
+                this._write(".clone()")
+            }
+        }
+    }
+
+    // -- Switch statement (match) --
+
+
+}
+
+// Sentinel symbol so main.liva can import this module and bring its
+// `extend RustEmitter { ... }` block into the compile graph.
+codegenControlflowExtensionLoaded(): bool { return true }

@@ -45,6 +45,8 @@ import { codegenClassExtensionLoaded } from "./codegen_class"
 import { codegenMethodCallExtensionLoaded } from "./codegen_methodcall"
 import { codegenArgsExtensionLoaded } from "./codegen_args"
 import { codegenSwitchExtensionLoaded } from "./codegen_switch"
+import { codegenControlflowExtensionLoaded } from "./codegen_controlflow"
+import { codegenBinaryExtensionLoaded } from "./codegen_binary"
 import { sanitizeFieldName } from "./codegen_utils"
 import { ModuleResolver, LivaModule } from "./module"
 
@@ -1319,6 +1321,8 @@ main() {
     let _methodCallExt = codegenMethodCallExtensionLoaded()
     let _argsExt = codegenArgsExtensionLoaded()
     let _switchExt = codegenSwitchExtensionLoaded()
+    let _cfExt = codegenControlflowExtensionLoaded()
+    let _binExt = codegenBinaryExtensionLoaded()
 
     // Install a clean panic hook so parser/lexer panics (compiled from
     // `throw` statements) are reported as compact E2000-style messages
