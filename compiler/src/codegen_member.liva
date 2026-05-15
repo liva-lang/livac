@@ -1,0 +1,390 @@
+// ============================================================================
+// codegen_member.liva — RustEmitter extension: member access + lambdas +
+// string templates.
+// ============================================================================
+// Extracted from codegen.liva via `extend RustEmitter { ... }`.
+//
+// Owns the lowering of:
+//   - _emitExprNoMemberClone     suppress wasteful self.field clones in cmp ctx
+//   - _emitMemberAccess          obj.prop dispatch (incl. Some/None/Map idx tricks)
+//   - _emitLambdaBodyInline      inline single-expression lambda body
+//   - _emitLambda                |a, b| { ... } lambda emission
+//   - _emitStringTemplate        $"hi {x}" → format!(...) / single-expr fast path
+//   - _emitStringTemplateInline  fragment helper for nested templates
+//   - _emitStringTemplateInner   shared formatter body
+//
+// Pure relocation — only calls back into existing RustEmitter helpers.
+
+import { Expr, LambdaExpr, StringTemplatePart } from "./ast"
+import { RustEmitter } from "./codegen"
+
+extend RustEmitter {
+
+    _emitExprNoMemberClone(expr: Expr) {
+        let isMember = false
+        switch expr {
+            Expr.MemberAccess(_, _) => { isMember = true }
+        }
+        if isMember {
+            let saved = this._inAssignTarget
+            this._inAssignTarget = true
+            this._emitExpr(expr)
+            this._inAssignTarget = saved
+        } else {
+            this._emitExpr(expr)
+        }
+    }
+
+    _emitMemberAccess(obj: Expr, prop: string) {
+        // A.3: inside a server handler, `req.params` → `__params`,
+        // `req.body` → `body.clone()`.
+        if this._serverRequestParam != "" {
+            let isReqMember = false
+            switch obj {
+                Expr.Identifier(reqName) => {
+                    if reqName == this._serverRequestParam { isReqMember = true }
+                }
+            }
+            if isReqMember {
+                if prop == "params" { this._write("__params"); return }
+                if prop == "body" { this._write("body.clone()"); return }
+            }
+        }
+
+        // B148: in constructor body, rewrite `this.X` reads to `__field_X`
+        // for fields already assigned (so reads in conditions/prints/etc work).
+        if this._inConstructor {
+            let isThisX = false
+            switch obj {
+                Expr.Identifier(thisName) => {
+                    if thisName == "this" || thisName == "self" { isThisX = true }
+                }
+            }
+            if isThisX {
+                let sanProp = this._sanitizeName(prop)
+                if this._constructorAssignedFields.has(sanProp) {
+                    this._write($"__field_{sanProp}")
+                    return
+                }
+            }
+        }
+
+        let objTag = this._getExprTypeName(obj)
+
+        // B130 (gen-2): err-binding `.message` access inside an
+        // `if err { ... }` block — emit the unwrapped form so it satisfies
+        // `String` return types / format args. Outside truthy-narrow we
+        // leave emission unchanged (the binding may already be unwrapped
+        // in nested scopes).
+        switch obj {
+            Expr.Identifier(idn) => {
+                let snErr2 = this._sanitizeName(idn)
+                if prop == "message" && this._errBindings.has(snErr2) && this._truthyErrBindings.has(snErr2) {
+                    this._write(snErr2 + ".as_ref().unwrap().message.clone()")
+                    return
+                }
+            }
+        }
+
+        // Stdlib module property access before generic enum/class handling
+        let stdlibPropName = ""
+        switch obj {
+            Expr.Identifier(sn) => { stdlibPropName = sn }
+        }
+        // Math constants: Math.PI, Math.E
+        if stdlibPropName == "Math" && prop == "PI" { this._write("std::f64::consts::PI"); return }
+        if stdlibPropName == "Math" && prop == "E" { this._write("std::f64::consts::E"); return }
+        // Date property access: d.year, d.month, d.day, d.hour, d.minute, d.second
+        if prop == "year" { this._write("(chrono::Datelike::year(&"); this._emitExpr(obj); this._write(") as i32)"); return }
+        if prop == "month" { this._write("(chrono::Datelike::month(&"); this._emitExpr(obj); this._write(") as i32)"); return }
+        if prop == "day" { this._write("(chrono::Datelike::day(&"); this._emitExpr(obj); this._write(") as i32)"); return }
+        if prop == "hour" { this._write("(chrono::Timelike::hour(&"); this._emitExpr(obj); this._write(") as i32)"); return }
+        if prop == "minute" { this._write("(chrono::Timelike::minute(&"); this._emitExpr(obj); this._write(") as i32)"); return }
+        if prop == "second" { this._write("(chrono::Timelike::second(&"); this._emitExpr(obj); this._write(") as i32)"); return }
+
+        // Enum variant access: EnumName.Variant → EnumName::Variant
+        // Heuristic: PascalCase identifier = enum/class → use :: syntax
+        let isEnumAccess = false
+        let enumName = ""
+        switch obj {
+            Expr.Identifier(name) => {
+                if name.length > 0 {
+                    let firstChar = name.charAt(0)
+                    if firstChar >= "A" && firstChar <= "Z" {
+                        isEnumAccess = true
+                        enumName = name
+                    }
+                }
+            }
+        }
+        if isEnumAccess {
+            this._write(enumName + "::" + prop)
+            return
+        }
+
+        // .length → .len() as i32 for strings and arrays.
+        // But if the receiver is a user class with a declared `length` field,
+        // treat it as a regular field access instead.
+        if prop == "length" {
+            let isUserClassWithLengthField = false
+            switch obj {
+                Expr.Identifier(idn) => {
+                    if idn != "this" && idn != "self" {
+                        let varType = this._lookupVarTypeRef(idn)
+                        let className = ""
+                        switch varType {
+                            TypeRef.Simple(cn) => { className = cn }
+                        }
+                        if className != "" && this._typeCtx.classes.has(className) {
+                            let fkeyLen = className + ".length"
+                            if this._typeCtx.fieldTypes.has(fkeyLen) {
+                                isUserClassWithLengthField = true
+                            }
+                        }
+                    }
+                }
+            }
+            if not isUserClassWithLengthField {
+                let savedAT = this._inAssignTarget
+                this._inAssignTarget = true
+                this._write("(")
+                this._emitExpr(obj)
+                this._write(".len() as i32)")
+                this._inAssignTarget = savedAT
+                return
+            }
+        }
+
+        // .size → .len() as i32 for maps and sets
+        if prop == "size" {
+            if objTag == "map" {
+                let savedAT = this._inAssignTarget
+                this._inAssignTarget = true
+                this._write("(")
+                this._emitExpr(obj)
+                this._write(".len() as i32)")
+                this._inAssignTarget = savedAT
+                return
+            }
+            if objTag == "set" {
+                let savedAT = this._inAssignTarget
+                this._inAssignTarget = true
+                this._write("(")
+                this._emitExpr(obj)
+                this._write(".len() as i32)")
+                this._inAssignTarget = savedAT
+                return
+            }
+        }
+
+        // Default: emit as field access
+        // If accessing self fields in a method, clone to avoid move-from-borrow
+        let isSelfAccess = false
+        switch obj {
+            Expr.Identifier(oName) => {
+                if oName == "this" {
+                    isSelfAccess = true
+                }
+            }
+        }
+        this._emitExpr(obj)
+        let snField = this._sanitizeName(prop)
+        this._write($".{snField}")
+        // Clone self.field when accessed as a value (return, let binding, etc.)
+        // Skip clone for Copy-type fields (int, bool, float) — they don't need it
+        // Skip clone when _inAssignTarget is set (indexing, .length, method call base)
+        if isSelfAccess && not this._inAssignTarget {
+            // Check field type — skip clone for Copy types
+            let fieldTag = "unknown"
+            if this._currentClassName != "" {
+                let fkey = $"{this._currentClassName}.{prop}"
+                if this._typeCtx.fieldTypes.has(fkey) {
+                    let fidx = this._typeCtx.fieldTypes.get(fkey)
+                    let ftype = this._typeCtx.typePool[fidx]
+                    fieldTag = this._typeRefToTag(ftype)
+                }
+            }
+            if fieldTag != "number" && fieldTag != "bool" && fieldTag != "float" {
+                this._write(".clone()")
+            }
+        }
+    }
+
+    // =====================================================================
+    //  Phase 3.6 — Ownership emission helpers
+    // =====================================================================
+    // Emit &arg for String/Vec args to methods that take references.
+    // Uses a simple heuristic: if the arg is a variable (not a literal),
+    // emit &arg. For literals, emit directly (refs created automatically).
+
+    // in their own scope and parameter bindings.
+    _emitLambdaBodyInline(lam: LambdaExpr) {
+        switch lam.body {
+            LambdaBody.Expr(lamExprs) => {
+                if lamExprs.length == 1 {
+                    for le in lamExprs { this._emitExpr(le); break }
+                } else {
+                    this._write("{ ")
+                    for e in lamExprs {
+                        this._emitExpr(e)
+                        this._write("; ")
+                    }
+                    this._write("}")
+                }
+            },
+            LambdaBody.Block(lamBlock) => {
+                this._write("{")
+                this._newline()
+                this._indent()
+                this._emitBlock(lamBlock)
+                this._dedent()
+                this._writeIndent()
+                this._write("}")
+            }
+        }
+    }
+
+    _emitLambda(lam: LambdaExpr) {
+        if lam.isMove {
+            this._write("move ")
+        }
+        this._write("|")
+        let pIdx = 0
+        let needDeref = this._derefClosureParams
+        this._derefClosureParams = false
+        for p in lam.params {
+            if pIdx > 0 { this._write(", ") }
+            let pName = switch p.pattern {
+                BindingPattern.Identifier(n) => n,
+                _ => "_"
+            }
+            let snP = this._sanitizeName(pName)
+            if needDeref {
+                this._write("&" + snP)
+            } else {
+                this._write(snP)
+            }
+            pIdx += 1
+        }
+        this._write("| ")
+        switch lam.body {
+            LambdaBody.Expr(lamExprs) => {
+                if lamExprs.length == 1 {
+                    for le in lamExprs { this._emitExpr(le); break }
+                } else {
+                    this._write("{ ")
+                    for e in lamExprs {
+                        this._emitExpr(e)
+                        this._write("; ")
+                    }
+                    this._write("}")
+                }
+            },
+            LambdaBody.Block(lamBlock) => {
+                this._write("{")
+                this._newline()
+                this._indent()
+                this._emitBlock(lamBlock)
+                this._dedent()
+                this._writeIndent()
+                this._write("}")
+            }
+        }
+    }
+
+    // -- String template --
+
+    _emitStringTemplate(parts: [StringTemplatePart]) {
+        // Phase 8.7: single-expression template $"{x}" → x.to_string() instead of format!("{}", x)
+        if parts.length == 1 {
+            let isSingleExpr = false
+            switch parts[0] {
+                StringTemplatePart.ExprPart(_) => { isSingleExpr = true }
+            }
+            if isSingleExpr {
+                switch parts[0] {
+                    StringTemplatePart.ExprPart(expr) => {
+                        this._emitExpr(expr)
+                        this._write(".to_string()")
+                    }
+                }
+                return
+            }
+        }
+        // Multi-part template: format!("...", args)
+        this._write("format!(")
+        this._emitStringTemplateInner(parts)
+        this._write(")")
+    }
+
+    // Phase 8: emit string template format string + args WITHOUT format!() wrapper
+    // Used for println!($"...") → println!("fmt", args) optimization
+    _emitStringTemplateInline(expr: Expr) {
+        switch expr {
+            Expr.StringTemplate(parts) => {
+                this._emitStringTemplateInner(parts)
+            },
+            _ => { this._emitExpr(expr) }
+        }
+    }
+
+    _emitStringTemplateInner(parts: [StringTemplatePart]) {
+        let fmtStr = ""
+        let fmtArgs: [string] = []
+
+        for p in parts {
+            switch p {
+                StringTemplatePart.Text(text) => {
+                    // Escape inner double quotes and braces for format!
+                    let escaped = text.replace("\\", "\\\\")
+                    escaped = escaped.replace("\"", "\\\"")
+                    escaped = escaped.replace("{", "{{")
+                    escaped = escaped.replace("}", "}}")
+                    fmtStr += escaped
+                },
+                StringTemplatePart.ExprPart(spExpr) => {
+                    // Use {:?} for types that only impl Debug (Vec, HashMap, HashSet)
+                    let pTag = this._getExprTypeName(spExpr)
+                    if pTag == "array" || pTag == "map" || pTag == "set" {
+                        fmtStr += "{:?}"
+                    } else {
+                        fmtStr += "{}"
+                    }
+                    // Capture expr to string — simplified: inline the expr
+                    // We'll write args after the format string
+                    fmtArgs.push("__arg__")
+                }
+            }
+        }
+
+        // Emit format string and inline expressions
+        this._write($"\"{fmtStr}\"")
+        for p in parts {
+            switch p {
+                StringTemplatePart.ExprPart(spExpr) => {
+                    this._write(", ")
+                    // Option<Error> err-bindings: unwrap with as_ref().map().unwrap_or_default()
+                    let isErrBinding = false
+                    switch spExpr {
+                        Expr.Identifier(spName) => {
+                            let snErr = this._sanitizeName(spName)
+                            if this._errBindings.has(snErr) {
+                                isErrBinding = true
+                            }
+                        }
+                    }
+                    if isErrBinding {
+                        this._emitExpr(spExpr)
+                        this._write(".as_ref().map(|e| format!(\"{}\", e)).unwrap_or_default()")
+                    } else {
+                        this._emitExpr(spExpr)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Sentinel symbol so main.liva can import this module and bring its
+// `extend RustEmitter { ... }` block into the compile graph.
+codegenMemberExtensionLoaded(): bool { return true }
