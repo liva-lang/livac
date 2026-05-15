@@ -1,0 +1,459 @@
+// ============================================================================
+// codegen_call.liva — RustEmitter extension: function-call + print + expect
+// ============================================================================
+// Extracted from codegen.liva via `extend RustEmitter { ... }`.
+//
+// Owns the lowering of free / static function calls (sibling of the
+// already-extracted _emitMethodCall):
+//   - _emitCall                  generic call site (resolves stdlib + user fns)
+//   - _emitPrintCall             print(...) — best-effort placeholders
+//   - _emitPrintlnCall           println(...) — same, with trailing newline
+//   - _emitSelfMethodExtracted   classExtension thunks (`extend ... this.X()`)
+//   - _tryEmitExpectChain        Jest-style expect(actual).toBe(expected) chains
+//   - _exprToString              format/template helper
+//   - _emitExpectAssertion       lowers expect(...) into assert!_(_).
+//
+// Pure relocation — only calls back into existing RustEmitter helpers.
+
+import { Expr } from "./ast"
+import { RustEmitter } from "./codegen"
+
+extend RustEmitter {
+
+    _emitCall(callee: Expr, args: [Expr]) {
+        // Classify the call type without consuming args
+        let callType = ""
+        switch callee {
+            Expr.Identifier(fnName) => {
+                if fnName == "print" { callType = "print" }
+                else if fnName == "println" { callType = "println" }
+                else if fnName == "toString" { callType = "toString" }
+                else if fnName == "toInt" { callType = "toInt" }
+                else if fnName == "toFloat" { callType = "toFloat" }
+                else if fnName == "parseInt" { callType = "parseInt" }
+                else if fnName == "parseFloat" { callType = "parseFloat" }
+            }
+        }
+
+        // Dispatch — args consumed in exactly one branch
+        if callType == "print" {
+            this._emitPrintCall(args)
+        } else if callType == "println" {
+            this._emitPrintlnCall(args)
+        } else if callType == "toString" && args.length > 0 {
+            this._write("format!(\"{}\", ")
+            this._emitExpr(args[0])
+            this._write(")")
+        } else if callType == "toInt" && args.length > 0 {
+            this._emitExpr(args[0])
+            this._write(".to_string().parse::<i32>().unwrap_or(0)")
+        } else if callType == "toFloat" && args.length > 0 {
+            this._emitExpr(args[0])
+            this._write(".to_string().parse::<f64>().unwrap_or(0.0)")
+        } else if callType == "parseInt" && args.length > 0 {
+            // parseInt(x) → x.parse::<i32>() — returns Result
+            this._emitExpr(args[0])
+            this._write(".to_string().parse::<i32>()")
+        } else if callType == "parseFloat" && args.length > 0 {
+            // parseFloat(x) → x.parse::<f64>() — returns Result
+            this._emitExpr(args[0])
+            this._write(".to_string().parse::<f64>()")
+        } else {
+            // Check if this is a constructor call (class name starts with uppercase)
+            let isConstructor = false
+            let className = ""
+            switch callee {
+                Expr.Identifier(fnName) => {
+                    if fnName.length > 0 {
+                        let firstChar = fnName.substring(0, 1)
+                        if firstChar >= "A" && firstChar <= "Z" {
+                            isConstructor = true
+                            className = fnName
+                        }
+                    }
+                }
+            }
+            if isConstructor {
+                this._write(className + "::new(")
+            } else {
+                this._emitExpr(callee)
+                this._write("(")
+            }
+            // Phase 8.5: resolve callee for borrowed-param lookup
+            let calleeForBorrow = ""
+            if !isConstructor {
+                switch callee {
+                    Expr.Identifier(fnBorrow) => {
+                        calleeForBorrow = this._sanitizeName(fnBorrow)
+                    }
+                }
+            }
+            let aIdx = 0
+            for a in args {
+                if aIdx > 0 { this._write(", ") }
+                // GAP-007: if this position expects a Box<dyn Fn>, wrap a Lambda
+                // arg in Box::new(...) so the Box<dyn Fn> param gets the right type.
+                let isFnParam = false
+                if calleeForBorrow != "" && this._functionFnParamMask.has(calleeForBorrow) {
+                    let mask = this._functionFnParamMask.get(calleeForBorrow)
+                    if aIdx < mask.length && mask.charAt(aIdx) == "1" {
+                        isFnParam = true
+                    }
+                }
+                let isLambdaArg = false
+                switch a {
+                    Expr.Lambda(_) => { isLambdaArg = true }
+                }
+                if isFnParam && isLambdaArg {
+                    this._write("Box::new(")
+                    this._emitExpr(a)
+                    this._write(")")
+                } else {
+                    // Check if this arg position is a borrowed (&str) param
+                    let bKey = calleeForBorrow + ":" + aIdx.toString()
+                    if calleeForBorrow != "" && this._borrowedParamIndices.has(bKey) {
+                        if this._borrowedParamMutIndices.has(bKey) {
+                            this._emitMutBorrowedArg(a)
+                        } else {
+                            this._emitBorrowedArg(a)
+                        }
+                    } else {
+                        this._emitClonedArg(a)
+                    }
+                }
+                aIdx += 1
+            }
+            // Inject default parameter values for missing arguments
+            let calleeFnName = ""
+            switch callee {
+                Expr.Identifier(fn2) => { calleeFnName = this._sanitizeName(fn2) }
+            }
+            if calleeFnName != "" && this._functionParamCount.has(calleeFnName) {
+                let totalParams = this._functionParamCount.get(calleeFnName)
+                let provided = args.length
+                let fillIdx = provided
+                while fillIdx < totalParams {
+                    let dKey = calleeFnName + ":" + fillIdx.toString()
+                    if this._functionDefaultStrs.has(dKey) {
+                        if provided > 0 || fillIdx > 0 {
+                            this._write(", ")
+                        }
+                        this._write(this._functionDefaultStrs.get(dKey))
+                    }
+                    fillIdx += 1
+                }
+            }
+            this._write(")")
+        }
+    }
+
+    _emitPrintCall(args: [Expr]) {
+        if args.length == 0 {
+            this._write("println!()")
+        } else if args.length == 1 {
+            // Phase 8: print("literal") → println!("literal") without format! wrapper
+            let isLiteral = false
+            let litVal = ""
+            switch args[0] {
+                Expr.Literal(lit) => {
+                    switch lit {
+                        Literal.Str(s) => { isLiteral = true; litVal = s }
+                    }
+                }
+            }
+            if isLiteral {
+                // Escape Rust special chars first (\, ", \n, ...) then escape
+                // braces for println! formatting placeholders.
+                let escapedRust = this._escapeRustStr(litVal)
+                let escaped = escapedRust.replaceAll("{", "{{").replaceAll("}", "}}")
+                this._write($"println!(\"{escaped}\")")
+            } else {
+                // Phase 8: check if arg is StringTemplate → emit format directly
+                let isTemplate = false
+                switch args[0] {
+                    Expr.StringTemplate(_) => { isTemplate = true }
+                }
+                if isTemplate {
+                    // println($"...") → println!("fmt", args) instead of println!("{}", format!(...))
+                    this._write("println!(")
+                    this._emitStringTemplateInline(args[0])
+                    this._write(")")
+                } else {
+                    // Use Debug format for collections, Display for scalars/strings
+                    let argTag = this._getExprTypeName(args[0])
+                    let useDebug = argTag == "array" or argTag == "map" or argTag == "set"
+                    if useDebug {
+                        this._write("println!(\"{:?}\", ")
+                    } else {
+                        this._write("println!(\"{}\", ")
+                    }
+                    this._emitExpr(args[0])
+                    this._write(")")
+                }
+            }
+        } else {
+            // Multiple args: print each separated by space
+            let fmtParts = ""
+            let pIdx = 0
+            while pIdx < args.length {
+                if pIdx > 0 { fmtParts += " " }
+                fmtParts += "{}"
+                pIdx += 1
+            }
+            this._write("println!(\"" + fmtParts + "\"")
+            for a in args {
+                this._write(", ")
+                this._emitExpr(a)
+            }
+            this._write(")")
+        }
+    }
+
+    _emitPrintlnCall(args: [Expr]) {
+        if args.length == 0 {
+            this._write("println!()")
+        } else if args.length == 1 {
+            // Phase 8: println("literal") → println!("literal") without format! wrapper
+            let isLiteral = false
+            let litVal = ""
+            switch args[0] {
+                Expr.Literal(lit) => {
+                    switch lit {
+                        Literal.Str(s) => { isLiteral = true; litVal = s }
+                    }
+                }
+            }
+            if isLiteral {
+                let escaped = litVal.replaceAll("{", "{{").replaceAll("}", "}}")
+                this._write($"println!(\"{escaped}\")")
+            } else {
+                // Phase 8: check if arg is StringTemplate → emit format directly
+                let isTemplate2 = false
+                switch args[0] {
+                    Expr.StringTemplate(_) => { isTemplate2 = true }
+                }
+                if isTemplate2 {
+                    this._write("println!(")
+                    this._emitStringTemplateInline(args[0])
+                    this._write(")")
+                } else {
+                    let argTag2 = this._getExprTypeName(args[0])
+                    let useDebug2 = argTag2 == "array" or argTag2 == "map" or argTag2 == "set"
+                    if useDebug2 {
+                        this._write("println!(\"{:?}\", ")
+                    } else {
+                        this._write("println!(\"{}\", ")
+                    }
+                    this._emitExpr(args[0])
+                    this._write(")")
+                }
+            }
+        } else {
+            let fmtParts = ""
+            let pIdx = 0
+            while pIdx < args.length {
+                if pIdx > 0 { fmtParts += " " }
+                fmtParts += "{}"
+                pIdx += 1
+            }
+            this._write("println!(\"" + fmtParts + "\"")
+            for a in args {
+                this._write(", ")
+                this._emitExpr(a)
+            }
+            this._write(")")
+        }
+    }
+
+    // -- Self method call with extracted args (avoids E0499 double mutable borrow) --
+
+    _emitSelfMethodExtracted(method: string, args: [Expr]) {
+        // For self.method(args) where args might contain self.other() calls,
+        // use block expression: {let __t0 = arg0; let __t1 = arg1; self.method(__t0, __t1)}
+        this._write("{ ")
+        let tempNames: [string] = []
+        let idx = 0
+        for a in args {
+            let tempName = $"__self_arg_{idx}"
+            this._write($"let {tempName} = ")
+            this._emitExpr(a)
+            this._write("; ")
+            tempNames.push(tempName)
+            idx += 1
+        }
+        let sanitized = this._sanitizeName(method)
+        this._write($"self.{sanitized}(")
+        let i2 = 0
+        for t in tempNames {
+            if i2 > 0 { this._write(", ") }
+            this._write(t)
+            i2 += 1
+        }
+        this._write(") }")
+    }
+
+    // =====================================================================
+    //  liva/test: expect(x).matcher(y) → assert_eq!/assert!/assert_ne! etc.
+    // =====================================================================
+
+    _tryEmitExpectChain(obj: Expr, method: string, args: [Expr]): bool {
+        // Pattern: expect(actual).toBe(expected) or expect(actual).not.toBe(expected)
+        // Generate actual code and expected code into buffers, then emit assertion
+
+        let actualCode = ""
+        let isNegated = false
+        let isExpect = false
+        let isOption = false
+
+        // Direct: expect(x).toBe(y) — obj is Call(Identifier("expect"), [x])
+        switch obj {
+            Expr.Call(callee, cArgs, _, _) => {
+                let fnName = ""
+                switch callee {
+                    Expr.Identifier(n) => { fnName = n }
+                }
+                if fnName == "expect" and cArgs.length > 0 {
+                    isExpect = true
+                    for ca in cArgs {
+                        // Check if actual expr is Option type BEFORE consuming expr
+                        switch ca {
+                            Expr.Identifier(varName) => {
+                                let vt = this._lookupVarTypeRef(varName)
+                                switch vt {
+                                    TypeRef.OptionalType(_) => { isOption = true }
+                                }
+                            }
+                        }
+                        actualCode = this._exprToString(ca)
+                        break
+                    }
+                }
+            },
+            // Negated: expect(x).not.toBe(y)
+            Expr.MemberAccess(maObj, prop) => {
+                if prop == "not" {
+                    switch maObj {
+                        Expr.Call(callee2, cArgs2, _, _) => {
+                            let fnName2 = ""
+                            switch callee2 {
+                                Expr.Identifier(n2) => { fnName2 = n2 }
+                            }
+                            if fnName2 == "expect" and cArgs2.length > 0 {
+                                isExpect = true
+                                isNegated = true
+                                for ca2 in cArgs2 {
+                                    switch ca2 {
+                                        Expr.Identifier(varName2) => {
+                                            let vt2 = this._lookupVarTypeRef(varName2)
+                                            switch vt2 {
+                                                TypeRef.OptionalType(_) => { isOption = true }
+                                            }
+                                        }
+                                    }
+                                    actualCode = this._exprToString(ca2)
+                                    break
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if not isExpect { return false }
+
+        let expectedCode = ""
+        if args.length > 0 {
+            for a in args { expectedCode = this._exprToString(a); break }
+        }
+
+        // Check if expected is null
+        let expectedIsNull = false
+        if args.length > 0 {
+            for a2 in args {
+                switch a2 {
+                    Expr.Literal(lit) => {
+                        switch lit {
+                            Literal.Null => { expectedIsNull = true }
+                        }
+                    }
+                }
+                break
+            }
+        }
+
+        // Emit the appropriate assertion
+        this._emitExpectAssertion(method, actualCode, expectedCode, isNegated, expectedIsNull, isOption)
+        return true
+    }
+
+    // Helper: emit an expr into a string buffer without writing to output
+    _exprToString(expr: Expr): string {
+        let savedLine = $"{this._currentLine}"
+        let savedLines: [string] = []
+        for ln in this._lines { savedLines.push(ln) }
+        this._currentLine = ""
+        this._lines = []
+        this._emitExpr(expr)
+        let result = $"{this._currentLine}"
+        this._currentLine = savedLine
+        this._lines = savedLines
+        return result
+    }
+
+    // Emit the correct assert_* macro
+    _emitExpectAssertion(method: string, actual: string, expected: string, neg: bool, isNull: bool, isOption: bool) {
+        if method == "toBe" or method == "toEqual" {
+            if isNull {
+                if neg { this._write($"assert!({actual}.is_some())") }
+                else { this._write($"assert!({actual}.is_none())") }
+            } else if neg {
+                this._write($"assert_ne!({actual}, {expected})")
+            } else {
+                this._write($"assert_eq!({actual}, {expected})")
+            }
+        } else if method == "toBeTruthy" {
+            if isOption {
+                if neg { this._write($"assert!({actual}.is_none())") }
+                else { this._write($"assert!({actual}.is_some())") }
+            } else {
+                if neg { this._write($"assert!(!({actual}))") }
+                else { this._write($"assert!({actual})") }
+            }
+        } else if method == "toBeFalsy" {
+            if isOption {
+                if neg { this._write($"assert!({actual}.is_some())") }
+                else { this._write($"assert!({actual}.is_none())") }
+            } else {
+                if neg { this._write($"assert!({actual})") }
+                else { this._write($"assert!(!({actual}))") }
+            }
+        } else if method == "toBeGreaterThan" {
+            if neg { this._write($"assert!({actual} <= {expected})") }
+            else { this._write($"assert!({actual} > {expected})") }
+        } else if method == "toBeLessThan" {
+            if neg { this._write($"assert!({actual} >= {expected})") }
+            else { this._write($"assert!({actual} < {expected})") }
+        } else if method == "toBeGreaterThanOrEqual" {
+            if neg { this._write($"assert!({actual} < {expected})") }
+            else { this._write($"assert!({actual} >= {expected})") }
+        } else if method == "toBeLessThanOrEqual" {
+            if neg { this._write($"assert!({actual} > {expected})") }
+            else { this._write($"assert!({actual} <= {expected})") }
+        } else if method == "toContain" {
+            if neg { this._write($"assert!(!{actual}.contains(&{expected}))") }
+            else { this._write($"assert!({actual}.contains(&{expected}))") }
+        } else if method == "toBeNull" {
+            if neg { this._write($"assert!({actual}.is_some())") }
+            else { this._write($"assert!({actual}.is_none())") }
+        }
+    }
+
+    // -- Method calls (type-directed dispatch) --
+
+
+}
+
+// Sentinel symbol so main.liva can import this module and bring its
+// `extend RustEmitter { ... }` block into the compile graph.
+codegenCallExtensionLoaded(): bool { return true }
