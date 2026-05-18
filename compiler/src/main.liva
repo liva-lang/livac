@@ -58,6 +58,7 @@ import { codegenToplevelExtensionLoaded } from "./codegen_toplevel"
 import { codegenDeclExtensionLoaded } from "./codegen_decl"
 import { codegenReturnflowExtensionLoaded } from "./codegen_returnflow"
 import { codegenParamsExtensionLoaded } from "./codegen_params"
+import { codegenFunctionExtensionLoaded } from "./codegen_function"
 import { sanitizeFieldName } from "./codegen_utils"
 import { ModuleResolver, LivaModule } from "./module"
 
@@ -1345,6 +1346,7 @@ main() {
     let _declExt = codegenDeclExtensionLoaded()
     let _rfExt = codegenReturnflowExtensionLoaded()
     let _pExt = codegenParamsExtensionLoaded()
+    let _fnExt = codegenFunctionExtensionLoaded()
 
     // Install a clean panic hook so parser/lexer panics (compiled from
     // `throw` statements) are reported as compact E2000-style messages
