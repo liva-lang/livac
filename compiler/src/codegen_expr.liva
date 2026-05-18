@@ -1,0 +1,434 @@
+// ============================================================================
+// codegen_expr.liva — RustEmitter extension: top-level expression dispatch.
+// ============================================================================
+// Extracted from codegen.liva via `extend RustEmitter { ... }`.
+//
+// Owns the lowering of:
+//   - _emitExpr         the giant switch dispatcher (the biggest single
+//                       method left in codegen.liva — routes every Expr
+//                       variant to a specialised helper).
+//   - _escapeRustStr    Rust string escape helper.
+//   - _escapeRustChar   single-char variant.
+//   - _emitLiteral      Literal lowering (int/float/bool/string/char/null).
+//   - _emitIdentifier   identifier emission (handles auto-clone tracking).
+//   - _binOpToRust      operator name mapping.
+//   - _emitUnary        unary operator (! / - / + / *).
+//
+// Pure relocation — only calls back into existing RustEmitter helpers.
+
+import { Expr, Literal, BinOp, UnOp } from "./ast"
+import { RustEmitter } from "./codegen"
+
+extend RustEmitter {
+
+    _emitExpr(expr: Expr) {
+        switch expr {
+            Expr.Literal(lit) => { this._emitLiteral(lit) },
+            Expr.Identifier(name) => { this._emitIdentifier(name) },
+            Expr.Binary(op, left, right) => {
+                // Phase 11: wrap in parens to preserve precedence when used as
+                // operand of another expression (e.g. `(idx - 1) / 2`).
+                // Suppressed in two cases:
+                //  - inside if/while conditions: the binary may lower to an
+                //    if-let pattern (`let Some(x) = x`) which is not an expr.
+                //  - when a `_pushStrTarget` chain is active: that path emits
+                //    multi-statement push_str calls (`a.push_str(...); a.push_str(...)`)
+                //    which cannot be parenthesised as a single expression.
+                if this._inIfCondition or this._pushStrTarget != "" {
+                    this._emitBinary(op, left, right)
+                } else {
+                    this._write("(")
+                    this._emitBinary(op, left, right)
+                    this._write(")")
+                }
+            },
+            Expr.Unary(op, operand) => {
+                this._emitUnary(op, operand)
+            },
+            Expr.Ternary(cond, thenE, elseE) => {
+                this._write("if ")
+                this._emitExpr(cond)
+                this._write(" { ")
+                this._emitExpr(thenE)
+                this._write(" } else { ")
+                this._emitExpr(elseE)
+                this._write(" }")
+            },
+            Expr.Call(callee, callArgs, policy, tArgs) => {
+                // Parser wraps `async X.m(args)` / `par X.m(args)` as
+                // `Expr.Call(MethodCall(...), [], <policy>, _)`. Without
+                // a full async runtime, emit the inner MethodCall and
+                // drop the spurious empty-args invocation so generated
+                // Rust stays well-typed. Only unwrap when the wrapper
+                // carries a non-Normal policy (Normal+0args+MethodCall
+                // can legitimately mean `obj.getFn()()`).
+                let isExecWrap = switch policy {
+                    ExecPolicy.Async => true,
+                    ExecPolicy.Par => true,
+                    ExecPolicy.TaskAsync => true,
+                    ExecPolicy.TaskPar => true,
+                    _ => false
+                }
+                let isTask = switch policy {
+                    ExecPolicy.TaskAsync => true,
+                    ExecPolicy.TaskPar => true,
+                    _ => false
+                }
+                if isTask {
+                    // Cycle 32: when the callee is a known-async free fn,
+                    // we must `.await` it inside the spawned future so the
+                    // JoinHandle yields the actual value rather than a
+                    // nested Future. Detect by sanitizing the callee name.
+                    let calleeIsAsync = false
+                    switch callee {
+                        Expr.Identifier(cn) => {
+                            let scn = this._sanitizeName(cn)
+                            if this._asyncFnNames.has(scn) {
+                                calleeIsAsync = true
+                            }
+                        }
+                    }
+                    this._write("tokio::spawn(async move { ")
+                    this._emitCall(callee, callArgs)
+                    if calleeIsAsync {
+                        this._write(".await")
+                    }
+                    this._write(" })")
+                    return
+                }
+                let unwrapped = false
+                if isExecWrap && callArgs.length == 0 {
+                    switch callee {
+                        Expr.MethodCall(_mco, _mcm, _mca) => {
+                            this._emitExpr(callee)
+                            unwrapped = true
+                        }
+                    }
+                }
+                if !unwrapped {
+                    this._emitCall(callee, callArgs)
+                    // Cycle 35: auto-`.await` direct calls to async user fns
+                    // when we are emitting from inside an async context.
+                    // Without this, a caller like
+                    //   let r = process_batch(xs)
+                    // emits a bare `process_batch(xs)` which yields an
+                    // `impl Future<...>` instead of the awaited value.
+                    if !isExecWrap {
+                        let isAsyncCallee = false
+                        switch callee {
+                            Expr.Identifier(cn2) => {
+                                let scn2 = this._sanitizeName(cn2)
+                                if this._asyncFnNames.has(scn2) {
+                                    isAsyncCallee = true
+                                }
+                            }
+                        }
+                        if isAsyncCallee && this._inAsyncContext() {
+                            this._write(".await")
+                        }
+                    }
+                }
+            },
+            Expr.MethodCall(mcObj, method, mcArgs) => {
+                this._emitMethodCall(mcObj, method, mcArgs)
+            },
+            Expr.MemberAccess(maObj, prop) => {
+                this._emitMemberAccess(maObj, prop)
+            },
+            Expr.Index(idxObj, idxExpr) => {
+                // Detect string-literal index: emit map/json-style indexing
+                // (no `as usize` cast). HashMap<String,V> impls Index<&Q>
+                // where K: Borrow<Q>, so `m["k"]` works; serde_json::Value
+                // impls Index<&str> directly. Either way, drop the usize
+                // cast that the numeric-index path emits.
+                let isStrIdx = false
+                let strKey = ""
+                switch idxExpr {
+                    Expr.Literal(_il) => {
+                        switch _il {
+                            Literal.Str(sv) => { isStrIdx = true; strKey = sv }
+                        }
+                    }
+                }
+                if isStrIdx {
+                    let savedAssignTargetS = this._inAssignTarget
+                    this._inAssignTarget = true
+                    this._emitExpr(idxObj)
+                    this._inAssignTarget = savedAssignTargetS
+                    // Emit raw string-literal index (no .to_string()) so
+                    // HashMap<String,V> Borrow impl and serde_json::Value
+                    // Index<&str> both resolve.
+                    this._write("[\"")
+                    this._write(strKey)
+                    this._write("\"")
+                    if this._suppressIndexElemClone {
+                        this._write("]")
+                    } else {
+                        this._write("].clone()")
+                    }
+                    this._suppressIndexElemClone = false
+                    return
+                }
+                // Suppress self.field auto-clone for the base object
+                // We only need to clone the element, not the entire Vec
+                let savedAssignTarget = this._inAssignTarget
+                this._inAssignTarget = true
+                // JSON-tracked receiver: serde_json::Value impls Index<&str>
+                // and Index<usize>. Avoid the unconditional `as usize` cast
+                // (which fails for string keys); pick the right form based
+                // on whether the index identifier is a string-typed var.
+                let jsonObjName = ""
+                switch idxObj {
+                    Expr.Identifier(jon) => { jsonObjName = this._sanitizeName(jon) }
+                }
+                let isJsonRecv = jsonObjName != "" && this._jsonValueVars.has(jsonObjName)
+                this._emitExpr(idxObj)
+                this._inAssignTarget = savedAssignTarget
+                if isJsonRecv {
+                    let idxIsStr = false
+                    switch idxExpr {
+                        Expr.Identifier(idn) => {
+                            let idSan = this._sanitizeName(idn)
+                            if this._stringVars.has(idSan) { idxIsStr = true }
+                        }
+                    }
+                    if idxIsStr {
+                        this._write("[&(")
+                        this._emitExpr(idxExpr)
+                        this._write(")[..]")
+                        if this._suppressIndexElemClone {
+                            this._write("]")
+                        } else {
+                            this._write("].clone()")
+                        }
+                    } else {
+                        this._write("[(")
+                        this._emitExpr(idxExpr)
+                        if this._suppressIndexElemClone {
+                            this._write(") as usize]")
+                        } else {
+                            this._write(") as usize].clone()")
+                        }
+                    }
+                    this._suppressIndexElemClone = false
+                    return
+                }
+                this._write("[(")
+                this._emitExpr(idxExpr)
+                // Phase 8: skip .clone() for Copy-type array elements
+                let elemCopy = this._isIndexExprCopyType(idxObj)
+                // B157: skip .clone() when the Index is the receiver of a
+                // method call. Cloning would create a temporary the method
+                // operates on, silently dropping any and-mut self mutations
+                // (e.g. particles[i].step(0.01)). Rusts IndexMut gives
+                // us the right borrow automatically when the clone is gone.
+                if elemCopy or this._suppressIndexElemClone {
+                    this._write(") as usize]")
+                } else {
+                    this._write(") as usize].clone()")
+                }
+                // B157: consume the single-shot flag so it does not leak
+                // into argument expressions of the enclosing method call.
+                this._suppressIndexElemClone = false
+            },
+            Expr.ObjectLiteral(objFields) => {
+                this._emitObjectLiteral(objFields)
+            },
+            Expr.StructLiteral(typeName, sFields) => {
+                this._emitStructLiteral(typeName, sFields)
+            },
+            Expr.ArrayLiteral(arrElems) => {
+                this._emitArrayLiteral(arrElems)
+            },
+            Expr.MapLiteral(entries) => {
+                this._emitMapLiteral(entries)
+            },
+            Expr.SetLiteral(setElems) => {
+                this._emitSetLiteral(setElems)
+            },
+            Expr.TupleLiteral(tupElems) => {
+                this._write("(")
+                let tIdx = 0
+                for e in tupElems {
+                    if tIdx > 0 { this._write(", ") }
+                    this._emitExpr(e)
+                    tIdx += 1
+                }
+                this._write(")")
+            },
+            Expr.Lambda(lam) => { this._emitLambda(lam) },
+            Expr.StringTemplate(parts) => { this._emitStringTemplate(parts) },
+            Expr.Fail(fExpr) => {
+                this._write("return Err(liva_rt::Error::from(format!(\"{}\", ")
+                this._emitExpr(fExpr)
+                this._write(")))")
+            },
+            Expr.SwitchExpr(disc, arms) => {
+                let savedFlag = this._switchInStmtPosition
+                this._switchInStmtPosition = false
+                this._emitSwitchExpr(disc, arms)
+                this._switchInStmtPosition = savedFlag
+            },
+            Expr.MethodRef(refObj, refMethod) => {
+                // Point-free method reference
+                let sanitizedMethod = this._sanitizeName(refMethod)
+                this._write($"{refObj}::{sanitizedMethod}")
+            },
+            Expr.Unwrap(uwExpr) => {
+                this._emitExpr(uwExpr)
+                this._write(".unwrap()")
+            },
+            Expr.Try(tryExpr) => {
+                // Postfix try: expr? → Rust `?` for error propagation.
+                this._emitExpr(tryExpr)
+                this._write("?")
+                // Result is the function's success type, not a &str ref —
+                // reset the flag so a downstream `let` binding does not
+                // append `.to_string()` based on the inner argument.
+                this._lastEmittedStrRef = false
+            },
+            Expr.OptionalChain(ocObj, ocProp) => {
+                this._emitExpr(ocObj)
+                let snOc = this._sanitizeName(ocProp)
+                this._write($".as_ref().map(|v| v.{snOc})")
+            },
+            Expr.RustBlock(code) => {
+                // Wrap in `{ ... }` so the embedded code can contain `use`
+                // statements (and any other items/stmts) before its trailing
+                // expression. The block evaluates to its last expression — the
+                // semantics callers expect (the user wrote `return rust { ... }`).
+                this._write("{ ")
+                this._write(code)
+                this._write(" }")
+            }
+        }
+    }
+
+    // -- Escape helpers for Rust output --
+    // Cycle 45 — thin wrappers; real work happens in `escapeRustStr` /
+    // `escapeRustChar` free functions at the bottom of the file. Pure
+    // string transformations — no RustEmitter state, no switch on Expr,
+    // so unaffected by BS-FRAG-1 (which only triggers on Expr switches).
+    _escapeRustStr(s: string): string { return escapeRustStr(s) }
+
+    _escapeRustChar(s: string): string { return escapeRustChar(s) }
+
+    // -- Literals --
+
+    _emitLiteral(lit: Literal) {
+        switch lit {
+            Literal.Int(v) => {
+                this._write($"{v}")
+            },
+            Literal.Float(v) => {
+                let floatStr = $"{v}"
+                if not floatStr.contains(".") {
+                    floatStr += ".0"
+                }
+                this._write(floatStr)
+            },
+            Literal.Str(v) => {
+                let escaped = this._escapeRustStr(v)
+                if this._inCompoundAdd || this._suppressToString || this._suppressCloneForBorrow {
+                    this._write("\"" + escaped + "\"")
+                } else {
+                    this._write("\"" + escaped + "\".to_string()")
+                }
+            },
+            Literal.Char(v) => {
+                let escapedC = this._escapeRustChar(v)
+                this._write("'" + escapedC + "'")
+            },
+            Literal.Bool(v) => {
+                if v {
+                    this._write("true")
+                } else {
+                    this._write("false")
+                }
+            },
+            Literal.Null => {
+                this._write("None")
+            }
+        }
+    }
+
+    // -- Identifier --
+
+    _emitIdentifier(name: string) {
+        if name == "this" {
+            this._write("self")
+            this._lastEmittedStrRef = false
+        } else {
+            let sn = this._sanitizeName(name)
+            this._lastEmittedStrRef = this._strRefParams.has(sn)
+            // ERR-UNIFY: rewrite plain `if err` (where err is fallible-tuple
+            // err-binding holding Option<liva_rt::Error>) to `if err.is_some()`.
+            if this._inIfCondition && this._errBindings.has(sn) {
+                this._write(sn)
+                this._write(".is_some()")
+                return
+            }
+            this._write(sn)
+        }
+    }
+
+    // -- Binary operations --
+
+    // Cycle 46 — thin wrapper around free function `binOpToRust(op)`.
+    _binOpToRust(op: BinOp): string { return binOpToRust(op) }
+
+    // -- Unary operations --
+
+    _emitUnary(op: UnOp, operand: Expr) {
+        switch op {
+            UnOp.Neg => {
+                this._write("-")
+                this._emitExpr(operand)
+            },
+            UnOp.Not => {
+                // RC9 fix: wrap operand in parens if it's a compound expression
+                // to avoid `!a == b` instead of `!(a == b)`
+                let needsParens = switch operand {
+                    Expr.Binary(_, _, _) => true,
+                    Expr.Ternary(_, _, _) => true,
+                    Expr.Unary(_, _) => true,
+                    _ => false
+                }
+                if needsParens {
+                    this._write("!(")
+                    this._emitExpr(operand)
+                    this._write(")")
+                } else {
+                    this._write("!")
+                    this._emitExpr(operand)
+                }
+            },
+            UnOp.Await => {
+                let isTaskHandle = false
+                switch operand {
+                    Expr.Identifier(awn) => {
+                        let snAw = this._sanitizeName(awn)
+                        if this._taskHandleVars.has(snAw) { isTaskHandle = true }
+                    }
+                }
+                this._emitExpr(operand)
+                if isTaskHandle {
+                    this._write(".await.unwrap()")
+                } else {
+                    this._write(".await")
+                }
+            }
+        }
+    }
+
+    // =====================================================================
+    //  Phase 3.5 — Type-directed stdlib method dispatch
+    // =====================================================================
+
+    // -- Type lookup helpers --
+    // These let codegen query TypeContext to know what type a variable/expr has.
+}
+
+// Sentinel symbol so main.liva can import this module and bring its
+// `extend RustEmitter { ... }` block into the compile graph.
+codegenExprExtensionLoaded(): bool { return true }
