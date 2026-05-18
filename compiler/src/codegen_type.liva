@@ -1,0 +1,95 @@
+// ============================================================================
+// codegen_type.liva — RustEmitter extension: TypeRef → Rust type emission.
+// ============================================================================
+// Extracted from codegen.liva via `extend RustEmitter { ... }`.
+//
+//   - _emitType        switch-over on every TypeRef variant
+//   - _emitSimpleType  thin delegate to free helper emitSimpleType
+//   - _emitTupleType   thin delegate to free helper emitTupleType
+//   - _emitGenericType thin delegate to free helper emitGenericType
+//
+// Pure relocation — no behavioural change.
+
+import { TypeRef } from "./ast"
+import { RustEmitter, emitTupleType, emitGenericType } from "./codegen"
+import { emitSimpleType } from "./codegen_utils"
+
+extend RustEmitter {
+    _emitType(t: TypeRef): string {
+        // Defensive default: switch below covers all variants of TypeRef.
+        // If a new variant is added without updating this function, _warn surfaces it.
+        let result = "()"
+        let matched = false
+        switch t {
+            TypeRef.Simple(name) => {
+                result = this._emitSimpleType(name)
+                matched = true
+            },
+            TypeRef.Array(inner) => {
+                let arrInner = this._emitType(inner)
+                result = "Vec<" + arrInner + ">"
+                matched = true
+            },
+            TypeRef.MapType(k, v) => {
+                let kStr = this._emitType(k)
+                let vStr = this._emitType(v)
+                result = "HashMap<" + kStr + ", " + vStr + ">"
+                matched = true
+            },
+            TypeRef.SetType(inner) => {
+                let setInner = this._emitType(inner)
+                result = "HashSet<" + setInner + ">"
+                matched = true
+            },
+            TypeRef.OptionalType(inner) => {
+                let optInner = this._emitType(inner)
+                result = "Option<" + optInner + ">"
+                matched = true
+            },
+            TypeRef.Fallible(inner) => {
+                let failInner = this._emitType(inner)
+                result = "Result<" + failInner + ", liva_rt::Error>"
+                matched = true
+            },
+            TypeRef.Tuple(elems) => {
+                result = this._emitTupleType(elems)
+                matched = true
+            },
+            TypeRef.Generic(base, args) => {
+                result = this._emitGenericType(base, args)
+                matched = true
+            },
+            TypeRef.Union(types) => {
+                // Rust doesn't have union types; use first type as approximation
+                this._warn("Union type approximated to first variant")
+                for t in types {
+                    result = this._emitType(t)
+                    break
+                }
+                matched = true
+            },
+            TypeRef.FnType(params, ret) => {
+                // GAP-007: function type — Box<dyn Fn(args) -> ret>
+                let parts: [string] = []
+                for p in params {
+                    parts.push(this._emitType(p))
+                }
+                let retStr = this._emitType(ret)
+                result = "Box<dyn Fn(" + parts.join(", ") + ") -> " + retStr + ">"
+                matched = true
+            }
+        }
+        if not matched {
+            this._warn("Unhandled TypeRef variant in _emitType — emitting () as fallback")
+        }
+        return result
+    }
+
+    _emitSimpleType(name: string): string { return emitSimpleType(name) }
+
+    _emitTupleType(elems: [TypeRef]): string { return emitTupleType(this, elems) }
+
+    _emitGenericType(base: string, args: [TypeRef]): string { return emitGenericType(this, base, args) }
+}
+
+codegenTypeExtensionLoaded(): bool { return true }
