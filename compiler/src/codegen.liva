@@ -655,41 +655,8 @@ RustEmitter {
         return this._getOutput()
     }
 
-    _registerEnumDeclFields(decl: EnumDecl) {
-        let enumName = $"{decl.name}"
-        for v in decl.variants {
-            let key = enumName + "::" + v.name
-            let fieldNames: [string] = []
-            let fieldBoxed: [bool] = []
-            let fieldOptional: [bool] = []
-            for f in v.fields {
-                fieldNames.push(this._sanitizeName(f.name))
-                // Check boxing and optional in a single pass
-                let needsBox = false
-                let isOpt = false
-                switch f.typeRef {
-                    TypeRef.Simple(typeName) => {
-                        if this._typeCtx.enums.has(typeName) {
-                            needsBox = true
-                        }
-                    },
-                    TypeRef.OptionalType(_) => { isOpt = true }
-                }
-                fieldBoxed.push(needsBox)
-                fieldOptional.push(isOpt)
-            }
-            this._enumVariantFields.set(key, fieldNames)
-            this._enumVariantFieldBoxed.set(key, fieldBoxed)
-            this._enumVariantFieldOptional.set(key, fieldOptional)
-        }
-    }
-
-    // Register enum variant fields for cross-module enums
-    // Called externally before generate() for enums defined in other modules
-    registerExternalEnumFields(enumName: string, variantName: string, fieldNames: [string]) {
-        let key = enumName + "::" + variantName
-        this._enumVariantFields.set(key, fieldNames)
-    }
+    // _registerEnumDeclFields and registerExternalEnumFields live in
+    // codegen_enumfields.liva (extend RustEmitter).
 
     // Top-level dispatch + imports live in codegen_toplevel.liva
     // (extend RustEmitter): _emitTopLevel, _emitTopLevelExpr,

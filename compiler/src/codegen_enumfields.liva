@@ -1,0 +1,56 @@
+// ============================================================================
+// codegen_enumfields.liva — RustEmitter extension: enum field registration.
+// ============================================================================
+// Extracted from codegen.liva via `extend RustEmitter { ... }`.
+//
+//   - _registerEnumDeclFields    pre-populate variant-field maps from an
+//                                EnumDecl AST node (names + boxed/optional
+//                                flags).
+//   - registerExternalEnumFields entry point used by the multi-module driver
+//                                to register variants of enums defined in
+//                                other modules.
+//
+// Pure relocation — no behavioural change.
+
+import { EnumDecl, TypeRef } from "./ast"
+import { RustEmitter } from "./codegen"
+
+extend RustEmitter {
+    _registerEnumDeclFields(decl: EnumDecl) {
+        let enumName = $"{decl.name}"
+        for v in decl.variants {
+            let key = enumName + "::" + v.name
+            let fieldNames: [string] = []
+            let fieldBoxed: [bool] = []
+            let fieldOptional: [bool] = []
+            for f in v.fields {
+                fieldNames.push(this._sanitizeName(f.name))
+                // Check boxing and optional in a single pass
+                let needsBox = false
+                let isOpt = false
+                switch f.typeRef {
+                    TypeRef.Simple(typeName) => {
+                        if this._typeCtx.enums.has(typeName) {
+                            needsBox = true
+                        }
+                    },
+                    TypeRef.OptionalType(_) => { isOpt = true }
+                }
+                fieldBoxed.push(needsBox)
+                fieldOptional.push(isOpt)
+            }
+            this._enumVariantFields.set(key, fieldNames)
+            this._enumVariantFieldBoxed.set(key, fieldBoxed)
+            this._enumVariantFieldOptional.set(key, fieldOptional)
+        }
+    }
+
+    // Register enum variant fields for cross-module enums
+    // Called externally before generate() for enums defined in other modules
+    registerExternalEnumFields(enumName: string, variantName: string, fieldNames: [string]) {
+        let key = enumName + "::" + variantName
+        this._enumVariantFields.set(key, fieldNames)
+    }
+}
+
+codegenEnumfieldsExtensionLoaded(): bool { return true }
