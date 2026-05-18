@@ -1,0 +1,74 @@
+// ============================================================================
+// codegen_decl.liva — RustEmitter extension: type-alias + const declarations.
+// ============================================================================
+// Extracted from codegen.liva via `extend RustEmitter { ... }`.
+//
+// Owns:
+//   - _emitTypeAlias  lowers TypeAliasDecl to `pub type X = T;`.
+//   - _emitConstDecl  lowers ConstDecl to `pub const X: T = …;`, with the
+//                     Cycle 37 string-const coercion (String → &str so the
+//                     value can live in a const context, avoiding E0015).
+//
+// Pure relocation — no behavioural change.
+
+import { Expr, Literal, ConstDecl, TypeAliasDecl } from "./ast"
+import { RustEmitter } from "./codegen"
+
+extend RustEmitter {
+
+    // -- Class declaration --
+
+    _emitTypeAlias(decl: TypeAliasDecl) {
+        let aliasName = $"{decl.name}"
+        let targetStr = this._emitType(decl.targetType)
+        this._writeln($"pub type {aliasName} = {targetStr};")
+        this._writeRaw("")
+    }
+
+    // -- Const declaration --
+
+    _emitConstDecl(decl: ConstDecl) {
+        let constName = this._sanitizeName(decl.name)
+        let typeStr = this._buildParamType(decl.typeRef)
+        let initExpr = decl.init
+        // Infer const type from init expression when not explicit
+        if typeStr == "/* inferred */" {
+            switch initExpr {
+                Expr.Literal(lit) => {
+                    switch lit {
+                        Literal.Int(_) => { typeStr = "i32" },
+                        Literal.Float(_) => { typeStr = "f64" },
+                        Literal.Bool(_) => { typeStr = "bool" },
+                        Literal.Str(_) => { typeStr = "&str" }
+                    }
+                }
+            }
+        }
+        // Const string must be &str, not String. Also coerce explicit
+        // `string` annotations (which build to `String`) to `&str`, since
+        // Rust forbids non-const `String::to_string` in const contexts
+        // (E0015). Cycle 37.
+        if typeStr == "String" { typeStr = "&str" }
+        let isConstStr = typeStr == "&str"
+        this._writeIndent()
+        if isConstStr {
+            this._write($"const {constName}: &str = ")
+            // Emit string literal without .to_string() using buffer
+            let initStr = this._exprToString(initExpr)
+            if initStr.endsWith(".to_string()") {
+                initStr = initStr.slice(0, initStr.length - 12)
+            }
+            this._write(initStr)
+        } else {
+            this._write($"pub const {constName}: {typeStr} = ")
+            this._emitExpr(initExpr)
+        }
+        this._write(";")
+        this._newline()
+        this._writeRaw("")
+    }
+}
+
+// Sentinel symbol so main.liva can import this module and bring its
+// `extend RustEmitter { ... }` block into the compile graph.
+codegenDeclExtensionLoaded(): bool { return true }
