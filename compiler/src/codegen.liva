@@ -387,68 +387,8 @@ RustEmitter {
 
     // A.5: Stdlib tuple-returning calls — File/Dir/CSV/DB/Process methods
     // that codegen emits as `(Option<T>, String)` directly (NOT Result).
-    // For `let x, e = File.write(...)` we must skip the Result-wrap match.
-    _isStdlibTupleCall(init: Expr): bool {
-        let isMethodCall = false
-        let nsName = ""
-        switch init {
-            Expr.MethodCall(obj, _method, _args) => {
-                isMethodCall = true
-                switch obj {
-                    Expr.Identifier(name) => {
-                        nsName = name
-                    }
-                }
-            }
-        }
-        if !isMethodCall {
-            // Async/par-wrapped form: `async HTTP.get(url)` parses as
-            // Expr.Call(MethodCall(...), [], Async). Peek through the
-            // empty-args wrapper so stdlib tuple destructuring still
-            // works on those call sites.
-            switch init {
-                Expr.Call(inner, _wargs, _wpol, _wt) => {
-                    switch inner {
-                        Expr.MethodCall(obj2, _m2, _a2) => {
-                            isMethodCall = true
-                            switch obj2 {
-                                Expr.Identifier(n2) => { nsName = n2 }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        if !isMethodCall { return false }
-        if nsName == "File" { return true }
-        if nsName == "Dir" { return true }
-        if nsName == "CSV" { return true }
-        if nsName == "DB" { return true }
-        if nsName == "Process" { return true }
-        if nsName == "Http" || nsName == "HTTP" { return true }
-        if nsName == "JSON" { return true }
-        return false
-    }
-
-    // A.5 sub-2: stdlib tuple call where T has no Rust `Default` impl.
-    // Returns a Rust expression to use as fallback in `__opt.unwrap_or_else(|| <expr>)`.
-    // Empty string means T is Default-able and we use `__opt.unwrap_or_default()`.
-    _stdlibTupleNoDefaultFallback(init: Expr): string {
-        let objName = ""
-        let methodName = ""
-        switch init {
-            Expr.MethodCall(obj, m, _) => {
-                methodName = m
-                switch obj {
-                    Expr.Identifier(n) => { objName = n }
-                }
-            }
-        }
-        if objName == "DB" && methodName == "open" {
-            return "std::sync::Arc::new(std::sync::Mutex::new(rusqlite::Connection::open_in_memory().unwrap()))"
-        }
-        return ""
-    }
+    // _isStdlibTupleCall and _stdlibTupleNoDefaultFallback live in
+    // codegen_stdlibtuple.liva (extend RustEmitter).
 
     _toSnakeCase(name: string): string { return toSnakeCaseStandalone(name) }
 
