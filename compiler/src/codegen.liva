@@ -780,57 +780,9 @@ RustEmitter {
 
     // -- Function declaration --
 
-    // Cycle 36 — does this block end with a statement that always returns?
-    // Used to decide whether a fallible function body needs an implicit
-    // trailing `Ok(())`. We treat `Stmt.Return`, `Stmt.Fail`, `Stmt.Throw`
-    // and any `Stmt.If` where both branches end with one of those as a
-    // "definite return". Conservative: any other stmt (including a `for`
-    // loop or expression stmt) means we still need the trailing Ok(()).
-    _stmtsAlwaysReturn(stmts: [Stmt]): bool {
-        let n = stmts.length
-        if n == 0 { return false }
-        let i = 0
-        let last: Stmt = Stmt.Continue
-        for s in stmts {
-            if i == n - 1 { last = s }
-            i = i + 1
-        }
-        return this._stmtAlwaysReturns(last)
-    }
-
-    _blockEndsWithReturn(bOpt: BlockStmt?): bool {
-        if bOpt == null { return false }
-        let result = false
-        if bOpt != null {
-            let b: BlockStmt = bOpt
-            result = this._stmtsAlwaysReturn(b.stmts)
-        }
-        return result
-    }
-
-    _stmtAlwaysReturns(s: Stmt): bool {
-        switch s {
-            Stmt.Return(_) => { return true },
-            Stmt.Fail(_, _) => { return true },
-            Stmt.Throw(_) => { return true },
-            Stmt.If(ifs) => {
-                let eb = ifs.elseBranch
-                if eb == null { return false }
-                let thenStmts = this._ifBodyStmts(ifs.thenBranch)
-                if !this._stmtsAlwaysReturn(thenStmts) { return false }
-                if eb != null {
-                    let ebVal: IfBody = eb
-                    let elseStmts = this._ifBodyStmts(ebVal)
-                    return this._stmtsAlwaysReturn(elseStmts)
-                }
-                return false
-            },
-            Stmt.Block(b3) => {
-                return this._stmtsAlwaysReturn(b3.stmts)
-            }
-        }
-        return false
-    }
+    // Cycle 36 — "always returns" classifiers (_stmtsAlwaysReturn,
+    // _blockEndsWithReturn, _stmtAlwaysReturns) live in
+    // codegen_returnflow.liva (extend RustEmitter).
 
     _emitFunction(decl: FunctionDecl) {
         let funcName = this._sanitizeName(decl.name)
