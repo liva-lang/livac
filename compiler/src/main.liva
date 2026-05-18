@@ -52,6 +52,7 @@ import { codegenCallExtensionLoaded } from "./codegen_call"
 import { codegenMemberExtensionLoaded } from "./codegen_member"
 import { codegenExprExtensionLoaded } from "./codegen_expr"
 import { codegenStmtExtensionLoaded } from "./codegen_stmt"
+import { codegenTypequeryExtensionLoaded } from "./codegen_typequery"
 import { sanitizeFieldName } from "./codegen_utils"
 import { ModuleResolver, LivaModule } from "./module"
 
@@ -1333,6 +1334,7 @@ main() {
     let _memExt = codegenMemberExtensionLoaded()
     let _exprExt = codegenExprExtensionLoaded()
     let _stmtExt = codegenStmtExtensionLoaded()
+    let _tqExt = codegenTypequeryExtensionLoaded()
 
     // Install a clean panic hook so parser/lexer panics (compiled from
     // `throw` statements) are reported as compact E2000-style messages
