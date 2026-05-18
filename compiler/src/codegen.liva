@@ -766,103 +766,17 @@ RustEmitter {
         this._enumVariantFields.set(key, fieldNames)
     }
 
-    _emitTopLevel(item: TopLevel) {
-        switch item {
-            TopLevel.Function(decl) => { this._emitFunction(decl) },
-            TopLevel.Class(decl) => { this._emitClass(decl) },
-            TopLevel.Enum(decl) => { this._emitEnum(decl) },
-            TopLevel.TypeAlias(decl) => { this._emitTypeAlias(decl) },
-            TopLevel.ConstDecl(decl) => { this._emitConstDecl(decl) },
-            TopLevel.Import(decl) => { this._emitImport(decl) },
-            TopLevel.Test(decl) => { this._emitTestDecl(decl) },
-            TopLevel.ExprStmt(expr) => { this._emitTopLevelExpr(expr) },
-            // ClassExtension items are hoisted into their owner ClassDecl
-            // before codegen runs (see module.liva). Skip if any survive.
-            TopLevel.ClassExtension(_) => {}
-        }
-    }
+    // Top-level dispatch + imports live in codegen_toplevel.liva
+    // (extend RustEmitter): _emitTopLevel, _emitTopLevelExpr,
+    // _sanitizeTestName, _emitImport, _extractModuleName.
 
     // =====================================================================
     //  Phase 3.1 complete — infrastructure + type emission + name sanitization
     //  Phase 3.2 starts here — declarations
     // =====================================================================
 
-    // -- Top-level expression statement (describe, etc.) --
-
-    _emitTopLevelExpr(expr: Expr) {
-        // Check if this is a describe() call
-        switch expr {
-            Expr.Call(callee, callArgs, _, _) => {
-                let fnName = ""
-                switch callee {
-                    Expr.Identifier(n) => { fnName = n }
-                }
-                if fnName == "describe" {
-                    this._emitDescribe(callArgs)
-                }
-            },
-            _ => {
-                // Generic top-level expr
-                this._writeIndent()
-                this._emitExpr(expr)
-                this._write(";")
-                this._newline()
-            }
-        }
-    }
-
     // -- Test framework: describe() / test() --
     // Implementation moved to codegen_test.liva via `extend RustEmitter`.
-
-    // -- Test name sanitizer: "my test name!" → "my_test_name" --
-
-    _sanitizeTestName(name: string): string { return sanitizeTestName(name) }
-
-    // -- Import emission --
-
-    _emitImport(decl: ImportDecl) {
-        // Skip virtual module imports (liva/test, etc.)
-        if decl.source.startsWith("liva/") {
-            return
-        }
-
-        // Imports become mod/use statements in Rust
-        // Only main module should emit 'mod X;' declarations
-        let modName = this._extractModuleName(decl.source)
-        if this._isMainModule {
-            this._writeln("mod " + modName + ";")
-        }        // Sub-modules need crate:: prefix to reference sibling modules
-        let usePrefix = "crate::"
-        if this._isMainModule {
-            usePrefix = ""
-        }
-        if decl.isWildcard {
-            this._writeln("use " + usePrefix + modName + "::*;")
-        } else {
-            let names: [string] = []
-            for n in decl.imports {
-                // Sanitize function names (lowercase start) to snake_case
-                // Keep type/class names (uppercase start) as-is
-                if n.length > 0 {
-                    let fc = n.charAt(0)
-                    if fc >= "A" && fc <= "Z" {
-                        names.push(n)
-                    } else {
-                        names.push(this._sanitizeName(n))
-                    }
-                } else {
-                    names.push(n)
-                }
-            }
-            if names.length > 0 {
-                let joined = names.join(", ")
-                this._writeln("use " + usePrefix + modName + "::{" + joined + "};")
-            }
-        }
-        this._writeRaw("")
-    }
-
-    _extractModuleName(source: string): string { return extractModuleName(source) }
 
     // -- Function declaration --
 
