@@ -1,0 +1,97 @@
+// ============================================================================
+// codegen_cargo.liva — RustEmitter extension: Cargo.toml generation.
+// ============================================================================
+// Extracted from codegen.liva via `extend RustEmitter { ... }`.
+//
+// Single method: generateCargoToml — builds the [package] / [dependencies]
+// section for the emitted Cargo project based on which feature families the
+// source program actually uses (async, http, db, json, regex, chrono, random,
+// crypto, rayon, http-client).
+//
+// Pure relocation — no behavioural change, no `this` access required.
+
+import { RustEmitter } from "./codegen"
+
+extend RustEmitter {
+
+    generateCargoToml(projectName: string, usesAsync: bool, usesRegex: bool,
+                      usesHttp: bool, usesDb: bool, usesJson: bool,
+                      usesChrono: bool, usesRandom: bool, usesCrypto: bool,
+                      usesRayon: bool, usesHttpClient: bool): string {
+        let lines: [string] = []
+        lines.push("[package]")
+        lines.push($"name = \"{projectName}\"")
+        lines.push("version = \"0.1.0\"")
+        lines.push("edition = \"2021\"")
+        lines.push("")
+        lines.push("[dependencies]")
+
+        // Core async runtime
+        if usesAsync {
+            lines.push("tokio = { version = \"1\", features = [\"full\"] }")
+        }
+
+        // HTTP server
+        if usesHttp {
+            lines.push("axum = \"0.8\"")
+            lines.push("tower = \"0.4\"")
+            lines.push("tower-http = { version = \"0.5\", features = [\"cors\"] }")
+            // HTTP implies async
+            if not usesAsync {
+                lines.push("tokio = { version = \"1\", features = [\"full\"] }")
+            }
+        }
+
+        // Database
+        if usesDb {
+            lines.push("rusqlite = { version = \"0.31\", features = [\"bundled\"] }")
+        }
+
+        // JSON
+        if usesJson {
+            lines.push("serde = { version = \"1\", features = [\"derive\"] }")
+            lines.push("serde_json = \"1\"")
+        }
+
+        // Regex
+        if usesRegex {
+            lines.push("regex = \"1\"")
+        }
+
+        // Date/Time
+        if usesChrono {
+            lines.push("chrono = \"0.4\"")
+        }
+
+        // Random (includes uuid)
+        if usesRandom {
+            lines.push("rand = \"0.8\"")
+            lines.push("uuid = { version = \"1\", features = [\"v4\"] }")
+        }
+
+        // Crypto
+        if usesCrypto {
+            lines.push("sha2 = \"0.10\"")
+            lines.push("hmac = \"0.12\"")
+            lines.push("hex = \"0.4\"")
+            lines.push("md5 = \"0.7\"")
+            lines.push("base64 = \"0.22\"")
+        }
+
+        // Parallel
+        if usesRayon {
+            lines.push("rayon = \"1\"")
+        }
+
+        // HTTP Client
+        if usesHttpClient {
+            lines.push("reqwest = { version = \"0.11\", features = [\"blocking\"] }")
+        }
+
+        return lines.join("\n")
+    }
+}
+
+// Sentinel symbol so main.liva can import this module and bring its
+// `extend RustEmitter { ... }` block into the compile graph.
+codegenCargoExtensionLoaded(): bool { return true }
