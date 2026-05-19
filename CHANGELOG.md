@@ -12,6 +12,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] — post-rc1 work
 
 ### Added
+- **Self-host runtime parity — `"x" * n` / `n * "x"`** (2026-05-19,
+  F.runtime-conv slice RC-4). Self-host now intercepts `BinOp.Mul`
+  with a string operand in `_emitBinary` (`codegen_binary.liva`) and
+  emits `<str>.repeat((<int>) as usize)` directly. Previously gen-2
+  emitted `String * i32` which fails with rustc E0369 (`String` doesn't
+  impl `Mul<i32>`). Bootstrap closes the same case via the
+  `liva_rt::string_mul` + `StringOrInt` trait helper in the inlined
+  runtime; the self-host now achieves the same observable behavior
+  without growing the runtime. Test:
+  `compiler/tests/regression/string_mul_gen2.liva` exercises three
+  shapes: `"ab" * 3` (literal × literal), `2 * "xy"` (int on the left),
+  and `"-" * n` (variable count). Gauntlet 7/7 verde; gen-2 ≡ gen-3
+  idempotente; PARITY.md gana nueva sección **Tier 6 — Runtime
+  emission API divergence** que cataloga RC-1..RC-5 con estado.
+
 - **Cross-module `extend` helpers — synth wildcard imports** (Cycle 65,
   commits `1c6939b`, `b2a411a`, `f3332ca`). Until now, every free helper
   `f(e: RustEmitter, ...)` called from an `extend RustEmitter` block had

@@ -141,6 +141,26 @@ Items sólo presentes en bootstrap pero útiles:
 
 ---
 
+## Tier 6 — Runtime emission API divergence (F.runtime-conv, 2026-05-19)
+
+Hallazgo durante F.1b investigation: bootstrap y self-host emiten
+runtimes con **APIs estructuralmente distintas**, no solo de distinto
+tamaño. Esto es el gap real que bloquea Phase F (cut the bootstrap).
+
+| ID | Estado | Prio | Descripción |
+|----|--------|------|-------------|
+| RC-1 JsonValue | ⏳ | 🔶 | Bootstrap emite `struct JsonValue(serde_json::Value)` con `.as_i32()/.as_f64()/.as_string()/.get_field()/.length()`; self-host emite `trait JsonValueExt for serde_json::Value` con `.as_int()/.as_float()/.as_string()/.as_array_owned()`. Nombres y return types incompatibles. Decisión: convergir a la API camelCase de Liva (`.asInt()`, `.asString()`, etc.) y rehacer **ambas** emisiones. Multi-PR. |
+| RC-2 HTTP funcs | ⏳ | 🔶 | Bootstrap emite `liva_http_get/post/put/delete` + `liva_http_request` (con reqwest, 30s timeout). Self-host emite solo el `LivaHttpResponse` struct, ningún cliente. Para que `Http.get(url)` funcione bajo gen-N hace falta portar las funciones. |
+| RC-3 spawn/fire | ✅ | 🔶 | Bootstrap emite `spawn_async/spawn_parallel/fire_async/fire_parallel`. Self-host emite `tokio::spawn(...)` directo con análisis de await. **No es un gap funcional** — paths distintos, ambos correctos. Documentado, no requiere acción. |
+| RC-4 string\*N | ✅ | 🔶 | Bootstrap emite `liva_rt::string_mul(s, n)` (con trait `StringOrInt` para coerción). Self-host emitía `String * i32` (E0369). **CERRADO 2026-05-19**: self-host ahora intercepta `BinOp.Mul` con operando string y emite `<str>.repeat((n) as usize)` directamente — sin runtime helper. Test: `compiler/tests/regression/string_mul_gen2.liva` (3 casos: `"ab" * 3`, `2 * "xy"`, `"-" * n` con var). |
+| RC-5 Cargo.toml deps | 🔶 | 🔷 | Bootstrap emite tokio + serde_json + reqwest **siempre** (porque su runtime full los necesita). Self-host emite tokio/serde_json/reqwest **condicionalmente** (basado en `usesAsync`/`usesHttpClient` flags). Si RC-2 se cierra, las deps del self-host pasarán a ser unconditional también. |
+
+> **Prerequisito Phase F (cut the bootstrap):** RC-1 + RC-2 deben cerrarse
+> antes de que gen-N sea seguro como compilador canónico. RC-5 se
+> resuelve automáticamente como side-effect de RC-2.
+
+---
+
 ## Refactor previos (Fase C)
 
 Antes de portar masivo, gen-2 necesita esto para ser **escalable**:

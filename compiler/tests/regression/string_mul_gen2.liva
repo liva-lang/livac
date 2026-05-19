@@ -1,0 +1,13 @@
+// F.runtime-conv slice: `"x" * n` and `n * "x"` parity.
+// Bootstrap emits via liva_rt::string_mul; gen-2 emits .repeat(n as usize).
+// Both produce the same output.
+
+main() {
+    let a = "ab" * 3
+    print(a)
+    let b = 2 * "xy"
+    print(b)
+    let n = 4
+    let c = "-" * n
+    print(c)
+}

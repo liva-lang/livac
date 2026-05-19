@@ -99,6 +99,28 @@ extend RustEmitter {
             this._write(")")
             return
         }
+        // Parity fix (F.runtime-conv slice): `"x" * n` / `n * "x"` —
+        // Rust's String/str doesn't impl `Mul<i32>`, so emit the string
+        // operand's `.repeat(n as usize)` instead. Mirrors bootstrap's
+        // `string_mul` runtime helper without needing a new runtime fn.
+        if opStr == "*" {
+            let leftIsStr = this._isStringExpr(left)
+            let rightIsStr = this._isStringExpr(right)
+            if leftIsStr and not rightIsStr {
+                this._emitExpr(left)
+                this._write(".repeat((")
+                this._emitExpr(right)
+                this._write(") as usize)")
+                return
+            }
+            if rightIsStr and not leftIsStr {
+                this._emitExpr(right)
+                this._write(".repeat((")
+                this._emitExpr(left)
+                this._write(") as usize)")
+                return
+            }
+        }
         // Delegate to helper that classifies + emits right in ONE switch
         this._emitBinaryWithRight(opStr, left, right)
     }
