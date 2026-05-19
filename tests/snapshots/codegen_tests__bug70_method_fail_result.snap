@@ -388,7 +388,7 @@ mod liva_rt {
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Finder {
-    _items: Vec<String>,
+    pub(crate) _items: Vec<String>,
 }
 
 impl Finder {

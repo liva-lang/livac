@@ -4011,7 +4011,9 @@ impl CodeGenerator {
     ) -> Result<()> {
         let vis = match field.visibility {
             Visibility::Public => "pub ",
-            Visibility::Private => "",
+            // pub(crate) so fields on classes split via `extend` across modules
+            // remain accessible from sibling modules.
+            Visibility::Private => "pub(crate) ",
         };
 
         let base_type = if let Some(type_ref) = &field.type_ref {
@@ -4248,7 +4250,10 @@ impl CodeGenerator {
 
         let vis = match method.visibility {
             Visibility::Public => "pub ",
-            Visibility::Private => "",
+            // Emit pub(crate) so methods on classes split via `extend` across
+            // modules remain callable from sibling modules (fixes E0624 when
+            // free helpers in `codegen_X.liva` call `_foo()` on the owner).
+            Visibility::Private => "pub(crate) ",
         };
 
         let async_kw = if method.is_async_inferred {

@@ -63,7 +63,7 @@ import { codegenTypeExtensionLoaded } from "./codegen_type"
 import { codegenEnumfieldsExtensionLoaded } from "./codegen_enumfields"
 import { codegenStdlibtupleExtensionLoaded } from "./codegen_stdlibtuple"
 import { codegenGenerateExtensionLoaded } from "./codegen_generate"
-import { sanitizeFieldName } from "./codegen_utils"
+import { sanitizeFieldName, extractModuleName } from "./codegen_utils"
 import { ModuleResolver, LivaModule } from "./module"
 
 // =====================================================================
@@ -200,7 +200,15 @@ CompilationResult {
 hoistClassExtensions(parsedModules: Map<string, [Program]>, compileOrder: [string]): Map<string, [Program]> {
     // 1. Collect all extensions across all modules:
     //    pending[className] = [methods…]  (ordered by appearance across modules)
+    //    pendingSources[className] = [src path of each extension] (parallel-ish; deduped on use)
+    //    Tracking sources lets us synthesize a wildcard import in the owner
+    //    module so free helpers defined alongside the extension (e.g.
+    //    `emitTupleType(em: RustEmitter, …)` in `codegen_type.liva`) are
+    //    resolvable from the owner's generated `.rs` — without this, the
+    //    method bodies (which get fused into the owner's `impl` block) call
+    //    those helpers unqualified and Rust emits E0425.
     let pending: Map<string, [MethodDecl]> = Map {}
+    let pendingSources: Map<string, [string]> = Map {}
 
     for modPath in compileOrder {
         let progs0: [Program] = parsedModules.get(modPath)
@@ -219,6 +227,16 @@ hoistClassExtensions(parsedModules: Map<string, [Program]>, compileOrder: [strin
                         buf.push(em)
                     }
                     pending.set(ext.name, buf)
+
+                    let srcBuf: [string] = []
+                    if pendingSources.has(ext.name) {
+                        let prevSrcs = pendingSources.get(ext.name)
+                        for ps in prevSrcs {
+                            srcBuf.push(ps)
+                        }
+                    }
+                    srcBuf.push(modPath)
+                    pendingSources.set(ext.name, srcBuf)
                 },
                 _ => {}
             }
@@ -257,6 +275,44 @@ hoistClassExtensions(parsedModules: Map<string, [Program]>, compileOrder: [strin
         while copyIdx < progs.length {
             let prog: Program = progs[copyIdx]
             let newItems: [TopLevel] = []
+
+            // Synthesize wildcard imports for any class owned by this
+            // module that has extensions living in other modules. Free
+            // helpers defined alongside those extensions need to be
+            // resolvable from this owner's generated `.rs` (the extension
+            // methods get fused into the owner's `impl` block but call
+            // helpers unqualified). See codegen rule "extend helpers".
+            // Synth imports are sorted by module name for deterministic
+            // gen-N ≡ gen-(N+1) output regardless of compileOrder ordering.
+            let synthStems: [string] = []
+            let synthSeen: Map<string, bool> = Map {}
+            for itScan in prog.items {
+                switch itScan {
+                    TopLevel.Class(cScan) => {
+                        if pendingSources.has(cScan.name) {
+                            let srcs = pendingSources.get(cScan.name)
+                            for srcPath in srcs {
+                                if srcPath != modPath3 {
+                                    let stem = extractModuleName(srcPath)
+                                    if not synthSeen.has(stem) {
+                                        synthSeen.set(stem, true)
+                                        synthStems.push(stem)
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    _ => {}
+                }
+            }
+            synthStems.sort()
+            for stem in synthStems {
+                let synthSource = "./" + stem
+                let emptyImports: [string] = []
+                let synthDecl = ImportDecl(emptyImports, synthSource, true, null)
+                newItems.push(TopLevel.Import(synthDecl))
+            }
+
             for it in prog.items {
                 switch it {
                     TopLevel.Class(c) => {

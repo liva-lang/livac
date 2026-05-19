@@ -698,22 +698,6 @@ fieldNeedsDebug(e: RustEmitter, optRef: TypeRef?): bool {
     return false
 }
 
-emitTupleType(em: RustEmitter, elems: [TypeRef]): string {
-    let parts: [string] = []
-    for e in elems {
-        parts.push(em._emitType(e))
-    }
-    return $"({parts.join(", ")})"
-}
-
-emitGenericType(em: RustEmitter, base: string, args: [TypeRef]): string {
-    let argParts: [string] = []
-    for a in args {
-        argParts.push(em._emitType(a))
-    }
-    return $"{base}<{argParts.join(", ")}>"
-}
-
 isIndexExprCopyType(e: RustEmitter, obj: Expr): bool {
     let elem = e._getArrayElemTypeRef(obj)
     return isCopyType(elem)

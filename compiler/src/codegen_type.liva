@@ -11,7 +11,7 @@
 // Pure relocation — no behavioural change.
 
 import { TypeRef } from "./ast"
-import { RustEmitter, emitTupleType, emitGenericType } from "./codegen"
+import { RustEmitter } from "./codegen"
 import { emitSimpleType } from "./codegen_utils"
 
 extend RustEmitter {
@@ -90,6 +90,22 @@ extend RustEmitter {
     _emitTupleType(elems: [TypeRef]): string { return emitTupleType(this, elems) }
 
     _emitGenericType(base: string, args: [TypeRef]): string { return emitGenericType(this, base, args) }
+}
+
+emitTupleType(em: RustEmitter, elems: [TypeRef]): string {
+    let parts: [string] = []
+    for e in elems {
+        parts.push(em._emitType(e))
+    }
+    return $"({parts.join(", ")})"
+}
+
+emitGenericType(em: RustEmitter, base: string, args: [TypeRef]): string {
+    let argParts: [string] = []
+    for a in args {
+        argParts.push(em._emitType(a))
+    }
+    return $"{base}<{argParts.join(", ")}>"
 }
 
 codegenTypeExtensionLoaded(): bool { return true }

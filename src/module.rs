@@ -487,14 +487,18 @@ impl ModuleResolver {
         }
 
         // Pass 2: collect all extensions (drain them from their source modules).
-        // We collect (target_name, methods) so we can mutate the owner module.
-        let mut extensions: Vec<(String, Vec<crate::ast::MethodDecl>)> = Vec::new();
-        for module in self.modules.values_mut() {
+        // We collect (target_name, methods, source_path) so we can mutate the
+        // owner module AND, when the extension lives in a different module
+        // than the owner, synthesize a wildcard import in the owner so free
+        // functions defined alongside the extension (e.g. helpers that take
+        // `self: ClassName`) are resolvable from the owner's generated .rs.
+        let mut extensions: Vec<(String, Vec<crate::ast::MethodDecl>, PathBuf)> = Vec::new();
+        for (src_path, module) in self.modules.iter_mut() {
             let mut kept = Vec::with_capacity(module.ast.items.len());
             for item in module.ast.items.drain(..) {
                 match item {
                     TopLevel::ClassExtension(ext) => {
-                        extensions.push((ext.name, ext.methods));
+                        extensions.push((ext.name, ext.methods, src_path.clone()));
                     }
                     other => kept.push(other),
                 }
@@ -503,7 +507,7 @@ impl ModuleResolver {
         }
 
         // Pass 3: apply extensions to their owner class, validating.
-        for (target_name, methods) in extensions {
+        for (target_name, methods, src_path) in extensions {
             let owner_path = owner_by_name.get(&target_name).ok_or_else(|| {
                 CompilerError::CodegenError(SemanticErrorInfo::new(
                     "E0911",
@@ -518,9 +522,34 @@ impl ModuleResolver {
                         target_name, target_name
                     ),
                 ))
-            })?;
+            })?.clone();
 
-            let owner = self.modules.get_mut(owner_path).expect("owner module must exist");
+            // If the extension lives in a different module than the owner,
+            // synthesize a wildcard import on the owner so free symbols
+            // defined alongside the extension (e.g. helpers taking
+            // `self: ClassName`) resolve at codegen time. Without this,
+            // extension methods get fused into the owner's generated `impl`
+            // block but their unqualified helper calls fail with E0425.
+            if src_path != owner_path {
+                if let Some(stem) = src_path.file_stem().and_then(|s| s.to_str()) {
+                    let synth_source = format!("./{}", stem);
+                    let owner = self.modules.get_mut(&owner_path).expect("owner module must exist");
+                    let already_present = owner.imports.iter().any(|imp|
+                        imp.is_wildcard && imp.alias.is_none() && imp.source == synth_source);
+                    if !already_present {
+                        let synth = ImportDecl {
+                            source: synth_source,
+                            imports: Vec::new(),
+                            is_wildcard: true,
+                            alias: None,
+                        };
+                        owner.imports.insert(0, synth.clone());
+                        owner.ast.items.insert(0, TopLevel::Import(synth));
+                    }
+                }
+            }
+
+            let owner = self.modules.get_mut(&owner_path).expect("owner module must exist");
             // Find the ClassDecl inside owner.
             let class = owner
                 .ast
