@@ -1,0 +1,218 @@
+// ============================================================================
+// codegen_generate.liva — RustEmitter extension: the `generate()` orchestrator.
+// ============================================================================
+// Extracted from codegen.liva via `extend RustEmitter { ... }`.
+//
+//   generate(program) is the top-level entry point invoked by the public
+//   `generateRust` / `generateModuleRust` API. It runs the async-fn fixpoint
+//   pre-pass, pre-detects whether `main` needs to be async, pre-populates the
+//   enum-variant field registry, pre-registers borrowed (&str) parameter
+//   indices, builds the no-Default class set, emits the preamble (allow
+//   attributes, liva_rt module, JsonValueExt trait, std::collections imports),
+//   and finally dispatches every top-level item through `_emitTopLevel`.
+//
+// Pure relocation — no behavioural change.
+
+import { Program, TopLevel, Member } from "./ast"
+import { RustEmitter } from "./codegen"
+
+extend RustEmitter {
+    generate(program: Program): string {
+        // Cycle 32 + Cycle 35: pre-collect async free-fn names (fixpoint).
+        // Must run BEFORE `_detectMainAsync` so transitive callers are
+        // discovered when main's body scan consults `_asyncFnNames` via
+        // `_exprIsAsyncTrigger`.
+        let changed = true
+        while changed {
+            changed = false
+            for item in program.items {
+                switch item {
+                    TopLevel.Function(fd) => {
+                        let sn = this._sanitizeName(fd.name)
+                        if this._asyncFnNames.has(sn) { continue }
+                        let isAsync = fd.isAsyncInferred
+                        if !isAsync {
+                            let prevNeed = this._mainNeedsAsync
+                            this._mainNeedsAsync = false
+                            this._scanStmtsForAsyncOpt(fd.body)
+                            if this._mainNeedsAsync { isAsync = true }
+                            this._mainNeedsAsync = prevNeed
+                        }
+                        if isAsync {
+                            this._asyncFnNames.set(sn, true)
+                            changed = true
+                        }
+                    }
+                }
+            }
+        }
+        // A.3: pre-detect async-needs for `main` (HTTP server / .listen).
+        this._detectMainAsync(program)
+        // Pre-populate enum variant field registry from AST items
+        // This registers field names for all enums defined in this module
+        for item in program.items {
+            switch item {
+                TopLevel.Enum(decl) => {
+                    this._registerEnumDeclFields(decl)
+                }
+            }
+        }
+
+        // Pre-pass: register borrowed (&str) param indices for all functions/methods
+        // This must happen before emission so call-sites can look up borrow info
+        if this._enableStrRef {
+            for item in program.items {
+                switch item {
+                    TopLevel.Function(fd) => {
+                        // Phase 10.5 Bloque 1: free functions register too. Cross-
+                        // module callers receive the registry via generateRust /
+                        // generateModuleRust priming. `main` cannot take a string.
+                        if fd.name != "main" {
+                            let rawFK = $"{fd.name}"
+                            let sanFK = this._sanitizeName(fd.name)
+                            this._preRegisterBorrowedParams(rawFK, sanFK, fd.params)
+                        }
+                    },
+                    TopLevel.Class(cd) => {
+                        let cn = $"{cd.name}"
+                        for m in cd.members {
+                            switch m {
+                                Member.Method(md) => {
+                                    // Phase 8.6: only private methods (_prefix)
+                                    let mFirst = md.name.substring(0, 1)
+                                    if mFirst == "_" {
+                                        let rawMK = $"{cn}.{md.name}"
+                                        let sanMK = $"{cn}.{this._sanitizeName(md.name)}"
+                                        this._preRegisterBorrowedParams(rawMK, sanMK, md.params)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Pre-pass: build no-Default class set (transitive closure).
+        // A class can't derive Default if any field is an enum (enums don't
+        // impl Default) OR any field is another class already known to not
+        // derive Default. Iterates to fixpoint so transitive cases like
+        //   class A { x: B }   class B { x: SomeEnum }
+        // both end up in the set.
+        this._buildNoDefaultClasses(program)
+
+        // Preamble: suppress common warnings and standard imports
+        // Inner attributes (#![allow(...)]) only valid at crate root (main module)
+        // use statements needed in every module that uses HashMap/HashSet
+        if this._isMainModule {
+            this._writeln("#![allow(unused_imports, unused_variables, unused_mut, unused_parens, dead_code, unused_assignments, unreachable_code, non_snake_case, while_true)]")
+            // ERR-UNIFY: emit minimal liva_rt module with Error struct so user code
+            // can return Result<T, liva_rt::Error> with chained-error trace support.
+            this._writeln("#[allow(dead_code)]")
+            this._writeln("mod liva_rt {")
+            this._writeln("    #[derive(Debug, Clone)]")
+            this._writeln("    pub struct Error {")
+            this._writeln("        pub message: String,")
+            this._writeln("        pub cause: Option<Box<Error>>,")
+            this._writeln("    }")
+            this._writeln("    impl PartialEq for Error {")
+            this._writeln("        fn eq(&self, other: &Self) -> bool { self.message == other.message }")
+            this._writeln("    }")
+            this._writeln("    impl Error {")
+            this._writeln("        pub fn from<S: Into<String>>(message: S) -> Self {")
+            this._writeln("            Error { message: message.into(), cause: None }")
+            this._writeln("        }")
+            this._writeln("        pub fn chain<S: Into<String>>(message: S, cause: Error) -> Self {")
+            this._writeln("            Error { message: message.into(), cause: Some(Box::new(cause)) }")
+            this._writeln("        }")
+            this._writeln("    }")
+            this._writeln("    impl std::fmt::Display for Error {")
+            this._writeln("        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {")
+            this._writeln("            write!(f, \"{}\", self.message)")
+            this._writeln("        }")
+            this._writeln("    }")
+            this._writeln("    impl std::error::Error for Error {}")
+            this._writeln("    // HTTP Response (Http.get/post/put/delete return value)")
+            this._writeln("    #[derive(Debug, Clone, Default)]")
+            this._writeln("    pub struct LivaHttpResponse {")
+            this._writeln("        pub status: i64,")
+            this._writeln("        pub status_text: String,")
+            this._writeln("        pub body: String,")
+            this._writeln("        pub headers: Vec<String>,")
+            this._writeln("    }")
+            this._writeln("    // Extension methods on serde_json::Value to mirror the")
+            this._writeln("    // bootstrap JsonValue wrapper API used in user code")
+            this._writeln("    // (.as_int / .as_float / .as_string / .as_bool /")
+            this._writeln("    //  .as_array / .length).")
+            this._writeln("    pub trait JsonValueExt {")
+            this._writeln("        fn as_int(&self) -> i64;")
+            this._writeln("        fn as_float(&self) -> f64;")
+            this._writeln("        fn as_string(&self) -> String;")
+            this._writeln("        fn as_bool_or(&self, def: bool) -> bool;")
+            this._writeln("        fn as_array_owned(&self) -> Vec<serde_json::Value>;")
+            this._writeln("        fn length(&self) -> usize;")
+            this._writeln("    }")
+            this._writeln("    impl JsonValueExt for serde_json::Value {")
+            this._writeln("        fn as_int(&self) -> i64 { self.as_i64().unwrap_or(0) }")
+            this._writeln("        fn as_float(&self) -> f64 { self.as_f64().unwrap_or(0.0) }")
+            this._writeln("        fn as_string(&self) -> String {")
+            this._writeln("            match self { serde_json::Value::String(s) => s.clone(), _ => self.to_string() }")
+            this._writeln("        }")
+            this._writeln("        fn as_bool_or(&self, def: bool) -> bool { self.as_bool().unwrap_or(def) }")
+            this._writeln("        fn as_array_owned(&self) -> Vec<serde_json::Value> {")
+            this._writeln("            match self { serde_json::Value::Array(a) => a.clone(), _ => Vec::new() }")
+            this._writeln("        }")
+            this._writeln("        fn length(&self) -> usize {")
+            this._writeln("            match self {")
+            this._writeln("                serde_json::Value::Array(a) => a.len(),")
+            this._writeln("                serde_json::Value::Object(o) => o.len(),")
+            this._writeln("                serde_json::Value::String(s) => s.chars().count(),")
+            this._writeln("                _ => 0,")
+            this._writeln("            }")
+            this._writeln("        }")
+            this._writeln("    }")
+            this._writeln("}")
+            this._writeln("#[allow(unused_imports)]")
+            this._writeln("use crate::liva_rt::JsonValueExt as _;")
+        } else {
+            // Non-main modules need to reference the liva_rt module declared
+            // at crate root (main module) so that `liva_rt::Error` resolves
+            // in fallible function signatures emitted from this module.
+            this._writeln("use crate::liva_rt;")
+            this._writeln("#[allow(unused_imports)]")
+            this._writeln("use crate::liva_rt::JsonValueExt as _;")
+        }
+        // Detect user classes that shadow std collection names so we can avoid
+        // re-importing them (would cause E0255: name defined multiple times).
+        let userHasHashMap = false
+        let userHasHashSet = false
+        for itm in program.items {
+            switch itm {
+                TopLevel.Class(cd) => {
+                    if cd.name == "HashMap" { userHasHashMap = true }
+                    if cd.name == "HashSet" { userHasHashSet = true }
+                }
+            }
+        }
+        let importMap = not userHasHashMap
+        let importSet = not userHasHashSet
+        if importMap && importSet {
+            this._writeln("use std::collections::{HashMap, HashSet};")
+        } else if importMap {
+            this._writeln("use std::collections::HashMap;")
+        } else if importSet {
+            this._writeln("use std::collections::HashSet;")
+        }
+        this._writeln("use std::fmt::Write;")
+        this._writeRaw("")
+
+        // Generate all top-level items
+        for item in program.items {
+            this._emitTopLevel(item)
+        }
+
+        return this._getOutput()
+    }
+}
+
+codegenGenerateExtensionLoaded(): bool { return true }

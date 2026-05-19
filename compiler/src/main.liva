@@ -62,6 +62,7 @@ import { codegenFunctionExtensionLoaded } from "./codegen_function"
 import { codegenTypeExtensionLoaded } from "./codegen_type"
 import { codegenEnumfieldsExtensionLoaded } from "./codegen_enumfields"
 import { codegenStdlibtupleExtensionLoaded } from "./codegen_stdlibtuple"
+import { codegenGenerateExtensionLoaded } from "./codegen_generate"
 import { sanitizeFieldName } from "./codegen_utils"
 import { ModuleResolver, LivaModule } from "./module"
 
@@ -1353,6 +1354,7 @@ main() {
     let _tExt = codegenTypeExtensionLoaded()
     let _efExt = codegenEnumfieldsExtensionLoaded()
     let _stExt = codegenStdlibtupleExtensionLoaded()
+    let _gExt = codegenGenerateExtensionLoaded()
 
     // Install a clean panic hook so parser/lexer panics (compiled from
     // `throw` statements) are reported as compact E2000-style messages
