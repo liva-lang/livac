@@ -134,6 +134,34 @@ After Phase F, only steps 2–4 run in CI on PRs; step 1 only when `bootstrap/` 
 
 ## Execution roadmap (assuming D1=A, D2=F-2b, D3=T-3a, D4=R-4b)
 
+> **2026-05-19 update:** the order below was the initial proposal. After
+> discovering the runtime-API divergence between bootstrap and self-host
+> (see F.1b-followup notes), a new `F.runtime-conv` milestone has been
+> inserted **before** F.2. The new order is: F.1 → **F.runtime-conv**
+> → F.2 → F.3 → F.4 → F.5 → F.6.
+
+### F.runtime-conv — Converge runtime APIs (NEW, blocking)
+
+Picks the bootstrap's runtime API as canonical (it matches the
+documented stdlib semantics user code depends on) and rewrites
+`compiler/src/codegen_generate.liva` to emit the same API.
+
+Sub-slices:
+- **conv-1.** `JsonValue` wrapper struct + method names (`.as_i32`,
+  `.as_f64`, `.get`, `.get_field`, `.length`).
+- **conv-2.** `liva_http_get/post/put/delete` free functions on top of
+  reqwest, matching the bootstrap signatures.
+- **conv-3.** `spawn_async`, `spawn_parallel`, `fire_async`,
+  `fire_parallel`.
+- **conv-4.** `string_mul` and `StringOrInt` trait.
+
+Each sub-slice: codegen change + selfhost compiles a probe program
+that uses the feature + 7/7 gates green + gen-2 ≡ gen-3.
+
+Once F.runtime-conv is done, F.1b-followup becomes trivially solvable
+by either L1 (`embedFile()` builtin) or by mechanical line-by-line
+translation of the now-aligned template.
+
 ### F.1 — Carve out `liva-rt` (1 PR)
 
 **Discovery (2026-05-19):** The bootstrap's `livac/src/liva_rt.rs` (527 LOC)
@@ -162,39 +190,57 @@ This reshapes F.1 into two sub-steps:
 Mirroring the same `include_str!` refactor in `compiler/src/codegen_generate.liva`
 requires two preconditions that don't yet exist:
 
-1. **Runtime parity gap**: the self-host currently emits a **strict subset**
-   of the runtime — only `Error`, `LivaHttpResponse`, and `JsonValueExt`
-   (~45 LOC of `_writeln` calls). The bootstrap emits ~382 LOC including
-   the full HTTP client, `JsonValue` wrapper, `spawn_async/spawn_parallel`,
-   `fire_async/fire_parallel`, `string_mul`, etc.
-   - Why current tests pass anyway: `selfhost_apps/*.liva` are
-     computational/data-structure programs that don't use HTTP / JSON
-     wrapper / spawn / string-mul features. None of the 21 apps trips the
-     gap.
-   - Why this blocks Phase F: once the bootstrap is cut, user programs
-     written against the documented stdlib (`Http.get`, `Json.parse`, etc.)
-     would fail to compile with gen-N. **The self-host must emit the same
-     runtime the bootstrap emits before the rope is cut.**
+1. **Runtime parity gap (deeper than initially scoped)**:
 
-2. **Liva lacks a compile-time file-inclusion primitive**. The bootstrap
-   uses Rust's `include_str!`, which has no equivalent in Liva. The
-   self-host has no multi-line string literal either (no `"""..."""`,
-   no backtick-strings — verified by grep). Three resolution paths:
-   - **L1.** Add a Liva builtin like `embedFile("path.txt")` returning
-     `string` at compile time. New compiler intrinsic; small slice.
-   - **L2.** Add multi-line string literals to Liva, then inline the
-     runtime as a const. Larger language change.
-   - **L3.** Read the template at compiler runtime via `File.read`,
-     resolving the path relative to the binary location. Fragile but
-     zero language change.
+   First-pass analysis (size): the self-host emits ~45 LOC of runtime
+   vs. ~382 LOC for the bootstrap. Easy fix, right? Translate template
+   lines into `_writeln(...)` calls and done.
 
-**Recommended resolution order:**
-- Pick **L1** (add `embedFile` to Liva). It's a self-contained slice
-  worth maybe one session.
-- Port the full runtime emission from bootstrap to self-host using
-  `embedFile("liva_rt_template.rs.in")` — this also closes the
-  parity gap. Same template file serves both bootstrap and self-host.
-- After that, F.1b-followup is genuinely done and we can move to F.2.
+   Second-pass analysis (2026-05-19): **the two emitters produce
+   structurally different runtime APIs**, not just different sizes.
+   - **Bootstrap** emits `pub struct JsonValue(pub serde_json::Value)`
+     — a wrapper newtype with methods `.as_i32()`, `.as_f64()`,
+     `.as_string()`, `.get(i)`, `.get_field(k)`, `.length()`, etc. User
+     code obtained from `JSON.parse(...)` gets a `JsonValue` value.
+   - **Self-host** emits `pub trait JsonValueExt for serde_json::Value
+     { fn as_int(&self) -> i64; fn as_float(&self) -> f64;
+     fn as_string(&self) -> String; fn as_array_owned() -> Vec<...>;
+     fn length() -> usize; }` — extension methods on
+     `serde_json::Value` directly. User code gets a `serde_json::Value`
+     and calls extension methods.
+
+   These two APIs are **not source-compatible**: `.as_i32()` (bootstrap)
+   vs `.as_int()` (self-host); `i64` vs `i32` return type for ints; etc.
+   A program written against bootstrap's API will fail under gen-N and
+   vice-versa.
+
+   Once the bootstrap is cut, this gap must be closed in one of two ways:
+   - **Align bootstrap to self-host's JsonValueExt API.** Removes the
+     wrapper, simpler runtime, but breaks any existing user code that
+     depends on the `JsonValue` wrapper type.
+   - **Align self-host to bootstrap's JsonValue wrapper API.** Preserves
+     the documented stdlib semantics; requires self-host codegen to emit
+     the wrapper instead of the trait. Larger self-host change.
+
+   Same parity analysis is needed for HTTP (bootstrap emits `liva_http_*`
+   free functions; self-host emits only the `LivaHttpResponse` struct
+   with no client functions at all), and `spawn_*` / `fire_*` (bootstrap
+   emits 4 functions; self-host emits zero).
+
+   **Recommended:** schedule a dedicated "runtime convergence" milestone
+   (call it F.runtime-conv) as a pre-requisite for the F-rope-cut.
+   Pick the bootstrap's API as canonical (it's the documented one users
+   rely on) and reshape the self-host emission to match. This is its own
+   multi-PR effort, not a slice of F.1b-followup.
+
+2. **Liva lacks include_str!**:
+   No multi-line string literals, no compile-time file embedding. Even
+   if API parity is closed, the self-host needs a mechanism to emit
+   ~400 LOC of runtime without manual line-by-line `_writeln`. Three
+   resolution paths sketched (L1: add embedFile() builtin, L2: add """...
+   """ literals, L3: runtime File.read). L1 recommended as smallest
+   slice. **Deferred until F.runtime-conv has fixed the API divergence;
+   no point embedding a template that won't match the canonical API.**
 
 **F.1c — Publish `liva-rt` as a crate (deferred to v2.2+)**
 - Bumps D4 from R-4b to R-4a. Out of scope for v2.1 cut.
