@@ -342,7 +342,7 @@ RustEmitter {
         return this._warnings
     }
 
-    _warn(msg: string) { warn(this, msg) }
+    _warn(msg: string) { this._warnings.push(msg) }
 
     // -- Output primitives --
 
@@ -357,18 +357,28 @@ RustEmitter {
         this._currentLine = ""
     }
 
-    _writeRaw(text: string) { writeRaw(this, text) }
+    _writeRaw(text: string) { this._lines.push(text) }
 
     _newline() {
         this._lines.push($"{this._currentLine}")
         this._currentLine = ""
     }
 
-    _writeIndent() { writeIndent(this) }
+    _writeIndent() {
+        let i = 0
+        while i < this._indentLevel {
+            this._currentLine += "    "
+            i += 1
+        }
+    }
 
-    _indent() { indent(this) }
+    _indent() { this._indentLevel += 1 }
 
-    _dedent() { dedent(this) }
+    _dedent() {
+        if this._indentLevel > 0 {
+            this._indentLevel -= 1
+        }
+    }
 
     _getOutput(): string {
         // Flush any remaining current line
@@ -652,32 +662,6 @@ inferArrowReturnType(e: RustEmitter, expr: Expr): string {
 
 // Cycle 51 (A1 step 7) — pure TypeRef helpers extracted to free functions.
 // Switch on TypeRef (not Expr) so BS-FRAG-1 safe.
-
-warn(e: RustEmitter, msg: string) {
-    e._warnings.push(msg)
-}
-
-writeRaw(e: RustEmitter, text: string) {
-    e._lines.push(text)
-}
-
-indent(e: RustEmitter) {
-    e._indentLevel += 1
-}
-
-dedent(e: RustEmitter) {
-    if e._indentLevel > 0 {
-        e._indentLevel -= 1
-    }
-}
-
-writeIndent(e: RustEmitter) {
-    let i = 0
-    while i < e._indentLevel {
-        e._currentLine += "    "
-        i += 1
-    }
-}
 
 main() {
     print("codegen module loaded")
