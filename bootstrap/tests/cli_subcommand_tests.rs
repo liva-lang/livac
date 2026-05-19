@@ -32,7 +32,11 @@ fn check_succeeds_on_valid_program() {
         .args(["check", path.to_str().unwrap()])
         .output()
         .unwrap();
-    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
 }
 
 #[test]
@@ -59,7 +63,11 @@ fn check_emits_json_when_requested() {
         String::from_utf8_lossy(&out.stdout),
         String::from_utf8_lossy(&out.stderr)
     );
-    assert!(combined.contains('{'), "expected JSON in output: {}", combined);
+    assert!(
+        combined.contains('{'),
+        "expected JSON in output: {}",
+        combined
+    );
 }
 
 #[test]
@@ -71,7 +79,11 @@ fn fmt_check_passes_on_clean_source() {
         .output()
         .unwrap();
     // Clean files exit 0; the fmt may output a status line on stdout.
-    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
 }
 
 #[test]
@@ -82,7 +94,11 @@ fn fmt_rewrites_messy_source() {
         .args(["fmt", path.to_str().unwrap()])
         .output()
         .unwrap();
-    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     let after = std::fs::read_to_string(&path).unwrap();
     assert_ne!(after, messy, "fmt should reformat messy source");
 }
@@ -100,7 +116,9 @@ fn lint_runs_and_reports_unused_variable() {
     let combined = format!("{}{}", stdout, stderr);
     // Lint should at least mention the unused name or warning code W001.
     assert!(
-        combined.contains("unused_var") || combined.to_lowercase().contains("unused") || combined.contains("W001"),
+        combined.contains("unused_var")
+            || combined.to_lowercase().contains("unused")
+            || combined.contains("W001"),
         "expected unused-warning, got:\nstdout={}\nstderr={}",
         stdout,
         stderr
@@ -121,19 +139,27 @@ fn lint_emits_json_when_requested() {
         String::from_utf8_lossy(&out.stderr)
     );
     // JSON mode should produce at least one JSON-shaped fragment.
-    assert!(combined.contains('{') || out.status.success(), "stdout/stderr: {}", combined);
+    assert!(
+        combined.contains('{') || out.status.success(),
+        "stdout/stderr: {}",
+        combined
+    );
 }
 
 #[test]
 fn help_lists_subcommands() {
-    let out = Command::new(livac_bin())
-        .arg("--help")
-        .output()
-        .unwrap();
+    let out = Command::new(livac_bin()).arg("--help").output().unwrap();
     assert!(out.status.success());
     let stdout = String::from_utf8_lossy(&out.stdout);
-    for sub in ["build", "run", "check", "fmt", "test", "lint", "lsp", "init", "update"] {
-        assert!(stdout.contains(sub), "help missing subcommand `{}`:\n{}", sub, stdout);
+    for sub in [
+        "build", "run", "check", "fmt", "test", "lint", "lsp", "init", "update",
+    ] {
+        assert!(
+            stdout.contains(sub),
+            "help missing subcommand `{}`:\n{}",
+            sub,
+            stdout
+        );
     }
 }
 

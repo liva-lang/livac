@@ -64,15 +64,19 @@ jobs:
       - name: Set Cargo.toml version from tag
         shell: bash
         run: |
-          sed -i.bak "s/^version = \".*\"/version = \"${{ steps.version.outputs.version }}\"/" Cargo.toml
-          rm -f Cargo.toml.bak
+          # Workspace layout (Phase F.3+): version lives in each member’s
+          # Cargo.toml, not in the root workspace manifest.
+          for f in bootstrap/Cargo.toml liva-tools/Cargo.toml; do
+            sed -i.bak "s/^version = \".*\"/version = \"${{ steps.version.outputs.version }}\"/" "$f"
+            rm -f "$f.bak"
+          done
 
       - name: Run tests
         if: matrix.target != 'aarch64-apple-darwin'
-        run: cargo test
+        run: cargo test --workspace
 
       - name: Build release binary
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --workspace --target ${{ matrix.target }}
 
       # --- Binary artifact (.tar.gz / .zip) ---
       # Archives include binary + skills + docs so all installers have everything

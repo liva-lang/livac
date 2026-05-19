@@ -43,10 +43,10 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-
 
       - name: Build
-        run: cargo build --verbose
+        run: cargo build --workspace --verbose
 
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test --workspace --verbose
 
   # CI-2: protect gen-2 self-host on every PR (Linux only — fastest gate).
   # Skips rebuild_selfhost (covered by selfhost-full nightly job).
@@ -67,7 +67,7 @@ jobs:
           key: selfhost-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: selfhost-
       - name: Build bootstrap (release)
-        run: cargo build --release
+        run: cargo build --release --workspace
       - name: Bootstrap → gen-1 → gen-2 (rebuild self-host)
         run: bash compiler/tests/rebuild_selfhost.sh
       - name: Stage gen-2 binary
@@ -95,7 +95,7 @@ jobs:
           key: selfhost-full-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: selfhost-full-
       - name: Build bootstrap (release)
-        run: cargo build --release
+        run: cargo build --release --workspace
       - name: Bootstrap → gen-1 → gen-2 → gen-3 (idempotence)
         run: bash compiler/tests/rebuild_selfhost.sh
       - name: Stage gen-2 binary
@@ -112,7 +112,7 @@ jobs:
         with:
           components: clippy
       - name: Run Clippy
-        run: cargo clippy 2>&1
+        run: cargo clippy --workspace 2>&1
 
   fmt:
     name: Rustfmt
@@ -123,5 +123,5 @@ jobs:
         with:
           components: rustfmt
       - name: Check formatting
-        run: cargo fmt --check
+        run: cargo fmt --all --check
 

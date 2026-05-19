@@ -541,9 +541,7 @@ fn find_rust_blocks(source: &str) -> Vec<RustBlockInfo> {
                 // Check for opening brace (not a string → that's `use rust "crate"`)
                 if j < bytes.len() && bytes[j] == b'{' {
                     let content_start = j + 1;
-                    if let Some((content_end, closing_brace_end)) =
-                        find_balanced_brace(source, j)
-                    {
+                    if let Some((content_end, closing_brace_end)) = find_balanced_brace(source, j) {
                         let content = source[content_start..content_end].to_string();
                         blocks.push(RustBlockInfo {
                             rust_keyword_start: rust_start,
@@ -604,19 +602,27 @@ fn find_balanced_brace(source: &str, open_pos: usize) -> Option<(usize, usize)> 
                         // Escaped char literal: '\n', '\\', '\u{...}'
                         // Skip: ' + \ + char + '
                         i += 2; // skip ' and \
-                        if i < bytes.len() && bytes[i] == b'u' && i + 1 < bytes.len() && bytes[i + 1] == b'{' {
+                        if i < bytes.len()
+                            && bytes[i] == b'u'
+                            && i + 1 < bytes.len()
+                            && bytes[i + 1] == b'{'
+                        {
                             // Unicode escape '\u{XXXX}' — skip to closing }
                             i += 2;
                             while i < bytes.len() && bytes[i] != b'}' {
                                 i += 1;
                             }
                             // Skip } and closing '
-                            if i < bytes.len() { i += 1; } // }
-                            if i < bytes.len() && bytes[i] == b'\'' { /* closing ' handled by i += 1 below */ }
+                            if i < bytes.len() {
+                                i += 1;
+                            } // }
+                            if i < bytes.len() && bytes[i] == b'\'' { /* closing ' handled by i += 1 below */
+                            }
                         } else {
                             // Simple escape: '\n', '\t', etc. — skip escaped char + closing '
                             i += 1; // skip the escaped char
-                            if i < bytes.len() && bytes[i] == b'\'' { /* closing ' handled by i += 1 below */ }
+                            if i < bytes.len() && bytes[i] == b'\'' { /* closing ' handled by i += 1 below */
+                            }
                         }
                     } else if (next.is_ascii_alphabetic() || next == b'_')
                         && i + 2 < bytes.len()
@@ -847,14 +853,20 @@ mod tests {
     fn test_find_rust_blocks_skips_line_comments() {
         let source = "// This uses rust {} interop\nlet x = 1";
         let blocks = find_rust_blocks(source);
-        assert!(blocks.is_empty(), "Should not find rust block inside // comment");
+        assert!(
+            blocks.is_empty(),
+            "Should not find rust block inside // comment"
+        );
     }
 
     #[test]
     fn test_find_rust_blocks_skips_block_comments() {
         let source = "/* rust { some code } */\nlet x = 1";
         let blocks = find_rust_blocks(source);
-        assert!(blocks.is_empty(), "Should not find rust block inside /* */ comment");
+        assert!(
+            blocks.is_empty(),
+            "Should not find rust block inside /* */ comment"
+        );
     }
 
     #[test]
@@ -862,7 +874,10 @@ mod tests {
         let source = r#"let x = "rust { }"
 let y = 1"#;
         let blocks = find_rust_blocks(source);
-        assert!(blocks.is_empty(), "Should not find rust block inside string literal");
+        assert!(
+            blocks.is_empty(),
+            "Should not find rust block inside string literal"
+        );
     }
 
     #[test]
@@ -879,7 +894,10 @@ let y = 1"#;
         // Lifetime 'a should NOT be treated as char literal start
         let source = "{ fn peek<'a>(tokens: &'a [Token]) -> &'a Token { tokens[0] } }";
         let result = find_balanced_brace(source, 0);
-        assert!(result.is_some(), "Should find balanced brace with lifetimes");
+        assert!(
+            result.is_some(),
+            "Should find balanced brace with lifetimes"
+        );
         let (content_end, _) = result.unwrap();
         // The content_end should be at the final }, not consumed by lifetime confusion
         assert_eq!(source.as_bytes()[content_end], b'}');
@@ -890,14 +908,20 @@ let y = 1"#;
         // Real char literals should still work
         let source = "{ let ch = 'x'; let b = '{'; }";
         let result = find_balanced_brace(source, 0);
-        assert!(result.is_some(), "Should find balanced brace with char literals");
+        assert!(
+            result.is_some(),
+            "Should find balanced brace with char literals"
+        );
     }
 
     #[test]
     fn test_balanced_brace_with_escaped_char() {
         let source = r"{ let ch = '\n'; let b = '\\'; }";
         let result = find_balanced_brace(source, 0);
-        assert!(result.is_some(), "Should find balanced brace with escaped chars");
+        assert!(
+            result.is_some(),
+            "Should find balanced brace with escaped chars"
+        );
     }
 
     #[test]
@@ -908,7 +932,11 @@ let y = 1"#;
         assert!(result.is_some());
         let (content_end, brace_end) = result.unwrap();
         // Should match the outermost closing }
-        assert_eq!(brace_end, source.len(), "Should close at outermost brace, got content_end={content_end}");
+        assert_eq!(
+            brace_end,
+            source.len(),
+            "Should close at outermost brace, got content_end={content_end}"
+        );
     }
 
     // B02: Template strings with nested quotes inside interpolation
@@ -925,7 +953,11 @@ let y = 1"#;
         // B02: The core failing case — fn("arg") inside template interpolation
         let source = r#"$"result: {fn("arg")}""#;
         let templates = find_template_strings(source);
-        assert_eq!(templates.len(), 1, "Should find exactly one template string");
+        assert_eq!(
+            templates.len(),
+            1,
+            "Should find exactly one template string"
+        );
         assert_eq!(templates[0].content, r#"result: {fn("arg")}"#);
     }
 
@@ -943,9 +975,17 @@ let y = 1"#;
         let source = r#"let x = $"result: {fn("arg")}""#;
         let tokens = tokenize(source).unwrap();
         // Should have: Let, Ident("x"), Assign, StringTemplate("result: {fn(\"arg\")}")
-        assert_eq!(tokens.len(), 4, "Tokens: {:?}", tokens.iter().map(|t| &t.token).collect::<Vec<_>>());
-        assert!(matches!(&tokens[3].token, Token::StringTemplate(s) if s == r#"result: {fn("arg")}"#),
-            "Expected StringTemplate with nested quotes, got {:?}", tokens[3].token);
+        assert_eq!(
+            tokens.len(),
+            4,
+            "Tokens: {:?}",
+            tokens.iter().map(|t| &t.token).collect::<Vec<_>>()
+        );
+        assert!(
+            matches!(&tokens[3].token, Token::StringTemplate(s) if s == r#"result: {fn("arg")}"#),
+            "Expected StringTemplate with nested quotes, got {:?}",
+            tokens[3].token
+        );
     }
 
     #[test]
@@ -953,6 +993,9 @@ let y = 1"#;
         // Regular strings should NOT be captured
         let source = r#"let x = "hello world""#;
         let templates = find_template_strings(source);
-        assert!(templates.is_empty(), "Regular strings should not be captured");
+        assert!(
+            templates.is_empty(),
+            "Regular strings should not be captured"
+        );
     }
 }

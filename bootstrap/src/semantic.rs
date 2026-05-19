@@ -256,7 +256,11 @@ impl SemanticAnalyzer {
         // Support extensionless imports: "./token" → "./token.liva"
         let import_path = if !import_path.exists() && import_path.extension().is_none() {
             let with_ext = import_path.with_extension("liva");
-            if with_ext.exists() { with_ext } else { import_path }
+            if with_ext.exists() {
+                with_ext
+            } else {
+                import_path
+            }
         } else {
             import_path
         };
@@ -427,9 +431,8 @@ impl SemanticAnalyzer {
                         ];
                         for &(internal_name, internal_ver) in INTERNAL_CRATES {
                             if use_rust.crate_name == internal_name
-                                && !user_version.starts_with(
-                                    internal_ver.split('.').next().unwrap_or(""),
-                                )
+                                && !user_version
+                                    .starts_with(internal_ver.split('.').next().unwrap_or(""))
                             {
                                 return Err(CompilerError::SemanticError(
                                     SemanticErrorInfo::new(
@@ -532,11 +535,8 @@ impl SemanticAnalyzer {
                         },
                     );
                     // Register enum variant names for exhaustiveness checking
-                    let variant_names: Vec<String> = enum_decl
-                        .variants
-                        .iter()
-                        .map(|v| v.name.clone())
-                        .collect();
+                    let variant_names: Vec<String> =
+                        enum_decl.variants.iter().map(|v| v.name.clone()).collect();
                     self.enum_variants
                         .insert(enum_decl.name.clone(), variant_names);
                 }
@@ -778,7 +778,9 @@ impl SemanticAnalyzer {
             }
             Expr::ObjectLiteral(fields) => fields.iter().any(|(_, v)| self.expr_contains_async(v)),
             Expr::ArrayLiteral(elements) => elements.iter().any(|e| self.expr_contains_async(e)),
-            Expr::MapLiteral(entries) => entries.iter().any(|(k, v)| self.expr_contains_async(k) || self.expr_contains_async(v)),
+            Expr::MapLiteral(entries) => entries
+                .iter()
+                .any(|(k, v)| self.expr_contains_async(k) || self.expr_contains_async(v)),
             Expr::SetLiteral(elements) => elements.iter().any(|e| self.expr_contains_async(e)),
             Expr::StringTemplate { parts } => parts.iter().any(|part| match part {
                 StringTemplatePart::Expr(e) => self.expr_contains_async(e),
@@ -894,7 +896,9 @@ impl SemanticAnalyzer {
                 }
             }),
             Expr::ArrayLiteral(elements) => elements.iter().any(|e| self.expr_contains_fail(e)),
-            Expr::MapLiteral(entries) => entries.iter().any(|(k, v)| self.expr_contains_fail(k) || self.expr_contains_fail(v)),
+            Expr::MapLiteral(entries) => entries
+                .iter()
+                .any(|(k, v)| self.expr_contains_fail(k) || self.expr_contains_fail(v)),
             Expr::SetLiteral(elements) => elements.iter().any(|e| self.expr_contains_fail(e)),
             Expr::Index { object, index } => {
                 self.expr_contains_fail(object) || self.expr_contains_fail(index)
@@ -1306,8 +1310,7 @@ impl SemanticAnalyzer {
                         .any(|arg| self.type_ref_contains_name(arg, name))
             }
             TypeRef::Map(key, value) => {
-                self.type_ref_contains_name(key, name)
-                    || self.type_ref_contains_name(value, name)
+                self.type_ref_contains_name(key, name) || self.type_ref_contains_name(value, name)
             }
             TypeRef::Set(inner) => self.type_ref_contains_name(inner, name),
             TypeRef::Fn(args, ret) => {
@@ -1380,9 +1383,9 @@ impl SemanticAnalyzer {
                 Box::new(self.substitute_type_params(key, params, args)),
                 Box::new(self.substitute_type_params(value, params, args)),
             ),
-            TypeRef::Set(inner) => TypeRef::Set(
-                Box::new(self.substitute_type_params(inner, params, args)),
-            ),
+            TypeRef::Set(inner) => {
+                TypeRef::Set(Box::new(self.substitute_type_params(inner, params, args)))
+            }
             TypeRef::Fn(fn_args, ret) => TypeRef::Fn(
                 fn_args
                     .iter()
@@ -2107,10 +2110,7 @@ impl SemanticAnalyzer {
         // This would detect patterns like accessing shared mutable state from parallel contexts
         // For now, this is a placeholder implementation
         // TODO: Implement proper shared state access validation
-        if matches!(
-            call.exec_policy,
-            ExecPolicy::Par | ExecPolicy::TaskPar
-        ) {
+        if matches!(call.exec_policy, ExecPolicy::Par | ExecPolicy::TaskPar) {
             // Placeholder: In a full implementation, we'd check if the call accesses shared mutable state
             // For now, we'll just note that this is where the check would go
         }
@@ -2119,10 +2119,7 @@ impl SemanticAnalyzer {
         // This would detect patterns like spawning too many tasks or using parallel execution for trivial operations
         // For now, this is a placeholder implementation
         // TODO: Implement proper efficiency analysis
-        if matches!(
-            call.exec_policy,
-            ExecPolicy::Par | ExecPolicy::TaskPar
-        ) {
+        if matches!(call.exec_policy, ExecPolicy::Par | ExecPolicy::TaskPar) {
             // Placeholder: In a full implementation, we'd analyze the complexity of the operation
             // and warn if parallel execution might be inefficient
             // For now, we'll just note that this is where the check would go
@@ -2499,9 +2496,7 @@ impl SemanticAnalyzer {
             Expr::MapLiteral(entries) => entries
                 .iter()
                 .any(|(k, v)| Self::expr_contains_await(k) || Self::expr_contains_await(v)),
-            Expr::SetLiteral(elements) => elements
-                .iter()
-                .any(|e| Self::expr_contains_await(e)),
+            Expr::SetLiteral(elements) => elements.iter().any(|e| Self::expr_contains_await(e)),
             Expr::Tuple(elements) => elements
                 .iter()
                 .any(|value| Self::expr_contains_await(value)),
@@ -3790,9 +3785,7 @@ impl SemanticAnalyzer {
                 self.validate_type_ref(key, available_type_params)?;
                 self.validate_type_ref(value, available_type_params)
             }
-            TypeRef::Set(inner) => {
-                self.validate_type_ref(inner, available_type_params)
-            }
+            TypeRef::Set(inner) => self.validate_type_ref(inner, available_type_params),
             TypeRef::Fn(args, ret) => {
                 for a in args {
                     self.validate_type_ref(a, available_type_params)?;
@@ -3999,9 +3992,7 @@ impl SemanticAnalyzer {
                     Ok(())
                 }
             }
-            _ => {
-                Ok(())
-            }
+            _ => Ok(()),
         }
     }
 
@@ -4313,9 +4304,7 @@ impl SemanticAnalyzer {
                 self.validate_json_parse_type_hint(value)
             }
             // Sets are serializable if the element type is
-            TypeRef::Set(inner) => {
-                self.validate_json_parse_type_hint(inner)
-            }
+            TypeRef::Set(inner) => self.validate_json_parse_type_hint(inner),
             // Function types cannot be serialized to/from JSON.
             TypeRef::Fn(_, _) => Err(CompilerError::SemanticError(
                 SemanticErrorInfo::new(

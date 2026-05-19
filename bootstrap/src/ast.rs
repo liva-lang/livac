@@ -232,10 +232,13 @@ impl Visibility {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TypeRef {
     Simple(String),
-    Generic { base: String, args: Vec<TypeRef> },
+    Generic {
+        base: String,
+        args: Vec<TypeRef>,
+    },
     Array(Box<TypeRef>),
     Map(Box<TypeRef>, Box<TypeRef>), // Map<K, V> → HashMap<K, V>
-    Set(Box<TypeRef>),                // Set<T> → HashSet<T>
+    Set(Box<TypeRef>),               // Set<T> → HashSet<T>
     Optional(Box<TypeRef>),
     Fallible(Box<TypeRef>),
     Tuple(Vec<TypeRef>), // Tuple types: (int, string, bool)
@@ -270,7 +273,11 @@ impl TypeRef {
                 format!("{}<{}>", base, args_str)
             }
             TypeRef::Array(inner) => format!("Vec<{}>", inner.to_rust_type()),
-            TypeRef::Map(key, value) => format!("std::collections::HashMap<{}, {}>", key.to_rust_type(), value.to_rust_type()),
+            TypeRef::Map(key, value) => format!(
+                "std::collections::HashMap<{}, {}>",
+                key.to_rust_type(),
+                value.to_rust_type()
+            ),
             TypeRef::Set(inner) => format!("std::collections::HashSet<{}>", inner.to_rust_type()),
             TypeRef::Optional(inner) => format!("Option<{}>", inner.to_rust_type()),
             TypeRef::Fallible(inner) => format!("Result<{}, liva_rt::Error>", inner.to_rust_type()),

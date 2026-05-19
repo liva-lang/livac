@@ -261,10 +261,7 @@ impl Formatter {
         };
 
         // No `data` keyword — data classes are auto-detected from structure
-        self.write_line(&format!(
-            "{}{}{} {{",
-            decl.name, type_params, implements
-        ));
+        self.write_line(&format!("{}{}{} {{", decl.name, type_params, implements));
         self.indent_level += 1;
         self.format_members(&decl.members);
         self.indent_level -= 1;
@@ -898,7 +895,7 @@ impl Formatter {
 
     fn format_for(&mut self, for_stmt: &ForStmt) {
         let iterable = self.format_expr(&for_stmt.iterable);
-        
+
         // Build the variable pattern: "key, value" or just "var"
         let var_pattern = if let Some(ref var2) = for_stmt.var2 {
             format!("{}, {}", for_stmt.var, var2)
@@ -1262,10 +1259,7 @@ impl Formatter {
         if elements.is_empty() {
             return "Set {}".to_string();
         }
-        let items: Vec<String> = elements
-            .iter()
-            .map(|e| self.format_expr(e))
-            .collect();
+        let items: Vec<String> = elements.iter().map(|e| self.format_expr(e)).collect();
         let single_line = format!("Set {{ {} }}", items.join(", "));
         if self.current_indent_width() + single_line.len() <= self.options.max_width {
             single_line
@@ -1566,19 +1560,18 @@ impl Formatter {
                 ts.join(" | ")
             }
             TypeRef::Map(key, value) => {
-                format!("Map<{}, {}>", self.format_type_ref(key), self.format_type_ref(value))
+                format!(
+                    "Map<{}, {}>",
+                    self.format_type_ref(key),
+                    self.format_type_ref(value)
+                )
             }
             TypeRef::Set(inner) => {
                 format!("Set<{}>", self.format_type_ref(inner))
             }
             TypeRef::Fn(args, ret) => {
-                let args_str: Vec<String> =
-                    args.iter().map(|a| self.format_type_ref(a)).collect();
-                format!(
-                    "({}) => {}",
-                    args_str.join(", "),
-                    self.format_type_ref(ret)
-                )
+                let args_str: Vec<String> = args.iter().map(|a| self.format_type_ref(a)).collect();
+                format!("({}) => {}", args_str.join(", "), self.format_type_ref(ret))
             }
         }
     }

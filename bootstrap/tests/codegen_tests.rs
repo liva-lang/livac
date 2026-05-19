@@ -1622,9 +1622,15 @@ main() {
 
     let rust_code = compile_and_generate(source);
     // Should generate match pattern, not (self.method(), None)
-    assert!(rust_code.contains("match calc.divide("), "Method call should use match pattern for error binding");
+    assert!(
+        rust_code.contains("match calc.divide("),
+        "Method call should use match pattern for error binding"
+    );
     assert!(rust_code.contains("Ok(v)"), "Should destructure Ok variant");
-    assert!(rust_code.contains("Err(e)"), "Should destructure Err variant");
+    assert!(
+        rust_code.contains("Err(e)"),
+        "Should destructure Err variant"
+    );
     assert_snapshot!("error_binding_method_call", rust_code);
 }
 
@@ -1660,8 +1666,14 @@ main() {
 
     let rust_code = compile_and_generate(source);
     // or fail should generate match with Error::chain
-    assert!(rust_code.contains("Error::chain"), "or fail should generate Error::chain for method calls");
-    assert!(rust_code.contains("Validation failed"), "Error message should be in the generated code");
+    assert!(
+        rust_code.contains("Error::chain"),
+        "or fail should generate Error::chain for method calls"
+    );
+    assert!(
+        rust_code.contains("Validation failed"),
+        "Error message should be in the generated code"
+    );
     assert_snapshot!("or_fail_method_call", rust_code);
 }
 
@@ -1707,17 +1719,25 @@ process(): number {
 
     let rust_code = compile_and_generate(source);
     // fail "Empty input" outside the error binding scope → Error::new
-    assert!(rust_code.contains("Error::new(\"Empty input\""),
-        "fail with string literal outside error scope should use Error::new");
+    assert!(
+        rust_code.contains("Error::new(\"Empty input\""),
+        "fail with string literal outside error scope should use Error::new"
+    );
     // fail $"..." outside scope → Error::new
-    assert!(rust_code.contains("Error::new(format!"),
-        "fail with interpolated string outside error scope should use Error::new");
+    assert!(
+        rust_code.contains("Error::new(format!"),
+        "fail with interpolated string outside error scope should use Error::new"
+    );
     // fail err inside scope → Error::chain
-    assert!(rust_code.contains("Error::chain(err"),
-        "fail with error variable should use Error::chain");
+    assert!(
+        rust_code.contains("Error::chain(err"),
+        "fail with error variable should use Error::chain"
+    );
     // fail "Processing failed" inside error scope → Error::chain
-    assert!(rust_code.contains("Error::chain(\"Processing failed\""),
-        "fail with string inside error scope should use Error::chain");
+    assert!(
+        rust_code.contains("Error::chain(\"Processing failed\""),
+        "fail with string inside error scope should use Error::chain"
+    );
     assert_snapshot!("fail_string_uses_error_new", rust_code);
 }
 
@@ -1749,8 +1769,10 @@ TodoList {
 
     let rust_code = compile_and_generate(source);
     // completeTask does this.tasks[idx].done = true → should be &mut self
-    assert!(rust_code.contains("fn complete_task(&mut self"), 
-        "completeTask should have &mut self because it assigns to this.tasks[idx].field");
+    assert!(
+        rust_code.contains("fn complete_task(&mut self"),
+        "completeTask should have &mut self because it assigns to this.tasks[idx].field"
+    );
     assert_snapshot!("mut_self_deep_assignment", rust_code);
 }
 
@@ -1778,7 +1800,10 @@ main() {
 
     let rust_code = compile_and_generate(source);
     // Array args should be cloned to prevent move
-    assert!(rust_code.contains("items.clone()"), "Array variable should be cloned when passed to function");
+    assert!(
+        rust_code.contains("items.clone()"),
+        "Array variable should be cloned when passed to function"
+    );
     assert_snapshot!("auto_clone_map_array_args", rust_code);
 }
 
@@ -2621,14 +2646,35 @@ main() {
 
     let rust_code = compile_and_generate(source);
     // Arrow methods without explicit type should NOT generate -> ()
-    assert!(!rust_code.contains("fn get_value(&self) -> ()"), "getValue should not return ()");
-    assert!(!rust_code.contains("fn has_more(&self) -> ()"), "hasMore should not return ()");
-    assert!(!rust_code.contains("fn doubled(&self) -> ()"), "doubled should not return ()");
+    assert!(
+        !rust_code.contains("fn get_value(&self) -> ()"),
+        "getValue should not return ()"
+    );
+    assert!(
+        !rust_code.contains("fn has_more(&self) -> ()"),
+        "hasMore should not return ()"
+    );
+    assert!(
+        !rust_code.contains("fn doubled(&self) -> ()"),
+        "doubled should not return ()"
+    );
     // Should infer correct types
-    assert!(rust_code.contains("fn get_value(&self) -> i32"), "getValue should return i32");
-    assert!(rust_code.contains("fn has_more(&self) -> bool"), "hasMore should return bool");
-    assert!(rust_code.contains("fn doubled(&self) -> i32"), "doubled should return i32");
-    assert!(rust_code.contains("fn label(&self) -> String"), "label should return String");
+    assert!(
+        rust_code.contains("fn get_value(&self) -> i32"),
+        "getValue should return i32"
+    );
+    assert!(
+        rust_code.contains("fn has_more(&self) -> bool"),
+        "hasMore should return bool"
+    );
+    assert!(
+        rust_code.contains("fn doubled(&self) -> i32"),
+        "doubled should return i32"
+    );
+    assert!(
+        rust_code.contains("fn label(&self) -> String"),
+        "label should return String"
+    );
     assert_snapshot!("arrow_method_return_type_inferred", rust_code);
 }
 
@@ -2986,8 +3032,14 @@ main() {
 
     let rust_code = compile_and_generate(source);
     // Must use .cloned() not .copied() for String arrays
-    assert!(rust_code.contains(".cloned()"), "String filter should use .cloned() not .copied()");
-    assert!(!rust_code.contains(".copied()"), "Should NOT use .copied() for String arrays");
+    assert!(
+        rust_code.contains(".cloned()"),
+        "String filter should use .cloned() not .copied()"
+    );
+    assert!(
+        !rust_code.contains(".copied()"),
+        "Should NOT use .copied() for String arrays"
+    );
     assert_snapshot!("filter_string_array_uses_cloned", rust_code);
 }
 
@@ -3014,9 +3066,18 @@ main() {
 
     let rust_code = compile_and_generate(source);
     // Should have PartialEq derive and Display impl
-    assert!(rust_code.contains("PartialEq"), "auto data class should derive PartialEq");
-    assert!(rust_code.contains("impl std::fmt::Display for Coordinate"), "auto data class should have Display impl");
-    assert!(rust_code.contains("pub fn new(lat: f64, lon: f64)"), "auto data class should have positional constructor");
+    assert!(
+        rust_code.contains("PartialEq"),
+        "auto data class should derive PartialEq"
+    );
+    assert!(
+        rust_code.contains("impl std::fmt::Display for Coordinate"),
+        "auto data class should have Display impl"
+    );
+    assert!(
+        rust_code.contains("pub fn new(lat: f64, lon: f64)"),
+        "auto data class should have positional constructor"
+    );
     assert_snapshot!("auto_data_class_fields_only", rust_code);
 }
 
@@ -3039,9 +3100,18 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("PartialEq"), "fields+methods should still be data class");
-    assert!(rust_code.contains("impl std::fmt::Display for Vec2"), "should have Display");
-    assert!(rust_code.contains("pub fn new(x: f64, y: f64)"), "should have positional constructor");
+    assert!(
+        rust_code.contains("PartialEq"),
+        "fields+methods should still be data class"
+    );
+    assert!(
+        rust_code.contains("impl std::fmt::Display for Vec2"),
+        "should have Display"
+    );
+    assert!(
+        rust_code.contains("pub fn new(x: f64, y: f64)"),
+        "should have positional constructor"
+    );
     assert_snapshot!("auto_data_class_with_methods", rust_code);
 }
 
@@ -3068,10 +3138,15 @@ main() {
 
     let rust_code = compile_and_generate(source);
     // BUG-004 fix: ALL classes with fields now get Display (even with explicit constructor)
-    assert!(rust_code.contains("impl std::fmt::Display for User"), "should have auto Display even with constructor");
+    assert!(
+        rust_code.contains("impl std::fmt::Display for User"),
+        "should have auto Display even with constructor"
+    );
     // All structs now get PartialEq (SH-008 fix: classes used as enum fields need it)
-    assert!(rust_code.contains("#[derive(Debug, Clone, Default, PartialEq)]\npub struct User"), 
-        "class with constructor should get PartialEq derive");
+    assert!(
+        rust_code.contains("#[derive(Debug, Clone, Default, PartialEq)]\npub struct User"),
+        "class with constructor should get PartialEq derive"
+    );
     assert_snapshot!("class_with_constructor_not_data", rust_code);
 }
 
@@ -3100,14 +3175,20 @@ main() {
 
     let rust_code = compile_and_generate(source);
     // The let binding must appear before Self { ... }
-    assert!(rust_code.contains("let source_chars"), "let binding should be emitted");
+    assert!(
+        rust_code.contains("let source_chars"),
+        "let binding should be emitted"
+    );
     // Find the constructor fn new(...) -> Self, then verify let comes before Self {
     let new_fn_pos = rust_code.find("pub fn new(source: String)").unwrap();
     let constructor_code = &rust_code[new_fn_pos..];
     let let_pos = constructor_code.find("let source_chars").unwrap();
     // Search for indented "Self {" (the struct literal, not return-type -> Self {)
     let self_pos = constructor_code.find("    Self {").unwrap();
-    assert!(let_pos < self_pos, "let binding should appear before Self {{ }}");
+    assert!(
+        let_pos < self_pos,
+        "let binding should appear before Self {{ }}"
+    );
     assert_snapshot!("constructor_with_let_bindings", rust_code);
 }
 
@@ -3135,12 +3216,21 @@ main() {
 
     let rust_code = compile_and_generate(source);
     // Both if validations must be present
-    assert!(rust_code.contains("if age < 0"), "first validation should be emitted");
-    assert!(rust_code.contains("panic!"), "fail should generate panic in constructor");
+    assert!(
+        rust_code.contains("if age < 0"),
+        "first validation should be emitted"
+    );
+    assert!(
+        rust_code.contains("panic!"),
+        "fail should generate panic in constructor"
+    );
     // Validations should come before Self { ... }
     let panic_pos = rust_code.find("panic!").unwrap();
     let self_pos = rust_code.rfind("Self {").unwrap();
-    assert!(panic_pos < self_pos, "validation should appear before Self {{ }}");
+    assert!(
+        panic_pos < self_pos,
+        "validation should appear before Self {{ }}"
+    );
     assert_snapshot!("constructor_with_if_fail_validation", rust_code);
 }
 
@@ -3166,8 +3256,14 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("let parts"), "let with method call should be emitted");
-    assert!(rust_code.contains("Self {"), "Self struct should be generated");
+    assert!(
+        rust_code.contains("let parts"),
+        "let with method call should be emitted"
+    );
+    assert!(
+        rust_code.contains("Self {"),
+        "Self struct should be generated"
+    );
     assert_snapshot!("constructor_with_method_call", rust_code);
 }
 
@@ -3202,21 +3298,42 @@ main() {
     let rust_code = compile_and_generate(source);
 
     // Verify Error::new is used for root fail (no err in scope)
-    assert!(rust_code.contains("Error::new("), "should use Error::new for root fail");
+    assert!(
+        rust_code.contains("Error::new("),
+        "should use Error::new for root fail"
+    );
 
     // Verify Error::chain is used for or-fail (chaining from inner error)
-    assert!(rust_code.contains("Error::chain("), "should use Error::chain for or fail");
+    assert!(
+        rust_code.contains("Error::chain("),
+        "should use Error::chain for or fail"
+    );
 
     // Verify function names are embedded
-    assert!(rust_code.contains("\"parsePort\""), "should embed function name parsePort");
-    assert!(rust_code.contains("\"loadConfig\""), "should embed function name loadConfig");
-    assert!(rust_code.contains("\"startServer\""), "should embed function name startServer");
+    assert!(
+        rust_code.contains("\"parsePort\""),
+        "should embed function name parsePort"
+    );
+    assert!(
+        rust_code.contains("\"loadConfig\""),
+        "should embed function name loadConfig"
+    );
+    assert!(
+        rust_code.contains("\"startServer\""),
+        "should embed function name startServer"
+    );
 
     // Verify the Error struct has cause field
-    assert!(rust_code.contains("cause: Option<Box<Error>>"), "Error should have cause field");
+    assert!(
+        rust_code.contains("cause: Option<Box<Error>>"),
+        "Error should have cause field"
+    );
 
     // Verify Display shows Error Trace
-    assert!(rust_code.contains("Error Trace"), "Display should show Error Trace header");
+    assert!(
+        rust_code.contains("Error Trace"),
+        "Display should show Error Trace header"
+    );
 
     assert_snapshot!("error_trace_chaining", rust_code);
 }
@@ -3252,7 +3369,10 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("HashMap::from"), "should use HashMap::from");
+    assert!(
+        rust_code.contains("HashMap::from"),
+        "should use HashMap::from"
+    );
     assert_snapshot!("map_literal_entries", rust_code);
 }
 
@@ -3277,7 +3397,10 @@ main() {
     let rust_code = compile_and_generate(source);
     assert!(rust_code.contains(".get("), "should generate .get()");
     assert!(rust_code.contains(".insert("), "should generate .insert()");
-    assert!(rust_code.contains(".contains_key("), "should generate .contains_key()");
+    assert!(
+        rust_code.contains(".contains_key("),
+        "should generate .contains_key()"
+    );
     assert!(rust_code.contains(".remove("), "should generate .remove()");
     assert_snapshot!("map_get_set_has_delete", rust_code);
 }
@@ -3321,7 +3444,10 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains(".iter().for_each("), "should generate .iter().for_each()");
+    assert!(
+        rust_code.contains(".iter().for_each("),
+        "should generate .iter().for_each()"
+    );
     assert_snapshot!("map_foreach", rust_code);
 }
 
@@ -3342,7 +3468,10 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("for ("), "should generate tuple destructuring in for loop");
+    assert!(
+        rust_code.contains("for ("),
+        "should generate tuple destructuring in for loop"
+    );
     assert!(rust_code.contains(".iter()"), "should iterate with .iter()");
     assert_snapshot!("map_for_loop", rust_code);
 }
@@ -3381,7 +3510,10 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("HashMap<"), "should generate HashMap type");
+    assert!(
+        rust_code.contains("HashMap<"),
+        "should generate HashMap type"
+    );
     assert_snapshot!("map_type_annotation", rust_code);
 }
 
@@ -3411,7 +3543,10 @@ main() {
 }
 "#;
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("HashSet::from"), "should use HashSet::from");
+    assert!(
+        rust_code.contains("HashSet::from"),
+        "should use HashSet::from"
+    );
     assert_snapshot!("set_literal_values", rust_code);
 }
 
@@ -3428,9 +3563,18 @@ main() {
 }
 "#;
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains(".insert("), "should generate .insert() for add");
-    assert!(rust_code.contains(".contains("), "should generate .contains() for has");
-    assert!(rust_code.contains(".remove("), "should generate .remove() for delete");
+    assert!(
+        rust_code.contains(".insert("),
+        "should generate .insert() for add"
+    );
+    assert!(
+        rust_code.contains(".contains("),
+        "should generate .contains() for has"
+    );
+    assert!(
+        rust_code.contains(".remove("),
+        "should generate .remove() for delete"
+    );
     assert_snapshot!("set_add_has_delete", rust_code);
 }
 
@@ -3444,7 +3588,10 @@ main() {
 }
 "#;
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains(".iter()"), "should generate .iter() for values");
+    assert!(
+        rust_code.contains(".iter()"),
+        "should generate .iter() for values"
+    );
     assert_snapshot!("set_values", rust_code);
 }
 
@@ -3460,7 +3607,10 @@ main() {
 }
 "#;
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains(".iter().for_each("), "should generate .iter().for_each()");
+    assert!(
+        rust_code.contains(".iter().for_each("),
+        "should generate .iter().for_each()"
+    );
     assert_snapshot!("set_foreach", rust_code);
 }
 
@@ -3507,7 +3657,10 @@ main() {
 }
 "#;
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("HashSet<"), "should generate HashSet type");
+    assert!(
+        rust_code.contains("HashSet<"),
+        "should generate HashSet type"
+    );
     assert_snapshot!("set_type_annotation", rust_code);
 }
 
@@ -3529,8 +3682,14 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     assert!(rust_code.contains(".union("), "should generate .union()");
-    assert!(rust_code.contains(".intersection("), "should generate .intersection()");
-    assert!(rust_code.contains(".difference("), "should generate .difference()");
+    assert!(
+        rust_code.contains(".intersection("),
+        "should generate .intersection()"
+    );
+    assert!(
+        rust_code.contains(".difference("),
+        "should generate .difference()"
+    );
     assert_snapshot!("set_union_intersection_difference", rust_code);
 }
 
@@ -3574,10 +3733,22 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // Map.set → .insert(), Set.add → .insert(), Set.has → .contains()
-    assert!(rust_code.contains(".insert("), "Map.set/Set.add should generate .insert()");
-    assert!(rust_code.contains(".contains("), "Set.has should generate .contains()");
-    assert!(!rust_code.contains(".set("), "should NOT generate .set() for Map");
-    assert!(!rust_code.contains(".add("), "should NOT generate .add() for Set");
+    assert!(
+        rust_code.contains(".insert("),
+        "Map.set/Set.add should generate .insert()"
+    );
+    assert!(
+        rust_code.contains(".contains("),
+        "Set.has should generate .contains()"
+    );
+    assert!(
+        !rust_code.contains(".set("),
+        "should NOT generate .set() for Map"
+    );
+    assert!(
+        !rust_code.contains(".add("),
+        "should NOT generate .add() for Set"
+    );
     assert_snapshot!("bug75_map_set_class_fields", rust_code);
 }
 
@@ -3617,7 +3788,10 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // key should be cloned when passed to instance methods
-    assert!(rust_code.contains("key.clone()"), "string var should be cloned for instance method args");
+    assert!(
+        rust_code.contains("key.clone()"),
+        "string var should be cloned for instance method args"
+    );
     assert_snapshot!("bug77_string_clone_instance_method", rust_code);
 }
 
@@ -3636,7 +3810,10 @@ main() {
 }
 "#;
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains(".to_string()"), "or-string should add .to_string()");
+    assert!(
+        rust_code.contains(".to_string()"),
+        "or-string should add .to_string()"
+    );
     // Verify default value has .to_string() appended
     assert_snapshot!("bug78_or_string_default", rust_code);
 }
@@ -3655,9 +3832,18 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // some/every → any/all take FnMut(Self::Item) where .iter() yields &T, so |&x|
-    assert!(rust_code.contains(".any(|&n|"), "some should use |&x| pattern");
-    assert!(rust_code.contains(".all(|&n|"), "every should use |&x| pattern");
-    assert!(!rust_code.contains("|&&"), "should NOT use |&&x| for some/every");
+    assert!(
+        rust_code.contains(".any(|&n|"),
+        "some should use |&x| pattern"
+    );
+    assert!(
+        rust_code.contains(".all(|&n|"),
+        "every should use |&x| pattern"
+    );
+    assert!(
+        !rust_code.contains("|&&"),
+        "should NOT use |&&x| for some/every"
+    );
     assert_snapshot!("bug79_some_every_pattern", rust_code);
 }
 
@@ -3674,8 +3860,14 @@ main() {
 }
 "#;
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("let name = name.clone()"), "map loop vars should be cloned");
-    assert!(rust_code.contains("let price = price.clone()"), "map loop vars should be cloned");
+    assert!(
+        rust_code.contains("let name = name.clone()"),
+        "map loop vars should be cloned"
+    );
+    assert!(
+        rust_code.contains("let price = price.clone()"),
+        "map loop vars should be cloned"
+    );
     assert_snapshot!("bug80_for_in_map_clone", rust_code);
 }
 
@@ -3690,8 +3882,14 @@ main() {
 }
 "#;
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains(".unwrap_or("), "map.get or default should use .unwrap_or()");
-    assert!(rust_code.contains("unwrap_or"), "should use unwrap_or for map.get or default");
+    assert!(
+        rust_code.contains(".unwrap_or("),
+        "map.get or default should use .unwrap_or()"
+    );
+    assert!(
+        rust_code.contains("unwrap_or"),
+        "should use unwrap_or for map.get or default"
+    );
     assert_snapshot!("bug81_map_get_or_default_expr", rust_code);
 }
 
@@ -3727,7 +3925,10 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // Methods calling .set/.add/.delete should get &mut self
-    assert!(rust_code.contains("&mut self"), "mutating methods should use &mut self");
+    assert!(
+        rust_code.contains("&mut self"),
+        "mutating methods should use &mut self"
+    );
     assert_snapshot!("bug82_mutating_map_set_methods", rust_code);
 }
 
@@ -4059,7 +4260,10 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     assert!(rust_code.contains("sort_by"), "should use sort_by");
-    assert!(rust_code.contains("__ka"), "should extract key for comparison");
+    assert!(
+        rust_code.contains("__ka"),
+        "should extract key for comparison"
+    );
     assert_snapshot!("v20_array_sort_by", rust_code);
 }
 
@@ -4093,7 +4297,10 @@ main() {
 }
 "#;
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("HashMap"), "should use HashMap for groupBy");
+    assert!(
+        rust_code.contains("HashMap"),
+        "should use HashMap for groupBy"
+    );
     assert!(rust_code.contains("entry"), "should use entry API");
     assert_snapshot!("v20_array_group_by", rust_code);
 }
@@ -4108,7 +4315,10 @@ main() {
 }
 "#;
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("HashMap"), "should use HashMap for groupBy");
+    assert!(
+        rust_code.contains("HashMap"),
+        "should use HashMap for groupBy"
+    );
     assert_snapshot!("v20_array_group_by_numeric", rust_code);
 }
 
@@ -4292,7 +4502,11 @@ main() {
     let (rust_code, _) = compile_and_generate_full(source);
     // Verify use dedup: HashMap should appear only once in hoisted uses
     let hashmap_count = rust_code.matches("use std::collections::HashMap;").count();
-    assert_eq!(hashmap_count, 1, "HashMap use should be deduplicated; found {} occurrences", hashmap_count);
+    assert_eq!(
+        hashmap_count, 1,
+        "HashMap use should be deduplicated; found {} occurrences",
+        hashmap_count
+    );
     assert_snapshot!("v15_rust_block_multiple_blocks", rust_code);
 }
 
@@ -4534,7 +4748,10 @@ main() {
 }
 "#;
     let (_, cargo_toml) = compile_and_generate_full(source);
-    assert!(cargo_toml.contains("chrono"), "Cargo.toml should contain chrono dependency");
+    assert!(
+        cargo_toml.contains("chrono"),
+        "Cargo.toml should contain chrono dependency"
+    );
     assert_snapshot!("v15_log_cargo_toml", cargo_toml);
 }
 
@@ -4741,7 +4958,11 @@ main() {
     let result = generate_with_ast(&analyzed_program, ctx);
     assert!(result.is_err());
     let err_msg = format!("{}", result.unwrap_err());
-    assert!(err_msg.contains("Unknown Config function"), "Error should mention unknown Config function, got: {}", err_msg);
+    assert!(
+        err_msg.contains("Unknown Config function"),
+        "Error should mention unknown Config function, got: {}",
+        err_msg
+    );
 }
 
 #[test]
@@ -4782,7 +5003,11 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // Should contain .clone() for string array index access
-    assert!(rust_code.contains(".clone()"), "Array index access as arg should clone: {}", rust_code);
+    assert!(
+        rust_code.contains(".clone()"),
+        "Array index access as arg should clone: {}",
+        rust_code
+    );
     assert_snapshot!("array_index_as_arg_clones", rust_code);
 }
 
@@ -4807,7 +5032,11 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // Should contain .clone() for this.tokens[0] access
-    assert!(rust_code.contains(".clone()"), "this.tokens[i] should clone: {}", rust_code);
+    assert!(
+        rust_code.contains(".clone()"),
+        "this.tokens[i] should clone: {}",
+        rust_code
+    );
     assert_snapshot!("self_array_index_clones", rust_code);
 }
 
@@ -4838,7 +5067,11 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // The label() method is &self, so this.priority needs .clone() when passed as arg
-    assert!(rust_code.contains("self.priority.clone()"), "self.field as arg should clone: {}", rust_code);
+    assert!(
+        rust_code.contains("self.priority.clone()"),
+        "self.field as arg should clone: {}",
+        rust_code
+    );
     assert_snapshot!("self_field_as_arg_clones", rust_code);
 }
 
@@ -4890,7 +5123,11 @@ main() {
     let rust_code = compile_and_generate(source);
     // completeAll() mutates loop var → should use .iter_mut()
     // showAll() doesn't mutate → should use .clone()
-    assert!(rust_code.contains(".iter_mut()"), "Mutating for-loop should use iter_mut: {}", rust_code);
+    assert!(
+        rust_code.contains(".iter_mut()"),
+        "Mutating for-loop should use iter_mut: {}",
+        rust_code
+    );
     assert_snapshot!("for_self_field_iter", rust_code);
 }
 
@@ -4915,7 +5152,11 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // val should be declared as mut since it's reassigned
-    assert!(rust_code.contains("mut val"), "Error binding var should be mut when reassigned: {}", rust_code);
+    assert!(
+        rust_code.contains("mut val"),
+        "Error binding var should be mut when reassigned: {}",
+        rust_code
+    );
     assert_snapshot!("error_binding_mut_reassigned", rust_code);
 }
 
@@ -4948,7 +5189,11 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // incrementTwice calls increment which is &mut self, so incrementTwice should also be &mut self
-    assert!(rust_code.contains("fn increment_twice(&mut self)"), "Transitive &mut self should propagate: {}", rust_code);
+    assert!(
+        rust_code.contains("fn increment_twice(&mut self)"),
+        "Transitive &mut self should propagate: {}",
+        rust_code
+    );
     assert_snapshot!("transitive_mut_self", rust_code);
 }
 
@@ -4978,8 +5223,16 @@ main() {
     let rust_code = compile_and_generate(source);
     // Check user code (after liva_rt module) for dot notation instead of get_field()
     let user_code = rust_code.split("fn show_item").last().unwrap_or(&rust_code);
-    assert!(!user_code.contains("get_field"), "Class param should use dot notation: {}", user_code);
-    assert!(user_code.contains("item.name"), "Should access .name directly: {}", user_code);
+    assert!(
+        !user_code.contains("get_field"),
+        "Class param should use dot notation: {}",
+        user_code
+    );
+    assert!(
+        user_code.contains("item.name"),
+        "Should access .name directly: {}",
+        user_code
+    );
     assert_snapshot!("class_param_dot_notation", rust_code);
 }
 
@@ -5005,7 +5258,11 @@ main() {
 }
 "#;
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("r#type"), "Should escape `type` keyword with r#: {}", rust_code);
+    assert!(
+        rust_code.contains("r#type"),
+        "Should escape `type` keyword with r#: {}",
+        rust_code
+    );
     assert_snapshot!("type_as_field_name", rust_code);
 }
 
@@ -5035,8 +5292,16 @@ main() {
     let rust_code = compile_and_generate(source);
     // Enum should derive Default with #[default] on first variant
     // FIX-5: Unit enums also derive Copy
-    assert!(rust_code.contains("#[derive(Debug, Clone, Copy, PartialEq, Default)]"), "Enum should derive Copy + Default: {}", rust_code);
-    assert!(rust_code.contains("#[default]"), "First variant should have #[default]: {}", rust_code);
+    assert!(
+        rust_code.contains("#[derive(Debug, Clone, Copy, PartialEq, Default)]"),
+        "Enum should derive Copy + Default: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("#[default]"),
+        "First variant should have #[default]: {}",
+        rust_code
+    );
     assert_snapshot!("enum_field_default_derive", rust_code);
 }
 
@@ -5061,8 +5326,16 @@ main() {
 }
 "#;
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("serde::Serialize"), "Author should derive Serialize: {}", rust_code);
-    assert!(rust_code.contains("serde::Deserialize"), "Author should derive Deserialize: {}", rust_code);
+    assert!(
+        rust_code.contains("serde::Serialize"),
+        "Author should derive Serialize: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("serde::Deserialize"),
+        "Author should derive Deserialize: {}",
+        rust_code
+    );
     assert_snapshot!("json_stringify_serde", rust_code);
 }
 
@@ -5077,11 +5350,26 @@ main() {
 }
 "#;
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("const DB_FILE: &str"), "Should use &str for const string: {}", rust_code);
-    assert!(!rust_code.contains("const DB_FILE: String"), "Should NOT use String for const: {}", rust_code);
+    assert!(
+        rust_code.contains("const DB_FILE: &str"),
+        "Should use &str for const string: {}",
+        rust_code
+    );
+    assert!(
+        !rust_code.contains("const DB_FILE: String"),
+        "Should NOT use String for const: {}",
+        rust_code
+    );
     // Verify the const line specifically doesn't have .to_string()
-    let const_line = rust_code.lines().find(|l| l.contains("const DB_FILE")).unwrap_or("");
-    assert!(!const_line.contains(".to_string()"), "Const should not have .to_string(): {}", const_line);
+    let const_line = rust_code
+        .lines()
+        .find(|l| l.contains("const DB_FILE"))
+        .unwrap_or("");
+    assert!(
+        !const_line.contains(".to_string()"),
+        "Const should not have .to_string(): {}",
+        const_line
+    );
     assert_snapshot!("const_string_type", rust_code);
 }
 
@@ -5097,8 +5385,16 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // Should use print!("{}", format!(...)) not print!(format!(...))
-    assert!(rust_code.contains("print!(\"{}\","), "Should use print!(\"{{}}\", ...) pattern: {}", rust_code);
-    assert!(!rust_code.contains("print!(format!"), "Should NOT nest print!(format!(...)): {}", rust_code);
+    assert!(
+        rust_code.contains("print!(\"{}\","),
+        "Should use print!(\"{{}}\", ...) pattern: {}",
+        rust_code
+    );
+    assert!(
+        !rust_code.contains("print!(format!"),
+        "Should NOT nest print!(format!(...)): {}",
+        rust_code
+    );
     assert_snapshot!("console_input_template", rust_code);
 }
 
@@ -5115,9 +5411,20 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // Should NOT have .clone() on the LHS of assignment
-    let assign_line = rust_code.lines().find(|l| l.contains("arr[") && l.contains("= \"X\"")).unwrap_or("");
-    assert!(!assign_line.contains(".clone()"), "arr[i] = val should not clone on LHS: {}", assign_line);
-    assert!(rust_code.contains("as usize]"), "Should cast index to usize: {}", rust_code);
+    let assign_line = rust_code
+        .lines()
+        .find(|l| l.contains("arr[") && l.contains("= \"X\""))
+        .unwrap_or("");
+    assert!(
+        !assign_line.contains(".clone()"),
+        "arr[i] = val should not clone on LHS: {}",
+        assign_line
+    );
+    assert!(
+        rust_code.contains("as usize]"),
+        "Should cast index to usize: {}",
+        rust_code
+    );
     assert_snapshot!("array_element_assignment", rust_code);
 }
 
@@ -5136,11 +5443,22 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // Should extract the error string (.1), not assign the raw tuple
-    assert!(rust_code.contains(".1"), "Should extract error string with .1: {}", rust_code);
+    assert!(
+        rust_code.contains(".1"),
+        "Should extract error string with .1: {}",
+        rust_code
+    );
     // The variable should be a plain string, not a tuple — check the let line specifically
     let main_code = rust_code.split("fn main()").last().unwrap_or("");
-    let let_line = main_code.lines().find(|l| l.contains("let write_err")).unwrap_or("");
-    assert!(!let_line.contains(": (Option<"), "Should not expose tuple type to variable: {}", let_line);
+    let let_line = main_code
+        .lines()
+        .find(|l| l.contains("let write_err"))
+        .unwrap_or("");
+    assert!(
+        !let_line.contains(": (Option<"),
+        "Should not expose tuple type to variable: {}",
+        let_line
+    );
     assert_snapshot!("single_var_fallible_binding", rust_code);
 }
 
@@ -5157,11 +5475,27 @@ main() {
     let rust_code = compile_and_generate(source);
     // Should extract the value directly, not a tuple
     let main_code = rust_code.split("fn main()").last().unwrap_or("");
-    assert!(main_code.contains("parse::<i32>()"), "Should use parse::<i32>(): {}", main_code);
-    assert!(main_code.contains("Ok(v) => v"), "Should extract value directly with Ok(v) => v: {}", main_code);
-    assert!(main_code.contains("Err(_) => 0"), "Should use user's default value: {}", main_code);
+    assert!(
+        main_code.contains("parse::<i32>()"),
+        "Should use parse::<i32>(): {}",
+        main_code
+    );
+    assert!(
+        main_code.contains("Ok(v) => v"),
+        "Should extract value directly with Ok(v) => v: {}",
+        main_code
+    );
+    assert!(
+        main_code.contains("Err(_) => 0"),
+        "Should use user's default value: {}",
+        main_code
+    );
     // Should NOT contain tuple form
-    assert!(!main_code.contains("(v, String::new())"), "Should NOT generate tuple form: {}", main_code);
+    assert!(
+        !main_code.contains("(v, String::new())"),
+        "Should NOT generate tuple form: {}",
+        main_code
+    );
     assert_snapshot!("parse_int_or_default", rust_code);
 }
 
@@ -5181,7 +5515,11 @@ main() {
     let rust_code = compile_and_generate(source);
     let main_code = rust_code.split("fn main()").last().unwrap_or("");
     // B95: charAt now returns String via .map(|c| c.to_string()).unwrap_or_default()
-    assert!(main_code.contains("map(|c| c.to_string()).unwrap_or_default()"), "Should return String with map(|c| c.to_string()): {}", main_code);
+    assert!(
+        main_code.contains("map(|c| c.to_string()).unwrap_or_default()"),
+        "Should return String with map(|c| c.to_string()): {}",
+        main_code
+    );
     assert_snapshot!("char_at_returns_char", rust_code);
 }
 
@@ -5206,9 +5544,21 @@ main() {
     let rust_code = compile_and_generate(source);
     let main_code = rust_code.split("fn main()").last().unwrap_or("");
     // Each escape should generate its correct Rust char literal
-    assert!(main_code.contains("'\\n'"), "Should contain newline char literal: {}", main_code);
-    assert!(main_code.contains("'\\t'"), "Should contain tab char literal: {}", main_code);
-    assert!(main_code.contains("'\\\\'"), "Should contain backslash char literal: {}", main_code);
+    assert!(
+        main_code.contains("'\\n'"),
+        "Should contain newline char literal: {}",
+        main_code
+    );
+    assert!(
+        main_code.contains("'\\t'"),
+        "Should contain tab char literal: {}",
+        main_code
+    );
+    assert!(
+        main_code.contains("'\\\\'"),
+        "Should contain backslash char literal: {}",
+        main_code
+    );
     assert_snapshot!("char_escape_sequences", rust_code);
 }
 
@@ -5225,8 +5575,16 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     let main_code = rust_code.split("fn main()").last().unwrap_or("");
-    assert!(!main_code.contains(".extend("), "Should NOT use .extend() for string concat: {}", main_code);
-    assert!(main_code.contains("push_str"), "Should use push_str for string append: {}", main_code);
+    assert!(
+        !main_code.contains(".extend("),
+        "Should NOT use .extend() for string concat: {}",
+        main_code
+    );
+    assert!(
+        main_code.contains("push_str"),
+        "Should use push_str for string append: {}",
+        main_code
+    );
     assert_snapshot!("string_concat_not_extend", rust_code);
 }
 
@@ -5243,8 +5601,16 @@ main() {
     let rust_code = compile_and_generate(source);
     let main_code = rust_code.split("fn main()").last().unwrap_or("");
     // Should NOT have {:?} for the result variable — that adds unwanted quotes
-    assert!(!main_code.contains("{:?}"), "Mutable string var should use Display, not Debug: {}", main_code);
-    assert!(main_code.contains("\"result: {}\""), "Should use {{}} format for string var: {}", main_code);
+    assert!(
+        !main_code.contains("{:?}"),
+        "Mutable string var should use Display, not Debug: {}",
+        main_code
+    );
+    assert!(
+        main_code.contains("\"result: {}\""),
+        "Should use {{}} format for string var: {}",
+        main_code
+    );
     assert_snapshot!("template_mutable_var_display", rust_code);
 }
 
@@ -5262,7 +5628,11 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // resp.body should NOT use get_field
-    assert!(!rust_code.contains("get_field(\"body\")"), "Should use .body not get_field: {}", rust_code);
+    assert!(
+        !rust_code.contains("get_field(\"body\")"),
+        "Should use .body not get_field: {}",
+        rust_code
+    );
     assert_snapshot!("async_http_resp_body", rust_code);
 }
 
@@ -5285,8 +5655,16 @@ main() {
     let rust_code = compile_and_generate(source);
     // Should NOT have .iter().filter().count() (array pipeline)
     let main_code = rust_code.split("fn main()").last().unwrap_or("");
-    assert!(!main_code.contains(".iter()"), "Should NOT use .iter() for class .count(): {}", main_code);
-    assert!(main_code.contains("manager.count()"), "Should call method directly: {}", main_code);
+    assert!(
+        !main_code.contains(".iter()"),
+        "Should NOT use .iter() for class .count(): {}",
+        main_code
+    );
+    assert!(
+        main_code.contains("manager.count()"),
+        "Should call method directly: {}",
+        main_code
+    );
     assert_snapshot!("class_count_method", rust_code);
 }
 
@@ -5303,7 +5681,11 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // Should have .as_str() on the string variable for ordering comparison
-    assert!(rust_code.contains(".as_str()"), "Should use .as_str() for String ordering comparison: {}", rust_code);
+    assert!(
+        rust_code.contains(".as_str()"),
+        "Should use .as_str() for String ordering comparison: {}",
+        rust_code
+    );
     assert_snapshot!("string_ordering_comparison", rust_code);
 }
 
@@ -5320,8 +5702,16 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // Should wrap the arithmetic expression in parens before `as usize`
-    assert!(rust_code.contains("(pos + 1) as usize"), "Should wrap expr in parens: {}", rust_code);
-    assert!(!rust_code.contains("pos + 1 as usize"), "Should NOT have bare 'pos + 1 as usize': {}", rust_code);
+    assert!(
+        rust_code.contains("(pos + 1) as usize"),
+        "Should wrap expr in parens: {}",
+        rust_code
+    );
+    assert!(
+        !rust_code.contains("pos + 1 as usize"),
+        "Should NOT have bare 'pos + 1 as usize': {}",
+        rust_code
+    );
     assert_snapshot!("cast_priority_index", rust_code);
 }
 
@@ -5339,7 +5729,11 @@ main() {
     let rust_code = compile_and_generate(source);
     let main_code = rust_code.split("fn main()").last().unwrap_or("");
     // Should cast .length to f64 for division with float
-    assert!(main_code.contains("as f64"), "Should cast .length to f64: {}", main_code);
+    assert!(
+        main_code.contains("as f64"),
+        "Should cast .length to f64: {}",
+        main_code
+    );
     assert_snapshot!("float_div_length", rust_code);
 }
 
@@ -5366,8 +5760,11 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // When binding name differs from field name, should use field: binding syntax
-    assert!(rust_code.contains("value: v") || rust_code.contains("value: n"),
-        "Should map field name to binding name: {}", rust_code);
+    assert!(
+        rust_code.contains("value: v") || rust_code.contains("value: n"),
+        "Should map field name to binding name: {}",
+        rust_code
+    );
     assert_snapshot!("enum_destructuring_field_mapping", rust_code);
 }
 
@@ -5391,9 +5788,17 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // Recursive fields should be auto-boxed
-    assert!(rust_code.contains("Box<Expr>"), "Recursive fields should use Box<T>: {}", rust_code);
+    assert!(
+        rust_code.contains("Box<Expr>"),
+        "Recursive fields should use Box<T>: {}",
+        rust_code
+    );
     // Construction should wrap in Box::new()
-    assert!(rust_code.contains("Box::new("), "Construction should use Box::new(): {}", rust_code);
+    assert!(
+        rust_code.contains("Box::new("),
+        "Construction should use Box::new(): {}",
+        rust_code
+    );
     assert_snapshot!("enum_recursive_basic", rust_code);
 }
 
@@ -5422,9 +5827,17 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // Auto-boxing in definition
-    assert!(rust_code.contains("Box<Expr>"), "Should auto-box recursive fields: {}", rust_code);
+    assert!(
+        rust_code.contains("Box<Expr>"),
+        "Should auto-box recursive fields: {}",
+        rust_code
+    );
     // Auto-dereference in match arms (with clone for match-by-reference)
-    assert!(rust_code.contains("let l = *l.clone();"), "Should auto-deref boxed bindings with clone: {}", rust_code);
+    assert!(
+        rust_code.contains("let l = *l.clone();"),
+        "Should auto-deref boxed bindings with clone: {}",
+        rust_code
+    );
     assert_snapshot!("enum_recursive_switch", rust_code);
 }
 
@@ -5444,8 +5857,16 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // Only the recursive field (tail) should be boxed, not head
-    assert!(rust_code.contains("tail: Box<List>"), "tail should be Box<List>: {}", rust_code);
-    assert!(!rust_code.contains("head: Box"), "head should NOT be boxed: {}", rust_code);
+    assert!(
+        rust_code.contains("tail: Box<List>"),
+        "tail should be Box<List>: {}",
+        rust_code
+    );
+    assert!(
+        !rust_code.contains("head: Box"),
+        "head should NOT be boxed: {}",
+        rust_code
+    );
     assert_snapshot!("enum_recursive_linked_list", rust_code);
 }
 
@@ -5466,8 +5887,16 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // Array of recursive type should use Vec<Tree>, NOT Vec<Box<Tree>>
-    assert!(rust_code.contains("Vec<Tree>"), "Array field should be Vec<Tree>: {}", rust_code);
-    assert!(!rust_code.contains("Vec<Box<"), "Vec should NOT box elements: {}", rust_code);
+    assert!(
+        rust_code.contains("Vec<Tree>"),
+        "Array field should be Vec<Tree>: {}",
+        rust_code
+    );
+    assert!(
+        !rust_code.contains("Vec<Box<"),
+        "Vec should NOT box elements: {}",
+        rust_code
+    );
     assert_snapshot!("enum_recursive_array_field", rust_code);
 }
 
@@ -5496,11 +5925,26 @@ main() {
     let rust_code = compile_and_generate(source);
     // Enum definitions should NOT contain any Box (check after runtime module ends)
     let after_runtime = rust_code.split("enum Color").collect::<Vec<_>>();
-    assert!(after_runtime.len() > 1, "Should contain enum Color definition");
+    assert!(
+        after_runtime.len() > 1,
+        "Should contain enum Color definition"
+    );
     let enum_section = after_runtime[1];
-    assert!(!enum_section.contains("Box<Color>"), "Non-recursive enums should not be boxed: {}", enum_section);
-    assert!(!enum_section.contains("Box<Shape>"), "Non-recursive enums should not be boxed: {}", enum_section);
-    assert!(!enum_section.contains("Box::new"), "Non-recursive enums should not use Box::new: {}", enum_section);
+    assert!(
+        !enum_section.contains("Box<Color>"),
+        "Non-recursive enums should not be boxed: {}",
+        enum_section
+    );
+    assert!(
+        !enum_section.contains("Box<Shape>"),
+        "Non-recursive enums should not be boxed: {}",
+        enum_section
+    );
+    assert!(
+        !enum_section.contains("Box::new"),
+        "Non-recursive enums should not use Box::new: {}",
+        enum_section
+    );
 }
 
 #[test]
@@ -5518,8 +5962,16 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // main should be marked async with #[tokio::main]
-    assert!(rust_code.contains("async fn main()"), "main should be async: {}", rust_code);
-    assert!(rust_code.contains("#[tokio::main]"), "Should have tokio::main attribute: {}", rust_code);
+    assert!(
+        rust_code.contains("async fn main()"),
+        "main should be async: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("#[tokio::main]"),
+        "Should have tokio::main attribute: {}",
+        rust_code
+    );
     assert_snapshot!("main_async_rust_block_await", rust_code);
 }
 
@@ -5543,8 +5995,11 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // Should have .await inside spawn_async for the user function
-    assert!(rust_code.contains("fetch_data(") && rust_code.contains(".await"),
-        "User async fn should have .await inside spawn: {}", rust_code);
+    assert!(
+        rust_code.contains("fetch_data(") && rust_code.contains(".await"),
+        "User async fn should have .await inside spawn: {}",
+        rust_code
+    );
     assert_snapshot!("spawn_async_user_fn_await", rust_code);
 }
 
@@ -5564,7 +6019,11 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // Should compile successfully and contain the function call
-    assert!(rust_code.contains("transform("), "Should contain the function call: {}", rust_code);
+    assert!(
+        rust_code.contains("transform("),
+        "Should contain the function call: {}",
+        rust_code
+    );
     assert_snapshot!("template_nested_quotes", rust_code);
 }
 
@@ -5598,10 +6057,26 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("std::fs::copy"), "Should contain fs::copy: {}", rust_code);
-    assert!(rust_code.contains("std::fs::rename"), "Should contain fs::rename: {}", rust_code);
-    assert!(rust_code.contains("std::fs::metadata"), "Should contain fs::metadata: {}", rust_code);
-    assert!(rust_code.contains(".extension()"), "Should contain .extension(): {}", rust_code);
+    assert!(
+        rust_code.contains("std::fs::copy"),
+        "Should contain fs::copy: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("std::fs::rename"),
+        "Should contain fs::rename: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("std::fs::metadata"),
+        "Should contain fs::metadata: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains(".extension()"),
+        "Should contain .extension(): {}",
+        rust_code
+    );
     assert_snapshot!("file_copy_move_size_extension", rust_code);
 }
 
@@ -5621,8 +6096,16 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("lines()"), "Should contain lines(): {}", rust_code);
-    assert!(rust_code.contains("join(\"\\n\")"), "Should contain join newline: {}", rust_code);
+    assert!(
+        rust_code.contains("lines()"),
+        "Should contain lines(): {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("join(\"\\n\")"),
+        "Should contain join newline: {}",
+        rust_code
+    );
     assert_snapshot!("file_readlines_writelines", rust_code);
 }
 
@@ -5651,9 +6134,21 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("is_dir()"), "Should contain is_dir(): {}", rust_code);
-    assert!(rust_code.contains("create_dir_all"), "Should contain create_dir_all: {}", rust_code);
-    assert!(rust_code.contains("remove_dir_all"), "Should contain remove_dir_all: {}", rust_code);
+    assert!(
+        rust_code.contains("is_dir()"),
+        "Should contain is_dir(): {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("create_dir_all"),
+        "Should contain create_dir_all: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("remove_dir_all"),
+        "Should contain remove_dir_all: {}",
+        rust_code
+    );
     assert_snapshot!("dir_exists_create_delete", rust_code);
 }
 
@@ -5678,7 +6173,11 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("walk_dir"), "Should contain walk_dir: {}", rust_code);
+    assert!(
+        rust_code.contains("walk_dir"),
+        "Should contain walk_dir: {}",
+        rust_code
+    );
     assert_snapshot!("dir_list_recursive_and_walk", rust_code);
 }
 
@@ -5703,8 +6202,16 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("regex::Regex::new"), "Should use regex crate: {}", rust_code);
-    assert!(rust_code.contains("is_match"), "Should contain is_match: {}", rust_code);
+    assert!(
+        rust_code.contains("regex::Regex::new"),
+        "Should use regex crate: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("is_match"),
+        "Should contain is_match: {}",
+        rust_code
+    );
     assert_snapshot!("regex_test_and_match", rust_code);
 }
 
@@ -5727,9 +6234,21 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("find_iter"), "Should contain find_iter: {}", rust_code);
-    assert!(rust_code.contains("replace_all"), "Should contain replace_all: {}", rust_code);
-    assert!(rust_code.contains("re.split"), "Should contain re.split: {}", rust_code);
+    assert!(
+        rust_code.contains("find_iter"),
+        "Should contain find_iter: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("replace_all"),
+        "Should contain replace_all: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("re.split"),
+        "Should contain re.split: {}",
+        rust_code
+    );
     assert_snapshot!("regex_findall_replace_split", rust_code);
 }
 
@@ -5759,9 +6278,21 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("chrono::Local::now().naive_local()"), "Should use chrono: {}", rust_code);
-    assert!(rust_code.contains("chrono::NaiveDate::from_ymd_opt"), "Should use from_ymd_opt: {}", rust_code);
-    assert!(rust_code.contains("chrono::Datelike::year"), "Should access year: {}", rust_code);
+    assert!(
+        rust_code.contains("chrono::Local::now().naive_local()"),
+        "Should use chrono: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("chrono::NaiveDate::from_ymd_opt"),
+        "Should use from_ymd_opt: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("chrono::Datelike::year"),
+        "Should access year: {}",
+        rust_code
+    );
     assert_snapshot!("date_constructors_and_properties", rust_code);
 }
 
@@ -5798,9 +6329,21 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("format"), "Should contain format: {}", rust_code);
-    assert!(rust_code.contains("signed_duration_since"), "Should contain diff: {}", rust_code);
-    assert!(rust_code.contains("Duration"), "Should contain Duration: {}", rust_code);
+    assert!(
+        rust_code.contains("format"),
+        "Should contain format: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("signed_duration_since"),
+        "Should contain diff: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("Duration"),
+        "Should contain Duration: {}",
+        rust_code
+    );
     assert_snapshot!("date_methods_and_comparisons", rust_code);
 }
 
@@ -5817,8 +6360,16 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("parse_from_str"), "Should contain parse_from_str: {}", rust_code);
-    assert!(rust_code.contains("NaiveDate::from_ymd_opt(1970"), "Should have epoch default: {}", rust_code);
+    assert!(
+        rust_code.contains("parse_from_str"),
+        "Should contain parse_from_str: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("NaiveDate::from_ymd_opt(1970"),
+        "Should have epoch default: {}",
+        rust_code
+    );
     assert_snapshot!("date_parse_fallible", rust_code);
 }
 
@@ -5846,8 +6397,16 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("read_to_string"), "Should contain read_to_string: {}", rust_code);
-    assert!(rust_code.contains("in_quotes"), "Should contain CSV parser: {}", rust_code);
+    assert!(
+        rust_code.contains("read_to_string"),
+        "Should contain read_to_string: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("in_quotes"),
+        "Should contain CSV parser: {}",
+        rust_code
+    );
     assert_snapshot!("csv_read_and_parse", rust_code);
 }
 
@@ -5875,8 +6434,16 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("HashMap"), "Should contain HashMap for Table: {}", rust_code);
-    assert!(rust_code.contains("headers"), "Should contain headers extraction: {}", rust_code);
+    assert!(
+        rust_code.contains("HashMap"),
+        "Should contain HashMap for Table: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("headers"),
+        "Should contain headers extraction: {}",
+        rust_code
+    );
     assert_snapshot!("csv_read_table_and_write", rust_code);
 }
 
@@ -5908,9 +6475,21 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("gen_range"), "Should contain gen_range: {}", rust_code);
-    assert!(rust_code.contains("Uuid::new_v4"), "Should contain uuid: {}", rust_code);
-    assert!(rust_code.contains("shuffle"), "Should contain shuffle: {}", rust_code);
+    assert!(
+        rust_code.contains("gen_range"),
+        "Should contain gen_range: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("Uuid::new_v4"),
+        "Should contain uuid: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("shuffle"),
+        "Should contain shuffle: {}",
+        rust_code
+    );
     assert_snapshot!("random_functions", rust_code);
 }
 
@@ -5937,9 +6516,21 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("sha2::Sha256"), "Should contain SHA256: {}", rust_code);
-    assert!(rust_code.contains("md5::Md5"), "Should contain MD5: {}", rust_code);
-    assert!(rust_code.contains("base64"), "Should contain base64: {}", rust_code);
+    assert!(
+        rust_code.contains("sha2::Sha256"),
+        "Should contain SHA256: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("md5::Md5"),
+        "Should contain MD5: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("base64"),
+        "Should contain base64: {}",
+        rust_code
+    );
     assert_snapshot!("crypto_functions", rust_code);
 }
 
@@ -5963,9 +6554,21 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("Command::new"), "Should contain Command: {}", rust_code);
-    assert!(rust_code.contains("process::id()"), "Should contain pid: {}", rust_code);
-    assert!(rust_code.contains(".spawn()"), "Should contain spawn: {}", rust_code);
+    assert!(
+        rust_code.contains("Command::new"),
+        "Should contain Command: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("process::id()"),
+        "Should contain pid: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains(".spawn()"),
+        "Should contain spawn: {}",
+        rust_code
+    );
     assert_snapshot!("process_functions", rust_code);
 }
 
@@ -5984,10 +6587,26 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("axum::Router::new()"), "Should contain Router::new: {}", rust_code);
-    assert!(rust_code.contains("axum::routing::get"), "Should contain routing::get: {}", rust_code);
-    assert!(rust_code.contains("TcpListener::bind"), "Should contain TcpListener: {}", rust_code);
-    assert!(rust_code.contains("#[tokio::main]"), "Should contain tokio::main: {}", rust_code);
+    assert!(
+        rust_code.contains("axum::Router::new()"),
+        "Should contain Router::new: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("axum::routing::get"),
+        "Should contain routing::get: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("TcpListener::bind"),
+        "Should contain TcpListener: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("#[tokio::main]"),
+        "Should contain tokio::main: {}",
+        rust_code
+    );
     assert_snapshot!("http_server_basic", rust_code);
 }
 
@@ -6019,9 +6638,21 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("axum::routing::post"), "Should contain routing::post: {}", rust_code);
-    assert!(rust_code.contains("axum::routing::put"), "Should contain routing::put: {}", rust_code);
-    assert!(rust_code.contains("axum::routing::delete"), "Should contain routing::delete: {}", rust_code);
+    assert!(
+        rust_code.contains("axum::routing::post"),
+        "Should contain routing::post: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("axum::routing::put"),
+        "Should contain routing::put: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("axum::routing::delete"),
+        "Should contain routing::delete: {}",
+        rust_code
+    );
     assert_snapshot!("http_server_routes", rust_code);
 }
 
@@ -6039,8 +6670,16 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("Path(__params)"), "Should contain Path extractor: {}", rust_code);
-    assert!(rust_code.contains("__params.get"), "Should contain params.get: {}", rust_code);
+    assert!(
+        rust_code.contains("Path(__params)"),
+        "Should contain Path extractor: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("__params.get"),
+        "Should contain params.get: {}",
+        rust_code
+    );
     assert_snapshot!("http_server_params", rust_code);
 }
 
@@ -6068,11 +6707,31 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("rusqlite::Connection::open"), "Should contain Connection::open: {}", rust_code);
-    assert!(rust_code.contains(".execute_batch"), "Should contain execute_batch: {}", rust_code);
-    assert!(rust_code.contains(".execute("), "Should contain execute with params: {}", rust_code);
-    assert!(rust_code.contains(".prepare("), "Should contain prepare for query: {}", rust_code);
-    assert!(rust_code.contains("drop("), "Should contain drop for close: {}", rust_code);
+    assert!(
+        rust_code.contains("rusqlite::Connection::open"),
+        "Should contain Connection::open: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains(".execute_batch"),
+        "Should contain execute_batch: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains(".execute("),
+        "Should contain execute with params: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains(".prepare("),
+        "Should contain prepare for query: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("drop("),
+        "Should contain drop for close: {}",
+        rust_code
+    );
     assert_snapshot!("db_open_exec_query", rust_code);
 }
 
@@ -6095,9 +6754,21 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("rusqlite::Connection::open"), "Should contain Connection::open: {}", rust_code);
-    assert!(rust_code.contains("__param_refs"), "Should contain param_refs: {}", rust_code);
-    assert!(rust_code.contains("query_map"), "Should contain query_map: {}", rust_code);
+    assert!(
+        rust_code.contains("rusqlite::Connection::open"),
+        "Should contain Connection::open: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("__param_refs"),
+        "Should contain param_refs: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("query_map"),
+        "Should contain query_map: {}",
+        rust_code
+    );
     assert_snapshot!("db_query_with_params", rust_code);
 }
 
@@ -6116,9 +6787,21 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("_DeferGuard"), "Should contain _DeferGuard struct: {}", rust_code);
-    assert!(rust_code.contains("_defer_0"), "Should contain _defer_0 variable: {}", rust_code);
-    assert!(rust_code.contains("FnOnce()"), "Should contain FnOnce() trait bound: {}", rust_code);
+    assert!(
+        rust_code.contains("_DeferGuard"),
+        "Should contain _DeferGuard struct: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("_defer_0"),
+        "Should contain _defer_0 variable: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("FnOnce()"),
+        "Should contain FnOnce() trait bound: {}",
+        rust_code
+    );
     assert_snapshot!("defer_basic", rust_code);
 }
 
@@ -6138,7 +6821,11 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("_defer_0"), "Should contain defer guard: {}", rust_code);
+    assert!(
+        rust_code.contains("_defer_0"),
+        "Should contain defer guard: {}",
+        rust_code
+    );
     assert_snapshot!("defer_db_close", rust_code);
 }
 
@@ -6155,9 +6842,21 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("_defer_0"), "Should have first defer: {}", rust_code);
-    assert!(rust_code.contains("_defer_1"), "Should have second defer: {}", rust_code);
-    assert!(rust_code.contains("_defer_2"), "Should have third defer: {}", rust_code);
+    assert!(
+        rust_code.contains("_defer_0"),
+        "Should have first defer: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("_defer_1"),
+        "Should have second defer: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("_defer_2"),
+        "Should have third defer: {}",
+        rust_code
+    );
     assert_snapshot!("defer_multiple", rust_code);
 }
 
@@ -6175,7 +6874,11 @@ main() {
 "#;
 
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("_DeferGuard"), "Should contain _DeferGuard: {}", rust_code);
+    assert!(
+        rust_code.contains("_DeferGuard"),
+        "Should contain _DeferGuard: {}",
+        rust_code
+    );
     assert_snapshot!("defer_block", rust_code);
 }
 
@@ -6214,8 +6917,14 @@ main() {
     let program = parse(tokens, source).unwrap();
     let options = liva_tools::formatter::FormatOptions::default();
     let formatted = liva_tools::formatter::format_source(source, &options).unwrap();
-    assert!(formatted.contains("defer print(\"cleanup\")"), "Single-line defer should be formatted");
-    assert!(formatted.contains("defer {"), "Block defer should be formatted");
+    assert!(
+        formatted.contains("defer print(\"cleanup\")"),
+        "Single-line defer should be formatted"
+    );
+    assert!(
+        formatted.contains("defer {"),
+        "Block defer should be formatted"
+    );
 }
 
 // ===================== Compound Assignment Tests (C4) =====================
@@ -6422,8 +7131,14 @@ main() {
     let _program = parse(tokens, source).unwrap();
     let options = liva_tools::formatter::FormatOptions::default();
     let formatted = liva_tools::formatter::format_source(source, &options).unwrap();
-    assert!(formatted.contains("Token.Number(_)"), "Formatter should preserve _ wildcard");
-    assert!(formatted.contains("Token.Text(_)"), "Formatter should preserve _ wildcard");
+    assert!(
+        formatted.contains("Token.Number(_)"),
+        "Formatter should preserve _ wildcard"
+    );
+    assert!(
+        formatted.contains("Token.Text(_)"),
+        "Formatter should preserve _ wildcard"
+    );
 }
 
 // ===================== For Enumerate Tests (C2) =====================
@@ -6477,7 +7192,10 @@ main() {
     let _program = parse(tokens, source).unwrap();
     let options = liva_tools::formatter::FormatOptions::default();
     let formatted = liva_tools::formatter::format_source(source, &options).unwrap();
-    assert!(formatted.contains("for i, item in arr"), "Formatter should preserve for i, item in arr");
+    assert!(
+        formatted.contains("for i, item in arr"),
+        "Formatter should preserve for i, item in arr"
+    );
 }
 
 // ── C5: push_str optimization tests ──────────────────────────
@@ -6493,7 +7211,11 @@ main() {
 }
 "#;
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("push_str(\"hello\")"), "Should use push_str for string append: {}", rust_code);
+    assert!(
+        rust_code.contains("push_str(\"hello\")"),
+        "Should use push_str for string append: {}",
+        rust_code
+    );
     assert_snapshot!("push_str_local_string_literal", rust_code);
 }
 
@@ -6509,7 +7231,11 @@ main() {
 }
 "#;
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("push_str(&ch)"), "Should use push_str(&var) for string var: {}", rust_code);
+    assert!(
+        rust_code.contains("push_str(&ch)"),
+        "Should use push_str(&var) for string var: {}",
+        rust_code
+    );
     assert_snapshot!("push_str_local_string_var", rust_code);
 }
 
@@ -6524,7 +7250,11 @@ main() {
 }
 "#;
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("push_str(\"world\")"), "Should use push_str for += string append: {}", rust_code);
+    assert!(
+        rust_code.contains("push_str(\"world\")"),
+        "Should use push_str for += string append: {}",
+        rust_code
+    );
     assert_snapshot!("push_str_compound_assign", rust_code);
 }
 
@@ -6551,10 +7281,18 @@ main() {
 }
 "#;
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains("Color::Red"), "Should generate enum pattern: {}", rust_code);
+    assert!(
+        rust_code.contains("Color::Red"),
+        "Should generate enum pattern: {}",
+        rust_code
+    );
     // Check the main function specifically — the runtime module may contain `_ =>`
     let main_code = rust_code.split("fn main()").last().unwrap_or("");
-    assert!(!main_code.contains("_ =>"), "Should NOT need wildcard when all variants covered: {}", main_code);
+    assert!(
+        !main_code.contains("_ =>"),
+        "Should NOT need wildcard when all variants covered: {}",
+        main_code
+    );
     assert_snapshot!("enum_exhaustive_no_wildcard", rust_code);
 }
 
@@ -6572,8 +7310,16 @@ main() {
 }
 "#;
     let rust_code = compile_and_generate(source);
-    assert!(rust_code.contains(".parse::<i32>().unwrap_or(0)"), "Should generate parse::<i32> for toInt(): {}", rust_code);
-    assert!(rust_code.contains(".parse::<f64>().unwrap_or(0.0)"), "Should generate parse::<f64> for toFloat(): {}", rust_code);
+    assert!(
+        rust_code.contains(".parse::<i32>().unwrap_or(0)"),
+        "Should generate parse::<i32> for toInt(): {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains(".parse::<f64>().unwrap_or(0.0)"),
+        "Should generate parse::<f64> for toFloat(): {}",
+        rust_code
+    );
     assert_snapshot!("string_to_int_to_float", rust_code);
 }
 
@@ -6593,11 +7339,22 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // Non-null init should be wrapped in Some()
-    assert!(rust_code.contains("Some(name.clone())") || rust_code.contains("Some(name)"),
-        "Optional var with non-null init should wrap in Some(): {}", rust_code);
+    assert!(
+        rust_code.contains("Some(name.clone())") || rust_code.contains("Some(name)"),
+        "Optional var with non-null init should wrap in Some(): {}",
+        rust_code
+    );
     // Null init should NOT be wrapped in Some()
-    assert!(rust_code.contains("None"), "Optional var with null init should generate None: {}", rust_code);
-    assert!(!rust_code.contains("Some(None)"), "Should not generate Some(None): {}", rust_code);
+    assert!(
+        rust_code.contains("None"),
+        "Optional var with null init should generate None: {}",
+        rust_code
+    );
+    assert!(
+        !rust_code.contains("Some(None)"),
+        "Should not generate Some(None): {}",
+        rust_code
+    );
     assert_snapshot!("optional_var_decl_some_wrap", rust_code);
 }
 
@@ -6625,9 +7382,17 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // Should use match &expr to avoid consuming the variable
-    assert!(rust_code.contains("match &expr"), "Should generate match &expr for enum data switch: {}", rust_code);
+    assert!(
+        rust_code.contains("match &expr"),
+        "Should generate match &expr for enum data switch: {}",
+        rust_code
+    );
     // String bindings should be cloned (String is not Copy)
-    assert!(rust_code.contains("let n = n.clone()"), "String binding should be cloned: {}", rust_code);
+    assert!(
+        rust_code.contains("let n = n.clone()"),
+        "String binding should be cloned: {}",
+        rust_code
+    );
     assert_snapshot!("switch_borrows_enum_data", rust_code);
 }
 
@@ -6656,8 +7421,11 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // Both calls should clone shape since it's a non-Copy enum with data
-    assert!(rust_code.contains("show_shape(shape.clone())"),
-        "Enum variable should be cloned when passed to function: {}", rust_code);
+    assert!(
+        rust_code.contains("show_shape(shape.clone())"),
+        "Enum variable should be cloned when passed to function: {}",
+        rust_code
+    );
     assert_snapshot!("enum_clone_at_call_site", rust_code);
 }
 
@@ -6682,12 +7450,21 @@ main() {
     // The CSV_PARSE_LINE snippet must contain the quoted-field state
     // machine pieces. These are structural invariants — they don't lock
     // formatting, they just confirm the parser logic is intact.
-    assert!(rust_code.contains("in_quotes"),
-        "CSV parser must track quote state: {}", rust_code);
-    assert!(rust_code.contains("'\"'"),
-        "CSV parser must recognise the quote character: {}", rust_code);
-    assert!(rust_code.contains("c == ','") || rust_code.contains("',' =>"),
-        "CSV parser must split on comma: {}", rust_code);
+    assert!(
+        rust_code.contains("in_quotes"),
+        "CSV parser must track quote state: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("'\"'"),
+        "CSV parser must recognise the quote character: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("c == ','") || rust_code.contains("',' =>"),
+        "CSV parser must split on comma: {}",
+        rust_code
+    );
 }
 
 #[test]
@@ -6700,12 +7477,21 @@ main() {
 "#;
     let rust_code = compile_and_generate(source);
     // DB_PARAM_BINDING must construct the __params + __param_refs pair.
-    assert!(rust_code.contains("__params"),
-        "DB.exec with params must build __params vec: {}", rust_code);
-    assert!(rust_code.contains("__param_refs"),
-        "DB.exec with params must build __param_refs slice: {}", rust_code);
-    assert!(rust_code.contains("rusqlite::types::ToSql"),
-        "DB.exec must coerce params via ToSql: {}", rust_code);
+    assert!(
+        rust_code.contains("__params"),
+        "DB.exec with params must build __params vec: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("__param_refs"),
+        "DB.exec with params must build __param_refs slice: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("rusqlite::types::ToSql"),
+        "DB.exec must coerce params via ToSql: {}",
+        rust_code
+    );
 }
 
 #[test]
@@ -6719,10 +7505,19 @@ main() {
     let rust_code = compile_and_generate(source);
     // DB_ROW_TO_MAP closure must walk row.column_name(i) and stringify
     // each value into a HashMap<String, String>.
-    assert!(rust_code.contains("column_name"),
-        "DB.query must enumerate column names: {}", rust_code);
-    assert!(rust_code.contains("HashMap"),
-        "DB.query must build a HashMap row: {}", rust_code);
-    assert!(rust_code.contains(".prepare("),
-        "DB.query must prepare the statement: {}", rust_code);
+    assert!(
+        rust_code.contains("column_name"),
+        "DB.query must enumerate column names: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains("HashMap"),
+        "DB.query must build a HashMap row: {}",
+        rust_code
+    );
+    assert!(
+        rust_code.contains(".prepare("),
+        "DB.query must prepare the statement: {}",
+        rust_code
+    );
 }

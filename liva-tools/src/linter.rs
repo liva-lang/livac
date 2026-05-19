@@ -1,3 +1,4 @@
+use colored::Colorize;
 /// Linter module for Liva
 ///
 /// Runs static analysis on the parsed AST to detect code smells and warnings.
@@ -11,7 +12,6 @@
 /// - **W004**: Comparison is always true or always false
 use livac::ast::*;
 use livac::span::SourceMap;
-use colored::Colorize;
 use std::collections::{HashMap, HashSet};
 
 /// A single lint warning emitted by the linter.
@@ -222,17 +222,12 @@ impl Linter {
                             self.warnings.push(LintWarning {
                                 code: "W001".to_string(),
                                 title: "Unused variable".to_string(),
-                                message: format!(
-                                    "Variable '{}' is declared but never used",
-                                    name
-                                ),
+                                message: format!("Variable '{}' is declared but never used", name),
                                 file: self.source_file.clone(),
                                 line,
                                 column: None,
                                 source_line: self.source_line_at(line),
-                                help: Some(format!(
-                                    "Prefix with underscore to suppress: _{name}"
-                                )),
+                                help: Some(format!("Prefix with underscore to suppress: _{name}")),
                             });
                         }
                     }
@@ -294,17 +289,12 @@ impl Linter {
                             self.warnings.push(LintWarning {
                                 code: "W001".to_string(),
                                 title: "Unused variable".to_string(),
-                                message: format!(
-                                    "Variable '{}' is declared but never used",
-                                    name
-                                ),
+                                message: format!("Variable '{}' is declared but never used", name),
                                 file: self.source_file.clone(),
                                 line,
                                 column: None,
                                 source_line: self.source_line_at(line),
-                                help: Some(format!(
-                                    "Prefix with underscore to suppress: _{name}"
-                                )),
+                                help: Some(format!("Prefix with underscore to suppress: _{name}")),
                             });
                         }
                     }
@@ -341,7 +331,10 @@ impl Linter {
                     );
                 }
                 Stmt::For(for_stmt) => {
-                    let line = self.find_line_containing(&format!("for {}", for_stmt.var), last_line.saturating_sub(1));
+                    let line = self.find_line_containing(
+                        &format!("for {}", for_stmt.var),
+                        last_line.saturating_sub(1),
+                    );
                     last_line = line;
                     vars.insert(
                         for_stmt.var.clone(),
@@ -627,12 +620,10 @@ impl Linter {
                     self.collect_var_usages_expr(e, used);
                 }
             }
-            Expr::Lambda(lambda) => {
-                match &lambda.body {
-                    LambdaBody::Expr(e) => self.collect_var_usages_expr(e, used),
-                    LambdaBody::Block(b) => self.collect_var_usages_block(b, used),
-                }
-            }
+            Expr::Lambda(lambda) => match &lambda.body {
+                LambdaBody::Expr(e) => self.collect_var_usages_expr(e, used),
+                LambdaBody::Block(b) => self.collect_var_usages_block(b, used),
+            },
             Expr::StringTemplate { parts } => {
                 for part in parts {
                     if let StringTemplatePart::Expr(e) = part {
@@ -754,10 +745,7 @@ impl Linter {
                 self.warnings.push(LintWarning {
                     code: "W002".to_string(),
                     title: "Unused import".to_string(),
-                    message: format!(
-                        "Import '{}' from \"{}\" is never used",
-                        symbol, source
-                    ),
+                    message: format!("Import '{}' from \"{}\" is never used", symbol, source),
                     file: self.source_file.clone(),
                     line,
                     column: None,
@@ -861,10 +849,7 @@ impl Linter {
                 self.warnings.push(LintWarning {
                     code: "W003".to_string(),
                     title: "Unreachable code".to_string(),
-                    message: format!(
-                        "Code after '{}' will never be executed",
-                        terminator_kind
-                    ),
+                    message: format!("Code after '{}' will never be executed", terminator_kind),
                     file: self.source_file.clone(),
                     line,
                     column: None,
@@ -936,7 +921,10 @@ impl Linter {
                 if let Some(expr) = &ret.expr {
                     if let Some(pattern) = self.expr_search_pattern(expr) {
                         // Search for "return <pattern>"
-                        return self.find_line_containing(&format!("return {}", pattern), after_line.saturating_sub(1));
+                        return self.find_line_containing(
+                            &format!("return {}", pattern),
+                            after_line.saturating_sub(1),
+                        );
                     }
                 }
                 self.find_line_containing("return", after_line.saturating_sub(1))
@@ -974,9 +962,9 @@ impl Linter {
             Expr::Literal(Literal::String(s)) => Some(format!("\"{}\"", s)),
             Expr::Literal(Literal::Int(n)) => Some(n.to_string()),
             Expr::Call(call) => self.expr_search_pattern(&call.callee),
-            Expr::Member { object, property } => {
-                self.expr_search_pattern(object).map(|o| format!("{}.{}", o, property))
-            }
+            Expr::Member { object, property } => self
+                .expr_search_pattern(object)
+                .map(|o| format!("{}.{}", o, property)),
             _ => None,
         }
     }
@@ -1068,7 +1056,10 @@ impl Linter {
     fn check_always_tf_expr(&mut self, expr: &Expr, start_line: usize) {
         if let Expr::Binary { op, left, right } = expr {
             // Check for comparisons between identical expressions
-            if matches!(op, BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge) {
+            if matches!(
+                op,
+                BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge
+            ) {
                 // Case 1: Same identifier on both sides (x == x)
                 if left == right {
                     let (always_result, description) = match op {
@@ -1098,7 +1089,9 @@ impl Linter {
                 }
 
                 // Case 2: Comparing two literals (42 == 42, "a" != "a")
-                if let (Expr::Literal(left_lit), Expr::Literal(right_lit)) = (left.as_ref(), right.as_ref()) {
+                if let (Expr::Literal(left_lit), Expr::Literal(right_lit)) =
+                    (left.as_ref(), right.as_ref())
+                {
                     if left != right {
                         // Different literals compared — we can determine the result
                         let (always_result, description) = match op {
@@ -1130,7 +1123,9 @@ impl Linter {
                 }
 
                 // Case 3: true == true, false == false (bool literal comparisons)
-                if let (Expr::Literal(Literal::Bool(l)), Expr::Literal(Literal::Bool(r))) = (left.as_ref(), right.as_ref()) {
+                if let (Expr::Literal(Literal::Bool(l)), Expr::Literal(Literal::Bool(r))) =
+                    (left.as_ref(), right.as_ref())
+                {
                     // Already caught by left == right above, but also catch true == false etc.
                     // This case is fully covered by the literal comparison above
                     let _ = (l, r); // suppress unused warning
@@ -1145,7 +1140,11 @@ impl Linter {
         // Recurse into other compound expressions
         match expr {
             Expr::Unary { operand, .. } => self.check_always_tf_expr(operand, start_line),
-            Expr::Ternary { condition, then_expr, else_expr } => {
+            Expr::Ternary {
+                condition,
+                then_expr,
+                else_expr,
+            } => {
                 self.check_always_tf_expr(condition, start_line);
                 self.check_always_tf_expr(then_expr, start_line);
                 self.check_always_tf_expr(else_expr, start_line);

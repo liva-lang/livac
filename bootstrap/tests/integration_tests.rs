@@ -199,7 +199,10 @@ fn expect_compile_error(main_liva: &str, expected_marker: &str) {
         check_only: true,
     };
     match compile_file(&options) {
-        Ok(_) => panic!("Expected compile error containing `{}` but got success for {}", expected_marker, main_liva),
+        Ok(_) => panic!(
+            "Expected compile error containing `{}` but got success for {}",
+            expected_marker, main_liva
+        ),
         Err(e) => {
             let msg = format!("{}", e);
             assert!(
@@ -283,37 +286,78 @@ fn test_init_creates_multi_file_project() {
         .output()
         .expect("Failed to execute livac init");
 
-    assert!(output.status.success(), "livac init failed: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "livac init failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let project_dir = tmp.path().join(project_name);
-    assert!(project_dir.join("main.liva").exists(), "main.liva not created");
-    assert!(project_dir.join("math.liva").exists(), "math.liva not created");
-    assert!(project_dir.join("models.liva").exists(), "models.liva not created");
-    assert!(project_dir.join("tests/main.test.liva").exists(), "test file not created");
-    assert!(project_dir.join(".gitignore").exists(), ".gitignore not created");
+    assert!(
+        project_dir.join("main.liva").exists(),
+        "main.liva not created"
+    );
+    assert!(
+        project_dir.join("math.liva").exists(),
+        "math.liva not created"
+    );
+    assert!(
+        project_dir.join("models.liva").exists(),
+        "models.liva not created"
+    );
+    assert!(
+        project_dir.join("tests/main.test.liva").exists(),
+        "test file not created"
+    );
+    assert!(
+        project_dir.join(".gitignore").exists(),
+        ".gitignore not created"
+    );
 
     // Verify main.liva content
     let main_content = std::fs::read_to_string(project_dir.join("main.liva")).unwrap();
-    assert!(main_content.contains("main()"), "main.liva should contain main()");
-    assert!(main_content.contains(project_name), "main.liva should contain project name");
-    assert!(main_content.contains("import"), "main.liva should import from modules");
+    assert!(
+        main_content.contains("main()"),
+        "main.liva should contain main()"
+    );
+    assert!(
+        main_content.contains(project_name),
+        "main.liva should contain project name"
+    );
+    assert!(
+        main_content.contains("import"),
+        "main.liva should import from modules"
+    );
 
     // Verify math.liva content
     let math_content = std::fs::read_to_string(project_dir.join("math.liva")).unwrap();
-    assert!(math_content.contains("add("), "math.liva should contain add function");
-    assert!(math_content.contains("factorial("), "math.liva should contain factorial");
+    assert!(
+        math_content.contains("add("),
+        "math.liva should contain add function"
+    );
+    assert!(
+        math_content.contains("factorial("),
+        "math.liva should contain factorial"
+    );
 
     // Verify models.liva content
     let models_content = std::fs::read_to_string(project_dir.join("models.liva")).unwrap();
-    assert!(models_content.contains("Point"), "models.liva should contain Point data class");
-    assert!(models_content.contains("Pet"), "models.liva should contain Pet class");
+    assert!(
+        models_content.contains("Point"),
+        "models.liva should contain Point data class"
+    );
+    assert!(
+        models_content.contains("Pet"),
+        "models.liva should contain Pet class"
+    );
 
     // Verify test file content
     let test_content = std::fs::read_to_string(project_dir.join("tests/main.test.liva")).unwrap();
-    assert!(test_content.contains("test "), "test file should contain test blocks");
+    assert!(
+        test_content.contains("test "),
+        "test file should contain test blocks"
+    );
 }
-
-
 
 #[test]
 fn test_init_already_exists() {
@@ -329,9 +373,15 @@ fn test_init_already_exists() {
         .output()
         .expect("Failed to execute livac init");
 
-    assert!(!output.status.success(), "Should fail when directory exists");
+    assert!(
+        !output.status.success(),
+        "Should fail when directory exists"
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("already exists"), "Error message should mention 'already exists'");
+    assert!(
+        stderr.contains("already exists"),
+        "Error message should mention 'already exists'"
+    );
 }
 
 #[test]
@@ -360,17 +410,39 @@ fn test_init_dot_current_dir() {
         .output()
         .expect("Failed to execute livac init .");
 
-    assert!(output.status.success(), "livac init . failed: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "livac init . failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
-    assert!(project_dir.join("main.liva").exists(), "main.liva not created");
-    assert!(project_dir.join("math.liva").exists(), "math.liva not created");
-    assert!(project_dir.join("models.liva").exists(), "models.liva not created");
-    assert!(project_dir.join("tests/main.test.liva").exists(), "test file not created");
-    assert!(project_dir.join(".gitignore").exists(), ".gitignore not created");
+    assert!(
+        project_dir.join("main.liva").exists(),
+        "main.liva not created"
+    );
+    assert!(
+        project_dir.join("math.liva").exists(),
+        "math.liva not created"
+    );
+    assert!(
+        project_dir.join("models.liva").exists(),
+        "models.liva not created"
+    );
+    assert!(
+        project_dir.join("tests/main.test.liva").exists(),
+        "test file not created"
+    );
+    assert!(
+        project_dir.join(".gitignore").exists(),
+        ".gitignore not created"
+    );
 
     // Verify project name is derived from directory name
     let main_content = std::fs::read_to_string(project_dir.join("main.liva")).unwrap();
-    assert!(main_content.contains("my-cool-app"), "Should use directory name as project name");
+    assert!(
+        main_content.contains("my-cool-app"),
+        "Should use directory name as project name"
+    );
 }
 
 #[test]
@@ -386,9 +458,15 @@ fn test_init_dot_already_has_main() {
         .output()
         .expect("Failed to execute livac init .");
 
-    assert!(!output.status.success(), "Should fail when main.liva exists");
+    assert!(
+        !output.status.success(),
+        "Should fail when main.liva exists"
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("already exists"), "Error should mention file already exists");
+    assert!(
+        stderr.contains("already exists"),
+        "Error should mention file already exists"
+    );
 }
 
 #[test]
@@ -403,6 +481,13 @@ fn test_init_no_args_defaults_to_dot() {
         .output()
         .expect("Failed to execute livac init");
 
-    assert!(output.status.success(), "livac init (no args) failed: {}", String::from_utf8_lossy(&output.stderr));
-    assert!(project_dir.join("main.liva").exists(), "main.liva not created");
+    assert!(
+        output.status.success(),
+        "livac init (no args) failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        project_dir.join("main.liva").exists(),
+        "main.liva not created"
+    );
 }

@@ -153,8 +153,7 @@ fn compile_source_with_filename(
     desugar_ctx.source_filename = filename.to_string();
 
     // 5. Code generation
-    let (rust_code, cargo_toml) =
-        codegen::generate_with_ast(&analyzed_ast, desugar_ctx)?;
+    let (rust_code, cargo_toml) = codegen::generate_with_ast(&analyzed_ast, desugar_ctx)?;
 
     // 6. Write output files if output directory specified
     let output_dir = if let Some(out_dir) = &options.output {

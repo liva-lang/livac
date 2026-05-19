@@ -586,7 +586,7 @@ impl Parser {
                 implements,
                 members,
                 needs_serde: false, // Will be set by semantic analyzer if used with JSON.parse
-                is_data: false, // Auto-detected in codegen based on structure
+                is_data: false,     // Auto-detected in codegen based on structure
             }));
         }
 
@@ -1492,21 +1492,32 @@ impl Parser {
             Ok(Stmt::Continue)
         } else if self.match_token(&Token::Fail) {
             let fail_span = self.previous_span();
-            let fail_line = fail_span.map(|s| s.start_position(&self.source_map).0 as u32).unwrap_or(0);
+            let fail_line = fail_span
+                .map(|s| s.start_position(&self.source_map).0 as u32)
+                .unwrap_or(0);
             let value = self.parse_expression()?;
-            Ok(Stmt::Fail(FailStmt { expr: value, line: fail_line }))
+            Ok(Stmt::Fail(FailStmt {
+                expr: value,
+                line: fail_line,
+            }))
         } else if self.match_token(&Token::Throw) {
             let value = self.parse_expression()?;
             Ok(Stmt::Throw(ThrowStmt { expr: value }))
         } else if self.match_token(&Token::Defer) {
             let body = self.parse_defer_body()?;
-            Ok(Stmt::Defer(DeferStmt { body: Box::new(body) }))
+            Ok(Stmt::Defer(DeferStmt {
+                body: Box::new(body),
+            }))
         } else {
             // Parse assignment statement: target = value  or  target += value
             let target = self.parse_expression()?;
             if self.match_token(&Token::Assign) {
                 let value = self.parse_expression()?;
-                Ok(Stmt::Assign(AssignStmt { target, value, op: None }))
+                Ok(Stmt::Assign(AssignStmt {
+                    target,
+                    value,
+                    op: None,
+                }))
             } else if let Some(bin_op) = self.match_compound_assign() {
                 let rhs = self.parse_expression()?;
                 let value = Expr::Binary {
@@ -1514,7 +1525,11 @@ impl Parser {
                     left: Box::new(target.clone()),
                     right: Box::new(rhs),
                 };
-                Ok(Stmt::Assign(AssignStmt { target, value, op: Some(bin_op) }))
+                Ok(Stmt::Assign(AssignStmt {
+                    target,
+                    value,
+                    op: Some(bin_op),
+                }))
             } else {
                 // Expression statement
                 Ok(Stmt::Expr(ExprStmt { expr: target }))
@@ -1539,7 +1554,11 @@ impl Parser {
             let expr = self.parse_expression()?;
             if self.match_token(&Token::Assign) {
                 let value = self.parse_expression()?;
-                Ok(Stmt::Assign(AssignStmt { target: expr, value, op: None }))
+                Ok(Stmt::Assign(AssignStmt {
+                    target: expr,
+                    value,
+                    op: None,
+                }))
             } else if let Some(bin_op) = self.match_compound_assign() {
                 let rhs = self.parse_expression()?;
                 let value = Expr::Binary {
@@ -1547,7 +1566,11 @@ impl Parser {
                     left: Box::new(expr.clone()),
                     right: Box::new(rhs),
                 };
-                Ok(Stmt::Assign(AssignStmt { target: expr, value, op: Some(bin_op) }))
+                Ok(Stmt::Assign(AssignStmt {
+                    target: expr,
+                    value,
+                    op: Some(bin_op),
+                }))
             } else {
                 Ok(Stmt::Expr(ExprStmt { expr }))
             }
@@ -1571,12 +1594,16 @@ impl Parser {
                     self.advance(); // consume `or`
                     self.advance(); // consume `fail`
                     let fail_span = self.previous_span();
-                    or_fail_line = fail_span.map(|s| s.start_position(&self.source_map).0 as u32).unwrap_or(0);
+                    or_fail_line = fail_span
+                        .map(|s| s.start_position(&self.source_map).0 as u32)
+                        .unwrap_or(0);
                     // Bug #95 fix: bare `or fail` (without message) — use empty string
                     // instead of consuming the next statement as the message expression.
                     // Check if next token is on a different line than `fail`, or at end.
                     let fail_line_num = fail_span.map(|s| s.start_position(&self.source_map).0);
-                    let next_line_num = self.current_span().map(|s| s.start_position(&self.source_map).0);
+                    let next_line_num = self
+                        .current_span()
+                        .map(|s| s.start_position(&self.source_map).0);
                     let next_is_different_line = match (fail_line_num, next_line_num) {
                         (Some(fl), Some(nl)) => nl != fl,
                         _ => true,
@@ -1674,14 +1701,21 @@ impl Parser {
 
         if self.match_token(&Token::Fail) {
             let fail_span = self.previous_span();
-            let fail_line = fail_span.map(|s| s.start_position(&self.source_map).0 as u32).unwrap_or(0);
+            let fail_line = fail_span
+                .map(|s| s.start_position(&self.source_map).0 as u32)
+                .unwrap_or(0);
             let value = self.parse_expression()?;
-            return Ok(Stmt::Fail(FailStmt { expr: value, line: fail_line }));
+            return Ok(Stmt::Fail(FailStmt {
+                expr: value,
+                line: fail_line,
+            }));
         }
 
         if self.match_token(&Token::Defer) {
             let body = self.parse_defer_body()?;
-            return Ok(Stmt::Defer(DeferStmt { body: Box::new(body) }));
+            return Ok(Stmt::Defer(DeferStmt {
+                body: Box::new(body),
+            }));
         }
 
         if self.match_token(&Token::Try) {
@@ -1814,7 +1848,11 @@ impl Parser {
                             SwitchBody::Block(vec![stmt])
                         }
                     };
-                    arms.push(SwitchArm { pattern, guard, body });
+                    arms.push(SwitchArm {
+                        pattern,
+                        guard,
+                        body,
+                    });
                     self.match_token(&Token::Comma);
                 }
                 self.expect(Token::RBrace)?;

@@ -71,8 +71,8 @@ pub struct CodeGenerator {
     bracket_notation_vars: std::collections::HashSet<String>,
     class_instance_vars: std::collections::HashSet<String>,
     array_vars: std::collections::HashSet<String>, // Track which variables are arrays
-    map_vars: std::collections::HashSet<String>, // Track which variables are Map<K,V>
-    set_vars: std::collections::HashSet<String>, // Track which variables are Set<T>
+    map_vars: std::collections::HashSet<String>,   // Track which variables are Map<K,V>
+    set_vars: std::collections::HashSet<String>,   // Track which variables are Set<T>
     json_value_vars: std::collections::HashSet<String>, // Track which variables are JsonValue
     string_vars: std::collections::HashSet<String>, // Track which variables are strings
     float_vars: std::collections::HashSet<String>, // Track which variables are floats (B32)
@@ -86,10 +86,12 @@ pub struct CodeGenerator {
     // --- Class/type metadata (for field resolution)
     class_fields: std::collections::HashMap<String, std::collections::HashSet<String>>,
     class_optional_fields: std::collections::HashMap<String, std::collections::HashSet<String>>, // Track optional fields per class
-    class_array_field_types: std::collections::HashMap<String, std::collections::HashMap<String, String>>, // className -> (fieldName -> elementType) for array fields
-    class_map_value_types: std::collections::HashMap<String, std::collections::HashMap<String, String>>, // className -> (fieldName -> valueType) for Map<K,V> fields (B125)
+    class_array_field_types:
+        std::collections::HashMap<String, std::collections::HashMap<String, String>>, // className -> (fieldName -> elementType) for array fields
+    class_map_value_types:
+        std::collections::HashMap<String, std::collections::HashMap<String, String>>, // className -> (fieldName -> valueType) for Map<K,V> fields (B125)
     local_map_value_types: std::collections::HashMap<String, String>, // localVarName -> valueType encoding (B134)
-    var_types: std::collections::HashMap<String, String>, // var -> ClassName
+    var_types: std::collections::HashMap<String, String>,             // var -> ClassName
     fallible_functions: std::collections::HashSet<String>, // Track which functions are fallible
     fallible_methods: std::collections::HashSet<String>, // B19 fix: Track which class methods are fallible (method_name, not qualified)
     array_returning_functions: std::collections::HashMap<String, String>, // Track functions that return [T] (Vec) -> elem type
@@ -139,18 +141,22 @@ pub struct CodeGenerator {
     enum_variants:
         std::collections::HashMap<String, std::collections::HashMap<String, Vec<String>>>, // enum_name -> (variant_name -> [field_names])
     /// Recursive enum fields that are auto-boxed: enum_name -> (variant_name -> set of boxed field names)
-    boxed_enum_fields:
-        std::collections::HashMap<String, std::collections::HashMap<String, std::collections::HashSet<String>>>,
+    boxed_enum_fields: std::collections::HashMap<
+        String,
+        std::collections::HashMap<String, std::collections::HashSet<String>>,
+    >,
     /// Enum variant field types: enum_name -> (variant_name -> [(field_name, type_ref)])
-    enum_variant_field_types:
-        std::collections::HashMap<String, std::collections::HashMap<String, Vec<(String, TypeRef)>>>,
+    enum_variant_field_types: std::collections::HashMap<
+        String,
+        std::collections::HashMap<String, Vec<(String, TypeRef)>>,
+    >,
     // --- B46: Classes that need serde derives (from JSON.stringify usage)
     serde_classes: std::collections::HashSet<String>,
     // --- Float literal suffix context (for f32 variable declarations)
     float_literal_suffix: String, // "f64" by default, set to "f32" when generating f32-typed expressions
     // --- Error trace context
-    current_function_name: String,  // Current function/method name for error traces
-    source_filename: String,        // Source filename for error traces
+    current_function_name: String, // Current function/method name for error traces
+    source_filename: String,       // Source filename for error traces
     /// Hoisted `use` statements extracted from `rust { }` blocks (emitted at top of file)
     rust_block_uses: Vec<String>,
     /// Counter for generating unique defer guard variable names
@@ -422,10 +428,24 @@ impl CodeGenerator {
             Expr::MethodCall(mc) => {
                 if let Expr::Identifier(obj) = mc.object.as_ref() {
                     if obj == "File" {
-                        return matches!(mc.method.as_str(), "read" | "write" | "append" | "delete" | "copy" | "move" | "size" | "readLines" | "writeLines");
+                        return matches!(
+                            mc.method.as_str(),
+                            "read"
+                                | "write"
+                                | "append"
+                                | "delete"
+                                | "copy"
+                                | "move"
+                                | "size"
+                                | "readLines"
+                                | "writeLines"
+                        );
                     }
                     if obj == "Dir" {
-                        return matches!(mc.method.as_str(), "list" | "create" | "delete" | "listRecursive" | "walk");
+                        return matches!(
+                            mc.method.as_str(),
+                            "list" | "create" | "delete" | "listRecursive" | "walk"
+                        );
                     }
                     if obj == "Config" {
                         return matches!(mc.method.as_str(), "get" | "getInt" | "getBool" | "load");
@@ -437,7 +457,10 @@ impl CodeGenerator {
                         return matches!(mc.method.as_str(), "parse");
                     }
                     if obj == "CSV" {
-                        return matches!(mc.method.as_str(), "read" | "write" | "readTable" | "writeTable");
+                        return matches!(
+                            mc.method.as_str(),
+                            "read" | "write" | "readTable" | "writeTable"
+                        );
                     }
                     if obj == "Process" {
                         return matches!(mc.method.as_str(), "exec" | "spawn");
@@ -867,9 +890,17 @@ impl CodeGenerator {
     /// Builds var→class map from constructor calls, then finds JSON.stringify(var) usage.
     fn scan_json_stringify_classes(&mut self, program: &Program) {
         // Collect known class names
-        let class_names: std::collections::HashSet<String> = program.items.iter().filter_map(|item| {
-            if let TopLevel::Class(cls) = item { Some(cls.name.clone()) } else { None }
-        }).collect();
+        let class_names: std::collections::HashSet<String> = program
+            .items
+            .iter()
+            .filter_map(|item| {
+                if let TopLevel::Class(cls) = item {
+                    Some(cls.name.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
 
         // Scan all function and method bodies
         for item in &program.items {
@@ -894,9 +925,14 @@ impl CodeGenerator {
     }
 
     /// Scan statements for JSON.stringify calls with class-typed arguments
-    fn scan_stmts_for_stringify(&mut self, stmts: &[Stmt], class_names: &std::collections::HashSet<String>) {
+    fn scan_stmts_for_stringify(
+        &mut self,
+        stmts: &[Stmt],
+        class_names: &std::collections::HashSet<String>,
+    ) {
         // Build local var→class map from this scope
-        let mut var_class: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+        let mut var_class: std::collections::HashMap<String, String> =
+            std::collections::HashMap::new();
 
         for stmt in stmts {
             // Track constructor assignments: let x = ClassName(...)
@@ -919,7 +955,12 @@ impl CodeGenerator {
         }
     }
 
-    fn scan_expr_for_stringify_in_stmt(&mut self, stmt: &Stmt, var_class: &std::collections::HashMap<String, String>, class_names: &std::collections::HashSet<String>) {
+    fn scan_expr_for_stringify_in_stmt(
+        &mut self,
+        stmt: &Stmt,
+        var_class: &std::collections::HashMap<String, String>,
+        class_names: &std::collections::HashSet<String>,
+    ) {
         match stmt {
             Stmt::Expr(expr_stmt) => {
                 self.scan_expr_for_stringify(&expr_stmt.expr, var_class, class_names);
@@ -969,7 +1010,12 @@ impl CodeGenerator {
         }
     }
 
-    fn scan_expr_for_stringify(&mut self, expr: &Expr, var_class: &std::collections::HashMap<String, String>, class_names: &std::collections::HashSet<String>) {
+    fn scan_expr_for_stringify(
+        &mut self,
+        expr: &Expr,
+        var_class: &std::collections::HashMap<String, String>,
+        class_names: &std::collections::HashSet<String>,
+    ) {
         match expr {
             Expr::MethodCall(mc) => {
                 if mc.method == "stringify" {
@@ -1075,9 +1121,7 @@ impl CodeGenerator {
                 .as_ref()
                 .map_or(false, |e| self.expr_calls_mut_self_method(e)),
             Stmt::VarDecl(var) => self.expr_calls_mut_self_method(&var.init),
-            Stmt::Assign(assign) => {
-                self.expr_calls_mut_self_method(&assign.value)
-            }
+            Stmt::Assign(assign) => self.expr_calls_mut_self_method(&assign.value),
             Stmt::If(if_stmt) => {
                 let cond_calls = self.expr_calls_mut_self_method(&if_stmt.condition);
                 let then_calls = match &if_stmt.then_branch {
@@ -1100,8 +1144,13 @@ impl CodeGenerator {
             }
             Stmt::Switch(sw) => {
                 self.expr_calls_mut_self_method(&sw.discriminant)
-                    || sw.cases.iter().any(|case| case.body.iter().any(|s| self.stmt_calls_mut_self_method(s)))
-                    || sw.default.as_ref().map_or(false, |d| d.iter().any(|s| self.stmt_calls_mut_self_method(s)))
+                    || sw
+                        .cases
+                        .iter()
+                        .any(|case| case.body.iter().any(|s| self.stmt_calls_mut_self_method(s)))
+                    || sw.default.as_ref().map_or(false, |d| {
+                        d.iter().any(|s| self.stmt_calls_mut_self_method(s))
+                    })
             }
             Stmt::Defer(defer_stmt) => self.stmt_calls_mut_self_method(&defer_stmt.body),
             _ => false,
@@ -1123,21 +1172,21 @@ impl CodeGenerator {
             }
             Expr::Call(call) => {
                 self.expr_calls_mut_self_method(&call.callee)
-                    || call.args
-                    .iter()
-                    .any(|a| self.expr_calls_mut_self_method(a))
+                    || call.args.iter().any(|a| self.expr_calls_mut_self_method(a))
             }
             Expr::Binary { left, right, .. } => {
-                self.expr_calls_mut_self_method(left)
-                    || self.expr_calls_mut_self_method(right)
+                self.expr_calls_mut_self_method(left) || self.expr_calls_mut_self_method(right)
             }
             Expr::Unary { operand, .. } => self.expr_calls_mut_self_method(operand),
             Expr::Member { object, .. } => self.expr_calls_mut_self_method(object),
             Expr::Index { object, index, .. } => {
-                self.expr_calls_mut_self_method(object)
-                    || self.expr_calls_mut_self_method(index)
+                self.expr_calls_mut_self_method(object) || self.expr_calls_mut_self_method(index)
             }
-            Expr::Ternary { condition, then_expr, else_expr } => {
+            Expr::Ternary {
+                condition,
+                then_expr,
+                else_expr,
+            } => {
                 self.expr_calls_mut_self_method(condition)
                     || self.expr_calls_mut_self_method(then_expr)
                     || self.expr_calls_mut_self_method(else_expr)
@@ -1145,7 +1194,9 @@ impl CodeGenerator {
             Expr::Switch(sw) => {
                 self.expr_calls_mut_self_method(&sw.discriminant)
                     || sw.arms.iter().any(|arm| match &arm.body {
-                        SwitchBody::Block(b) => b.iter().any(|s| self.stmt_calls_mut_self_method(s)),
+                        SwitchBody::Block(b) => {
+                            b.iter().any(|s| self.stmt_calls_mut_self_method(s))
+                        }
                         SwitchBody::Expr(e) => self.expr_calls_mut_self_method(&*e),
                     })
             }
@@ -1233,8 +1284,7 @@ impl CodeGenerator {
                 false
             }
             Stmt::TryCatch(tc) => {
-                self.block_modifies_self(&tc.try_block)
-                    || self.block_modifies_self(&tc.catch_block)
+                self.block_modifies_self(&tc.try_block) || self.block_modifies_self(&tc.catch_block)
             }
             Stmt::Block(block) => self.block_modifies_self(block),
             _ => false,
@@ -1262,7 +1312,7 @@ impl CodeGenerator {
                         // Bug #76 fix: Liva Map/Set method names that mutate (before codegen translation)
                         | "set"      // Map.set → HashMap.insert
                         | "add"      // Set.add → HashSet.insert
-                        | "delete"   // Map/Set.delete → HashMap/HashSet.remove
+                        | "delete" // Map/Set.delete → HashMap/HashSet.remove
                 );
 
                 if is_mutating_method {
@@ -1734,12 +1784,14 @@ impl CodeGenerator {
                 let mut fields = std::collections::HashSet::new();
                 let mut optional_fields = std::collections::HashSet::new();
                 let mut array_field_types = std::collections::HashMap::new();
-                let mut map_value_types: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+                let mut map_value_types: std::collections::HashMap<String, String> =
+                    std::collections::HashMap::new();
                 let mut constructor_optionals: Vec<bool> = Vec::new();
                 for m in &cls.members {
                     if let Member::Field(f) = m {
                         fields.insert(f.name.clone());
-                        let is_opt = f.is_optional || matches!(&f.type_ref, Some(TypeRef::Optional(_)));
+                        let is_opt =
+                            f.is_optional || matches!(&f.type_ref, Some(TypeRef::Optional(_)));
                         if is_opt {
                             optional_fields.insert(f.name.clone());
                         }
@@ -1763,7 +1815,8 @@ impl CodeGenerator {
                                     } else {
                                         "_".to_string()
                                     };
-                                    map_value_types.insert(f.name.clone(), format!("[{}]", inner_name));
+                                    map_value_types
+                                        .insert(f.name.clone(), format!("[{}]", inner_name));
                                 }
                                 TypeRef::Map(_, _) => {
                                     map_value_types.insert(f.name.clone(), "{}".to_string());
@@ -1776,12 +1829,15 @@ impl CodeGenerator {
                 self.class_fields.insert(cls.name.clone(), fields);
                 self.class_optional_fields
                     .insert(cls.name.clone(), optional_fields);
-                self.class_constructor_optionals.insert(cls.name.clone(), constructor_optionals);
+                self.class_constructor_optionals
+                    .insert(cls.name.clone(), constructor_optionals);
                 if !array_field_types.is_empty() {
-                    self.class_array_field_types.insert(cls.name.clone(), array_field_types);
+                    self.class_array_field_types
+                        .insert(cls.name.clone(), array_field_types);
                 }
                 if !map_value_types.is_empty() {
-                    self.class_map_value_types.insert(cls.name.clone(), map_value_types);
+                    self.class_map_value_types
+                        .insert(cls.name.clone(), map_value_types);
                 }
 
                 // B100 fix: Scan class methods for return types (string, [T])
@@ -1796,7 +1852,8 @@ impl CodeGenerator {
                                     TypeRef::Simple(name) => name.clone(),
                                     _ => String::new(),
                                 };
-                                self.array_returning_methods.insert(method.name.clone(), elem_type);
+                                self.array_returning_methods
+                                    .insert(method.name.clone(), elem_type);
                             }
                         }
                     }
@@ -1860,13 +1917,18 @@ impl CodeGenerator {
                 for variant in &enum_decl.variants {
                     let field_names: Vec<String> =
                         variant.fields.iter().map(|f| f.name.clone()).collect();
-                    let field_types: Vec<(String, TypeRef)> =
-                        variant.fields.iter().map(|f| (f.name.clone(), f.type_ref.clone())).collect();
+                    let field_types: Vec<(String, TypeRef)> = variant
+                        .fields
+                        .iter()
+                        .map(|f| (f.name.clone(), f.type_ref.clone()))
+                        .collect();
                     variants_map.insert(variant.name.clone(), field_names);
                     variants_type_map.insert(variant.name.clone(), field_types);
 
                     // Track optional fields per variant for Some() wrapping
-                    let variant_optionals: Vec<bool> = variant.fields.iter()
+                    let variant_optionals: Vec<bool> = variant
+                        .fields
+                        .iter()
                         .map(|f| matches!(&f.type_ref, TypeRef::Optional(_)))
                         .collect();
                     if variant_optionals.iter().any(|&o| o) {
@@ -1960,7 +2022,9 @@ impl CodeGenerator {
             self.writeln("");
             // liva_log_table_rows: columnar table for arrays of maps
             self.writeln("#[allow(dead_code)]");
-            self.writeln("fn liva_log_table_rows(level: u8, headers: &[&str], rows: &[Vec<String>]) {");
+            self.writeln(
+                "fn liva_log_table_rows(level: u8, headers: &[&str], rows: &[Vec<String>]) {",
+            );
             self.indent();
             self.writeln("if level < LIVA_LOG_LEVEL.load(Ordering::Relaxed) { return; }");
             self.writeln("if level == 0 && std::env::var(\"LIVA_VERBOSE\").is_err() { return; }");
@@ -2018,7 +2082,9 @@ impl CodeGenerator {
             self.writeln("if let Some(serde_json::Value::Object(first)) = arr.first() {");
             self.indent();
             self.writeln("let headers: Vec<&str> = first.keys().map(|k| k.as_str()).collect();");
-            self.writeln("let rows: Vec<Vec<String>> = arr.iter().filter_map(|v| v.as_object()).map(|obj| {");
+            self.writeln(
+                "let rows: Vec<Vec<String>> = arr.iter().filter_map(|v| v.as_object()).map(|obj| {",
+            );
             self.indent();
             self.writeln("headers.iter().map(|h| match obj.get(*h) { Some(serde_json::Value::String(s)) => s.clone(), Some(other) => other.to_string(), None => String::new() }).collect()");
             self.dedent();
@@ -2060,7 +2126,9 @@ impl CodeGenerator {
             self.writeln("use std::collections::HashMap;");
             self.writeln("");
             self.writeln("#[allow(dead_code)]");
-            self.writeln("fn liva_config_load(path: &str) -> (Option<HashMap<String, String>>, String) {");
+            self.writeln(
+                "fn liva_config_load(path: &str) -> (Option<HashMap<String, String>>, String) {",
+            );
             self.indent();
             self.writeln("match std::fs::read_to_string(path) {");
             self.indent();
@@ -2115,7 +2183,9 @@ impl CodeGenerator {
             self.writeln("Some(v) => match v.parse::<i32>() {");
             self.indent();
             self.writeln("Ok(n) => (Some(n), String::new()),");
-            self.writeln("Err(e) => (None, format!(\"Config key '{}' is not a valid int: {}\", key, e)),");
+            self.writeln(
+                "Err(e) => (None, format!(\"Config key '{}' is not a valid int: {}\", key, e)),",
+            );
             self.dedent();
             self.writeln("},");
             self.writeln("None => (None, format!(\"Config key not found: {}\", key)),");
@@ -2133,7 +2203,9 @@ impl CodeGenerator {
             self.indent();
             self.writeln("\"true\" | \"1\" | \"yes\" | \"on\" => (Some(true), String::new()),");
             self.writeln("\"false\" | \"0\" | \"no\" | \"off\" => (Some(false), String::new()),");
-            self.writeln("_ => (None, format!(\"Config key '{}' is not a valid bool: {}\", key, v)),");
+            self.writeln(
+                "_ => (None, format!(\"Config key '{}' is not a valid bool: {}\", key, v)),",
+            );
             self.dedent();
             self.writeln("},");
             self.writeln("None => (None, format!(\"Config key not found: {}\", key)),");
@@ -2451,13 +2523,17 @@ impl CodeGenerator {
                 format!("Union_{}", type_names.join("_"))
             }
             TypeRef::Map(key, value) => {
-                format!("std::collections::HashMap<{}, {}>",
+                format!(
+                    "std::collections::HashMap<{}, {}>",
                     self.expand_type_alias(key),
-                    self.expand_type_alias(value))
+                    self.expand_type_alias(value)
+                )
             }
             TypeRef::Set(inner) => {
-                format!("std::collections::HashSet<{}>",
-                    self.expand_type_alias(inner))
+                format!(
+                    "std::collections::HashSet<{}>",
+                    self.expand_type_alias(inner)
+                )
             }
             TypeRef::Fn(args, ret) => {
                 let args_str = args
@@ -2465,7 +2541,11 @@ impl CodeGenerator {
                     .map(|a| self.expand_type_alias(a))
                     .collect::<Vec<_>>()
                     .join(", ");
-                format!("Box<dyn Fn({}) -> {}>", args_str, self.expand_type_alias(ret))
+                format!(
+                    "Box<dyn Fn({}) -> {}>",
+                    args_str,
+                    self.expand_type_alias(ret)
+                )
             }
         }
     }
@@ -2535,9 +2615,9 @@ impl CodeGenerator {
                 Box::new(self.substitute_type_params_codegen(key, params, args)),
                 Box::new(self.substitute_type_params_codegen(value, params, args)),
             ),
-            TypeRef::Set(inner) => TypeRef::Set(
-                Box::new(self.substitute_type_params_codegen(inner, params, args)),
-            ),
+            TypeRef::Set(inner) => TypeRef::Set(Box::new(
+                self.substitute_type_params_codegen(inner, params, args),
+            )),
             TypeRef::Fn(fn_args, ret) => TypeRef::Fn(
                 fn_args
                     .iter()
@@ -2575,10 +2655,7 @@ impl CodeGenerator {
         // Auto-detect data classes: if a class has fields but no explicit constructor,
         // it's automatically a data class (auto-derive constructor, PartialEq, Display).
         // This replaces the old `data` keyword — the compiler infers it from structure.
-        let has_fields = class
-            .members
-            .iter()
-            .any(|m| matches!(m, Member::Field(_)));
+        let has_fields = class.members.iter().any(|m| matches!(m, Member::Field(_)));
         let is_data = !has_constructor && has_fields;
 
         // Generate default functions for optional fields with init values
@@ -2777,7 +2854,9 @@ impl CodeGenerator {
             let params_str = {
                 let mut result = String::new();
                 for (i, part) in params_str.split(", ").enumerate() {
-                    if i > 0 { result.push_str(", "); }
+                    if i > 0 {
+                        result.push_str(", ");
+                    }
                     if let Some(colon_pos) = part.find(": Option<") {
                         let name = &part[..colon_pos];
                         let type_str = &part[colon_pos + 2..];
@@ -3045,29 +3124,29 @@ impl CodeGenerator {
                 } else {
                     // Regular data class: constructor requires all fields as params
                     // Generate: pub fn new(field1: Type1, field2: Type2, ...) -> Self {
-                self.write_indent();
-                self.output.push_str("pub fn new(");
-                for (i, (name, rust_type)) in fields.iter().enumerate() {
-                    if i > 0 {
-                        self.output.push_str(", ");
-                    }
-                    let sanitized = self.sanitize_name(name);
-                    write!(self.output, "{}: {}", sanitized, rust_type).unwrap();
-                }
-                self.output.push_str(") -> Self {\n");
-                self.indent();
-                self.writeln("Self {");
-                self.indent();
-                for (name, _) in &fields {
-                    let sanitized = self.sanitize_name(name);
                     self.write_indent();
-                    self.writeln(&format!("{},", sanitized));
-                }
-                self.dedent();
-                self.writeln("}");
-                self.dedent();
-                self.writeln("}");
-                self.output.push('\n');
+                    self.output.push_str("pub fn new(");
+                    for (i, (name, rust_type)) in fields.iter().enumerate() {
+                        if i > 0 {
+                            self.output.push_str(", ");
+                        }
+                        let sanitized = self.sanitize_name(name);
+                        write!(self.output, "{}: {}", sanitized, rust_type).unwrap();
+                    }
+                    self.output.push_str(") -> Self {\n");
+                    self.indent();
+                    self.writeln("Self {");
+                    self.indent();
+                    for (name, _) in &fields {
+                        let sanitized = self.sanitize_name(name);
+                        self.write_indent();
+                        self.writeln(&format!("{},", sanitized));
+                    }
+                    self.dedent();
+                    self.writeln("}");
+                    self.dedent();
+                    self.writeln("}");
+                    self.output.push('\n');
                 } // end else (regular data class with all fields as params)
             } else {
                 // Regular class without constructor — default no-arg constructor
@@ -3202,41 +3281,47 @@ impl CodeGenerator {
                             | Some(TypeRef::Map(_, _))
                             | Some(TypeRef::Set(_))
                             | Some(TypeRef::Optional(_))
-                    ) || field.type_ref.as_ref().map_or(false, |t| {
-                        matches!(t, TypeRef::Simple(n) if self.enum_names.contains(n))
-                    })
+                    ) || field.type_ref.as_ref().map_or(
+                        false,
+                        |t| matches!(t, TypeRef::Simple(n) if self.enum_names.contains(n)),
+                    )
                 } else {
                     false
                 }
             });
             // B103 fix: For Display impl, add Display bound to type parameters
             let impl_display_type_params = if !class.type_params.is_empty() {
-                let params: Vec<String> = class.type_params.iter().map(|tp| {
-                    // Start with whatever bounds are already on impl_type_params
-                    let mut all_bounds = Vec::new();
-                    if !tp.constraints.is_empty() {
-                        let rust_bounds = self.trait_registry.generate_rust_bounds(&tp.constraints);
-                        let bounds_part = rust_bounds.trim_start_matches(": ");
-                        all_bounds.push(bounds_part.to_string());
-                    }
-                    if let Some(inferred) = inferred_bounds.get(&tp.name) {
-                        for bound in inferred {
-                            let bound_str = bound.as_str();
-                            if !all_bounds.iter().any(|b| b.contains(bound_str)) {
-                                all_bounds.push(bound.clone());
+                let params: Vec<String> = class
+                    .type_params
+                    .iter()
+                    .map(|tp| {
+                        // Start with whatever bounds are already on impl_type_params
+                        let mut all_bounds = Vec::new();
+                        if !tp.constraints.is_empty() {
+                            let rust_bounds =
+                                self.trait_registry.generate_rust_bounds(&tp.constraints);
+                            let bounds_part = rust_bounds.trim_start_matches(": ");
+                            all_bounds.push(bounds_part.to_string());
+                        }
+                        if let Some(inferred) = inferred_bounds.get(&tp.name) {
+                            for bound in inferred {
+                                let bound_str = bound.as_str();
+                                if !all_bounds.iter().any(|b| b.contains(bound_str)) {
+                                    all_bounds.push(bound.clone());
+                                }
                             }
                         }
-                    }
-                    // Add Display bound if not already present
-                    if !all_bounds.iter().any(|b| b.contains("Display")) {
-                        all_bounds.push("std::fmt::Display".to_string());
-                    }
-                    // B152: add Debug if the class has any field formatted via {:?}
-                    if any_debug_field && !all_bounds.iter().any(|b| b.contains("Debug")) {
-                        all_bounds.push("std::fmt::Debug".to_string());
-                    }
-                    format!("{}: {}", tp.name, all_bounds.join(" + "))
-                }).collect();
+                        // Add Display bound if not already present
+                        if !all_bounds.iter().any(|b| b.contains("Display")) {
+                            all_bounds.push("std::fmt::Display".to_string());
+                        }
+                        // B152: add Debug if the class has any field formatted via {:?}
+                        if any_debug_field && !all_bounds.iter().any(|b| b.contains("Debug")) {
+                            all_bounds.push("std::fmt::Debug".to_string());
+                        }
+                        format!("{}: {}", tp.name, all_bounds.join(" + "))
+                    })
+                    .collect();
                 format!("<{}>", params.join(", "))
             } else {
                 String::new()
@@ -3478,7 +3563,9 @@ impl CodeGenerator {
                 }
                 None
             }
-            Expr::Binary { op, left, right, .. } => {
+            Expr::Binary {
+                op, left, right, ..
+            } => {
                 // Simple heuristics for binary operations
                 match op {
                     BinOp::Lt
@@ -3517,14 +3604,15 @@ impl CodeGenerator {
             // String templates ($"...{expr}...") always return String
             Expr::StringTemplate { .. } => Some(" -> String".to_string()),
             // B18 fix: Ternary expressions — infer from then/else branches
-            Expr::Ternary { then_expr, else_expr, .. } => {
-                self.infer_expr_type(then_expr, class)
-                    .or_else(|| self.infer_expr_type(else_expr, class))
-            }
+            Expr::Ternary {
+                then_expr,
+                else_expr,
+                ..
+            } => self
+                .infer_expr_type(then_expr, class)
+                .or_else(|| self.infer_expr_type(else_expr, class)),
             // B18 fix: Unary not → bool
-            Expr::Unary { op, .. } if matches!(op, UnOp::Not) => {
-                Some(" -> bool".to_string())
-            }
+            Expr::Unary { op, .. } if matches!(op, UnOp::Not) => Some(" -> bool".to_string()),
             _ => None,
         }
     }
@@ -3587,7 +3675,8 @@ impl CodeGenerator {
         } else {
             method.name.clone()
         };
-        let prev_function_name = std::mem::replace(&mut self.current_function_name, method_trace_name);
+        let prev_function_name =
+            std::mem::replace(&mut self.current_function_name, method_trace_name);
 
         // Pre-analyze: collect variables that are mutated after declaration
         self.mutated_vars.clear();
@@ -3712,17 +3801,23 @@ impl CodeGenerator {
             let returns_type_param = method.return_type.as_ref().map_or(false, |rt| {
                 if let TypeRef::Simple(name) = rt {
                     class_type_param_names.contains(name)
-                } else { false }
+                } else {
+                    false
+                }
             });
             let needs_clone = returns_type_param && !self.current_method_is_mut;
             if method.contains_fail {
                 self.output.push_str("Ok(");
                 self.generate_expr(expr)?;
-                if needs_clone { self.output.push_str(".clone()"); }
+                if needs_clone {
+                    self.output.push_str(".clone()");
+                }
                 self.output.push(')');
             } else {
                 self.generate_expr(expr)?;
-                if needs_clone { self.output.push_str(".clone()"); }
+                if needs_clone {
+                    self.output.push_str(".clone()");
+                }
             }
             self.output.push('\n');
             self.dedent();
@@ -3761,8 +3856,10 @@ impl CodeGenerator {
         let all_unit = enum_decl.variants.iter().all(|v| v.fields.is_empty());
 
         // Pre-scan: detect recursive fields that need auto-boxing
-        let mut boxed_fields_for_enum: std::collections::HashMap<String, std::collections::HashSet<String>> =
-            std::collections::HashMap::new();
+        let mut boxed_fields_for_enum: std::collections::HashMap<
+            String,
+            std::collections::HashSet<String>,
+        > = std::collections::HashMap::new();
         for variant in &enum_decl.variants {
             for field in &variant.fields {
                 if Self::is_recursive_field(&field.type_ref, &enum_decl.name) {
@@ -3882,10 +3979,14 @@ impl CodeGenerator {
 
     fn generate_function(&mut self, func: &FunctionDecl) -> Result<()> {
         // Track current function name for error traces
-        let prev_function_name = std::mem::replace(&mut self.current_function_name, func.name.clone());
+        let prev_function_name =
+            std::mem::replace(&mut self.current_function_name, func.name.clone());
 
         // Register default parameter values for call-site injection
-        let defaults: Vec<(usize, Expr)> = func.params.iter().enumerate()
+        let defaults: Vec<(usize, Expr)> = func
+            .params
+            .iter()
+            .enumerate()
             .filter_map(|(i, p)| p.default.as_ref().map(|d| (i, d.clone())))
             .collect();
         if !defaults.is_empty() {
@@ -3894,11 +3995,11 @@ impl CodeGenerator {
 
         // GAP-007: Record param types so call-site can wrap Lambda args in Box::new
         // when the expected type is a function type.
-        let param_types: Vec<Option<TypeRef>> = func.params.iter()
-            .map(|p| p.type_ref.clone())
-            .collect();
+        let param_types: Vec<Option<TypeRef>> =
+            func.params.iter().map(|p| p.type_ref.clone()).collect();
         if param_types.iter().any(|t| t.is_some()) {
-            self.function_param_types.insert(func.name.clone(), param_types);
+            self.function_param_types
+                .insert(func.name.clone(), param_types);
         }
 
         // Pre-analyze: collect variables that are mutated after declaration
@@ -3956,7 +4057,10 @@ impl CodeGenerator {
             if let Some(ret) = &func.return_type {
                 match ret {
                     TypeRef::Fallible(_) => format!(" -> {}", self.expand_type_alias(ret)),
-                    _ => format!(" -> Result<{}, liva_rt::Error>", self.expand_type_alias(ret)),
+                    _ => format!(
+                        " -> Result<{}, liva_rt::Error>",
+                        self.expand_type_alias(ret)
+                    ),
                 }
             } else if let Some(expr) = &func.expr_body {
                 let inner_type = self
@@ -4501,16 +4605,23 @@ impl CodeGenerator {
                 // B105 fix: If expected is an empty array literal [], use .is_empty() instead of assert_eq!(_, vec![])
                 let expected_is_empty_array = if !method_call.args.is_empty() {
                     matches!(&method_call.args[0], Expr::ArrayLiteral(elements) if elements.is_empty())
-                } else { false };
+                } else {
+                    false
+                };
                 // B111 fix: If actual is Option<T> (option_value_vars or error_binding_vars),
                 // wrap expected in Some() or use is_none() for null comparisons
                 let actual_is_option = if let Expr::Identifier(name) = actual_expr {
                     let sname = self.sanitize_name(name);
-                    self.option_value_vars.contains(&sname) || self.error_binding_vars.contains(&sname)
-                } else { false };
+                    self.option_value_vars.contains(&sname)
+                        || self.error_binding_vars.contains(&sname)
+                } else {
+                    false
+                };
                 let expected_is_null = if !method_call.args.is_empty() {
                     matches!(&method_call.args[0], Expr::Literal(Literal::Null))
-                } else { false };
+                } else {
+                    false
+                };
                 if expected_is_empty_array {
                     if is_negated {
                         format!("assert!(!{}.is_empty())", actual_code)
@@ -4546,8 +4657,11 @@ impl CodeGenerator {
                 // generate .is_some() / .is_none() instead of assert!()
                 let is_option = if let Expr::Identifier(name) = actual_expr {
                     let sname = self.sanitize_name(name);
-                    self.error_binding_vars.contains(&sname) || self.option_value_vars.contains(&sname)
-                } else { false };
+                    self.error_binding_vars.contains(&sname)
+                        || self.option_value_vars.contains(&sname)
+                } else {
+                    false
+                };
                 if is_option {
                     if is_negated {
                         format!("assert!({}.is_none())", actual_code)
@@ -4563,8 +4677,11 @@ impl CodeGenerator {
             "toBeFalsy" => {
                 let is_option = if let Expr::Identifier(name) = actual_expr {
                     let sname = self.sanitize_name(name);
-                    self.error_binding_vars.contains(&sname) || self.option_value_vars.contains(&sname)
-                } else { false };
+                    self.error_binding_vars.contains(&sname)
+                        || self.option_value_vars.contains(&sname)
+                } else {
+                    false
+                };
                 if is_option {
                     if is_negated {
                         format!("assert!({}.is_some())", actual_code)
@@ -4939,15 +5056,22 @@ impl CodeGenerator {
                         // HTTP calls return (Option<Response>, String)
                         write!(self.output, "let {} = {{ let (opt, err_str) = ", var_name).unwrap();
                         self.generate_expr(&var.init)?;
-                        write!(self.output,
+                        write!(
+                            self.output,
                             ".await; if !err_str.is_empty() {{ return Err(liva_rt::Error::new(",
-                        ).unwrap();
+                        )
+                        .unwrap();
                         if is_bare_or_fail {
                             self.output.push_str("err_str");
                         } else {
                             self.generate_expr(fail_msg)?;
                         }
-                        write!(self.output, ", \"{}\", \"{}\")); }} opt.unwrap_or_default() }};\n", fn_name, location).unwrap();
+                        write!(
+                            self.output,
+                            ", \"{}\", \"{}\")); }} opt.unwrap_or_default() }};\n",
+                            fn_name, location
+                        )
+                        .unwrap();
 
                         // Track as rust_struct for member access
                         self.rust_struct_vars.insert(var_name);
@@ -4955,62 +5079,115 @@ impl CodeGenerator {
                         // File calls return (Option<T>, String)
                         write!(self.output, "let {} = {{ let (opt, err_str) = ", var_name).unwrap();
                         self.generate_expr(&var.init)?;
-                        write!(self.output,
+                        write!(
+                            self.output,
                             "; if !err_str.is_empty() {{ return Err(liva_rt::Error::new(",
-                        ).unwrap();
+                        )
+                        .unwrap();
                         if is_bare_or_fail {
                             self.output.push_str("err_str");
                         } else {
                             self.generate_expr(fail_msg)?;
                         }
-                        write!(self.output, ", \"{}\", \"{}\")); }} opt.unwrap_or_default() }};\n", fn_name, location).unwrap();
+                        write!(
+                            self.output,
+                            ", \"{}\", \"{}\")); }} opt.unwrap_or_default() }};\n",
+                            fn_name, location
+                        )
+                        .unwrap();
                     } else if is_json_parse {
                         // JSON.parse returns (Option<JsonValue>, String)
                         write!(self.output, "let {} = {{ let (opt, err_str) = ", var_name).unwrap();
                         self.generate_expr(&var.init)?;
-                        write!(self.output,
+                        write!(
+                            self.output,
                             "; if !err_str.is_empty() {{ return Err(liva_rt::Error::new(",
-                        ).unwrap();
+                        )
+                        .unwrap();
                         if is_bare_or_fail {
                             self.output.push_str("err_str");
                         } else {
                             self.generate_expr(fail_msg)?;
                         }
-                        write!(self.output, ", \"{}\", \"{}\")); }} opt.unwrap_or_default() }};\n", fn_name, location).unwrap();
+                        write!(
+                            self.output,
+                            ", \"{}\", \"{}\")); }} opt.unwrap_or_default() }};\n",
+                            fn_name, location
+                        )
+                        .unwrap();
 
                         // Track as json_value_var for indexed access
                         self.json_value_vars.insert(var_name);
                     } else if is_user_fallible {
                         // User-defined fallible functions return Result<T, Error>
-                        write!(self.output, "let {}{} = match ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
+                        write!(
+                            self.output,
+                            "let {}{} = match ",
+                            if self.mutated_vars.contains(&var_name) {
+                                "mut "
+                            } else {
+                                ""
+                            },
+                            var_name
+                        )
+                        .unwrap();
                         self.generate_expr(&var.init)?;
                         if is_bare_or_fail {
                             // Bare `or fail` — propagate original error unchanged
-                            self.output.push_str(" { Ok(v) => v, Err(e) => return Err(e) };\n");
+                            self.output
+                                .push_str(" { Ok(v) => v, Err(e) => return Err(e) };\n");
                         } else {
                             // Chain: Err(e) => return Err(Error::chain("msg", fn, loc, e))
-                            self.output
-                                .push_str(" { Ok(v) => v, Err(e) => return Err(liva_rt::Error::chain(");
+                            self.output.push_str(
+                                " { Ok(v) => v, Err(e) => return Err(liva_rt::Error::chain(",
+                            );
                             self.generate_expr(fail_msg)?;
-                            write!(self.output, ", \"{}\", \"{}\", e)) }};\n", fn_name, location).unwrap();
+                            write!(
+                                self.output,
+                                ", \"{}\", \"{}\", e)) }};\n",
+                                fn_name, location
+                            )
+                            .unwrap();
                         }
                     } else if self.is_option_returning_method(&var.init) {
                         // Option-returning methods (find, first, last, min, max) with or fail
                         self.suppress_option_unwrap = true;
-                        write!(self.output, "let {}{} = match ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
+                        write!(
+                            self.output,
+                            "let {}{} = match ",
+                            if self.mutated_vars.contains(&var_name) {
+                                "mut "
+                            } else {
+                                ""
+                            },
+                            var_name
+                        )
+                        .unwrap();
                         self.generate_expr(&var.init)?;
                         self.suppress_option_unwrap = false;
-                        self.output.push_str(" { Some(v) => v, None => panic!(\"or fail: {}\", ");
+                        self.output
+                            .push_str(" { Some(v) => v, None => panic!(\"or fail: {}\", ");
                         self.generate_expr(fail_msg)?;
                         self.output.push_str(") };\n");
                     } else if self.is_map_get_call(&var.init) {
                         // B132: Map.get(k) or fail "msg" — propagate the failure when the key is absent.
                         // Generates: match map.get(&k).cloned() { Some(v) => v, None => return Err(...) };
                         self.suppress_map_get_unwrap = true;
-                        write!(self.output, "let {}{} = match ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
+                        write!(
+                            self.output,
+                            "let {}{} = match ",
+                            if self.mutated_vars.contains(&var_name) {
+                                "mut "
+                            } else {
+                                ""
+                            },
+                            var_name
+                        )
+                        .unwrap();
                         self.generate_expr(&var.init)?;
                         self.suppress_map_get_unwrap = false;
-                        self.output.push_str(" { Some(v) => v, None => return Err(liva_rt::Error::new(");
+                        self.output
+                            .push_str(" { Some(v) => v, None => return Err(liva_rt::Error::new(");
                         if is_bare_or_fail {
                             self.output.push_str("\"map: missing key\".to_string()");
                         } else {
@@ -5025,7 +5202,17 @@ impl CodeGenerator {
                             _ => None,
                         };
                         if let (Some(parse_t), false) = (parse_t, call.args.is_empty()) {
-                            write!(self.output, "let {}{} = match ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
+                            write!(
+                                self.output,
+                                "let {}{} = match ",
+                                if self.mutated_vars.contains(&var_name) {
+                                    "mut "
+                                } else {
+                                    ""
+                                },
+                                var_name
+                            )
+                            .unwrap();
                             self.generate_expr(&call.args[0])?;
                             write!(self.output, ".parse::<{}>() {{ Ok(v) => v, Err(e) => return Err(liva_rt::Error::", parse_t).unwrap();
                             if is_bare_or_fail {
@@ -5033,11 +5220,26 @@ impl CodeGenerator {
                             } else {
                                 self.output.push_str("chain(");
                                 self.generate_expr(fail_msg)?;
-                                write!(self.output, ", \"{}\", \"{}\", liva_rt::Error::from(e.to_string())))", fn_name, location).unwrap();
+                                write!(
+                                    self.output,
+                                    ", \"{}\", \"{}\", liva_rt::Error::from(e.to_string())))",
+                                    fn_name, location
+                                )
+                                .unwrap();
                             }
                             self.output.push_str(" };\n");
                         } else {
-                            write!(self.output, "let {}{} = ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
+                            write!(
+                                self.output,
+                                "let {}{} = ",
+                                if self.mutated_vars.contains(&var_name) {
+                                    "mut "
+                                } else {
+                                    ""
+                                },
+                                var_name
+                            )
+                            .unwrap();
                             self.generate_expr(&var.init)?;
                             self.output.push_str(";\n");
                         }
@@ -5045,7 +5247,17 @@ impl CodeGenerator {
                         // B143: `s.toInt() or fail "msg"` — emit fallible parse
                         if mc.method == "toInt" || mc.method == "toFloat" {
                             let parse_t = if mc.method == "toInt" { "i32" } else { "f64" };
-                            write!(self.output, "let {}{} = match ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
+                            write!(
+                                self.output,
+                                "let {}{} = match ",
+                                if self.mutated_vars.contains(&var_name) {
+                                    "mut "
+                                } else {
+                                    ""
+                                },
+                                var_name
+                            )
+                            .unwrap();
                             self.generate_expr(&mc.object)?;
                             write!(self.output, ".parse::<{}>() {{ Ok(v) => v, Err(e) => return Err(liva_rt::Error::", parse_t).unwrap();
                             if is_bare_or_fail {
@@ -5053,17 +5265,42 @@ impl CodeGenerator {
                             } else {
                                 self.output.push_str("chain(");
                                 self.generate_expr(fail_msg)?;
-                                write!(self.output, ", \"{}\", \"{}\", liva_rt::Error::from(e.to_string())))", fn_name, location).unwrap();
+                                write!(
+                                    self.output,
+                                    ", \"{}\", \"{}\", liva_rt::Error::from(e.to_string())))",
+                                    fn_name, location
+                                )
+                                .unwrap();
                             }
                             self.output.push_str(" };\n");
                         } else {
-                            write!(self.output, "let {}{} = ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
+                            write!(
+                                self.output,
+                                "let {}{} = ",
+                                if self.mutated_vars.contains(&var_name) {
+                                    "mut "
+                                } else {
+                                    ""
+                                },
+                                var_name
+                            )
+                            .unwrap();
                             self.generate_expr(&var.init)?;
                             self.output.push_str(";\n");
                         }
                     } else {
                         // Non-fallible expression with or fail — just assign directly (or fail never triggers)
-                        write!(self.output, "let {}{} = ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
+                        write!(
+                            self.output,
+                            "let {}{} = ",
+                            if self.mutated_vars.contains(&var_name) {
+                                "mut "
+                            } else {
+                                ""
+                            },
+                            var_name
+                        )
+                        .unwrap();
                         self.generate_expr(&var.init)?;
                         self.output.push_str(";\n");
                     }
@@ -5088,7 +5325,17 @@ impl CodeGenerator {
                     if let Expr::MethodCall(mc) = &var.init {
                         if mc.method == "toInt" || mc.method == "toFloat" {
                             let parse_t = if mc.method == "toInt" { "i32" } else { "f64" };
-                            write!(self.output, "let {}{} = ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
+                            write!(
+                                self.output,
+                                "let {}{} = ",
+                                if self.mutated_vars.contains(&var_name) {
+                                    "mut "
+                                } else {
+                                    ""
+                                },
+                                var_name
+                            )
+                            .unwrap();
                             self.generate_expr(&mc.object)?;
                             write!(self.output, ".parse::<{}>().unwrap_or(", parse_t).unwrap();
                             self.generate_expr(default_val)?;
@@ -5103,7 +5350,8 @@ impl CodeGenerator {
                         self.generate_expr(&var.init)?;
                         self.output.push_str(".await; if !err_str.is_empty() { ");
                         self.generate_expr(default_val)?;
-                        self.output.push_str(" } else { opt.unwrap_or_default() } };\n");
+                        self.output
+                            .push_str(" } else { opt.unwrap_or_default() } };\n");
                         self.rust_struct_vars.insert(var_name);
                     } else if is_file {
                         write!(self.output, "let {} = {{ let (opt, err_str) = ", var_name).unwrap();
@@ -5114,18 +5362,30 @@ impl CodeGenerator {
                         if matches!(default_val.as_ref(), Expr::Literal(Literal::String(_))) {
                             self.output.push_str(".to_string()");
                         }
-                        self.output.push_str(" } else { opt.unwrap_or_default() } };\n");
+                        self.output
+                            .push_str(" } else { opt.unwrap_or_default() } };\n");
                     } else if is_json_parse {
                         write!(self.output, "let {} = {{ let (opt, err_str) = ", var_name).unwrap();
                         self.generate_expr(&var.init)?;
                         self.output.push_str("; if !err_str.is_empty() { ");
                         self.generate_expr(default_val)?;
-                        self.output.push_str(" } else { opt.unwrap_or_default() } };\n");
+                        self.output
+                            .push_str(" } else { opt.unwrap_or_default() } };\n");
                         self.json_value_vars.insert(var_name);
                     } else if self.is_map_get_call(&var.init) {
                         // Map.get with or default: let var = map.get(&key).cloned().unwrap_or(default);
                         self.suppress_map_get_unwrap = true;
-                        write!(self.output, "let {}{} = ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
+                        write!(
+                            self.output,
+                            "let {}{} = ",
+                            if self.mutated_vars.contains(&var_name) {
+                                "mut "
+                            } else {
+                                ""
+                            },
+                            var_name
+                        )
+                        .unwrap();
                         self.generate_expr(&var.init)?;
                         self.suppress_map_get_unwrap = false;
                         self.output.push_str(".unwrap_or(");
@@ -5139,7 +5399,17 @@ impl CodeGenerator {
                         self.output.push_str(");\n");
                     } else if is_user_fallible {
                         // User-defined fallible: let var = match expr { Ok(v) => v, Err(_) => defaultValue };
-                        write!(self.output, "let {}{} = match ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
+                        write!(
+                            self.output,
+                            "let {}{} = match ",
+                            if self.mutated_vars.contains(&var_name) {
+                                "mut "
+                            } else {
+                                ""
+                            },
+                            var_name
+                        )
+                        .unwrap();
                         self.generate_expr(&var.init)?;
                         self.output.push_str(" { Ok(v) => v, Err(_) => ");
                         self.generate_expr(default_val)?;
@@ -5151,7 +5421,17 @@ impl CodeGenerator {
                     } else if self.is_option_returning_method(&var.init) {
                         // Option-returning methods (find, first, last, min, max) with or default
                         self.suppress_option_unwrap = true;
-                        write!(self.output, "let {}{} = ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
+                        write!(
+                            self.output,
+                            "let {}{} = ",
+                            if self.mutated_vars.contains(&var_name) {
+                                "mut "
+                            } else {
+                                ""
+                            },
+                            var_name
+                        )
+                        .unwrap();
                         self.generate_expr(&var.init)?;
                         self.suppress_option_unwrap = false;
                         self.output.push_str(".unwrap_or(");
@@ -5162,23 +5442,56 @@ impl CodeGenerator {
                         // Generate: let var = match arg.parse::<T>() { Ok(v) => v, Err(_) => default };
                         if let Expr::Identifier(name) = call.callee.as_ref() {
                             if name == "parseInt" && !call.args.is_empty() {
-                                write!(self.output, "let {}{} = match ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
+                                write!(
+                                    self.output,
+                                    "let {}{} = match ",
+                                    if self.mutated_vars.contains(&var_name) {
+                                        "mut "
+                                    } else {
+                                        ""
+                                    },
+                                    var_name
+                                )
+                                .unwrap();
                                 self.generate_expr(&call.args[0])?;
-                                self.output.push_str(".parse::<i32>() { Ok(v) => v, Err(_) => ");
+                                self.output
+                                    .push_str(".parse::<i32>() { Ok(v) => v, Err(_) => ");
                                 self.generate_expr(default_val)?;
                                 self.output.push_str(" };\n");
                             } else if name == "parseFloat" && !call.args.is_empty() {
-                                write!(self.output, "let {}{} = match ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
+                                write!(
+                                    self.output,
+                                    "let {}{} = match ",
+                                    if self.mutated_vars.contains(&var_name) {
+                                        "mut "
+                                    } else {
+                                        ""
+                                    },
+                                    var_name
+                                )
+                                .unwrap();
                                 self.generate_expr(&call.args[0])?;
-                                self.output.push_str(".parse::<f64>() { Ok(v) => v, Err(_) => ");
+                                self.output
+                                    .push_str(".parse::<f64>() { Ok(v) => v, Err(_) => ");
                                 self.generate_expr(default_val)?;
                                 self.output.push_str(" };\n");
                             } else {
                                 // BUG-006: Generic function call with `or` — unwrap Option
-                                write!(self.output, "let {}{} = ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
+                                write!(
+                                    self.output,
+                                    "let {}{} = ",
+                                    if self.mutated_vars.contains(&var_name) {
+                                        "mut "
+                                    } else {
+                                        ""
+                                    },
+                                    var_name
+                                )
+                                .unwrap();
                                 self.generate_expr(&var.init)?;
                                 self.output.push_str(".unwrap_or(");
-                                if matches!(default_val.as_ref(), Expr::Literal(Literal::String(_))) {
+                                if matches!(default_val.as_ref(), Expr::Literal(Literal::String(_)))
+                                {
                                     self.generate_expr(default_val)?;
                                     self.output.push_str(".to_string()");
                                 } else {
@@ -5188,7 +5501,17 @@ impl CodeGenerator {
                             }
                         } else {
                             // BUG-006: Method call with `or` — unwrap Option
-                            write!(self.output, "let {}{} = ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
+                            write!(
+                                self.output,
+                                "let {}{} = ",
+                                if self.mutated_vars.contains(&var_name) {
+                                    "mut "
+                                } else {
+                                    ""
+                                },
+                                var_name
+                            )
+                            .unwrap();
                             self.generate_expr(&var.init)?;
                             self.output.push_str(".unwrap_or(");
                             if matches!(default_val.as_ref(), Expr::Literal(Literal::String(_))) {
@@ -5202,7 +5525,17 @@ impl CodeGenerator {
                     } else {
                         // BUG-006: Generic fallback — use .unwrap_or / .unwrap_or_else for
                         // functions that return Option<T> (user-defined or otherwise)
-                        write!(self.output, "let {}{} = ", if self.mutated_vars.contains(&var_name) {"mut "} else {""}, var_name).unwrap();
+                        write!(
+                            self.output,
+                            "let {}{} = ",
+                            if self.mutated_vars.contains(&var_name) {
+                                "mut "
+                            } else {
+                                ""
+                            },
+                            var_name
+                        )
+                        .unwrap();
                         self.generate_expr(&var.init)?;
                         self.output.push_str(".unwrap_or(");
                         if matches!(default_val.as_ref(), Expr::Literal(Literal::String(_))) {
@@ -5518,14 +5851,22 @@ impl CodeGenerator {
                                 let is_date_parse = if let Expr::MethodCall(mc) = &var.init {
                                     if let Expr::Identifier(obj) = mc.object.as_ref() {
                                         obj == "Date" && mc.method == "parse"
-                                    } else { false }
-                                } else { false };
+                                    } else {
+                                        false
+                                    }
+                                } else {
+                                    false
+                                };
 
                                 let is_db_open = if let Expr::MethodCall(mc) = &var.init {
                                     if let Expr::Identifier(obj) = mc.object.as_ref() {
                                         obj == "DB" && mc.method == "open"
-                                    } else { false }
-                                } else { false };
+                                    } else {
+                                        false
+                                    }
+                                } else {
+                                    false
+                                };
 
                                 if is_db_open {
                                     // DB.open returns (Option<Connection>, String) — Connection has no Default
@@ -5541,7 +5882,8 @@ impl CodeGenerator {
                                 } else {
                                     self.output.push_str(") = { let (opt, err) = ");
                                     self.generate_expr(&var.init)?;
-                                    self.output.push_str("; (opt.unwrap_or_default(), err) };\n");
+                                    self.output
+                                        .push_str("; (opt.unwrap_or_default(), err) };\n");
                                 }
                                 // Track the error variable as string_error_vars (for `if err` sugar)
                                 if var.bindings.len() >= 2 {
@@ -5552,15 +5894,21 @@ impl CodeGenerator {
                                 // Track Dir.list()/Dir.listRecursive()/Dir.walk()/File.readLines() result as array of strings for proper par_iter/map lambda patterns
                                 if let Expr::MethodCall(mc) = &var.init {
                                     if let Expr::Identifier(obj) = mc.object.as_ref() {
-                                        if (obj == "Dir" && matches!(mc.method.as_str(), "list" | "listRecursive" | "walk"))
+                                        if (obj == "Dir"
+                                            && matches!(
+                                                mc.method.as_str(),
+                                                "list" | "listRecursive" | "walk"
+                                            ))
                                             || (obj == "File" && mc.method == "readLines")
                                         {
                                             if let Some(first_binding) = var.bindings.first() {
                                                 if let Some(name) = first_binding.name() {
                                                     let sanitized = self.sanitize_name(name);
                                                     self.array_vars.insert(sanitized.clone());
-                                                    self.native_vec_string_vars.insert(sanitized.clone());
-                                                    self.typed_array_vars.insert(sanitized, "string".to_string());
+                                                    self.native_vec_string_vars
+                                                        .insert(sanitized.clone());
+                                                    self.typed_array_vars
+                                                        .insert(sanitized, "string".to_string());
                                                 }
                                             }
                                         }
@@ -5753,7 +6101,9 @@ impl CodeGenerator {
                                 // User-defined fallible calls: match to extract error
                                 self.output.push_str("match ");
                                 self.generate_expr(&var.init)?;
-                                self.output.push_str(" { Ok(_) => String::new(), Err(e) => e.to_string() }");
+                                self.output.push_str(
+                                    " { Ok(_) => String::new(), Err(e) => e.to_string() }",
+                                );
                             }
                             self.output.push_str(";\n");
                             return Ok(());
@@ -5767,7 +6117,11 @@ impl CodeGenerator {
                         }
                         // Bug #84 fix: Track variables assigned from req.body as string_vars
                         // so they get .clone() when passed to functions
-                        else if let Expr::Member { object: member_obj, property: member_prop } = &var.init {
+                        else if let Expr::Member {
+                            object: member_obj,
+                            property: member_prop,
+                        } = &var.init
+                        {
                             if let Some(ref req_param_name) = self.server_request_param {
                                 if let Expr::Identifier(name) = member_obj.as_ref() {
                                     if name == req_param_name && member_prop == "body" {
@@ -5865,7 +6219,11 @@ impl CodeGenerator {
                             }
                         }
                         // Also track map vars from type annotation Map<K,V>
-                        if binding.type_ref.as_ref().map_or(false, |t| matches!(t, TypeRef::Map(_, _))) {
+                        if binding
+                            .type_ref
+                            .as_ref()
+                            .map_or(false, |t| matches!(t, TypeRef::Map(_, _)))
+                        {
                             if let Some(name) = binding.name() {
                                 let san = self.sanitize_name(&name);
                                 self.map_vars.insert(san.clone());
@@ -5874,11 +6232,12 @@ impl CodeGenerator {
                                     let encoded = match value_type.as_ref() {
                                         TypeRef::Simple(n) => Some(n.clone()),
                                         TypeRef::Array(inner) => {
-                                            let inner_name = if let TypeRef::Simple(n) = inner.as_ref() {
-                                                n.clone()
-                                            } else {
-                                                "_".to_string()
-                                            };
+                                            let inner_name =
+                                                if let TypeRef::Simple(n) = inner.as_ref() {
+                                                    n.clone()
+                                                } else {
+                                                    "_".to_string()
+                                                };
                                             Some(format!("[{}]", inner_name))
                                         }
                                         TypeRef::Map(_, _) => Some("{}".to_string()),
@@ -5891,7 +6250,11 @@ impl CodeGenerator {
                             }
                         }
                         // Also track set vars from type annotation Set<T>
-                        if binding.type_ref.as_ref().map_or(false, |t| matches!(t, TypeRef::Set(_))) {
+                        if binding
+                            .type_ref
+                            .as_ref()
+                            .map_or(false, |t| matches!(t, TypeRef::Set(_)))
+                        {
                             if let Some(name) = binding.name() {
                                 self.set_vars.insert(self.sanitize_name(&name));
                             }
@@ -5899,15 +6262,30 @@ impl CodeGenerator {
                         // Check if initializing with a method call that returns an array (map, filter, etc.)
                         // or Option (find)
                         else if let Expr::MethodCall(method_call) = &var.init {
-                            if matches!(method_call.method.as_str(), "map" | "filter" | "split"
-                                | "sort" | "sortBy" | "reversed" | "distinct" | "flat" | "flatten"
-                                | "take" | "drop" | "slice" | "chunks" | "flatMap") {
+                            if matches!(
+                                method_call.method.as_str(),
+                                "map"
+                                    | "filter"
+                                    | "split"
+                                    | "sort"
+                                    | "sortBy"
+                                    | "reversed"
+                                    | "distinct"
+                                    | "flat"
+                                    | "flatten"
+                                    | "take"
+                                    | "drop"
+                                    | "slice"
+                                    | "chunks"
+                                    | "flatMap"
+                            ) {
                                 if let Some(name) = binding.name() {
                                     self.array_vars.insert(name.to_string());
 
                                     // split() always returns [string]
                                     if method_call.method == "split" {
-                                        self.typed_array_vars.insert(name.to_string(), "string".to_string());
+                                        self.typed_array_vars
+                                            .insert(name.to_string(), "string".to_string());
                                     }
 
                                     // Propagate element type from source array to filter/map result
@@ -5944,7 +6322,10 @@ impl CodeGenerator {
                                 }
                             }
                             // B110 fix: union/intersection/difference on Set return HashSet — track as set
-                            else if matches!(method_call.method.as_str(), "union" | "intersection" | "difference") {
+                            else if matches!(
+                                method_call.method.as_str(),
+                                "union" | "intersection" | "difference"
+                            ) {
                                 if let Some(name) = binding.name() {
                                     self.set_vars.insert(self.sanitize_name(name));
                                 }
@@ -5988,7 +6369,9 @@ impl CodeGenerator {
                                         self.class_instance_vars.insert(san);
                                     }
                                 }
-                                if obj_name == "Date" && matches!(method_call.method.as_str(), "now" | "new") {
+                                if obj_name == "Date"
+                                    && matches!(method_call.method.as_str(), "now" | "new")
+                                {
                                     if let Some(name) = binding.name() {
                                         self.date_vars.insert(name.to_string());
                                     }
@@ -6008,7 +6391,9 @@ impl CodeGenerator {
                                 }
                                 // d.add() on a Date variable also returns Date
                                 let sanitized_obj = self.sanitize_name(obj_name);
-                                if self.date_vars.contains(&sanitized_obj) && method_call.method == "add" {
+                                if self.date_vars.contains(&sanitized_obj)
+                                    && method_call.method == "add"
+                                {
                                     if let Some(name) = binding.name() {
                                         self.date_vars.insert(name.to_string());
                                     }
@@ -6022,7 +6407,11 @@ impl CodeGenerator {
                                 }
                             }
                             // B100 fix: Track variables assigned from method calls that return [T]
-                            if let Some(elem_type) = self.array_returning_methods.get(&method_call.method).cloned() {
+                            if let Some(elem_type) = self
+                                .array_returning_methods
+                                .get(&method_call.method)
+                                .cloned()
+                            {
                                 if let Some(name) = binding.name() {
                                     self.array_vars.insert(name.to_string());
                                     if !elem_type.is_empty() {
@@ -6041,10 +6430,13 @@ impl CodeGenerator {
                                         self.option_value_vars.insert(san_name.clone());
                                     }
                                     // Check if this is an array-returning function
-                                    else if let Some(elem_type) = self.array_returning_functions.get(class_name).cloned() {
+                                    else if let Some(elem_type) =
+                                        self.array_returning_functions.get(class_name).cloned()
+                                    {
                                         self.array_vars.insert(san_name.clone());
                                         if !elem_type.is_empty() {
-                                            self.typed_array_vars.insert(san_name.clone(), elem_type);
+                                            self.typed_array_vars
+                                                .insert(san_name.clone(), elem_type);
                                         }
                                     }
                                     // Check if this is a string-returning function
@@ -6092,7 +6484,9 @@ impl CodeGenerator {
                                 // Bug #94 fix: Track variables indexed from typed arrays
                                 // e.g., let tok = toks[i] where toks is [string] → tok is string
                                 // e.g., let p = people[i] where people is [Person] → p is class instance
-                                if let Some(elem_type) = self.typed_array_vars.get(&sanitized_obj).cloned() {
+                                if let Some(elem_type) =
+                                    self.typed_array_vars.get(&sanitized_obj).cloned()
+                                {
                                     if let Some(name) = binding.name() {
                                         let var_name_s = self.sanitize_name(name);
                                         if elem_type == "string" {
@@ -6178,7 +6572,9 @@ impl CodeGenerator {
 
                         // FIX-1 (ISSUE-001): Wrap init in Some() if type annotation is T?
                         // but the value is not already optional (null, optional chain, option-returning fn/method)
-                        let needs_some_wrap_decl = binding.type_ref.as_ref()
+                        let needs_some_wrap_decl = binding
+                            .type_ref
+                            .as_ref()
                             .is_some_and(|t| matches!(t, TypeRef::Optional(_)))
                             && !matches!(&var.init, Expr::Literal(Literal::Null))
                             && !matches!(&var.init, Expr::OptionalChain { .. })
@@ -6326,7 +6722,12 @@ impl CodeGenerator {
                 if let Expr::Identifier(var_name) = &assign.target {
                     let sanitized_target = self.sanitize_name(var_name);
                     if self.string_vars.contains(&sanitized_target) {
-                        if let Expr::Binary { op: BinOp::Add, left, right } = &assign.value {
+                        if let Expr::Binary {
+                            op: BinOp::Add,
+                            left,
+                            right,
+                        } = &assign.value
+                        {
                             if let Expr::Identifier(left_name) = left.as_ref() {
                                 if self.sanitize_name(left_name) == sanitized_target {
                                     // Pattern: var = var + rhs → var.push_str(...)
@@ -6342,7 +6743,8 @@ impl CodeGenerator {
                                             if self.string_vars.contains(&rhs_san) {
                                                 write!(self.output, "&{}", rhs_san).unwrap();
                                             } else {
-                                                write!(self.output, "&{}.to_string()", rhs_san).unwrap();
+                                                write!(self.output, "&{}.to_string()", rhs_san)
+                                                    .unwrap();
                                             }
                                         }
                                         _ => {
@@ -6384,7 +6786,8 @@ impl CodeGenerator {
                 // Check if assigning to an optional variable — wrap in Some()
                 let needs_some_wrap = if let Expr::Identifier(var_name) = &assign.target {
                     let san = self.sanitize_name(var_name);
-                    self.option_value_vars.contains(&san) && !matches!(&assign.value, Expr::Literal(Literal::Null))
+                    self.option_value_vars.contains(&san)
+                        && !matches!(&assign.value, Expr::Literal(Literal::Null))
                 } else if let Expr::Member { object, property } = &assign.target {
                     // Check this.field = value for optional class fields
                     if let Expr::Identifier(name) = object.as_ref() {
@@ -6469,7 +6872,8 @@ impl CodeGenerator {
                 if let Some(ref var_name) = truthy_error_var {
                     // Same narrowing for `if err { ... }` truthy form.
                     self.narrowed_error_binding_vars.insert(var_name.clone());
-                    self.truthy_narrowed_error_binding_vars.insert(var_name.clone());
+                    self.truthy_narrowed_error_binding_vars
+                        .insert(var_name.clone());
                 }
                 self.generate_if_body(&if_stmt.then_branch)?;
                 // BUG-007: Restore Option tracking after the block
@@ -6517,12 +6921,14 @@ impl CodeGenerator {
                     let is_map_iteration = match &for_stmt.iterable {
                         Expr::Identifier(name) => {
                             let sanitized = self.sanitize_name(name);
-                            self.map_vars.contains(&sanitized) || self.map_vars.contains(name.as_str())
+                            self.map_vars.contains(&sanitized)
+                                || self.map_vars.contains(name.as_str())
                         }
                         // B125: also match `obj.field` where field is a known Map field name
                         Expr::Member { property, .. } => {
                             let sanitized = self.sanitize_name(property);
-                            self.map_vars.contains(&sanitized) || self.map_vars.contains(property.as_str())
+                            self.map_vars.contains(&sanitized)
+                                || self.map_vars.contains(property.as_str())
                         }
                         _ => false,
                     };
@@ -6541,12 +6947,25 @@ impl CodeGenerator {
                                 _ => None,
                             };
                             if let Some(class_name) = class_name_opt {
-                                if let Some(field_map) = self.class_map_value_types.get(&class_name).cloned() {
+                                if let Some(field_map) =
+                                    self.class_map_value_types.get(&class_name).cloned()
+                                {
                                     if let Some(elem_type) = field_map.get(property).cloned() {
                                         let is_cls = !matches!(
                                             elem_type.as_str(),
-                                            "number" | "int" | "i32" | "float" | "f64" | "bool" | "char" | "string"
-                                        ) && elem_type.chars().next().map(|c| c.is_uppercase()).unwrap_or(false);
+                                            "number"
+                                                | "int"
+                                                | "i32"
+                                                | "float"
+                                                | "f64"
+                                                | "bool"
+                                                | "char"
+                                                | "string"
+                                        ) && elem_type
+                                            .chars()
+                                            .next()
+                                            .map(|c| c.is_uppercase())
+                                            .unwrap_or(false);
                                         if is_cls {
                                             self.class_instance_vars.insert(var2_name_san.clone());
                                             self.var_types.insert(var2_name_san.clone(), elem_type);
@@ -6594,7 +7013,10 @@ impl CodeGenerator {
                         self.indent();
                         // Bug #79 fix: Clone loop variables to get owned values
                         self.writeln(&format!("let {} = {}.clone();", var1_name, var1_name));
-                        self.writeln(&format!("let {} = {}.clone();", var2_name_san, var2_name_san));
+                        self.writeln(&format!(
+                            "let {} = {}.clone();",
+                            var2_name_san, var2_name_san
+                        ));
                         // Key in Map<K, V> is currently always a string in Liva.
                         self.string_vars.insert(var1_name.clone());
                         // B134: register var2 in the right set based on the value type.
@@ -6633,7 +7055,10 @@ impl CodeGenerator {
                         // enumerate() returns (usize, &T) — cast index to i32 for Liva's int type
                         self.writeln(&format!("let {} = {} as i32;", var1_name, var1_name));
                         // Clone item to get owned value
-                        self.writeln(&format!("let {} = {}.clone();", var2_name_san, var2_name_san));
+                        self.writeln(&format!(
+                            "let {} = {}.clone();",
+                            var2_name_san, var2_name_san
+                        ));
                         self.string_vars.insert(var2_name_san.clone());
                     }
 
@@ -6641,212 +7066,266 @@ impl CodeGenerator {
                     self.dedent();
                     self.writeln("}");
                 } else {
-                // Single-variable for loop (arrays, ranges, etc.)
-                // Mark the loop variable for bracket notation (likely iterating over JSON objects)
-                let var_name = self.sanitize_name(&for_stmt.var);
-                self.bracket_notation_vars.insert(var_name.clone());
+                    // Single-variable for loop (arrays, ranges, etc.)
+                    // Mark the loop variable for bracket notation (likely iterating over JSON objects)
+                    let var_name = self.sanitize_name(&for_stmt.var);
+                    self.bracket_notation_vars.insert(var_name.clone());
 
-                // Bug fix: If iterating over a typed array of class instances,
-                // register the loop variable as a class instance so field access
-                // generates dot notation instead of get_field()
-                if let Expr::Identifier(iterable_name) = &for_stmt.iterable {
-                    let sanitized_iterable = self.sanitize_name(iterable_name);
-                    // typed_array_vars may store raw (camelCase) or sanitized (snake_case) names
-                    let element_type = self.typed_array_vars.get(&sanitized_iterable).cloned()
-                        .or_else(|| self.typed_array_vars.get(iterable_name.as_str()).cloned());
-                    if let Some(element_type) = element_type {
-                        // B142: nested array — element is itself an array (encoded "[T]")
-                        if element_type.starts_with('[') && element_type.ends_with(']') {
-                            self.array_vars.insert(var_name.clone());
-                            let inner = element_type
-                                .trim_start_matches('[')
-                                .trim_end_matches(']');
-                            if !inner.is_empty() {
-                                self.typed_array_vars
-                                    .insert(var_name.clone(), inner.to_string());
+                    // Bug fix: If iterating over a typed array of class instances,
+                    // register the loop variable as a class instance so field access
+                    // generates dot notation instead of get_field()
+                    if let Expr::Identifier(iterable_name) = &for_stmt.iterable {
+                        let sanitized_iterable = self.sanitize_name(iterable_name);
+                        // typed_array_vars may store raw (camelCase) or sanitized (snake_case) names
+                        let element_type = self
+                            .typed_array_vars
+                            .get(&sanitized_iterable)
+                            .cloned()
+                            .or_else(|| self.typed_array_vars.get(iterable_name.as_str()).cloned());
+                        if let Some(element_type) = element_type {
+                            // B142: nested array — element is itself an array (encoded "[T]")
+                            if element_type.starts_with('[') && element_type.ends_with(']') {
+                                self.array_vars.insert(var_name.clone());
+                                let inner =
+                                    element_type.trim_start_matches('[').trim_end_matches(']');
+                                if !inner.is_empty() {
+                                    self.typed_array_vars
+                                        .insert(var_name.clone(), inner.to_string());
+                                }
                             }
-                        }
-                        // Check if element type is a class (uppercase first char, not a primitive)
-                        let is_class_type = !matches!(
-                            element_type.as_str(),
-                            "number" | "int" | "i32" | "float" | "f64" | "bool" | "char" | "string"
-                        ) && element_type.chars().next().map(|c| c.is_uppercase()).unwrap_or(false);
-                        if is_class_type {
-                            self.class_instance_vars.insert(var_name.clone());
-                            self.var_types.insert(var_name.clone(), element_type.clone());
-                        }
-                        // Bug #75: Register string loop variables so they get .clone()
-                        // when passed to functions inside the loop body
-                        if element_type == "string" {
-                            self.string_vars.insert(var_name.clone());
-                        }
-                    }
-                    // Also handle arrays from .split() that are tracked as array_vars
-                    // but may not be in typed_array_vars — default to string element
-                    if (self.array_vars.contains(&sanitized_iterable) || self.array_vars.contains(iterable_name.as_str()))
-                        && !self.typed_array_vars.contains_key(&sanitized_iterable)
-                        && !self.typed_array_vars.contains_key(iterable_name.as_str())
-                    {
-                        self.string_vars.insert(var_name.clone());
-                    }
-                    // DB.query() results: Vec<HashMap<String,String>> — loop var is a HashMap
-                    if self.map_array_vars.contains(&sanitized_iterable) {
-                        self.map_vars.insert(var_name.clone());
-                    }
-                }
-                // Also handle `for item in obj.field` where obj is a class instance
-                if let Expr::Member { object, property } = &for_stmt.iterable {
-                    if let Expr::Identifier(obj_name) = object.as_ref() {
-                        let sanitized_obj = self.sanitize_name(obj_name);
-                        // Check typed_array_vars for the field name
-                        if let Some(element_type) = self.typed_array_vars.get(property).cloned() {
+                            // Check if element type is a class (uppercase first char, not a primitive)
                             let is_class_type = !matches!(
                                 element_type.as_str(),
-                                "number" | "int" | "i32" | "float" | "f64" | "bool" | "char" | "string"
-                            ) && element_type.chars().next().map(|c| c.is_uppercase()).unwrap_or(false);
+                                "number"
+                                    | "int"
+                                    | "i32"
+                                    | "float"
+                                    | "f64"
+                                    | "bool"
+                                    | "char"
+                                    | "string"
+                            ) && element_type
+                                .chars()
+                                .next()
+                                .map(|c| c.is_uppercase())
+                                .unwrap_or(false);
                             if is_class_type {
                                 self.class_instance_vars.insert(var_name.clone());
+                                self.var_types
+                                    .insert(var_name.clone(), element_type.clone());
+                            }
+                            // Bug #75: Register string loop variables so they get .clone()
+                            // when passed to functions inside the loop body
+                            if element_type == "string" {
+                                self.string_vars.insert(var_name.clone());
                             }
                         }
-                        // Look up the object's class type via var_types, then check class_array_field_types
-                        if let Some(class_name) = self.var_types.get(&sanitized_obj).cloned() {
-                            if let Some(field_types) = self.class_array_field_types.get(&class_name) {
-                                if let Some(element_type) = field_types.get(property) {
-                                    let is_class_type = !matches!(
-                                        element_type.as_str(),
-                                        "number" | "int" | "i32" | "float" | "f64" | "bool" | "char" | "string"
-                                    ) && element_type.chars().next().map(|c| c.is_uppercase()).unwrap_or(false);
-                                    if is_class_type {
-                                        self.class_instance_vars.insert(var_name.clone());
-                                        self.var_types.insert(var_name.clone(), element_type.clone());
+                        // Also handle arrays from .split() that are tracked as array_vars
+                        // but may not be in typed_array_vars — default to string element
+                        if (self.array_vars.contains(&sanitized_iterable)
+                            || self.array_vars.contains(iterable_name.as_str()))
+                            && !self.typed_array_vars.contains_key(&sanitized_iterable)
+                            && !self.typed_array_vars.contains_key(iterable_name.as_str())
+                        {
+                            self.string_vars.insert(var_name.clone());
+                        }
+                        // DB.query() results: Vec<HashMap<String,String>> — loop var is a HashMap
+                        if self.map_array_vars.contains(&sanitized_iterable) {
+                            self.map_vars.insert(var_name.clone());
+                        }
+                    }
+                    // Also handle `for item in obj.field` where obj is a class instance
+                    if let Expr::Member { object, property } = &for_stmt.iterable {
+                        if let Expr::Identifier(obj_name) = object.as_ref() {
+                            let sanitized_obj = self.sanitize_name(obj_name);
+                            // Check typed_array_vars for the field name
+                            if let Some(element_type) = self.typed_array_vars.get(property).cloned()
+                            {
+                                let is_class_type = !matches!(
+                                    element_type.as_str(),
+                                    "number"
+                                        | "int"
+                                        | "i32"
+                                        | "float"
+                                        | "f64"
+                                        | "bool"
+                                        | "char"
+                                        | "string"
+                                ) && element_type
+                                    .chars()
+                                    .next()
+                                    .map(|c| c.is_uppercase())
+                                    .unwrap_or(false);
+                                if is_class_type {
+                                    self.class_instance_vars.insert(var_name.clone());
+                                }
+                            }
+                            // Look up the object's class type via var_types, then check class_array_field_types
+                            if let Some(class_name) = self.var_types.get(&sanitized_obj).cloned() {
+                                if let Some(field_types) =
+                                    self.class_array_field_types.get(&class_name)
+                                {
+                                    if let Some(element_type) = field_types.get(property) {
+                                        let is_class_type = !matches!(
+                                            element_type.as_str(),
+                                            "number"
+                                                | "int"
+                                                | "i32"
+                                                | "float"
+                                                | "f64"
+                                                | "bool"
+                                                | "char"
+                                                | "string"
+                                        ) && element_type
+                                            .chars()
+                                            .next()
+                                            .map(|c| c.is_uppercase())
+                                            .unwrap_or(false);
+                                        if is_class_type {
+                                            self.class_instance_vars.insert(var_name.clone());
+                                            self.var_types
+                                                .insert(var_name.clone(), element_type.clone());
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                }
 
-                self.write_indent();
-                write!(self.output, "for {} in ", var_name).unwrap();
+                    self.write_indent();
+                    write!(self.output, "for {} in ", var_name).unwrap();
 
-                // Bug #74 fix: In Liva, iterating doesn't consume collections. In Rust,
-                // `for x in vec` moves the vec. Use .clone() or .iter() to avoid this.
-                // B45 fix: For self.field in &mut self methods where loop body mutates
-                // the loop variable, use .iter_mut() so mutations are not lost.
-                let needs_clone = match &for_stmt.iterable {
-                    Expr::Identifier(_) | Expr::Member { .. } => true,
-                    _ => false,
-                };
-                let is_self_field = match &for_stmt.iterable {
-                    Expr::Member { object, .. } => {
-                        matches!(object.as_ref(), Expr::Identifier(name) if name == "this")
-                    }
-                    _ => false,
-                };
-                // Check if this for-loop mutates the loop variable's fields
-                let mutates_loop_var = is_self_field
-                    && self.current_method_is_mut
-                    && self.block_assigns_to_var_field(&for_stmt.body, &for_stmt.var);
-                // BUG-005 fix: Check if iterable is a string variable — if so,
-                // emit .chars() instead of .clone() since String is not iterable in Rust.
-                let is_string_iterable = match &for_stmt.iterable {
-                    Expr::Identifier(name) => {
-                        let sanitized = self.sanitize_name(name);
-                        self.string_vars.contains(&sanitized) || self.string_vars.contains(name.as_str())
-                    }
-                    Expr::Member { object, property } => {
-                        // this.field where field is a string
-                        if matches!(object.as_ref(), Expr::Identifier(name) if name == "this") {
-                            self.string_vars.contains(property)
-                        } else {
-                            false
+                    // Bug #74 fix: In Liva, iterating doesn't consume collections. In Rust,
+                    // `for x in vec` moves the vec. Use .clone() or .iter() to avoid this.
+                    // B45 fix: For self.field in &mut self methods where loop body mutates
+                    // the loop variable, use .iter_mut() so mutations are not lost.
+                    let needs_clone = match &for_stmt.iterable {
+                        Expr::Identifier(_) | Expr::Member { .. } => true,
+                        _ => false,
+                    };
+                    let is_self_field = match &for_stmt.iterable {
+                        Expr::Member { object, .. } => {
+                            matches!(object.as_ref(), Expr::Identifier(name) if name == "this")
                         }
+                        _ => false,
+                    };
+                    // Check if this for-loop mutates the loop variable's fields
+                    let mutates_loop_var = is_self_field
+                        && self.current_method_is_mut
+                        && self.block_assigns_to_var_field(&for_stmt.body, &for_stmt.var);
+                    // BUG-005 fix: Check if iterable is a string variable — if so,
+                    // emit .chars() instead of .clone() since String is not iterable in Rust.
+                    let is_string_iterable = match &for_stmt.iterable {
+                        Expr::Identifier(name) => {
+                            let sanitized = self.sanitize_name(name);
+                            self.string_vars.contains(&sanitized)
+                                || self.string_vars.contains(name.as_str())
+                        }
+                        Expr::Member { object, property } => {
+                            // this.field where field is a string
+                            if matches!(object.as_ref(), Expr::Identifier(name) if name == "this") {
+                                self.string_vars.contains(property)
+                            } else {
+                                false
+                            }
+                        }
+                        _ => false,
+                    };
+
+                    self.generate_expr(&for_stmt.iterable)?;
+                    if is_string_iterable {
+                        self.output.push_str(".chars()");
+                    } else if is_self_field && mutates_loop_var {
+                        self.output.push_str(".iter_mut()");
+                    } else if is_self_field || needs_clone {
+                        self.output.push_str(".clone()");
                     }
-                    _ => false,
-                };
+                    self.output.push_str(" {\n");
+                    self.indent();
 
-                self.generate_expr(&for_stmt.iterable)?;
-                if is_string_iterable {
-                    self.output.push_str(".chars()");
-                } else if is_self_field && mutates_loop_var {
-                    self.output.push_str(".iter_mut()");
-                } else if is_self_field || needs_clone {
-                    self.output.push_str(".clone()");
-                }
-                self.output.push_str(" {\n");
-                self.indent();
+                    // BUG-005: When iterating over string chars, the loop variable is a Rust `char`.
+                    // In Liva, characters are strings, so convert to String for compatibility.
+                    if is_string_iterable {
+                        self.writeln(&format!("let {} = {}.to_string();", var_name, var_name));
+                        self.string_vars.insert(var_name.clone());
+                    }
 
-                // BUG-005: When iterating over string chars, the loop variable is a Rust `char`.
-                // In Liva, characters are strings, so convert to String for compatibility.
-                if is_string_iterable {
-                    self.writeln(&format!("let {} = {}.to_string();", var_name, var_name));
-                    self.string_vars.insert(var_name.clone());
-                }
-
-                // Phase 11.3: Point-free in for loops
-                // for item in items => print  →  for item in items { print(item) }
-                // for item in items => mifuncion  →  for item in items { mifuncion(item) }
-                let is_point_free_body = for_stmt.body.stmts.len() == 1
-                    && matches!(&for_stmt.body.stmts[0], Stmt::Expr(expr_stmt)
+                    // Phase 11.3: Point-free in for loops
+                    // for item in items => print  →  for item in items { print(item) }
+                    // for item in items => mifuncion  →  for item in items { mifuncion(item) }
+                    let is_point_free_body = for_stmt.body.stmts.len() == 1
+                        && matches!(&for_stmt.body.stmts[0], Stmt::Expr(expr_stmt)
                         if matches!(&expr_stmt.expr, Expr::Identifier(_) | Expr::MethodRef { .. }));
 
-                if is_point_free_body {
-                    if let Stmt::Expr(expr_stmt) = &for_stmt.body.stmts[0] {
-                        match &expr_stmt.expr {
-                            Expr::Identifier(func_name) => {
-                                self.write_indent();
-                                match func_name.as_str() {
-                                    "print" => {
-                                        write!(self.output, "println!(\"{{}}\", {});\n", var_name)
+                    if is_point_free_body {
+                        if let Stmt::Expr(expr_stmt) = &for_stmt.body.stmts[0] {
+                            match &expr_stmt.expr {
+                                Expr::Identifier(func_name) => {
+                                    self.write_indent();
+                                    match func_name.as_str() {
+                                        "print" => {
+                                            write!(
+                                                self.output,
+                                                "println!(\"{{}}\", {});\n",
+                                                var_name
+                                            )
                                             .unwrap();
-                                    }
-                                    "toString" => {
-                                        write!(self.output, "format!(\"{{}}\", {});\n", var_name)
+                                        }
+                                        "toString" => {
+                                            write!(
+                                                self.output,
+                                                "format!(\"{{}}\", {});\n",
+                                                var_name
+                                            )
                                             .unwrap();
-                                    }
-                                    _ => {
-                                        let sanitized = self.sanitize_name(func_name);
-                                        write!(self.output, "{}({});\n", sanitized, var_name)
-                                            .unwrap();
+                                        }
+                                        _ => {
+                                            let sanitized = self.sanitize_name(func_name);
+                                            write!(self.output, "{}({});\n", sanitized, var_name)
+                                                .unwrap();
+                                        }
                                     }
                                 }
-                            }
-                            Expr::MethodRef { object, method } => {
-                                // Phase 11.4: for item in items => Utils::log
-                                self.write_indent();
-                                let sanitized_obj = self.sanitize_name(object);
-                                let sanitized_method = self.sanitize_name(method);
-                                let is_class =
-                                    object.chars().next().map_or(false, |c| c.is_uppercase());
+                                Expr::MethodRef { object, method } => {
+                                    // Phase 11.4: for item in items => Utils::log
+                                    self.write_indent();
+                                    let sanitized_obj = self.sanitize_name(object);
+                                    let sanitized_method = self.sanitize_name(method);
+                                    let is_class =
+                                        object.chars().next().map_or(false, |c| c.is_uppercase());
 
-                                if method == "new" {
-                                    write!(self.output, "{}::new({});\n", sanitized_obj, var_name)
+                                    if method == "new" {
+                                        write!(
+                                            self.output,
+                                            "{}::new({});\n",
+                                            sanitized_obj, var_name
+                                        )
                                         .unwrap();
-                                } else if is_class {
-                                    write!(
-                                        self.output,
-                                        "{}::{}({});\n",
-                                        sanitized_obj, sanitized_method, var_name
-                                    )
-                                    .unwrap();
-                                } else {
-                                    write!(
-                                        self.output,
-                                        "{}.{}({});\n",
-                                        sanitized_obj, sanitized_method, var_name
-                                    )
-                                    .unwrap();
+                                    } else if is_class {
+                                        write!(
+                                            self.output,
+                                            "{}::{}({});\n",
+                                            sanitized_obj, sanitized_method, var_name
+                                        )
+                                        .unwrap();
+                                    } else {
+                                        write!(
+                                            self.output,
+                                            "{}.{}({});\n",
+                                            sanitized_obj, sanitized_method, var_name
+                                        )
+                                        .unwrap();
+                                    }
                                 }
+                                _ => {}
                             }
-                            _ => {}
                         }
+                    } else {
+                        self.generate_block_inner(&for_stmt.body)?;
                     }
-                } else {
-                    self.generate_block_inner(&for_stmt.body)?;
-                }
 
-                self.dedent();
-                self.writeln("}");
+                    self.dedent();
+                    self.writeln("}");
                 } // end else (single-variable for loop)
             }
             Stmt::Switch(switch_stmt) => {
@@ -6857,23 +7336,29 @@ impl CodeGenerator {
                     .any(|case| matches!(&case.value, Expr::Literal(Literal::String(_))));
 
                 // BUG-008: Check if discriminant is an Option variable
-                let is_option_discriminant = if let Expr::Identifier(name) = &switch_stmt.discriminant {
-                    let sanitized = self.sanitize_name(name);
-                    self.option_value_vars.contains(&sanitized)
-                } else {
-                    false
-                };
+                let is_option_discriminant =
+                    if let Expr::Identifier(name) = &switch_stmt.discriminant {
+                        let sanitized = self.sanitize_name(name);
+                        self.option_value_vars.contains(&sanitized)
+                    } else {
+                        false
+                    };
 
                 // FIX-3 (ISSUE-003): Detect enum switches with data bindings.
                 // When matching on a local variable with enum data variants,
                 // use `match &variable` to avoid consuming the variable.
-                let is_enum_data_switch = !is_string_switch && switch_stmt.cases.iter().any(|case| {
-                    if let Expr::MethodCall(mc) = &case.value {
-                        if let Expr::Identifier(name) = mc.object.as_ref() {
-                            self.enum_variants.contains_key(name) && !mc.args.is_empty()
-                        } else { false }
-                    } else { false }
-                });
+                let is_enum_data_switch = !is_string_switch
+                    && switch_stmt.cases.iter().any(|case| {
+                        if let Expr::MethodCall(mc) = &case.value {
+                            if let Expr::Identifier(name) = mc.object.as_ref() {
+                                self.enum_variants.contains_key(name) && !mc.args.is_empty()
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        }
+                    });
                 let needs_borrow = is_enum_data_switch
                     && matches!(&switch_stmt.discriminant, Expr::Identifier(_))
                     && !is_option_discriminant;
@@ -6904,7 +7389,9 @@ impl CodeGenerator {
                     let is_null_case = matches!(&case.value, Expr::Literal(Literal::Null));
 
                     // BUG-008: For null cases on Option discriminant, generate None pattern
-                    let (boxed_deref_bindings, enum_pattern) = if is_null_case && is_option_discriminant {
+                    let (boxed_deref_bindings, enum_pattern) = if is_null_case
+                        && is_option_discriminant
+                    {
                         self.output.push_str("None");
                         (Vec::new(), None)
                     } else {
@@ -6934,8 +7421,7 @@ impl CodeGenerator {
                                         variant_name: variant.clone(),
                                         bindings: bindings.clone(),
                                     };
-                                    let deref_bindings =
-                                        self.get_boxed_pattern_bindings(&pattern);
+                                    let deref_bindings = self.get_boxed_pattern_bindings(&pattern);
                                     self.generate_pattern(&pattern)?;
                                     (deref_bindings, Some(pattern))
                                 } else {
@@ -6981,7 +7467,10 @@ impl CodeGenerator {
                                         let san = self.sanitize_name(b);
                                         // Don't re-clone boxed bindings (already handled)
                                         if !boxed_deref_bindings.contains(&san) {
-                                            self.writeln(&format!("let {} = {}.clone();", san, san));
+                                            self.writeln(&format!(
+                                                "let {} = {}.clone();",
+                                                san, san
+                                            ));
                                         }
                                     }
                                 }
@@ -7120,11 +7609,14 @@ impl CodeGenerator {
                 if let Expr::Call(call) = &expr_stmt.expr {
                     if matches!(call.exec_policy, ExecPolicy::Async | ExecPolicy::Par) {
                         self.write_indent();
-                        self.generate_fire_call(call, match call.exec_policy {
-                            ExecPolicy::Async => ConcurrencyMode::Async,
-                            ExecPolicy::Par => ConcurrencyMode::Parallel,
-                            _ => unreachable!(),
-                        })?;
+                        self.generate_fire_call(
+                            call,
+                            match call.exec_policy {
+                                ExecPolicy::Async => ConcurrencyMode::Async,
+                                ExecPolicy::Par => ConcurrencyMode::Parallel,
+                                _ => unreachable!(),
+                            },
+                        )?;
                         self.output.push_str(";\n");
                         return Ok(());
                     }
@@ -7154,12 +7646,15 @@ impl CodeGenerator {
                 writeln!(self.output, "let _defer_{} = {{", idx).unwrap();
                 self.indent();
                 self.write_indent();
-                self.output.push_str("struct _DeferGuard<F: FnOnce()>(Option<F>);\n");
+                self.output
+                    .push_str("struct _DeferGuard<F: FnOnce()>(Option<F>);\n");
                 self.write_indent();
-                self.output.push_str("impl<F: FnOnce()> Drop for _DeferGuard<F> {\n");
+                self.output
+                    .push_str("impl<F: FnOnce()> Drop for _DeferGuard<F> {\n");
                 self.indent();
                 self.write_indent();
-                self.output.push_str("fn drop(&mut self) { if let Some(f) = self.0.take() { f(); } }\n");
+                self.output
+                    .push_str("fn drop(&mut self) { if let Some(f) = self.0.take() { f(); } }\n");
                 self.dedent();
                 self.write_indent();
                 self.output.push_str("}\n");
@@ -7191,14 +7686,29 @@ impl CodeGenerator {
                     self.output.push_str("panic!(\"{}\", ");
                     match &fail_stmt.expr {
                         Expr::Literal(Literal::String(s)) => {
-                            write!(self.output, "format!(\"FAIL [{}] at {}: {}\")", fn_name, location, s).unwrap();
+                            write!(
+                                self.output,
+                                "format!(\"FAIL [{}] at {}: {}\")",
+                                fn_name, location, s
+                            )
+                            .unwrap();
                         }
                         Expr::Identifier(name) if self.error_binding_vars.contains(name) => {
                             // fail err — use the error's message
-                            write!(self.output, "format!(\"FAIL [{}] at {}: {{:?}}\", {})", fn_name, location, name).unwrap();
+                            write!(
+                                self.output,
+                                "format!(\"FAIL [{}] at {}: {{:?}}\", {})",
+                                fn_name, location, name
+                            )
+                            .unwrap();
                         }
                         _ => {
-                            write!(self.output, "format!(\"FAIL [{}] at {}: {{}}\", ", fn_name, location).unwrap();
+                            write!(
+                                self.output,
+                                "format!(\"FAIL [{}] at {}: {{}}\", ",
+                                fn_name, location
+                            )
+                            .unwrap();
                             self.generate_expr(&fail_stmt.expr)?;
                             self.output.push(')');
                         }
@@ -7223,39 +7733,32 @@ impl CodeGenerator {
                     } else {
                         unreachable!()
                     };
-                    write!(self.output,
-                        "return Err(liva_rt::Error::chain(",
-                    ).unwrap();
+                    write!(self.output, "return Err(liva_rt::Error::chain(",).unwrap();
                     // Use the error's message as the chain message
-                    write!(self.output,
-                        "{}.as_ref().unwrap().message.clone()", err_var
-                    ).unwrap();
-                    write!(self.output,
+                    write!(self.output, "{}.as_ref().unwrap().message.clone()", err_var).unwrap();
+                    write!(
+                        self.output,
                         ", \"{}\", \"{}\", {}.unwrap()))",
                         fn_name, location, err_var
-                    ).unwrap();
+                    )
+                    .unwrap();
                     self.output.push_str(";\n");
                 } else if let Some(err_var) = self.find_error_var_in_scope() {
                     // Case 2: `fail "string"` with an error var in scope — chain with custom message
-                    write!(self.output,
-                        "return Err(liva_rt::Error::chain(",
-                    ).unwrap();
+                    write!(self.output, "return Err(liva_rt::Error::chain(",).unwrap();
                     self.generate_expr(&fail_stmt.expr)?;
-                    write!(self.output,
+                    write!(
+                        self.output,
                         ", \"{}\", \"{}\", {}.unwrap()))",
                         fn_name, location, err_var
-                    ).unwrap();
+                    )
+                    .unwrap();
                     self.output.push_str(";\n");
                 } else {
                     // Case 3: No error var in scope — standalone error
-                    write!(self.output,
-                        "return Err(liva_rt::Error::new(",
-                    ).unwrap();
+                    write!(self.output, "return Err(liva_rt::Error::new(",).unwrap();
                     self.generate_expr(&fail_stmt.expr)?;
-                    write!(self.output,
-                        ", \"{}\", \"{}\"))",
-                        fn_name, location
-                    ).unwrap();
+                    write!(self.output, ", \"{}\", \"{}\"))", fn_name, location).unwrap();
                     self.output.push_str(";\n");
                 }
             }
@@ -7462,7 +7965,9 @@ impl CodeGenerator {
                     if let Expr::ArrayLiteral(elements) = right.as_ref() {
                         self.output.push_str("vec![");
                         for (i, elem) in elements.iter().enumerate() {
-                            if i > 0 { self.output.push_str(", "); }
+                            if i > 0 {
+                                self.output.push_str(", ");
+                            }
                             self.generate_expr(elem)?;
                             // Clone non-Copy identifiers (structs, strings, arrays, etc.)
                             if let Expr::Identifier(name) = elem {
@@ -8216,32 +8721,45 @@ impl CodeGenerator {
                         if let Some(elem_type) = self.typed_array_vars.get(&sanitized) {
                             // Clone for string and class instance types (not number/bool)
                             // B100 fix: Also check enum_names for imported class types not in class_fields
-                            elem_type == "string" || self.class_fields.contains_key(elem_type)
+                            elem_type == "string"
+                                || self.class_fields.contains_key(elem_type)
                                 || elem_type.contains("[]")
                                 || self.enum_names.contains(elem_type)
-                                || (!matches!(elem_type.as_str(), "number" | "int" | "i32" | "float" | "f64" | "bool" | "char")
-                                    && elem_type.chars().next().map_or(false, |c| c.is_uppercase()))
+                                || (!matches!(
+                                    elem_type.as_str(),
+                                    "number" | "int" | "i32" | "float" | "f64" | "bool" | "char"
+                                ) && elem_type
+                                    .chars()
+                                    .next()
+                                    .map_or(false, |c| c.is_uppercase()))
                         } else {
                             false
                         }
                     } else {
                         false
                     }
-                } else if let Expr::Member { object: ma_obj, property: ma_prop } = object.as_ref() {
+                } else if let Expr::Member {
+                    object: ma_obj,
+                    property: ma_prop,
+                } = object.as_ref()
+                {
                     // Handle obj.field[i] — check class_array_field_types
                     if let Expr::Identifier(obj_name) = ma_obj.as_ref() {
                         let sanitized_obj = self.sanitize_name(obj_name);
                         // B21 fix: Handle this.field[i] — look up current class name
-                        let resolved_class = if (obj_name == "this" || obj_name == "self") && self.in_method {
-                            self.current_class_name.as_deref()
-                        } else {
-                            self.var_types.get(&sanitized_obj).map(|s| s.as_str())
-                        };
+                        let resolved_class =
+                            if (obj_name == "this" || obj_name == "self") && self.in_method {
+                                self.current_class_name.as_deref()
+                            } else {
+                                self.var_types.get(&sanitized_obj).map(|s| s.as_str())
+                            };
                         if let Some(class_name) = resolved_class {
-                            if let Some(field_types) = self.class_array_field_types.get(class_name) {
+                            if let Some(field_types) = self.class_array_field_types.get(class_name)
+                            {
                                 if let Some(elem_type) = field_types.get(ma_prop.as_str()) {
                                     // Clone for non-primitive types
-                                    elem_type == "string" || self.class_fields.contains_key(elem_type.as_str())
+                                    elem_type == "string"
+                                        || self.class_fields.contains_key(elem_type.as_str())
                                 } else {
                                     // Field is in an array class but element type unknown — clone to be safe
                                     true
@@ -8543,12 +9061,8 @@ impl CodeGenerator {
                             }
                             // Date variables: auto-format as ISO 8601 string
                             if self.date_vars.contains(&sanitized) {
-                                write!(
-                                    self.output,
-                                    "{}.format(\"%Y-%m-%dT%H:%M:%S\")",
-                                    sanitized
-                                )
-                                .unwrap();
+                                write!(self.output, "{}.format(\"%Y-%m-%dT%H:%M:%S\")", sanitized)
+                                    .unwrap();
                                 continue;
                             }
                         }
@@ -8817,7 +9331,12 @@ impl CodeGenerator {
                 // Optional chaining: expr?.field → expr.as_ref().map(|__v| __v.field.clone())
                 // For string properties, generates .clone() to get owned String
                 self.generate_expr(object)?;
-                write!(self.output, ".as_ref().map(|__v| __v.{}.clone())", self.sanitize_name(property)).unwrap();
+                write!(
+                    self.output,
+                    ".as_ref().map(|__v| __v.{}.clone())",
+                    self.sanitize_name(property)
+                )
+                .unwrap();
             }
         }
         Ok(())
@@ -8877,8 +9396,7 @@ impl CodeGenerator {
                     Pattern::EnumVariant { bindings, .. } if !bindings.is_empty())
             });
         let needs_ref = needs_ref_b97
-            || (is_enum_data_switch
-                && matches!(&*switch_expr.discriminant, Expr::Identifier(_)));
+            || (is_enum_data_switch && matches!(&*switch_expr.discriminant, Expr::Identifier(_)));
 
         self.write_indent();
         self.output.push_str("match ");
@@ -8977,16 +9495,17 @@ impl CodeGenerator {
         let union_type_name = self.detect_union_switch(switch_expr);
 
         // B96 fix: Detect string-based switch expressions (patterns are string literals)
-        let is_string_switch = switch_expr.arms.iter().any(|arm| {
-            match &arm.pattern {
-                Pattern::Literal(Literal::String(_)) => true,
-                Pattern::Or(patterns) => patterns.iter().any(|p| matches!(p, Pattern::Literal(Literal::String(_)))),
-                _ => false,
-            }
+        let is_string_switch = switch_expr.arms.iter().any(|arm| match &arm.pattern {
+            Pattern::Literal(Literal::String(_)) => true,
+            Pattern::Or(patterns) => patterns
+                .iter()
+                .any(|p| matches!(p, Pattern::Literal(Literal::String(_)))),
+            _ => false,
         });
 
         // B97 fix: When matching on self.field in a &self method, borrow to avoid move
-        let needs_ref_b97 = self.in_method && !self.current_method_is_mut
+        let needs_ref_b97 = self.in_method
+            && !self.current_method_is_mut
             && matches!(&*switch_expr.discriminant, Expr::Member { object, .. }
                 if matches!(object.as_ref(), Expr::Identifier(n) if n == "this"));
 
@@ -9183,7 +9702,8 @@ impl CodeGenerator {
             // When matching by reference (&e), ALL bindings are references.
             // Both Copy and non-Copy types need to be owned: clone for non-Copy, *deref for Copy.
             // Using .clone() works for both since Clone is supertrait of Copy.
-            bindings.iter()
+            bindings
+                .iter()
                 .filter(|b| *b != "_")
                 .map(|b| self.sanitize_name(b))
                 .filter(|b| !boxed_bindings.contains(b))
@@ -9199,8 +9719,19 @@ impl CodeGenerator {
         match type_ref {
             TypeRef::Simple(name) => {
                 // Primitive Copy types
-                if matches!(name.as_str(),
-                    "int" | "float" | "number" | "bool" | "f32" | "f64" | "i32" | "i64" | "u32" | "u64" | "usize"
+                if matches!(
+                    name.as_str(),
+                    "int"
+                        | "float"
+                        | "number"
+                        | "bool"
+                        | "f32"
+                        | "f64"
+                        | "i32"
+                        | "i64"
+                        | "u32"
+                        | "u64"
+                        | "usize"
                 ) {
                     return true;
                 }
@@ -9356,12 +9887,8 @@ impl CodeGenerator {
                         if binding == "_" {
                             // Wildcard binding: field_name: _ or just _
                             if i < field_names.len() {
-                                write!(
-                                    self.output,
-                                    "{}: _",
-                                    self.sanitize_name(&field_names[i])
-                                )
-                                .unwrap();
+                                write!(self.output, "{}: _", self.sanitize_name(&field_names[i]))
+                                    .unwrap();
                             } else {
                                 self.output.push('_');
                             }
@@ -9411,7 +9938,8 @@ impl CodeGenerator {
 
                         // Check optional fields for this variant
                         let variant_key = format!("{}::{}", enum_name, property);
-                        let variant_optionals = self.enum_variant_optionals.get(&variant_key).cloned();
+                        let variant_optionals =
+                            self.enum_variant_optionals.get(&variant_key).cloned();
 
                         write!(self.output, "{}::{}", enum_name, property).unwrap();
                         if !field_names.is_empty() {
@@ -9426,7 +9954,8 @@ impl CodeGenerator {
                                     .unwrap();
 
                                 // Check if field is optional and arg is not null
-                                let is_opt_field = variant_optionals.as_ref()
+                                let is_opt_field = variant_optionals
+                                    .as_ref()
                                     .map_or(false, |opts| i < opts.len() && opts[i]);
                                 let is_null = matches!(arg, Expr::Literal(Literal::Null));
                                 let already_optional = self.init_is_already_optional(arg);
@@ -9618,7 +10147,8 @@ impl CodeGenerator {
                         self.output.push_str(", ");
                     }
                     // Check if this arg position corresponds to an optional field
-                    let is_optional_param = constructor_optionals.as_ref()
+                    let is_optional_param = constructor_optionals
+                        .as_ref()
                         .map_or(false, |opts| i < opts.len() && opts[i]);
                     let is_null_arg = matches!(arg, Expr::Literal(Literal::Null));
                     let already_optional = self.init_is_already_optional(arg);
@@ -9707,7 +10237,8 @@ impl CodeGenerator {
             }
             // GAP-007: Wrap Lambda arg in Box::new when the parameter expects Box<dyn Fn(...)>
             let expects_fn_type = if let Expr::Identifier(fname) = call.callee.as_ref() {
-                self.function_param_types.get(fname)
+                self.function_param_types
+                    .get(fname)
                     .and_then(|types| types.get(i).cloned())
                     .flatten()
                     .map(|t| matches!(t, TypeRef::Fn(_, _)))
@@ -10205,7 +10736,8 @@ impl CodeGenerator {
                                 if let Some(arg) = method_call.args.first() {
                                     self.generate_expr(arg)?;
                                 }
-                                self.output.push_str(".to_string()).cloned().unwrap_or_default()");
+                                self.output
+                                    .push_str(".to_string()).cloned().unwrap_or_default()");
                                 return Ok(());
                             }
                         }
@@ -10373,7 +10905,8 @@ impl CodeGenerator {
                             write!(self.output, "{}: ", self.sanitize_name(field_name)).unwrap();
 
                             // Check if field is optional and arg is not null
-                            let is_opt_field = variant_optionals.as_ref()
+                            let is_opt_field = variant_optionals
+                                .as_ref()
                                 .map_or(false, |opts| i < opts.len() && opts[i]);
                             let is_null = matches!(arg, Expr::Literal(Literal::Null));
                             let already_optional = self.init_is_already_optional(arg);
@@ -10458,7 +10991,11 @@ impl CodeGenerator {
                 // SH: Check any_var.field where field is a known Map-typed class field
                 if matches!(object.as_ref(), Expr::Identifier(_)) {
                     self.map_vars.contains(&self.sanitize_name(property))
-                } else if let Expr::Member { property: inner_prop, .. } = object.as_ref() {
+                } else if let Expr::Member {
+                    property: inner_prop,
+                    ..
+                } = object.as_ref()
+                {
                     // Deep member access: this._ctx.varTypes.has() — check innermost property
                     self.map_vars.contains(&self.sanitize_name(inner_prop))
                         && self.map_vars.contains(&self.sanitize_name(property))
@@ -10472,7 +11009,15 @@ impl CodeGenerator {
 
             let is_map_method = matches!(
                 method_call.method.as_str(),
-                "get" | "set" | "has" | "delete" | "keys" | "values" | "entries" | "clear" | "forEach"
+                "get"
+                    | "set"
+                    | "has"
+                    | "delete"
+                    | "keys"
+                    | "values"
+                    | "entries"
+                    | "clear"
+                    | "forEach"
             );
 
             if is_map_var && is_map_method {
@@ -10486,7 +11031,8 @@ impl CodeGenerator {
                 self.set_vars.contains(&self.sanitize_name(name))
             } else if let Expr::Member { object, property } = method_call.object.as_ref() {
                 // Bug #76 fix: Also check this._field for Set-typed class fields
-                if matches!(object.as_ref(), Expr::Identifier(name) if name == "this" || name == "self") {
+                if matches!(object.as_ref(), Expr::Identifier(name) if name == "this" || name == "self")
+                {
                     self.set_vars.contains(&self.sanitize_name(property))
                 } else {
                     false
@@ -10497,7 +11043,16 @@ impl CodeGenerator {
 
             let is_set_method = matches!(
                 method_call.method.as_str(),
-                "add" | "has" | "delete" | "clear" | "size" | "values" | "forEach" | "union" | "intersection" | "difference"
+                "add"
+                    | "has"
+                    | "delete"
+                    | "clear"
+                    | "size"
+                    | "values"
+                    | "forEach"
+                    | "union"
+                    | "intersection"
+                    | "difference"
             );
 
             if is_set_var && is_set_method {
@@ -10657,7 +11212,8 @@ impl CodeGenerator {
                     self.generate_expr(&method_call.args[1])?;
                     self.output.push_str(") as usize; __s.chars().skip(__a).take(__b.saturating_sub(__a)).collect::<String>() }");
                 } else {
-                    self.output.push_str("__s.chars().skip(__a).collect::<String>() }");
+                    self.output
+                        .push_str("__s.chars().skip(__a).collect::<String>() }");
                 }
             } else {
                 self.generate_expr(&method_call.object)?;
@@ -10676,7 +11232,8 @@ impl CodeGenerator {
         }
 
         // Handle arr.first() — returns first element (Option<T>)
-        if method_call.method == "first" && method_call.args.is_empty() && !object_is_class_instance {
+        if method_call.method == "first" && method_call.args.is_empty() && !object_is_class_instance
+        {
             self.generate_expr(&method_call.object)?;
             self.output.push_str(".first().cloned()");
             if !self.suppress_option_unwrap {
@@ -10686,7 +11243,8 @@ impl CodeGenerator {
         }
 
         // Handle arr.last() — returns last element (Option<T>)
-        if method_call.method == "last" && method_call.args.is_empty() && !object_is_class_instance {
+        if method_call.method == "last" && method_call.args.is_empty() && !object_is_class_instance
+        {
             self.generate_expr(&method_call.object)?;
             self.output.push_str(".last().cloned()");
             if !self.suppress_option_unwrap {
@@ -10696,7 +11254,8 @@ impl CodeGenerator {
         }
 
         // Handle arr.take(n) — first n elements
-        if method_call.method == "take" && !method_call.args.is_empty() && !object_is_class_instance {
+        if method_call.method == "take" && !method_call.args.is_empty() && !object_is_class_instance
+        {
             self.generate_expr(&method_call.object)?;
             self.output.push_str("[..(");
             self.generate_expr(&method_call.args[0])?;
@@ -10705,7 +11264,8 @@ impl CodeGenerator {
         }
 
         // Handle arr.drop(n) — all elements except first n
-        if method_call.method == "drop" && !method_call.args.is_empty() && !object_is_class_instance {
+        if method_call.method == "drop" && !method_call.args.is_empty() && !object_is_class_instance
+        {
             self.generate_expr(&method_call.object)?;
             self.output.push_str("[(");
             self.generate_expr(&method_call.args[0])?;
@@ -10722,7 +11282,8 @@ impl CodeGenerator {
         }
 
         // Handle arr.sort() — returns new sorted array
-        if method_call.method == "sort" && method_call.args.is_empty() && !object_is_class_instance {
+        if method_call.method == "sort" && method_call.args.is_empty() && !object_is_class_instance
+        {
             self.output.push_str("{ let mut __v = ");
             self.generate_expr(&method_call.object)?;
             self.output.push_str(".clone(); __v.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)); __v }");
@@ -10730,51 +11291,81 @@ impl CodeGenerator {
         }
 
         // Handle arr.sortBy(fn) — sort by key extraction function
-        if method_call.method == "sortBy" && !method_call.args.is_empty() && !object_is_class_instance {
+        if method_call.method == "sortBy"
+            && !method_call.args.is_empty()
+            && !object_is_class_instance
+        {
             if let Expr::Lambda(lambda) = &method_call.args[0] {
-                let param_name = lambda.params.first()
+                let param_name = lambda
+                    .params
+                    .first()
                     .and_then(|p| p.name())
                     .map(|n| self.sanitize_name(n))
                     .unwrap_or_else(|| "__x".to_string());
                 self.output.push_str("{ let mut __v = ");
                 self.generate_expr(&method_call.object)?;
-                write!(self.output, ".clone(); __v.sort_by(|__a, __b| {{ let {} = (*__a).clone(); let __ka = ", param_name).unwrap();
+                write!(
+                    self.output,
+                    ".clone(); __v.sort_by(|__a, __b| {{ let {} = (*__a).clone(); let __ka = ",
+                    param_name
+                )
+                .unwrap();
                 match &lambda.body {
                     LambdaBody::Expr(expr) => self.generate_expr(expr)?,
                     LambdaBody::Block(block) => self.generate_block_inner(block)?,
                 }
-                write!(self.output, "; let {} = (*__b).clone(); let __kb = ", param_name).unwrap();
+                write!(
+                    self.output,
+                    "; let {} = (*__b).clone(); let __kb = ",
+                    param_name
+                )
+                .unwrap();
                 match &lambda.body {
                     LambdaBody::Expr(expr) => self.generate_expr(expr)?,
                     LambdaBody::Block(block) => self.generate_block_inner(block)?,
                 }
-                self.output.push_str("; __ka.partial_cmp(&__kb).unwrap_or(std::cmp::Ordering::Equal) }); __v }");
+                self.output.push_str(
+                    "; __ka.partial_cmp(&__kb).unwrap_or(std::cmp::Ordering::Equal) }); __v }",
+                );
                 return Ok(());
             }
         }
 
         // Handle arr.groupBy(fn) — group elements by key extraction function → HashMap<K, Vec<V>>
-        if method_call.method == "groupBy" && !method_call.args.is_empty() && !object_is_class_instance {
+        if method_call.method == "groupBy"
+            && !method_call.args.is_empty()
+            && !object_is_class_instance
+        {
             if let Expr::Lambda(lambda) = &method_call.args[0] {
-                let param_name = lambda.params.first()
+                let param_name = lambda
+                    .params
+                    .first()
                     .and_then(|p| p.name())
                     .map(|n| self.sanitize_name(n))
                     .unwrap_or_else(|| "__x".to_string());
                 self.output.push_str("{ let mut __m: std::collections::HashMap<_, Vec<_>> = std::collections::HashMap::new(); for __item in ");
                 self.generate_expr(&method_call.object)?;
-                write!(self.output, ".iter() {{ let {} = (*__item).clone(); let __key = ", param_name).unwrap();
+                write!(
+                    self.output,
+                    ".iter() {{ let {} = (*__item).clone(); let __key = ",
+                    param_name
+                )
+                .unwrap();
                 match &lambda.body {
                     LambdaBody::Expr(expr) => self.generate_expr(expr)?,
                     LambdaBody::Block(block) => self.generate_block_inner(block)?,
                 }
-                self.output.push_str("; __m.entry(__key).or_insert_with(Vec::new).push((*__item).clone()); } __m }");
+                self.output.push_str(
+                    "; __m.entry(__key).or_insert_with(Vec::new).push((*__item).clone()); } __m }",
+                );
                 return Ok(());
             }
         }
 
         // Handle arr.distinct() — removes duplicates preserving order
         if method_call.method == "distinct" && !object_is_class_instance {
-            self.output.push_str("{ let mut __seen = std::collections::HashSet::new(); ");
+            self.output
+                .push_str("{ let mut __seen = std::collections::HashSet::new(); ");
             self.generate_expr(&method_call.object)?;
             self.output.push_str(
                 ".iter().filter(|x| __seen.insert((*x).clone())).cloned().collect::<Vec<_>>() }",
@@ -10783,14 +11374,19 @@ impl CodeGenerator {
         }
 
         // Handle arr.flat() — flattens one level of nesting
-        if (method_call.method == "flat" || method_call.method == "flatten") && !object_is_class_instance {
+        if (method_call.method == "flat" || method_call.method == "flatten")
+            && !object_is_class_instance
+        {
             self.generate_expr(&method_call.object)?;
             self.output.push_str(".concat()");
             return Ok(());
         }
 
         // Handle arr.chunks(size) — splits into sub-arrays of given size
-        if method_call.method == "chunks" && !method_call.args.is_empty() && !object_is_class_instance {
+        if method_call.method == "chunks"
+            && !method_call.args.is_empty()
+            && !object_is_class_instance
+        {
             self.generate_expr(&method_call.object)?;
             self.output.push_str(".chunks((");
             self.generate_expr(&method_call.args[0])?;
@@ -10800,7 +11396,8 @@ impl CodeGenerator {
         }
 
         // Handle arr.zip(other) — combines two arrays into array of tuples
-        if method_call.method == "zip" && !method_call.args.is_empty() && !object_is_class_instance {
+        if method_call.method == "zip" && !method_call.args.is_empty() && !object_is_class_instance
+        {
             self.generate_expr(&method_call.object)?;
             self.output.push_str(".iter().zip(");
             self.generate_expr(&method_call.args[0])?;
@@ -10812,20 +11409,19 @@ impl CodeGenerator {
         // Handle arr.sum() — sums all elements
         if method_call.method == "sum" && method_call.args.is_empty() && !object_is_class_instance {
             self.generate_expr(&method_call.object)?;
-            let sum_type =
-                if let Some(base_var) = self.get_base_var_name(&method_call.object) {
-                    if let Some(elem_type) = self.typed_array_vars.get(&base_var) {
-                        if elem_type == "float" || elem_type == "f64" {
-                            "f64"
-                        } else {
-                            "i32"
-                        }
+            let sum_type = if let Some(base_var) = self.get_base_var_name(&method_call.object) {
+                if let Some(elem_type) = self.typed_array_vars.get(&base_var) {
+                    if elem_type == "float" || elem_type == "f64" {
+                        "f64"
                     } else {
                         "i32"
                     }
                 } else {
                     "i32"
-                };
+                }
+            } else {
+                "i32"
+            };
             write!(self.output, ".iter().sum::<{}>()", sum_type).unwrap();
             return Ok(());
         }
@@ -11107,8 +11703,8 @@ impl CodeGenerator {
             "some" => "any".to_string(),  // Liva: some, Rust: any
             "every" => "all".to_string(), // Liva: every, Rust: all
             "findIndex" => "position".to_string(), // Liva: findIndex, Rust: position
-            "flatMap" => "flat_map".to_string(),   // Liva: flatMap, Rust: flat_map
-            "count" => "filter".to_string(),       // Liva: count(fn), Rust: filter(fn).count()
+            "flatMap" => "flat_map".to_string(), // Liva: flatMap, Rust: flat_map
+            "count" => "filter".to_string(), // Liva: count(fn), Rust: filter(fn).count()
             method_name => self.sanitize_name(method_name), // Sanitize custom method names (e.g., isAdult -> is_adult)
         };
 
@@ -11145,7 +11741,10 @@ impl CodeGenerator {
 
             // B106 fix: Sequential reduce initial value — string literal needs .to_string()
             // so accumulator type is String (not &str) matching the lambda return type
-            if method_call.method == "reduce" && i == 0 && matches!(arg, Expr::Literal(Literal::String(_))) {
+            if method_call.method == "reduce"
+                && i == 0
+                && matches!(arg, Expr::Literal(Literal::String(_)))
+            {
                 self.generate_expr(arg)?;
                 self.output.push_str(".to_string()");
                 continue;
@@ -11158,12 +11757,7 @@ impl CodeGenerator {
             if method_call.method == "reduce" && i == 1 {
                 if let Expr::Identifier(fn_name) = arg {
                     let sanitized = self.sanitize_name(fn_name);
-                    write!(
-                        self.output,
-                        "|acc, x| {}(acc, x.clone())",
-                        sanitized
-                    )
-                    .unwrap();
+                    write!(self.output, "|acc, x| {}(acc, x.clone())", sanitized).unwrap();
                     continue;
                 }
             }
@@ -11211,9 +11805,18 @@ impl CodeGenerator {
             if let Expr::Identifier(var_name) = arg {
                 let is_array_or_iterator_method = matches!(
                     method_call.method.as_str(),
-                    "map" | "filter" | "reduce" | "forEach" | "find"
-                        | "some" | "every" | "indexOf" | "includes"
-                        | "findIndex" | "flatMap" | "count"
+                    "map"
+                        | "filter"
+                        | "reduce"
+                        | "forEach"
+                        | "find"
+                        | "some"
+                        | "every"
+                        | "indexOf"
+                        | "includes"
+                        | "findIndex"
+                        | "flatMap"
+                        | "count"
                 );
 
                 if !is_array_or_iterator_method {
@@ -11287,7 +11890,15 @@ impl CodeGenerator {
                     // Function references are bare identifiers used where a closure is expected
                     let is_callback_method = matches!(
                         method_call.method.as_str(),
-                        "forEach" | "map" | "filter" | "find" | "some" | "every" | "findIndex" | "flatMap" | "count"
+                        "forEach"
+                            | "map"
+                            | "filter"
+                            | "find"
+                            | "some"
+                            | "every"
+                            | "findIndex"
+                            | "flatMap"
+                            | "count"
                     );
 
                     if is_callback_method {
@@ -11306,7 +11917,8 @@ impl CodeGenerator {
                             } else {
                                 "&&_x".to_string()
                             }
-                        } else if method_call.method == "map" || method_call.method == "forEach"
+                        } else if method_call.method == "map"
+                            || method_call.method == "forEach"
                             || method_call.method == "flatMap"
                         {
                             if will_use_cloned {
@@ -11323,9 +11935,12 @@ impl CodeGenerator {
 
                         // B107 fix: For filter/find/some/every/count with will_use_cloned,
                         // _x is &T but the function expects T. Use (*_x).clone() to dereference.
-                        let needs_deref_clone = will_use_cloned && !is_json_value
-                            && matches!(method_call.method.as_str(),
-                                "filter" | "find" | "some" | "every" | "findIndex" | "count");
+                        let needs_deref_clone = will_use_cloned
+                            && !is_json_value
+                            && matches!(
+                                method_call.method.as_str(),
+                                "filter" | "find" | "some" | "every" | "findIndex" | "count"
+                            );
 
                         match func_name.as_str() {
                             "print" => {
@@ -11356,7 +11971,15 @@ impl CodeGenerator {
                 if let Expr::MethodRef { object, method } = arg {
                     let is_callback_method = matches!(
                         method_call.method.as_str(),
-                        "forEach" | "map" | "filter" | "find" | "some" | "every" | "findIndex" | "flatMap" | "count"
+                        "forEach"
+                            | "map"
+                            | "filter"
+                            | "find"
+                            | "some"
+                            | "every"
+                            | "findIndex"
+                            | "flatMap"
+                            | "count"
                     );
 
                     if is_callback_method {
@@ -11374,7 +11997,8 @@ impl CodeGenerator {
                             } else {
                                 "&&_x".to_string()
                             }
-                        } else if method_call.method == "map" || method_call.method == "forEach"
+                        } else if method_call.method == "map"
+                            || method_call.method == "forEach"
                             || method_call.method == "flatMap"
                         {
                             if will_use_cloned {
@@ -11668,7 +12292,16 @@ impl CodeGenerator {
             if let Expr::Lambda(lambda) = arg {
                 if matches!(
                     method_call.method.as_str(),
-                    "forEach" | "map" | "filter" | "reduce" | "find" | "some" | "every" | "findIndex" | "flatMap" | "count"
+                    "forEach"
+                        | "map"
+                        | "filter"
+                        | "reduce"
+                        | "find"
+                        | "some"
+                        | "every"
+                        | "findIndex"
+                        | "flatMap"
+                        | "count"
                 ) {
                     if let Some(base_var_name) = self.get_base_var_name(&method_call.object) {
                         if let Some(element_type) =
@@ -11695,9 +12328,7 @@ impl CodeGenerator {
             // args must be `.to_string()` to match the auto-generated `String` param
             // type. Same logic as B137 but generalized to any user method (not only
             // `count`).
-            if object_is_class_instance
-                && matches!(arg, Expr::Literal(Literal::String(_)))
-            {
+            if object_is_class_instance && matches!(arg, Expr::Literal(Literal::String(_))) {
                 self.output.push_str(".to_string()");
             }
 
@@ -11896,10 +12527,7 @@ impl CodeGenerator {
     }
 
     /// Generate code for Map method calls (get, set, has, delete, keys, values, entries, clear, forEach)
-    fn generate_map_method_call(
-        &mut self,
-        method_call: &crate::ast::MethodCallExpr,
-    ) -> Result<()> {
+    fn generate_map_method_call(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
         match method_call.method.as_str() {
             "get" => {
                 // map.get(key) → map.get(&key).cloned().unwrap_or_default()
@@ -11999,7 +12627,8 @@ impl CodeGenerator {
             "values" => {
                 // map.values() → map.values().cloned().collect::<Vec<_>>()
                 self.generate_expr(&method_call.object)?;
-                self.output.push_str(".values().cloned().collect::<Vec<_>>()");
+                self.output
+                    .push_str(".values().cloned().collect::<Vec<_>>()");
             }
             "entries" => {
                 // map.entries() → map.iter().map(|(k,v)| (k.clone(), v.clone())).collect::<Vec<_>>()
@@ -12019,9 +12648,24 @@ impl CodeGenerator {
                     match callback {
                         Expr::Lambda(lambda) => {
                             // Use the lambda's parameter names
-                            let key_param = lambda.params.get(0).and_then(|p| p.name()).map(|n| self.sanitize_name(n)).unwrap_or_else(|| "k".to_string());
-                            let val_param = lambda.params.get(1).and_then(|p| p.name()).map(|n| self.sanitize_name(n)).unwrap_or_else(|| "v".to_string());
-                            write!(self.output, ".iter().for_each(|({}, {})| {{\n", key_param, val_param).unwrap();
+                            let key_param = lambda
+                                .params
+                                .get(0)
+                                .and_then(|p| p.name())
+                                .map(|n| self.sanitize_name(n))
+                                .unwrap_or_else(|| "k".to_string());
+                            let val_param = lambda
+                                .params
+                                .get(1)
+                                .and_then(|p| p.name())
+                                .map(|n| self.sanitize_name(n))
+                                .unwrap_or_else(|| "v".to_string());
+                            write!(
+                                self.output,
+                                ".iter().for_each(|({}, {})| {{\n",
+                                key_param, val_param
+                            )
+                            .unwrap();
                             self.indent();
                             // Generate lambda body inline
                             match &lambda.body {
@@ -12072,10 +12716,7 @@ impl CodeGenerator {
     }
 
     /// Generate code for Set method calls (add, has, delete, clear, values, forEach, union, intersection, difference)
-    fn generate_set_method_call(
-        &mut self,
-        method_call: &crate::ast::MethodCallExpr,
-    ) -> Result<()> {
+    fn generate_set_method_call(&mut self, method_call: &crate::ast::MethodCallExpr) -> Result<()> {
         match method_call.method.as_str() {
             "add" => {
                 // set.add(value) → set.insert(value)
@@ -12149,7 +12790,12 @@ impl CodeGenerator {
                 if let Some(callback) = method_call.args.first() {
                     match callback {
                         Expr::Lambda(lambda) => {
-                            let param = lambda.params.get(0).and_then(|p| p.name()).map(|n| self.sanitize_name(n)).unwrap_or_else(|| "v".to_string());
+                            let param = lambda
+                                .params
+                                .get(0)
+                                .and_then(|p| p.name())
+                                .map(|n| self.sanitize_name(n))
+                                .unwrap_or_else(|| "v".to_string());
                             write!(self.output, ".iter().for_each(|{}| {{\n", param).unwrap();
                             self.indent();
                             match &lambda.body {
@@ -12190,7 +12836,8 @@ impl CodeGenerator {
                 if let Some(arg) = method_call.args.first() {
                     self.generate_expr(arg)?;
                 }
-                self.output.push_str(").cloned().collect::<std::collections::HashSet<_>>()");
+                self.output
+                    .push_str(").cloned().collect::<std::collections::HashSet<_>>()");
             }
             "intersection" => {
                 // set.intersection(other) → set.intersection(&other).cloned().collect::<HashSet<_>>()
@@ -12199,7 +12846,8 @@ impl CodeGenerator {
                 if let Some(arg) = method_call.args.first() {
                     self.generate_expr(arg)?;
                 }
-                self.output.push_str(").cloned().collect::<std::collections::HashSet<_>>()");
+                self.output
+                    .push_str(").cloned().collect::<std::collections::HashSet<_>>()");
             }
             "difference" => {
                 // set.difference(other) → set.difference(&other).cloned().collect::<HashSet<_>>()
@@ -12208,7 +12856,8 @@ impl CodeGenerator {
                 if let Some(arg) = method_call.args.first() {
                     self.generate_expr(arg)?;
                 }
-                self.output.push_str(").cloned().collect::<std::collections::HashSet<_>>()");
+                self.output
+                    .push_str(").cloned().collect::<std::collections::HashSet<_>>()");
             }
             _ => {
                 // Fallback: generate as normal method call
@@ -12252,7 +12901,8 @@ impl CodeGenerator {
                     self.generate_expr(&method_call.args[1])?;
                     self.output.push_str(") as usize; __s.chars().skip(__a).take(__b.saturating_sub(__a)).collect::<String>() }");
                 } else {
-                    self.output.push_str("__s.chars().skip(__a).collect::<String>() }");
+                    self.output
+                        .push_str("__s.chars().skip(__a).collect::<String>() }");
                 }
                 return Ok(());
             }
@@ -12265,7 +12915,8 @@ impl CodeGenerator {
                     self.generate_expr(&method_call.args[0])?;
                     self.output.push_str(") as usize");
                 }
-                self.output.push_str(").map(|c| c.to_string()).unwrap_or_default()");
+                self.output
+                    .push_str(").map(|c| c.to_string()).unwrap_or_default()");
                 return Ok(());
             }
             "indexOf" => {
@@ -12288,7 +12939,9 @@ impl CodeGenerator {
                     }
                     self.output.push_str("; let __from = (");
                     self.generate_expr(&method_call.args[1])?;
-                    self.output.push_str(") as usize; if __from >= __s.len() { -1i32 } else { __s[__from..].find(");
+                    self.output.push_str(
+                        ") as usize; if __from >= __s.len() { -1i32 } else { __s[__from..].find(",
+                    );
                     let needs_ref = match &method_call.args[0] {
                         Expr::Identifier(var_name) => {
                             self.string_vars.contains(&self.sanitize_name(var_name))
@@ -12297,9 +12950,12 @@ impl CodeGenerator {
                         Expr::Literal(Literal::String(_)) => false,
                         _ => true,
                     };
-                    if needs_ref { self.output.push('&'); }
+                    if needs_ref {
+                        self.output.push('&');
+                    }
                     self.generate_expr(&method_call.args[0])?;
-                    self.output.push_str(").map(|i| (i + __from) as i32).unwrap_or(-1) } }");
+                    self.output
+                        .push_str(").map(|i| (i + __from) as i32).unwrap_or(-1) } }");
                     return Ok(());
                 }
                 self.generate_expr(&method_call.object)?;
@@ -12361,7 +13017,8 @@ impl CodeGenerator {
                     self.generate_expr(&method_call.args[1])?;
                     self.output.push_str(") as usize; __s.chars().skip(__a).take(__b.saturating_sub(__a)).collect::<String>() }");
                 } else {
-                    self.output.push_str("__s.chars().skip(__a).collect::<String>() }");
+                    self.output
+                        .push_str("__s.chars().skip(__a).collect::<String>() }");
                 }
                 return Ok(());
             }
@@ -12400,8 +13057,7 @@ impl CodeGenerator {
                     self.generate_expr(&method_call.args[1])?;
                     self.output.push_str(".repeat(__len - __s.len())");
                 } else {
-                    self.output
-                        .push_str("\" \".repeat(__len - __s.len())");
+                    self.output.push_str("\" \".repeat(__len - __s.len())");
                 }
                 self.output.push_str(" } }");
                 return Ok(());
@@ -12503,9 +13159,8 @@ impl CodeGenerator {
                     }
                     self.generate_expr(&method_call.args[0])?;
                 }
-                self.output.push_str(
-                    ") { Some(__r) => __r.to_string(), None => __s.to_string() } }",
-                );
+                self.output
+                    .push_str(") { Some(__r) => __r.to_string(), None => __s.to_string() } }");
                 return Ok(());
             }
             "removeSuffix" => {
@@ -12527,9 +13182,8 @@ impl CodeGenerator {
                     }
                     self.generate_expr(&method_call.args[0])?;
                 }
-                self.output.push_str(
-                    ") { Some(__r) => __r.to_string(), None => __s.to_string() } }",
-                );
+                self.output
+                    .push_str(") { Some(__r) => __r.to_string(), None => __s.to_string() } }");
                 return Ok(());
             }
             "chars" => {
@@ -12573,7 +13227,14 @@ impl CodeGenerator {
         // Methods that take Pattern/&str args need & for String variables
         let needs_ref_for_args = matches!(
             method_call.method.as_str(),
-            "contains" | "startsWith" | "endsWith" | "split" | "replace" | "replaceAll" | "starts_with" | "ends_with"
+            "contains"
+                | "startsWith"
+                | "endsWith"
+                | "split"
+                | "replace"
+                | "replaceAll"
+                | "starts_with"
+                | "ends_with"
         );
 
         // Generate arguments
@@ -12674,9 +13335,13 @@ impl CodeGenerator {
                     )));
                 }
                 let needs_parens = matches!(&method_call.args[0], Expr::Unary { .. });
-                if needs_parens { self.output.push('('); }
+                if needs_parens {
+                    self.output.push('(');
+                }
                 self.generate_expr(&method_call.args[0])?;
-                if needs_parens { self.output.push(')'); }
+                if needs_parens {
+                    self.output.push(')');
+                }
                 self.output.push_str(".powf(");
                 self.generate_expr(&method_call.args[1])?;
                 self.output.push(')');
@@ -12691,9 +13356,13 @@ impl CodeGenerator {
                     )));
                 }
                 let needs_parens = matches!(&method_call.args[0], Expr::Unary { .. });
-                if needs_parens { self.output.push('('); }
+                if needs_parens {
+                    self.output.push('(');
+                }
                 self.generate_expr(&method_call.args[0])?;
-                if needs_parens { self.output.push(')'); }
+                if needs_parens {
+                    self.output.push(')');
+                }
                 self.output.push('.');
                 self.output.push_str(&method_call.method);
                 self.output.push_str("() as i32");
@@ -12708,9 +13377,13 @@ impl CodeGenerator {
                     )));
                 }
                 let needs_parens = matches!(&method_call.args[0], Expr::Unary { .. });
-                if needs_parens { self.output.push('('); }
+                if needs_parens {
+                    self.output.push('(');
+                }
                 self.generate_expr(&method_call.args[0])?;
-                if needs_parens { self.output.push(')'); }
+                if needs_parens {
+                    self.output.push(')');
+                }
                 self.output.push('.');
                 self.output.push_str(&method_call.method);
                 self.output.push('(');
@@ -12732,9 +13405,13 @@ impl CodeGenerator {
                     )));
                 }
                 let needs_parens = matches!(&method_call.args[0], Expr::Unary { .. });
-                if needs_parens { self.output.push('('); }
+                if needs_parens {
+                    self.output.push('(');
+                }
                 self.generate_expr(&method_call.args[0])?;
-                if needs_parens { self.output.push(')'); }
+                if needs_parens {
+                    self.output.push(')');
+                }
                 self.output.push_str(".max(");
                 self.generate_expr(&method_call.args[1])?;
                 self.output.push_str(").min(");
@@ -12752,9 +13429,8 @@ impl CodeGenerator {
                 }
                 self.output.push_str("{ let __v: f64 = ");
                 self.generate_expr(&method_call.args[0])?;
-                self.output.push_str(
-                    "; if __v > 0.0 { 1 } else if __v < 0.0 { -1 } else { 0 } }",
-                );
+                self.output
+                    .push_str("; if __v > 0.0 { 1 } else if __v < 0.0 { -1 } else { 0 } }");
             }
             "log" => {
                 // log(x) -> (x as f64).ln()
@@ -13039,9 +13715,8 @@ impl CodeGenerator {
                     )));
                 }
 
-                self.output.push_str(
-                    "match std::fs::OpenOptions::new().create(true).append(true).open(&",
-                );
+                self.output
+                    .push_str("match std::fs::OpenOptions::new().create(true).append(true).open(&");
                 self.generate_expr(&method_call.args[0])?;
                 self.output
                     .push_str(").and_then(|mut file| { use std::io::Write; file.write_all(");
@@ -13060,7 +13735,8 @@ impl CodeGenerator {
 
                 self.output.push_str("{ let __arg = (");
                 self.generate_expr(&method_call.args[0])?;
-                self.output.push_str(").to_string(); std::path::Path::new(&__arg).exists() }");
+                self.output
+                    .push_str(").to_string(); std::path::Path::new(&__arg).exists() }");
             }
             "delete" => {
                 // File.delete(path) returns (Option<bool>, String)
@@ -13212,7 +13888,8 @@ impl CodeGenerator {
 
                 self.output.push_str("{ let __arg = (");
                 self.generate_expr(&method_call.args[0])?;
-                self.output.push_str(").to_string(); std::path::Path::new(&__arg).is_dir() }");
+                self.output
+                    .push_str(").to_string(); std::path::Path::new(&__arg).is_dir() }");
             }
             "exists" => {
                 // Dir.exists(path) returns bool (no error binding)
@@ -13524,8 +14201,7 @@ impl CodeGenerator {
                         "Usage: Path.join(\"a/b\", \"c\")",
                     )));
                 }
-                self.output
-                    .push_str("std::path::Path::new(&");
+                self.output.push_str("std::path::Path::new(&");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(".to_string()).join(&");
                 self.generate_expr(&method_call.args[1])?;
@@ -13540,8 +14216,7 @@ impl CodeGenerator {
                         "Usage: Path.parent(\"/a/b/c\")",
                     )));
                 }
-                self.output
-                    .push_str("std::path::Path::new(&");
+                self.output.push_str("std::path::Path::new(&");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(
                     ".to_string()).parent().map(|p| p.to_string_lossy().to_string()).unwrap_or_default()",
@@ -13555,8 +14230,7 @@ impl CodeGenerator {
                         "Usage: Path.extension(\"file.txt\")",
                     )));
                 }
-                self.output
-                    .push_str("std::path::Path::new(&");
+                self.output.push_str("std::path::Path::new(&");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(
                     ".to_string()).extension().and_then(|e| e.to_str()).map(|s| s.to_string()).unwrap_or_default()",
@@ -13570,8 +14244,7 @@ impl CodeGenerator {
                         "Usage: Path.basename(\"/a/b/c.txt\")",
                     )));
                 }
-                self.output
-                    .push_str("std::path::Path::new(&");
+                self.output.push_str("std::path::Path::new(&");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(
                     ".to_string()).file_name().and_then(|n| n.to_str()).map(|s| s.to_string()).unwrap_or_default()",
@@ -13585,8 +14258,7 @@ impl CodeGenerator {
                         "Usage: Path.exists(\"/a/b\")",
                     )));
                 }
-                self.output
-                    .push_str("std::path::Path::new(&");
+                self.output.push_str("std::path::Path::new(&");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(".to_string()).exists()");
             }
@@ -13598,8 +14270,7 @@ impl CodeGenerator {
                         "Usage: Path.isAbsolute(\"/a/b\")",
                     )));
                 }
-                self.output
-                    .push_str("std::path::Path::new(&");
+                self.output.push_str("std::path::Path::new(&");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(".to_string()).is_absolute()");
             }
@@ -13613,9 +14284,7 @@ impl CodeGenerator {
                 }
                 // Pure-lexical normalization: collapses "." and ".." without
                 // touching the filesystem (no symlink resolution, no canonicalize).
-                self.output.push_str(
-                    "{ let __p = ",
-                );
+                self.output.push_str("{ let __p = ");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(
                     ".to_string(); let __path = std::path::Path::new(&__p); let mut __out = std::path::PathBuf::new(); for __c in __path.components() { match __c { std::path::Component::ParentDir => { __out.pop(); }, std::path::Component::CurDir => {}, __other => { __out.push(__other.as_os_str()); } } } __out.to_string_lossy().to_string() }",
@@ -13653,37 +14322,57 @@ impl CodeGenerator {
                     return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
                         "E3000",
                         &format!("Log.{} requires at least 1 argument", method_call.method),
-                        &format!("Usage: Log.{}(\"message\", arg1, arg2, ...)", method_call.method),
+                        &format!(
+                            "Usage: Log.{}(\"message\", arg1, arg2, ...)",
+                            method_call.method
+                        ),
                     )));
                 }
 
                 // Classify arguments: Scalar, InlineMap (≤3 keys), TableMap (4+ keys), TableArray, Json
                 #[derive(Debug)]
-                enum ArgKind { Scalar, InlineMap, TableMap, TableArray, Json }
+                enum ArgKind {
+                    Scalar,
+                    InlineMap,
+                    TableMap,
+                    TableArray,
+                    Json,
+                }
 
-                let arg_kinds: Vec<ArgKind> = method_call.args.iter().map(|arg| {
-                    match arg {
+                let arg_kinds: Vec<ArgKind> = method_call
+                    .args
+                    .iter()
+                    .map(|arg| match arg {
                         Expr::MapLiteral(entries) if entries.len() >= 4 => ArgKind::TableMap,
-                        Expr::ArrayLiteral(elements) if !elements.is_empty()
-                            && elements.iter().all(|e| matches!(e, Expr::MapLiteral(_))) =>
+                        Expr::ArrayLiteral(elements)
+                            if !elements.is_empty()
+                                && elements.iter().all(|e| matches!(e, Expr::MapLiteral(_))) =>
                         {
                             ArgKind::TableArray
                         }
                         Expr::MapLiteral(_) => ArgKind::InlineMap,
                         _ => ArgKind::Scalar,
-                    }
-                }).collect();
+                    })
+                    .collect();
 
                 // Post-pass: reclassify Scalar args that are JsonValue as Json
-                let arg_kinds: Vec<ArgKind> = arg_kinds.into_iter().enumerate().map(|(i, kind)| {
-                    if matches!(kind, ArgKind::Scalar) && self.is_json_value_expr(&method_call.args[i]) {
-                        ArgKind::Json
-                    } else {
-                        kind
-                    }
-                }).collect();
+                let arg_kinds: Vec<ArgKind> = arg_kinds
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, kind)| {
+                        if matches!(kind, ArgKind::Scalar)
+                            && self.is_json_value_expr(&method_call.args[i])
+                        {
+                            ArgKind::Json
+                        } else {
+                            kind
+                        }
+                    })
+                    .collect();
 
-                let has_tables = arg_kinds.iter().any(|k| matches!(k, ArgKind::TableMap | ArgKind::TableArray | ArgKind::Json));
+                let has_tables = arg_kinds
+                    .iter()
+                    .any(|k| matches!(k, ArgKind::TableMap | ArgKind::TableArray | ArgKind::Json));
 
                 // Build format string for message (non-table args only)
                 let mut fmt_parts: Vec<String> = Vec::new();
@@ -13692,13 +14381,16 @@ impl CodeGenerator {
                         ArgKind::Scalar => fmt_parts.push("{}".to_string()),
                         ArgKind::InlineMap => {
                             if let Expr::MapLiteral(entries) = arg {
-                                let parts: Vec<String> = entries.iter().map(|(k, _)| {
-                                    if let Expr::Literal(Literal::String(key)) = k {
-                                        format!("{}: {{}}", key)
-                                    } else {
-                                        "?: {}".to_string()
-                                    }
-                                }).collect();
+                                let parts: Vec<String> = entries
+                                    .iter()
+                                    .map(|(k, _)| {
+                                        if let Expr::Literal(Literal::String(key)) = k {
+                                            format!("{}: {{}}", key)
+                                        } else {
+                                            "?: {}".to_string()
+                                        }
+                                    })
+                                    .collect();
                                 fmt_parts.push(format!("{{{{{}}}}}", parts.join(", ")));
                             }
                         }
@@ -13747,9 +14439,12 @@ impl CodeGenerator {
                         match kind {
                             ArgKind::TableMap => {
                                 if let Expr::MapLiteral(entries) = arg {
-                                    write!(self.output, "; liva_log_table_kv({}, &[", level).unwrap();
+                                    write!(self.output, "; liva_log_table_kv({}, &[", level)
+                                        .unwrap();
                                     for (i, (k, _)) in entries.iter().enumerate() {
-                                        if i > 0 { self.output.push_str(", "); }
+                                        if i > 0 {
+                                            self.output.push_str(", ");
+                                        }
                                         if let Expr::Literal(Literal::String(key)) = k {
                                             write!(self.output, "\"{}\"", key).unwrap();
                                         } else {
@@ -13758,7 +14453,9 @@ impl CodeGenerator {
                                     }
                                     self.output.push_str("], &[");
                                     for (i, (_, v)) in entries.iter().enumerate() {
-                                        if i > 0 { self.output.push_str(", "); }
+                                        if i > 0 {
+                                            self.output.push_str(", ");
+                                        }
                                         self.output.push_str("format!(\"{}\", ");
                                         self.generate_expr(v)?;
                                         self.output.push(')');
@@ -13768,10 +14465,14 @@ impl CodeGenerator {
                             }
                             ArgKind::TableArray => {
                                 if let Expr::ArrayLiteral(elements) = arg {
-                                    if let Some(Expr::MapLiteral(first_entries)) = elements.first() {
-                                        write!(self.output, "; liva_log_table_rows({}, &[", level).unwrap();
+                                    if let Some(Expr::MapLiteral(first_entries)) = elements.first()
+                                    {
+                                        write!(self.output, "; liva_log_table_rows({}, &[", level)
+                                            .unwrap();
                                         for (i, (k, _)) in first_entries.iter().enumerate() {
-                                            if i > 0 { self.output.push_str(", "); }
+                                            if i > 0 {
+                                                self.output.push_str(", ");
+                                            }
                                             if let Expr::Literal(Literal::String(key)) = k {
                                                 write!(self.output, "\"{}\"", key).unwrap();
                                             } else {
@@ -13780,11 +14481,15 @@ impl CodeGenerator {
                                         }
                                         self.output.push_str("], &[");
                                         for (j, elem) in elements.iter().enumerate() {
-                                            if j > 0 { self.output.push_str(", "); }
+                                            if j > 0 {
+                                                self.output.push_str(", ");
+                                            }
                                             if let Expr::MapLiteral(row_entries) = elem {
                                                 self.output.push_str("vec![");
                                                 for (i, (_, v)) in row_entries.iter().enumerate() {
-                                                    if i > 0 { self.output.push_str(", "); }
+                                                    if i > 0 {
+                                                        self.output.push_str(", ");
+                                                    }
                                                     self.output.push_str("format!(\"{}\", ");
                                                     self.generate_expr(v)?;
                                                     self.output.push(')');
@@ -13807,11 +14512,17 @@ impl CodeGenerator {
                                 if is_option {
                                     self.output.push_str("&");
                                     // Temporarily remove from option_value_vars to avoid double-unwrap
-                                    let name = if let Expr::Identifier(n) = arg { n.clone() } else { String::new() };
+                                    let name = if let Expr::Identifier(n) = arg {
+                                        n.clone()
+                                    } else {
+                                        String::new()
+                                    };
                                     self.option_value_vars.remove(&name);
                                     self.generate_expr(arg)?;
                                     self.option_value_vars.insert(name);
-                                    self.output.push_str(".as_ref().unwrap_or(&liva_rt::JsonValue::default())");
+                                    self.output.push_str(
+                                        ".as_ref().unwrap_or(&liva_rt::JsonValue::default())",
+                                    );
                                 } else {
                                     self.output.push_str("&");
                                     self.generate_expr(arg)?;
@@ -14010,7 +14721,8 @@ impl CodeGenerator {
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(").map(|re| re.replace_all(&");
                 self.generate_expr(&method_call.args[1])?;
-                self.output.push_str(", __repl.as_str()).to_string()).unwrap_or_else(|_| ");
+                self.output
+                    .push_str(", __repl.as_str()).to_string()).unwrap_or_else(|_| ");
                 self.generate_expr(&method_call.args[1])?;
                 self.output.push_str(".to_string()) }");
             }
@@ -14028,7 +14740,9 @@ impl CodeGenerator {
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(").map(|re| re.split(&");
                 self.generate_expr(&method_call.args[1])?;
-                self.output.push_str(").map(|s| s.to_string()).collect::<Vec<String>>()).unwrap_or_else(|_| vec![");
+                self.output.push_str(
+                    ").map(|s| s.to_string()).collect::<Vec<String>>()).unwrap_or_else(|_| vec![",
+                );
                 self.generate_expr(&method_call.args[1])?;
                 self.output.push_str(".to_string()])");
             }
@@ -14102,7 +14816,8 @@ impl CodeGenerator {
                 self.output.push_str("{ let __liva_pattern = ");
                 self.generate_expr(&method_call.args[1])?;
                 self.output.push_str(".replace(\"YYYY\", \"%Y\").replace(\"MM\", \"%m\").replace(\"DD\", \"%d\").replace(\"HH\", \"%H\").replace(\"mm\", \"%M\").replace(\"ss\", \"%S\"); ");
-                self.output.push_str("match chrono::NaiveDateTime::parse_from_str(&");
+                self.output
+                    .push_str("match chrono::NaiveDateTime::parse_from_str(&");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(", &__liva_pattern) { Ok(dt) => (Some(dt), String::new()), Err(_) => match chrono::NaiveDate::parse_from_str(&");
                 self.generate_expr(&method_call.args[0])?;
@@ -14117,7 +14832,8 @@ impl CodeGenerator {
                         "Usage: Date.timestamp()",
                     )));
                 }
-                self.output.push_str("(chrono::Local::now().timestamp_millis() as i32)");
+                self.output
+                    .push_str("(chrono::Local::now().timestamp_millis() as i32)");
             }
             "nowUtc" => {
                 // D.5: UTC equivalent of Date.now() — naive UTC datetime.
@@ -14205,13 +14921,20 @@ impl CodeGenerator {
                 self.generate_expr(&method_call.args[1])?;
                 self.output.push_str(").to_string(); let __liva_n = ");
                 self.generate_expr(&method_call.args[0])?;
-                self.output.push_str(" as i64; let __liva_dur = match __liva_unit.as_str() { ");
-                self.output.push_str("\"days\" => chrono::Duration::days(__liva_n), ");
-                self.output.push_str("\"hours\" => chrono::Duration::hours(__liva_n), ");
-                self.output.push_str("\"minutes\" => chrono::Duration::minutes(__liva_n), ");
-                self.output.push_str("\"seconds\" => chrono::Duration::seconds(__liva_n), ");
-                self.output.push_str("\"weeks\" => chrono::Duration::weeks(__liva_n), ");
-                self.output.push_str("_ => chrono::Duration::days(__liva_n), }; ");
+                self.output
+                    .push_str(" as i64; let __liva_dur = match __liva_unit.as_str() { ");
+                self.output
+                    .push_str("\"days\" => chrono::Duration::days(__liva_n), ");
+                self.output
+                    .push_str("\"hours\" => chrono::Duration::hours(__liva_n), ");
+                self.output
+                    .push_str("\"minutes\" => chrono::Duration::minutes(__liva_n), ");
+                self.output
+                    .push_str("\"seconds\" => chrono::Duration::seconds(__liva_n), ");
+                self.output
+                    .push_str("\"weeks\" => chrono::Duration::weeks(__liva_n), ");
+                self.output
+                    .push_str("_ => chrono::Duration::days(__liva_n), }; ");
                 self.generate_expr(&method_call.object)?;
                 self.output.push_str(" + __liva_dur }");
             }
@@ -14230,15 +14953,23 @@ impl CodeGenerator {
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str("); let __liva_unit = (");
                 self.generate_expr(&method_call.args[1])?;
-                self.output.push_str(").to_string(); (match __liva_unit.as_str() { ");
+                self.output
+                    .push_str(").to_string(); (match __liva_unit.as_str() { ");
                 self.output.push_str("\"days\" => __liva_diff.num_days(), ");
-                self.output.push_str("\"hours\" => __liva_diff.num_hours(), ");
-                self.output.push_str("\"minutes\" => __liva_diff.num_minutes(), ");
-                self.output.push_str("\"seconds\" => __liva_diff.num_seconds(), ");
-                self.output.push_str("\"weeks\" => __liva_diff.num_weeks(), ");
-                self.output.push_str("\"years\" => __liva_diff.num_days() / 365, ");
-                self.output.push_str("\"months\" => __liva_diff.num_days() / 30, ");
-                self.output.push_str("_ => __liva_diff.num_days(), }) as i32 }");
+                self.output
+                    .push_str("\"hours\" => __liva_diff.num_hours(), ");
+                self.output
+                    .push_str("\"minutes\" => __liva_diff.num_minutes(), ");
+                self.output
+                    .push_str("\"seconds\" => __liva_diff.num_seconds(), ");
+                self.output
+                    .push_str("\"weeks\" => __liva_diff.num_weeks(), ");
+                self.output
+                    .push_str("\"years\" => __liva_diff.num_days() / 365, ");
+                self.output
+                    .push_str("\"months\" => __liva_diff.num_days() / 30, ");
+                self.output
+                    .push_str("_ => __liva_diff.num_days(), }) as i32 }");
             }
             "toString" => {
                 // d.toString() → d.format("%Y-%m-%dT%H:%M:%S").to_string()
@@ -14250,7 +14981,8 @@ impl CodeGenerator {
                     )));
                 }
                 self.generate_expr(&method_call.object)?;
-                self.output.push_str(".format(\"%Y-%m-%dT%H:%M:%S\").to_string()");
+                self.output
+                    .push_str(".format(\"%Y-%m-%dT%H:%M:%S\").to_string()");
             }
             _ => {
                 return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
@@ -14303,20 +15035,24 @@ impl CodeGenerator {
                 self.output.push_str("let mut fields = Vec::new();\n");
                 self.output.push_str("let mut current = String::new();\n");
                 self.output.push_str("let mut in_quotes = false;\n");
-                self.output.push_str("let mut chars = line.chars().peekable();\n");
+                self.output
+                    .push_str("let mut chars = line.chars().peekable();\n");
                 self.output.push_str("while let Some(c) = chars.next() {\n");
                 self.output.push_str("if in_quotes {\n");
                 self.output.push_str("if c == '\"' { if chars.peek() == Some(&'\"') { current.push('\"'); chars.next(); } else { in_quotes = false; } } else { current.push(c); }\n");
-                self.output.push_str("} else if c == '\"' { in_quotes = true;\n");
+                self.output
+                    .push_str("} else if c == '\"' { in_quotes = true;\n");
                 self.output.push_str("} else if c == __liva_sep { fields.push(current.trim().to_string()); current = String::new();\n");
                 self.output.push_str("} else { current.push(c); }\n");
                 self.output.push_str("}\n");
-                self.output.push_str("fields.push(current.trim().to_string());\n");
+                self.output
+                    .push_str("fields.push(current.trim().to_string());\n");
                 self.output.push_str("fields\n");
                 self.output.push_str("}).collect();\n");
                 self.output.push_str("(Some(rows), String::new())\n");
                 self.output.push_str("},\n");
-                self.output.push_str("Err(e) => (None, format!(\"CSV.read error: {}\", e))\n");
+                self.output
+                    .push_str("Err(e) => (None, format!(\"CSV.read error: {}\", e))\n");
                 self.output.push_str("}\n");
                 self.output.push_str("}");
             }
@@ -14335,11 +15071,15 @@ impl CodeGenerator {
                 self.generate_expr(&method_call.args[1])?;
                 self.output.push_str(".iter().map(|row| {\n");
                 self.output.push_str("row.iter().map(|field| {\n");
-                self.output.push_str("if field.contains(',') || field.contains('\"') || field.contains('\\n') {\n");
-                self.output.push_str("format!(\"\\\"{}\\\"\" , field.replace('\"', \"\\\"\\\"\"))\n");
+                self.output.push_str(
+                    "if field.contains(',') || field.contains('\"') || field.contains('\\n') {\n",
+                );
+                self.output
+                    .push_str("format!(\"\\\"{}\\\"\" , field.replace('\"', \"\\\"\\\"\"))\n");
                 self.output.push_str("} else { field.clone() }\n");
                 self.output.push_str("}).collect::<Vec<_>>().join(\",\")\n");
-                self.output.push_str("}).collect::<Vec<_>>().join(\"\\n\");\n");
+                self.output
+                    .push_str("}).collect::<Vec<_>>().join(\"\\n\");\n");
                 self.output.push_str("match std::fs::write(&");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(", &__csv_content) { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"CSV.write error: {}\", e)) }\n");
@@ -14365,31 +15105,41 @@ impl CodeGenerator {
                 self.output.push_str("let mut fields = Vec::new();\n");
                 self.output.push_str("let mut current = String::new();\n");
                 self.output.push_str("let mut in_quotes = false;\n");
-                self.output.push_str("let mut chars = line.chars().peekable();\n");
+                self.output
+                    .push_str("let mut chars = line.chars().peekable();\n");
                 self.output.push_str("while let Some(c) = chars.next() {\n");
                 self.output.push_str("if in_quotes {\n");
                 self.output.push_str("if c == '\"' { if chars.peek() == Some(&'\"') { current.push('\"'); chars.next(); } else { in_quotes = false; } } else { current.push(c); }\n");
-                self.output.push_str("} else if c == '\"' { in_quotes = true;\n");
+                self.output
+                    .push_str("} else if c == '\"' { in_quotes = true;\n");
                 self.output.push_str("} else if c == ',' { fields.push(current.trim().to_string()); current = String::new();\n");
                 self.output.push_str("} else { current.push(c); }\n");
                 self.output.push_str("}\n");
-                self.output.push_str("fields.push(current.trim().to_string());\n");
+                self.output
+                    .push_str("fields.push(current.trim().to_string());\n");
                 self.output.push_str("fields\n");
                 self.output.push_str("}).collect();\n");
                 // First row = headers, rest = data rows as HashMap
-                self.output.push_str("if __rows.is_empty() { (Some(Vec::new()), String::new()) } else {\n");
+                self.output.push_str(
+                    "if __rows.is_empty() { (Some(Vec::new()), String::new()) } else {\n",
+                );
                 self.output.push_str("let headers = &__rows[0];\n");
                 self.output.push_str("let table: Vec<std::collections::HashMap<String, String>> = __rows[1..].iter().map(|row| {\n");
-                self.output.push_str("let mut map = std::collections::HashMap::new();\n");
-                self.output.push_str("for (i, header) in headers.iter().enumerate() {\n");
-                self.output.push_str("map.insert(header.clone(), row.get(i).cloned().unwrap_or_default());\n");
+                self.output
+                    .push_str("let mut map = std::collections::HashMap::new();\n");
+                self.output
+                    .push_str("for (i, header) in headers.iter().enumerate() {\n");
+                self.output.push_str(
+                    "map.insert(header.clone(), row.get(i).cloned().unwrap_or_default());\n",
+                );
                 self.output.push_str("}\n");
                 self.output.push_str("map\n");
                 self.output.push_str("}).collect();\n");
                 self.output.push_str("(Some(table), String::new())\n");
                 self.output.push_str("}\n");
                 self.output.push_str("},\n");
-                self.output.push_str("Err(e) => (None, format!(\"CSV.readTable error: {}\", e))\n");
+                self.output
+                    .push_str("Err(e) => (None, format!(\"CSV.readTable error: {}\", e))\n");
                 self.output.push_str("}\n");
                 self.output.push_str("}");
             }
@@ -14408,21 +15158,31 @@ impl CodeGenerator {
                 self.generate_expr(&method_call.args[1])?;
                 self.output.push_str(";\n");
                 // Collect headers from the first row's keys (sorted for determinism)
-                self.output.push_str("if __table.is_empty() { match std::fs::write(&");
+                self.output
+                    .push_str("if __table.is_empty() { match std::fs::write(&");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(", \"\") { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"CSV.writeTable error: {}\", e)) } } else {\n");
-                self.output.push_str("let mut __headers: Vec<String> = __table[0].keys().cloned().collect();\n");
+                self.output.push_str(
+                    "let mut __headers: Vec<String> = __table[0].keys().cloned().collect();\n",
+                );
                 self.output.push_str("__headers.sort();\n");
-                self.output.push_str("let mut __csv_lines: Vec<String> = vec![__headers.iter().map(|h| {\n");
+                self.output.push_str(
+                    "let mut __csv_lines: Vec<String> = vec![__headers.iter().map(|h| {\n",
+                );
                 self.output.push_str("if h.contains(',') || h.contains('\"') || h.contains('\\n') { format!(\"\\\"{}\\\"\" , h.replace('\"', \"\\\"\\\"\")) } else { h.clone() }\n");
-                self.output.push_str("}).collect::<Vec<_>>().join(\",\")];\n");
+                self.output
+                    .push_str("}).collect::<Vec<_>>().join(\",\")];\n");
                 self.output.push_str("for row in __table.iter() {\n");
-                self.output.push_str("__csv_lines.push(__headers.iter().map(|h| {\n");
-                self.output.push_str("let val = row.get(h).cloned().unwrap_or_default();\n");
+                self.output
+                    .push_str("__csv_lines.push(__headers.iter().map(|h| {\n");
+                self.output
+                    .push_str("let val = row.get(h).cloned().unwrap_or_default();\n");
                 self.output.push_str("if val.contains(',') || val.contains('\"') || val.contains('\\n') { format!(\"\\\"{}\\\"\" , val.replace('\"', \"\\\"\\\"\")) } else { val }\n");
-                self.output.push_str("}).collect::<Vec<_>>().join(\",\"));\n");
+                self.output
+                    .push_str("}).collect::<Vec<_>>().join(\",\"));\n");
                 self.output.push_str("}\n");
-                self.output.push_str("let __csv_content = __csv_lines.join(\"\\n\");\n");
+                self.output
+                    .push_str("let __csv_content = __csv_lines.join(\"\\n\");\n");
                 self.output.push_str("match std::fs::write(&");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(", &__csv_content) { Ok(_) => (Some(true), String::new()), Err(e) => (Some(false), format!(\"CSV.writeTable error: {}\", e)) }\n");
@@ -14442,19 +15202,23 @@ impl CodeGenerator {
                 self.output.push_str("let __text: &str = &");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(";\n");
-                self.output.push_str("__text.lines().filter(|l| !l.is_empty()).map(|line| {\n");
+                self.output
+                    .push_str("__text.lines().filter(|l| !l.is_empty()).map(|line| {\n");
                 self.output.push_str("let mut fields = Vec::new();\n");
                 self.output.push_str("let mut current = String::new();\n");
                 self.output.push_str("let mut in_quotes = false;\n");
-                self.output.push_str("let mut chars = line.chars().peekable();\n");
+                self.output
+                    .push_str("let mut chars = line.chars().peekable();\n");
                 self.output.push_str("while let Some(c) = chars.next() {\n");
                 self.output.push_str("if in_quotes {\n");
                 self.output.push_str("if c == '\"' { if chars.peek() == Some(&'\"') { current.push('\"'); chars.next(); } else { in_quotes = false; } } else { current.push(c); }\n");
-                self.output.push_str("} else if c == '\"' { in_quotes = true;\n");
+                self.output
+                    .push_str("} else if c == '\"' { in_quotes = true;\n");
                 self.output.push_str("} else if c == ',' { fields.push(current.trim().to_string()); current = String::new();\n");
                 self.output.push_str("} else { current.push(c); }\n");
                 self.output.push_str("}\n");
-                self.output.push_str("fields.push(current.trim().to_string());\n");
+                self.output
+                    .push_str("fields.push(current.trim().to_string());\n");
                 self.output.push_str("fields\n");
                 self.output.push_str("}).collect::<Vec<Vec<String>>>()\n");
                 self.output.push_str("}");
@@ -14471,8 +15235,11 @@ impl CodeGenerator {
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(".iter().map(|row| {\n");
                 self.output.push_str("row.iter().map(|field| {\n");
-                self.output.push_str("if field.contains(',') || field.contains('\"') || field.contains('\\n') {\n");
-                self.output.push_str("format!(\"\\\"{}\\\"\" , field.replace('\"', \"\\\"\\\"\"))\n");
+                self.output.push_str(
+                    "if field.contains(',') || field.contains('\"') || field.contains('\\n') {\n",
+                );
+                self.output
+                    .push_str("format!(\"\\\"{}\\\"\" , field.replace('\"', \"\\\"\\\"\"))\n");
                 self.output.push_str("} else { field.clone() }\n");
                 self.output.push_str("}).collect::<Vec<_>>().join(\",\")\n");
                 self.output.push_str("}).collect::<Vec<_>>().join(\"\\n\")");
@@ -14591,7 +15358,8 @@ impl CodeGenerator {
                 // Generate path — Bug #85 fix: convert :param to {param} for axum 0.8+ syntax
                 if let Some(ref path) = path_str {
                     // Convert :param segments to {param} for axum 0.8
-                    let converted = path.split('/')
+                    let converted = path
+                        .split('/')
                         .map(|segment| {
                             if let Some(stripped) = segment.strip_prefix(':') {
                                 format!("{{{}}}", stripped)
@@ -14636,7 +15404,12 @@ impl CodeGenerator {
                     let saved_req_param = self.current_function_name.clone();
                     // We'll store the req param name for resolution during body generation
                     // Use a temporary approach: generate body statements manually
-                    self.generate_server_handler_body(&lambda.body, &req_param, has_params, http_method == "post" || http_method == "put")?;
+                    self.generate_server_handler_body(
+                        &lambda.body,
+                        &req_param,
+                        has_params,
+                        http_method == "post" || http_method == "put",
+                    )?;
 
                     self.current_function_name = saved_req_param;
 
@@ -14669,7 +15442,7 @@ impl CodeGenerator {
                     "app".to_string()
                 };
 
-                write!(self.output, "{{ let __addr = format!(\"0.0.0.0:{{}}\", ", ).unwrap();
+                write!(self.output, "{{ let __addr = format!(\"0.0.0.0:{{}}\", ",).unwrap();
                 self.generate_expr(&method_call.args[0])?;
                 write!(self.output, "); let __listener = tokio::net::TcpListener::bind(&__addr).await.unwrap(); axum::serve(__listener, {}).await.unwrap(); }}", var_name).unwrap();
             }
@@ -14756,7 +15529,8 @@ impl CodeGenerator {
                 if status == "custom" {
                     self.output.push_str("axum::http::StatusCode::from_u16(");
                     self.generate_expr(&method_call.args[1])?;
-                    self.output.push_str(" as u16).unwrap_or(axum::http::StatusCode::OK)");
+                    self.output
+                        .push_str(" as u16).unwrap_or(axum::http::StatusCode::OK)");
                 } else {
                     self.output.push_str("axum::http::StatusCode::OK");
                 }
@@ -14805,7 +15579,8 @@ impl CodeGenerator {
                         } else if self.string_vars.contains(&sname) {
                             // String (likely from JSON.stringify) → parse back to Value
                             // → serde_json::from_str::<serde_json::Value>(&var).unwrap_or_default()
-                            self.output.push_str("serde_json::from_str::<serde_json::Value>(&");
+                            self.output
+                                .push_str("serde_json::from_str::<serde_json::Value>(&");
                             self.output.push_str(&sname);
                             self.output.push_str(").unwrap_or_default()");
                         } else {
@@ -14853,7 +15628,8 @@ impl CodeGenerator {
                 if status == "custom" {
                     self.output.push_str("axum::http::StatusCode::from_u16(");
                     self.generate_expr(&method_call.args[1])?;
-                    self.output.push_str(" as u16).unwrap_or(axum::http::StatusCode::OK)");
+                    self.output
+                        .push_str(" as u16).unwrap_or(axum::http::StatusCode::OK)");
                 } else {
                     self.output.push_str("axum::http::StatusCode::OK");
                 }
@@ -14872,7 +15648,8 @@ impl CodeGenerator {
                 }
                 self.output.push_str("axum::http::StatusCode::from_u16(");
                 self.generate_expr(&method_call.args[0])?;
-                self.output.push_str(" as u16).unwrap_or(axum::http::StatusCode::INTERNAL_SERVER_ERROR)");
+                self.output
+                    .push_str(" as u16).unwrap_or(axum::http::StatusCode::INTERNAL_SERVER_ERROR)");
             }
             _ => {
                 return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
@@ -14998,7 +15775,8 @@ impl CodeGenerator {
         } else {
             // Fallback: if not an array literal, use the old approach
             self.generate_expr(expr)?;
-            self.output.push_str(".iter().map(|s| s.to_string()).collect()");
+            self.output
+                .push_str(".iter().map(|s| s.to_string()).collect()");
         }
         Ok(())
     }
@@ -15017,7 +15795,8 @@ impl CodeGenerator {
                         "Usage: Random.nextInt(min, max)",
                     )));
                 }
-                self.output.push_str("{ use rand::Rng; rand::thread_rng().gen_range(");
+                self.output
+                    .push_str("{ use rand::Rng; rand::thread_rng().gen_range(");
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str("..=");
                 self.generate_expr(&method_call.args[1])?;
@@ -15032,7 +15811,8 @@ impl CodeGenerator {
                     self.generate_expr(&method_call.args[0])?;
                     self.output.push_str(" as f64; let __max: f64 = ");
                     self.generate_expr(&method_call.args[1])?;
-                    self.output.push_str(" as f64; rand::thread_rng().gen_range(__min..__max) }");
+                    self.output
+                        .push_str(" as f64; rand::thread_rng().gen_range(__min..__max) }");
                 } else {
                     return Err(CompilerError::CodegenError(SemanticErrorInfo::new(
                         "E3000",
@@ -15063,9 +15843,11 @@ impl CodeGenerator {
                         "Usage: Random.shuffle(array)",
                     )));
                 }
-                self.output.push_str("{ use rand::seq::SliceRandom; let mut __v = ");
+                self.output
+                    .push_str("{ use rand::seq::SliceRandom; let mut __v = ");
                 self.generate_expr(&method_call.args[0])?;
-                self.output.push_str(".clone(); __v.shuffle(&mut rand::thread_rng()); __v }");
+                self.output
+                    .push_str(".clone(); __v.shuffle(&mut rand::thread_rng()); __v }");
             }
             "uuid" => {
                 // Random.uuid() → String (UUID v4)
@@ -15104,9 +15886,12 @@ impl CodeGenerator {
                         "Usage: Crypto.sha256(input)",
                     )));
                 }
-                self.output.push_str("{ use sha2::Digest; let mut hasher = sha2::Sha256::new(); hasher.update(");
+                self.output.push_str(
+                    "{ use sha2::Digest; let mut hasher = sha2::Sha256::new(); hasher.update(",
+                );
                 self.generate_expr(&method_call.args[0])?;
-                self.output.push_str(".as_bytes()); format!(\"{:x}\", hasher.finalize()) }");
+                self.output
+                    .push_str(".as_bytes()); format!(\"{:x}\", hasher.finalize()) }");
             }
             "md5" => {
                 // Crypto.md5(input) → String (hex)
@@ -15117,9 +15902,12 @@ impl CodeGenerator {
                         "Usage: Crypto.md5(input)",
                     )));
                 }
-                self.output.push_str("{ use md5::Digest; let mut hasher = md5::Md5::new(); hasher.update(");
+                self.output.push_str(
+                    "{ use md5::Digest; let mut hasher = md5::Md5::new(); hasher.update(",
+                );
                 self.generate_expr(&method_call.args[0])?;
-                self.output.push_str(".as_bytes()); format!(\"{:x}\", hasher.finalize()) }");
+                self.output
+                    .push_str(".as_bytes()); format!(\"{:x}\", hasher.finalize()) }");
             }
             "base64Encode" => {
                 // Crypto.base64Encode(input) → String
@@ -15130,7 +15918,9 @@ impl CodeGenerator {
                         "Usage: Crypto.base64Encode(input)",
                     )));
                 }
-                self.output.push_str("{ use base64::Engine; base64::engine::general_purpose::STANDARD.encode(");
+                self.output.push_str(
+                    "{ use base64::Engine; base64::engine::general_purpose::STANDARD.encode(",
+                );
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(".as_bytes()) }");
             }
@@ -15143,7 +15933,9 @@ impl CodeGenerator {
                         "Usage: Crypto.base64Decode(input)",
                     )));
                 }
-                self.output.push_str("{ use base64::Engine; match base64::engine::general_purpose::STANDARD.decode(");
+                self.output.push_str(
+                    "{ use base64::Engine; match base64::engine::general_purpose::STANDARD.decode(",
+                );
                 self.generate_expr(&method_call.args[0])?;
                 self.output.push_str(".as_bytes()) { Ok(bytes) => match String::from_utf8(bytes) { Ok(s) => (Some(s), String::new()), Err(e) => (None, format!(\"Crypto.base64Decode UTF-8 error: {}\", e)) }, Err(e) => (None, format!(\"Crypto.base64Decode error: {}\", e)) } }");
             }
@@ -15488,7 +16280,10 @@ impl CodeGenerator {
 
         // Optional chaining or default: expr?.field or default → expr.as_ref().map(...).unwrap_or(default)
         // Also handles option_value_vars: optVar or default → optVar.unwrap_or(default)
-        if matches!(op, BinOp::Or) && (matches!(left, Expr::OptionalChain { .. }) || matches!(left, Expr::Identifier(name) if self.option_value_vars.contains(&self.sanitize_name(name)))) {
+        if matches!(op, BinOp::Or)
+            && (matches!(left, Expr::OptionalChain { .. })
+                || matches!(left, Expr::Identifier(name) if self.option_value_vars.contains(&self.sanitize_name(name))))
+        {
             self.generate_expr(left)?;
             self.output.push_str(".unwrap_or(");
             if matches!(right, Expr::Literal(Literal::String(_))) {
@@ -15615,7 +16410,11 @@ impl CodeGenerator {
 
         // Special handling for ref_lambda_params: when comparing &T with T,
         // dereference the lambda param: *item == query (or *item > value, etc.)
-        if matches!(op, BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Gt | BinOp::Le | BinOp::Ge) && !self.ref_lambda_params.is_empty() {
+        if matches!(
+            op,
+            BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Gt | BinOp::Le | BinOp::Ge
+        ) && !self.ref_lambda_params.is_empty()
+        {
             let left_is_ref = if let Expr::Identifier(name) = left {
                 self.ref_lambda_params.contains(name)
             } else {
@@ -15698,8 +16497,10 @@ impl CodeGenerator {
                 Expr::Identifier(name) => self.float_vars.contains(name),
                 _ => false,
             };
-            let left_is_length = matches!(left, Expr::Member { property, .. } if property == "length");
-            let right_is_length = matches!(right, Expr::Member { property, .. } if property == "length");
+            let left_is_length =
+                matches!(left, Expr::Member { property, .. } if property == "length");
+            let right_is_length =
+                matches!(right, Expr::Member { property, .. } if property == "length");
 
             if (left_is_float && right_is_length) || (right_is_float && left_is_length) {
                 // Generate with f64 cast on the .length side
@@ -15752,10 +16553,7 @@ impl CodeGenerator {
         match expr {
             Expr::Literal(_) | Expr::Identifier(_) => false,
             // Member access, calls, method calls, and indexing bind tighter than any binop
-            Expr::Member { .. }
-            | Expr::Call(_)
-            | Expr::MethodCall(_)
-            | Expr::Index { .. } => false,
+            Expr::Member { .. } | Expr::Call(_) | Expr::MethodCall(_) | Expr::Index { .. } => false,
             Expr::Binary { op, .. } => {
                 // Parentheses needed if this expression has lower precedence than parent
                 self.binop_precedence(op) < self.binop_precedence(parent_op)
@@ -15780,7 +16578,10 @@ impl CodeGenerator {
     fn is_copy_var(&self, name: &str) -> bool {
         // If we know the variable's Liva type, check directly
         if let Some(type_name) = self.var_types.get(name) {
-            if matches!(type_name.as_str(), "int" | "float" | "number" | "bool" | "f32" | "f64") {
+            if matches!(
+                type_name.as_str(),
+                "int" | "float" | "number" | "bool" | "f32" | "f64"
+            ) {
                 return true;
             }
             // Check if it's a unit enum (Copy from FIX-5)
@@ -15805,7 +16606,8 @@ impl CodeGenerator {
                 return !variants.values().all(|fields| fields.is_empty());
             }
             // If it's in var_types and not a known Copy type, it's likely non-Copy
-            return !matches!(type_name.as_str(),
+            return !matches!(
+                type_name.as_str(),
                 "int" | "float" | "number" | "bool" | "f32" | "f64" | "i32" | "i64"
             );
         }
@@ -15861,15 +16663,24 @@ impl CodeGenerator {
     /// BUG-007: Detect `x != null` where x is an Option variable.
     /// Returns the sanitized variable name if this is a null-check on an Option var.
     fn extract_option_null_check(&self, condition: &Expr) -> Option<String> {
-        if let Expr::Binary { op: BinOp::Ne, left, right } = condition {
+        if let Expr::Binary {
+            op: BinOp::Ne,
+            left,
+            right,
+        } = condition
+        {
             // x != null → always generate if let Some(x) = x { ... }
             // Any variable compared to null is Optional by definition
-            if let (Expr::Identifier(name), Expr::Literal(Literal::Null)) = (left.as_ref(), right.as_ref()) {
+            if let (Expr::Identifier(name), Expr::Literal(Literal::Null)) =
+                (left.as_ref(), right.as_ref())
+            {
                 let sanitized = self.sanitize_name(name);
                 return Some(sanitized);
             }
             // null != x
-            if let (Expr::Literal(Literal::Null), Expr::Identifier(name)) = (left.as_ref(), right.as_ref()) {
+            if let (Expr::Literal(Literal::Null), Expr::Identifier(name)) =
+                (left.as_ref(), right.as_ref())
+            {
                 let sanitized = self.sanitize_name(name);
                 return Some(sanitized);
             }
@@ -15879,7 +16690,10 @@ impl CodeGenerator {
 
     fn is_option_returning_method(&self, expr: &Expr) -> bool {
         if let Expr::MethodCall(mc) = expr {
-            matches!(mc.method.as_str(), "find" | "first" | "last" | "min" | "max")
+            matches!(
+                mc.method.as_str(),
+                "find" | "first" | "last" | "min" | "max"
+            )
         } else {
             false
         }
@@ -15919,7 +16733,10 @@ impl CodeGenerator {
             }
             // Method call that returns Option<T>
             Expr::MethodCall(mc) => {
-                matches!(mc.method.as_str(), "find" | "first" | "last" | "min" | "max")
+                matches!(
+                    mc.method.as_str(),
+                    "find" | "first" | "last" | "min" | "max"
+                )
             }
             // Optional chaining already produces Option<T>
             Expr::OptionalChain { .. } => true,
@@ -15938,9 +16755,7 @@ impl CodeGenerator {
                 }
             }
             // B19 fix: Method calls can also be fallible
-            Expr::MethodCall(mc) => {
-                self.fallible_methods.contains(&mc.method)
-            }
+            Expr::MethodCall(mc) => self.fallible_methods.contains(&mc.method),
             Expr::Ternary {
                 condition: _,
                 then_expr,
@@ -16530,7 +17345,13 @@ impl CodeGenerator {
 
     fn sanitize_test_name(&self, name: &str) -> String {
         name.chars()
-            .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
+            .map(|c| {
+                if c.is_alphanumeric() || c == '_' {
+                    c
+                } else {
+                    '_'
+                }
+            })
             .collect::<String>()
             .to_lowercase()
     }
@@ -16784,7 +17605,11 @@ pub fn generate_multifile_project(
 }
 
 /// Generate Rust code for a single Liva module
-fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext, all_modules: &[&crate::module::Module]) -> Result<String> {
+fn generate_module_code(
+    module: &crate::module::Module,
+    ctx: &DesugarContext,
+    all_modules: &[&crate::module::Module],
+) -> Result<String> {
     let mut codegen = CodeGenerator::new(ctx.clone());
 
     // B06 fix: Pre-populate enum metadata so enum variants are recognized as
@@ -16799,22 +17624,33 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext, al
                 for variant in &enum_decl.variants {
                     let field_names: Vec<String> =
                         variant.fields.iter().map(|f| f.name.clone()).collect();
-                    let field_types: Vec<(String, TypeRef)> =
-                        variant.fields.iter().map(|f| (f.name.clone(), f.type_ref.clone())).collect();
+                    let field_types: Vec<(String, TypeRef)> = variant
+                        .fields
+                        .iter()
+                        .map(|f| (f.name.clone(), f.type_ref.clone()))
+                        .collect();
                     variants_map.insert(variant.name.clone(), field_names);
                     variants_type_map.insert(variant.name.clone(), field_types);
 
                     // Pre-populate optional fields per variant for Some() wrapping
-                    let variant_optionals: Vec<bool> = variant.fields.iter()
+                    let variant_optionals: Vec<bool> = variant
+                        .fields
+                        .iter()
                         .map(|f| matches!(&f.type_ref, TypeRef::Optional(_)))
                         .collect();
                     if variant_optionals.iter().any(|&o| o) {
                         let key = format!("{}::{}", enum_decl.name, variant.name);
-                        codegen.enum_variant_optionals.insert(key, variant_optionals);
+                        codegen
+                            .enum_variant_optionals
+                            .insert(key, variant_optionals);
                     }
                 }
-                codegen.enum_variants.insert(enum_decl.name.clone(), variants_map);
-                codegen.enum_variant_field_types.insert(enum_decl.name.clone(), variants_type_map);
+                codegen
+                    .enum_variants
+                    .insert(enum_decl.name.clone(), variants_map);
+                codegen
+                    .enum_variant_field_types
+                    .insert(enum_decl.name.clone(), variants_type_map);
 
                 // SH-006 fix: Pre-populate boxed_enum_fields for recursive enum auto-boxing
                 let mut boxed_fields_for_enum: std::collections::HashMap<
@@ -16832,7 +17668,8 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext, al
                     }
                 }
                 if !boxed_fields_for_enum.is_empty() {
-                    codegen.boxed_enum_fields
+                    codegen
+                        .boxed_enum_fields
                         .insert(enum_decl.name.clone(), boxed_fields_for_enum);
                 }
             }
@@ -16848,14 +17685,18 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext, al
                             TypeRef::Simple(name) => name.clone(),
                             _ => String::new(),
                         };
-                        codegen.array_returning_functions.insert(func.name.clone(), elem_type);
+                        codegen
+                            .array_returning_functions
+                            .insert(func.name.clone(), elem_type);
                     }
                     if matches!(ret_type, TypeRef::Simple(name) if name == "string") {
                         codegen.string_returning_functions.insert(func.name.clone());
                     }
                     // BUG-007: Track functions returning T? (Option<T>)
                     if matches!(ret_type, TypeRef::Optional(_)) {
-                        codegen.optional_returning_functions.insert(func.name.clone());
+                        codegen
+                            .optional_returning_functions
+                            .insert(func.name.clone());
                     }
                 }
             }
@@ -16888,9 +17729,13 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext, al
                     }
                 }
                 codegen.class_fields.insert(class.name.clone(), fields);
-                codegen.class_optional_fields.insert(class.name.clone(), optional_fields);
+                codegen
+                    .class_optional_fields
+                    .insert(class.name.clone(), optional_fields);
                 if !array_field_types.is_empty() {
-                    codegen.class_array_field_types.insert(class.name.clone(), array_field_types);
+                    codegen
+                        .class_array_field_types
+                        .insert(class.name.clone(), array_field_types);
                 }
 
                 for member in &class.members {
@@ -16908,7 +17753,9 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext, al
                                     TypeRef::Simple(name) => name.clone(),
                                     _ => String::new(),
                                 };
-                                codegen.array_returning_methods.insert(method.name.clone(), elem_type);
+                                codegen
+                                    .array_returning_methods
+                                    .insert(method.name.clone(), elem_type);
                             }
                         }
                     }
@@ -17015,9 +17862,7 @@ fn generate_module_code(module: &crate::module::Module, ctx: &DesugarContext, al
                 }
                 module_body.push('\n');
             }
-            TopLevel::UseRust(_)
-            | TopLevel::Test(_)
-            | TopLevel::ExprStmt(_) => {
+            TopLevel::UseRust(_) | TopLevel::Test(_) | TopLevel::ExprStmt(_) => {
                 // Reset codegen output for this item
                 codegen.output.clear();
                 codegen.generate_top_level(item)?;
@@ -17171,23 +18016,32 @@ fn generate_entry_point(
                 for variant in &enum_decl.variants {
                     let field_names: Vec<String> =
                         variant.fields.iter().map(|f| f.name.clone()).collect();
-                    let field_types: Vec<(String, TypeRef)> =
-                        variant.fields.iter().map(|f| (f.name.clone(), f.type_ref.clone())).collect();
+                    let field_types: Vec<(String, TypeRef)> = variant
+                        .fields
+                        .iter()
+                        .map(|f| (f.name.clone(), f.type_ref.clone()))
+                        .collect();
                     variants_map.insert(variant.name.clone(), field_names);
                     variants_type_map.insert(variant.name.clone(), field_types);
 
                     // Pre-populate optional fields per variant for Some() wrapping
-                    let variant_optionals: Vec<bool> = variant.fields.iter()
+                    let variant_optionals: Vec<bool> = variant
+                        .fields
+                        .iter()
                         .map(|f| matches!(&f.type_ref, TypeRef::Optional(_)))
                         .collect();
                     if variant_optionals.iter().any(|&o| o) {
                         let key = format!("{}::{}", enum_decl.name, variant.name);
-                        codegen.enum_variant_optionals.insert(key, variant_optionals);
+                        codegen
+                            .enum_variant_optionals
+                            .insert(key, variant_optionals);
                     }
                 }
-                codegen.enum_variants
+                codegen
+                    .enum_variants
                     .insert(enum_decl.name.clone(), variants_map);
-                codegen.enum_variant_field_types
+                codegen
+                    .enum_variant_field_types
                     .insert(enum_decl.name.clone(), variants_type_map);
 
                 // SH-006 fix: Pre-populate boxed_enum_fields for recursive enum auto-boxing
@@ -17206,7 +18060,8 @@ fn generate_entry_point(
                     }
                 }
                 if !boxed_fields_for_enum.is_empty() {
-                    codegen.boxed_enum_fields
+                    codegen
+                        .boxed_enum_fields
                         .insert(enum_decl.name.clone(), boxed_fields_for_enum);
                 }
             }
@@ -17223,14 +18078,18 @@ fn generate_entry_point(
                             TypeRef::Simple(name) => name.clone(),
                             _ => String::new(),
                         };
-                        codegen.array_returning_functions.insert(func.name.clone(), elem_type);
+                        codegen
+                            .array_returning_functions
+                            .insert(func.name.clone(), elem_type);
                     }
                     if matches!(ret_type, TypeRef::Simple(name) if name == "string") {
                         codegen.string_returning_functions.insert(func.name.clone());
                     }
                     // BUG-007: Track functions returning T? (Option<T>)
                     if matches!(ret_type, TypeRef::Optional(_)) {
-                        codegen.optional_returning_functions.insert(func.name.clone());
+                        codegen
+                            .optional_returning_functions
+                            .insert(func.name.clone());
                     }
                 }
             }
@@ -17244,8 +18103,7 @@ fn generate_entry_point(
                 for m2 in &class.members {
                     if let crate::ast::Member::Field(f) = m2 {
                         fields.insert(f.name.clone());
-                        if class.name == "TypeContext" {
-                        }
+                        if class.name == "TypeContext" {}
                         if f.is_optional || matches!(&f.type_ref, Some(TypeRef::Optional(_))) {
                             optional_fields.insert(f.name.clone());
                         }
@@ -17266,9 +18124,13 @@ fn generate_entry_point(
                     }
                 }
                 codegen.class_fields.insert(class.name.clone(), fields);
-                codegen.class_optional_fields.insert(class.name.clone(), optional_fields);
+                codegen
+                    .class_optional_fields
+                    .insert(class.name.clone(), optional_fields);
                 if !array_field_types.is_empty() {
-                    codegen.class_array_field_types.insert(class.name.clone(), array_field_types);
+                    codegen
+                        .class_array_field_types
+                        .insert(class.name.clone(), array_field_types);
                 }
 
                 for member in &class.members {
@@ -17286,7 +18148,9 @@ fn generate_entry_point(
                                     TypeRef::Simple(name) => name.clone(),
                                     _ => String::new(),
                                 };
-                                codegen.array_returning_methods.insert(method.name.clone(), elem_type);
+                                codegen
+                                    .array_returning_methods
+                                    .insert(method.name.clone(), elem_type);
                             }
                         }
                     }
@@ -17377,7 +18241,7 @@ pub fn generate_with_ast(program: &Program, ctx: DesugarContext) -> Result<(Stri
                 }
             }
         }
-        // B19 fix: Scan class methods for fallible (contains_fail) 
+        // B19 fix: Scan class methods for fallible (contains_fail)
         if let TopLevel::Class(class) = item {
             for member in &class.members {
                 if let Member::Method(method) = member {
@@ -17435,7 +18299,12 @@ pub fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
         feats.extend(user_features_for("tokio"));
         feats.dedup();
         let feats_str: Vec<String> = feats.iter().map(|f| format!("\"{}\"", f)).collect();
-        writeln!(cargo_toml, "tokio = {{ version = \"1\", features = [{}] }}", feats_str.join(", ")).unwrap();
+        writeln!(
+            cargo_toml,
+            "tokio = {{ version = \"1\", features = [{}] }}",
+            feats_str.join(", ")
+        )
+        .unwrap();
     }
 
     // Add serde and serde_json (serde needed for derive macros in Phase 2)
@@ -17444,7 +18313,12 @@ pub fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
         feats.extend(user_features_for("serde"));
         feats.dedup();
         let feats_str: Vec<String> = feats.iter().map(|f| format!("\"{}\"", f)).collect();
-        writeln!(cargo_toml, "serde = {{ version = \"1.0\", features = [{}] }}", feats_str.join(", ")).unwrap();
+        writeln!(
+            cargo_toml,
+            "serde = {{ version = \"1.0\", features = [{}] }}",
+            feats_str.join(", ")
+        )
+        .unwrap();
     }
     cargo_toml.push_str("serde_json = \"1.0\"\n");
 
@@ -17454,7 +18328,12 @@ pub fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
         feats.extend(user_features_for("reqwest"));
         feats.dedup();
         let feats_str: Vec<String> = feats.iter().map(|f| format!("\"{}\"", f)).collect();
-        writeln!(cargo_toml, "reqwest = {{ version = \"0.11\", default-features = false, features = [{}] }}", feats_str.join(", ")).unwrap();
+        writeln!(
+            cargo_toml,
+            "reqwest = {{ version = \"0.11\", default-features = false, features = [{}] }}",
+            feats_str.join(", ")
+        )
+        .unwrap();
     }
 
     if ctx.has_parallel {
@@ -17492,14 +18371,20 @@ pub fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
     for dep in &ctx.rust_crates {
         let crate_name = &dep.name;
         // Skip internal crates that are already added above
-        if crate_name == "tokio" || crate_name == "serde" || crate_name == "serde_json"
-            || crate_name == "reqwest" || crate_name == "rayon" || crate_name == "rand"
+        if crate_name == "tokio"
+            || crate_name == "serde"
+            || crate_name == "serde_json"
+            || crate_name == "reqwest"
+            || crate_name == "rayon"
+            || crate_name == "rand"
             || (crate_name == "chrono" && (ctx.has_logging || ctx.has_date))
             || (crate_name == "regex" && ctx.has_regex)
-            || ((crate_name == "sha2" || crate_name == "md-5" || crate_name == "base64") && ctx.has_crypto)
+            || ((crate_name == "sha2" || crate_name == "md-5" || crate_name == "base64")
+                && ctx.has_crypto)
             || (crate_name == "uuid" && ctx.has_random)
             || (crate_name == "axum" && ctx.has_server)
-            || (crate_name == "rusqlite" && ctx.has_db) {
+            || (crate_name == "rusqlite" && ctx.has_db)
+        {
             // For internal crates, only merge additional features
             if !dep.features.is_empty() {
                 // Already handled: user can add features to internal crates
@@ -17516,7 +18401,14 @@ pub fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
         } else {
             let ver = dep.version.as_deref().unwrap_or("*");
             let feats: Vec<String> = dep.features.iter().map(|f| format!("\"{}\"", f)).collect();
-            writeln!(cargo_toml, "{} = {{ version = \"{}\", features = [{}] }}", crate_name, ver, feats.join(", ")).unwrap();
+            writeln!(
+                cargo_toml,
+                "{} = {{ version = \"{}\", features = [{}] }}",
+                crate_name,
+                ver,
+                feats.join(", ")
+            )
+            .unwrap();
         }
     }
 

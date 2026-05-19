@@ -533,9 +533,13 @@ impl ModuleResolver {
             if src_path != owner_path {
                 if let Some(stem) = src_path.file_stem().and_then(|s| s.to_str()) {
                     let synth_source = format!("./{}", stem);
-                    let owner = self.modules.get_mut(&owner_path).expect("owner module must exist");
-                    let already_present = owner.imports.iter().any(|imp|
-                        imp.is_wildcard && imp.alias.is_none() && imp.source == synth_source);
+                    let owner = self
+                        .modules
+                        .get_mut(&owner_path)
+                        .expect("owner module must exist");
+                    let already_present = owner.imports.iter().any(|imp| {
+                        imp.is_wildcard && imp.alias.is_none() && imp.source == synth_source
+                    });
                     if !already_present {
                         let synth = ImportDecl {
                             source: synth_source,
@@ -549,7 +553,10 @@ impl ModuleResolver {
                 }
             }
 
-            let owner = self.modules.get_mut(&owner_path).expect("owner module must exist");
+            let owner = self
+                .modules
+                .get_mut(&owner_path)
+                .expect("owner module must exist");
             // Find the ClassDecl inside owner.
             let class = owner
                 .ast

@@ -28,7 +28,7 @@ pub struct DesugarContext {
     pub has_db: bool,                      // true if DB.* is used (rusqlite crate)
     pub async_functions: BTreeSet<String>, // Functions that are async (BTreeSet for deterministic order)
     #[serde(skip)]
-    pub source_filename: String,           // Source filename for error traces
+    pub source_filename: String, // Source filename for error traces
 }
 
 impl DesugarContext {

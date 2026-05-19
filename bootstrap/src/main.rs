@@ -171,7 +171,12 @@ async fn main() {
             let code = delegate_to_liva_tools(&["lsp".to_string()]);
             std::process::exit(code);
         }
-        Commands::Fmt { input, check, verbose, json: _json } => {
+        Commands::Fmt {
+            input,
+            check,
+            verbose,
+            json: _json,
+        } => {
             let mut args = vec!["fmt".to_string(), input.display().to_string()];
             if check {
                 args.push("--check".to_string());
@@ -182,7 +187,11 @@ async fn main() {
             let code = delegate_to_liva_tools(&args);
             std::process::exit(code);
         }
-        Commands::Test { input, filter, verbose } => {
+        Commands::Test {
+            input,
+            filter,
+            verbose,
+        } => {
             let exit_code = run_tests(input.as_ref(), filter.as_deref(), verbose);
             std::process::exit(exit_code);
         }
@@ -200,7 +209,13 @@ async fn main() {
                 handle_compile_error(args.json, e);
             }
         }
-        Commands::Build { input, output, verbose, release, json } => {
+        Commands::Build {
+            input,
+            output,
+            verbose,
+            release,
+            json,
+        } => {
             let args = CompileArgs {
                 output,
                 run: false,
@@ -214,7 +229,14 @@ async fn main() {
                 handle_compile_error(args.json, e);
             }
         }
-        Commands::Run { input, output, verbose, release, json, program_args } => {
+        Commands::Run {
+            input,
+            output,
+            verbose,
+            release,
+            json,
+            program_args,
+        } => {
             let args = CompileArgs {
                 output,
                 run: true,
@@ -305,8 +327,13 @@ fn run_init(name: &str) -> Result<(), Box<dyn std::error::Error>> {
         if name.contains(std::path::MAIN_SEPARATOR) || name.contains('/') || name.contains('\\') {
             return Err("Project name cannot contain path separators".into());
         }
-        if !name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
-            return Err("Project name can only contain letters, numbers, hyphens, and underscores".into());
+        if !name
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        {
+            return Err(
+                "Project name can only contain letters, numbers, hyphens, and underscores".into(),
+            );
         }
         let dir = PathBuf::from(name);
         if dir.exists() {
@@ -360,7 +387,11 @@ fn run_init(name: &str) -> Result<(), Box<dyn std::error::Error>> {
         println!("    {} tests/main.test.liva", "livac test".cyan());
     } else {
         println!("    {} {}/main.liva", "livac run".cyan(), display_name);
-        println!("    {} {}/tests/main.test.liva", "livac test".cyan(), display_name);
+        println!(
+            "    {} {}/tests/main.test.liva",
+            "livac test".cyan(),
+            display_name
+        );
     }
 
     Ok(())
@@ -767,7 +798,11 @@ async fn self_update() -> Result<(), Box<dyn std::error::Error>> {
     // 2. Detect platform
     let (os_name, arch) = detect_platform()?;
     let artifact_name = format!("livac-{}-{}", os_name, arch);
-    let ext = if os_name == "windows" { "zip" } else { "tar.gz" };
+    let ext = if os_name == "windows" {
+        "zip"
+    } else {
+        "tar.gz"
+    };
     let asset_name = format!("{}.{}", artifact_name, ext);
 
     // 3. Find the download URL
@@ -792,11 +827,7 @@ async fn self_update() -> Result<(), Box<dyn std::error::Error>> {
             )
         })?;
 
-    println!(
-        "{} Downloading {}...",
-        "→".blue(),
-        asset_name
-    );
+    println!("{} Downloading {}...", "→".blue(), asset_name);
 
     // 4. Download to temp file
     let tmp_dir = std::env::temp_dir().join("livac-update");
@@ -823,7 +854,12 @@ async fn self_update() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(&extract_dir)?;
 
     let status = Command::new("tar")
-        .args(["xzf", archive_path.to_str().unwrap(), "-C", extract_dir.to_str().unwrap()])
+        .args([
+            "xzf",
+            archive_path.to_str().unwrap(),
+            "-C",
+            extract_dir.to_str().unwrap(),
+        ])
         .status()?;
 
     if !status.success() {
@@ -837,11 +873,7 @@ async fn self_update() -> Result<(), Box<dyn std::error::Error>> {
 
     // 7. Replace current binary
     let current_exe = std::env::current_exe()?;
-    println!(
-        "{} Updating {}...",
-        "→".blue(),
-        current_exe.display()
-    );
+    println!("{} Updating {}...", "→".blue(), current_exe.display());
 
     // On Unix, we can't overwrite a running binary directly.
     // Strategy: rename old → .bak, copy new, delete .bak
@@ -1379,7 +1411,12 @@ fn compile(args: &CompileArgs, input: &PathBuf) -> Result<(), CompilerError> {
     }
 
     if !args.json {
-        println!("{}", format!("🧩 Liva Compiler v{}", env!("CARGO_PKG_VERSION")).cyan().bold());
+        println!(
+            "{}",
+            format!("🧩 Liva Compiler v{}", env!("CARGO_PKG_VERSION"))
+                .cyan()
+                .bold()
+        );
         println!("{} {}", "→ Compiling".green(), input.display());
     }
 
@@ -1468,11 +1505,13 @@ fn compile(args: &CompileArgs, input: &PathBuf) -> Result<(), CompilerError> {
             "→".blue()
         );
     } else {
-        println!("  {} Running cargo build{}...", "→".blue(), if args.release { " --release" } else { "" });
+        println!(
+            "  {} Running cargo build{}...",
+            "→".blue(),
+            if args.release { " --release" } else { "" }
+        );
         let mut cargo_cmd = Command::new("cargo");
-        cargo_cmd
-            .arg("build")
-            .arg("--color=always");
+        cargo_cmd.arg("build").arg("--color=always");
         if args.release {
             cargo_cmd.arg("--release");
         }

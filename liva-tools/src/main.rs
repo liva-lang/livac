@@ -45,7 +45,11 @@ enum Commands {
 fn main() -> ExitCode {
     let cli = Cli::parse();
     match cli.command {
-        Commands::Fmt { input, check, verbose } => match run_format(&input, check, verbose) {
+        Commands::Fmt {
+            input,
+            check,
+            verbose,
+        } => match run_format(&input, check, verbose) {
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => {
                 eprintln!("{} {}", "Error:".red().bold(), e);
