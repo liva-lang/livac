@@ -148,15 +148,53 @@ This reshapes F.1 into two sub-steps:
 - Removed `livac/src/liva_rt.rs` and the `pub mod liva_rt;` declaration in
   `lib.rs`. Build green, tests green, gen-2 ≡ gen-3.
 
-**F.1b — Extract the inline runtime to a real source file** (next slice)
-- Move the hardcoded `writeln!`-emitted runtime out of `codegen.rs` into
-  a standalone Rust source file (e.g. `livac/runtime/liva_rt.rs`).
-- Codegen embeds it via `include_str!(...)` instead of hundreds of
-  `self.writeln(...)` calls. Single source of truth, testable as Rust,
-  no string-escaping noise in `codegen.rs`.
-- Self-host codegen (`compiler/src/codegen_*.liva`) mirrors the same
-  pattern (read-file-at-build-time).
-- Net codegen LOC reduction: ~300–500 lines from `codegen.rs`.
+**F.1b — Extract the inline runtime to a real source file** ✅ DONE (2026-05-19)
+- Captured emitted `mod liva_rt { ... }` block (382 lines) from a hello-world
+  compile and stored as `livac/src/liva_rt_template.rs.in`. Replaced 652
+  `self.writeln(...)` lines in `codegen.rs` with a single
+  `self.output.push_str(include_str!("liva_rt_template.rs.in"))`.
+- `codegen.rs` shrank 18203 → 17552 LOC (-651). Emitted output is
+  **byte-identical** to before the refactor (verified by diff). 538 cargo
+  tests + 7/7 self-host gates green; gen-2 ≡ gen-3 idempotent.
+
+**F.1b-followup — Mirror in the Liva self-host** 🚧 BLOCKED (2026-05-19)
+
+Mirroring the same `include_str!` refactor in `compiler/src/codegen_generate.liva`
+requires two preconditions that don't yet exist:
+
+1. **Runtime parity gap**: the self-host currently emits a **strict subset**
+   of the runtime — only `Error`, `LivaHttpResponse`, and `JsonValueExt`
+   (~45 LOC of `_writeln` calls). The bootstrap emits ~382 LOC including
+   the full HTTP client, `JsonValue` wrapper, `spawn_async/spawn_parallel`,
+   `fire_async/fire_parallel`, `string_mul`, etc.
+   - Why current tests pass anyway: `selfhost_apps/*.liva` are
+     computational/data-structure programs that don't use HTTP / JSON
+     wrapper / spawn / string-mul features. None of the 21 apps trips the
+     gap.
+   - Why this blocks Phase F: once the bootstrap is cut, user programs
+     written against the documented stdlib (`Http.get`, `Json.parse`, etc.)
+     would fail to compile with gen-N. **The self-host must emit the same
+     runtime the bootstrap emits before the rope is cut.**
+
+2. **Liva lacks a compile-time file-inclusion primitive**. The bootstrap
+   uses Rust's `include_str!`, which has no equivalent in Liva. The
+   self-host has no multi-line string literal either (no `"""..."""`,
+   no backtick-strings — verified by grep). Three resolution paths:
+   - **L1.** Add a Liva builtin like `embedFile("path.txt")` returning
+     `string` at compile time. New compiler intrinsic; small slice.
+   - **L2.** Add multi-line string literals to Liva, then inline the
+     runtime as a const. Larger language change.
+   - **L3.** Read the template at compiler runtime via `File.read`,
+     resolving the path relative to the binary location. Fragile but
+     zero language change.
+
+**Recommended resolution order:**
+- Pick **L1** (add `embedFile` to Liva). It's a self-contained slice
+  worth maybe one session.
+- Port the full runtime emission from bootstrap to self-host using
+  `embedFile("liva_rt_template.rs.in")` — this also closes the
+  parity gap. Same template file serves both bootstrap and self-host.
+- After that, F.1b-followup is genuinely done and we can move to F.2.
 
 **F.1c — Publish `liva-rt` as a crate (deferred to v2.2+)**
 - Bumps D4 from R-4b to R-4a. Out of scope for v2.1 cut.
