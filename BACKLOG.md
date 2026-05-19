@@ -858,8 +858,45 @@ cargo test --release 528+).
       variantes documentadas en BUGS.md): switches sobre `Expr`/`IfBody`/
       `Stmt` desde free function, acceso de 2 niveles `e._typeCtx.X`,
       asignación `e._currentLine = ""`, llamada a `e._method()`. Quedan
-      como class methods hasta regenerar bootstrap. Próximo paso v2.1:
-      split de `codegen.liva` en módulos físicos.
+      como class methods hasta regenerar bootstrap.
+
+      **Cycle 65 (2026-05-19) — Cross-module split desbloqueado** ✅
+      Hasta ahora, todas las free functions `f(e: RustEmitter, ...)`
+      debían vivir en `codegen.liva` (el owner) porque los métodos
+      `extend RustEmitter` en otros archivos se hoistean a la `impl`
+      del owner, y rustc resolvía los helpers en el scope del archivo
+      del owner — no del módulo del `extend`. Fix end-to-end:
+      - `livac/src/module.rs`: el hoister de extensiones ahora trackea
+        el path origen de cada extend y **inyecta un import wildcard
+        sintético** (`use crate::ext_mod::*;`) en el owner cuando el
+        path difiere.
+      - `livac/src/codegen.rs`: emite `pub(crate)` para
+        `Visibility::Private` (antes `""`) para que los helpers sean
+        reachable cross-module dentro del crate.
+      - `compiler/src/main.liva` (self-host): misma lógica en
+        `hoistClassExtensions` — Map paralelo `pendingSources` por owner,
+        stems deduplicados, **sorteados alfabéticamente** para
+        determinismo, prepended como `TopLevel.Import(ImportDecl{...,
+        isWildcard: true})` antes de iterar items.
+
+      Primeros splits cross-module entregados:
+      - `emitTupleType`, `emitGenericType` → `codegen_type.liva`
+        (commit `1c6939b`).
+      - `buildParamType`, `buildReturnType` → `codegen_params.liva`;
+        `fieldNeedsDebug` → `codegen_class.liva`; `isIndexExprCopyType`
+        → `codegen_typequery.liva` (commit `b2a411a`).
+      - `warn`, `writeRaw`, `indent`, `dedent`, `writeIndent` inlinados
+        en sus wrappers `_method` (no consumidos fuera del owner) —
+        commit `f3332ca`.
+
+      `codegen.liva`: 750 → 668 LOC. 3-gen idempotente + 7/7 gates
+      verde en cada slice. 2 snapshots actualizados por el cambio
+      intencional `pub(crate)`.
+
+      **Próximo techo:** los helpers restantes en `codegen.liva`
+      (`generateRust`, `generateModuleRust`, `collectBorrowedParams`,
+      `inferArrowReturnType`) deben permanecer: son orquestadores o
+      están BS-FRAG-1-lock.
 
 - [ ] **A2.** ~~Consolidar los 25+ `Map<string, …>` dispersos en
       `EmitContext`.~~ **Diferido a v2.1** por el mismo bloqueo que A1

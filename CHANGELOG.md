@@ -12,6 +12,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] — post-rc1 work
 
 ### Added
+- **Cross-module `extend` helpers — synth wildcard imports** (Cycle 65,
+  commits `1c6939b`, `b2a411a`, `f3332ca`). Until now, every free helper
+  `f(e: RustEmitter, ...)` called from an `extend RustEmitter` block had
+  to live in the owner file (`codegen.liva`) because extension methods
+  get hoisted into the owner's `impl` and rustc resolved helpers in the
+  owner's module scope. Fix:
+  - **Bootstrap (`livac/src/module.rs`):** the extension hoister now
+    tracks the source path of every extension and injects a synthetic
+    `use crate::ext_module::*;` import into the owner module when paths
+    differ, so helpers defined alongside the `extend` block become
+    visible in the owner's `impl`.
+  - **Bootstrap (`livac/src/codegen.rs`):** `Visibility::Private` now
+    emits `pub(crate)` (was `""`) so cross-module helper calls within
+    the crate succeed.
+  - **Self-host (`compiler/src/main.liva`):** mirrors the same logic in
+    `hoistClassExtensions` — collects distinct source stems per owner
+    via a parallel `Map<string, [string]>`, **sorts alphabetically** to
+    keep emission deterministic, and prepends synthetic `ImportDecl{
+    isWildcard: true }` entries before iterating items.
+  - First splits landed: `emitTupleType` / `emitGenericType` →
+    `codegen_type.liva`; `buildParamType` / `buildReturnType` →
+    `codegen_params.liva`; `fieldNeedsDebug` → `codegen_class.liva`;
+    `isIndexExprCopyType` → `codegen_typequery.liva`. Writer primitives
+    (`warn`/`writeRaw`/`indent`/`dedent`/`writeIndent`) inlined into
+    their `_method` wrappers.
+  - `compiler/src/codegen.liva`: **750 → 668 LOC**. 3-gen idempotent
+    (source + binary) + 7/7 gates green at each slice. 2 snapshots
+    updated for the intentional `pub(crate)` change.
+
 - **`extend ClassName { ... }` — class extensions across files.** Lets a
   single class be defined in one owner file (fields + constructor + core
   methods) and have additional methods added from any other file via
