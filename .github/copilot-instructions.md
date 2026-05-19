@@ -6,7 +6,7 @@
 > **Tests:** 518 passing  
 > **Self-hosting:** Phase 7 idempotente; Phase 8 ✅; Phase 9 ✅ (9.1–9.6, 9.8, 9.9, 9.10 done; 9.7/9.11 absorbidos por Fase 10) — idempotencia gen-2≡gen-3 binario, bench oficial en `benchmarks/RESULTS.md`  
 > **Rama activa:** `feat/self-hosting-v2`  
-> **Estado:** **v2.0 al 100% — RELEASE READY** ✅ (2026-04-29). Fase 10 Tier 1 + Tier 2 (10.4) cerrados. Cycle 65 (2026-05-19) post-rc1: **cross-module `extend` helpers desbloqueados** vía synth wildcard imports (`livac/src/module.rs` + `compiler/src/main.liva`), `codegen.liva` 750 → 668 LOC con 7 helpers movidos / 5 inlinados. Fase C.1 (`extend` feature) ✅ DONE. Fase E (CI dual) ✅ DONE — `ci.yml` ejercita bootstrap + gen-2 en cada PR + nightly idempotency. **Phase F en curso**: F.1a/F.1b ✅ (`-1178` LOC), RC-4 string×N parity ✅ (df46862). Auditoría runtime APIs (2098aca) confirma que no hay convergencia bloqueante — F.runtime-conv dissolved; siguen F.2 (carve out liva-tools) → F.3..F.6.
+> **Estado:** **v2.1-rc — PHASE F NEARLY DONE** ✅ (2026-05-19). Phase F.1 (runtime carve-out) ✅, F.2 (liva-tools crate split) ✅, F.3 (`livac/src/` → `livac/bootstrap/src/`, Rust crate frozen) ✅, F.4 (`make livac` canonical build flow + idempotence) ✅, F.5 (CI/release workspace-aware + `cargo fmt --all` clean, ~3.1k LOC) ✅. Sólo queda F.6 (signed `v2.1.0` tag — espera autorización explícita del owner). Workspace: `bootstrap/` (livac-bootstrap, FROZEN), `liva-tools/` (formatter+linter+LSP), `compiler/` (self-host canónico). Rama activa `feat/self-hosting-v2`.
 > **Última actualización:** 2026-05-19
 
 ---

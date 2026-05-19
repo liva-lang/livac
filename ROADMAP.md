@@ -63,6 +63,23 @@ The roadmap is organized into focused phases:
 > Gauntlet 7/7 + ai/* 9/9 GREEN. Cycle 42 (modularización codegen.liva
 > en N archivos) pendiente.
 
+> **2026-05-19 — Phase F NEARLY DONE (v2.1 cut imminent)**
+> Five of six Phase F slices landed today on `feat/self-hosting-v2`:
+> - **F.1** ✅ runtime carve-out (dead code removal + `include_str!` template).
+> - **F.2** ✅ `liva-tools` crate split — formatter, linter, LSP server live
+>   in their own workspace member; `livac` binary subprocess-dispatches
+>   `fmt`/`lint`/`lsp` to it. ~5.2k LOC moved.
+> - **F.3** ✅ Rust bootstrap moved to `livac/bootstrap/`, package renamed
+>   `livac-bootstrap`, marked FROZEN. Workspace-only `livac/Cargo.toml`.
+> - **F.4** ✅ (partial) `make livac` orchestrates the canonical build:
+>   `cargo --workspace` → `rebuild_selfhost.sh` (gen-2 ≡ gen-3) → stage
+>   gen-2 at `target/livac-gen2-release`. Full user-facing swap deferred
+>   until self-host gains `Process.spawn_inherit()` for LSP stdio.
+> - **F.5** ✅ CI/release workflows are workspace-aware; `cargo fmt --all`
+>   clean across bootstrap + liva-tools.
+> - **F.6** ⏳ Only the signed `v2.1.0` tag remains. Awaiting explicit
+>   owner authorization (release act).
+>
 > **2026-04-30 — Decisión estratégica: v2.1 Self-Hosted Migration**
 > A partir de hoy el bootstrap Rust queda **CONGELADO** post-`ba7f263`.
 > Todo trabajo nuevo se hace sobre el compilador escrito en Liva

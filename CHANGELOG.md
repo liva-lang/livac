@@ -11,7 +11,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — post-rc1 work
 
-### Added
+### Added — Phase F (Rust bootstrap cut, v2.1)
+- **F.2 — `liva-tools` crate carve-out** (2026-05-19). Moved
+  formatter (2,367 LOC), linter (1,228 LOC) and LSP server (1,647 LOC)
+  out of the soon-to-be-frozen `livac` crate into a new workspace
+  member `liva-tools/` (lib + binary). The `livac` binary now
+  subprocess-dispatches `livac fmt|lint|lsp` to `liva-tools` via a
+  new `delegate_to_liva_tools()` helper that locates the sibling
+  binary on PATH, via `LIVA_TOOLS_BIN`, or next to `livac` itself.
+  This avoids a Cargo cycle (livac → liva-tools → livac lib) by
+  keeping the lib-side dependency dev-only. Generated `Cargo.toml`
+  (both bootstrap `codegen.rs` and self-host `codegen_cargo.liva`)
+  now emits a leading `[workspace]` table so test-build dirs created
+  inside the workspace don't fail with "current package not in
+  workspace". Validation: 7/7 self-host gates green, gen-2 ≡ gen-3.
+- **F.3 — Freeze Rust bootstrap under `bootstrap/`** (2026-05-19).
+  `git mv livac/{src,tests,Cargo.toml} -> livac/bootstrap/...`. The
+  package was renamed `livac` → `livac-bootstrap` (lib + bin still
+  named `livac` so dependents and `target/release/livac` stay stable).
+  `liva-tools` depends on `livac = { package = "livac-bootstrap",
+  path = "../bootstrap" }`. New workspace-only `livac/Cargo.toml`
+  carries the shared `[profile.release]`. Added `bootstrap/FROZEN.md`
+  documenting the "do not modify" contract. Updated 6 insta snapshots
+  for the F.2 codegen change.
+- **F.4 — `make livac` canonical build flow** (2026-05-19). Single
+  `make livac` target runs:
+  1. `cargo build --release --workspace` (livac-bootstrap + liva-tools),
+  2. `compiler/tests/rebuild_selfhost.sh` (gen-0 → gen-1 → gen-2 →
+     gen-3 with idempotence assertions),
+  3. Stages gen-2 at `target/livac-gen2-release` for every gate script.
+  Full user-facing replacement of `target/release/livac` by gen-2 is
+  deferred until the self-host gains `Process.spawn_inherit()` so it
+  can subprocess-dispatch `fmt/lint/lsp` to `liva-tools` (LSP needs
+  inherited stdio).
+- **F.5 — CI/release workflows workspace-aware** (2026-05-19). All
+  `cargo build/test/clippy/fmt` now use `--workspace` / `--all`.
+  `release.yml` version bump touches `bootstrap/Cargo.toml` +
+  `liva-tools/Cargo.toml` instead of the workspace root. Repo passes
+  `cargo fmt --all --check` after a one-shot reformat across
+  bootstrap + liva-tools (~3,100 lines, no semantic changes).
+
+### Added — pre-F.2
+
 - **Self-host runtime parity — `"x" * n` / `n * "x"`** (2026-05-19,
   F.runtime-conv slice RC-4). Self-host now intercepts `BinOp.Mul`
   with a string operand in `_emitBinary` (`codegen_binary.liva`) and

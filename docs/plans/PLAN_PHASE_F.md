@@ -240,7 +240,61 @@ requires two preconditions that don't yet exist:
 **F.1c — Publish `liva-rt` as a crate (deferred to v2.2+)**
 - Bumps D4 from R-4b to R-4a. Out of scope for v2.1 cut.
 
-### F.2 — Carve out `liva-tools` (1 PR)
+### F.2 — Carve out `liva-tools` (1 PR) ✅ DONE (2026-05-19)
+- Moved `formatter.rs`, `linter.rs`, `src/lsp/*` into `livac/liva-tools/src/`.
+- New `Cargo.toml` produces lib `liva_tools` + binary `liva-tools`.
+- `livac` binary dispatches `fmt`/`lint`/`lsp` to `liva-tools` via the new
+  `delegate_to_liva_tools()` helper in `bootstrap/src/main.rs`.
+- VS Code extension unaffected (still spawns the `livac` binary).
+- Generated `Cargo.toml` (bootstrap codegen.rs + self-host codegen_cargo.liva)
+  prefixes a `[workspace]` table so test-build dirs inside the livac
+  workspace don't fail.
+- Validation: 7/7 self-host gates; gen-2 ≡ gen-3.
+
+### F.3 — Freeze the bootstrap (1 PR) ✅ DONE (2026-05-19)
+- `git mv livac/{src,tests,Cargo.toml}` → `livac/bootstrap/...`.
+- New workspace-only `livac/Cargo.toml` (members = [bootstrap, liva-tools]).
+- Package renamed `livac` → `livac-bootstrap`; `[lib] name = "livac"` and
+  `[[bin]] name = "livac"` kept so `use livac::*` and the binary path
+  `target/release/livac` are unchanged.
+- `liva-tools` depends on
+  `livac = { package = "livac-bootstrap", path = "../bootstrap" }`.
+- Added `livac/bootstrap/FROZEN.md`.
+- Updated 6 insta codegen snapshots for the F.2 `[workspace]` codegen change.
+- Validation: 7/7 self-host gates; gen-2 ≡ gen-3.
+
+### F.4 — Make Liva-built binary the canonical `livac` (1 PR) ✅ DONE-PARTIAL (2026-05-19)
+- `make livac` orchestrates: `cargo build --release --workspace`
+  → `rebuild_selfhost.sh` (gen-0 → gen-1 → gen-2 → gen-3 + idempotence)
+  → stage gen-2 at `target/livac-gen2-release` for all gate scripts.
+- **Not yet swapped:** `target/release/livac` still resolves to the Rust
+  bootstrap. Replacing it with gen-2 requires the self-host's `main.liva`
+  to dispatch `fmt/lint/lsp` to `liva-tools` via a subprocess with
+  inherited stdio (LSP needs interactive stdin/stdout). Liva's current
+  `Process.exec()` captures stdout and discards exit codes — unsuitable
+  for LSP. Tracked as a v2.1 follow-up: add `Process.spawn_inherit()`
+  runtime helper + corresponding self-host CLI cases.
+
+### F.5 — CI rewire (1 PR) ✅ DONE (2026-05-19)
+- `.github/workflows/ci.yml`: `cargo build/test --workspace`,
+  `cargo clippy --workspace`, `cargo fmt --all --check` everywhere.
+- `.github/workflows/release.yml`: version bump now patches
+  `bootstrap/Cargo.toml` + `liva-tools/Cargo.toml` (workspace root has
+  no [package]); `cargo build --release --workspace --target ...`.
+- One-shot `cargo fmt --all` across bootstrap + liva-tools sources
+  (~3,100 lines, no semantic change) so the new fmt gate is green.
+- Deferred (not blocking v2.1 cut): per-path-filter `bootstrap-test`
+  job that only runs when `bootstrap/**` changes.
+
+### F.6 — Documentation + tag
+- ✅ Top-level workspace banner + `livac/.github/copilot-instructions.md`
+  updated for F.2–F.5 completion.
+- ✅ `CHANGELOG.md` Unreleased section documents F.2–F.5.
+- ✅ This plan marks F.2–F.5 done.
+- ⏳ Pending: `git tag v2.1.0 -s -m "Liva is fully self-hosted"`
+  (awaiting explicit owner authorization — signed tags are release acts).
+
+### F.2 (original) — Carve out `liva-tools` (1 PR)
 - Move `formatter.rs`, `linter.rs`, `src/lsp/*` into `livac/liva-tools/src/`.
 - New `Cargo.toml` produces binary `liva-tools`.
 - Modify CLI dispatch in self-host `main.liva` (and Rust `main.rs` while bootstrap
@@ -248,7 +302,7 @@ requires two preconditions that don't yet exist:
 - VS Code extension already configurable; update to invoke `liva-tools lsp` if
   `livac lsp` is unavailable.
 
-### F.3 — Freeze the bootstrap (1 PR)
+### F.3 (original) — Freeze the bootstrap (1 PR)
 - `git mv livac/src/ livac/bootstrap/src/`
 - `git mv livac/Cargo.toml livac/bootstrap/Cargo.toml`
 - Strip the workspace's top-level `Cargo.toml` of the `livac` package; keep a
@@ -256,14 +310,14 @@ requires two preconditions that don't yet exist:
 - Add `livac/bootstrap/FROZEN.md` (we already have `livac/src/FROZEN.md` for the
   codegen-side BS-FRAG fences — extend its scope).
 
-### F.4 — Make Liva-built binary the canonical `livac` (1 PR)
+### F.4 (original) — Make Liva-built binary the canonical `livac` (1 PR)
 - Update `Makefile` to define `make livac` per the build flow above.
 - Replace `target/release/livac` references in `compiler/tests/*.sh` and CI with
   the gen-2 path.
 - Add `compiler/tests/phaseF_smoke.sh` — runs `livac build`, `livac test`,
   `livac fmt`, `livac lint`, `livac lsp --probe` against the new layout.
 
-### F.5 — CI rewire (1 PR)
+### F.5 (original) — CI rewire (1 PR)
 - `.github/workflows/ci.yml`:
   - Drop the standalone `test` job (which built only the Rust bootstrap).
   - Replace with `bootstrap-test` (runs `cargo test -p livac-bootstrap`) **only when
