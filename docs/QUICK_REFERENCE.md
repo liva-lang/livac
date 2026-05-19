@@ -284,6 +284,26 @@ console.success("Done!")              // Green output to stdout
 
 ---
 
+## 10.5. `extend` — Split a Class Across Files
+
+```liva
+// shapes.liva
+Circle { radius: number; constructor(r: number) { this.radius = r } }
+
+// shapes_area.liva
+import { Circle } from "./shapes"
+extend Circle {
+    area(): number { return 3.14159 * this.radius * this.radius }
+}
+```
+
+- Methods only — no fields, no constructor in extensions.
+- Target class must be in scope (imported); unknown target → E0911.
+- Duplicate method names across base + extensions → E0912.
+- See [language-reference/class-extensions.md](language-reference/class-extensions.md).
+
+---
+
 ## 11. Type Alias Expansion
 
 Aliases expand inline at codegen — no Rust `type` declaration emitted.

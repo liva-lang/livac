@@ -99,3 +99,21 @@ project/
 ```
 
 Keep modules focused on a single responsibility. Keep dependency chains shallow (2–3 levels).
+
+## Splitting a Class Across Files
+
+For large classes (hundreds of methods), Liva supports `extend ClassName { ... }`:
+the owner module declares fields + constructor + core methods, and any other
+module that imports the class can add more methods via `extend`. The compiler
+merges them into a single `impl` at compile time.
+
+```liva
+// shapes.liva  — owner
+Circle { radius: number; constructor(r: number) { this.radius = r } }
+
+// shapes_area.liva  — extension
+import { Circle } from "./shapes"
+extend Circle { area(): number { return 3.14159 * this.radius * this.radius } }
+```
+
+See [class-extensions.md](./class-extensions.md) for the full reference.

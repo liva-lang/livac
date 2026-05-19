@@ -1240,12 +1240,13 @@ y tests LSP manuales — no representan gap real.
 - [ ] `TypeContext` centralizado (un solo struct con var_types, map_vars, array_vars, etc.) en lugar de HashMaps dispersos.
 - [ ] Tests unitarios por módulo en `compiler/tests/codegen_modules/`.
 
-### Fase C.1 — Class extensions (`extend Foo { }`) — feature de lenguaje 🆕
+### Fase C.1 — Class extensions (`extend Foo { }`) — feature de lenguaje ✅ DONE
 > **Motivación:** Modularizar `RustEmitter` (250+ métodos) sin sacarlos como free
 > functions (bloqueado por BS-FRAG-1). Permite declarar la misma clase en N
 > archivos: el "propietario" tiene campos+constructor+métodos básicos, los demás
 > añaden solo comportamiento (estilo Swift `extension` / Rust múltiples `impl`).
-> **Estado:** 🆕 propuesto 2026-05-14. Diseño cerrado, pendiente implementar.
+> **Estado:** ✅ entregado en `[Unreleased]` (CHANGELOG.md). Cycle 65 (2026-05-19)
+> cerró el último cabo: cross-module helpers vía synth wildcard imports.
 
 **Sintaxis acordada:**
 ```liva
@@ -1266,56 +1267,63 @@ extend RustEmitter {
 ```
 
 **Reglas:**
-- [ ] Nueva keyword `extend`.
-- [ ] Resolución del nombre por scope normal de imports (no búsqueda global).
-- [ ] Solo métodos en extensiones — **prohibido declarar campos** (estilo Swift/Rust).
-- [ ] Error semántico si el método ya está definido en la clase original o en otra extensión.
-- [ ] Cross-crate prohibido (orphan rules tipo Rust).
-- [ ] `this._campo` funciona normal — acceso completo a privados.
+- [x] Nueva keyword `extend`.
+- [x] Resolución del nombre por scope normal de imports (no búsqueda global).
+- [x] Solo métodos en extensiones — **prohibido declarar campos** (estilo Swift/Rust).
+- [x] Error semántico si el método ya está definido en la clase original o en otra extensión.
+- [x] Cross-crate prohibido (orphan rules tipo Rust).
+- [x] `this._campo` funciona normal — acceso completo a privados.
 
 **Plan de implementación (bootstrap Rust):**
-- [ ] Lexer: keyword `extend` (~5 líneas en `lexer.rs`).
-- [ ] AST: variante `TopLevel::ClassExtension { name, methods }` (~10 líneas).
-- [ ] Parser: parsear `extend Name { method+ }` (~40 líneas).
-- [ ] Semántico: pre-pass que fusiona extensiones con su `ClassInfo`, valida que
+- [x] Lexer: keyword `extend` (~5 líneas en `lexer.rs`).
+- [x] AST: variante `TopLevel::ClassExtension { name, methods }` (~10 líneas).
+- [x] Parser: parsear `extend Name { method+ }` (~40 líneas).
+- [x] Semántico: pre-pass que fusiona extensiones con su `ClassInfo`, valida que
       no hay campos en extensiones, no hay métodos duplicados, y la clase está
       en scope (~80 líneas).
-- [ ] Codegen: emitir `impl ClassName { /* métodos de la extensión */ }` por
-      cada `ClassExtension` (~20 líneas, Rust ya acepta múltiples `impl`).
-- [ ] Regression tests:
-  - `extend_basic.liva` — extend de la misma clase desde otro módulo, llama
-    correctamente.
-  - `extend_no_fields.liva` — error al declarar campo en extensión.
-  - `extend_no_duplicate_method.liva` — error al re-declarar método.
-  - `extend_not_imported.liva` — error si la clase no está en scope.
-  - `extend_multifile.liva` — 3+ archivos extendiendo la misma clase.
-- [ ] Docs:
-  - `docs/language-reference/class-extensions.md` (doc principal del feature).
-  - `docs/language-reference/classes-basics.md` — sección "Splitting a class
-    across files" con link.
-  - `docs/language-reference/modules.md` — párrafo sobre import-then-extend.
-  - `docs/language-reference/syntax-overview.md` — añadir `extend` a keywords.
-  - `docs/QUICK_REFERENCE.md` — entrada en la tabla de clases.
-  - `docs/ERROR_CODES.md` — códigos nuevos (E0905+).
-  - `docs/guides/module-best-practices.md` — sección "When to split a class".
-  - `docs/guides/style-guide.md` — convención de nombres de archivo (`mod.liva`
-    + `mod_X.liva`).
-- [ ] VS Code extension:
-  - `vscode-extension/snippets/liva.json` — snippet `extend`.
-  - `vscode-extension/syntaxes/liva.tmLanguage.json` — keyword highlight.
-- [ ] Skill portable:
-  - `skills/liva-lang/SKILL.md` — añadir al cheatsheet.
+- [x] Codegen: emitir `impl ClassName { /* métodos de la extensión */ }` por
+      cada `ClassExtension`. Implementado como hoisting pre-codegen en
+      `ModuleResolver` (ver `livac/src/module.rs`): los métodos de extensión
+      se fusionan en el `ClassDecl` propietario, así codegen sigue emitiendo
+      un solo `impl` (cero overhead).
+- [x] Regression tests:
+  - `tests/integration/proj_extend_basic/` — extend de la misma clase desde
+    3 archivos, llama correctamente (`test_extend_basic_integration`).
+  - `tests/integration/proj_extend_errors/main_field.liva` — E0910 (campos
+    prohibidos).
+  - `tests/integration/proj_extend_errors/main_ctor.liva` — E0913
+    (constructor prohibido).
+  - `tests/integration/proj_extend_errors/main_unknown.liva` — E0911
+    (clase no en scope).
+  - `tests/integration/proj_extend_errors/main_dup.liva` — E0912 (método
+    duplicado).
+  - `compiler/tests/multifile_apps/m7_extend/` — gate gen-2 con 3 archivos.
+- [x] Docs:
+  - [x] `docs/language-reference/class-extensions.md` (doc principal).
+  - [x] `docs/language-reference/classes-basics.md` — § "Splitting a class
+        across files" con link (2026-05-19).
+  - [x] `docs/language-reference/modules.md` — § "Splitting a Class Across
+        Files" (2026-05-19).
+  - [x] `docs/language-reference/syntax-overview.md` — `extend` en keywords
+        (2026-05-19).
+  - [x] `docs/QUICK_REFERENCE.md` — § 10.5 (2026-05-19).
+  - [x] `docs/ERROR_CODES.md` — códigos E0910–E0913.
+  - [ ] `docs/guides/module-best-practices.md` — sección "When to split a class".
+  - [ ] `docs/guides/style-guide.md` — convención de nombres de archivo (`mod.liva`
+        + `mod_X.liva`).
+- [x] VS Code extension:
+  - [x] `vscode-extension/snippets/liva.json` — snippet `extend`.
+  - [x] `vscode-extension/syntaxes/liva.tmLanguage.json` — keyword highlight.
+- [x] Skill portable:
+  - [x] `skills/liva-lang/SKILL.md` — añadido al cheatsheet (2026-05-19).
 
 **Tras aterrizar en el bootstrap:**
-- [ ] Regenerar `gen-1 → gen-2 → gen-3`.
-- [ ] Portar el cambio a self-host (parser/semántico/codegen en `compiler/src/*.liva`).
-- [ ] Modularizar `RustEmitter` de verdad — dividir el monolito de 10.500 líneas:
-  - `codegen.liva` — propietario, campos + constructor + métodos básicos
-    (~2-3k líneas).
-  - `codegen_emit_expr.liva` — extensión, `_emitExpr*` (~2-2.5k).
-  - `codegen_emit_stmt.liva` — extensión, `_emitStmt*` (~2k).
-  - `codegen_emit_type.liva` — extensión, `_emitType*` (~1.5k).
-  - `codegen_emit_class.liva` — extensión, `_emitClass*` (~2k).
+- [x] Regenerar `gen-1 → gen-2 → gen-3` (3-gen idempotente, src + bin).
+- [x] Portar el cambio a self-host (parser/semántico/codegen en `compiler/src/*.liva`).
+- [x] Modularizar `RustEmitter` de verdad — `codegen.liva` 10502 → 668 LOC vía
+      19 archivos `codegen_*.liva` con `extend RustEmitter`. Cross-module
+      helpers desbloqueados en Cycle 65 (commits `1c6939b`/`b2a411a`/`f3332ca`
+      en `feat/self-hosting-v2`).
 
 **LSP (puede ir más tarde):**
 - [ ] Workspace symbols mostrando `Foo (extension)` por archivo (~50 líneas).

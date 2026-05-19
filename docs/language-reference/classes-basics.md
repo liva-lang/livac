@@ -145,6 +145,14 @@ Circle {
 }
 ```
 
+## Splitting a Class Across Files
+
+Large classes can be split across multiple modules with `extend ClassName { ... }`.
+The owner module declares fields + constructor + core methods; other modules
+import the class and add more methods. The compiler merges everything into a
+single `impl`. See [class-extensions.md](./class-extensions.md) for the full
+reference and the four diagnostics (E0910–E0913) that guard misuse.
+
 ## Async Methods
 
 Methods are **automatically async** if they call async functions — no annotation needed:

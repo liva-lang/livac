@@ -304,7 +304,7 @@ continue  async     par       task      await
 fail      and       or        not       true      false
 this      constructor         enum      match     data
 describe  test      expect    use       import    export
-type      defer     rust
+type      defer     rust      extend
 ```
 
 ## Type Aliases

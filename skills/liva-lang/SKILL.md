@@ -171,6 +171,20 @@ let p = Point(10, 20)               // Auto constructor
 print(p == Point(10, 20))           // true (auto PartialEq)
 ```
 
+### Splitting a class across files (`extend`)
+
+```liva
+// shapes.liva  — owner
+Circle { radius: number; constructor(r: number) { this.radius = r } }
+
+// shapes_area.liva  — extension (methods only, no new fields)
+import { Circle } from "./shapes"
+extend Circle { area(): number { return 3.14159 * this.radius * this.radius } }
+```
+
+`extend` adds methods to an imported class. Fields and constructors stay in the
+owner module. Duplicates and unknown targets are compile errors (E0910–E0913).
+
 ## Enums
 
 ```liva
