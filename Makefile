@@ -1,13 +1,37 @@
-.PHONY: build test test-full clean install run fmt clippy doc examples skill help
+.PHONY: build build-bootstrap build-selfhost livac test test-full clean install run fmt clippy doc examples skill help
 
-# Default target
-all: build
+# Default target — produce the full release set:
+#   target/release/livac           Rust bootstrap (gen-0 seed; still the
+#                                  user-facing binary for now — dispatches
+#                                  fmt/lint/lsp to liva-tools)
+#   target/release/liva-tools      Rust developer tools (fmt/lint/lsp)
+#   target/livac-gen2-release      Liva-self-hosted gen-2 (canonical compiler
+#                                  reference, used by self-host test gates)
+# Idempotence (gen-2 ≡ gen-3) is verified by rebuild_selfhost.sh.
+all: livac
 
-# Build the compiler in release mode
-build:
-	@echo "🔨 Building Liva compiler..."
-	@cargo build --release
-	@echo "✓ Build complete: target/release/livac"
+# `make livac` post-Phase-F build flow:
+#   1. Build the Rust bootstrap + liva-tools (workspace build).
+#   2. Drive bootstrap -> gen-1 -> gen-2 -> gen-3 and assert idempotence.
+#   3. Stage gen-2 at target/livac-gen2-release for the gate scripts.
+livac: build-bootstrap build-selfhost
+
+# Step 1 — cargo workspace build (livac-bootstrap + liva-tools).
+build-bootstrap:
+	@echo "🔨 Building Rust bootstrap (livac-bootstrap + liva-tools)..."
+	@cargo build --release --workspace
+	@echo "✓ Bootstrap + tools at target/release/{livac,liva-tools}"
+
+# Step 2 — self-host gen-2 build + idempotence check via rebuild_selfhost.sh.
+# Stages gen-2 at target/livac-gen2-release so all run_all.sh gates pick it up.
+build-selfhost: build-bootstrap
+	@echo "🚀 Building self-host gen-2 (canonical Liva compiler)..."
+	@TMPDIR=$${TMPDIR:-/tmp} bash compiler/tests/rebuild_selfhost.sh
+	@cp $${TMPDIR:-/tmp}/gen2_build/target/release/main target/livac-gen2-release
+	@echo "✓ Canonical gen-2 staged at target/livac-gen2-release"
+
+# Compatibility alias for pre-F.4 muscle memory — Rust-only build.
+build: build-bootstrap
 
 # Build in debug mode
 debug:
