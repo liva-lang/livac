@@ -40,7 +40,6 @@ pub mod formatter;
 pub mod hints;
 pub mod lexer;
 pub mod linter;
-pub mod liva_rt;
 pub mod lsp;
 pub mod module;
 pub mod parser;

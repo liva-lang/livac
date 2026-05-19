@@ -135,12 +135,31 @@ After Phase F, only steps 2–4 run in CI on PRs; step 1 only when `bootstrap/` 
 ## Execution roadmap (assuming D1=A, D2=F-2b, D3=T-3a, D4=R-4b)
 
 ### F.1 — Carve out `liva-rt` (1 PR)
-- Move `livac/src/liva_rt.rs` to `livac/liva-rt/src/lib.rs`.
-- New `Cargo.toml` for `liva-rt`.
-- Update both bootstrap codegen (`livac/src/codegen.rs`) **and** self-host
-  (`compiler/src/codegen_cargo.liva` / `codegen_generate.liva`) to emit a path-dep
-  pointing at the new location.
-- Verify gen-2 ≡ gen-3.
+
+**Discovery (2026-05-19):** The bootstrap's `livac/src/liva_rt.rs` (527 LOC)
+was **dead code**. The "real" runtime is **inline-emitted** as string-writes
+in `codegen.rs:1912+` (`self.writeln("mod liva_rt {")` followed by hundreds
+of `writeln` calls). The dead file was removed and the bootstrap rebuilt
+cleanly (commit `<TBD>`, 531 cargo tests + 7/7 self-host gates green).
+
+This reshapes F.1 into two sub-steps:
+
+**F.1a — Dead-code cleanup** ✅ DONE (2026-05-19)
+- Removed `livac/src/liva_rt.rs` and the `pub mod liva_rt;` declaration in
+  `lib.rs`. Build green, tests green, gen-2 ≡ gen-3.
+
+**F.1b — Extract the inline runtime to a real source file** (next slice)
+- Move the hardcoded `writeln!`-emitted runtime out of `codegen.rs` into
+  a standalone Rust source file (e.g. `livac/runtime/liva_rt.rs`).
+- Codegen embeds it via `include_str!(...)` instead of hundreds of
+  `self.writeln(...)` calls. Single source of truth, testable as Rust,
+  no string-escaping noise in `codegen.rs`.
+- Self-host codegen (`compiler/src/codegen_*.liva`) mirrors the same
+  pattern (read-file-at-build-time).
+- Net codegen LOC reduction: ~300–500 lines from `codegen.rs`.
+
+**F.1c — Publish `liva-rt` as a crate (deferred to v2.2+)**
+- Bumps D4 from R-4b to R-4a. Out of scope for v2.1 cut.
 
 ### F.2 — Carve out `liva-tools` (1 PR)
 - Move `formatter.rs`, `linter.rs`, `src/lsp/*` into `livac/liva-tools/src/`.
