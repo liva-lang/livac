@@ -134,33 +134,28 @@ After Phase F, only steps 2–4 run in CI on PRs; step 1 only when `bootstrap/` 
 
 ## Execution roadmap (assuming D1=A, D2=F-2b, D3=T-3a, D4=R-4b)
 
-> **2026-05-19 update:** the order below was the initial proposal. After
-> discovering the runtime-API divergence between bootstrap and self-host
-> (see F.1b-followup notes), a new `F.runtime-conv` milestone has been
-> inserted **before** F.2. The new order is: F.1 → **F.runtime-conv**
-> → F.2 → F.3 → F.4 → F.5 → F.6.
-
-### F.runtime-conv — Converge runtime APIs (NEW, blocking)
-
-Picks the bootstrap's runtime API as canonical (it matches the
-documented stdlib semantics user code depends on) and rewrites
-`compiler/src/codegen_generate.liva` to emit the same API.
-
-Sub-slices:
-- **conv-1.** `JsonValue` wrapper struct + method names (`.as_i32`,
-  `.as_f64`, `.get`, `.get_field`, `.length`).
-- **conv-2.** `liva_http_get/post/put/delete` free functions on top of
-  reqwest, matching the bootstrap signatures.
-- **conv-3.** `spawn_async`, `spawn_parallel`, `fire_async`,
-  `fire_parallel`.
-- **conv-4.** `string_mul` and `StringOrInt` trait.
-
-Each sub-slice: codegen change + selfhost compiles a probe program
-that uses the feature + 7/7 gates green + gen-2 ≡ gen-3.
-
-Once F.runtime-conv is done, F.1b-followup becomes trivially solvable
-by either L1 (`embedFile()` builtin) or by mechanical line-by-line
-translation of the now-aligned template.
+> **2026-05-19 update (revised after audit):** the original 2026-05-19
+> morning analysis flagged "runtime API divergence" as a multi-PR
+> blocker requiring an entire F.runtime-conv milestone. An audit later
+> the same day **invalidated that hypothesis**:
+>
+> - RC-1 (JsonValue): bootstrap actually has a bug (emits `.as_int()`
+>   on a struct that only exposes `.as_i32()`); self-host's
+>   `JsonValueExt` works correctly. Self-host wins, no convergence
+>   needed.
+> - RC-2 (HTTP): self-host emits `reqwest::blocking::get(...)` inline
+>   at call sites instead of as runtime helpers. Both compile + run
+>   `Http.get(...)` correctly. Different strategy, same outcome.
+> - RC-3 (spawn/fire): same — self-host uses `tokio::spawn(...)`
+>   inline with await-aware analysis. No gap.
+> - RC-4 (string×N): real gap, **closed in commit `df46862`** via
+>   `.repeat((n) as usize)` codegen interception.
+> - RC-5 (Cargo.toml deps): conditional emission in self-host is
+>   actually preferable (smaller binaries). No action needed.
+>
+> **Net: Phase F is NOT blocked on runtime convergence.** F.1
+> (carve out runtime) is complete. The remaining roadmap is F.2..F.6
+> exactly as originally proposed.
 
 ### F.1 — Carve out `liva-rt` (1 PR)
 

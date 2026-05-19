@@ -144,20 +144,28 @@ Items sólo presentes en bootstrap pero útiles:
 ## Tier 6 — Runtime emission API divergence (F.runtime-conv, 2026-05-19)
 
 Hallazgo durante F.1b investigation: bootstrap y self-host emiten
-runtimes con **APIs estructuralmente distintas**, no solo de distinto
-tamaño. Esto es el gap real que bloquea Phase F (cut the bootstrap).
+runtimes con estructuras internas distintas. Auditoría 2026-05-19
+mostró que **la divergencia es real pero menos problemática de lo
+asumido**: en la mayoría de slices el self-host iguala o supera al
+bootstrap en funcionalidad observable.
 
 | ID | Estado | Prio | Descripción |
 |----|--------|------|-------------|
-| RC-1 JsonValue | ⏳ | 🔶 | Bootstrap emite `struct JsonValue(serde_json::Value)` con `.as_i32()/.as_f64()/.as_string()/.get_field()/.length()`; self-host emite `trait JsonValueExt for serde_json::Value` con `.as_int()/.as_float()/.as_string()/.as_array_owned()`. Nombres y return types incompatibles. Decisión: convergir a la API camelCase de Liva (`.asInt()`, `.asString()`, etc.) y rehacer **ambas** emisiones. Multi-PR. |
-| RC-2 HTTP funcs | ⏳ | 🔶 | Bootstrap emite `liva_http_get/post/put/delete` + `liva_http_request` (con reqwest, 30s timeout). Self-host emite solo el `LivaHttpResponse` struct, ningún cliente. Para que `Http.get(url)` funcione bajo gen-N hace falta portar las funciones. |
-| RC-3 spawn/fire | ✅ | 🔶 | Bootstrap emite `spawn_async/spawn_parallel/fire_async/fire_parallel`. Self-host emite `tokio::spawn(...)` directo con análisis de await. **No es un gap funcional** — paths distintos, ambos correctos. Documentado, no requiere acción. |
-| RC-4 string\*N | ✅ | 🔶 | Bootstrap emite `liva_rt::string_mul(s, n)` (con trait `StringOrInt` para coerción). Self-host emitía `String * i32` (E0369). **CERRADO 2026-05-19**: self-host ahora intercepta `BinOp.Mul` con operando string y emite `<str>.repeat((n) as usize)` directamente — sin runtime helper. Test: `compiler/tests/regression/string_mul_gen2.liva` (3 casos: `"ab" * 3`, `2 * "xy"`, `"-" * n` con var). |
-| RC-5 Cargo.toml deps | 🔶 | 🔷 | Bootstrap emite tokio + serde_json + reqwest **siempre** (porque su runtime full los necesita). Self-host emite tokio/serde_json/reqwest **condicionalmente** (basado en `usesAsync`/`usesHttpClient` flags). Si RC-2 se cierra, las deps del self-host pasarán a ser unconditional también. |
+| RC-1 JsonValue | ✅ | 🔶 | Bootstrap emite `struct JsonValue(serde_json::Value)` con `.as_i32()/.as_f64()/.as_string()`; self-host emite `trait JsonValueExt for serde_json::Value` con `.as_int()/.as_float()/.as_string()`. **Hallazgo 2026-05-19**: bootstrap tiene **bug** — el `to_snake_case` de codegen baja `.asInt()` (Liva) a `.as_int()` (Rust), pero el wrapper sólo expone `.as_i32()`. Self-host la emite consistente porque `JsonValueExt` sí define `.as_int()`. **Self-host wins**, no necesita converger. Probe `JSON.parse + .asInt/.asString/.asFloat`: gen-2 compila + corre OK, bootstrap E0599. |
+| RC-2 HTTP funcs | ✅ | 🔶 | Bootstrap emite `liva_http_get/post/put/delete` (con `reqwest` async + tokio + 30s timeout) **en el módulo de runtime**. Self-host emite el match `reqwest::blocking::get(&__url) { ... }` **inline en el call site** (estrategia distinta, no requiere runtime helper). **Ambas funcionan** — probado con `Http.get("https://example.com")` bajo gen-2: cargo build OK + status 200. **No es un gap funcional**. |
+| RC-3 spawn/fire | ✅ | 🔶 | Bootstrap emite `spawn_async/spawn_parallel/fire_async/fire_parallel` como funciones de runtime. Self-host emite `tokio::spawn(async move { ... })` inline con análisis de await transitivo (Cycles 16/32/35). Mismo outcome, paths distintos. **No es un gap funcional.** |
+| RC-4 string×N | ✅ | 🔶 | Bootstrap emite `liva_rt::string_mul(s, n)` (con trait `StringOrInt`). Self-host emitía `String * i32` (E0369). **CERRADO 2026-05-19**: `_emitBinary` ahora intercepta `BinOp.Mul` con string + emite `<str>.repeat((n) as usize)`. Test: `compiler/tests/regression/string_mul_gen2.liva` (3 casos). |
+| RC-5 Cargo.toml deps | 🔶 | 🔷 | Bootstrap emite tokio + serde + serde_json + reqwest **siempre**. Self-host las emite **condicionalmente** vía flags (`usesAsync`/`usesHttpClient`). Esto **es deseable** (binarios más pequeños cuando no se usan); no requiere acción. |
 
-> **Prerequisito Phase F (cut the bootstrap):** RC-1 + RC-2 deben cerrarse
-> antes de que gen-N sea seguro como compilador canónico. RC-5 se
-> resuelve automáticamente como side-effect de RC-2.
+> **Reevaluación Phase F (2026-05-19):** la hipótesis inicial de que
+> "el self-host emite un runtime estructuralmente incompleto" resultó
+> exagerada. Sólo RC-4 era un gap funcional real; los demás son
+> estrategias de implementación distintas pero equivalentes (o, en el
+> caso de RC-1, el self-host es **más correcto** que el bootstrap
+> congelado). **Phase F (cut the bootstrap) no está bloqueado por
+> convergencia de runtime APIs** — está bloqueado por las tareas de
+> F.2..F.6 (carve out `liva-tools`, congelar bootstrap, rewire CI,
+> tag v2.1).
 
 ---
 
