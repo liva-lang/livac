@@ -1,16 +1,16 @@
 ---
-source: tests/codegen_tests.rs
+source: bootstrap/tests/codegen_tests.rs
 expression: cargo_toml
 ---
+[workspace]
+
 [package]
 name = "liva_project"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["full", "net", "io-util"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
-chrono = "0.4"
-uuid = { version = "1.0", features = ["v4", "serde"] }

@@ -1,7 +1,9 @@
 ---
-source: tests/codegen_tests.rs
+source: bootstrap/tests/codegen_tests.rs
 expression: cargo_toml
 ---
+[workspace]
+
 [package]
 name = "liva_project"
 version = "0.1.0"

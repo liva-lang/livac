@@ -18,7 +18,8 @@ path = "src/main.rs"
 
 [dependencies]
 # Liva compiler (lib) — needed for AST, lexer, parser, semantic, error, span
-livac = { path = ".." }
+# Provided by the frozen Rust bootstrap (post Phase F.3).
+livac = { package = "livac-bootstrap", path = "../bootstrap" }
 
 # Shared
 serde = { version = "1.0", features = ["derive"] }
