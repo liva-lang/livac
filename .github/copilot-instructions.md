@@ -6,7 +6,7 @@
 > **Tests:** 518 passing  
 > **Self-hosting:** Phase 7 idempotente; Phase 8 ✅; Phase 9 ✅ (9.1–9.6, 9.8, 9.9, 9.10 done; 9.7/9.11 absorbidos por Fase 10) — idempotencia gen-2≡gen-3 binario, bench oficial en `benchmarks/RESULTS.md`  
 > **Rama activa:** `feat/self-hosting-v2`  
-> **Estado:** **v2.0 al 100% — RELEASE READY** ✅ (2026-04-29). Fase 10 Tier 1 + Tier 2 (10.4) cerrados. Cycle 65 (2026-05-19) post-rc1: **cross-module `extend` helpers desbloqueados** vía synth wildcard imports (`livac/src/module.rs` + `compiler/src/main.liva`), `codegen.liva` 750 → 668 LOC con 7 helpers movidos / 5 inlinados. Fase C.1 (`extend` feature) ✅ DONE. Fase E (CI dual) ✅ DONE — `ci.yml` ejercita bootstrap + gen-2 en cada PR + nightly idempotency. **Sigue abierta solo Fase F (cortar la cuerda Rust → v2.1).**
+> **Estado:** **v2.0 al 100% — RELEASE READY** ✅ (2026-04-29). Fase 10 Tier 1 + Tier 2 (10.4) cerrados. Cycle 65 (2026-05-19) post-rc1: **cross-module `extend` helpers desbloqueados** vía synth wildcard imports (`livac/src/module.rs` + `compiler/src/main.liva`), `codegen.liva` 750 → 668 LOC con 7 helpers movidos / 5 inlinados. Fase C.1 (`extend` feature) ✅ DONE. Fase E (CI dual) ✅ DONE — `ci.yml` ejercita bootstrap + gen-2 en cada PR + nightly idempotency. **Phase F en curso**: F.1a/F.1b ✅ (`-1178` LOC), RC-4 string×N parity ✅ (df46862). Auditoría runtime APIs (2098aca) confirma que no hay convergencia bloqueante — F.runtime-conv dissolved; siguen F.2 (carve out liva-tools) → F.3..F.6.
 > **Última actualización:** 2026-05-19
 
 ---
